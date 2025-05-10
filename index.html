@@ -200,7 +200,6 @@
 
   <script>
     function generateMetadata(config) {
-      const timestamp = new Date().toISOString();
       const apiPayload = {
         model: config.model || 'venice-sd35',
         prompt: config.prompt,
@@ -217,17 +216,87 @@
       const metadata = {
         'Project_ID:': config.projectId || 'default',
         'Prompt:': config.prompt,
-        'Model:': config.model,
+        'Model:': config.model || 'venice-sd35',
         'Height:': config.height || 1024,
         'Width:': config.width || 1024,
         'Steps:': config.steps || 30,
         'Seed:': Math.floor(Math.random() * 999999999),
         'CFG_Scale:': config.cfg_scale || 7,
         'Negative_Prompt:': config.negative_prompt || '',
-        'Global_Hash:': btoa(JSON.stringify(config)).slice(0, 32),
+        'Global_Hash:': btoa(JSON.stringify(apiPayload)).slice(0, 32),
         'API_Call:': JSON.stringify(apiPayload, null, 2)
       };
+
       return metadata;
+    }
+
+    async function processImage(config) {
+      try {
+        const apiPayload = {
+          model: config.model || 'venice-sd35',
+          prompt: config.prompt,
+          width: config.width || 1024,
+          height: config.height || 1024,
+          steps: config.steps || 30,
+          hide_watermark: true,
+          safe_mode: false,
+          return_binary: true,
+          cfg_scale: config.cfg_scale || 7,
+          format: 'png'
+        };
+
+        const response = await fetch('https://api.venice.ai/api/v1/image/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`
+          },
+          body: JSON.stringify(apiPayload)
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        const imageUrl = URL.createObjectURL(blob);
+        const metadata = generateMetadata(config);
+
+        const imageContainer = document.createElement('div');
+        imageContainer.className = 'bg-white rounded-lg shadow-lg p-4';
+        
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.className = 'w-full h-auto rounded-lg mb-4';
+        
+        const metadataContainer = document.createElement('div');
+        metadataContainer.className = 'text-sm space-y-1 font-mono';
+        
+        Object.entries(metadata).forEach(([key, value]) => {
+          const row = document.createElement('div');
+          row.className = 'grid grid-cols-3 gap-2';
+          
+          const keySpan = document.createElement('span');
+          keySpan.className = 'font-medium col-span-1';
+          keySpan.textContent = key;
+          
+          const valueSpan = document.createElement('span');
+          valueSpan.className = 'col-span-2 whitespace-pre-wrap';
+          valueSpan.textContent = value;
+          
+          row.appendChild(keySpan);
+          row.appendChild(valueSpan);
+          metadataContainer.appendChild(row);
+        });
+
+        imageContainer.appendChild(img);
+        imageContainer.appendChild(metadataContainer);
+        imageGrid.appendChild(imageContainer);
+
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error generating image: ' + error.message);
+      }
     }
 
     const tabs = document.querySelectorAll('[data-tab]');
@@ -265,75 +334,6 @@
       progressBar.style.width = `${percent}%`;
       progressText.textContent = `Processing image ${current + 1} of ${total}`;
       progressPercent.textContent = `${percent}%`;
-    }
-
-    async function processImage(config) {
-      try {
-        const response = await fetch('https://api.venice.ai/api/v1/image/generate', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.apiKey}`
-          },
-          body: JSON.stringify({
-            model: config.model || 'venice-sd35',
-            prompt: config.prompt,
-            width: config.width || 1024,
-            height: config.height || 1024,
-            steps: config.steps || 30,
-            hide_watermark: true,
-            safe_mode: false,
-            return_binary: true,
-            cfg_scale: config.cfg_scale || 7,
-            format: 'png'
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const blob = await response.blob();
-        const imageUrl = URL.createObjectURL(blob);
-        const metadata = generateMetadata(config);
-
-        const imageContainer = document.createElement('div');
-        imageContainer.className = 'bg-white rounded-lg shadow-lg p-4';
-        
-        const img = document.createElement('img');
-        img.src = imageUrl;
-        img.className = 'w-full h-auto rounded-lg mb-4';
-        
-        const metadataContainer = document.createElement('div');
-        metadataContainer.className = 'text-sm space-y-1';
-        
-        Object.entries(metadata).forEach(([key, value]) => {
-          if (key !== 'API_Payload:') {
-            const row = document.createElement('div');
-            row.className = 'grid grid-cols-3';
-            
-            const keySpan = document.createElement('span');
-            keySpan.className = 'font-medium col-span-1';
-            keySpan.textContent = key;
-            
-            const valueSpan = document.createElement('span');
-            valueSpan.className = 'col-span-2';
-            valueSpan.textContent = value;
-            
-            row.appendChild(keySpan);
-            row.appendChild(valueSpan);
-            metadataContainer.appendChild(row);
-          }
-        });
-
-        imageContainer.appendChild(img);
-        imageContainer.appendChild(metadataContainer);
-        imageGrid.appendChild(imageContainer);
-
-      } catch (error) {
-        console.error('Error:', error);
-        alert('Error generating image: ' + error.message);
-      }
     }
 
     document.getElementById('generate').addEventListener('click', async () => {
