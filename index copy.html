@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Venice AI Image Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #f3f4f6;
+      min-height: 100vh;
+      margin: 0;
+      padding: 1rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .step-hidden {
+      display: none !important;
+    }
+    
+    .download-btn {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background-color: rgba(14, 165, 233, 0.9);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .image-container:hover .download-btn {
+      opacity: 1;
+    }
+
+    .image-container {
+      position: relative;
+      overflow: hidden;
+      border-radius: 8px;
+      background-color: #f3f4f6;
+      aspect-ratio: 1;
+    }
+
+    .generated-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      border-radius: 8px;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background-color: #e5e7eb;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background-color: #3b82f6;
+      transition: width 0.3s ease;
+    }
+
+    .log-entry {
+      padding: 8px;
+      margin-bottom: 4px;
+      border-radius: 4px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f4f6;
+      border-top: 4px solid #3b82f6;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      background-color: rgba(255, 255, 255, 0.9);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 1rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .loading-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .tab-active {
+      border-bottom: 2px solid #3b82f6;
+      color: #3b82f6;
+    }
+
+    .input-group {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s ease;
+      display: none;
+    }
+
+    .input-group.active {
+      opacity: 1;
+      transform: translateY(0);
+      display: block;
+    }
+
+    .drag-drop-zone {
+      border: 2px dashed #e5e7eb;
+      transition: all 0.3s ease;
+    }
+
+    .drag-drop-zone.drag-over {
+      border-color: #3b82f6;
+      background-color: #eff6ff;
+    }
+
+    .csv-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+
+    .csv-table th,
+    .csv-table td {
+      border: 1px solid #e5e7eb;
+      padding: 8px;
+      text-align: left;
+    }
+
+    .csv-table th {
+      background-color: #f8fafc;
+    }
+
+    .csv-table td input {
+      width: 100%;
+      padding: 4px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .csv-table td input:focus {
+      border-color: #3b82f6;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+    }
+
+    .back-btn {
+      position: fixed;
+      top: 1rem;
+      left: 1rem;
+      z-index: 50;
+    }
+  </style>
+</head>
+<body>
+  <button id="backButton" class="back-btn bg-white px-4 py-2 rounded-lg shadow-md hover:bg-gray-50 transition-colors step-hidden">
+    ← Back
+  </button>
+
+  <div class="container">
+    <div id="inputMethods" class="bg-white rounded-lg shadow-lg p-8 mb-8">
+      <h2 class="text-2xl font-bold mb-6">Venice AI Image Generator</h2>
+      
+      <div class="flex border-b mb-6">
+        <button class="px-4 py-2 tab-active" data-tab="prompt">Text Prompt</button>
+        <button class="px-4 py-2" data-tab="csv">CSV Upload</button>
+        <button class="px-4 py-2" data-tab="api">API Call</button>
+      </div>
+
+      <div id="promptInput" class="input-group active">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2" for="apiKey1">API Key</label>
+            <input type="password" id="apiKey1" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" value="pu-I1nOF6L90PEjiUCeCpIoraImhiyh08Jj61whQoj">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2" for="model">Model</label>
+            <select id="model" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+              <option value="lustify-sdxl">lustify-sdxl</option>
+              <option value="flux-dev">flux-dev</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2" for="prompt">Prompt</label>
+            <textarea id="prompt" rows="4" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter your prompt here">Escher images with hard edges</textarea>
+          </div>
+          <button id="generatePrompt" class="w-full bg-blue-500 text-white py-3 rounded-lg hover:bg-blue-600 transition-colors">Generate Image</button>
+        </div>
+      </div>
+
+      <div id="csvInput" class="input-group">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2" for="apiKey2">API Key</label>
+            <input type="password" id="apiKey2" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" value="pu-I1nOF6L90PEjiUCeCpIoraImhiyh08Jj61whQoj">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2" for="numLoops">Number of Loops</label>
+            <input type="number" id="numLoops" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" value="3" min="1" max="10">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2" for="waitInterval">Wait Interval (seconds)</label>
+            <input type="number" id="waitInterval" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" value="30" min="10">
+          </div>
+          <div class="overflow-x-auto">
+            <table class="csv-table">
+              <thead>
+                <tr>
+                  <th>RowNumber</th>
+                  <th>Project_ID</th>
+                  <th>Object</th>
+                  <th>Size</th>
+                  <th>Depth</th>
+                  <th>Color</th>
+                  <th>Texture</th>
+                  <th>Placement</th>
+                  <th>Backdrop</th>
+                  <th>Adjective 1</th>
+                  <th>Adjective 2</th>
+                  <th>Qualifier 1</th>
+                  <th>Model</th>
+                  <th>Height</th>
+                  <th>Width</th>
+                  <th>Steps</th>
+                </tr>
+              </thead>
+              <tbody id="csvTableBody">
+                <!-- Rows will be added here via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+          <div class="flex justify-between">
+            <button id="copyRow" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Copy Row</button>
+            <button id="generateCSV" class="px-8 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">Generate Images</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="apiInput" class="input-group">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2" for="apiEndpoint">API Endpoint</label>
+            <input type="text" id="apiEndpoint" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" value="https://api.venice.ai/api/v1/image/generate">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2" for="apiPayload">Request Payload (JSON)</label>
+            <textarea id="apiPayload" rows="8" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm">{
+  "model": "lustify-sdxl",
+  "prompt": "Escher images with hard edges",
+  "width": 1024,
+  "height": 1024,
+  "steps": 30,
+  "hide_watermark": true,
+  "safe_mode": false,
+  "return_binary": true,
+  "cfg_scale": 7,
+  "format": "png"
+}</textarea>
+          </div>
+          <button id="generateAPI" class="w-full bg-blue-500 text-white py-3 rounded-lg hover:bg-blue-600 transition-colors">Send Request</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="output" class="step-hidden">
+      <div class="bg-white rounded-lg shadow-lg p-8">
+        <h2 class="text-2xl font-bold mb-6">Generated Images</h2>
+        <div id="progressContainer" class="mb-4 hidden">
+          <div class="flex justify-between text-sm text-gray-600 mb-2">
+            <span>Progress</span>
+            <span id="progressText">0/1</span>
+          </div>
+          <div class="progress-bar">
+            <div id="progressBarFill" class="progress-bar-fill" style="width: 0%"></div>
+          </div>
+        </div>
+        <div id="logContainer" class="bg-gray-50 p-4 rounded-lg space-y-2 max-h-60 overflow-y-auto"></div>
+        <div id="imageContainer" class="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const tabs = document.querySelectorAll('[data-tab]');
+    const inputGroups = document.querySelectorAll('.input-group');
+    const backButton = document.getElementById('backButton');
+    const inputMethods = document.getElementById('inputMethods');
+    const output = document.getElementById('output');
+    const csvTableBody = document.getElementById('csvTableBody');
+    const copyRowButton = document.getElementById('copyRow');
+
+    let rowCounter = 1;
+    const defaultRowData = {
+      Project_ID: 'T0506-1',
+      Object: '',
+      Size: '',
+      Depth: '',
+      Color: '',
+      Texture: '',
+      Placement: 'Escher images with hard edges',
+      Backdrop: '',
+      'Adjective 1': '',
+      'Adjective 2': '',
+      'Qualifier 1': '',
+      Model: 'lustify-sdxl',
+      Height: '1024',
+      Width: '1024',
+      Steps: '30'
+    };
+
+    function createTableRow(data = defaultRowData) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${rowCounter}</td>
+        ${Object.keys(data).map(key => `
+          <td>
+            <input type="text" 
+                   class="csv-cell" 
+                   data-field="${key}" 
+                   value="${data[key]}"
+                   ${key === 'Model' ? 'list="modelOptions"' : ''}>
+            ${key === 'Model' ? `
+              <datalist id="modelOptions">
+                <option value="lustify-sdxl">
+                <option value="flux-dev">
+              </datalist>
+            ` : ''}
+          </td>
+        `).join('')}
+      `;
+      return tr;
+    }
+
+    function copyRow() {
+      const lastRow = csvTableBody.lastElementChild;
+      if (lastRow) {
+        const cells = lastRow.querySelectorAll('.csv-cell');
+        const rowData = {};
+        cells.forEach(cell => {
+          rowData[cell.dataset.field] = cell.value;
+        });
+        rowCounter++;
+        csvTableBody.appendChild(createTableRow(rowData));
+      }
+    }
+
+    // Add initial rows
+    for (let i = 0; i < 3; i++) {
+      csvTableBody.appendChild(createTableRow());
+      rowCounter++;
+    }
+
+    copyRowButton.addEventListener('click', copyRow);
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('tab-active'));
+        tab.classList.add('tab-active');
+
+        const targetId = `${tab.dataset.tab}Input`;
+        inputGroups.forEach(group => {
+          group.classList.remove('active');
+          if (group.id === targetId) {
+            group.classList.add('active');
+          }
+        });
+      });
+    });
+
+    backButton.addEventListener('click', () => {
+      output.classList.add('step-hidden');
+      inputMethods.classList.remove('step-hidden');
+      backButton.classList.add('step-hidden');
+      imageContainer.innerHTML = '';
+      logContainer.innerHTML = '';
+      progressContainer.classList.add('hidden');
+      progressBarFill.style.width = '0%';
+      progressText.textContent = '0/1';
+    });
+
+    const logContainer = document.getElementById('logContainer');
+    const imageContainer = document.getElementById('imageContainer');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBarFill = document.getElementById('progressBarFill');
+    const progressText = document.getElementById('progressText');
+
+    let processRunning = false;
+    let currentImageIndex = 0;
+
+    function addLog(message, type = 'info') {
+      const logEntry = document.createElement('div');
+      logEntry.className = `log-entry ${type === 'error' ? 'bg-red-50 text-red-700' : type === 'success' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'}`;
+      logEntry.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+      logContainer.appendChild(logEntry);
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    function updateProgress(current, total) {
+      const progress = (current / total) * 100;
+      progressBarFill.style.width = `${progress}%`;
+      progressText.textContent = `${current}/${total}`;
+    }
+
+    function generatePrompt(fields) {
+      const promptParts = [];
+      for (const field in fields) {
+        const value = fields[field]?.toString().trim();
+        if (value && value.toLowerCase() !== 'nan' && !['RowNumber', 'Project_ID', 'Model', 'Height', 'Width', 'Steps'].includes(field)) {
+          promptParts.push(value);
+        }
+      }
+      return promptParts.join(' ');
+    }
+
+    function generateMetadata(config) {
+      const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
+      const metadata = {
+        Project_ID: config.projectId || 'default',
+        Prompt: config.prompt,
+        Model: config.model,
+        Height: config.height || 1024,
+        Width: config.width || 1024,
+        Steps: config.steps || 30,
+        Seed: Math.floor(Math.random() * 999999999),
+        CFG_Scale: config.cfg_scale || 7,
+        Negative_Prompt: config.negative_prompt || '',
+        Global_Hash: btoa(JSON.stringify(config)).slice(0, 32),
+        API_Call: timestamp,
+      };
+      return metadata;
+    }
+
+    async function embedMetadata(blob, metadata) {
+      try {
+        const arrayBuffer = await blob.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        // Create PNG chunks with metadata
+        const chunks = [];
+        for (const [key, value] of Object.entries(metadata)) {
+          const textChunk = new TextEncoder().encode(`${key}=${value}`);
+          chunks.push(textChunk);
+        }
+        
+        // Combine chunks with original PNG data
+        const combinedArray = new Uint8Array(arrayBuffer.byteLength + chunks.reduce((acc, chunk) => acc + chunk.length + 8, 0));
+        combinedArray.set(uint8Array);
+        
+        let offset = arrayBuffer.byteLength;
+        chunks.forEach(chunk => {
+          combinedArray.set(chunk, offset);
+          offset += chunk.length + 8;
+        });
+        
+        return new Blob([combinedArray], { type: 'image/png' });
+      } catch (error) {
+        console.error('Error embedding metadata:', error);
+        return blob;
+      }
+    }
+
+    async function processImage(config) {
+      try {
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'image-container';
+        
+        const loadingOverlay = document.createElement('div');
+        loadingOverlay.className = 'loading-overlay active';
+        loadingOverlay.innerHTML = `
+          <div class="loading-spinner"></div>
+          <p class="text-sm text-gray-600">Generating image...</p>
+        `;
+        imgContainer.appendChild(loadingOverlay);
+        imageContainer.appendChild(imgContainer);
+
+        const response = await fetch('https://api.venice.ai/api/v1/image/generate', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: config.model || 'lustify-sdxl',
+            prompt: config.prompt,
+            width: config.width || 1024,
+            height: config.height || 1024,
+            steps: config.steps || 30,
+            hide_watermark: true,
+            safe_mode: false,
+            return_binary: true,
+            cfg_scale: config.cfg_scale || 7,
+            format: 'png'
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status} - ${await response.text()}`);
+        }
+
+        let blob = await response.blob();
+        const metadata = generateMetadata(config);
+        blob = await embedMetadata(blob, metadata);
+        
+        const imageUrl = URL.createObjectURL(blob);
+        
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.className = 'generated-image';
+        img.loading = 'lazy';
+        
+        img.onload = () => {
+          loadingOverlay.classList.remove('active');
+          setTimeout(() => loadingOverlay.remove(), 300);
+        };
+        
+        imgContainer.appendChild(img);
+        
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'download-btn';
+        downloadBtn.innerHTML = `Download`;
+        downloadBtn.onclick = () => {
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const link = document.createElement('a');
+          link.href = imageUrl;
+          link.download = `venice-ai-${metadata.Project_ID}-${timestamp}.png`;
+          link.click();
+        };
+        imgContainer.appendChild(downloadBtn);
+        
+        addLog('Image generated successfully!', 'success');
+      } catch (error) {
+        addLog(`Error generating image: ${error.message}`, 'error');
+      }
+    }
+
+    const generatePromptBtn = document.getElementById('generatePrompt');
+    const generateCSVBtn = document.getElementById('generateCSV');
+    const generateAPIBtn = document.getElementById('generateAPI');
+
+    generatePromptBtn.addEventListener('click', async () => {
+      const apiKey = document.getElementById('apiKey1').value;
+      const model = document.getElementById('model').value;
+      const prompt = document.getElementById('prompt').value;
+
+      if (!apiKey || !prompt) {
+        addLog('Please enter both API key and prompt', 'error');
+        return;
+      }
+
+      inputMethods.classList.add('step-hidden');
+      output.classList.remove('step-hidden');
+      backButton.classList.remove('step-hidden');
+      progressContainer.classList.remove('hidden');
+      
+      currentImageIndex = 0;
+      updateProgress(0, 1);
+      
+      await processImage({ apiKey, model, prompt });
+      updateProgress(1, 1);
+    });
+
+    generateCSVBtn.addEventListener('click', async () => {
+      const apiKey = document.getElementById('apiKey2').value;
+      const numLoops = parseInt(document.getElementById('numLoops').value);
+      const waitInterval = parseInt(document.getElementById('waitInterval').value);
+
+      if (!apiKey) {
+        addLog('Please enter API key', 'error');
+        return;
+      }
+
+      const rows = Array.from(csvTableBody.querySelectorAll('tr')).map(row => {
+        const cells = row.querySelectorAll('.csv-cell');
+        const rowData = { RowNumber: row.cells[0].textContent };
+        cells.forEach(cell => {
+          rowData[cell.dataset.field] = cell.value;
+        });
+        return rowData;
+      });
+
+      inputMethods.classList.add('step-hidden');
+      output.classList.remove('step-hidden');
+      backButton.classList.remove('step-hidden');
+      progressContainer.classList.remove('hidden');
+
+      const totalImages = rows.length * numLoops;
+      let completedImages = 0;
+
+      for (let loop = 0; loop < numLoops; loop++) {
+        addLog(`Starting loop ${loop + 1} of ${numLoops}`);
+        
+        for (const row of rows) {
+          const prompt = generatePrompt(row);
+          await processImage({
+            apiKey,
+            model: row.Model,
+            prompt,
+            width: parseInt(row.Width),
+            height: parseInt(row.Height),
+            steps: parseInt(row.Steps),
+            projectId: row.Project_ID
+          });
+
+          completedImages++;
+          updateProgress(completedImages, totalImages);
+
+          if (completedImages < totalImages) {
+            addLog(`Waiting ${waitInterval} seconds before next generation...`);
+            await new Promise(resolve => setTimeout(resolve, waitInterval * 1000));
+          }
+        }
+      }
+    });
+
+    generateAPIBtn.addEventListener('click', async () => {
+      const endpoint = document.getElementById('apiEndpoint').value;
+      const payload = document.getElementById('apiPayload').value;
+
+      try {
+        const parsedPayload = JSON.parse(payload);
+        
+        inputMethods.classList.add('step-hidden');
+        output.classList.remove('step-hidden');
+        backButton.classList.remove('step-hidden');
+        progressContainer.classList.remove('hidden');
+        
+        currentImageIndex = 0;
+        updateProgress(0, 1);
+        
+        await processImage(parsedPayload);
+        updateProgress(1, 1);
+      } catch (error) {
+        addLog('Invalid JSON payload', 'error');
+      }
+    });
+  </script>
+</body>
+</html>
