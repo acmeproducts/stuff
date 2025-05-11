@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cush Ball's Journey</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #game-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
+        .ui-overlay {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(8px);
+            border-radius: 1rem;
+            color: white;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .choice-button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            padding: 0.5rem 1rem;
+            margin: 0.5rem;
+            border-radius: 0.5rem;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .choice-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        #touch-area {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+        }
+        #joystick {
+            position: fixed;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            display: none;
+            pointer-events: none;
+            z-index: 11;
+        }
+        #joystick-knob {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body class="bg-black">
+    <div id="game-container"></div>
+    <div id="touch-area"></div>
+    <div id="joystick">
+        <div id="joystick-knob"></div>
+    </div>
+    <div class="ui-overlay">
+        <p id="narrative" class="mb-4">A soft, cushiony ball finds itself in a strange world. Which path will you choose?</p>
+        <div id="choices">
+            <button class="choice-button" onclick="makeChoice('forest')">Enter the Mystic Forest</button>
+            <button class="choice-button" onclick="makeChoice('mountain')">Climb the Floating Mountains</button>
+            <button class="choice-button" onclick="makeChoice('meadow')">Rest in the Glowing Meadow</button>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, ball, light;
+        let particles = [];
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let joystick = document.getElementById('joystick');
+        let touchArea = document.getElementById('touch-area');
+        let moveSpeed = 0.1;
+        let movementVector = new THREE.Vector3(0, 0, 0);
+        
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('game-container').appendChild(renderer.domElement);
+
+            light = new THREE.PointLight(0xffffff, 1, 100);
+            light.position.set(0, 10, 10);
+            scene.add(light);
+            scene.add(new THREE.AmbientLight(0x404040));
+
+            const geometry = new THREE.SphereGeometry(1, 32, 32);
+            const material = new THREE.MeshPhongMaterial({
+                color: 0xff69b4,
+                shininess: 100,
+                specular: 0xffffff
+            });
+            ball = new THREE.Mesh(geometry, material);
+            scene.add(ball);
+
+            for(let i = 0; i < 100; i++) {
+                createParticle();
+            }
+
+            camera.position.z = 5;
+            setupTouchControls();
+            animate();
+        }
+
+        function setupTouchControls() {
+            touchArea.addEventListener('touchstart', handleTouchStart);
+            touchArea.addEventListener('touchmove', handleTouchMove);
+            touchArea.addEventListener('touchend', handleTouchEnd);
+        }
+
+        function handleTouchStart(e) {
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            joystick.style.display = 'block';
+            joystick.style.left = (touchStartX - 50) + 'px';
+            joystick.style.top = (touchStartY - 50) + 'px';
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const deltaX = touch.clientX - touchStartX;
+            const deltaY = touch.clientY - touchStartY;
+            const distance = Math.min(50, Math.sqrt(deltaX * deltaX + deltaY * deltaY));
+            const angle = Math.atan2(deltaY, deltaX);
+
+            const knobX = Math.cos(angle) * distance;
+            const knobY = Math.sin(angle) * distance;
+
+            const knob = document.getElementById('joystick-knob');
+            knob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+            // Update movement vector
+            movementVector.x = deltaX / 500;
+            movementVector.z = deltaY / 500;
+        }
+
+        function handleTouchEnd() {
+            joystick.style.display = 'none';
+            movementVector.set(0, 0, 0);
+            const knob = document.getElementById('joystick-knob');
+            knob.style.transform = 'translate(-50%, -50%)';
+        }
+
+        function createParticle() {
+            const geometry = new THREE.SphereGeometry(0.05, 8, 8);
+            const material = new THREE.MeshPhongMaterial({
+                color: Math.random() > 0.5 ? 0xffffff : 0x00ffff,
+                transparent: true,
+                opacity: 0.5
+            });
+            const particle = new THREE.Mesh(geometry, material);
+            
+            particle.position.set(
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 20
+            );
+            
+            particle.velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.02,
+                (Math.random() - 0.5) * 0.02,
+                (Math.random() - 0.5) * 0.02
+            );
+
+            scene.add(particle);
+            particles.push(particle);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Apply movement from touch controls
+            ball.position.x += movementVector.x;
+            ball.position.z += movementVector.z;
+
+            // Keep ball within bounds
+            ball.position.x = Math.max(-10, Math.min(10, ball.position.x));
+            ball.position.z = Math.max(-10, Math.min(10, ball.position.z));
+
+            ball.rotation.x += 0.01;
+            ball.rotation.y += 0.01;
+            ball.position.y = Math.sin(Date.now() * 0.001) * 0.2;
+
+            particles.forEach(particle => {
+                particle.position.add(particle.velocity);
+                
+                if(particle.position.x > 10) particle.position.x = -10;
+                if(particle.position.x < -10) particle.position.x = 10;
+                if(particle.position.y > 10) particle.position.y = -10;
+                if(particle.position.y < -10) particle.position.y = 10;
+                if(particle.position.z > 10) particle.position.z = -10;
+                if(particle.position.z < -10) particle.position.z = 10;
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        function makeChoice(choice) {
+            const narratives = {
+                forest: "The mystical forest welcomes you with soft, bioluminescent lights. Take your time to explore...",
+                mountain: "Floating islands stretch endlessly upward. Each one holds a new discovery...",
+                meadow: "The peaceful meadow invites you to rest. Sometimes, staying still reveals the most..."
+            };
+
+            document.getElementById('narrative').textContent = narratives[choice];
+
+            switch(choice) {
+                case 'forest':
+                    animateCamera({ x: -3, y: 2, z: 7 });
+                    light.color.setHex(0x00ff88);
+                    break;
+                case 'mountain':
+                    animateCamera({ x: 3, y: 4, z: 6 });
+                    light.color.setHex(0x8844ff);
+                    break;
+                case 'meadow':
+                    animateCamera({ x: 0, y: 1, z: 8 });
+                    light.color.setHex(0xff8800);
+                    break;
+            }
+        }
+
+        function animateCamera(newPos) {
+            const duration = 2000;
+            const startPos = { 
+                x: camera.position.x, 
+                y: camera.position.y, 
+                z: camera.position.z 
+            };
+            const startTime = Date.now();
+
+            function update() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 3);
+
+                camera.position.x = startPos.x + (newPos.x - startPos.x) * eased;
+                camera.position.y = startPos.y + (newPos.y - startPos.y) * eased;
+                camera.position.z = startPos.z + (newPos.z - startPos.z) * eased;
+
+                camera.lookAt(ball.position);
+
+                if(progress < 1) {
+                    requestAnimationFrame(update);
+                }
+            }
+
+            update();
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        init();
+    </script>
+</body>
+</html>
