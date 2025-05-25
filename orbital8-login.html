@@ -350,6 +350,52 @@
             display: none !important;
         }
         
+        /* Client Secret Section Styles */
+        .client-secret-section {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .client-secret-section input {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            width: 200px;
+        }
+        
+        .client-secret-section button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;  
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .client-secret-section #save-secret-btn {
+            background: #10b981;
+            color: white;
+        }
+        
+        .client-secret-section #save-secret-btn:hover {
+            background: #059669;
+        }
+        
+        .client-secret-section #test-btn {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .client-secret-section #test-btn:hover {
+            background: #d97706;
+        }
+        
         @media (max-width: 768px) {
             .header-controls {
                 flex-direction: column;
@@ -371,6 +417,7 @@
     <div class="container">
         <div class="header">
             <h1><i class="fas fa-cloud"></i> Orbital8 Login</h1>
+            <p style="color: #6b7280; font-size: 14px; margin: 8px 0;">Debug Version - Check browser console (F12) for detailed logs</p>
             <div class="header-controls">
                 <div class="provider-selector">
                     <button class="provider-btn active" data-provider="googledrive">
@@ -390,9 +437,9 @@
                 
                 <!-- Client Secret Input (Prototype Only) -->
                 <div class="client-secret-section" id="client-secret-section">
-                    <input type="password" id="client-secret-input" placeholder="Client Secret (for prototype)" 
-                           style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; width: 200px;">
-                    <button id="save-secret-btn" style="padding: 8px 12px; background: #10b981; color: white; border: none; border-radius: 6px; font-size: 14px; margin-left: 8px;">Save</button>
+                    <input type="password" id="client-secret-input" placeholder="Paste Google Client Secret here">
+                    <button id="save-secret-btn">Save</button>
+                    <button id="test-btn">Test</button>
                 </div>
                 
                 <button class="connect-btn primary" id="connect-btn">
@@ -868,30 +915,80 @@
             }
             
             initializeUI() {
+                console.log('Initializing UI...');
+                
                 // Provider switching
                 document.querySelectorAll('.provider-btn').forEach(btn => {
                     btn.addEventListener('click', () => this.switchProvider(btn.dataset.provider));
                 });
                 
-                // Client secret handling
-                document.getElementById('save-secret-btn').addEventListener('click', () => {
-                    const secret = document.getElementById('client-secret-input').value.trim();
-                    if (secret) {
-                        this.currentProvider.setClientSecret(secret);
-                        this.updateSecretStatus();
-                        showToast('Client secret saved!', 'success');
-                        document.getElementById('client-secret-input').value = '';
-                    }
-                });
+                // Client secret handling with debugging
+                const saveBtn = document.getElementById('save-secret-btn');
+                const secretInput = document.getElementById('client-secret-input');
                 
-                // Connect/disconnect button
-                document.getElementById('connect-btn').addEventListener('click', () => {
-                    if (this.currentProvider?.isAuthenticated) {
-                        this.disconnect();
-                    } else {
-                        this.connect();
-                    }
-                });
+                console.log('Save button:', saveBtn);
+                console.log('Secret input:', secretInput);
+                
+                if (saveBtn && secretInput) {
+                    saveBtn.addEventListener('click', () => {
+                        console.log('Save button clicked!');
+                        const secret = secretInput.value.trim();
+                        console.log('Secret length:', secret.length);
+                        
+                        if (secret) {
+                            console.log('Saving secret...');
+                            this.currentProvider.setClientSecret(secret);
+                            this.updateSecretStatus();
+                            showToast('Client secret saved!', 'success');
+                            secretInput.value = '';
+                            console.log('Secret saved successfully');
+                        } else {
+                            console.log('No secret entered');
+                            showToast('Please enter a client secret', 'error');
+                        }
+                    });
+                    
+                    // Also allow Enter key
+                    secretInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            console.log('Enter key pressed in secret input');
+                            saveBtn.click();
+                        }
+                    });
+                } else {
+                    console.error('Could not find save button or secret input elements');
+                }
+                
+                // Test button for debugging
+                const testBtn = document.getElementById('test-btn');
+                if (testBtn) {
+                    testBtn.addEventListener('click', () => {
+                        console.log('=== TEST BUTTON CLICKED ===');
+                        console.log('Current provider:', this.currentProvider);
+                        console.log('Provider has secret:', this.currentProvider?.hasClientSecret());
+                        console.log('Stored secret in localStorage:', localStorage.getItem('google_client_secret') ? 'YES' : 'NO');
+                        showToast('Test button works! Check console for details.', 'info');
+                    });
+                }
+                
+                // Connect/disconnect button with debugging
+                const connectBtn = document.getElementById('connect-btn');
+                console.log('Connect button:', connectBtn);
+                
+                if (connectBtn) {
+                    connectBtn.addEventListener('click', () => {
+                        console.log('Connect button clicked!');
+                        if (this.currentProvider?.isAuthenticated) {
+                            console.log('Disconnecting...');
+                            this.disconnect();
+                        } else {
+                            console.log('Connecting...');
+                            this.connect();
+                        }
+                    });
+                } else {
+                    console.error('Could not find connect button');
+                }
                 
                 // Sort dropdown
                 document.getElementById('sort-dropdown').addEventListener('change', (e) => {
@@ -912,7 +1009,9 @@
                 gridContainer.addEventListener('contextmenu', (e) => this.handleContextMenu(e));
                 
                 // Set initial provider
+                console.log('Setting initial provider...');
                 this.switchProvider('googledrive');
+                console.log('UI initialization complete');
             }
             
             loadStoredAuth() {
@@ -1372,15 +1471,27 @@
         // ===== Utility Functions =====
         
         function showToast(message, type = 'success') {
+            console.log('Showing toast:', message, type);
+            
             const toast = document.getElementById('toast');
             const toastContent = toast.querySelector('.toast-content');
+            
+            if (!toast || !toastContent) {
+                console.error('Toast elements not found');
+                // Fallback to alert
+                alert(`${type.toUpperCase()}: ${message}`);
+                return;
+            }
             
             toastContent.textContent = message;
             toast.className = `toast ${type}`;
             toast.classList.add('show');
             
+            console.log('Toast shown with classes:', toast.className);
+            
             setTimeout(() => {
                 toast.classList.remove('show');
+                console.log('Toast hidden');
             }, 4000);
         }
         
@@ -1413,8 +1524,31 @@
         let fileManager;
         
         document.addEventListener('DOMContentLoaded', () => {
-            fileManager = new FileManagerUI();
+            console.log('DOM Content Loaded - Starting initialization...');
+            
+            try {
+                fileManager = new FileManagerUI();
+                console.log('FileManagerUI initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize FileManagerUI:', error);
+                showToast('Initialization failed - check console', 'error');
+            }
         });
+        
+        // Add global error handler
+        window.addEventListener('error', (event) => {
+            console.error('Global error:', event.error);
+            showToast('JavaScript error - check console', 'error');
+        });
+        
+        // Test function for debugging
+        window.testConnection = () => {
+            console.log('Test function called');
+            if (fileManager) {
+                console.log('Current provider:', fileManager.currentProvider);
+                console.log('Has client secret:', fileManager.currentProvider?.hasClientSecret());
+            }
+        };
     </script>
 </body>
 </html>
