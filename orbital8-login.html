@@ -157,7 +157,14 @@
         </div>
         
         <div class="debug-section">
-            <h2>Debug Console</h2>
+            <h2>Step 3: Token Refresh Test</h2>
+            <div class="input-group">
+                <button class="btn btn-warning" onclick="testRefreshToken()" id="refresh-test-btn" disabled>Test Refresh Token</button>
+                <button class="btn btn-warning" onclick="forceExpireToken()" id="expire-btn" disabled>Force Expire & Test</button>
+                <button class="btn btn-warning" onclick="checkTokenStatus()">Check Token Status</button>
+            </div>
+            <div id="refresh-status" class="status info">Complete authentication first</div>
+        </div>
             <div id="debug-log" class="log">Ready to debug...\n</div>
             <button class="btn btn-warning" onclick="clearLog()">Clear Log</button>
         </div>
@@ -501,7 +508,191 @@
             }
         }
         
-        async function testDriveAPI() {
+        async function testRefreshToken() {
+            log('=== MANUAL REFRESH TOKEN TEST ===');
+            
+            if (!refreshToken) {
+                setStatus('refresh-status', 'No refresh token available', 'error');
+                log('ERROR: No refresh token found');
+                return;
+            }
+            
+            if (!clientSecret) {
+                setStatus('refresh-status', 'No client secret available', 'error');
+                log('ERROR: No client secret found');
+                return;
+            }
+            
+            setStatus('refresh-status', 'Testing refresh token...', 'info');
+            
+            try {
+                log('Attempting to refresh access token...');
+                
+                const response = await fetch('https://oauth2.googleapis.com/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        client_id: CLIENT_ID,
+                        client_secret: clientSecret,
+                        refresh_token: refreshToken,
+                        grant_type: 'refresh_token'
+                    })
+                });
+                
+                log(`Refresh response status: ${response.status}`);
+                
+                const responseText = await response.text();
+                log(`Refresh response: ${responseText}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Refresh failed: ${response.status} - ${responseText}`);
+                }
+                
+                const tokens = JSON.parse(responseText);
+                
+                // Update stored tokens
+                const oldToken = accessToken;
+                accessToken = tokens.access_token;
+                localStorage.setItem('google_access_token', accessToken);
+                
+                log(`SUCCESS: New access token received`);
+                log(`Old token: ${oldToken.substring(0, 20)}...`);
+                log(`New token: ${accessToken.substring(0, 20)}...`);
+                
+                setStatus('refresh-status', '✅ Refresh token works! New access token received', 'success');
+                
+                // Test the new token
+                await testDriveAPI();
+                
+            } catch (error) {
+                log(`ERROR in refresh test: ${error.message}`);
+                setStatus('refresh-status', `Refresh failed: ${error.message}`, 'error');
+            }
+        }
+        
+        function forceExpireToken() {
+            log('=== FORCE EXPIRE TOKEN TEST ===');
+            
+            if (!accessToken) {
+                setStatus('refresh-status', 'No access token to expire', 'error');
+                return;
+            }
+            
+            // Corrupt the access token to simulate expiration
+            const originalToken = accessToken;
+            accessToken = 'EXPIRED_TOKEN_FOR_TESTING';
+            localStorage.setItem('google_access_token', accessToken);
+            
+            log(`Original token: ${originalToken.substring(0, 20)}...`);
+            log(`Corrupted token: ${accessToken}`);
+            log('Now testing API call - should trigger auto-refresh...');
+            
+            setStatus('refresh-status', 'Token expired, testing auto-refresh...', 'info');
+            
+            // Try API call - should trigger auto-refresh
+            testDriveAPIWithRefresh();
+        }
+        
+        async function testDriveAPIWithRefresh() {
+            log('Testing Drive API with auto-refresh capability...');
+            
+            try {
+                let response = await fetch('https://www.googleapis.com/drive/v3/files?pageSize=5', {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+                
+                log(`Initial API response status: ${response.status}`);
+                
+                // If 401, try to refresh and retry
+                if (response.status === 401 && refreshToken && clientSecret) {
+                    log('Got 401 - attempting auto-refresh...');
+                    
+                    // Refresh token
+                    const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            client_id: CLIENT_ID,
+                            client_secret: clientSecret,
+                            refresh_token: refreshToken,
+                            grant_type: 'refresh_token'
+                        })
+                    });
+                    
+                    if (refreshResponse.ok) {
+                        const tokens = JSON.parse(await refreshResponse.text());
+                        accessToken = tokens.access_token;
+                        localStorage.setItem('google_access_token', accessToken);
+                        
+                        log('Auto-refresh successful, retrying API call...');
+                        
+                        // Retry original API call
+                        response = await fetch('https://www.googleapis.com/drive/v3/files?pageSize=5', {
+                            headers: {
+                                'Authorization': `Bearer ${accessToken}`
+                            }
+                        });
+                        
+                        log(`Retry API response status: ${response.status}`);
+                    }
+                }
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`SUCCESS: Auto-refresh worked! Found ${data.files.length} files`);
+                    setStatus('refresh-status', '✅ Auto-refresh successful! Token expiration solved', 'success');
+                } else {
+                    const errorText = await response.text();
+                    log(`API still failed after refresh: ${errorText}`);
+                    setStatus('refresh-status', 'Auto-refresh failed', 'error');
+                }
+                
+            } catch (error) {
+                log(`ERROR in auto-refresh test: ${error.message}`);
+                setStatus('refresh-status', `Auto-refresh error: ${error.message}`, 'error');
+            }
+        }
+        
+        function checkTokenStatus() {
+            log('=== TOKEN STATUS CHECK ===');
+            
+            log(`Access token exists: ${!!accessToken}`);
+            log(`Refresh token exists: ${!!refreshToken}`);
+            log(`Client secret exists: ${!!clientSecret}`);
+            
+            if (accessToken) {
+                log(`Access token: ${accessToken.substring(0, 30)}...`);
+                
+                // Try to decode token info (basic check)
+                try {
+                    const tokenParts = accessToken.split('.');
+                    log(`Token parts: ${tokenParts.length}`);
+                } catch (e) {
+                    log('Could not analyze token structure');
+                }
+            }
+            
+            if (refreshToken) {
+                log(`Refresh token: ${refreshToken.substring(0, 30)}...`);
+            }
+            
+            // Check localStorage persistence
+            const storedAccess = localStorage.getItem('google_access_token');
+            const storedRefresh = localStorage.getItem('google_refresh_token');
+            const storedSecret = localStorage.getItem('google_client_secret');
+            
+            log(`Stored access token: ${!!storedAccess}`);
+            log(`Stored refresh token: ${!!storedRefresh}`);
+            log(`Stored client secret: ${!!storedSecret}`);
+            
+            log('=== END TOKEN STATUS ===');
+        }
             log('Testing Google Drive API...');
             
             try {
@@ -517,6 +708,12 @@
                     const data = await response.json();
                     log(`SUCCESS: Drive API working! Found ${data.files.length} files`);
                     setStatus('auth-status', `✅ Connected to Google Drive! Found ${data.files.length} files`, 'success');
+                    
+                    // Enable refresh testing
+                    document.getElementById('refresh-test-btn').disabled = false;
+                    document.getElementById('expire-btn').disabled = false;
+                    setStatus('refresh-status', 'Ready to test token refresh', 'info');
+                    
                 } else {
                     const errorText = await response.text();
                     log(`Drive API error: ${errorText}`);
@@ -527,6 +724,8 @@
                 log(`ERROR testing Drive API: ${error.message}`);
             }
         }
+        
+        async function testDriveAPI() {
         
         // Handle OAuth callback with better logging
         if (window.location.search.includes('code=') || window.location.search.includes('error=')) {
