@@ -388,6 +388,13 @@
                     <span>Not Connected</span>
                 </div>
                 
+                <!-- Client Secret Input (Prototype Only) -->
+                <div class="client-secret-section" id="client-secret-section">
+                    <input type="password" id="client-secret-input" placeholder="Client Secret (for prototype)" 
+                           style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; width: 200px;">
+                    <button id="save-secret-btn" style="padding: 8px 12px; background: #10b981; color: white; border: none; border-radius: 6px; font-size: 14px; margin-left: 8px;">Save</button>
+                </div>
+                
                 <button class="connect-btn primary" id="connect-btn">
                     <i class="fas fa-link"></i>
                     Connect
@@ -518,7 +525,8 @@
         class GoogleDriveProvider extends StorageProvider {
             constructor() {
                 super('googledrive');
-                this.clientId = '567988062464-fa6c1ovesqeudqs5398vv4mbo6q068p9.apps.googleusercontent.com';
+                // UPDATE WITH NEW DESKTOP CLIENT ID
+                this.clientId = 'YOUR_NEW_DESKTOP_CLIENT_ID_HERE.apps.googleusercontent.com';
                 this.redirectUri = 'https://acmeproducts.github.io/stuff/orbital8-login.html';
                 this.scope = 'https://www.googleapis.com/auth/drive';
                 this.apiBase = 'https://www.googleapis.com/drive/v3';
@@ -549,8 +557,12 @@
             }
             
             async authenticate() {
+                if (!this.clientSecret) {
+                    throw new Error('Client secret is required for authentication');
+                }
+                
                 return new Promise(async (resolve, reject) => {
-                    const authUrl = await this.buildAuthUrl();
+                    const authUrl = this.buildAuthUrl();
                     console.log('Auth URL:', authUrl); // Debug logging
                     
                     const popup = window.open(authUrl, 'google-auth', 'width=500,height=600,scrollbars=yes,resizable=yes');
@@ -592,16 +604,9 @@
                 });
             }
             
-            async buildAuthUrl() {
+            buildAuthUrl() {
                 console.log('Building auth URL...');
                 console.log('Redirect URI:', this.redirectUri);
-                
-                // Generate PKCE parameters
-                this.codeVerifier = this.generateCodeVerifier();
-                this.codeChallenge = await this.generateCodeChallenge(this.codeVerifier);
-                
-                console.log('Code verifier generated:', this.codeVerifier);
-                console.log('Code challenge generated:', this.codeChallenge);
                 
                 const params = new URLSearchParams({
                     client_id: this.clientId,
@@ -609,9 +614,7 @@
                     response_type: 'code',
                     scope: this.scope,
                     access_type: 'offline',
-                    prompt: 'consent',
-                    code_challenge: this.codeChallenge,
-                    code_challenge_method: 'S256'
+                    prompt: 'consent'
                 });
                 
                 const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
@@ -621,20 +624,19 @@
             }
             
             async exchangeCodeForTokens(code) {
-                // Using PKCE (Proof Key for Code Exchange) - no client secret needed!
                 console.log('Exchanging code for tokens...');
                 console.log('Code:', code);
-                console.log('Code verifier:', this.codeVerifier);
+                console.log('Using client secret:', !!this.clientSecret);
                 
                 const tokenRequest = {
                     client_id: this.clientId,
+                    client_secret: this.clientSecret,
                     code: code,
                     grant_type: 'authorization_code',
-                    redirect_uri: this.redirectUri,
-                    code_verifier: this.codeVerifier
+                    redirect_uri: this.redirectUri
                 };
                 
-                console.log('Token request:', tokenRequest);
+                console.log('Token request:', { ...tokenRequest, client_secret: '[HIDDEN]' });
                 
                 try {
                     const response = await fetch('https://oauth2.googleapis.com/token', {
@@ -666,6 +668,10 @@
                     throw new Error('No refresh token available');
                 }
                 
+                if (!this.clientSecret) {
+                    throw new Error('Client secret not available');
+                }
+                
                 const response = await fetch('https://oauth2.googleapis.com/token', {
                     method: 'POST',
                     headers: {
@@ -673,6 +679,7 @@
                     },
                     body: new URLSearchParams({
                         client_id: this.clientId,
+                        client_secret: this.clientSecret,
                         refresh_token: this.refreshToken,
                         grant_type: 'refresh_token'
                     })
@@ -866,6 +873,17 @@
                     btn.addEventListener('click', () => this.switchProvider(btn.dataset.provider));
                 });
                 
+                // Client secret handling
+                document.getElementById('save-secret-btn').addEventListener('click', () => {
+                    const secret = document.getElementById('client-secret-input').value.trim();
+                    if (secret) {
+                        this.currentProvider.setClientSecret(secret);
+                        this.updateSecretStatus();
+                        showToast('Client secret saved!', 'success');
+                        document.getElementById('client-secret-input').value = '';
+                    }
+                });
+                
                 // Connect/disconnect button
                 document.getElementById('connect-btn').addEventListener('click', () => {
                     if (this.currentProvider?.isAuthenticated) {
@@ -906,6 +924,22 @@
                         }
                     }
                 });
+                
+                // Update secret status
+                this.updateSecretStatus();
+            }
+            
+            updateSecretStatus() {
+                const secretSection = document.getElementById('client-secret-section');
+                const connectBtn = document.getElementById('connect-btn');
+                
+                if (this.currentProvider?.hasClientSecret()) {
+                    secretSection.style.opacity = '0.5';
+                    connectBtn.disabled = false;
+                } else {
+                    secretSection.style.opacity = '1';
+                    connectBtn.disabled = false; // Allow connection attempt to show better error
+                }
             }
             
             switchProvider(providerName) {
@@ -921,6 +955,7 @@
                 this.selectedItems.clear();
                 
                 this.updateAuthStatus();
+                this.updateSecretStatus();
                 this.updateBreadcrumb();
                 
                 if (this.currentProvider.isAuthenticated) {
@@ -932,6 +967,13 @@
             
             async connect() {
                 if (!this.currentProvider) return;
+                
+                // Check if client secret is available for Google Drive
+                if (this.currentProvider.name === 'googledrive' && !this.currentProvider.hasClientSecret()) {
+                    showToast('Please enter and save your client secret first', 'error');
+                    document.getElementById('client-secret-input').focus();
+                    return;
+                }
                 
                 try {
                     showToast('Connecting...', 'info');
