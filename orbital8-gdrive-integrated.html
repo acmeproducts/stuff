@@ -16,6 +16,164 @@
             --app-text-secondary: #4b5563;
             --app-shadow: rgba(0, 0, 0, 0.1);
         }
+        
+        // ===== Details Modal =====
+        const detailsModal = {
+            show: function() {
+                const currentFile = appState.imageFiles[appState.currentImageIndex];
+                if (!currentFile) return;
+                
+                this.populateDetails(currentFile);
+                elements.detailsModal.classList.remove('hidden');
+            },
+            
+            hide: function() {
+                elements.detailsModal.classList.add('hidden');
+            },
+            
+            populateDetails: function(file) {
+                // File Information
+                const filename = file.originalName || 
+                               (file.file && file.file.name) || 
+                               file.name || 
+                               file.filename || 
+                               'Unknown';
+                elements.detailFilename.textContent = filename;
+                
+                // Date
+                const date = file.lastModified ? new Date(file.lastModified).toLocaleString() : 
+                           file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : 'Unknown';
+                elements.detailDate.textContent = date;
+                
+                // Tags
+                this.populateTags(file);
+                
+                // Metadata - only specific fields
+                this.displaySpecificMetadata(file);
+            },
+            
+            populateTags: function(file) {
+                const metadata = stackManager.getFileMetadata(file);
+                const tags = metadata.slideboxTags || [];
+                
+                elements.detailTags.innerHTML = '';
+                
+                if (tags.length === 0) {
+                    elements.detailTags.innerHTML = '<span class="details-value">No tags</span>';
+                    return;
+                }
+                
+                tags.forEach(tag => {
+                    const tagElement = document.createElement('div');
+                    tagElement.className = 'tag-item';
+                    tagElement.innerHTML = `
+                        <span>${tag}</span>
+                        <button class="tag-remove" data-tag="${tag}">×</button>
+                    `;
+                    elements.detailTags.appendChild(tagElement);
+                });
+                
+                // Add event listeners for tag removal
+                elements.detailTags.querySelectorAll('.tag-remove').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const tagToRemove = e.target.dataset.tag;
+                        this.removeTag(file, tagToRemove);
+                    });
+                });
+            },
+            
+            removeTag: function(file, tagToRemove) {
+                const metadata = stackManager.getFileMetadata(file);
+                const currentTags = metadata.slideboxTags || [];
+                const newTags = currentTags.filter(tag => tag !== tagToRemove);
+                
+                file.appProperties = file.appProperties || {};
+                file.appProperties.slideboxTags = newTags.join(',');
+                
+                this.populateTags(file);
+                utils.showToast(`Removed tag: ${tagToRemove}`);
+            },
+            
+            displaySpecificMetadata: function(file) {
+                elements.metadataTable.innerHTML = '';
+                
+                // Priority metadata fields in order
+                const priorityFields = ['project', 'prompt', 'model', 'seed', 'negative_prompt', 'api_call', 'hash', 'height', 'width', 'steps', 'cfg'];
+                
+                // Try to extract metadata from appProperties or other sources
+                const allMetadata = this.extractAllMetadata(file);
+                
+                // Show priority fields first
+                priorityFields.forEach(field => {
+                    if (allMetadata[field]) {
+                        this.addMetadataRow(field, allMetadata[field]);
+                    }
+                });
+                
+                // Show other fields (excluding size, type, and priority fields)
+                Object.entries(allMetadata).forEach(([key, value]) => {
+                    const lowerKey = key.toLowerCase();
+                    if (!priorityFields.includes(lowerKey) && 
+                        !['size', 'type', 'filename', 'name'].includes(lowerKey) &&
+                        value) {
+                        this.addMetadataRow(key, value);
+                    }
+                });
+            },
+            
+            extractAllMetadata: function(file) {
+                const metadata = {};
+                
+                // From appProperties
+                if (file.appProperties) {
+                    Object.entries(file.appProperties).forEach(([key, value]) => {
+                        if (key !== 'slideboxStack' && key !== 'slideboxTags') {
+                            metadata[key] = value;
+                        }
+                    });
+                }
+                
+                // Basic file properties
+                if (file.createdTime) metadata['created'] = new Date(file.createdTime).toLocaleString();
+                if (file.modifiedTime) metadata['modified'] = new Date(file.modifiedTime).toLocaleString();
+                
+                return metadata;
+            },
+            
+            addMetadataRow: function(key, value) {
+                const row = document.createElement('tr');
+                
+                // Format the key (capitalize first letter, replace underscores)
+                const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                
+                // Format long values with line breaks
+                let formattedValue = String(value);
+                if (formattedValue.length > 100) {
+                    formattedValue = formattedValue.replace(/,(?=\s)/g, ',\n').replace(/\s+/g, ' ').trim();
+                }
+                
+                row.innerHTML = `
+                    <td class="key-cell">${formattedKey}</td>
+                    <td class="value-cell">${formattedValue}</td>
+                `;
+                elements.metadataTable.appendChild(row);
+            },
+            
+            copyToClipboard: function(text) {
+                navigator.clipboard.writeText(text).then(() => {
+                    utils.showToast('Copied to clipboard');
+                }).catch(() => {
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    utils.showToast('Copied to clipboard');
+                });
+            }
+        };
 
         * {
             box-sizing: border-box;
@@ -526,6 +684,7 @@
             font-weight: 700;
             background: rgba(255, 255, 255, 0.9);
             opacity: 1;
+            border: 3px solid black;
         }
         
         .pill-counter:hover {
@@ -541,7 +700,7 @@
         }
         
         .pill-counter.bottom {
-            bottom: 30px;
+            bottom: 60px;
             left: 50%;
             transform: translateX(-50%);
         }
@@ -1318,6 +1477,20 @@
                 padding: 10px 16px;
             }
         }
+        
+        /* ===== Mobile Design Improvements ===== */
+        @media screen and (max-width: 767px) {
+            .back-button, .details-button {
+                font-size: 16px;
+                padding: 12px 20px;
+                border-radius: 25px;
+                min-width: 80px;
+            }
+            
+            .pill-counter.bottom {
+                bottom: 80px; /* Extra space for gesture bar */
+            }
+        }
     </style>
 </head>
 <body>
@@ -1943,10 +2116,6 @@
                         <span class="details-label">Date:</span>
                         <span class="details-value" id="detail-date"></span>
                     </div>
-                    <div class="details-item">
-                        <span class="details-label">Size:</span>
-                        <span class="details-value" id="detail-size"></span>
-                    </div>
                 </div>
                 
                 <div class="details-section">
@@ -2058,7 +2227,6 @@
             detailsClose: document.getElementById('details-close'),
             detailFilename: document.getElementById('detail-filename'),
             detailDate: document.getElementById('detail-date'),
-            detailSize: document.getElementById('detail-size'),
             detailTags: document.getElementById('detail-tags'),
             metadataTable: document.getElementById('metadata-table'),
             metadataSection: document.getElementById('metadata-section'),
@@ -2130,6 +2298,19 @@
                         resolve();
                     };
                 });
+            },
+            
+            // Preload all images for better grid performance
+            preloadAllImages: async function() {
+                const preloadPromises = appState.imageFiles.map(async (file) => {
+                    if (!appState.imageCache.has(file.id)) {
+                        const tempImg = new Image();
+                        await this.setImageSrc(tempImg, file);
+                    }
+                });
+                
+                await Promise.all(preloadPromises);
+                console.log(`Preloaded ${appState.imageFiles.length} images`);
             }
         };
         
@@ -2270,17 +2451,24 @@
                         appProperties: file.appProperties || {}
                     }));
                     
+                    // Update loading message for preloading
+                    elements.loadingMessage.textContent = 'Preloading images for faster performance...';
+                    
                     // Organize into stacks
                     stackManager.updateStacks();
                     appState.currentImageIndex = 0;
                     appState.currentStack = 'in';
                     
+                    // Preload all images for better performance
+                    await utils.preloadAllImages();
+                    
                     // Wait a moment then show app
                     setTimeout(() => {
                         utils.showScreen('app-container');
-                        imageViewer.displayCurrentImage();
+                        // Display first image from "In" stack (default active)
+                        imageViewer.displayTopImageFromStack('in');
                         updateActiveProxTab();
-                    }, 1000);
+                    }, 500);
                     
                 } catch (error) {
                     console.error('Error loading folder:', error);
@@ -2527,9 +2715,19 @@
             Object.entries(elements.pillCounters).forEach(([stackName, pill]) => {
                 pill.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    
+                    // If clicking the currently active proxtab, open grid mode
+                    if (appState.currentStack === stackName) {
+                        gridView.open(stackName);
+                        acknowledgePillCounter(stackName);
+                        return;
+                    }
+                    
+                    // If clicking an inactive proxtab, activate it and show top image
                     appState.currentStack = stackName;
                     updateActiveProxTab();
-                    gridView.open(stackName);
+                    imageViewer.displayTopImageFromStack(stackName);
+                    acknowledgePillCounter(stackName);
                 });
             });
         }
@@ -2609,16 +2807,22 @@
                 // Get sorted files for this stack
                 const sortedFiles = stackManager.sortFiles(appState.stacks[stack], stackManager.currentSort);
                 
-                sortedFiles.forEach(async (file) => {
+                sortedFiles.forEach((file) => {
                     const div = document.createElement('div');
                     div.className = 'grid-item';
                     div.dataset.fileId = file.id;
                     
                     const img = document.createElement('img');
                     img.className = 'grid-image';
-                    img.loading = 'lazy';
                     
-                    await utils.setImageSrc(img, file);
+                    // Use preloaded images from cache
+                    if (appState.imageCache.has(file.id)) {
+                        img.src = appState.imageCache.get(file.id);
+                        img.alt = file.name || 'Image';
+                    } else {
+                        // Fallback if not preloaded
+                        utils.setImageSrc(img, file);
+                    }
                     
                     div.addEventListener('click', e => {
                         e.stopPropagation();
