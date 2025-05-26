@@ -2503,4 +2503,1569 @@
                 }
             },
             
-            setStatus(
+            setStatus(message, type) {
+                elements.authStatus.textContent = message;
+                elements.authStatus.className = `auth-status ${type}`;
+            },
+            
+            logout() {
+                appState.cloudStorage.disconnect();
+                utils.showScreen('auth-screen');
+                elements.clientSecret.value = '';
+                this.setStatus('Enter your client secret to continue', 'info');
+            }
+        };
+        
+        // ===== Folder Manager =====
+        const folderManager = {
+            async loadFolders() {
+                elements.folderList.innerHTML = `
+                    <div class="folder-loading">
+                        <div class="folder-spinner"></div>
+                        <span>Loading folders...</span>
+                    </div>
+                `;
+                
+                try {
+                    const folders = await appState.cloudStorage.getFolders();
+                    
+                    if (folders.length === 0) {
+                        elements.folderList.innerHTML = `
+                            <div class="folder-loading">
+                                <span>No folders found in your Drive</span>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    elements.folderList.innerHTML = '';
+                    
+                    folders.forEach(folder => {
+                        const div = document.createElement('div');
+                        div.className = 'folder-item';
+                        div.innerHTML = `
+                            <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                            </svg>
+                            <div class="folder-info">
+                                <div class="folder-name">${folder.name}</div>
+                                <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()}</div>
+                            </div>
+                        `;
+                        
+                        div.addEventListener('click', () => this.selectFolder(folder));
+                        elements.folderList.appendChild(div);
+                    });
+                } catch (error) {
+                    console.error('Error loading folders:', error);
+                    elements.folderList.innerHTML = `
+                        <div class="folder-loading">
+                            <span>Error loading folders. Please try again.</span>
+                        </div>
+                    `;
+                }
+            },
+            
+            async selectFolder(folder) {
+                appState.currentFolder.id = folder.id;
+                appState.currentFolder.name = folder.name;
+                
+                // Show loading screen
+                utils.showScreen('loading-screen');
+                utils.updateLoadingProgress(0, 0);
+                
+                // Set up progress callback for pagination
+                appState.cloudStorage.currentProvider.onProgressCallback = (count) => {
+                    utils.updateLoadingProgress(count, 0);
+                };
+                
+                try {
+                    elements.loadingMessage.textContent = 'Connecting to Google Drive...';
+                    
+                    const result = await appState.cloudStorage.getFiles(folder.id);
+                    const files = result.files || [];
+                    
+                    if (files.length === 0) {
+                        utils.showToast('No images found in this folder');
+                        setTimeout(() => {
+                            utils.showScreen('folder-screen');
+                        }, 2000);
+                        return;
+                    }
+                    
+                    utils.updateLoadingProgress(files.length, files.length);
+                    elements.loadingMessage.textContent = 'Organizing images into stacks...';
+                    
+                    // Process files with progress updates
+                    appState.imageFiles = files.map(file => ({
+                        id: file.id,
+                        name: file.name,
+                        filename: file.name,
+                        originalName: file.name,
+                        mimeType: file.mimeType,
+                        size: file.size,
+                        createdTime: file.createdTime,
+                        modifiedTime: file.modifiedTime,
+                        thumbnailLink: file.thumbnailLink,
+                        downloadUrl: file.downloadUrl,
+                        appProperties: file.appProperties || {},
+                        // Initialize new fields for ratings and notes
+                        qualityRating: file.appProperties?.qualityRating || 0,
+                        contentRating: file.appProperties?.contentRating || 0,
+                        notes: file.appProperties?.notes || ''
+                    }));
+                    
+                    // Organize into stacks
+                    stackManager.updateStacks();
+                    appState.currentImageIndex = 0;
+                    appState.currentStack = 'in';
+                    
+                    // Initialize grid and cache images in background
+                    elements.loadingMessage.textContent = 'Preparing grid view and caching images...';
+                    
+                    // Background caching (non-blocking)
+                    this.backgroundCacheImages().then(() => {
+                        console.log('Background caching complete');
+                    });
+                    
+                    // Wait a moment then show app
+                    setTimeout(() => {
+                        utils.showScreen('app-container');
+                        imageViewer.displayTopImageFromStack('in');
+                        updateActiveProxTab();
+                    }, 1000);
+                    
+                } catch (error) {
+                    console.error('Error loading folder:', error);
+                    utils.showToast('Error loading images from folder', 'error');
+                    setTimeout(() => {
+                        utils.showScreen('folder-screen');
+                    }, 2000);
+                } finally {
+                    // Clean up progress callback
+                    if (appState.cloudStorage.currentProvider) {
+                        appState.cloudStorage.currentProvider.onProgressCallback = null;
+                    }
+                }
+            },
+            
+            async backgroundCacheImages() {
+                // Cache key images first (first few from each stack)
+                const priorityFiles = [];
+                STACK_TYPES.forEach(stackName => {
+                    const stackFiles = appState.stacks[stackName].slice(0, 3);
+                    priorityFiles.push(...stackFiles);
+                });
+                
+                // Cache priority files
+                for (const file of priorityFiles) {
+                    if (!appState.imageCache.has(file.id)) {
+                        const img = new Image();
+                        await utils.setImageSrc(img, file);
+                    }
+                }
+                
+                // Then cache remaining files in chunks to avoid blocking
+                const remainingFiles = appState.imageFiles.filter(f => !priorityFiles.includes(f));
+                const chunkSize = 10;
+                
+                for (let i = 0; i < remainingFiles.length; i += chunkSize) {
+                    const chunk = remainingFiles.slice(i, i + chunkSize);
+                    
+                    await Promise.all(chunk.map(async (file) => {
+                        if (!appState.imageCache.has(file.id)) {
+                            const img = new Image();
+                            await utils.setImageSrc(img, file);
+                        }
+                    }));
+                    
+                    // Small delay to prevent blocking
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            }
+        };
+        
+        // ===== Stack Manager =====
+        const stackManager = {
+            currentSort: 'date-desc',
+            
+            getFileMetadata: function(file) {
+                const appProperties = file.appProperties || {};
+                let metadata = {
+                    slideboxStack: appProperties.slideboxStack || 'in',
+                    slideboxTags: appProperties.slideboxTags ? appProperties.slideboxTags.split(',') : []
+                };
+                return metadata;
+            },
+            
+            sortFiles: function(files, sortOrder) {
+                const sorted = [...files];
+                
+                switch (sortOrder) {
+                    case 'date-desc':
+                        return sorted.sort((a, b) => new Date(b.modifiedTime || b.createdTime) - new Date(a.modifiedTime || a.createdTime));
+                    case 'date-asc':
+                        return sorted.sort((a, b) => new Date(a.modifiedTime || a.createdTime) - new Date(b.modifiedTime || b.createdTime));
+                    case 'name-asc':
+                        return sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    case 'name-desc':
+                        return sorted.sort((a, b) => (b.name || '').localeCompare(a.name || ''));
+                    default:
+                        return sorted;
+                }
+            },
+            
+            updateStacks: function() {
+                STACK_TYPES.forEach(stack => { appState.stacks[stack] = []; });
+                appState.imageFiles.forEach(file => {
+                    const metadata = this.getFileMetadata(file);
+                    const stack = metadata.slideboxStack;
+                    
+                    if (STACK_TYPES.includes(stack)) {
+                        appState.stacks[stack].push(file);
+                    } else {
+                        appState.stacks.in.push(file);
+                    }
+                });
+                
+                // Apply sorting to all stacks
+                STACK_TYPES.forEach(stack => {
+                    appState.stacks[stack] = this.sortFiles(appState.stacks[stack], this.currentSort);
+                });
+                
+                this.updateCounts();
+            },
+            
+            updateCounts: function() {
+                STACK_TYPES.forEach(stack => {
+                    const count = appState.stacks[stack].length;
+                    const countElements = document.querySelectorAll(`[data-stack="${stack}"]`);
+                    countElements.forEach(el => {
+                        if (el.classList.contains('pill-counter')) {
+                            el.textContent = count > 999 ? '999+' : count;
+                            if (count > 0) {
+                                el.classList.add('visible');
+                            } else {
+                                el.classList.remove('visible');
+                            }
+                        }
+                    });
+                });
+                
+                // Update grid count if open
+                if (appState.grid.stack && elements.selectAllBtn) {
+                    elements.selectAllBtn.textContent = appState.stacks[appState.grid.stack].length;
+                }
+            },
+            
+            moveFileToStack: async function(fileId, targetStack) {
+                const file = appState.imageFiles.find(f => f.id === fileId);
+                if (!file) return Promise.reject(new Error('File not found'));
+                
+                const metadata = this.getFileMetadata(file);
+                const currentStack = metadata.slideboxStack;
+                
+                if (currentStack === targetStack) {
+                    return Promise.resolve(file);
+                }
+                
+                try {
+                    await appState.cloudStorage.moveFileToStack(fileId, targetStack);
+                    
+                    const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
+                    if (currentStackIndex !== -1) {
+                        appState.stacks[currentStack].splice(currentStackIndex, 1);
+                    }
+                    appState.stacks[targetStack].unshift(file);
+                    file.appProperties = file.appProperties || {};
+                    file.appProperties.slideboxStack = targetStack;
+                    
+                    this.updateCounts();
+                    
+                    return Promise.resolve(file);
+                } catch (error) {
+                    console.error('Error moving file:', error);
+                    return Promise.reject(error);
+                }
+            },
+            
+            addTagsToFile: function(fileId, tags) {
+                const file = appState.imageFiles.find(f => f.id === fileId);
+                if (!file) return Promise.reject(new Error('File not found'));
+                
+                const metadata = this.getFileMetadata(file);
+                const currentTags = metadata.slideboxTags || [];
+                const newTags = [...new Set([...currentTags, ...tags])];
+                
+                // Update tag suggestions
+                tags.forEach(tag => appState.tags.add(tag));
+                
+                file.appProperties = file.appProperties || {};
+                file.appProperties.slideboxTags = newTags.join(',');
+                
+                return Promise.resolve(newTags);
+            }
+        };
+        
+        // ===== Image Viewer =====
+        const imageViewer = {
+            displayCurrentImage: async function() {
+                if (appState.imageFiles.length === 0 || appState.currentImageIndex < 0 || appState.currentImageIndex >= appState.imageFiles.length) {
+                    elements.centerImage.src = '';
+                    elements.centerImage.alt = 'No image selected';
+                    elements.emptyState.classList.remove('hidden');
+                    return;
+                }
+                
+                elements.emptyState.classList.add('hidden');
+                const currentFile = appState.imageFiles[appState.currentImageIndex];
+                
+                if (!currentFile) {
+                    elements.centerImage.src = '';
+                    elements.centerImage.alt = 'Image not available';
+                    utils.showToast('Error: Image not available', 'error');
+                    return;
+                }
+                
+                // Use optimized image loading
+                await utils.setImageSrc(elements.centerImage, currentFile);
+                
+                // Reset zoom and pan when displaying new image
+                appState.currentScale = 1;
+                appState.panOffset = { x: 0, y: 0 };
+                this.applyTransform();
+                
+                stackManager.updateCounts();
+            },
+            
+            displayTopImageFromStack: async function(stackName) {
+                if (appState.stacks[stackName].length === 0) {
+                    elements.centerImage.style.opacity = '0';
+                    setTimeout(() => {
+                        elements.centerImage.src = '';
+                        elements.centerImage.alt = 'No images in this stack';
+                        updateEmptyStateButtons();
+                        elements.emptyState.classList.remove('hidden');
+                        elements.centerImage.style.opacity = '1';
+                    }, 200);
+                    return;
+                }
+                
+                elements.emptyState.classList.add('hidden');
+                const topImage = appState.stacks[stackName][0];
+                const imageIndex = appState.imageFiles.findIndex(f => f.id === topImage.id);
+                
+                if (imageIndex !== -1) {
+                    appState.currentImageIndex = imageIndex;
+                    appState.currentStack = stackName;
+                    await this.displayCurrentImage();
+                    updateActiveProxTab();
+                }
+            },
+            
+            applyTransform: function() {
+                const transform = `scale(${appState.currentScale}) translate(${appState.panOffset.x}px, ${appState.panOffset.y}px)`;
+                elements.centerImage.style.transform = transform;
+            },
+            
+            moveToNextImage: async function() {
+                if (appState.imageFiles.length === 0) return;
+                
+                const activeStackImages = appState.stacks[appState.currentStack];
+                if (activeStackImages.length > 0) {
+                    const currentImageInStack = activeStackImages.find(img => img.id === appState.imageFiles[appState.currentImageIndex].id);
+                    if (currentImageInStack) {
+                        const currentIndexInStack = activeStackImages.indexOf(currentImageInStack);
+                        const nextIndexInStack = (currentIndexInStack + 1) % activeStackImages.length;
+                        const nextImageInStack = activeStackImages[nextIndexInStack];
+                        const nextGlobalIndex = appState.imageFiles.findIndex(img => img.id === nextImageInStack.id);
+                        if (nextGlobalIndex !== -1) {
+                            appState.currentImageIndex = nextGlobalIndex;
+                        }
+                    } else {
+                        if (activeStackImages.length > 0) {
+                            const firstImageInStack = activeStackImages[0];
+                            const firstGlobalIndex = appState.imageFiles.findIndex(img => img.id === firstImageInStack.id);
+                            if (firstGlobalIndex !== -1) {
+                                appState.currentImageIndex = firstGlobalIndex;
+                            }
+                        }
+                    }
+                    await this.displayCurrentImage();
+                } else {
+                    elements.centerImage.style.opacity = '0';
+                    setTimeout(() => {
+                        elements.centerImage.src = '';
+                        elements.centerImage.alt = 'No images in this stack';
+                        updateEmptyStateButtons();
+                        elements.emptyState.classList.remove('hidden');
+                        elements.centerImage.style.opacity = '1';
+                    }, 200);
+                }
+            }
+        };
+        
+        // ===== ProxTab Management =====
+        function updateActiveProxTab() {
+            Object.values(elements.pillCounters).forEach(pill => {
+                pill.classList.remove('active');
+            });
+            
+            if (elements.pillCounters[appState.currentStack]) {
+                elements.pillCounters[appState.currentStack].classList.add('active');
+            }
+        }
+        
+        function setupProxTabClicks() {
+            Object.entries(elements.pillCounters).forEach(([stackName, pill]) => {
+                pill.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    
+                    // If clicking the currently active proxtab, open grid mode
+                    if (appState.currentStack === stackName) {
+                        gridView.open(stackName);
+                        acknowledgePillCounter(stackName);
+                        return;
+                    }
+                    
+                    // If clicking an inactive proxtab, activate it and show top image
+                    appState.currentStack = stackName;
+                    updateActiveProxTab();
+                    imageViewer.displayTopImageFromStack(stackName);
+                    acknowledgePillCounter(stackName);
+                });
+            });
+        }
+        
+        // ===== Enhanced Triple Ripple + Glow Effect =====
+        function acknowledgePillCounter(stackName) {
+            const pill = elements.pillCounters[stackName];
+            if (pill) {
+                pill.classList.remove('triple-ripple', 'glow-effect');
+                pill.offsetHeight;
+                pill.classList.add('triple-ripple');
+                
+                setTimeout(() => {
+                    pill.classList.add('glow-effect');
+                }, 100);
+                
+                setTimeout(() => {
+                    pill.classList.remove('triple-ripple', 'glow-effect');
+                }, 3000);
+            }
+        }
+        
+        // ===== Grid View =====
+        const gridView = {
+            open: function(stack) {
+                elements.gridModal.classList.remove('hidden');
+                const stackNames = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
+                elements.gridTitle.textContent = stackNames[stack] || stack;
+                elements.selectAllBtn.textContent = appState.stacks[stack].length;
+                
+                appState.grid.stack = stack;
+                appState.grid.selected = [];
+                
+                this.updateSelectionUI();
+                this.populate(stack);
+            },
+            
+            close: function() {
+                const selectedImages = appState.grid.selected;
+                const hasSelection = selectedImages.length === 1;
+                
+                elements.gridModal.classList.add('hidden');
+                
+                if (hasSelection) {
+                    const selectedFileId = selectedImages[0];
+                    const selectedIndex = appState.imageFiles.findIndex(f => f.id === selectedFileId);
+                    if (selectedIndex !== -1) {
+                        appState.currentImageIndex = selectedIndex;
+                        
+                        const currentStackImages = appState.stacks[appState.currentStack];
+                        const selectedFile = appState.imageFiles[selectedIndex];
+                        const stackIndex = currentStackImages.findIndex(f => f.id === selectedFileId);
+                        
+                        if (stackIndex !== -1) {
+                            const reorderedStack = [
+                                ...currentStackImages.slice(stackIndex),
+                                ...currentStackImages.slice(0, stackIndex)
+                            ];
+                            appState.stacks[appState.currentStack] = reorderedStack;
+                        }
+                        
+                        imageViewer.displayCurrentImage();
+                    }
+                } else {
+                    imageViewer.displayTopImageFromStack(appState.currentStack);
+                }
+                
+                appState.grid.stack = null;
+                appState.grid.selected = [];
+            },
+            
+            populate: function(stack) {
+                const container = elements.gridContainer;
+                container.innerHTML = '';
+                container.style.gridTemplateColumns = `repeat(${elements.gridSize.value}, 1fr)`;
+                
+                // Get sorted files for this stack
+                const sortedFiles = stackManager.sortFiles(appState.stacks[stack], stackManager.currentSort);
+                
+                sortedFiles.forEach((file) => {
+                    const div = document.createElement('div');
+                    div.className = 'grid-item';
+                    div.dataset.fileId = file.id;
+                    
+                    const img = document.createElement('img');
+                    img.className = 'grid-image';
+                    
+                    // Use cached images for better performance
+                    if (appState.imageCache.has(file.id)) {
+                        img.src = appState.imageCache.get(file.id);
+                        img.alt = file.name || 'Image';
+                    } else {
+                        // Fallback if not cached
+                        utils.setImageSrc(img, file);
+                    }
+                    
+                    div.addEventListener('click', e => {
+                        e.stopPropagation();
+                        
+                        if (appState.grid.selected.length === 1 && 
+                            appState.grid.selected[0] === file.id && 
+                            elements.gridSize.value === '1') {
+                            const imageUrl = appState.imageCache.get(file.id) || file.thumbnailLink || file.downloadUrl;
+                            if (imageUrl) {
+                                window.open(imageUrl, '_blank');
+                            }
+                            return;
+                        }
+                        
+                        this.toggleSelection(e, file.id);
+                    });
+                    
+                    div.appendChild(img);
+                    container.appendChild(div);
+                });
+            },
+            
+            toggleSelection: function(e, fileId) {
+                const gridItem = e.currentTarget;
+                const index = appState.grid.selected.indexOf(fileId);
+                
+                if (index === -1) {
+                    appState.grid.selected.push(fileId);
+                    gridItem.classList.add('selected');
+                } else {
+                    appState.grid.selected.splice(index, 1);
+                    gridItem.classList.remove('selected');
+                }
+                
+                this.updateSelectionUI();
+                
+                if (appState.grid.selected.length === 1 && elements.gridSize.value === '1') {
+                    this.focusOnSelectedItem(appState.grid.selected[0]);
+                }
+            },
+            
+            focusOnSelectedItem: function(fileId) {
+                const selectedItem = document.querySelector(`.grid-item[data-file-id="${fileId}"]`);
+                if (selectedItem) {
+                    selectedItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            },
+            
+            updateSelectionUI: function() {
+                const count = appState.grid.selected.length;
+                const buttons = [elements.tagSelected, elements.moveSelected, elements.deleteSelected];
+                
+                elements.selectionText.textContent = `${count} selected`;
+                
+                buttons.forEach(btn => {
+                    if (btn) btn.classList.toggle('hidden', count === 0);
+                });
+            },
+            
+            selectAll: function() {
+                const gridItems = document.querySelectorAll('#grid-container .grid-item');
+                appState.grid.selected = [];
+                
+                gridItems.forEach(item => {
+                    const fileId = item.dataset.fileId;
+                    if (fileId) {
+                        appState.grid.selected.push(fileId);
+                        item.classList.add('selected');
+                    }
+                });
+                
+                this.updateSelectionUI();
+            },
+            
+            deselectAll: function() {
+                document.querySelectorAll('#grid-container .grid-item').forEach(item => 
+                    item.classList.remove('selected')
+                );
+                appState.grid.selected = [];
+                this.updateSelectionUI();
+            }
+        };
+        
+        // ===== Details Modal with Tabs =====
+        const detailsModal = {
+            currentTab: 'info',
+            
+            show: function() {
+                const currentFile = appState.imageFiles[appState.currentImageIndex];
+                if (!currentFile) return;
+                
+                this.populateAllTabs(currentFile);
+                elements.detailsModal.classList.remove('hidden');
+                this.switchTab('info');
+            },
+            
+            hide: function() {
+                elements.detailsModal.classList.add('hidden');
+            },
+            
+            switchTab: function(tabName) {
+                // Update tab buttons
+                document.querySelectorAll('.tab-button').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.tab === tabName);
+                });
+                
+                // Update tab content
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.toggle('active', content.id === `tab-${tabName}`);
+                });
+                
+                this.currentTab = tabName;
+            },
+            
+            populateAllTabs: function(file) {
+                this.populateInfoTab(file);
+                this.populateTagsTab(file);
+                this.populateNotesTab(file);
+                this.populateMetadataTab(file);
+            },
+            
+            populateInfoTab: function(file) {
+                const filename = file.name || 'Unknown';
+                elements.detailFilename.textContent = filename;
+                
+                // Set up drive link
+                if (file.downloadUrl) {
+                    elements.detailFilenameLink.href = file.downloadUrl;
+                    elements.detailFilenameLink.style.display = 'inline';
+                } else {
+                    elements.detailFilenameLink.href = '#';
+                    elements.detailFilenameLink.style.display = 'none';
+                }
+                
+                // Date
+                const date = file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : 
+                           file.createdTime ? new Date(file.createdTime).toLocaleString() : 'Unknown';
+                elements.detailDate.textContent = date;
+                
+                // Size
+                const size = file.size ? utils.formatFileSize(file.size) : 'Unknown';
+                elements.detailSize.textContent = size;
+            },
+            
+            populateTagsTab: function(file) {
+                const metadata = stackManager.getFileMetadata(file);
+                const tags = metadata.slideboxTags || [];
+                
+                elements.detailTags.innerHTML = '';
+                
+                // Add existing tags
+                tags.forEach(tag => {
+                    const tagElement = document.createElement('div');
+                    tagElement.className = 'tag-item';
+                    tagElement.innerHTML = `
+                        <span>${tag}</span>
+                        <button class="tag-remove" data-tag="${tag}">×</button>
+                    `;
+                    elements.detailTags.appendChild(tagElement);
+                });
+                
+                // Add "+" button
+                const addButton = document.createElement('div');
+                addButton.className = 'add-tag-btn';
+                addButton.textContent = '+ Add Tag';
+                addButton.addEventListener('click', () => this.showAddTagInput());
+                elements.detailTags.appendChild(addButton);
+                
+                // Add event listeners for tag removal
+                elements.detailTags.querySelectorAll('.tag-remove').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const tagToRemove = e.target.dataset.tag;
+                        this.removeTag(file, tagToRemove);
+                    });
+                });
+            },
+            
+            showAddTagInput: function() {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'tag-input';
+                input.placeholder = 'Enter tag name';
+                input.style.marginLeft = '8px';
+                
+                const addButton = elements.detailTags.querySelector('.add-tag-btn');
+                addButton.parentNode.insertBefore(input, addButton);
+                input.focus();
+                
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        const tagName = input.value.trim();
+                        if (tagName) {
+                            const currentFile = appState.imageFiles[appState.currentImageIndex];
+                            stackManager.addTagsToFile(currentFile.id, [tagName]);
+                            this.populateTagsTab(currentFile);
+                            utils.showToast(`Added tag: ${tagName}`);
+                        }
+                    } else if (e.key === 'Escape') {
+                        input.remove();
+                    }
+                });
+                
+                input.addEventListener('blur', () => {
+                    setTimeout(() => input.remove(), 100);
+                });
+            },
+            
+            removeTag: function(file, tagToRemove) {
+                const metadata = stackManager.getFileMetadata(file);
+                const currentTags = metadata.slideboxTags || [];
+                const newTags = currentTags.filter(tag => tag !== tagToRemove);
+                
+                file.appProperties = file.appProperties || {};
+                file.appProperties.slideboxTags = newTags.join(',');
+                
+                this.populateTagsTab(file);
+                utils.showToast(`Removed tag: ${tagToRemove}`);
+            },
+            
+            populateNotesTab: function(file) {
+                // Notes textarea
+                elements.detailNotes.value = file.notes || '';
+                elements.detailNotes.addEventListener('blur', () => {
+                    file.notes = elements.detailNotes.value;
+                    file.appProperties = file.appProperties || {};
+                    file.appProperties.notes = file.notes;
+                });
+                
+                // Quality rating
+                this.setupStarRating(elements.qualityRating, file.qualityRating || 0, (rating) => {
+                    file.qualityRating = rating;
+                    file.appProperties = file.appProperties || {};
+                    file.appProperties.qualityRating = rating;
+                });
+                
+                // Content rating
+                this.setupStarRating(elements.contentRating, file.contentRating || 0, (rating) => {
+                    file.contentRating = rating;
+                    file.appProperties = file.appProperties || {};
+                    file.appProperties.contentRating = rating;
+                });
+            },
+            
+            setupStarRating: function(container, currentRating, onRatingChange) {
+                const stars = container.querySelectorAll('.star');
+                
+                // Set current rating
+                stars.forEach((star, index) => {
+                    star.classList.toggle('active', index < currentRating);
+                });
+                
+                // Add click handlers
+                stars.forEach((star, index) => {
+                    star.addEventListener('click', () => {
+                        const newRating = index + 1;
+                        stars.forEach((s, i) => {
+                            s.classList.toggle('active', i < newRating);
+                        });
+                        onRatingChange(newRating);
+                    });
+                    
+                    star.addEventListener('mouseenter', () => {
+                        stars.forEach((s, i) => {
+                            s.style.color = i <= index ? '#fbbf24' : '#d1d5db';
+                        });
+                    });
+                    
+                    star.addEventListener('mouseleave', () => {
+                        stars.forEach((s, i) => {
+                            s.style.color = s.classList.contains('active') ? '#fbbf24' : '#d1d5db';
+                        });
+                    });
+                });
+            },
+            
+            populateMetadataTab: function(file) {
+                elements.metadataTable.innerHTML = '';
+                
+                // Priority metadata fields in order
+                const priorityFields = ['filename', 'project', 'prompt', 'model', 'seed', 'negative_prompt', 'api_call', 'hash', 'height', 'width', 'steps', 'cfg'];
+                
+                // Extract metadata from appProperties
+                const allMetadata = this.extractAllMetadata(file);
+                
+                // Add filename first with copy button
+                this.addMetadataRow('Filename', file.name || 'Unknown', true);
+                
+                // Show priority fields first
+                priorityFields.forEach(field => {
+                    if (allMetadata[field] && field !== 'filename') {
+                        const needsCopyButton = ['prompt', 'seed', 'model', 'negative_prompt', 'api_call'].includes(field);
+                        this.addMetadataRow(field, allMetadata[field], needsCopyButton);
+                    }
+                });
+                
+                // Show other fields (excluding size, type, and priority fields)
+                Object.entries(allMetadata).forEach(([key, value]) => {
+                    const lowerKey = key.toLowerCase();
+                    if (!priorityFields.includes(lowerKey) && 
+                        !['size', 'type', 'filename', 'name'].includes(lowerKey) &&
+                        value) {
+                        this.addMetadataRow(key, value, false);
+                    }
+                });
+            },
+            
+            extractAllMetadata: function(file) {
+                const metadata = {};
+                
+                // From appProperties
+                if (file.appProperties) {
+                    Object.entries(file.appProperties).forEach(([key, value]) => {
+                        if (key !== 'slideboxStack' && key !== 'slideboxTags' && key !== 'qualityRating' && key !== 'contentRating' && key !== 'notes') {
+                            metadata[key] = value;
+                        }
+                    });
+                }
+                
+                // Basic file properties
+                if (file.createdTime) metadata['created'] = new Date(file.createdTime).toLocaleString();
+                if (file.modifiedTime) metadata['modified'] = new Date(file.modifiedTime).toLocaleString();
+                
+                return metadata;
+            },
+            
+            addMetadataRow: function(key, value, needsCopyButton = false) {
+                const row = document.createElement('tr');
+                
+                // Format the key (capitalize first letter, replace underscores)
+                const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                
+                // Format long values with line breaks
+                let formattedValue = String(value);
+                if (formattedValue.length > 100) {
+                    formattedValue = formattedValue.replace(/,(?=\s)/g, ',\n').replace(/\s+/g, ' ').trim();
+                }
+                
+                const copyButtonHtml = needsCopyButton ? 
+                    `<button class="copy-button copy-metadata" data-value="${value}">Copy</button>` : '';
+                
+                row.innerHTML = `
+                    <td class="key-cell">${formattedKey}</td>
+                    <td class="value-cell">${formattedValue} ${copyButtonHtml}</td>
+                `;
+                elements.metadataTable.appendChild(row);
+            },
+            
+            copyToClipboard: function(text) {
+                navigator.clipboard.writeText(text).then(() => {
+                    utils.showToast('Copied to clipboard');
+                }).catch(() => {
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    utils.showToast('Copied to clipboard');
+                });
+            }
+        };
+        
+        // ===== Modal Manager =====
+        const modalManager = {
+            show: function(modalId) {
+                const modal = document.getElementById(modalId);
+                if (modal) modal.classList.remove('hidden');
+            },
+            
+            hide: function(modalId) {
+                const modal = document.getElementById(modalId);
+                if (modal) modal.classList.add('hidden');
+            },
+            
+            setup: function() {
+                // Move modal handlers
+                document.querySelectorAll('.move-option').forEach(option => {
+                    option.addEventListener('click', () => {
+                        const targetStack = option.dataset.stack;
+                        const promises = appState.grid.selected.map(fileId => 
+                            stackManager.moveFileToStack(fileId, targetStack)
+                        );
+                        
+                        Promise.all(promises)
+                            .then(() => {
+                                utils.showToast(`Moved ${promises.length} images to ${targetStack}`);
+                                this.hide('move-modal');
+                                
+                                if (appState.grid.stack) {
+                                    gridView.populate(appState.grid.stack);
+                                }
+                                
+                                appState.grid.selected = [];
+                                gridView.updateSelectionUI();
+                                stackManager.updateCounts();
+                            })
+                            .catch(() => {
+                                utils.showToast('Failed to move some images', 'error');
+                                this.hide('move-modal');
+                            });
+                    });
+                });
+                
+                // Tag modal handlers
+                document.getElementById('apply-tag').addEventListener('click', () => {
+                    const tagInput = elements.tagInput.value.trim();
+                    if (!tagInput) {
+                        this.hide('tag-modal');
+                        return;
+                    }
+                    
+                    const tags = tagInput.split(',')
+                        .map(tag => tag.trim())
+                        .filter(tag => tag);
+                    
+                    const promises = appState.grid.selected.map(fileId => 
+                        stackManager.addTagsToFile(fileId, tags)
+                    );
+                    
+                    Promise.all(promises)
+                        .then(() => {
+                            utils.showToast(`Tags added to ${promises.length} images`);
+                            this.hide('tag-modal');
+                        })
+                        .catch(() => {
+                            utils.showToast('Failed to add tags to some images', 'error');
+                            this.hide('tag-modal');
+                        });
+                });
+                
+                // Delete modal handlers
+                elements.confirmDelete.addEventListener('click', () => {
+                    const currentStack = appState.grid.stack;
+                    elements.confirmDelete.disabled = true;
+                    elements.confirmDelete.textContent = 'Processing...';
+                    
+                    if (currentStack === 'trash') {
+                        // Move to Google Drive trash (not permanent delete)
+                        const promises = appState.grid.selected.map(fileId => 
+                            appState.cloudStorage.deleteFile(fileId)
+                        );
+                        
+                        Promise.all(promises)
+                            .then(() => {
+                                utils.showToast(`Moved ${promises.length} images to Google Drive trash`);
+                                this.hide('delete-modal');
+                                
+                                // Remove from local stacks
+                                appState.grid.selected.forEach(fileId => {
+                                    const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
+                                    if (fileIndex !== -1) {
+                                        appState.imageFiles.splice(fileIndex, 1);
+                                    }
+                                    const trashIndex = appState.stacks.trash.findIndex(f => f.id === fileId);
+                                    if (trashIndex !== -1) {
+                                        appState.stacks.trash.splice(trashIndex, 1);
+                                    }
+                                });
+                                
+                                if (appState.grid.stack) {
+                                    gridView.populate(appState.grid.stack);
+                                }
+                                
+                                appState.grid.selected = [];
+                                gridView.updateSelectionUI();
+                                stackManager.updateCounts();
+                            })
+                            .catch(() => {
+                                utils.showToast('Failed to delete some images', 'error');
+                                this.hide('delete-modal');
+                            })
+                            .finally(() => {
+                                elements.confirmDelete.disabled = false;
+                                elements.confirmDelete.textContent = 'Move to Google Drive Trash';
+                            });
+                    } else {
+                        // Move to local trash stack
+                        const promises = appState.grid.selected.map(fileId => 
+                            stackManager.moveFileToStack(fileId, 'trash')
+                        );
+                        
+                        Promise.all(promises).then(() => {
+                            utils.showToast(`Moved ${promises.length} images to trash`);
+                            this.hide('delete-modal');
+                            
+                            if (appState.grid.stack) {
+                                gridView.populate(appState.grid.stack);
+                            }
+                            
+                            appState.grid.selected = [];
+                            gridView.updateSelectionUI();
+                            stackManager.updateCounts();
+                        }).finally(() => {
+                            elements.confirmDelete.disabled = false;
+                            elements.confirmDelete.textContent = 'Move to Trash';
+                        });
+                    }
+                });
+                
+                // Cancel buttons
+                ['cancel-move', 'cancel-tag', 'cancel-delete'].forEach(id => {
+                    document.getElementById(id).addEventListener('click', () => {
+                        this.hide(id.replace('cancel-', '') + '-modal');
+                    });
+                });
+                
+                // Action buttons
+                elements.moveSelected.addEventListener('click', () => this.show('move-modal'));
+                
+                elements.tagSelected.addEventListener('click', () => {
+                    elements.tagSuggestions.innerHTML = '';
+                    appState.tags.forEach(tag => {
+                        const button = document.createElement('button');
+                        button.className = 'tag-suggestion';
+                        button.textContent = tag;
+                        button.addEventListener('click', () => {
+                            elements.tagInput.value += (elements.tagInput.value ? ', ' : '') + tag;
+                        });
+                        elements.tagSuggestions.appendChild(button);
+                    });
+                    
+                    this.show('tag-modal');
+                    elements.tagInput.value = '';
+                    elements.tagInput.focus();
+                });
+                
+                elements.deleteSelected.addEventListener('click', () => {
+                    const selectedCount = appState.grid.selected.length;
+                    const currentStack = appState.grid.stack;
+                    
+                    if (currentStack === 'trash') {
+                        elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Google Drive trash? They can be recovered from Google Drive.`;
+                        elements.confirmDelete.textContent = 'Move to Google Drive Trash';
+                    } else {
+                        elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
+                        elements.confirmDelete.textContent = 'Move to Trash';
+                    }
+                    
+                    this.show('delete-modal');
+                });
+            }
+        };
+        
+        // ===== Empty State Management =====
+        function updateEmptyStateButtons() {
+            const stacksWithImages = STACK_TYPES.filter(stack => appState.stacks[stack].length > 0);
+            const hasOtherStacks = stacksWithImages.some(stack => stack !== appState.currentStack);
+            
+            if (hasOtherStacks) {
+                elements.selectAnotherStackBtn.style.display = 'block';
+                elements.selectAnotherFolderBtn.style.display = 'none';
+            } else {
+                elements.selectAnotherStackBtn.style.display = 'none';
+                elements.selectAnotherFolderBtn.style.display = 'block';
+            }
+        }
+        
+        function showEdgeGlow(direction) {
+            const edge = elements.edgeGlows[direction];
+            if (edge) {
+                edge.classList.add('active');
+            }
+        }
+        
+        function hideAllEdgeGlows() {
+            Object.values(elements.edgeGlows).forEach(edge => {
+                edge.classList.remove('active');
+            });
+        }
+        
+        // ===== Enhanced Pinch Zoom System =====
+        function setupPinchZoom() {
+            elements.centerImage.addEventListener('touchstart', handleTouchStart, { passive: false });
+            elements.centerImage.addEventListener('touchmove', handleTouchMove, { passive: false });
+            elements.centerImage.addEventListener('touchend', handleTouchEnd, { passive: false });
+            
+            elements.centerImage.addEventListener('wheel', handleWheel, { passive: false });
+            
+            function handleTouchStart(e) {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    appState.isPinching = true;
+                    appState.initialDistance = getDistance(e.touches[0], e.touches[1]);
+                    appState.lastTouchPos = getCenter(e.touches[0], e.touches[1]);
+                } else if (e.touches.length === 1 && appState.currentScale > 1) {
+                    appState.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+            }
+            
+            function handleTouchMove(e) {
+                if (e.touches.length === 2 && appState.isPinching) {
+                    e.preventDefault();
+                    
+                    const currentDistance = getDistance(e.touches[0], e.touches[1]);
+                    const scaleFactor = currentDistance / appState.initialDistance;
+                    
+                    let newScale = appState.currentScale * scaleFactor;
+                    newScale = Math.max(appState.minScale, Math.min(appState.maxScale, newScale));
+                    
+                    appState.currentScale = newScale;
+                    appState.initialDistance = currentDistance;
+                    
+                    imageViewer.applyTransform();
+                } else if (e.touches.length === 1 && appState.currentScale > 1) {
+                    e.preventDefault();
+                    
+                    const deltaX = e.touches[0].clientX - appState.lastTouchPos.x;
+                    const deltaY = e.touches[0].clientY - appState.lastTouchPos.y;
+                    
+                    appState.panOffset.x += deltaX / appState.currentScale;
+                    appState.panOffset.y += deltaY / appState.currentScale;
+                    
+                    appState.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                    
+                    imageViewer.applyTransform();
+                }
+            }
+            
+            function handleTouchEnd(e) {
+                if (e.touches.length < 2) {
+                    appState.isPinching = false;
+                }
+                
+                if (appState.currentScale < 1.1) {
+                    appState.currentScale = 1;
+                    appState.panOffset = { x: 0, y: 0 };
+                    imageViewer.applyTransform();
+                }
+            }
+            
+            function handleWheel(e) {
+                e.preventDefault();
+                
+                const scaleChange = e.deltaY > 0 ? 0.9 : 1.1;
+                let newScale = appState.currentScale * scaleChange;
+                newScale = Math.max(appState.minScale, Math.min(appState.maxScale, newScale));
+                
+                appState.currentScale = newScale;
+                
+                if (appState.currentScale <= 1.1) {
+                    appState.currentScale = 1;
+                    appState.panOffset = { x: 0, y: 0 };
+                }
+                
+                imageViewer.applyTransform();
+            }
+        }
+        
+        // ===== Gesture System =====
+        function setupGestureSystem() {
+            let startPos = { x: 0, y: 0 };
+            let currentPos = { x: 0, y: 0 };
+            let lastTime = 0;
+            let velocityHistory = [];
+            let gestureStarted = false;
+            
+            elements.imageViewport.addEventListener('mousedown', handleStart);
+            document.addEventListener('mousemove', handleMove);
+            document.addEventListener('mouseup', handleEnd);
+            
+            elements.imageViewport.addEventListener('touchstart', handleStart, { passive: false });
+            document.addEventListener('touchmove', handleMove, { passive: false });
+            document.addEventListener('touchend', handleEnd, { passive: false });
+            
+            function handleStart(e) {
+                if (appState.imageFiles.length === 0) return;
+                
+                if (e.touches && (e.touches.length > 1 || appState.isPinching)) return;
+                
+                if (appState.currentScale > 1.1) return;
+                
+                e.preventDefault();
+                const point = e.touches ? e.touches[0] : e;
+                
+                startPos = { x: point.clientX, y: point.clientY };
+                currentPos = { x: point.clientX, y: point.clientY };
+                lastTime = Date.now();
+                velocityHistory = [];
+                gestureStarted = false;
+                
+                appState.isDragging = true;
+                elements.centerImage.classList.add('dragging');
+            }
+            
+            function handleMove(e) {
+                if (!appState.isDragging || appState.imageFiles.length === 0) return;
+                
+                if (e.touches && e.touches.length > 1) {
+                    appState.isDragging = false;
+                    elements.centerImage.classList.remove('dragging');
+                    hideAllEdgeGlows();
+                    return;
+                }
+                
+                e.preventDefault();
+                const point = e.touches ? e.touches[0] : e;
+                const now = Date.now();
+                
+                currentPos = { x: point.clientX, y: point.clientY };
+                
+                const deltaX = currentPos.x - startPos.x;
+                const deltaY = currentPos.y - startPos.y;
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                
+                const timeDelta = now - lastTime;
+                if (timeDelta > 0) {
+                    const velX = deltaX / timeDelta;
+                    const velY = deltaY / timeDelta;
+                    velocityHistory.push({ x: velX, y: velY, time: now });
+                    
+                    velocityHistory = velocityHistory.filter(v => now - v.time < 100);
+                }
+                
+                if (distance > 30) {
+                    gestureStarted = true;
+                    const direction = determineSwipeDirection(deltaX, deltaY);
+                    if (direction) {
+                        hideAllEdgeGlows();
+                        showEdgeGlow(direction);
+                    }
+                } else {
+                    hideAllEdgeGlows();
+                }
+                
+                lastTime = now;
+            }
+            
+            function handleEnd(e) {
+                if (!appState.isDragging) return;
+                
+                e.preventDefault();
+                appState.isDragging = false;
+                elements.centerImage.classList.remove('dragging');
+                
+                if (!gestureStarted) {
+                    hideAllEdgeGlows();
+                    return;
+                }
+                
+                const deltaX = currentPos.x - startPos.x;
+                const deltaY = currentPos.y - startPos.y;
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                
+                let avgVel = { x: 0, y: 0 };
+                if (velocityHistory.length > 0) {
+                    avgVel = velocityHistory.reduce((acc, v) => ({
+                        x: acc.x + v.x,
+                        y: acc.y + v.y
+                    }), { x: 0, y: 0 });
+                    avgVel.x /= velocityHistory.length;
+                    avgVel.y /= velocityHistory.length;
+                }
+                
+                const velocity = Math.sqrt(avgVel.x * avgVel.x + avgVel.y * avgVel.y);
+                
+                if (distance > 80 && velocity > 0.5) {
+                    const direction = determineSwipeDirection(deltaX, deltaY);
+                    const targetStack = directionToStack(direction);
+                    if (targetStack && direction) {
+                        executeFlick(targetStack);
+                        return;
+                    }
+                }
+                
+                hideAllEdgeGlows();
+            }
+        }
+        
+        function determineSwipeDirection(deltaX, deltaY) {
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                return deltaX > 0 ? 'right' : 'left';
+            } else {
+                return deltaY > 0 ? 'bottom' : 'top';
+            }
+        }
+        
+        function directionToStack(direction) {
+            const mapping = {
+                'top': 'priority',
+                'bottom': 'trash',
+                'left': 'in',
+                'right': 'out'
+            };
+            return mapping[direction];
+        }
+        
+        async function executeFlick(targetStack) {
+            const currentImage = appState.imageFiles[appState.currentImageIndex];
+            const currentStack = stackManager.getFileMetadata(currentImage).slideboxStack;
+            
+            acknowledgePillCounter(targetStack);
+            
+            if (currentStack === targetStack) {
+                const currentStackArray = appState.stacks[currentStack];
+                const index = currentStackArray.findIndex(img => img.id === currentImage.id);
+                if (index > -1) {
+                    currentStackArray.splice(index, 1);
+                    currentStackArray.push(currentImage);
+                }
+                
+                if (appState.stacks[appState.currentStack].length === 0) {
+                    elements.centerImage.style.opacity = '0';
+                    setTimeout(() => {
+                        elements.centerImage.src = '';
+                        elements.centerImage.alt = 'No images in this stack';
+                        updateEmptyStateButtons();
+                        elements.emptyState.classList.remove('hidden');
+                        elements.centerImage.style.opacity = '1';
+                    }, 200);
+                } else {
+                    imageViewer.moveToNextImage();
+                }
+                
+                stackManager.updateCounts();
+                hideAllEdgeGlows();
+                return;
+            }
+            
+            try {
+                await stackManager.moveFileToStack(currentImage.id, targetStack);
+                
+                if (appState.stacks[appState.currentStack].length === 0) {
+                    elements.centerImage.style.opacity = '0';
+                    setTimeout(() => {
+                        elements.centerImage.src = '';
+                        elements.centerImage.alt = 'No images in this stack';
+                        updateEmptyStateButtons();
+                        elements.emptyState.classList.remove('hidden');
+                        elements.centerImage.style.opacity = '1';
+                    }, 200);
+                } else {
+                    imageViewer.moveToNextImage();
+                }
+                hideAllEdgeGlows();
+            } catch (error) {
+                utils.showToast(`Error moving image: ${error.message}`, 'error');
+                hideAllEdgeGlows();
+            }
+        }
+        
+        // ===== Initialize App =====
+        async function initApp() {
+            try {
+                // Initialize IndexedDB cache
+                await cacheManager.init();
+                
+                // Initialize CloudStorageModule
+                appState.cloudStorage = new CloudStorageModule();
+                appState.cloudStorage.setProvider('googledrive');
+                
+                // Set up event handlers
+                appState.cloudStorage.onAuthStateChanged = (authenticated, provider) => {
+                    console.log(`Auth state changed: ${authenticated} (${provider})`);
+                };
+                
+                appState.cloudStorage.onError = (error) => {
+                    console.log(`CloudStorage error: ${error.message}`);
+                    utils.showToast(`Error: ${error.message}`, 'error');
+                };
+                
+                // Check if already authenticated
+                if (appState.cloudStorage.isAuthenticated()) {
+                    authManager.setStatus('Already connected to Google Drive', 'success');
+                    setTimeout(() => {
+                        utils.showScreen('folder-screen');
+                        folderManager.loadFolders();
+                    }, 1000);
+                }
+                
+                // Setup event listeners
+                elements.authButton.addEventListener('click', () => authManager.authenticate());
+                elements.refreshFolders.addEventListener('click', () => folderManager.loadFolders());
+                elements.logout.addEventListener('click', () => authManager.logout());
+                
+                // Navigation
+                elements.backButton.addEventListener('click', () => {
+                    utils.showScreen('folder-screen');
+                    folderManager.loadFolders();
+                });
+                
+                // Details button and modal
+                elements.detailsButton.addEventListener('click', () => {
+                    detailsModal.show();
+                });
+                
+                elements.detailsClose.addEventListener('click', () => {
+                    detailsModal.hide();
+                });
+                
+                // Tab navigation
+                document.querySelectorAll('.tab-button').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        detailsModal.switchTab(btn.dataset.tab);
+                    });
+                });
+                
+                // Copy buttons in metadata table
+                document.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('copy-metadata')) {
+                        const value = e.target.dataset.value;
+                        detailsModal.copyToClipboard(value);
+                    }
+                });
+                
+                // Empty state buttons
+                elements.selectAnotherStackBtn.addEventListener('click', () => {
+                    const stacksWithImages = STACK_TYPES.filter(stack => appState.stacks[stack].length > 0);
+                    if (stacksWithImages.length > 0) {
+                        const nextStack = stacksWithImages.find(stack => stack !== appState.currentStack) || stacksWithImages[0];
+                        appState.currentStack = nextStack;
+                        imageViewer.displayTopImageFromStack(nextStack);
+                        elements.emptyState.classList.add('hidden');
+                    } else {
+                        elements.selectAnotherStackBtn.style.display = 'none';
+                        elements.selectAnotherFolderBtn.style.display = 'block';
+                    }
+                });
+                
+                elements.selectAnotherFolderBtn.addEventListener('click', () => {
+                    utils.showScreen('folder-screen');
+                    folderManager.loadFolders();
+                });
+                
+                // Setup other modules
+                setupPinchZoom();
+                setupGestureSystem();
+                setupProxTabClicks();
+                modalManager.setup();
+                
+                // Grid controls
+                elements.closeGrid.addEventListener('click', () => gridView.close());
+                elements.selectAllBtn.addEventListener('click', () => gridView.selectAll());
+                elements.deselectAllBtn.addEventListener('click', () => gridView.deselectAll());
+                
+                elements.gridSize.addEventListener('input', () => {
+                    const value = elements.gridSize.value;
+                    elements.gridSizeValue.textContent = value;
+                    elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
+                    
+                    if (appState.grid.selected.length === 1 && value === '1') {
+                        setTimeout(() => gridView.focusOnSelectedItem(appState.grid.selected[0]), 100);
+                    }
+                });
+                
+                // Grid sort handler
+                elements.gridSort.addEventListener('change', () => {
+                    const sortValue = elements.gridSort.value;
+                    stackManager.currentSort = sortValue;
+                    
+                    // Re-sort all stacks
+                    STACK_TYPES.forEach(stack => {
+                        appState.stacks[stack] = stackManager.sortFiles(appState.stacks[stack], sortValue);
+                    });
+                    
+                    // Refresh current grid view if open
+                    if (appState.grid.stack) {
+                        gridView.populate(appState.grid.stack);
+                    }
+                    
+                    // Update current image display to reflect new stack order
+                    if (appState.imageFiles.length > 0) {
+                        imageViewer.displayCurrentImage();
+                    }
+                });
+                
+                // Prevent container clicks from affecting selections
+                elements.gridContainer.addEventListener('click', e => {
+                    if (e.target === elements.gridContainer) {
+                        e.stopPropagation();
+                    }
+                });
+                
+                // Keyboard navigation
+                document.addEventListener('keydown', (e) => {
+                    if (elements.appContainer.classList.contains('hidden')) return;
+                    
+                    // Handle details modal
+                    if (!elements.detailsModal.classList.contains('hidden')) {
+                        if (e.key === 'Escape') {
+                            detailsModal.hide();
+                        }
+                        return;
+                    }
+                    
+                    if (!elements.gridModal.classList.contains('hidden')) {
+                        if (e.key === 'Escape') {
+                            gridView.close();
+                        }
+                        return;
+                    }
+                    
+                    switch (e.key) {
+                        case 'ArrowLeft':
+                        case 'ArrowRight':
+                            imageViewer.moveToNextImage();
+                            break;
+                        case 'Escape':
+                            utils.showScreen('folder-screen');
+                            break;
+                        case '1':
+                            appState.currentStack = 'in';
+                            updateActiveProxTab();
+                            gridView.open('in');
+                            break;
+                        case '2':
+                            appState.currentStack = 'out';
+                            updateActiveProxTab();
+                            gridView.open('out');
+                            break;
+                        case '3':
+                            appState.currentStack = 'priority';
+                            updateActiveProxTab();
+                            gridView.open('priority');
+                            break;
+                        case '4':
+                            appState.currentStack = 'trash';
+                            updateActiveProxTab();
+                            gridView.open('trash');
+                            break;
+                        case 'i':
+                        case 'I':
+                            detailsModal.show();
+                            break;
+                    }
+                });
+                
+                updateActiveProxTab();
+                
+                console.log('Orbital8 - Google Drive Enhanced (Fixed) ready');
+                
+            } catch (error) {
+                console.error('Failed to initialize app:', error);
+                utils.showToast('Failed to initialize app', 'error');
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
