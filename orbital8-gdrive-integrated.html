@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Version: base + 1 -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -16,164 +17,6 @@
             --app-text-secondary: #4b5563;
             --app-shadow: rgba(0, 0, 0, 0.1);
         }
-        
-        // ===== Details Modal =====
-        const detailsModal = {
-            show: function() {
-                const currentFile = appState.imageFiles[appState.currentImageIndex];
-                if (!currentFile) return;
-                
-                this.populateDetails(currentFile);
-                elements.detailsModal.classList.remove('hidden');
-            },
-            
-            hide: function() {
-                elements.detailsModal.classList.add('hidden');
-            },
-            
-            populateDetails: function(file) {
-                // File Information
-                const filename = file.originalName || 
-                               (file.file && file.file.name) || 
-                               file.name || 
-                               file.filename || 
-                               'Unknown';
-                elements.detailFilename.textContent = filename;
-                
-                // Date
-                const date = file.lastModified ? new Date(file.lastModified).toLocaleString() : 
-                           file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : 'Unknown';
-                elements.detailDate.textContent = date;
-                
-                // Tags
-                this.populateTags(file);
-                
-                // Metadata - only specific fields
-                this.displaySpecificMetadata(file);
-            },
-            
-            populateTags: function(file) {
-                const metadata = stackManager.getFileMetadata(file);
-                const tags = metadata.slideboxTags || [];
-                
-                elements.detailTags.innerHTML = '';
-                
-                if (tags.length === 0) {
-                    elements.detailTags.innerHTML = '<span class="details-value">No tags</span>';
-                    return;
-                }
-                
-                tags.forEach(tag => {
-                    const tagElement = document.createElement('div');
-                    tagElement.className = 'tag-item';
-                    tagElement.innerHTML = `
-                        <span>${tag}</span>
-                        <button class="tag-remove" data-tag="${tag}">×</button>
-                    `;
-                    elements.detailTags.appendChild(tagElement);
-                });
-                
-                // Add event listeners for tag removal
-                elements.detailTags.querySelectorAll('.tag-remove').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const tagToRemove = e.target.dataset.tag;
-                        this.removeTag(file, tagToRemove);
-                    });
-                });
-            },
-            
-            removeTag: function(file, tagToRemove) {
-                const metadata = stackManager.getFileMetadata(file);
-                const currentTags = metadata.slideboxTags || [];
-                const newTags = currentTags.filter(tag => tag !== tagToRemove);
-                
-                file.appProperties = file.appProperties || {};
-                file.appProperties.slideboxTags = newTags.join(',');
-                
-                this.populateTags(file);
-                utils.showToast(`Removed tag: ${tagToRemove}`);
-            },
-            
-            displaySpecificMetadata: function(file) {
-                elements.metadataTable.innerHTML = '';
-                
-                // Priority metadata fields in order
-                const priorityFields = ['project', 'prompt', 'model', 'seed', 'negative_prompt', 'api_call', 'hash', 'height', 'width', 'steps', 'cfg'];
-                
-                // Try to extract metadata from appProperties or other sources
-                const allMetadata = this.extractAllMetadata(file);
-                
-                // Show priority fields first
-                priorityFields.forEach(field => {
-                    if (allMetadata[field]) {
-                        this.addMetadataRow(field, allMetadata[field]);
-                    }
-                });
-                
-                // Show other fields (excluding size, type, and priority fields)
-                Object.entries(allMetadata).forEach(([key, value]) => {
-                    const lowerKey = key.toLowerCase();
-                    if (!priorityFields.includes(lowerKey) && 
-                        !['size', 'type', 'filename', 'name'].includes(lowerKey) &&
-                        value) {
-                        this.addMetadataRow(key, value);
-                    }
-                });
-            },
-            
-            extractAllMetadata: function(file) {
-                const metadata = {};
-                
-                // From appProperties
-                if (file.appProperties) {
-                    Object.entries(file.appProperties).forEach(([key, value]) => {
-                        if (key !== 'slideboxStack' && key !== 'slideboxTags') {
-                            metadata[key] = value;
-                        }
-                    });
-                }
-                
-                // Basic file properties
-                if (file.createdTime) metadata['created'] = new Date(file.createdTime).toLocaleString();
-                if (file.modifiedTime) metadata['modified'] = new Date(file.modifiedTime).toLocaleString();
-                
-                return metadata;
-            },
-            
-            addMetadataRow: function(key, value) {
-                const row = document.createElement('tr');
-                
-                // Format the key (capitalize first letter, replace underscores)
-                const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                
-                // Format long values with line breaks
-                let formattedValue = String(value);
-                if (formattedValue.length > 100) {
-                    formattedValue = formattedValue.replace(/,(?=\s)/g, ',\n').replace(/\s+/g, ' ').trim();
-                }
-                
-                row.innerHTML = `
-                    <td class="key-cell">${formattedKey}</td>
-                    <td class="value-cell">${formattedValue}</td>
-                `;
-                elements.metadataTable.appendChild(row);
-            },
-            
-            copyToClipboard: function(text) {
-                navigator.clipboard.writeText(text).then(() => {
-                    utils.showToast('Copied to clipboard');
-                }).catch(() => {
-                    // Fallback for older browsers
-                    const textArea = document.createElement('textarea');
-                    textArea.value = text;
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textArea);
-                    utils.showToast('Copied to clipboard');
-                });
-            }
-        };
 
         * {
             box-sizing: border-box;
@@ -490,7 +333,25 @@
             margin-bottom: 20px;
         }
         
+        .loading-progress {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .loading-progress-bar {
+            height: 100%;
+            background: linear-gradient(45deg, var(--app-accent), #d97706);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        
         .loading-spinner {
+            display: none;
             width: 40px;
             height: 40px;
             border: 3px solid rgba(245, 158, 11, 0.3);
@@ -657,12 +518,10 @@
             opacity: 1;
         }
         
-        /* ===== Enhanced ProxTab Pill Counters (Restored Original Size) ===== */
+        /* ===== Enhanced ProxTab Pill Counters ===== */
         .pill-counter {
             position: fixed;
-            background: rgba(255, 255, 255, 0.7);
             backdrop-filter: blur(10px);
-            border: none;
             border-radius: 20px;
             padding: 12px 20px;
             font-size: 18px;
@@ -682,14 +541,18 @@
         
         .pill-counter.active {
             font-weight: 700;
-            background: rgba(255, 255, 255, 0.9);
+            background: white;
             opacity: 1;
             border: 3px solid black;
         }
         
+        .pill-counter:not(.active) {
+            background: rgba(128, 128, 128, 0.4);
+            border: none;
+        }
+        
         .pill-counter:hover {
             opacity: 1;
-            background: rgba(255, 255, 255, 0.8);
             transform: scale(1.05);
         }
         
@@ -832,7 +695,7 @@
             transform: translateY(-2px);
         }
         
-        /* ===== Grid Modal (Exact SlideSwipe Replication) ===== */
+        /* ===== Grid Modal ===== */
         .grid-modal {
             position: fixed;
             inset: 0;
@@ -1237,7 +1100,7 @@
             margin-bottom: 16px;
         }
         
-        /* ===== Details Modal ===== */
+        /* ===== Details Modal with Tabs ===== */
         .details-modal {
             position: fixed;
             inset: 0;
@@ -1257,8 +1120,8 @@
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             width: 100%;
-            max-width: 600px;
-            max-height: 80vh;
+            max-width: 700px;
+            max-height: 85vh;
             margin: 16px;
             display: flex;
             flex-direction: column;
@@ -1301,57 +1164,98 @@
             height: 24px;
         }
         
+        /* Tab Navigation */
+        .tab-nav {
+            display: flex;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f8fafc;
+        }
+        
+        .tab-button {
+            flex: 1;
+            padding: 16px;
+            border: none;
+            background: transparent;
+            color: #6b7280;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+        }
+        
+        .tab-button:hover {
+            color: #374151;
+            background: rgba(0, 0, 0, 0.02);
+        }
+        
+        .tab-button.active {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+            background: white;
+        }
+        
         .details-content {
             flex: 1;
             overflow-y: auto;
-            padding: 16px;
+            overflow-x: hidden;
         }
         
-        .details-section {
-            margin-bottom: 24px;
+        .tab-content {
+            display: none;
+            padding: 20px;
         }
         
-        .details-section-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #374151;
-            margin-bottom: 8px;
+        .tab-content.active {
+            display: block;
         }
         
-        .details-item {
+        /* Tab 1: Info */
+        .info-section {
+            margin-bottom: 20px;
+        }
+        
+        .info-item {
             display: flex;
             align-items: center;
-            margin-bottom: 8px;
-            gap: 8px;
+            margin-bottom: 12px;
+            gap: 12px;
         }
         
-        .details-label {
-            font-size: 13px;
+        .info-label {
+            font-size: 14px;
             color: #6b7280;
-            min-width: 60px;
+            min-width: 80px;
+            font-weight: 500;
         }
         
-        .details-value {
-            font-size: 13px;
+        .info-value {
+            font-size: 14px;
             color: #374151;
             flex: 1;
             word-break: break-word;
         }
         
-        .copy-button {
-            background: #f3f4f6;
-            border: 1px solid #e5e7eb;
-            border-radius: 4px;
-            padding: 2px 6px;
-            font-size: 11px;
-            color: #6b7280;
-            cursor: pointer;
-            transition: all 0.2s;
+        .info-link {
+            color: #3b82f6;
+            text-decoration: none;
         }
         
-        .copy-button:hover {
-            background: #e5e7eb;
-            color: #374151;
+        .info-link:hover {
+            text-decoration: underline;
+        }
+        
+        /* Tab 2: Tags */
+        .tags-section {
+            margin-bottom: 20px;
+        }
+        
+        .tags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+            min-height: 40px;
         }
         
         .tag-item {
@@ -1359,11 +1263,10 @@
             align-items: center;
             background: #dbeafe;
             color: #1e40af;
-            padding: 2px 8px;
+            padding: 4px 8px;
             border-radius: 12px;
             font-size: 12px;
-            margin: 2px;
-            gap: 4px;
+            gap: 6px;
         }
         
         .tag-remove {
@@ -1374,8 +1277,8 @@
             font-size: 14px;
             line-height: 1;
             padding: 0;
-            width: 14px;
-            height: 14px;
+            width: 16px;
+            height: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1387,6 +1290,74 @@
             background: rgba(59, 130, 246, 0.1);
         }
         
+        .add-tag-btn {
+            background: #f3f4f6;
+            border: 1px dashed #d1d5db;
+            border-radius: 12px;
+            padding: 4px 12px;
+            font-size: 12px;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .add-tag-btn:hover {
+            background: #e5e7eb;
+            color: #374151;
+        }
+        
+        /* Tab 3: Notes & Ratings */
+        .notes-section {
+            margin-bottom: 24px;
+        }
+        
+        .notes-textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+            outline: none;
+        }
+        
+        .notes-textarea:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .rating-section {
+            margin-bottom: 20px;
+        }
+        
+        .rating-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+        
+        .star-rating {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .star {
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            color: #d1d5db;
+            transition: color 0.2s;
+        }
+        
+        .star:hover,
+        .star.active {
+            color: #fbbf24;
+        }
+        
+        /* Tab 4: Metadata */
         .metadata-table {
             width: 100%;
             border-collapse: collapse;
@@ -1394,7 +1365,7 @@
         }
         
         .metadata-table td {
-            padding: 8px 12px;
+            padding: 12px;
             border-bottom: 1px solid #e5e7eb;
             vertical-align: top;
         }
@@ -1412,13 +1383,25 @@
             color: #6b7280;
             word-wrap: break-word;
             white-space: pre-wrap;
+            position: relative;
         }
         
-        .details-content {
-            flex: 1;
-            overflow-y: auto;
-            overflow-x: hidden;
-            padding: 16px;
+        .copy-button {
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 11px;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-left: 8px;
+            vertical-align: top;
+        }
+        
+        .copy-button:hover {
+            background: #e5e7eb;
+            color: #374151;
         }
         
         /* ===== Toast Notification ===== */
@@ -1460,25 +1443,24 @@
             display: none !important;
         }
         
-        /* ===== Responsive Design for Tablets ===== */
+        /* ===== Responsive Design ===== */
         @media screen and (min-width: 768px) {
             .image-viewport {
-                top: -10vh; /* Move center stage higher on tablets */
+                top: -10vh;
             }
             
             .pill-counter {
-                font-size: 16px; /* Larger font for pill counters */
+                font-size: 16px;
                 padding: 8px 16px;
                 min-width: 40px;
             }
             
             .back-button, .details-button {
-                font-size: 14px; /* Larger font for buttons */
+                font-size: 14px;
                 padding: 10px 16px;
             }
         }
         
-        /* ===== Mobile Design Improvements ===== */
         @media screen and (max-width: 767px) {
             .back-button, .details-button {
                 font-size: 16px;
@@ -1488,7 +1470,7 @@
             }
             
             .pill-counter.bottom {
-                bottom: 80px; /* Extra space for gesture bar */
+                bottom: 80px;
             }
         }
     </style>
@@ -1532,7 +1514,10 @@
             <h2 class="loading-title">Loading Images</h2>
             <div class="loading-counter" id="loading-counter">0</div>
             <div class="loading-message" id="loading-message">Processing files...</div>
-            <div class="loading-spinner"></div>
+            <div class="loading-progress">
+                <div class="loading-progress-bar" id="loading-progress-bar"></div>
+            </div>
+            <div class="loading-spinner" id="loading-spinner"></div>
         </div>
     </div>
     
@@ -1906,25 +1891,45 @@
             }
             
             async getFiles(folderId = 'root') {
-                const query = `'${folderId}' in parents and trashed=false and (mimeType contains 'image/')`;
-                const response = await this.makeApiCall(`/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,appProperties)`);
+                const allFiles = [];
+                let nextPageToken = null;
                 
-                const files = response.files
-                    .filter(file => file.mimeType && file.mimeType.startsWith('image/'))
-                    .map(file => ({
-                        id: file.id,
-                        name: file.name,
-                        type: 'file',
-                        mimeType: file.mimeType,
-                        size: file.size ? parseInt(file.size) : 0,
-                        createdTime: file.createdTime,
-                        modifiedTime: file.modifiedTime,
-                        thumbnailLink: file.thumbnailLink,
-                        downloadUrl: file.webContentLink,
-                        appProperties: file.appProperties || {}
-                    }));
+                do {
+                    const query = `'${folderId}' in parents and trashed=false and (mimeType contains 'image/')`;
+                    let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,appProperties),nextPageToken&pageSize=100`;
+                    
+                    if (nextPageToken) {
+                        url += `&pageToken=${nextPageToken}`;
+                    }
+                    
+                    const response = await this.makeApiCall(url);
+                    
+                    const files = response.files
+                        .filter(file => file.mimeType && file.mimeType.startsWith('image/'))
+                        .map(file => ({
+                            id: file.id,
+                            name: file.name,
+                            type: 'file',
+                            mimeType: file.mimeType,
+                            size: file.size ? parseInt(file.size) : 0,
+                            createdTime: file.createdTime,
+                            modifiedTime: file.modifiedTime,
+                            thumbnailLink: file.thumbnailLink,
+                            downloadUrl: file.webContentLink,
+                            appProperties: file.appProperties || {}
+                        }));
+                    
+                    allFiles.push(...files);
+                    nextPageToken = response.nextPageToken;
+                    
+                    // Progress callback if available
+                    if (this.onProgressCallback) {
+                        this.onProgressCallback(allFiles.length);
+                    }
+                    
+                } while (nextPageToken);
                 
-                return { folders: [], files };
+                return { folders: [], files: allFiles };
             }
             
             async moveFileToStack(fileId, targetStack) {
@@ -1987,8 +1992,7 @@
         }
     </script>
     
-    <!-- Rest of the existing orbital8 grid modal and other modals here... -->
-    <!-- Grid Modal (Exact SlideSwipe Replication) -->
+    <!-- Grid Modal -->
     <div id="grid-modal" class="grid-modal hidden">
         <div class="grid-modal-content">
             <div class="grid-header">
@@ -2093,7 +2097,7 @@
         </div>
     </div>
     
-    <!-- Details Modal -->
+    <!-- Details Modal with Tabs -->
     <div id="details-modal" class="details-modal hidden">
         <div class="details-modal-content">
             <div class="details-header">
@@ -2104,29 +2108,99 @@
                     </svg>
                 </button>
             </div>
+            
+            <!-- Tab Navigation -->
+            <div class="tab-nav">
+                <button class="tab-button active" data-tab="info">Info</button>
+                <button class="tab-button" data-tab="tags">Tags</button>
+                <button class="tab-button" data-tab="notes">Notes</button>
+                <button class="tab-button" data-tab="metadata">Metadata</button>
+            </div>
+            
             <div class="details-content">
-                <div class="details-section">
-                    <div class="details-section-title">File Information</div>
-                    <div class="details-item">
-                        <span class="details-label">Name:</span>
-                        <span class="details-value" id="detail-filename"></span>
-                        <button class="copy-button" id="copy-filename">Copy</button>
-                    </div>
-                    <div class="details-item">
-                        <span class="details-label">Date:</span>
-                        <span class="details-value" id="detail-date"></span>
+                <!-- Tab 1: Info -->
+                <div id="tab-info" class="tab-content active">
+                    <div class="info-section">
+                        <div class="info-item">
+                            <span class="info-label">Filename:</span>
+                            <a id="detail-filename-link" class="info-value info-link" href="#" target="_blank">
+                                <span id="detail-filename"></span>
+                            </a>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Date:</span>
+                            <span class="info-value" id="detail-date"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Size:</span>
+                            <span class="info-value" id="detail-size"></span>
+                        </div>
                     </div>
                 </div>
                 
-                <div class="details-section">
-                    <div class="details-section-title">Tags</div>
-                    <div id="detail-tags"></div>
+                <!-- Tab 2: Tags -->
+                <div id="tab-tags" class="tab-content">
+                    <div class="tags-section">
+                        <div class="tags-container" id="detail-tags">
+                            <!-- Tags will be populated here -->
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="details-section" id="metadata-section">
-                    <div class="details-section-title">Metadata</div>
+                <!-- Tab 3: Notes & Ratings -->
+                <div id="tab-notes" class="tab-content">
+                    <div class="notes-section">
+                        <label for="detail-notes" class="info-label">Notes:</label>
+                        <textarea id="detail-notes" class="notes-textarea" placeholder="Add your notes here..."></textarea>
+                    </div>
+                    
+                    <div class="rating-section">
+                        <div class="rating-label">Quality Rating:</div>
+                        <div class="star-rating" id="quality-rating">
+                            <svg class="star" data-rating="1" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="2" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="3" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <div class="rating-section">
+                        <div class="rating-label">Content Rating:</div>
+                        <div class="star-rating" id="content-rating">
+                            <svg class="star" data-rating="1" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="2" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="3" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab 4: Metadata -->
+                <div id="tab-metadata" class="tab-content">
                     <table class="metadata-table" id="metadata-table">
-                        <!-- Metadata key-value pairs will be populated here -->
+                        <!-- Metadata will be populated here -->
                     </table>
                 </div>
             </div>
@@ -2163,7 +2237,11 @@
             grid: { stack: null, selected: [] },
             tags: new Set(),
             // Performance optimization
-            imageCache: new Map()
+            imageCache: new Map(),
+            // IndexedDB for caching
+            db: null,
+            // Loading progress
+            loadingProgress: { current: 0, total: 0 }
         };
         
         // ===== DOM Elements =====
@@ -2173,6 +2251,8 @@
             loadingScreen: document.getElementById('loading-screen'),
             loadingCounter: document.getElementById('loading-counter'),
             loadingMessage: document.getElementById('loading-message'),
+            loadingProgressBar: document.getElementById('loading-progress-bar'),
+            loadingSpinner: document.getElementById('loading-spinner'),
             appContainer: document.getElementById('app-container'),
             clientSecret: document.getElementById('client-secret'),
             authButton: document.getElementById('auth-button'),
@@ -2226,11 +2306,69 @@
             detailsModal: document.getElementById('details-modal'),
             detailsClose: document.getElementById('details-close'),
             detailFilename: document.getElementById('detail-filename'),
+            detailFilenameLink: document.getElementById('detail-filename-link'),
             detailDate: document.getElementById('detail-date'),
+            detailSize: document.getElementById('detail-size'),
             detailTags: document.getElementById('detail-tags'),
-            metadataTable: document.getElementById('metadata-table'),
-            metadataSection: document.getElementById('metadata-section'),
-            copyFilename: document.getElementById('copy-filename')
+            detailNotes: document.getElementById('detail-notes'),
+            qualityRating: document.getElementById('quality-rating'),
+            contentRating: document.getElementById('content-rating'),
+            metadataTable: document.getElementById('metadata-table')
+        };
+        
+        // ===== IndexedDB Cache Manager =====
+        const cacheManager = {
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open('Orbital8Cache', 1);
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => {
+                        appState.db = request.result;
+                        resolve();
+                    };
+                    
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        if (!db.objectStoreNames.contains('thumbnails')) {
+                            db.createObjectStore('thumbnails', { keyPath: 'id' });
+                        }
+                        if (!db.objectStoreNames.contains('metadata')) {
+                            db.createObjectStore('metadata', { keyPath: 'id' });
+                        }
+                    };
+                });
+            },
+            
+            async cacheThumbnail(fileId, url) {
+                if (!appState.db) return;
+                
+                try {
+                    const transaction = appState.db.transaction(['thumbnails'], 'readwrite');
+                    const store = transaction.objectStore('thumbnails');
+                    await store.put({ id: fileId, url, timestamp: Date.now() });
+                } catch (error) {
+                    console.warn('Failed to cache thumbnail:', error);
+                }
+            },
+            
+            async getCachedThumbnail(fileId) {
+                if (!appState.db) return null;
+                
+                try {
+                    const transaction = appState.db.transaction(['thumbnails'], 'readonly');
+                    const store = transaction.objectStore('thumbnails');
+                    const result = await store.get(fileId);
+                    
+                    if (result && (Date.now() - result.timestamp < 24 * 60 * 60 * 1000)) {
+                        return result.url;
+                    }
+                } catch (error) {
+                    console.warn('Failed to get cached thumbnail:', error);
+                }
+                
+                return null;
+            }
         };
         
         // ===== Utility Functions =====
@@ -2266,31 +2404,52 @@
                 setTimeout(() => { toast.classList.remove('show'); }, 3000);
             },
             
-            setImageSrc: function(img, file) {
-                return new Promise((resolve) => {
-                    if (appState.imageCache.has(file.id)) {
-                        img.src = appState.imageCache.get(file.id);
-                        img.alt = file.name || 'Image';
-                        resolve();
-                        return;
-                    }
+            updateLoadingProgress: function(current, total) {
+                appState.loadingProgress = { current, total };
+                elements.loadingCounter.textContent = current;
+                elements.loadingMessage.textContent = total ? 
+                    `Loading ${current} of ${total} images...` : 
+                    `Found ${current} images`;
+                
+                if (total > 0) {
+                    const percentage = (current / total) * 100;
+                    elements.loadingProgressBar.style.width = `${percentage}%`;
+                }
+            },
+            
+            setImageSrc: async function(img, file) {
+                // Check cache first
+                let imageUrl = appState.imageCache.get(file.id);
+                
+                if (!imageUrl) {
+                    // Check IndexedDB cache
+                    imageUrl = await cacheManager.getCachedThumbnail(file.id);
                     
-                    let imageUrl = file.thumbnailLink;
-                    if (imageUrl) {
-                        // Use high res thumbnail
-                        imageUrl = imageUrl.replace('=s220', '=s1000');
-                        appState.imageCache.set(file.id, imageUrl);
-                        img.src = imageUrl;
-                    } else if (file.downloadUrl) {
-                        appState.imageCache.set(file.id, file.downloadUrl);
-                        img.src = file.downloadUrl;
+                    if (!imageUrl) {
+                        // Use high res thumbnail or fallback
+                        imageUrl = file.thumbnailLink ? file.thumbnailLink.replace('=s220', '=s1000') : file.downloadUrl;
+                        
+                        // Cache in both memory and IndexedDB
+                        if (imageUrl) {
+                            appState.imageCache.set(file.id, imageUrl);
+                            await cacheManager.cacheThumbnail(file.id, imageUrl);
+                        }
                     } else {
-                        img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
+                        // Cache in memory from IndexedDB
+                        appState.imageCache.set(file.id, imageUrl);
                     }
-                    
-                    img.alt = file.name || 'Image';
-                    img.loading = 'lazy';
-                    
+                }
+                
+                if (imageUrl) {
+                    img.src = imageUrl;
+                } else {
+                    img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
+                }
+                
+                img.alt = file.name || 'Image';
+                img.loading = 'lazy';
+                
+                return new Promise((resolve) => {
                     img.onload = () => resolve();
                     img.onerror = () => {
                         img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
@@ -2300,17 +2459,12 @@
                 });
             },
             
-            // Preload all images for better grid performance
-            preloadAllImages: async function() {
-                const preloadPromises = appState.imageFiles.map(async (file) => {
-                    if (!appState.imageCache.has(file.id)) {
-                        const tempImg = new Image();
-                        await this.setImageSrc(tempImg, file);
-                    }
-                });
-                
-                await Promise.all(preloadPromises);
-                console.log(`Preloaded ${appState.imageFiles.length} images`);
+            formatFileSize: function(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
             }
         };
         
@@ -2349,1221 +2503,4 @@
                 }
             },
             
-            setStatus(message, type) {
-                elements.authStatus.textContent = message;
-                elements.authStatus.className = `auth-status ${type}`;
-            },
-            
-            logout() {
-                appState.cloudStorage.disconnect();
-                utils.showScreen('auth-screen');
-                elements.clientSecret.value = '';
-                this.setStatus('Enter your client secret to continue', 'info');
-            }
-        };
-        
-        // ===== Folder Manager =====
-        const folderManager = {
-            async loadFolders() {
-                elements.folderList.innerHTML = `
-                    <div class="folder-loading">
-                        <div class="folder-spinner"></div>
-                        <span>Loading folders...</span>
-                    </div>
-                `;
-                
-                try {
-                    const folders = await appState.cloudStorage.getFolders();
-                    
-                    if (folders.length === 0) {
-                        elements.folderList.innerHTML = `
-                            <div class="folder-loading">
-                                <span>No folders found in your Drive</span>
-                            </div>
-                        `;
-                        return;
-                    }
-                    
-                    elements.folderList.innerHTML = '';
-                    
-                    folders.forEach(folder => {
-                        const div = document.createElement('div');
-                        div.className = 'folder-item';
-                        div.innerHTML = `
-                            <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-                            </svg>
-                            <div class="folder-info">
-                                <div class="folder-name">${folder.name}</div>
-                                <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()}</div>
-                            </div>
-                        `;
-                        
-                        div.addEventListener('click', () => this.selectFolder(folder));
-                        elements.folderList.appendChild(div);
-                    });
-                } catch (error) {
-                    console.error('Error loading folders:', error);
-                    elements.folderList.innerHTML = `
-                        <div class="folder-loading">
-                            <span>Error loading folders. Please try again.</span>
-                        </div>
-                    `;
-                }
-            },
-            
-            async selectFolder(folder) {
-                appState.currentFolder.id = folder.id;
-                appState.currentFolder.name = folder.name;
-                
-                // Show loading screen
-                utils.showScreen('loading-screen');
-                elements.loadingCounter.textContent = '0';
-                elements.loadingMessage.textContent = 'Loading images from folder...';
-                
-                try {
-                    const result = await appState.cloudStorage.getFiles(folder.id);
-                    const files = result.files || [];
-                    
-                    elements.loadingCounter.textContent = files.length;
-                    elements.loadingMessage.textContent = `Found ${files.length} images`;
-                    
-                    if (files.length === 0) {
-                        utils.showToast('No images found in this folder');
-                        setTimeout(() => {
-                            utils.showScreen('folder-screen');
-                        }, 2000);
-                        return;
-                    }
-                    
-                    // Process files
-                    appState.imageFiles = files.map(file => ({
-                        id: file.id,
-                        name: file.name,
-                        filename: file.name,
-                        originalName: file.name,
-                        mimeType: file.mimeType,
-                        size: file.size,
-                        createdTime: file.createdTime,
-                        modifiedTime: file.modifiedTime,
-                        thumbnailLink: file.thumbnailLink,
-                        downloadUrl: file.downloadUrl,
-                        appProperties: file.appProperties || {}
-                    }));
-                    
-                    // Update loading message for preloading
-                    elements.loadingMessage.textContent = 'Preloading images for faster performance...';
-                    
-                    // Organize into stacks
-                    stackManager.updateStacks();
-                    appState.currentImageIndex = 0;
-                    appState.currentStack = 'in';
-                    
-                    // Preload all images for better performance
-                    await utils.preloadAllImages();
-                    
-                    // Wait a moment then show app
-                    setTimeout(() => {
-                        utils.showScreen('app-container');
-                        // Display first image from "In" stack (default active)
-                        imageViewer.displayTopImageFromStack('in');
-                        updateActiveProxTab();
-                    }, 500);
-                    
-                } catch (error) {
-                    console.error('Error loading folder:', error);
-                    utils.showToast('Error loading images from folder', 'error');
-                    setTimeout(() => {
-                        utils.showScreen('folder-screen');
-                    }, 2000);
-                }
-            }
-        };
-        
-        // ===== Stack Manager =====
-        const stackManager = {
-            currentSort: 'date-desc', // Default sort order
-            
-            getFileMetadata: function(file) {
-                const appProperties = file.appProperties || {};
-                let metadata = {
-                    slideboxStack: appProperties.slideboxStack || 'in',
-                    slideboxTags: appProperties.slideboxTags ? appProperties.slideboxTags.split(',') : []
-                };
-                return metadata;
-            },
-            
-            sortFiles: function(files, sortOrder) {
-                const sorted = [...files];
-                
-                switch (sortOrder) {
-                    case 'date-desc':
-                        return sorted.sort((a, b) => new Date(b.modifiedTime || b.createdTime) - new Date(a.modifiedTime || a.createdTime));
-                    case 'date-asc':
-                        return sorted.sort((a, b) => new Date(a.modifiedTime || a.createdTime) - new Date(b.modifiedTime || b.createdTime));
-                    case 'name-asc':
-                        return sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-                    case 'name-desc':
-                        return sorted.sort((a, b) => (b.name || '').localeCompare(a.name || ''));
-                    default:
-                        return sorted;
-                }
-            },
-            
-            updateStacks: function() {
-                STACK_TYPES.forEach(stack => { appState.stacks[stack] = []; });
-                appState.imageFiles.forEach(file => {
-                    const metadata = this.getFileMetadata(file);
-                    const stack = metadata.slideboxStack;
-                    
-                    if (STACK_TYPES.includes(stack)) {
-                        appState.stacks[stack].push(file);
-                    } else {
-                        appState.stacks.in.push(file);
-                    }
-                });
-                
-                // Apply sorting to all stacks
-                STACK_TYPES.forEach(stack => {
-                    appState.stacks[stack] = this.sortFiles(appState.stacks[stack], this.currentSort);
-                });
-                
-                this.updateCounts();
-            },
-            
-            updateCounts: function() {
-                STACK_TYPES.forEach(stack => {
-                    const count = appState.stacks[stack].length;
-                    const countElements = document.querySelectorAll(`[data-stack="${stack}"]`);
-                    countElements.forEach(el => {
-                        if (el.classList.contains('pill-counter')) {
-                            el.textContent = count > 999 ? '999+' : count;
-                            if (count > 0) {
-                                el.classList.add('visible');
-                            } else {
-                                el.classList.remove('visible');
-                            }
-                        }
-                    });
-                });
-                
-                // Update grid count if open
-                if (appState.grid.stack && elements.selectAllBtn) {
-                    elements.selectAllBtn.textContent = appState.stacks[appState.grid.stack].length;
-                }
-            },
-            
-            moveFileToStack: async function(fileId, targetStack) {
-                const file = appState.imageFiles.find(f => f.id === fileId);
-                if (!file) return Promise.reject(new Error('File not found'));
-                
-                const metadata = this.getFileMetadata(file);
-                const currentStack = metadata.slideboxStack;
-                
-                if (currentStack === targetStack) {
-                    return Promise.resolve(file);
-                }
-                
-                try {
-                    await appState.cloudStorage.moveFileToStack(fileId, targetStack);
-                    
-                    const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
-                    if (currentStackIndex !== -1) {
-                        appState.stacks[currentStack].splice(currentStackIndex, 1);
-                    }
-                    appState.stacks[targetStack].unshift(file);
-                    file.appProperties = file.appProperties || {};
-                    file.appProperties.slideboxStack = targetStack;
-                    
-                    this.updateCounts();
-                    
-                    return Promise.resolve(file);
-                } catch (error) {
-                    console.error('Error moving file:', error);
-                    return Promise.reject(error);
-                }
-            },
-            
-            addTagsToFile: function(fileId, tags) {
-                const file = appState.imageFiles.find(f => f.id === fileId);
-                if (!file) return Promise.reject(new Error('File not found'));
-                
-                const metadata = this.getFileMetadata(file);
-                const currentTags = metadata.slideboxTags || [];
-                const newTags = [...new Set([...currentTags, ...tags])];
-                
-                // Update tag suggestions
-                tags.forEach(tag => appState.tags.add(tag));
-                
-                file.appProperties = file.appProperties || {};
-                file.appProperties.slideboxTags = newTags.join(',');
-                
-                return Promise.resolve(newTags);
-            }
-        };
-        
-        // ===== Image Viewer =====
-        const imageViewer = {
-            displayCurrentImage: async function() {
-                if (appState.imageFiles.length === 0 || appState.currentImageIndex < 0 || appState.currentImageIndex >= appState.imageFiles.length) {
-                    elements.centerImage.src = '';
-                    elements.centerImage.alt = 'No image selected';
-                    elements.emptyState.classList.remove('hidden');
-                    return;
-                }
-                
-                elements.emptyState.classList.add('hidden');
-                const currentFile = appState.imageFiles[appState.currentImageIndex];
-                
-                if (!currentFile) {
-                    elements.centerImage.src = '';
-                    elements.centerImage.alt = 'Image not available';
-                    utils.showToast('Error: Image not available', 'error');
-                    return;
-                }
-                
-                // Use optimized image loading
-                await utils.setImageSrc(elements.centerImage, currentFile);
-                
-                // Reset zoom and pan when displaying new image
-                appState.currentScale = 1;
-                appState.panOffset = { x: 0, y: 0 };
-                this.applyTransform();
-                
-                stackManager.updateCounts();
-            },
-            
-            displayTopImageFromStack: async function(stackName) {
-                if (appState.stacks[stackName].length === 0) {
-                    elements.centerImage.style.opacity = '0';
-                    setTimeout(() => {
-                        elements.centerImage.src = '';
-                        elements.centerImage.alt = 'No images in this stack';
-                        updateEmptyStateButtons();
-                        elements.emptyState.classList.remove('hidden');
-                        elements.centerImage.style.opacity = '1';
-                    }, 200);
-                    return;
-                }
-                
-                elements.emptyState.classList.add('hidden');
-                const topImage = appState.stacks[stackName][0];
-                const imageIndex = appState.imageFiles.findIndex(f => f.id === topImage.id);
-                
-                if (imageIndex !== -1) {
-                    appState.currentImageIndex = imageIndex;
-                    appState.currentStack = stackName;
-                    await this.displayCurrentImage();
-                    updateActiveProxTab();
-                }
-            },
-            
-            applyTransform: function() {
-                const transform = `scale(${appState.currentScale}) translate(${appState.panOffset.x}px, ${appState.panOffset.y}px)`;
-                elements.centerImage.style.transform = transform;
-            },
-            
-            moveToNextImage: async function() {
-                if (appState.imageFiles.length === 0) return;
-                
-                const activeStackImages = appState.stacks[appState.currentStack];
-                if (activeStackImages.length > 0) {
-                    const currentImageInStack = activeStackImages.find(img => img.id === appState.imageFiles[appState.currentImageIndex].id);
-                    if (currentImageInStack) {
-                        const currentIndexInStack = activeStackImages.indexOf(currentImageInStack);
-                        const nextIndexInStack = (currentIndexInStack + 1) % activeStackImages.length;
-                        const nextImageInStack = activeStackImages[nextIndexInStack];
-                        const nextGlobalIndex = appState.imageFiles.findIndex(img => img.id === nextImageInStack.id);
-                        if (nextGlobalIndex !== -1) {
-                            appState.currentImageIndex = nextGlobalIndex;
-                        }
-                    } else {
-                        if (activeStackImages.length > 0) {
-                            const firstImageInStack = activeStackImages[0];
-                            const firstGlobalIndex = appState.imageFiles.findIndex(img => img.id === firstImageInStack.id);
-                            if (firstGlobalIndex !== -1) {
-                                appState.currentImageIndex = firstGlobalIndex;
-                            }
-                        }
-                    }
-                    await this.displayCurrentImage();
-                } else {
-                    elements.centerImage.style.opacity = '0';
-                    setTimeout(() => {
-                        elements.centerImage.src = '';
-                        elements.centerImage.alt = 'No images in this stack';
-                        updateEmptyStateButtons();
-                        elements.emptyState.classList.remove('hidden');
-                        elements.centerImage.style.opacity = '1';
-                    }, 200);
-                }
-            }
-        };
-        
-        // ===== ProxTab Management =====
-        function updateActiveProxTab() {
-            Object.values(elements.pillCounters).forEach(pill => {
-                pill.classList.remove('active');
-            });
-            
-            if (elements.pillCounters[appState.currentStack]) {
-                elements.pillCounters[appState.currentStack].classList.add('active');
-            }
-        }
-        
-        function setupProxTabClicks() {
-            Object.entries(elements.pillCounters).forEach(([stackName, pill]) => {
-                pill.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    
-                    // If clicking the currently active proxtab, open grid mode
-                    if (appState.currentStack === stackName) {
-                        gridView.open(stackName);
-                        acknowledgePillCounter(stackName);
-                        return;
-                    }
-                    
-                    // If clicking an inactive proxtab, activate it and show top image
-                    appState.currentStack = stackName;
-                    updateActiveProxTab();
-                    imageViewer.displayTopImageFromStack(stackName);
-                    acknowledgePillCounter(stackName);
-                });
-            });
-        }
-        
-        // ===== Enhanced Triple Ripple + Glow Effect =====
-        function acknowledgePillCounter(stackName) {
-            const pill = elements.pillCounters[stackName];
-            if (pill) {
-                pill.classList.remove('triple-ripple', 'glow-effect');
-                pill.offsetHeight;
-                pill.classList.add('triple-ripple');
-                
-                setTimeout(() => {
-                    pill.classList.add('glow-effect');
-                }, 100);
-                
-                setTimeout(() => {
-                    pill.classList.remove('triple-ripple', 'glow-effect');
-                }, 3000);
-            }
-        }
-        
-        // ===== Grid View =====
-        const gridView = {
-            open: function(stack) {
-                elements.gridModal.classList.remove('hidden');
-                const stackNames = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
-                elements.gridTitle.textContent = stackNames[stack] || stack;
-                elements.selectAllBtn.textContent = appState.stacks[stack].length;
-                
-                appState.grid.stack = stack;
-                appState.grid.selected = [];
-                
-                this.updateSelectionUI();
-                this.populate(stack);
-            },
-            
-            close: function() {
-                const selectedImages = appState.grid.selected;
-                const hasSelection = selectedImages.length === 1;
-                
-                elements.gridModal.classList.add('hidden');
-                
-                if (hasSelection) {
-                    const selectedFileId = selectedImages[0];
-                    const selectedIndex = appState.imageFiles.findIndex(f => f.id === selectedFileId);
-                    if (selectedIndex !== -1) {
-                        appState.currentImageIndex = selectedIndex;
-                        
-                        const currentStackImages = appState.stacks[appState.currentStack];
-                        const selectedFile = appState.imageFiles[selectedIndex];
-                        const stackIndex = currentStackImages.findIndex(f => f.id === selectedFileId);
-                        
-                        if (stackIndex !== -1) {
-                            const reorderedStack = [
-                                ...currentStackImages.slice(stackIndex),
-                                ...currentStackImages.slice(0, stackIndex)
-                            ];
-                            appState.stacks[appState.currentStack] = reorderedStack;
-                        }
-                        
-                        imageViewer.displayCurrentImage();
-                    }
-                } else {
-                    imageViewer.displayTopImageFromStack(appState.currentStack);
-                }
-                
-                appState.grid.stack = null;
-                appState.grid.selected = [];
-            },
-            
-            populate: function(stack) {
-                const container = elements.gridContainer;
-                container.innerHTML = '';
-                container.style.gridTemplateColumns = `repeat(${elements.gridSize.value}, 1fr)`;
-                
-                // Get sorted files for this stack
-                const sortedFiles = stackManager.sortFiles(appState.stacks[stack], stackManager.currentSort);
-                
-                sortedFiles.forEach((file) => {
-                    const div = document.createElement('div');
-                    div.className = 'grid-item';
-                    div.dataset.fileId = file.id;
-                    
-                    const img = document.createElement('img');
-                    img.className = 'grid-image';
-                    
-                    // Use preloaded images from cache
-                    if (appState.imageCache.has(file.id)) {
-                        img.src = appState.imageCache.get(file.id);
-                        img.alt = file.name || 'Image';
-                    } else {
-                        // Fallback if not preloaded
-                        utils.setImageSrc(img, file);
-                    }
-                    
-                    div.addEventListener('click', e => {
-                        e.stopPropagation();
-                        
-                        if (appState.grid.selected.length === 1 && 
-                            appState.grid.selected[0] === file.id && 
-                            elements.gridSize.value === '1') {
-                            const imageUrl = appState.imageCache.get(file.id) || file.thumbnailLink || file.downloadUrl;
-                            if (imageUrl) {
-                                window.open(imageUrl, '_blank');
-                            }
-                            return;
-                        }
-                        
-                        this.toggleSelection(e, file.id);
-                    });
-                    
-                    div.appendChild(img);
-                    container.appendChild(div);
-                });
-            },
-            
-            toggleSelection: function(e, fileId) {
-                const gridItem = e.currentTarget;
-                const index = appState.grid.selected.indexOf(fileId);
-                
-                if (index === -1) {
-                    appState.grid.selected.push(fileId);
-                    gridItem.classList.add('selected');
-                } else {
-                    appState.grid.selected.splice(index, 1);
-                    gridItem.classList.remove('selected');
-                }
-                
-                this.updateSelectionUI();
-                
-                if (appState.grid.selected.length === 1 && elements.gridSize.value === '1') {
-                    this.focusOnSelectedItem(appState.grid.selected[0]);
-                }
-            },
-            
-            focusOnSelectedItem: function(fileId) {
-                const selectedItem = document.querySelector(`.grid-item[data-file-id="${fileId}"]`);
-                if (selectedItem) {
-                    selectedItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            },
-            
-            updateSelectionUI: function() {
-                const count = appState.grid.selected.length;
-                const buttons = [elements.tagSelected, elements.moveSelected, elements.deleteSelected];
-                
-                elements.selectionText.textContent = `${count} selected`;
-                
-                buttons.forEach(btn => {
-                    if (btn) btn.classList.toggle('hidden', count === 0);
-                });
-            },
-            
-            selectAll: function() {
-                const gridItems = document.querySelectorAll('#grid-container .grid-item');
-                appState.grid.selected = [];
-                
-                gridItems.forEach(item => {
-                    const fileId = item.dataset.fileId;
-                    if (fileId) {
-                        appState.grid.selected.push(fileId);
-                        item.classList.add('selected');
-                    }
-                });
-                
-                this.updateSelectionUI();
-            },
-            
-            deselectAll: function() {
-                document.querySelectorAll('#grid-container .grid-item').forEach(item => 
-                    item.classList.remove('selected')
-                );
-                appState.grid.selected = [];
-                this.updateSelectionUI();
-            }
-        };
-        
-        // ===== Modal Manager =====
-        const modalManager = {
-            show: function(modalId) {
-                const modal = document.getElementById(modalId);
-                if (modal) modal.classList.remove('hidden');
-            },
-            
-            hide: function(modalId) {
-                const modal = document.getElementById(modalId);
-                if (modal) modal.classList.add('hidden');
-            },
-            
-            setup: function() {
-                // Move modal handlers
-                document.querySelectorAll('.move-option').forEach(option => {
-                    option.addEventListener('click', () => {
-                        const targetStack = option.dataset.stack;
-                        const promises = appState.grid.selected.map(fileId => 
-                            stackManager.moveFileToStack(fileId, targetStack)
-                        );
-                        
-                        Promise.all(promises)
-                            .then(() => {
-                                utils.showToast(`Moved ${promises.length} images to ${targetStack}`);
-                                this.hide('move-modal');
-                                
-                                if (appState.grid.stack) {
-                                    gridView.populate(appState.grid.stack);
-                                }
-                                
-                                appState.grid.selected = [];
-                                gridView.updateSelectionUI();
-                                stackManager.updateCounts();
-                            })
-                            .catch(() => {
-                                utils.showToast('Failed to move some images', 'error');
-                                this.hide('move-modal');
-                            });
-                    });
-                });
-                
-                // Tag modal handlers
-                document.getElementById('apply-tag').addEventListener('click', () => {
-                    const tagInput = elements.tagInput.value.trim();
-                    if (!tagInput) {
-                        this.hide('tag-modal');
-                        return;
-                    }
-                    
-                    const tags = tagInput.split(',')
-                        .map(tag => tag.trim())
-                        .filter(tag => tag);
-                    
-                    const promises = appState.grid.selected.map(fileId => 
-                        stackManager.addTagsToFile(fileId, tags)
-                    );
-                    
-                    Promise.all(promises)
-                        .then(() => {
-                            utils.showToast(`Tags added to ${promises.length} images`);
-                            this.hide('tag-modal');
-                        })
-                        .catch(() => {
-                            utils.showToast('Failed to add tags to some images', 'error');
-                            this.hide('tag-modal');
-                        });
-                });
-                
-                // Delete modal handlers
-                elements.confirmDelete.addEventListener('click', () => {
-                    const currentStack = appState.grid.stack;
-                    elements.confirmDelete.disabled = true;
-                    elements.confirmDelete.textContent = 'Processing...';
-                    
-                    if (currentStack === 'trash') {
-                        // Move to Google Drive trash (not permanent delete)
-                        const promises = appState.grid.selected.map(fileId => 
-                            appState.cloudStorage.deleteFile(fileId)
-                        );
-                        
-                        Promise.all(promises)
-                            .then(() => {
-                                utils.showToast(`Moved ${promises.length} images to Google Drive trash`);
-                                this.hide('delete-modal');
-                                
-                                // Remove from local stacks
-                                appState.grid.selected.forEach(fileId => {
-                                    const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
-                                    if (fileIndex !== -1) {
-                                        appState.imageFiles.splice(fileIndex, 1);
-                                    }
-                                    const trashIndex = appState.stacks.trash.findIndex(f => f.id === fileId);
-                                    if (trashIndex !== -1) {
-                                        appState.stacks.trash.splice(trashIndex, 1);
-                                    }
-                                });
-                                
-                                if (appState.grid.stack) {
-                                    gridView.populate(appState.grid.stack);
-                                }
-                                
-                                appState.grid.selected = [];
-                                gridView.updateSelectionUI();
-                                stackManager.updateCounts();
-                            })
-                            .catch(() => {
-                                utils.showToast('Failed to delete some images', 'error');
-                                this.hide('delete-modal');
-                            })
-                            .finally(() => {
-                                elements.confirmDelete.disabled = false;
-                                elements.confirmDelete.textContent = 'Move to Google Drive Trash';
-                            });
-                    } else {
-                        // Move to local trash stack
-                        const promises = appState.grid.selected.map(fileId => 
-                            stackManager.moveFileToStack(fileId, 'trash')
-                        );
-                        
-                        Promise.all(promises).then(() => {
-                            utils.showToast(`Moved ${promises.length} images to trash`);
-                            this.hide('delete-modal');
-                            
-                            if (appState.grid.stack) {
-                                gridView.populate(appState.grid.stack);
-                            }
-                            
-                            appState.grid.selected = [];
-                            gridView.updateSelectionUI();
-                            stackManager.updateCounts();
-                        }).finally(() => {
-                            elements.confirmDelete.disabled = false;
-                            elements.confirmDelete.textContent = 'Move to Trash';
-                        });
-                    }
-                });
-                
-                // Cancel buttons
-                ['cancel-move', 'cancel-tag', 'cancel-delete'].forEach(id => {
-                    document.getElementById(id).addEventListener('click', () => {
-                        this.hide(id.replace('cancel-', '') + '-modal');
-                    });
-                });
-                
-                // Action buttons
-                elements.moveSelected.addEventListener('click', () => this.show('move-modal'));
-                
-                elements.tagSelected.addEventListener('click', () => {
-                    elements.tagSuggestions.innerHTML = '';
-                    appState.tags.forEach(tag => {
-                        const button = document.createElement('button');
-                        button.className = 'tag-suggestion';
-                        button.textContent = tag;
-                        button.addEventListener('click', () => {
-                            elements.tagInput.value += (elements.tagInput.value ? ', ' : '') + tag;
-                        });
-                        elements.tagSuggestions.appendChild(button);
-                    });
-                    
-                    this.show('tag-modal');
-                    elements.tagInput.value = '';
-                    elements.tagInput.focus();
-                });
-                
-                elements.deleteSelected.addEventListener('click', () => {
-                    const selectedCount = appState.grid.selected.length;
-                    const currentStack = appState.grid.stack;
-                    
-                    if (currentStack === 'trash') {
-                        elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Google Drive trash? They can be recovered from Google Drive.`;
-                        elements.confirmDelete.textContent = 'Move to Google Drive Trash';
-                    } else {
-                        elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
-                        elements.confirmDelete.textContent = 'Move to Trash';
-                    }
-                    
-                    this.show('delete-modal');
-                });
-            }
-        };
-        
-        // ===== Empty State Management =====
-        function updateEmptyStateButtons() {
-            const stacksWithImages = STACK_TYPES.filter(stack => appState.stacks[stack].length > 0);
-            const hasOtherStacks = stacksWithImages.some(stack => stack !== appState.currentStack);
-            
-            if (hasOtherStacks) {
-                elements.selectAnotherStackBtn.style.display = 'block';
-                elements.selectAnotherFolderBtn.style.display = 'none';
-            } else {
-                elements.selectAnotherStackBtn.style.display = 'none';
-                elements.selectAnotherFolderBtn.style.display = 'block';
-            }
-        }
-        
-        function showEdgeGlow(direction) {
-            const edge = elements.edgeGlows[direction];
-            if (edge) {
-                edge.classList.add('active');
-            }
-        }
-        
-        function hideAllEdgeGlows() {
-            Object.values(elements.edgeGlows).forEach(edge => {
-                edge.classList.remove('active');
-            });
-        }
-        
-        // ===== Enhanced Pinch Zoom System =====
-        function setupPinchZoom() {
-            elements.centerImage.addEventListener('touchstart', handleTouchStart, { passive: false });
-            elements.centerImage.addEventListener('touchmove', handleTouchMove, { passive: false });
-            elements.centerImage.addEventListener('touchend', handleTouchEnd, { passive: false });
-            
-            elements.centerImage.addEventListener('wheel', handleWheel, { passive: false });
-            
-            function handleTouchStart(e) {
-                if (e.touches.length === 2) {
-                    e.preventDefault();
-                    appState.isPinching = true;
-                    appState.initialDistance = getDistance(e.touches[0], e.touches[1]);
-                    appState.lastTouchPos = getCenter(e.touches[0], e.touches[1]);
-                } else if (e.touches.length === 1 && appState.currentScale > 1) {
-                    appState.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-                }
-            }
-            
-            function handleTouchMove(e) {
-                if (e.touches.length === 2 && appState.isPinching) {
-                    e.preventDefault();
-                    
-                    const currentDistance = getDistance(e.touches[0], e.touches[1]);
-                    const scaleFactor = currentDistance / appState.initialDistance;
-                    
-                    let newScale = appState.currentScale * scaleFactor;
-                    newScale = Math.max(appState.minScale, Math.min(appState.maxScale, newScale));
-                    
-                    appState.currentScale = newScale;
-                    appState.initialDistance = currentDistance;
-                    
-                    imageViewer.applyTransform();
-                } else if (e.touches.length === 1 && appState.currentScale > 1) {
-                    e.preventDefault();
-                    
-                    const deltaX = e.touches[0].clientX - appState.lastTouchPos.x;
-                    const deltaY = e.touches[0].clientY - appState.lastTouchPos.y;
-                    
-                    appState.panOffset.x += deltaX / appState.currentScale;
-                    appState.panOffset.y += deltaY / appState.currentScale;
-                    
-                    appState.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-                    
-                    imageViewer.applyTransform();
-                }
-            }
-            
-            function handleTouchEnd(e) {
-                if (e.touches.length < 2) {
-                    appState.isPinching = false;
-                }
-                
-                if (appState.currentScale < 1.1) {
-                    appState.currentScale = 1;
-                    appState.panOffset = { x: 0, y: 0 };
-                    imageViewer.applyTransform();
-                }
-            }
-            
-            function handleWheel(e) {
-                e.preventDefault();
-                
-                const scaleChange = e.deltaY > 0 ? 0.9 : 1.1;
-                let newScale = appState.currentScale * scaleChange;
-                newScale = Math.max(appState.minScale, Math.min(appState.maxScale, newScale));
-                
-                appState.currentScale = newScale;
-                
-                if (appState.currentScale <= 1.1) {
-                    appState.currentScale = 1;
-                    appState.panOffset = { x: 0, y: 0 };
-                }
-                
-                imageViewer.applyTransform();
-            }
-        }
-        
-        // ===== Gesture System =====
-        function setupGestureSystem() {
-            let startPos = { x: 0, y: 0 };
-            let currentPos = { x: 0, y: 0 };
-            let lastTime = 0;
-            let velocityHistory = [];
-            let gestureStarted = false;
-            
-            elements.imageViewport.addEventListener('mousedown', handleStart);
-            document.addEventListener('mousemove', handleMove);
-            document.addEventListener('mouseup', handleEnd);
-            
-            elements.imageViewport.addEventListener('touchstart', handleStart, { passive: false });
-            document.addEventListener('touchmove', handleMove, { passive: false });
-            document.addEventListener('touchend', handleEnd, { passive: false });
-            
-            function handleStart(e) {
-                if (appState.imageFiles.length === 0) return;
-                
-                if (e.touches && (e.touches.length > 1 || appState.isPinching)) return;
-                
-                if (appState.currentScale > 1.1) return;
-                
-                e.preventDefault();
-                const point = e.touches ? e.touches[0] : e;
-                
-                startPos = { x: point.clientX, y: point.clientY };
-                currentPos = { x: point.clientX, y: point.clientY };
-                lastTime = Date.now();
-                velocityHistory = [];
-                gestureStarted = false;
-                
-                appState.isDragging = true;
-                elements.centerImage.classList.add('dragging');
-            }
-            
-            function handleMove(e) {
-                if (!appState.isDragging || appState.imageFiles.length === 0) return;
-                
-                if (e.touches && e.touches.length > 1) {
-                    appState.isDragging = false;
-                    elements.centerImage.classList.remove('dragging');
-                    hideAllEdgeGlows();
-                    return;
-                }
-                
-                e.preventDefault();
-                const point = e.touches ? e.touches[0] : e;
-                const now = Date.now();
-                
-                currentPos = { x: point.clientX, y: point.clientY };
-                
-                const deltaX = currentPos.x - startPos.x;
-                const deltaY = currentPos.y - startPos.y;
-                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-                
-                const timeDelta = now - lastTime;
-                if (timeDelta > 0) {
-                    const velX = deltaX / timeDelta;
-                    const velY = deltaY / timeDelta;
-                    velocityHistory.push({ x: velX, y: velY, time: now });
-                    
-                    velocityHistory = velocityHistory.filter(v => now - v.time < 100);
-                }
-                
-                if (distance > 30) {
-                    gestureStarted = true;
-                    const direction = determineSwipeDirection(deltaX, deltaY);
-                    if (direction) {
-                        hideAllEdgeGlows();
-                        showEdgeGlow(direction);
-                    }
-                } else {
-                    hideAllEdgeGlows();
-                }
-                
-                lastTime = now;
-            }
-            
-            function handleEnd(e) {
-                if (!appState.isDragging) return;
-                
-                e.preventDefault();
-                appState.isDragging = false;
-                elements.centerImage.classList.remove('dragging');
-                
-                if (!gestureStarted) {
-                    hideAllEdgeGlows();
-                    return;
-                }
-                
-                const deltaX = currentPos.x - startPos.x;
-                const deltaY = currentPos.y - startPos.y;
-                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-                
-                let avgVel = { x: 0, y: 0 };
-                if (velocityHistory.length > 0) {
-                    avgVel = velocityHistory.reduce((acc, v) => ({
-                        x: acc.x + v.x,
-                        y: acc.y + v.y
-                    }), { x: 0, y: 0 });
-                    avgVel.x /= velocityHistory.length;
-                    avgVel.y /= velocityHistory.length;
-                }
-                
-                const velocity = Math.sqrt(avgVel.x * avgVel.x + avgVel.y * avgVel.y);
-                
-                if (distance > 80 && velocity > 0.5) {
-                    const direction = determineSwipeDirection(deltaX, deltaY);
-                    const targetStack = directionToStack(direction);
-                    if (targetStack && direction) {
-                        executeFlick(targetStack);
-                        return;
-                    }
-                }
-                
-                hideAllEdgeGlows();
-            }
-        }
-        
-        function determineSwipeDirection(deltaX, deltaY) {
-            if (Math.abs(deltaX) > Math.abs(deltaY)) {
-                return deltaX > 0 ? 'right' : 'left';
-            } else {
-                return deltaY > 0 ? 'bottom' : 'top';
-            }
-        }
-        
-        function directionToStack(direction) {
-            const mapping = {
-                'top': 'priority',
-                'bottom': 'trash',
-                'left': 'in',
-                'right': 'out'
-            };
-            return mapping[direction];
-        }
-        
-        async function executeFlick(targetStack) {
-            const currentImage = appState.imageFiles[appState.currentImageIndex];
-            const currentStack = stackManager.getFileMetadata(currentImage).slideboxStack;
-            
-            acknowledgePillCounter(targetStack);
-            
-            if (currentStack === targetStack) {
-                const currentStackArray = appState.stacks[currentStack];
-                const index = currentStackArray.findIndex(img => img.id === currentImage.id);
-                if (index > -1) {
-                    currentStackArray.splice(index, 1);
-                    currentStackArray.push(currentImage);
-                }
-                
-                if (appState.stacks[appState.currentStack].length === 0) {
-                    elements.centerImage.style.opacity = '0';
-                    setTimeout(() => {
-                        elements.centerImage.src = '';
-                        elements.centerImage.alt = 'No images in this stack';
-                        updateEmptyStateButtons();
-                        elements.emptyState.classList.remove('hidden');
-                        elements.centerImage.style.opacity = '1';
-                    }, 200);
-                } else {
-                    imageViewer.moveToNextImage();
-                }
-                
-                stackManager.updateCounts();
-                hideAllEdgeGlows();
-                return;
-            }
-            
-            try {
-                await stackManager.moveFileToStack(currentImage.id, targetStack);
-                
-                if (appState.stacks[appState.currentStack].length === 0) {
-                    elements.centerImage.style.opacity = '0';
-                    setTimeout(() => {
-                        elements.centerImage.src = '';
-                        elements.centerImage.alt = 'No images in this stack';
-                        updateEmptyStateButtons();
-                        elements.emptyState.classList.remove('hidden');
-                        elements.centerImage.style.opacity = '1';
-                    }, 200);
-                } else {
-                    imageViewer.moveToNextImage();
-                }
-                hideAllEdgeGlows();
-            } catch (error) {
-                utils.showToast(`Error moving image: ${error.message}`, 'error');
-                hideAllEdgeGlows();
-            }
-        }
-        
-        // ===== Initialize App =====
-        function initApp() {
-            // Initialize CloudStorageModule
-            appState.cloudStorage = new CloudStorageModule();
-            appState.cloudStorage.setProvider('googledrive');
-            
-            // Set up event handlers
-            appState.cloudStorage.onAuthStateChanged = (authenticated, provider) => {
-                console.log(`Auth state changed: ${authenticated} (${provider})`);
-            };
-            
-            appState.cloudStorage.onError = (error) => {
-                console.log(`CloudStorage error: ${error.message}`);
-                utils.showToast(`Error: ${error.message}`, 'error');
-            };
-            
-            // Check if already authenticated
-            if (appState.cloudStorage.isAuthenticated()) {
-                authManager.setStatus('Already connected to Google Drive', 'success');
-                setTimeout(() => {
-                    utils.showScreen('folder-screen');
-                    folderManager.loadFolders();
-                }, 1000);
-            }
-            
-            // Setup event listeners
-            elements.authButton.addEventListener('click', () => authManager.authenticate());
-            elements.refreshFolders.addEventListener('click', () => folderManager.loadFolders());
-            elements.logout.addEventListener('click', () => authManager.logout());
-            
-            // Navigation
-            elements.backButton.addEventListener('click', () => {
-                utils.showScreen('folder-screen');
-                folderManager.loadFolders();
-            });
-            
-            // Details button
-            elements.detailsButton.addEventListener('click', () => {
-                detailsModal.show();
-            });
-            
-            // Details modal close
-            elements.detailsClose.addEventListener('click', () => {
-                detailsModal.hide();
-            });
-            
-            // Copy filename button
-            elements.copyFilename.addEventListener('click', () => {
-                const filename = elements.detailFilename.textContent;
-                detailsModal.copyToClipboard(filename);
-            });
-            
-            // Empty state buttons
-            elements.selectAnotherStackBtn.addEventListener('click', () => {
-                const stacksWithImages = STACK_TYPES.filter(stack => appState.stacks[stack].length > 0);
-                if (stacksWithImages.length > 0) {
-                    const nextStack = stacksWithImages.find(stack => stack !== appState.currentStack) || stacksWithImages[0];
-                    appState.currentStack = nextStack;
-                    imageViewer.displayTopImageFromStack(nextStack);
-                    elements.emptyState.classList.add('hidden');
-                } else {
-                    elements.selectAnotherStackBtn.style.display = 'none';
-                    elements.selectAnotherFolderBtn.style.display = 'block';
-                }
-            });
-            
-            elements.selectAnotherFolderBtn.addEventListener('click', () => {
-                utils.showScreen('folder-screen');
-                folderManager.loadFolders();
-            });
-            
-            // Setup other modules
-            setupPinchZoom();
-            setupGestureSystem();
-            setupProxTabClicks();
-            modalManager.setup();
-            
-            // Grid controls
-            elements.closeGrid.addEventListener('click', () => gridView.close());
-            elements.selectAllBtn.addEventListener('click', () => gridView.selectAll());
-            elements.deselectAllBtn.addEventListener('click', () => gridView.deselectAll());
-            
-            elements.gridSize.addEventListener('input', () => {
-                const value = elements.gridSize.value;
-                elements.gridSizeValue.textContent = value;
-                elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
-                
-                if (appState.grid.selected.length === 1 && value === '1') {
-                    setTimeout(() => gridView.focusOnSelectedItem(appState.grid.selected[0]), 100);
-                }
-            });
-            
-            // Grid sort handler
-            elements.gridSort.addEventListener('change', () => {
-                const sortValue = elements.gridSort.value;
-                stackManager.currentSort = sortValue;
-                
-                // Re-sort all stacks
-                STACK_TYPES.forEach(stack => {
-                    appState.stacks[stack] = stackManager.sortFiles(appState.stacks[stack], sortValue);
-                });
-                
-                // Refresh current grid view if open
-                if (appState.grid.stack) {
-                    gridView.populate(appState.grid.stack);
-                }
-                
-                // Update current image display to reflect new stack order
-                if (appState.imageFiles.length > 0) {
-                    imageViewer.displayCurrentImage();
-                }
-            });
-            
-            // Prevent container clicks from affecting selections
-            elements.gridContainer.addEventListener('click', e => {
-                if (e.target === elements.gridContainer) {
-                    e.stopPropagation();
-                }
-            });
-            
-            // Keyboard navigation
-            document.addEventListener('keydown', (e) => {
-                if (elements.appContainer.classList.contains('hidden')) return;
-                
-                // Handle details modal
-                if (!elements.detailsModal.classList.contains('hidden')) {
-                    if (e.key === 'Escape') {
-                        detailsModal.hide();
-                    }
-                    return;
-                }
-                
-                if (!elements.gridModal.classList.contains('hidden')) {
-                    if (e.key === 'Escape') {
-                        gridView.close();
-                    }
-                    return;
-                }
-                
-                switch (e.key) {
-                    case 'ArrowLeft':
-                    case 'ArrowRight':
-                        imageViewer.moveToNextImage();
-                        break;
-                    case 'Escape':
-                        utils.showScreen('folder-screen');
-                        break;
-                    case '1':
-                        appState.currentStack = 'in';
-                        updateActiveProxTab();
-                        gridView.open('in');
-                        break;
-                    case '2':
-                        appState.currentStack = 'out';
-                        updateActiveProxTab();
-                        gridView.open('out');
-                        break;
-                    case '3':
-                        appState.currentStack = 'priority';
-                        updateActiveProxTab();
-                        gridView.open('priority');
-                        break;
-                    case '4':
-                        appState.currentStack = 'trash';
-                        updateActiveProxTab();
-                        gridView.open('trash');
-                        break;
-                    case 'i':
-                    case 'I':
-                        detailsModal.show();
-                        break;
-                }
-            });
-            
-            updateActiveProxTab();
-            
-            console.log('Orbital8 - Google Drive Enhanced ready');
-        }
-        
-        document.addEventListener('DOMContentLoaded', initApp);
-    </script>
-</body>
-</html>
+            setStatus(
