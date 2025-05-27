@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Version: base + 1 -->
+    <!-- Version: base + basic metadata extraction (Phase 1) -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 - Google Drive Enhanced</title>
+    <title>Orbital8 - Google Drive with Basic Metadata Extraction</title>
     <style>
         :root {
             --app-bg-primary: #fffbeb;
@@ -2238,8 +2238,6 @@
             tags: new Set(),
             // Performance optimization
             imageCache: new Map(),
-            // IndexedDB for caching
-            db: null,
             // Loading progress
             loadingProgress: { current: 0, total: 0 }
         };
@@ -2316,61 +2314,6 @@
             metadataTable: document.getElementById('metadata-table')
         };
         
-        // ===== IndexedDB Cache Manager =====
-        const cacheManager = {
-            async init() {
-                return new Promise((resolve, reject) => {
-                    const request = indexedDB.open('Orbital8Cache', 1);
-                    
-                    request.onerror = () => reject(request.error);
-                    request.onsuccess = () => {
-                        appState.db = request.result;
-                        resolve();
-                    };
-                    
-                    request.onupgradeneeded = (event) => {
-                        const db = event.target.result;
-                        if (!db.objectStoreNames.contains('thumbnails')) {
-                            db.createObjectStore('thumbnails', { keyPath: 'id' });
-                        }
-                        if (!db.objectStoreNames.contains('metadata')) {
-                            db.createObjectStore('metadata', { keyPath: 'id' });
-                        }
-                    };
-                });
-            },
-            
-            async cacheThumbnail(fileId, url) {
-                if (!appState.db) return;
-                
-                try {
-                    const transaction = appState.db.transaction(['thumbnails'], 'readwrite');
-                    const store = transaction.objectStore('thumbnails');
-                    await store.put({ id: fileId, url, timestamp: Date.now() });
-                } catch (error) {
-                    console.warn('Failed to cache thumbnail:', error);
-                }
-            },
-            
-            async getCachedThumbnail(fileId) {
-                if (!appState.db) return null;
-                
-                try {
-                    const transaction = appState.db.transaction(['thumbnails'], 'readonly');
-                    const store = transaction.objectStore('thumbnails');
-                    const result = await store.get(fileId);
-                    
-                    if (result && (Date.now() - result.timestamp < 24 * 60 * 60 * 1000)) {
-                        return result.url;
-                    }
-                } catch (error) {
-                    console.warn('Failed to get cached thumbnail:', error);
-                }
-                
-                return null;
-            }
-        };
-        
         // ===== Utility Functions =====
         function generateId() {
             return Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -2408,7 +2351,7 @@
                 appState.loadingProgress = { current, total };
                 elements.loadingCounter.textContent = current;
                 elements.loadingMessage.textContent = total ? 
-                    `Loading ${current} of ${total} images...` : 
+                    `Processing ${current} of ${total} images...` : 
                     `Found ${current} images`;
                 
                 if (total > 0) {
@@ -2422,20 +2365,11 @@
                 let imageUrl = appState.imageCache.get(file.id);
                 
                 if (!imageUrl) {
-                    // Check IndexedDB cache
-                    imageUrl = await cacheManager.getCachedThumbnail(file.id);
+                    // Use high res thumbnail or fallback
+                    imageUrl = file.thumbnailLink ? file.thumbnailLink.replace('=s220', '=s1000') : file.downloadUrl;
                     
-                    if (!imageUrl) {
-                        // Use high res thumbnail or fallback
-                        imageUrl = file.thumbnailLink ? file.thumbnailLink.replace('=s220', '=s1000') : file.downloadUrl;
-                        
-                        // Cache in both memory and IndexedDB
-                        if (imageUrl) {
-                            appState.imageCache.set(file.id, imageUrl);
-                            await cacheManager.cacheThumbnail(file.id, imageUrl);
-                        }
-                    } else {
-                        // Cache in memory from IndexedDB
+                    // Cache in memory
+                    if (imageUrl) {
                         appState.imageCache.set(file.id, imageUrl);
                     }
                 }
@@ -2465,6 +2399,133 @@
                 const sizes = ['Bytes', 'KB', 'MB', 'GB'];
                 const i = Math.floor(Math.log(bytes) / Math.log(k));
                 return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+        };
+
+        // ===== Simple Metadata Extraction System (Phase 1) =====
+        const metadataExtractor = {
+            // Main extraction function using proven approach from knowledge base
+            async extractImageMetadata(arrayBuffer, mimeType) {
+                const metadata = {};
+                
+                try {
+                    const view = new DataView(arrayBuffer);
+                    
+                    // PNG metadata extraction using proven method
+                    if (mimeType === "image/png") {
+                        const pngMetadata = this.extractPNGMetadata(arrayBuffer, view);
+                        Object.assign(metadata, pngMetadata);
+                    }
+                    
+                    // Basic JPEG detection for future expansion
+                    if (mimeType === "image/jpeg") {
+                        const jpegMetadata = this.extractJPEGMetadata(arrayBuffer, view);
+                        Object.assign(metadata, jpegMetadata);
+                    }
+                    
+                } catch (error) {
+                    console.warn('Error extracting metadata:', error);
+                }
+                
+                return metadata;
+            },
+            
+            // Proven PNG tEXt chunk extraction method from knowledge base
+            extractPNGMetadata: function(buffer, view) {
+                const metadata = {};
+                
+                try {
+                    // Scan for PNG tEXt chunks using proven byte signature method
+                    for (let i = 0; i < view.byteLength; i++) {
+                        // Look for tEXt chunk signature (116, 69, 88, 116)
+                        if (view.getUint8(i) === 116 && view.getUint8(i+1) === 69 && 
+                            view.getUint8(i+2) === 88 && view.getUint8(i+3) === 116) {
+                            
+                            // Get chunk length (4 bytes before the signature)
+                            let length = view.getUint32(i-4);
+                            
+                            if (length > 0 && length < 65536) { // Reasonable length check
+                                try {
+                                    // Extract text data using proven method
+                                    let textData = new TextDecoder().decode(new Uint8Array(buffer.slice(i+4, i+4+length)));
+                                    
+                                    // Split key and value at null byte
+                                    const nullIndex = textData.indexOf('\0');
+                                    if (nullIndex > 0) {
+                                        const key = textData.substring(0, nullIndex);
+                                        const value = textData.substring(nullIndex + 1);
+                                        
+                                        if (key && value && key.trim() && value.trim()) {
+                                            // Clean up key name and store
+                                            const cleanKey = key.replace(/[^\w\s]/g, '').trim();
+                                            if (cleanKey) {
+                                                metadata[cleanKey] = value.trim();
+                                            }
+                                        }
+                                    }
+                                } catch (decodeError) {
+                                    // Skip malformed text chunks
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Error extracting PNG metadata:', error);
+                }
+                
+                return metadata;
+            },
+            
+            // Basic JPEG detection for future expansion
+            extractJPEGMetadata: function(buffer, view) {
+                const metadata = {};
+                
+                try {
+                    // Look for basic JPEG markers for future expansion
+                    for (let i = 0; i < view.byteLength - 4; i++) {
+                        if (view.getUint8(i) === 0xFF && view.getUint8(i+1) === 0xE1) {
+                            // EXIF data present - for future detailed parsing
+                            metadata['EXIF Data'] = 'Present (basic detection)';
+                            break;
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Error extracting JPEG metadata:', error);
+                }
+                
+                return metadata;
+            },
+
+            // Extract metadata from a Google Drive file during folder processing
+            async extractAndStoreMetadata(file) {
+                try {
+                    if (!file.downloadUrl) {
+                        console.warn('No download URL for file:', file.name);
+                        return {};
+                    }
+
+                    // Download file for metadata extraction
+                    const response = await fetch(file.downloadUrl);
+                    if (!response.ok) {
+                        throw new Error(`Failed to download file: ${response.status}`);
+                    }
+
+                    const arrayBuffer = await response.arrayBuffer();
+                    const extractedMetadata = await this.extractImageMetadata(arrayBuffer, file.mimeType);
+
+                    // Store extracted metadata in file object for immediate use
+                    if (Object.keys(extractedMetadata).length > 0) {
+                        file.extractedMetadata = extractedMetadata;
+                        console.log(`Metadata extracted for ${file.name}:`, Object.keys(extractedMetadata));
+                    }
+
+                    return extractedMetadata;
+
+                } catch (error) {
+                    console.error(`Error processing metadata for ${file.name}:`, error);
+                    return {};
+                }
             }
         };
         
@@ -2574,13 +2635,8 @@
                 utils.showScreen('loading-screen');
                 utils.updateLoadingProgress(0, 0);
                 
-                // Set up progress callback for pagination
-                appState.cloudStorage.currentProvider.onProgressCallback = (count) => {
-                    utils.updateLoadingProgress(count, 0);
-                };
-                
                 try {
-                    elements.loadingMessage.textContent = 'Connecting to Google Drive...';
+                    elements.loadingMessage.textContent = 'Loading images from Google Drive...';
                     
                     const result = await appState.cloudStorage.getFiles(folder.id);
                     const files = result.files || [];
@@ -2594,46 +2650,69 @@
                     }
                     
                     utils.updateLoadingProgress(files.length, files.length);
-                    elements.loadingMessage.textContent = 'Organizing images into stacks...';
+                    elements.loadingMessage.textContent = 'Processing images and extracting metadata...';
                     
-                    // Process files with progress updates
-                    appState.imageFiles = files.map(file => ({
-                        id: file.id,
-                        name: file.name,
-                        filename: file.name,
-                        originalName: file.name,
-                        mimeType: file.mimeType,
-                        size: file.size,
-                        createdTime: file.createdTime,
-                        modifiedTime: file.modifiedTime,
-                        thumbnailLink: file.thumbnailLink,
-                        downloadUrl: file.downloadUrl,
-                        appProperties: file.appProperties || {},
-                        // Initialize new fields for ratings and notes
-                        qualityRating: file.appProperties?.qualityRating || 0,
-                        contentRating: file.appProperties?.contentRating || 0,
-                        notes: file.appProperties?.notes || ''
-                    }));
+                    // Process files and extract metadata
+                    appState.imageFiles = [];
+                    let processedCount = 0;
+                    
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        
+                        // Create local file object
+                        const imageFile = {
+                            id: file.id,
+                            name: file.name,
+                            filename: file.name,
+                            originalName: file.name,
+                            mimeType: file.mimeType,
+                            size: file.size,
+                            createdTime: file.createdTime,
+                            modifiedTime: file.modifiedTime,
+                            thumbnailLink: file.thumbnailLink,
+                            downloadUrl: file.downloadUrl,
+                            appProperties: file.appProperties || {},
+                            // Initialize empty metadata that will be populated
+                            extractedMetadata: {},
+                            // Initialize user data
+                            qualityRating: 0,
+                            contentRating: 0,
+                            notes: ''
+                        };
+                        
+                        appState.imageFiles.push(imageFile);
+                        
+                        // Extract metadata for this image
+                        utils.updateLoadingProgress(processedCount + 1, files.length);
+                        elements.loadingMessage.textContent = `Extracting metadata ${processedCount + 1} of ${files.length}...`;
+                        
+                        try {
+                            await metadataExtractor.extractAndStoreMetadata(imageFile);
+                        } catch (error) {
+                            console.warn(`Failed to extract metadata for ${file.name}:`, error);
+                        }
+                        
+                        processedCount++;
+                        
+                        // Small delay to prevent overwhelming the browser
+                        if (i % 3 === 0) {
+                            await new Promise(resolve => setTimeout(resolve, 50));
+                        }
+                    }
                     
                     // Organize into stacks
                     stackManager.updateStacks();
                     appState.currentImageIndex = 0;
                     appState.currentStack = 'in';
                     
-                    // Initialize grid and cache images in background
-                    elements.loadingMessage.textContent = 'Preparing grid view and caching images...';
-                    
-                    // Background caching (non-blocking)
-                    this.backgroundCacheImages().then(() => {
-                        console.log('Background caching complete');
-                    });
-                    
                     // Wait a moment then show app
+                    elements.loadingMessage.textContent = 'Finalizing...';
                     setTimeout(() => {
                         utils.showScreen('app-container');
                         imageViewer.displayTopImageFromStack('in');
                         updateActiveProxTab();
-                    }, 1000);
+                        utils.showToast(`Loaded ${files.length} images with metadata extraction`);
+                    }, 500);
                     
                 } catch (error) {
                     console.error('Error loading folder:', error);
@@ -2641,46 +2720,6 @@
                     setTimeout(() => {
                         utils.showScreen('folder-screen');
                     }, 2000);
-                } finally {
-                    // Clean up progress callback
-                    if (appState.cloudStorage.currentProvider) {
-                        appState.cloudStorage.currentProvider.onProgressCallback = null;
-                    }
-                }
-            },
-            
-            async backgroundCacheImages() {
-                // Cache key images first (first few from each stack)
-                const priorityFiles = [];
-                STACK_TYPES.forEach(stackName => {
-                    const stackFiles = appState.stacks[stackName].slice(0, 3);
-                    priorityFiles.push(...stackFiles);
-                });
-                
-                // Cache priority files
-                for (const file of priorityFiles) {
-                    if (!appState.imageCache.has(file.id)) {
-                        const img = new Image();
-                        await utils.setImageSrc(img, file);
-                    }
-                }
-                
-                // Then cache remaining files in chunks to avoid blocking
-                const remainingFiles = appState.imageFiles.filter(f => !priorityFiles.includes(f));
-                const chunkSize = 10;
-                
-                for (let i = 0; i < remainingFiles.length; i += chunkSize) {
-                    const chunk = remainingFiles.slice(i, i + chunkSize);
-                    
-                    await Promise.all(chunk.map(async (file) => {
-                        if (!appState.imageCache.has(file.id)) {
-                            const img = new Image();
-                            await utils.setImageSrc(img, file);
-                        }
-                    }));
-                    
-                    // Small delay to prevent blocking
-                    await new Promise(resolve => setTimeout(resolve, 100));
                 }
             }
         };
@@ -3111,7 +3150,7 @@
             }
         };
         
-        // ===== Details Modal with Tabs =====
+        // ===== Details Modal with Enhanced Metadata Display =====
         const detailsModal = {
             currentTab: 'info',
             
@@ -3221,9 +3260,12 @@
                         const tagName = input.value.trim();
                         if (tagName) {
                             const currentFile = appState.imageFiles[appState.currentImageIndex];
-                            stackManager.addTagsToFile(currentFile.id, [tagName]);
-                            this.populateTagsTab(currentFile);
-                            utils.showToast(`Added tag: ${tagName}`);
+                            stackManager.addTagsToFile(currentFile.id, [tagName]).then(() => {
+                                this.populateTagsTab(currentFile);
+                                utils.showToast(`Added tag: ${tagName}`);
+                            }).catch(() => {
+                                utils.showToast('Failed to add tag', 'error');
+                            });
                         }
                     } else if (e.key === 'Escape') {
                         input.remove();
@@ -3252,22 +3294,18 @@
                 elements.detailNotes.value = file.notes || '';
                 elements.detailNotes.addEventListener('blur', () => {
                     file.notes = elements.detailNotes.value;
-                    file.appProperties = file.appProperties || {};
-                    file.appProperties.notes = file.notes;
                 });
                 
                 // Quality rating
                 this.setupStarRating(elements.qualityRating, file.qualityRating || 0, (rating) => {
                     file.qualityRating = rating;
-                    file.appProperties = file.appProperties || {};
-                    file.appProperties.qualityRating = rating;
+                    utils.showToast(`Quality rating: ${rating} stars`);
                 });
                 
                 // Content rating
                 this.setupStarRating(elements.contentRating, file.contentRating || 0, (rating) => {
                     file.contentRating = rating;
-                    file.appProperties = file.appProperties || {};
-                    file.appProperties.contentRating = rating;
+                    utils.showToast(`Content rating: ${rating} stars`);
                 });
             },
             
@@ -3281,21 +3319,26 @@
                 
                 // Add click handlers
                 stars.forEach((star, index) => {
-                    star.addEventListener('click', () => {
+                    const newClickHandler = () => {
                         const newRating = index + 1;
                         stars.forEach((s, i) => {
                             s.classList.toggle('active', i < newRating);
                         });
                         onRatingChange(newRating);
-                    });
+                    };
                     
-                    star.addEventListener('mouseenter', () => {
+                    // Remove existing listeners and add new one
+                    star.replaceWith(star.cloneNode(true));
+                    const newStar = container.querySelectorAll('.star')[index];
+                    newStar.addEventListener('click', newClickHandler);
+                    
+                    newStar.addEventListener('mouseenter', () => {
                         stars.forEach((s, i) => {
                             s.style.color = i <= index ? '#fbbf24' : '#d1d5db';
                         });
                     });
                     
-                    star.addEventListener('mouseleave', () => {
+                    newStar.addEventListener('mouseleave', () => {
                         stars.forEach((s, i) => {
                             s.style.color = s.classList.contains('active') ? '#fbbf24' : '#d1d5db';
                         });
@@ -3306,51 +3349,38 @@
             populateMetadataTab: function(file) {
                 elements.metadataTable.innerHTML = '';
                 
-                // Priority metadata fields in order
-                const priorityFields = ['filename', 'project', 'prompt', 'model', 'seed', 'negative_prompt', 'api_call', 'hash', 'height', 'width', 'steps', 'cfg'];
+                // Priority metadata fields in order (from Detail panel requirements)
+                const priorityFields = ['project', 'prompt', 'model', 'seed', 'negative_prompt', 'api_call', 'hash', 'height', 'width', 'steps', 'cfg'];
                 
-                // Extract metadata from appProperties
-                const allMetadata = this.extractAllMetadata(file);
+                // Get extracted metadata
+                const extractedMetadata = file.extractedMetadata || {};
                 
-                // Add filename first with copy button
-                this.addMetadataRow('Filename', file.name || 'Unknown', true);
+                if (Object.keys(extractedMetadata).length === 0) {
+                    this.addMetadataRow('Status', 'No embedded metadata found in this image', false);
+                    return;
+                }
                 
                 // Show priority fields first
                 priorityFields.forEach(field => {
-                    if (allMetadata[field] && field !== 'filename') {
+                    if (extractedMetadata[field]) {
                         const needsCopyButton = ['prompt', 'seed', 'model', 'negative_prompt', 'api_call'].includes(field);
-                        this.addMetadataRow(field, allMetadata[field], needsCopyButton);
+                        this.addMetadataRow(field, extractedMetadata[field], needsCopyButton);
                     }
                 });
                 
-                // Show other fields (excluding size, type, and priority fields)
-                Object.entries(allMetadata).forEach(([key, value]) => {
+                // Show other fields (excluding priority fields)
+                Object.entries(extractedMetadata).forEach(([key, value]) => {
                     const lowerKey = key.toLowerCase();
-                    if (!priorityFields.includes(lowerKey) && 
-                        !['size', 'type', 'filename', 'name'].includes(lowerKey) &&
-                        value) {
+                    if (!priorityFields.includes(lowerKey) && value) {
                         this.addMetadataRow(key, value, false);
                     }
                 });
-            },
-            
-            extractAllMetadata: function(file) {
-                const metadata = {};
                 
-                // From appProperties
-                if (file.appProperties) {
-                    Object.entries(file.appProperties).forEach(([key, value]) => {
-                        if (key !== 'slideboxStack' && key !== 'slideboxTags' && key !== 'qualityRating' && key !== 'contentRating' && key !== 'notes') {
-                            metadata[key] = value;
-                        }
-                    });
+                // Success message
+                const fieldCount = Object.keys(extractedMetadata).length;
+                if (fieldCount > 0) {
+                    console.log(`Displaying ${fieldCount} metadata fields for ${file.name}`);
                 }
-                
-                // Basic file properties
-                if (file.createdTime) metadata['created'] = new Date(file.createdTime).toLocaleString();
-                if (file.modifiedTime) metadata['modified'] = new Date(file.modifiedTime).toLocaleString();
-                
-                return metadata;
             },
             
             addMetadataRow: function(key, value, needsCopyButton = false) {
@@ -3466,7 +3496,7 @@
                     elements.confirmDelete.textContent = 'Processing...';
                     
                     if (currentStack === 'trash') {
-                        // Move to Google Drive trash (not permanent delete)
+                        // Move to Google Drive trash
                         const promises = appState.grid.selected.map(fileId => 
                             appState.cloudStorage.deleteFile(fileId)
                         );
@@ -3872,9 +3902,6 @@
         // ===== Initialize App =====
         async function initApp() {
             try {
-                // Initialize IndexedDB cache
-                await cacheManager.init();
-                
                 // Initialize CloudStorageModule
                 appState.cloudStorage = new CloudStorageModule();
                 appState.cloudStorage.setProvider('googledrive');
@@ -4057,7 +4084,7 @@
                 
                 updateActiveProxTab();
                 
-                console.log('Orbital8 - Google Drive Enhanced (Fixed) ready');
+                console.log('Orbital8 - Google Drive with Basic Metadata Extraction ready');
                 
             } catch (error) {
                 console.error('Failed to initialize app:', error);
