@@ -3335,10 +3335,16 @@
     const currentFile = appState.imageFiles[appState.currentImageIndex];
     if (!currentFile || !currentFile.id) return;
 
+    console.log('🚀 Starting metadata extraction for:', currentFile.name);
+
     const accessToken = localStorage.getItem('google_access_token');
-    if (!accessToken) return;
+    if (!accessToken) {
+      console.error('🚨 No access token.');
+      return;
+    }
 
     try {
+      console.log('🔗 Fetching binary data via Google API...');
       const response = await gapi.client.request({
         path: `/drive/v3/files/${currentFile.id}`,
         method: 'GET',
@@ -3347,8 +3353,12 @@
         responseType: 'arraybuffer'
       });
 
+      console.log('📦 API Response:', response);
       const arrayBuffer = response.body;
+      console.log('📦 ArrayBuffer:', arrayBuffer);
+
       const metadata = extractPNGMetadata(arrayBuffer);
+      console.log('📋 Extracted Metadata:', metadata);
 
       const appData = JSON.parse(localStorage.getItem('appData') || '{}');
       appData[currentFile.name] = { metadata };
@@ -3356,7 +3366,7 @@
 
       displayMetadata(metadata);
     } catch (err) {
-      console.error('Google Drive binary download failed:', err);
+      console.error('❌ Google Drive binary download failed:', err);
     }
   }
 
@@ -3365,12 +3375,15 @@
     const metadata = {};
     let pos = 8; // Skip PNG signature
 
+    console.log('🔍 Parsing PNG chunks...');
+
     while (pos < arrayBuffer.byteLength - 12) {
       const length = view.getUint32(pos, false);
       pos += 4;
       let chunkType = '';
       for (let i = 0; i < 4; i++) chunkType += String.fromCharCode(view.getUint8(pos + i));
       pos += 4;
+      console.log('🔎 Found chunk:', chunkType, 'Length:', length);
       if (chunkType === 'tEXt') {
         let keyword = '', value = '', nullFound = false;
         for (let i = 0; i < length; i++) {
@@ -3382,6 +3395,7 @@
             value += String.fromCharCode(byte);
           }
         }
+        console.log('✅ tEXt chunk:', keyword, '=', value);
         if (keyword && value) metadata[keyword] = value;
       }
       pos += length + 4;
