@@ -3298,26 +3298,33 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const centerImage = document.getElementById('center-image');
   const metadataTable = document.getElementById('metadata-table');
 
-  centerImage.addEventListener('load', async () => {
-    if (!centerImage.src) return;
-    const filename = centerImage.src.split('/').pop();
-    const storedData = JSON.parse(localStorage.getItem('appData') || '{}');
+  async function loadMetadataFromDrive(fileId, fileName) {
+    if (!fileId) return;
 
-    // Check if metadata already stored in appData
-    if (storedData[filename] && storedData[filename].metadata) {
-      displayMetadata(storedData[filename].metadata);
+    // Check if metadata already in appData
+    const appData = JSON.parse(localStorage.getItem('appData') || '{}');
+    if (appData[fileName] && appData[fileName].metadata) {
+      displayMetadata(appData[fileName].metadata);
+      return;
+    }
+
+    // Download file binary data using Google Drive API
+    const accessToken = localStorage.getItem('google_access_token');
+    if (!accessToken) {
+      console.error('No access token for Google Drive API.');
       return;
     }
 
     try {
-      const response = await fetch(centerImage.src);
+      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
       const arrayBuffer = await response.arrayBuffer();
       const view = new DataView(arrayBuffer);
       const metadata = {};
-      let pos = 8; // PNG signature
+      let pos = 8;
 
       while (pos < arrayBuffer.byteLength - 12) {
         const length = view.getUint32(pos, false);
@@ -3345,12 +3352,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const filteredMetadata = {};
       keys.forEach(key => { if (metadata[key]) filteredMetadata[key] = metadata[key]; });
 
-      // Save in appData for persistent future loads
-      storedData[filename] = { metadata: filteredMetadata };
-      localStorage.setItem('appData', JSON.stringify(storedData));
+      // Save to appData for future use
+      appData[fileName] = { metadata: filteredMetadata };
+      localStorage.setItem('appData', JSON.stringify(appData));
+
       displayMetadata(filteredMetadata);
-    } catch (err) { console.error('Metadata load error:', err); }
-  });
+    } catch (error) {
+      console.error('Google Drive API binary download failed:', error);
+    }
+  }
 
   function displayMetadata(metadata) {
     metadataTable.innerHTML = '';
@@ -3364,14 +3374,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Load metadata if already stored in appData
-  const filename = centerImage.src ? centerImage.src.split('/').pop() : null;
-  if (filename) {
-    const storedData = JSON.parse(localStorage.getItem('appData') || '{}');
-    if (storedData[filename] && storedData[filename].metadata) {
-      displayMetadata(storedData[filename].metadata);
+  // Integration point with the app's image viewer (using appState.imageFiles and currentIndex)
+  const observer = new MutationObserver(() => {
+    const currentFile = appState.imageFiles[appState.currentImageIndex];
+    if (currentFile && currentFile.id && currentFile.name) {
+      loadMetadataFromDrive(currentFile.id, currentFile.name);
     }
-  }
+  });
+
+  observer.observe(document.getElementById('center-image'), { attributes: true, attributeFilter: ['src'] });
 });
 </script>
 
