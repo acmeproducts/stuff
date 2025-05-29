@@ -3213,5 +3213,87 @@
         
         document.addEventListener('DOMContentLoaded', initApp);
     </script>
+
+<script>
+    function extractTextChunks(data) {
+        let pos = 8;
+        const textChunks = {};
+        while (pos < data.length) {
+            const length = readUInt32(data, pos);
+            const type = readString(data, pos + 4, 4);
+            if (type === 'tEXt') {
+                const chunkData = data.slice(pos + 8, pos + 8 + length);
+                const chunkText = new TextDecoder().decode(chunkData);
+                const [key, value] = chunkText.split('\x00');
+                textChunks[key] = value;
+            }
+            pos += length + 12;
+        }
+        return textChunks;
+    }
+
+    function readUInt32(data, offset) {
+        return (data[offset] << 24) | (data[offset+1] << 16) | (data[offset+2] << 8) | data[offset+3];
+    }
+
+    function readString(data, offset, length) {
+        return String.fromCharCode(...data.slice(offset, offset + length));
+    }
+
+    function parseAndDisplayMetadata(arrayBuffer) {
+        const data = new Uint8Array(arrayBuffer);
+        const textChunks = extractTextChunks(data);
+        const keys = ['Project_ID', 'prompt', 'Model', 'Seed', 'Negative_Prompt', 'API_Call', 'Global_Hash', 'Height', 'Width', 'Steps', 'Cfg_Scale'];
+        const metadata = {};
+        keys.forEach(key => {
+            if (textChunks[key]) {
+                metadata[key] = textChunks[key];
+            }
+        });
+        updateMetadataTable(metadata);
+        storeMetadata(metadata);
+    }
+
+    function updateMetadataTable(metadata) {
+        const table = document.querySelector('#details-modal .metadata-table tbody');
+        table.innerHTML = '';
+        Object.entries(metadata).forEach(([key, value]) => {
+            const row = document.createElement('tr');
+            row.innerHTML = '<td class="key-cell">' + key + '</td>' +
+                            '<td class="value-cell">' + value + ' <button class="copy-button" onclick="copyToClipboard(\'' + value + '\')">Copy</button></td>';
+            table.appendChild(row);
+        });
+    }
+
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            alert('Copied to clipboard');
+        });
+    }
+
+    function storeMetadata(metadata) {
+        localStorage.setItem('lastImageMetadata', JSON.stringify(metadata));
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const centerImage = document.getElementById('center-image');
+        centerImage.addEventListener('load', async () => {
+            try {
+                const response = await fetch(centerImage.src);
+                const arrayBuffer = await response.arrayBuffer();
+                parseAndDisplayMetadata(arrayBuffer);
+            } catch (err) {
+                console.error('Failed to load image metadata:', err);
+            }
+        });
+
+        // Load stored metadata on start
+        const stored = localStorage.getItem('lastImageMetadata');
+        if (stored) {
+            updateMetadataTable(JSON.parse(stored));
+        }
+    });
+</script>
+
 </body>
 </html>
