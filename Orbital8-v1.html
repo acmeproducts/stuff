@@ -3300,11 +3300,6 @@
 <script src="https://apis.google.com/js/api.js"></script>
 <script>
   function initGoogleAPI() {
-    const accessToken = localStorage.getItem('google_access_token');
-    if (accessToken) {
-      document.getElementById('signin-button').style.display = 'none';
-      return;
-    }
     gapi.load('client:auth2', () => {
       gapi.client.init({
         clientId: 'YOUR_CLIENT_ID.apps.googleusercontent.com',
@@ -3317,6 +3312,7 @@
           const accessToken = user.getAuthResponse().access_token;
           localStorage.setItem('google_access_token', accessToken);
           document.getElementById('signin-button').style.display = 'none';
+          startMetadataExtraction();
         } else {
           document.getElementById('signin-button').style.display = 'block';
         }
@@ -3331,6 +3327,78 @@
       const accessToken = user.getAuthResponse().access_token;
       localStorage.setItem('google_access_token', accessToken);
       document.getElementById('signin-button').style.display = 'none';
+      startMetadataExtraction();
+    });
+  }
+
+  async function startMetadataExtraction() {
+    const currentFile = appState.imageFiles[appState.currentImageIndex];
+    if (!currentFile || !currentFile.id) return;
+
+    const accessToken = localStorage.getItem('google_access_token');
+    if (!accessToken) return;
+
+    try {
+      const response = await gapi.client.request({
+        path: `/drive/v3/files/${currentFile.id}`,
+        method: 'GET',
+        params: { alt: 'media' },
+        headers: { Authorization: `Bearer ${accessToken}` },
+        responseType: 'arraybuffer'
+      });
+
+      const arrayBuffer = response.body;
+      const metadata = extractPNGMetadata(arrayBuffer);
+
+      const appData = JSON.parse(localStorage.getItem('appData') || '{}');
+      appData[currentFile.name] = { metadata };
+      localStorage.setItem('appData', JSON.stringify(appData));
+
+      displayMetadata(metadata);
+    } catch (err) {
+      console.error('Google Drive binary download failed:', err);
+    }
+  }
+
+  function extractPNGMetadata(arrayBuffer) {
+    const view = new DataView(arrayBuffer);
+    const metadata = {};
+    let pos = 8; // Skip PNG signature
+
+    while (pos < arrayBuffer.byteLength - 12) {
+      const length = view.getUint32(pos, false);
+      pos += 4;
+      let chunkType = '';
+      for (let i = 0; i < 4; i++) chunkType += String.fromCharCode(view.getUint8(pos + i));
+      pos += 4;
+      if (chunkType === 'tEXt') {
+        let keyword = '', value = '', nullFound = false;
+        for (let i = 0; i < length; i++) {
+          const byte = view.getUint8(pos + i);
+          if (!nullFound) {
+            if (byte === 0) nullFound = true;
+            else keyword += String.fromCharCode(byte);
+          } else {
+            value += String.fromCharCode(byte);
+          }
+        }
+        if (keyword && value) metadata[keyword] = value;
+      }
+      pos += length + 4;
+    }
+    return metadata;
+  }
+
+  function displayMetadata(metadata) {
+    const metadataTable = document.getElementById('metadata-table');
+    metadataTable.innerHTML = '';
+    Object.entries(metadata).forEach(([key, value]) => {
+      const row = document.createElement('tr');
+      row.innerHTML = '<td class="key-cell">' + key + '</td>' +
+        '<td class="value-cell">' + value + (['prompt', 'Seed', 'Negative_Prompt'].includes(key) ?
+        ' <button class="copy-button" onclick="navigator.clipboard.writeText(\'' + value.replace(/'/g, "\'") + '\').then(()=>alert(\'Copied\'));">Copy</button>' : '') +
+        '</td>';
+      metadataTable.appendChild(row);
     });
   }
 
