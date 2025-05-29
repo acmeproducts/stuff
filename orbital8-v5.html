@@ -1722,9 +1722,11 @@
                     utils.updateLoadingProgress(files.length, files.length);
                     elements.loadingMessage.textContent = 'Extracting metadata from images...';
                     
-                    // Process files with metadata extraction
+                    // Process files with metadata extraction/loading
                     appState.imageFiles = [];
                     let processedCount = 0;
+                    let extractedCount = 0;
+                    let loadedCount = 0;
                     
                     for (let i = 0; i < files.length; i++) {
                         const file = files[i];
@@ -1742,27 +1744,40 @@
                             downloadUrl: file.downloadUrl,
                             appProperties: file.appProperties || {},
                             extractedMetadata: {},
-                            qualityRating: file.appProperties?.qualityRating || 0,
-                            contentRating: file.appProperties?.contentRating || 0,
+                            // Load existing data from appProperties
+                            qualityRating: parseInt(file.appProperties?.qualityRating) || 0,
+                            contentRating: parseInt(file.appProperties?.contentRating) || 0,
                             notes: file.appProperties?.notes || ''
                         };
                         
                         appState.imageFiles.push(imageFile);
                         
-                        // Extract metadata
+                        // Check if metadata already exists
+                        const hasExistingMetadata = file.appProperties && Object.keys(file.appProperties).some(key => 
+                            !['slideboxStack', 'slideboxTags', 'qualityRating', 'contentRating', 'notes'].includes(key)
+                        );
+                        
+                        // Extract or load metadata
                         utils.updateLoadingProgress(processedCount + 1, files.length);
-                        elements.loadingMessage.textContent = `Extracting metadata ${processedCount + 1} of ${files.length}...`;
                         
                         try {
+                            if (hasExistingMetadata) {
+                                loadedCount++;
+                                elements.loadingMessage.textContent = `Loading existing metadata ${processedCount + 1} of ${files.length}... (${loadedCount} loaded, ${extractedCount} extracted)`;
+                            } else {
+                                extractedCount++;
+                                elements.loadingMessage.textContent = `Extracting metadata ${processedCount + 1} of ${files.length}... (${loadedCount} loaded, ${extractedCount} extracted)`;
+                            }
+                            
                             await this.extractAndStoreMetadata(imageFile);
                         } catch (error) {
-                            console.warn(`Failed to extract metadata for ${file.name}:`, error);
+                            console.warn(`Failed to process metadata for ${file.name}:`, error);
                         }
                         
                         processedCount++;
                         
-                        // Small delay to prevent overwhelming
-                        if (i % 3 === 0) {
+                        // Small delay to prevent overwhelming (only needed for new extractions)
+                        if (!hasExistingMetadata && i % 3 === 0) {
                             await new Promise(resolve => setTimeout(resolve, 50));
                         }
                     }
@@ -1782,7 +1797,14 @@
                         utils.showScreen('app-container');
                         imageViewer.displayTopImageFromStack('in');
                         updateActiveProxTab();
-                        utils.showToast(`Loaded ${files.length} images with metadata extraction`);
+                        
+                        if (extractedCount > 0 && loadedCount > 0) {
+                            utils.showToast(`Loaded ${files.length} images (${extractedCount} new extractions, ${loadedCount} from cache)`);
+                        } else if (extractedCount > 0) {
+                            utils.showToast(`Loaded ${files.length} images with new metadata extraction`);
+                        } else {
+                            utils.showToast(`Loaded ${files.length} images from cached metadata`);
+                        }
                     }, 500);
                     
                 } catch (error) {
@@ -1798,11 +1820,32 @@
             
             async extractAndStoreMetadata(file) {
                 try {
+                    // Check if we already have extracted metadata in appProperties
+                    const hasExistingMetadata = file.appProperties && Object.keys(file.appProperties).some(key => 
+                        !['slideboxStack', 'slideboxTags', 'qualityRating', 'contentRating', 'notes'].includes(key)
+                    );
+                    
+                    if (hasExistingMetadata) {
+                        // Use existing metadata from appProperties, don't re-extract
+                        console.log(`Using existing metadata for ${file.name}`);
+                        
+                        // Populate extractedMetadata from appProperties for consistency
+                        file.extractedMetadata = {};
+                        Object.entries(file.appProperties).forEach(([key, value]) => {
+                            if (!['slideboxStack', 'slideboxTags', 'qualityRating', 'contentRating', 'notes'].includes(key)) {
+                                file.extractedMetadata[key] = value;
+                            }
+                        });
+                        
+                        return file.extractedMetadata;
+                    }
+
                     if (!file.downloadUrl) {
                         console.warn('No download URL for file:', file.name);
                         return {};
                     }
 
+                    console.log('Extracting NEW metadata for:', file.name);
                     const response = await fetch(file.downloadUrl);
                     if (!response.ok) {
                         throw new Error(`Failed to download file: ${response.status}`);
@@ -1811,15 +1854,20 @@
                     const arrayBuffer = await response.arrayBuffer();
                     const extractedMetadata = await appState.metadataExtractor.extractImageMetadata(arrayBuffer, file.mimeType);
 
+                    console.log('Newly extracted metadata for', file.name, ':', extractedMetadata);
+
                     if (Object.keys(extractedMetadata).length > 0) {
                         file.extractedMetadata = extractedMetadata;
                         
-                        // Store in Google Drive appProperties
+                        // Store in Google Drive appProperties (merge with existing properties)
                         const updatedProperties = { ...file.appProperties, ...extractedMetadata };
                         await appState.cloudStorage.updateFileProperties(file.id, updatedProperties);
                         file.appProperties = updatedProperties;
                         
-                        console.log(`Metadata extracted and stored for ${file.name}:`, Object.keys(extractedMetadata));
+                        console.log(`NEW metadata extracted and stored for ${file.name}:`, Object.keys(extractedMetadata));
+                    } else {
+                        console.log(`No extractable metadata found for ${file.name}`);
+                        file.extractedMetadata = {};
                     }
 
                     return extractedMetadata;
@@ -1962,7 +2010,7 @@
                 }
             },
             
-            addTagsToFile: function(fileId, tags) {
+            addTagsToFile: async function(fileId, tags) {
                 const file = appState.imageFiles.find(f => f.id === fileId);
                 if (!file) return Promise.reject(new Error('File not found'));
                 
@@ -1975,7 +2023,14 @@
                 file.appProperties = file.appProperties || {};
                 file.appProperties.slideboxTags = newTags.join(',');
                 
-                return Promise.resolve(newTags);
+                try {
+                    // Save tags to Google Drive
+                    await appState.cloudStorage.updateFileProperties(fileId, file.appProperties);
+                    return Promise.resolve(newTags);
+                } catch (error) {
+                    console.error('Error saving tags:', error);
+                    return Promise.reject(error);
+                }
             }
         };
         
@@ -2372,14 +2427,19 @@
                 addButton.parentNode.insertBefore(input, addButton);
                 input.focus();
                 
-                input.addEventListener('keydown', (e) => {
+                input.addEventListener('keydown', async (e) => {
                     if (e.key === 'Enter') {
                         const tagName = input.value.trim();
                         if (tagName) {
                             const currentFile = appState.imageFiles[appState.currentImageIndex];
-                            stackManager.addTagsToFile(currentFile.id, [tagName]);
-                            this.populateTagsTab(currentFile);
-                            utils.showToast(`Added tag: ${tagName}`);
+                            try {
+                                await stackManager.addTagsToFile(currentFile.id, [tagName]);
+                                this.populateTagsTab(currentFile);
+                                utils.showToast(`Added tag: ${tagName}`);
+                            } catch (error) {
+                                console.error('Error adding tag:', error);
+                                utils.showToast('Failed to add tag', 'error');
+                            }
                         }
                     } else if (e.key === 'Escape') {
                         input.remove();
@@ -2391,7 +2451,7 @@
                 });
             },
             
-            removeTag: function(file, tagToRemove) {
+            removeTag: async function(file, tagToRemove) {
                 const metadata = stackManager.getFileMetadata(file);
                 const currentTags = metadata.slideboxTags || [];
                 const newTags = currentTags.filter(tag => tag !== tagToRemove);
@@ -2399,28 +2459,65 @@
                 file.appProperties = file.appProperties || {};
                 file.appProperties.slideboxTags = newTags.join(',');
                 
-                this.populateTagsTab(file);
-                utils.showToast(`Removed tag: ${tagToRemove}`);
+                try {
+                    // Save updated tags to Google Drive
+                    await appState.cloudStorage.updateFileProperties(file.id, file.appProperties);
+                    this.populateTagsTab(file);
+                    utils.showToast(`Removed tag: ${tagToRemove}`);
+                } catch (error) {
+                    console.error('Error removing tag:', error);
+                    utils.showToast('Failed to remove tag', 'error');
+                }
             },
             
             populateNotesTab: function(file) {
                 elements.detailNotes.value = file.notes || '';
-                elements.detailNotes.addEventListener('blur', () => {
+                
+                // Remove existing event listeners to avoid duplicates
+                const newNotesTextarea = elements.detailNotes.cloneNode(true);
+                elements.detailNotes.parentNode.replaceChild(newNotesTextarea, elements.detailNotes);
+                elements.detailNotes = newNotesTextarea;
+                
+                elements.detailNotes.addEventListener('blur', async () => {
                     file.notes = elements.detailNotes.value;
                     file.appProperties = file.appProperties || {};
                     file.appProperties.notes = file.notes;
+                    
+                    try {
+                        await appState.cloudStorage.updateFileProperties(file.id, file.appProperties);
+                        utils.showToast('Notes saved');
+                    } catch (error) {
+                        console.error('Error saving notes:', error);
+                        utils.showToast('Failed to save notes', 'error');
+                    }
                 });
                 
-                this.setupStarRating(elements.qualityRating, file.qualityRating || 0, (rating) => {
+                this.setupStarRating(elements.qualityRating, file.qualityRating || 0, async (rating) => {
                     file.qualityRating = rating;
                     file.appProperties = file.appProperties || {};
                     file.appProperties.qualityRating = rating;
+                    
+                    try {
+                        await appState.cloudStorage.updateFileProperties(file.id, file.appProperties);
+                        utils.showToast('Quality rating saved');
+                    } catch (error) {
+                        console.error('Error saving quality rating:', error);
+                        utils.showToast('Failed to save rating', 'error');
+                    }
                 });
                 
-                this.setupStarRating(elements.contentRating, file.contentRating || 0, (rating) => {
+                this.setupStarRating(elements.contentRating, file.contentRating || 0, async (rating) => {
                     file.contentRating = rating;
                     file.appProperties = file.appProperties || {};
                     file.appProperties.contentRating = rating;
+                    
+                    try {
+                        await appState.cloudStorage.updateFileProperties(file.id, file.appProperties);
+                        utils.showToast('Content rating saved');
+                    } catch (error) {
+                        console.error('Error saving content rating:', error);
+                        utils.showToast('Failed to save rating', 'error');
+                    }
                 });
             },
             
@@ -2467,8 +2564,13 @@
                 // Get all metadata - both extracted and app properties
                 const allMetadata = this.extractAllMetadata(file);
                 
+                console.log('All metadata for', file.name, ':', allMetadata);
+                
                 if (Object.keys(allMetadata).length === 0) {
                     this.addMetadataRow('Status', 'No embedded metadata found in this image', false);
+                    this.addMetadataRow('File Name', file.name || 'Unknown', false);
+                    this.addMetadataRow('File Size', file.size ? utils.formatFileSize(file.size) : 'Unknown', false);
+                    this.addMetadataRow('MIME Type', file.mimeType || 'Unknown', false);
                     return;
                 }
                 
@@ -2484,42 +2586,63 @@
                 Object.entries(allMetadata).forEach(([key, value]) => {
                     const lowerKey = key.toLowerCase();
                     if (!priorityFields.includes(lowerKey) && 
-                        !['slidebox_stack', 'slidebox_tags', 'quality_rating', 'content_rating', 'notes', 'created', 'modified'].includes(lowerKey) &&
+                        !['slidebox_stack', 'slidebox_tags', 'quality_rating', 'content_rating', 'notes', 'created', 'modified', 'slideboxstack', 'slideboxtags', 'qualityrating', 'contentrating'].includes(lowerKey) &&
                         value) {
                         this.addMetadataRow(key, value, false);
                     }
                 });
                 
+                // Always show basic file info
+                this.addMetadataRow('File Name', file.name || 'Unknown', false);
+                this.addMetadataRow('File Size', file.size ? utils.formatFileSize(file.size) : 'Unknown', false);
+                this.addMetadataRow('MIME Type', file.mimeType || 'Unknown', false);
+                
                 // Success message
                 const fieldCount = Object.keys(allMetadata).length;
-                if (fieldCount > 0) {
-                    console.log(`Displaying ${fieldCount} metadata fields for ${file.name}`);
-                }
+                console.log(`Displaying ${fieldCount} metadata fields for ${file.name}`);
             },
             
             extractAllMetadata: function(file) {
                 const metadata = {};
                 
-                // From extracted metadata (embedded in image)
-                if (file.extractedMetadata) {
-                    Object.entries(file.extractedMetadata).forEach(([key, value]) => {
-                        metadata[key] = value;
-                    });
-                }
+                console.log('Extracting all metadata for file:', file.name);
+                console.log('File appProperties:', file.appProperties);
+                console.log('File extractedMetadata:', file.extractedMetadata);
                 
-                // From appProperties (stored in Google Drive)
-                if (file.appProperties) {
-                    Object.entries(file.appProperties).forEach(([key, value]) => {
-                        if (!['slideboxStack', 'slideboxTags', 'qualityRating', 'contentRating', 'notes'].includes(key)) {
+                // From extracted metadata (embedded in image) - this should always be populated now
+                if (file.extractedMetadata && typeof file.extractedMetadata === 'object') {
+                    Object.entries(file.extractedMetadata).forEach(([key, value]) => {
+                        if (value && String(value).trim()) {
                             metadata[key] = value;
                         }
                     });
+                    console.log('Added extracted metadata:', Object.keys(file.extractedMetadata));
                 }
                 
-                // Basic file properties
-                if (file.createdTime) metadata['created'] = new Date(file.createdTime).toLocaleString();
-                if (file.modifiedTime) metadata['modified'] = new Date(file.modifiedTime).toLocaleString();
+                // From appProperties (stored in Google Drive) - fallback and additional data
+                if (file.appProperties && typeof file.appProperties === 'object') {
+                    Object.entries(file.appProperties).forEach(([key, value]) => {
+                        if (!['slideboxStack', 'slideboxTags', 'qualityRating', 'contentRating', 'notes'].includes(key) && 
+                            value && String(value).trim() && !metadata[key]) { // Don't override extractedMetadata
+                            metadata[key] = value;
+                        }
+                    });
+                    console.log('Added app properties metadata (not already in extracted):', 
+                        Object.keys(file.appProperties).filter(key => 
+                            !['slideboxStack', 'slideboxTags', 'qualityRating', 'contentRating', 'notes'].includes(key) && 
+                            !metadata[key]
+                        )
+                    );
+                }
                 
+                // Basic file properties - always available
+                if (file.createdTime) metadata['File Created'] = new Date(file.createdTime).toLocaleString();
+                if (file.modifiedTime) metadata['File Modified'] = new Date(file.modifiedTime).toLocaleString();
+                if (file.mimeType) metadata['MIME Type'] = file.mimeType;
+                if (file.size) metadata['File Size'] = utils.formatFileSize(file.size);
+                
+                console.log('Final combined metadata keys:', Object.keys(metadata));
+                console.log('Final combined metadata:', metadata);
                 return metadata;
             },
             
@@ -2533,13 +2656,24 @@
                     formattedValue = formattedValue.replace(/,(?=\s)/g, ',\n').replace(/\s+/g, ' ').trim();
                 }
                 
-                const copyButtonHtml = needsCopyButton ? 
-                    `<button class="copy-button copy-metadata" data-value="${value}">Copy</button>` : '';
+                const keyCell = document.createElement('td');
+                keyCell.className = 'key-cell';
+                keyCell.textContent = formattedKey;
                 
-                row.innerHTML = `
-                    <td class="key-cell">${formattedKey}</td>
-                    <td class="value-cell">${formattedValue} ${copyButtonHtml}</td>
-                `;
+                const valueCell = document.createElement('td');
+                valueCell.className = 'value-cell';
+                valueCell.textContent = formattedValue;
+                
+                if (needsCopyButton) {
+                    const copyButton = document.createElement('button');
+                    copyButton.className = 'copy-button copy-metadata';
+                    copyButton.textContent = 'Copy';
+                    copyButton.dataset.value = String(value);
+                    valueCell.appendChild(copyButton);
+                }
+                
+                row.appendChild(keyCell);
+                row.appendChild(valueCell);
                 elements.metadataTable.appendChild(row);
             },
             
@@ -2598,7 +2732,7 @@
                     });
                 });
                 
-                document.getElementById('apply-tag').addEventListener('click', () => {
+                document.getElementById('apply-tag').addEventListener('click', async () => {
                     const tagInput = elements.tagInput.value.trim();
                     if (!tagInput) {
                         this.hide('tag-modal');
@@ -2613,15 +2747,16 @@
                         stackManager.addTagsToFile(fileId, tags)
                     );
                     
-                    Promise.all(promises)
-                        .then(() => {
-                            utils.showToast(`Tags added to ${promises.length} images`);
-                            this.hide('tag-modal');
-                        })
-                        .catch(() => {
-                            utils.showToast('Failed to add tags to some images', 'error');
-                            this.hide('tag-modal');
-                        });
+                    try {
+                        await Promise.all(promises);
+                        utils.showToast(`Tags added to ${promises.length} images`);
+                        this.hide('tag-modal');
+                        elements.tagInput.value = '';
+                    } catch (error) {
+                        console.error('Error adding tags:', error);
+                        utils.showToast('Failed to add tags to some images', 'error');
+                        this.hide('tag-modal');
+                    }
                 });
                 
                 elements.confirmDelete.addEventListener('click', () => {
