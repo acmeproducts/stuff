@@ -3295,5 +3295,85 @@
     });
 </script>
 
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const centerImage = document.getElementById('center-image');
+  const metadataTable = document.getElementById('metadata-table');
+
+  centerImage.addEventListener('load', async () => {
+    if (!centerImage.src) return;
+    const filename = centerImage.src.split('/').pop();
+    const storedData = JSON.parse(localStorage.getItem('appData') || '{}');
+
+    // Check if metadata already stored in appData
+    if (storedData[filename] && storedData[filename].metadata) {
+      displayMetadata(storedData[filename].metadata);
+      return;
+    }
+
+    try {
+      const response = await fetch(centerImage.src);
+      const arrayBuffer = await response.arrayBuffer();
+      const view = new DataView(arrayBuffer);
+      const metadata = {};
+      let pos = 8; // PNG signature
+
+      while (pos < arrayBuffer.byteLength - 12) {
+        const length = view.getUint32(pos, false);
+        pos += 4;
+        let chunkType = '';
+        for (let i = 0; i < 4; i++) chunkType += String.fromCharCode(view.getUint8(pos + i));
+        pos += 4;
+        if (chunkType === 'tEXt') {
+          let keyword = '', value = '', nullFound = false;
+          for (let i = 0; i < length; i++) {
+            const byte = view.getUint8(pos + i);
+            if (!nullFound) {
+              if (byte === 0) nullFound = true;
+              else keyword += String.fromCharCode(byte);
+            } else {
+              value += String.fromCharCode(byte);
+            }
+          }
+          if (keyword && value) metadata[keyword] = value;
+        }
+        pos += length + 4;
+      }
+
+      const keys = ['Project_ID', 'prompt', 'Model', 'Seed', 'Negative_Prompt', 'API_Call', 'Global_Hash', 'Height', 'Width', 'Steps', 'Cfg_Scale'];
+      const filteredMetadata = {};
+      keys.forEach(key => { if (metadata[key]) filteredMetadata[key] = metadata[key]; });
+
+      // Save in appData for persistent future loads
+      storedData[filename] = { metadata: filteredMetadata };
+      localStorage.setItem('appData', JSON.stringify(storedData));
+      displayMetadata(filteredMetadata);
+    } catch (err) { console.error('Metadata load error:', err); }
+  });
+
+  function displayMetadata(metadata) {
+    metadataTable.innerHTML = '';
+    Object.entries(metadata).forEach(([key, value]) => {
+      const row = document.createElement('tr');
+      row.innerHTML = '<td class="key-cell">' + key + '</td>' +
+        '<td class="value-cell">' + value + (['prompt', 'Seed', 'Negative_Prompt'].includes(key) ?
+        ' <button class="copy-button" onclick="navigator.clipboard.writeText(\'' + value.replace(/'/g, "\'") + '\').then(()=>alert(\'Copied\'));">Copy</button>' : '') +
+        '</td>';
+      metadataTable.appendChild(row);
+    });
+  }
+
+  // Load metadata if already stored in appData
+  const filename = centerImage.src ? centerImage.src.split('/').pop() : null;
+  if (filename) {
+    const storedData = JSON.parse(localStorage.getItem('appData') || '{}');
+    if (storedData[filename] && storedData[filename].metadata) {
+      displayMetadata(storedData[filename].metadata);
+    }
+  }
+});
+</script>
+
 </body>
 </html>
