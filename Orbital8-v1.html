@@ -3295,95 +3295,48 @@
     });
 </script>
 
+<button id="signin-button" onclick="signIn()" style="position:fixed;top:10px;right:10px;z-index:999;display:none;">Sign In with Google</button>
 
+<script src="https://apis.google.com/js/api.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  const metadataTable = document.getElementById('metadata-table');
-
-  async function loadMetadataFromDrive(fileId, fileName) {
-    if (!fileId) return;
-
-    // Check if metadata already in appData
-    const appData = JSON.parse(localStorage.getItem('appData') || '{}');
-    if (appData[fileName] && appData[fileName].metadata) {
-      displayMetadata(appData[fileName].metadata);
-      return;
-    }
-
-    // Download file binary data using Google Drive API
+  function initGoogleAPI() {
     const accessToken = localStorage.getItem('google_access_token');
-    if (!accessToken) {
-      console.error('No access token for Google Drive API.');
+    if (accessToken) {
+      document.getElementById('signin-button').style.display = 'none';
       return;
     }
-
-    try {
-      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      });
-      const arrayBuffer = await response.arrayBuffer();
-      const view = new DataView(arrayBuffer);
-      const metadata = {};
-      let pos = 8;
-
-      while (pos < arrayBuffer.byteLength - 12) {
-        const length = view.getUint32(pos, false);
-        pos += 4;
-        let chunkType = '';
-        for (let i = 0; i < 4; i++) chunkType += String.fromCharCode(view.getUint8(pos + i));
-        pos += 4;
-        if (chunkType === 'tEXt') {
-          let keyword = '', value = '', nullFound = false;
-          for (let i = 0; i < length; i++) {
-            const byte = view.getUint8(pos + i);
-            if (!nullFound) {
-              if (byte === 0) nullFound = true;
-              else keyword += String.fromCharCode(byte);
-            } else {
-              value += String.fromCharCode(byte);
-            }
-          }
-          if (keyword && value) metadata[keyword] = value;
+    gapi.load('client:auth2', () => {
+      gapi.client.init({
+        clientId: 'YOUR_CLIENT_ID.apps.googleusercontent.com',
+        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+        scope: 'https://www.googleapis.com/auth/drive.readonly'
+      }).then(() => {
+        const authInstance = gapi.auth2.getAuthInstance();
+        if (authInstance.isSignedIn.get()) {
+          const user = authInstance.currentUser.get();
+          const accessToken = user.getAuthResponse().access_token;
+          localStorage.setItem('google_access_token', accessToken);
+          document.getElementById('signin-button').style.display = 'none';
+        } else {
+          document.getElementById('signin-button').style.display = 'block';
         }
-        pos += length + 4;
-      }
-
-      const keys = ['Project_ID', 'prompt', 'Model', 'Seed', 'Negative_Prompt', 'API_Call', 'Global_Hash', 'Height', 'Width', 'Steps', 'Cfg_Scale'];
-      const filteredMetadata = {};
-      keys.forEach(key => { if (metadata[key]) filteredMetadata[key] = metadata[key]; });
-
-      // Save to appData for future use
-      appData[fileName] = { metadata: filteredMetadata };
-      localStorage.setItem('appData', JSON.stringify(appData));
-
-      displayMetadata(filteredMetadata);
-    } catch (error) {
-      console.error('Google Drive API binary download failed:', error);
-    }
-  }
-
-  function displayMetadata(metadata) {
-    metadataTable.innerHTML = '';
-    Object.entries(metadata).forEach(([key, value]) => {
-      const row = document.createElement('tr');
-      row.innerHTML = '<td class="key-cell">' + key + '</td>' +
-        '<td class="value-cell">' + value + (['prompt', 'Seed', 'Negative_Prompt'].includes(key) ?
-        ' <button class="copy-button" onclick="navigator.clipboard.writeText(\'' + value.replace(/'/g, "\'") + '\').then(()=>alert(\'Copied\'));">Copy</button>' : '') +
-        '</td>';
-      metadataTable.appendChild(row);
+      });
     });
   }
 
-  // Integration point with the app's image viewer (using appState.imageFiles and currentIndex)
-  const observer = new MutationObserver(() => {
-    const currentFile = appState.imageFiles[appState.currentImageIndex];
-    if (currentFile && currentFile.id && currentFile.name) {
-      loadMetadataFromDrive(currentFile.id, currentFile.name);
-    }
-  });
+  function signIn() {
+    const authInstance = gapi.auth2.getAuthInstance();
+    authInstance.signIn().then(() => {
+      const user = authInstance.currentUser.get();
+      const accessToken = user.getAuthResponse().access_token;
+      localStorage.setItem('google_access_token', accessToken);
+      document.getElementById('signin-button').style.display = 'none';
+    });
+  }
 
-  observer.observe(document.getElementById('center-image'), { attributes: true, attributeFilter: ['src'] });
-});
+  window.addEventListener('load', () => {
+    initGoogleAPI();
+  });
 </script>
 
 </body>
