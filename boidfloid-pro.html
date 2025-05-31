@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlockLab Workbench v6</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:Helvetica,Arial,sans-serif}
+#togglePanel{position:fixed;top:10px;left:10px;z-index:10;padding:6px 10px;background:#222;color:#fff;border:none;border-radius:4px;cursor:pointer}
+#canvas{display:block;width:100%;height:100%}
+</style>
+
+<!-- Import map for clean ES-module resolution -->
+<script type="importmap">
+{
+  "imports": {
+    "three":                "https://unpkg.com/three@0.155.0/build/three.module.js",
+    "three/examples/jsm/":  "https://unpkg.com/three@0.155.0/examples/jsm/",
+    "lil-gui":              "https://unpkg.com/lil-gui@0.18/dist/lil-gui.esm.min.js"
+  }
+}
+</script>
+</head>
+
+<body>
+<button id="togglePanel">Controls</button>
+<canvas id="canvas"></canvas>
+
+<script type="module">
+import * as THREE          from 'three';
+import {OrbitControls}     from 'three/examples/jsm/controls/OrbitControls.js';
+import GUI                 from 'lil-gui';
+
+/*--------------------------------------------------------------
+ Parameters
+--------------------------------------------------------------*/
+const cfg = {
+  mode             : 'classic',   // classic | predator | orbit | tricolor
+  boidCount        : 1000,
+  perception       :   25,
+  maxSpeed         :  2.0,
+  maxForce         : 0.03,
+  separationWeight :  1.5,
+  alignmentWeight  :  1.0,
+  cohesionWeight   :  1.0,
+  sphereWrap       : false,
+  sphereRadius     : 150
+};
+
+/*--------------------------------------------------------------
+ Boid (CPU)
+--------------------------------------------------------------*/
+class Boid {
+  constructor(p,v,species=0){ this.position=p; this.velocity=v; this.acc=new THREE.Vector3(); this.species=species; }
+  edges(){ if(cfg.sphereWrap) return; const B=200; ['x','y','z'].forEach(a=>{ if(this.position[a]> B) this.position[a]=-B; if(this.position[a]<-B) this.position[a]= B; }); }
+  align(f){ const s=new THREE.Vector3(); let n=0; f.forEach(o=>{ if(o.species!==this.species) return; const d=this.position.distanceTo(o.position); if(o!==this&&d<cfg.perception){s.add(o.velocity);n++;} }); if(n){s.divideScalar(n).setLength(cfg.maxSpeed).sub(this.velocity).clampLength(0,cfg.maxForce);} return s.multiplyScalar(cfg.alignmentWeight); }
+  cohesion(f){ const s=new THREE.Vector3(); let n=0; f.forEach(o=>{ if(o.species!==this.species) return; const d=this.position.distanceTo(o.position); if(o!==this&&d<cfg.perception){s.add(o.position);n++;} }); if(n){s.divideScalar(n).sub(this.position).setLength(cfg.maxSpeed).sub(this.velocity).clampLength(0,cfg.maxForce);} return s.multiplyScalar(cfg.cohesionWeight); }
+  separation(f){ const s=new THREE.Vector3(); let n=0; f.forEach(o=>{ const d=this.position.distanceTo(o.position); if(o!==this&&d<cfg.perception*0.5){ s.add(new THREE.Vector3().subVectors(this.position,o.position).divideScalar(d*d)); n++; } }); if(n){s.divideScalar(n).setLength(cfg.maxSpeed).sub(this.velocity).clampLength(0,cfg.maxForce);} return s.multiplyScalar(cfg.separationWeight); }
+  applyForce(f){ this.acc.add(f); }
+  update(){ this.velocity.add(this.acc).clampLength(0,cfg.maxSpeed); this.position.add(this.velocity); this.acc.set(0,0,0); }
+}
+
+/*--------------------------------------------------------------
+ Three.js
+--------------------------------------------------------------*/
+const canvas   = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth,innerHeight);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,1000);
+camera.position.set(0,0,400);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+/*--------------------------------------------------------------
+ Species setup
+--------------------------------------------------------------*/
+const speciesColors = [0xffffff, 0xff3333, 0x33ccff, 0xffff33]; // white, red, cyan, yellow
+let boids=[], speciesGeoms=[], speciesData=[];
+
+function makeSpeciesPoints(index,count){
+  const arr=new Float32Array(count*3);
+  const geom=new THREE.BufferGeometry();
+  geom.setAttribute('position',new THREE.BufferAttribute(arr,3));
+  const mat=new THREE.PointsMaterial({color:speciesColors[index],size:3,sizeAttenuation:false});
+  const pts=new THREE.Points(geom,mat);
+  scene.add(pts);
+  return {geom,pts,arr,writeOffset:0};
+}
+
+/*--------------------------------------------------------------
+ Build flock per mode
+--------------------------------------------------------------*/
+function rebuildFlock(){
+  // clear previous
+  speciesData.forEach(obj=>scene.remove(obj.pts));
+  boids.length=0; speciesGeoms.length=0; speciesData.length=0;
+
+  // distribution per mode
+  let counts=[];
+  if(cfg.mode==='classic' || cfg.mode==='orbit'){ counts=[cfg.boidCount]; }
+  else if(cfg.mode==='predator'){ counts=[Math.floor(cfg.boidCount*0.8),Math.ceil(cfg.boidCount*0.2)]; }
+  else if(cfg.mode==='tricolor'){ const each=Math.floor(cfg.boidCount/3); counts=[each,each,cfg.boidCount-2*each]; }
+
+  counts.forEach((cnt,idx)=>{
+    const spec=makeSpeciesPoints(idx,cnt); speciesData.push(spec); speciesGeoms.push(spec.geom);
+    for(let i=0;i<cnt;i++){
+      const p=new THREE.Vector3((Math.random()-0.5)*200,(Math.random()-0.5)*200,(Math.random()-0.5)*200);
+      const v=new THREE.Vector3((Math.random()-0.5)*2,(Math.random()-0.5)*2,(Math.random()-0.5)*2);
+      boids.push(new Boid(p,v,idx));
+      p.toArray(spec.arr,i*3);
+    }
+  });
+}
+rebuildFlock();
+
+/*--------------------------------------------------------------
+ GUI
+--------------------------------------------------------------*/
+const gui=new GUI({title:'FlockLab',width:320});
+Object.assign(gui.domElement.style,{position:'fixed',top:'50px',left:'10px',zIndex:'10'});
+
+gui.add(cfg,'mode',{Classic:'classic',Predator:'predator',Orbit:'orbit',TriColor:'tricolor'}).onFinishChange(rebuildFlock);
+gui.add(cfg,'boidCount',100,3000,100).onFinishChange(rebuildFlock);
+gui.add(cfg,'perception',5,100,1);
+gui.add(cfg,'maxSpeed',0.5,5,0.1);
+gui.add(cfg,'separationWeight',0,3,0.1);
+gui.add(cfg,'alignmentWeight',0,3,0.1);
+gui.add(cfg,'cohesionWeight',0,3,0.1);
+gui.add(cfg,'sphereWrap');
+gui.add({Reset:rebuildFlock},'Reset');
+
+let panelShown=true;
+document.getElementById('togglePanel').onclick=()=>{ panelShown=!panelShown; gui.domElement.style.display=panelShown?'block':'none'; };
+
+/*--------------------------------------------------------------
+ Helper
+--------------------------------------------------------------*/
+function nearest(source,list){
+  let best=null, bestD=Infinity;
+  list.forEach(o=>{ const d=source.position.distanceToSquared(o.position); if(d<bestD){bestD=d; best=o;} });
+  return best;
+}
+
+/*--------------------------------------------------------------
+ Main loop
+--------------------------------------------------------------*/
+function animate(){
+  requestAnimationFrame(animate);
+
+  // zero offsets
+  speciesData.forEach(obj=>{obj.writeOffset=0;});
+
+  for(const b of boids){
+    /* --- mode-specific behaviour ------------------------------------ */
+    if(cfg.mode==='predator'){
+      if(b.species===1){           // predators chase prey
+        const prey=boids.filter(o=>o.species===0);
+        const tgt=nearest(b,prey);
+        if(tgt){
+          const desired=new THREE.Vector3().subVectors(tgt.position,b.position).setLength(cfg.maxSpeed);
+          b.applyForce(desired.sub(b.velocity).clampLength(0,cfg.maxForce*2));
+        }
+      }else{                       // prey evade predators
+        const preds=boids.filter(o=>o.species===1);
+        preds.forEach(p=>{
+          const d=b.position.distanceTo(p.position);
+          if(d<cfg.perception*1.5){
+            const flee=new THREE.Vector3().subVectors(b.position,p.position).setLength(cfg.maxSpeed);
+            b.applyForce(flee.sub(b.velocity).clampLength(0,cfg.maxForce*2));
+          }
+        });
+      }
+    } else if(cfg.mode==='orbit'){
+      const toCenter = b.position.clone().multiplyScalar(-0.02);
+      const tangent   = new THREE.Vector3(-b.position.y,b.position.x,0).setLength(0.02);
+      b.applyForce(toCenter); b.applyForce(tangent);
+    } else if(cfg.mode==='tricolor'){
+      const targetSpecies=(b.species+1)%3;
+      const targets=boids.filter(o=>o.species===targetSpecies);
+      const tgt=nearest(b,targets);
+      if(tgt){
+        const draw=new THREE.Vector3().subVectors(tgt.position,b.position).setLength(cfg.maxSpeed);
+        b.applyForce(draw.sub(b.velocity).clampLength(0,cfg.maxForce*1.5));
+      }
+    }
+
+    /* --- common boid rules ----------------------------------------- */
+    b.applyForce(b.align(boids));
+    b.applyForce(b.cohesion(boids));
+    b.applyForce(b.separation(boids));
+    b.update();
+
+    if(cfg.sphereWrap){
+      const R=cfg.sphereRadius;
+      if(b.position.length()>R){
+        b.position.setLength(R);
+        b.velocity.reflect(b.position.clone().normalize());
+      }
+    } else {
+      b.edges();
+    }
+
+    /* --- write position to correct species buffer ------------------ */
+    const spec=speciesData[b.species];
+    b.position.toArray(spec.arr, spec.writeOffset);
+    spec.writeOffset += 3;
+  }
+
+  /* flag updates & render */
+  speciesGeoms.forEach(g=>g.attributes.position.needsUpdate=true);
+  speciesData.forEach(s=>{ s.pts.rotation.y += 0.001; });
+
+  controls.update();
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>

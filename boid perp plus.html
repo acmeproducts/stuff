@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sphere Boids Simulator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    html, body { margin:0; padding:0; height:100%; background:#101030; }
+    body { overflow: hidden; }
+    canvas { display:block; width:100vw; height:100vh; touch-action:none; }
+    #info {
+      position: absolute;
+      top: 8px; left: 8px;
+      background: rgba(0,0,0,0.6);
+      color: #fff; font-size: 1em;
+      padding: 6px 12px;
+      border-radius: 8px;
+      z-index: 10;
+      user-select: none;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+<div id="info">
+  <b>Sphere Boids</b><br>
+  1 finger: rotate<br>
+  2 fingers: pinch to zoom<br>
+  Double tap: reset view
+</div>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let width = window.innerWidth, height = window.innerHeight;
+canvas.width = width; canvas.height = height;
+window.addEventListener('resize', () => {
+  width = window.innerWidth; height = window.innerHeight;
+  canvas.width = width; canvas.height = height;
+});
+
+// --- Camera state ---
+let camTheta = Math.PI/2, camPhi = Math.PI/2, camDist = 2.7;
+const camDistMin = 1.4, camDistMax = 6;
+const sphereRadius = 1;
+
+// --- Touch controls ---
+let lastTouches = [], isDragging = false, lastCamTheta, lastCamPhi, lastCamDist;
+let lastTap = 0;
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    isDragging = true;
+    lastTouches = [{x: e.touches[0].clientX, y: e.touches[0].clientY}];
+    lastCamTheta = camTheta; lastCamPhi = camPhi;
+    // Double tap to reset
+    let now = Date.now();
+    if (now - lastTap < 400) {
+      camTheta = Math.PI/2; camPhi = Math.PI/2; camDist = 2.7;
+    }
+    lastTap = now;
+  } else if (e.touches.length === 2) {
+    lastTouches = [
+      {x: e.touches[0].clientX, y: e.touches[0].clientY},
+      {x: e.touches[1].clientX, y: e.touches[1].clientY}
+    ];
+    lastCamDist = camDist;
+  }
+});
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (e.touches.length === 1 && isDragging) {
+    const dx = e.touches[0].clientX - lastTouches[0].x;
+    const dy = e.touches[0].clientY - lastTouches[0].y;
+    camTheta = lastCamTheta - dx * 0.008;
+    camPhi = Math.max(0.15, Math.min(Math.PI - 0.15, lastCamPhi - dy * 0.008));
+  } else if (e.touches.length === 2) {
+    const t0 = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+    const t1 = {x: e.touches[1].clientX, y: e.touches[1].clientY};
+    const lastT0 = lastTouches[0], lastT1 = lastTouches[1];
+    // Pinch zoom
+    const dist = Math.hypot(t0.x - t1.x, t0.y - t1.y);
+    const lastDist = Math.hypot(lastT0.x - lastT1.x, lastT0.y - lastT1.y);
+    camDist = Math.max(camDistMin, Math.min(camDistMax, lastCamDist * lastDist / dist));
+  }
+});
+canvas.addEventListener('touchend', e => {
+  isDragging = false;
+  lastTouches = [];
+});
+
+// --- Boids on sphere ---
+const BOID_COUNT = 46;
+const BOID_VIEW_ANGLE = Math.PI / 5;
+const BOID_SIZE_MIN = 8, BOID_SIZE_MAX = 18;
+const BOID_SPEED_MIN = 0.007, BOID_SPEED_MAX = 0.022;
+const ALIGN_FORCE = 0.12, COHESION_FORCE = 0.08, SEPARATION_FORCE = 0.22;
+const SEPARATION_ANGLE = Math.PI / 14;
+
+function rand(a, b) { return Math.random() * (b - a) + a; }
+function randColor() {
+  // Vibrant HSL
+  return `hsl(${rand(0,360)},${rand(65,95)}%,${rand(45,65)}%)`;
+}
+
+function vec3(x, y, z) { return {x, y, z}; }
+function normalize(v) {
+  const len = Math.hypot(v.x, v.y, v.z);
+  return {x: v.x/len, y: v.y/len, z: v.z/len};
+}
+function cross(a, b) {
+  return {
+    x: a.y*b.z - a.z*b.y,
+    y: a.z*b.x - a.x*b.z,
+    z: a.x*b.y - a.y*b.x
+  };
+}
+function dot(a, b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
+function scale(v, s) { return {x:v.x*s, y:v.y*s, z:v.z*s}; }
+function add(a, b) { return {x: a.x+b.x, y: a.y+b.y, z: a.z+b.z}; }
+function sub(a, b) { return {x: a.x-b.x, y: a.y-b.y, z: a.z-b.z}; }
+function lerp(a, b, t) { return add(scale(a,1-t), scale(b,t)); }
+function angleBetween(a, b) {
+  return Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
+}
+function rotateOnSphere(pos, dir, angle) {
+  // Rodrigues' rotation formula
+  const k = normalize(dir);
+  const cosA = Math.cos(angle), sinA = Math.sin(angle);
+  return add(
+    scale(pos, cosA),
+    add(
+      scale(cross(k, pos), sinA),
+      scale(k, dot(k, pos) * (1 - cosA))
+    )
+  );
+}
+
+class Boid {
+  constructor() {
+    // Random point on sphere
+    let theta = rand(0, 2*Math.PI), phi = rand(0, Math.PI);
+    this.pos = {
+      x: Math.sin(phi) * Math.cos(theta),
+      y: Math.sin(phi) * Math.sin(theta),
+      z: Math.cos(phi)
+    };
+    // Random tangent direction
+    let v = cross(this.pos, {x: rand(-1,1), y: rand(-1,1), z: rand(-1,1)});
+    this.vel = normalize(v);
+    this.speed = rand(BOID_SPEED_MIN, BOID_SPEED_MAX);
+    this.size = rand(BOID_SIZE_MIN, BOID_SIZE_MAX);
+    this.color = randColor();
+  }
+  update(boids) {
+    let align = vec3(0,0,0), cohesion = vec3(0,0,0), separation = vec3(0,0,0);
+    let neighbors = 0, sepNeighbors = 0;
+    for (let other of boids) {
+      if (other === this) continue;
+      let angle = angleBetween(this.pos, other.pos);
+      if (angle < BOID_VIEW_ANGLE) {
+        align = add(align, other.vel);
+        cohesion = add(cohesion, other.pos);
+        neighbors++;
+      }
+      if (angle < SEPARATION_ANGLE) {
+        separation = add(separation, sub(this.pos, other.pos));
+        sepNeighbors++;
+      }
+    }
+    // Alignment
+    if (neighbors) {
+      align = normalize(align);
+      this.vel = normalize(lerp(this.vel, align, ALIGN_FORCE));
+      // Cohesion
+      cohesion = normalize(sub(scale(cohesion, 1/neighbors), this.pos));
+      this.vel = normalize(lerp(this.vel, cohesion, COHESION_FORCE));
+    }
+    // Separation
+    if (sepNeighbors) {
+      separation = normalize(separation);
+      this.vel = normalize(lerp(this.vel, separation, SEPARATION_FORCE));
+    }
+    // Keep tangent
+    this.vel = normalize(sub(this.vel, scale(this.pos, dot(this.vel, this.pos))));
+    // Move on sphere
+    this.pos = normalize(rotateOnSphere(this.pos, this.vel, this.speed));
+  }
+  draw(ctx, project, camPos) {
+    const p = project(this.pos);
+    if (!p) return;
+    // Lighting based on normal
+    let light = dot(this.pos, normalize(camPos));
+    let alpha = 0.7 + 0.3 * light;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, this.size, 0, 2*Math.PI);
+    ctx.fillStyle = this.color;
+    ctx.shadowColor = "#fff";
+    ctx.shadowBlur = 6;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// --- Camera and projection ---
+function getCameraPos() {
+  return {
+    x: camDist * Math.sin(camPhi) * Math.cos(camTheta),
+    y: camDist * Math.sin(camPhi) * Math.sin(camTheta),
+    z: camDist * Math.cos(camPhi)
+  };
+}
+function project3D(p, camPos) {
+  // Simple perspective
+  const up = {x:0, y:0, z:1};
+  const center = {x:0, y:0, z:0};
+  const zAxis = normalize(sub(camPos, center));
+  const xAxis = normalize(cross(up, zAxis));
+  const yAxis = cross(zAxis, xAxis);
+  const rel = sub(p, camPos);
+  const px = dot(rel, xAxis);
+  const py = dot(rel, yAxis);
+  const pz = dot(rel, scale(zAxis, -1));
+  if (pz <= 0) return null; // Behind camera
+  const f = 0.8 * Math.min(width, height);
+  return {
+    x: width/2 + f * px / pz,
+    y: height/2 - f * py / pz
+  };
+}
+
+// --- Boid initialization ---
+const boids = [];
+for (let i=0; i<BOID_COUNT; ++i) boids.push(new Boid());
+
+// --- Animation loop ---
+function drawSphere(ctx, project, camPos) {
+  // Draw sphere as a shaded ball
+  const grad = ctx.createRadialGradient(
+    width/2, height/2, Math.max(width, height)*0.04,
+    width/2, height/2, Math.max(width, height)*0.48
+  );
+  grad.addColorStop(0, "#b3e6ff");
+  grad.addColorStop(0.3, "#7b9fff");
+  grad.addColorStop(0.7, "#1e2a6d");
+  grad.addColorStop(1, "#101030");
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(width/2, height/2, Math.min(width, height)*0.46, 0, 2*Math.PI);
+  ctx.fillStyle = grad;
+  ctx.shadowColor = "#fff";
+  ctx.shadowBlur = 18;
+  ctx.fill();
+  ctx.restore();
+}
+
+function animate() {
+  ctx.clearRect(0,0,width,height);
+  const camPos = getCameraPos();
+  const project = p => project3D(p, camPos);
+  drawSphere(ctx, project, camPos);
+  for (let boid of boids) boid.update(boids);
+  // Draw boids (sort by z for painter's algo)
+  boids.slice().sort((a,b)=>b.pos.z-a.pos.z).forEach(boid=>boid.draw(ctx, project, camPos));
+  requestAnimationFrame(animate);
+}
+animate();
+</script>
+</body>
+</html>

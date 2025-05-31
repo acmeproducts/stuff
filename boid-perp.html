@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Boids 2D Simulator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    html, body { margin:0; padding:0; height:100%; background:#111; }
+    canvas { display:block; width:100vw; height:100vh; background:#222; touch-action:none; }
+  </style>
+</head>
+<body>
+<canvas id="boidCanvas"></canvas>
+<script>
+const canvas = document.getElementById('boidCanvas');
+const ctx = canvas.getContext('2d');
+let width = window.innerWidth;
+let height = window.innerHeight;
+canvas.width = width;
+canvas.height = height;
+
+window.addEventListener('resize', () => {
+  width = window.innerWidth;
+  height = window.innerHeight;
+  canvas.width = width;
+  canvas.height = height;
+});
+
+const BOID_COUNT = 40;
+const BOID_SIZE = 8;
+const BOID_VIEW = 60;
+const ALIGN_FORCE = 0.05;
+const COHESION_FORCE = 0.01;
+const SEPARATION_FORCE = 0.1;
+const MAX_SPEED = 2.2;
+const MIN_DIST = 20;
+
+function rand(min, max) { return Math.random() * (max - min) + min; }
+
+class Boid {
+  constructor() {
+    this.x = rand(0, width);
+    this.y = rand(0, height);
+    const angle = rand(0, 2 * Math.PI);
+    this.vx = Math.cos(angle) * rand(1, MAX_SPEED);
+    this.vy = Math.sin(angle) * rand(1, MAX_SPEED);
+  }
+  update(boids) {
+    let alignX = 0, alignY = 0, alignCount = 0;
+    let cohX = 0, cohY = 0, cohCount = 0;
+    let sepX = 0, sepY = 0;
+    for (let other of boids) {
+      if (other === this) continue;
+      const dx = other.x - this.x;
+      const dy = other.y - this.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < BOID_VIEW) {
+        // Alignment
+        alignX += other.vx;
+        alignY += other.vy;
+        alignCount++;
+        // Cohesion
+        cohX += other.x;
+        cohY += other.y;
+        cohCount++;
+      }
+      // Separation
+      if (dist < MIN_DIST && dist > 0.01) {
+        sepX -= (other.x - this.x) / dist;
+        sepY -= (other.y - this.y) / dist;
+      }
+    }
+    // Alignment
+    if (alignCount) {
+      alignX /= alignCount;
+      alignY /= alignCount;
+      this.vx += (alignX - this.vx) * ALIGN_FORCE;
+      this.vy += (alignY - this.vy) * ALIGN_FORCE;
+    }
+    // Cohesion
+    if (cohCount) {
+      cohX /= cohCount;
+      cohY /= cohCount;
+      this.vx += (cohX - this.x) * COHESION_FORCE;
+      this.vy += (cohY - this.y) * COHESION_FORCE;
+    }
+    // Separation
+    this.vx += sepX * SEPARATION_FORCE;
+    this.vy += sepY * SEPARATION_FORCE;
+    // Limit speed
+    let speed = Math.hypot(this.vx, this.vy);
+    if (speed > MAX_SPEED) {
+      this.vx = (this.vx / speed) * MAX_SPEED;
+      this.vy = (this.vy / speed) * MAX_SPEED;
+    }
+    // Move
+    this.x += this.vx;
+    this.y += this.vy;
+    // Wrap around edges
+    if (this.x < 0) this.x += width;
+    if (this.x > width) this.x -= width;
+    if (this.y < 0) this.y += height;
+    if (this.y > height) this.y -= height;
+  }
+  draw(ctx) {
+    const angle = Math.atan2(this.vy, this.vx);
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(BOID_SIZE, 0);
+    ctx.lineTo(-BOID_SIZE * 0.7, BOID_SIZE * 0.5);
+    ctx.lineTo(-BOID_SIZE * 0.7, -BOID_SIZE * 0.5);
+    ctx.closePath();
+    ctx.fillStyle = "#f9d923";
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+const boids = [];
+for (let i = 0; i < BOID_COUNT; i++) boids.push(new Boid());
+
+function animate() {
+  ctx.clearRect(0, 0, width, height);
+  for (let boid of boids) boid.update(boids);
+  for (let boid of boids) boid.draw(ctx);
+  requestAnimationFrame(animate);
+}
+animate();
+</script>
+</body>
+</html>

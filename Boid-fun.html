@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Enhanced Boid Swarm Simulator</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: black;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="boidCanvas"></canvas>
+<script>
+const canvas = document.getElementById('boidCanvas');
+const ctx = canvas.getContext('2d');
+let width = window.innerWidth;
+let height = window.innerHeight;
+canvas.width = width;
+canvas.height = height;
+
+let boids = [];
+let targets = [];
+let trails = [];
+let colors = ['#ff4d4d', '#4dff4d', '#4d4dff', '#ffff4d', '#ff4dff', '#4dffff'];
+let currentColorIndex = 0;
+let mouse = { x: width / 2, y: height / 2 };
+
+class Boid {
+  constructor(x, y, color) {
+    this.pos = { x, y };
+    this.vel = { x: Math.random() * 2 - 1, y: Math.random() * 2 - 1 };
+    this.acc = { x: 0, y: 0 };
+    this.color = color;
+  }
+
+  update(boids) {
+    let separation = this.separate(boids);
+    let alignment = this.align(boids);
+    let cohesion = this.cohesion(boids);
+
+    // Attraction to mouse
+    let dx = mouse.x - this.pos.x;
+    let dy = mouse.y - this.pos.y;
+    let dist = Math.hypot(dx, dy);
+    let attract = { x: 0, y: 0 };
+    if (dist > 1) {
+      attract.x = (dx / dist) * 0.05;
+      attract.y = (dy / dist) * 0.05;
+    }
+
+    this.acc.x += separation.x * 1.5 + alignment.x + cohesion.x + attract.x;
+    this.acc.y += separation.y * 1.5 + alignment.y + cohesion.y + attract.y;
+
+    this.vel.x += this.acc.x;
+    this.vel.y += this.acc.y;
+
+    this.vel.x *= 0.95;
+    this.vel.y *= 0.95;
+
+    this.pos.x += this.vel.x;
+    this.pos.y += this.vel.y;
+
+    this.acc.x = 0;
+    this.acc.y = 0;
+
+    // Keep within screen
+    if (this.pos.x < 0) this.pos.x = width;
+    if (this.pos.x > width) this.pos.x = 0;
+    if (this.pos.y < 0) this.pos.y = height;
+    if (this.pos.y > height) this.pos.y = 0;
+  }
+
+  separate(boids) {
+    let desiredSeparation = 20;
+    let steer = { x: 0, y: 0 };
+    let count = 0;
+    boids.forEach(b => {
+      let d = Math.hypot(this.pos.x - b.pos.x, this.pos.y - b.pos.y);
+      if (d > 0 && d < desiredSeparation) {
+        steer.x += this.pos.x - b.pos.x;
+        steer.y += this.pos.y - b.pos.y;
+        count++;
+      }
+    });
+    if (count > 0) {
+      steer.x /= count;
+      steer.y /= count;
+      let mag = Math.hypot(steer.x, steer.y);
+      if (mag > 0) {
+        steer.x = (steer.x / mag) * 0.05;
+        steer.y = (steer.y / mag) * 0.05;
+      }
+    }
+    return steer;
+  }
+
+  align(boids) {
+    let neighborDist = 50;
+    let sum = { x: 0, y: 0 };
+    let count = 0;
+    boids.forEach(b => {
+      let d = Math.hypot(this.pos.x - b.pos.x, this.pos.y - b.pos.y);
+      if (d > 0 && d < neighborDist) {
+        sum.x += b.vel.x;
+        sum.y += b.vel.y;
+        count++;
+      }
+    });
+    if (count > 0) {
+      sum.x /= count;
+      sum.y /= count;
+      let mag = Math.hypot(sum.x, sum.y);
+      if (mag > 0) {
+        sum.x = (sum.x / mag) * 0.05;
+        sum.y = (sum.y / mag) * 0.05;
+      }
+      return sum;
+    }
+    return { x: 0, y: 0 };
+  }
+
+  cohesion(boids) {
+    let neighborDist = 50;
+    let sum = { x: 0, y: 0 };
+    let count = 0;
+    boids.forEach(b => {
+      let d = Math.hypot(this.pos.x - b.pos.x, this.pos.y - b.pos.y);
+      if (d > 0 && d < neighborDist) {
+        sum.x += b.pos.x;
+        sum.y += b.pos.y;
+        count++;
+      }
+    });
+    if (count > 0) {
+      sum.x /= count;
+      sum.y /= count;
+      let dx = sum.x - this.pos.x;
+      let dy = sum.y - this.pos.y;
+      let dist = Math.hypot(dx, dy);
+      if (dist > 0) {
+        return { x: (dx / dist) * 0.01, y: (dy / dist) * 0.01 };
+      }
+    }
+    return { x: 0, y: 0 };
+  }
+
+  draw() {
+    let gradient = ctx.createRadialGradient(this.pos.x, this.pos.y, 0, this.pos.x, this.pos.y, 8);
+    gradient.addColorStop(0, this.color);
+    gradient.addColorStop(1, 'black');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(this.pos.x, this.pos.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function createBoid(x, y, color) {
+  boids.push(new Boid(x, y, color));
+}
+
+function spawnInitialBoids(count) {
+  for (let i = 0; i < count; i++) {
+    createBoid(Math.random() * width, Math.random() * height, colors[currentColorIndex]);
+  }
+}
+
+function spawnTarget(special = false) {
+  let t = {
+    x: Math.random() * width,
+    y: Math.random() * height,
+    size: 8,
+    special,
+    color: special ? colors[Math.floor(Math.random() * colors.length)] : 'white'
+  };
+  targets.push(t);
+}
+
+function rippleEffect(x, y, color) {
+  let ripple = { x, y, radius: 0, max: 50, color };
+  trails.push(ripple);
+}
+
+function updateRipples() {
+  trails.forEach((ripple, index) => {
+    ctx.strokeStyle = ripple.color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ripple.radius += 2;
+    if (ripple.radius > ripple.max) trails.splice(index, 1);
+  });
+}
+
+function animate() {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  ctx.fillRect(0, 0, width, height);
+
+  targets.forEach(target => {
+    ctx.fillStyle = target.color;
+    ctx.beginPath();
+    ctx.arc(target.x, target.y, target.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  updateRipples();
+
+  boids.forEach(boid => {
+    boid.update(boids);
+    boid.draw();
+
+    targets.forEach((target, tIndex) => {
+      let dx = boid.pos.x - target.x;
+      let dy = boid.pos.y - target.y;
+      if (Math.hypot(dx, dy) < target.size) {
+        rippleEffect(target.x, target.y, target.color);
+        currentColorIndex = (currentColorIndex + 1) % colors.length;
+        boids.forEach(b => b.color = colors[currentColorIndex]);
+        createBoid(target.x, target.y, colors[currentColorIndex]);
+        if (target.special) {
+          for (let i = 0; i < 5; i++) createBoid(target.x, target.y, colors[currentColorIndex]);
+        }
+        targets.splice(tIndex, 1);
+        spawnTarget(Math.random() < 0.2);
+      }
+    });
+  });
+
+  requestAnimationFrame(animate);
+}
+
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+});
+
+window.addEventListener('touchmove', e => {
+  if (e.touches.length > 0) {
+    mouse.x = e.touches[0].clientX;
+    mouse.y = e.touches[0].clientY;
+  }
+});
+
+window.addEventListener('resize', () => {
+  width = window.innerWidth;
+  height = window.innerHeight;
+  canvas.width = width;
+  canvas.height = height;
+});
+
+spawnInitialBoids(20);
+spawnTarget();
+animate();
+</script>
+</body>
+</html>
