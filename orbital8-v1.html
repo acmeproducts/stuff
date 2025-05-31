@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 1.0.0</title>
+    <title>Orbital8 1.0.2</title>
     <style>
         :root {
             --app-accent: #f59e0b;
@@ -678,8 +678,8 @@
 </style>
 
 <script>
-const DEBUG = false;         // Set true to enable debug log
-const SHOW_SPLASH = false;   // Set true to enable splash screen
+const DEBUG = false;         // Set to true to enable debug log
+const SHOW_SPLASH = false;   // Set to true to enable splash screen
 document.addEventListener('DOMContentLoaded', () => {
     if (!DEBUG) {
         const dbg = document.getElementById('debug-log');
@@ -984,7 +984,140 @@ document.addEventListener('DOMContentLoaded', () => {
 
     <script>
         // ===== CLEAN METADATA EXTRACTOR =====
-        class CleanMetadataExtractor {
+        class MetadataExtractor {
+            constructor(options = {}) {
+                this.options = {
+                    priorityFields: ['Project_ID', 'prompt', 'Model', 'Seed', 'Negative_Prompt', 'API_Call', 'Global_Hash', 'Height', 'Width', 'Steps', 'Cfg_Scale'],
+                    copyableFields: ['prompt', 'Seed', 'Negative_Prompt', 'API_Call', 'Global_Hash'],
+                    maxChunkSize: 65536,
+                    ...options
+                };
+            }
+
+            async extractImageMetadata(arrayBuffer, mimeType, filename = '') {
+                const metadata = {};
+                try {
+                    if (mimeType === "image/png") {
+                        Object.assign(metadata, this.extractPNGMetadata(arrayBuffer, filename));
+                    } else {
+                        console.warn(`Metadata extraction not supported for ${mimeType}`);
+                    }
+                } catch (error) {
+                    console.error('Error extracting metadata:', error);
+                    this.debugLog(`ERROR: Metadata extraction failed for ${filename}: ${error.message}`, 'error');
+                }
+                return metadata;
+            }
+
+            extractPNGMetadata(buffer, filename = '') {
+                const metadata = {};
+                const view = new DataView(buffer);
+                
+                this.debugLog(`INFO: Starting PNG metadata extraction for ${filename}`, 'info');
+                this.debugLog(`INFO: File size: ${(buffer.byteLength / 1024).toFixed(1)}KB`, 'info');
+                
+                // PNG header validation
+                const expectedHeader = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+                for (let i = 0; i < 8; i++) {
+                    if (view.getUint8(i) !== expectedHeader[i]) {
+                        this.debugLog(`ERROR: Invalid PNG header in ${filename}`, 'error');
+                        return {};
+                    }
+                }
+                this.debugLog(`SUCCESS: Valid PNG header confirmed`, 'success');
+                
+                let pos = 8; // Skip PNG header
+                let chunkCount = 0;
+                let textChunks = 0;
+                
+                try {
+                    while (pos < buffer.byteLength - 12) {
+                        chunkCount++;
+                        const chunkLength = view.getUint32(pos, false); // Length is big-endian
+                        pos += 4;
+                        
+                        // Get chunk type as string
+                        let chunkType = '';
+                        for (let i = 0; i < 4; i++) {
+                            chunkType += String.fromCharCode(view.getUint8(pos + i));
+                        }
+                        pos += 4;
+                        
+                        if (chunkLength > this.options.maxChunkSize) {
+                            this.debugLog(`WARNING: Skipping large chunk ${chunkType} (${chunkLength} bytes)`, 'warning');
+                            pos += chunkLength + 4; // Skip chunk data and CRC
+                            continue;
+                        }
+                        
+                        // Process tEXt chunks
+                        if (chunkType === 'tEXt') {
+                            textChunks++;
+                            this.debugLog(`INFO: Found tEXt chunk #${textChunks} (${chunkLength} bytes)`, 'info');
+                            
+                            try {
+                                // tEXt chunks: Keyword\0Value
+                                let keyword = '';
+                                let value = '';
+                                let nullFound = false;
+                                
+                                for (let i = 0; i < chunkLength; i++) {
+                                    const byte = view.getUint8(pos + i);
+                                    
+                                    if (!nullFound) {
+                                        if (byte === 0) {
+                                            nullFound = true;
+                                        } else {
+                                            keyword += String.fromCharCode(byte);
+                                        }
+                                    } else {
+                                        value += String.fromCharCode(byte);
+                                    }
+                                }
+                                
+                                if (keyword && value) {
+                                    metadata[keyword] = value;
+                                    this.debugLog(`SUCCESS: Extracted ${keyword}: ${value.length > 50 ? value.substring(0, 50) + '...' : value}`, 'success');
+                                }
+                            } catch (decodeError) {
+                                this.debugLog(`ERROR: Failed to decode tEXt chunk: ${decodeError.message}`, 'error');
+                            }
+                        } else if (chunkType === 'IHDR') {
+                            // Extract dimensions from IHDR
+                            const width = view.getUint32(pos, false);
+                            const height = view.getUint32(pos + 4, false);
+                            metadata['Width'] = width.toString();
+                            metadata['Height'] = height.toString();
+                            this.debugLog(`SUCCESS: Image dimensions: ${width}x${height}`, 'success');
+                        }
+                        
+                        // Skip chunk data and CRC
+                        pos += chunkLength + 4;
+                    }
+                } catch (error) {
+                    this.debugLog(`ERROR: PNG parsing error at position ${pos}: ${error.message}`, 'error');
+                }
+                
+                const metadataCount = Object.keys(metadata).length;
+                this.debugLog(`SUCCESS: Extraction complete - found ${metadataCount} metadata fields from ${textChunks} tEXt chunks out of ${chunkCount} total chunks`, 'success');
+                
+                if (metadataCount > 0) {
+                    this.debugLog(`INFO: Metadata fields: ${Object.keys(metadata).join(', ')}`, 'info');
+                }
+                
+                return metadata;
+            }
+            
+            debugLog(message, type = 'info') {
+                if (typeof window !== 'undefined' && window.debugLogger) {
+                    window.debugLogger(message, type);
+                }
+            }
+        }
+        
+        // ===== CloudStorageModule =====
+        
+
+class CleanMetadataExtractor {
             constructor() {
                 this.statusLog = null;
             }
@@ -2653,30 +2786,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             
             // ===== CLEAN METADATA DISPLAY =====
-            extractAllMetadata: function(file) {
-                            const metadata = {};
-                            
-                            // From extracted metadata (embedded in image)
-                            if (file.extractedMetadata && typeof file.extractedMetadata === 'object') {
-                                Object.entries(file.extractedMetadata).forEach(([key, value]) => {
-                                    if (value && String(value).trim()) {
-                                        metadata[key] = value;
-                                    }
-                                });
-                            }
-                            
-                            // From appProperties (fallback)
-                            if (file.appProperties && typeof file.appProperties === 'object') {
-                                Object.entries(file.appProperties).forEach(([key, value]) => {
-                                    if (!['slideboxStack', 'slideboxTags', 'qualityRating', 'contentRating', 'notes'].includes(key) && 
-                                        value && String(value).trim() && !metadata[key]) {
-                                        metadata[key] = value;
-                                    }
-                                });
-                            }
-                            
-                            return metadata;
-                        },
             populateMetadataTab: function(file) {
                 elements.metadataTable.innerHTML = '';
                 
@@ -3244,7 +3353,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 appState.cloudStorage = new CloudStorageModule();
                 appState.cloudStorage.setProvider('googledrive');
-                appState.metadataExtractor = new CleanMetadataExtractor();
+                appState.metadataExtractor = new MetadataExtractor();
                 
                 appState.cloudStorage.onAuthStateChanged = (authenticated, provider) => {
                     console.log(`Auth state changed: ${authenticated} (${provider})`);
