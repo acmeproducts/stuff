@@ -659,18 +659,32 @@
             .nav-button { font-size: 16px; padding: 12px 20px; border-radius: 25px; min-width: 80px; }
             .pill-counter.bottom { bottom: 80px; }
         }
-    </style>
-<style>
-/* Floating draggable details panel */
-#details-modal.modal { background: transparent; pointer-events: none; }
-#details-modal .details-modal-content { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); width: 700px; max-width: 90vw; height: 75vh; pointer-events: auto; cursor: move; }
+    
+        .folder-pill {
+            position: fixed;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(31, 41, 55, 0.9);
+            color: #fff;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 14px;
+            z-index: 2000;
+            pointer-events: auto;
+            cursor: pointer;
+            user-select: none;
+        }
+
 </style>
 </head>
 <body>
+    <div id="folder-pill" class="folder-pill hidden"></div>
+
     <!-- Authentication Screen -->
     <div class="screen" id="auth-screen">
         <div class="card">
-            <h1 class="title" style="font-size: 32px;">Orbital8 DOjO edition</h1>
+            <h1 class="title" style="font-size: 32px;">Orbital8 V6</h1>
             <p class="subtitle">Connect to Google Drive</p>
             <input type="password" id="client-secret" class="input" placeholder="Enter Google Client Secret">
             <button class="button" id="auth-button">Connect Drive</button>
@@ -726,7 +740,6 @@
         <div class="edge-glow right" id="edge-right"></div>
         
         <div class="pill-counter top" id="pill-priority" data-stack="priority">0</div>
-        <div class="pill-counter top" id="pill-folder" title="Click to change folder">-</div>
         <div class="pill-counter bottom" id="pill-trash" data-stack="trash">0</div>
         <div class="pill-counter left active" id="pill-in" data-stack="in">0</div>
         <div class="pill-counter right" id="pill-out" data-stack="out">0</div>
@@ -851,7 +864,8 @@
                 </button>
             </div>
             
-            <div class="tab-nav">
+            
+<div class="tab-nav">
     <button class="tab-button active" data-tab="metadata">Metadata</button>
     <button class="tab-button" data-tab="info">Info</button>
     <button class="tab-button" data-tab="tags">Tags</button>
@@ -951,7 +965,7 @@
         class MetadataExtractor {
             constructor(options = {}) {
                 this.options = {
-                    priorityFields: ['prompt', 'Project_ID', 'Model', 'Seed', 'Negative_Prompt', 'API_Call', 'Global_Hash', 'Height', 'Width', 'Steps', 'Cfg_Scale'],
+                    priorityFields: ['Project_ID', 'prompt', 'Model', 'Seed', 'Negative_Prompt', 'API_Call', 'Global_Hash', 'Height', 'Width', 'Steps', 'Cfg_Scale'],
                     copyableFields: ['prompt', 'Seed', 'Negative_Prompt', 'API_Call', 'Global_Hash'],
                     maxChunkSize: 65536,
                     ...options
@@ -1553,6 +1567,7 @@
         
         // ===== DOM Elements =====
         const elements = {
+            folderPill: document.getElementById('folder-pill'),
             authScreen: document.getElementById('auth-screen'),
             folderScreen: document.getElementById('folder-screen'),
             loadingScreen: document.getElementById('loading-screen'),
@@ -1699,6 +1714,15 @@
         }
         
         const utils = {
+            updateFolderPill: function() {
+                if (!elements.folderPill) return;
+                const folderName = appState.currentFolder.name || 'Unknown';
+                const currentIndex = (appState.currentImageIndex || 0) + 1;
+                const total = appState.imageFiles.length || 0;
+                elements.folderPill.textContent = `${folderName}/${currentIndex} of ${total}`;
+                elements.folderPill.classList.remove('hidden');
+            },
+
             showScreen: function(screenId) {
                 const screens = [elements.authScreen, elements.folderScreen, elements.loadingScreen, elements.appContainer];
                 screens.forEach(screen => {
@@ -1727,6 +1751,15 @@
             },
             
             setImageSrc: async function(img, file) {
+                // Update folder pill
+                utils.updateFolderPill();
+                // Update details modal if visible
+                if (!elements.detailsModal.classList.contains('hidden')) {
+                    if (typeof detailsModal.populateAllTabs === 'function') {
+                        detailsModal.populateAllTabs(file);
+                    }
+                }
+
                 let imageUrl = appState.imageCache.get(file.id);
                 
                 if (!imageUrl) {
@@ -2493,7 +2526,7 @@
         
         // ===== Details Modal =====
         const detailsModal = {
-            currentTab: 'info',
+            currentTab: 'metadata',
             
             show: function() {
                 const currentFile = appState.imageFiles[appState.currentImageIndex];
@@ -2501,7 +2534,7 @@
                 
                 this.populateAllTabs(currentFile);
                 elements.detailsModal.classList.remove('hidden');
-                this.switchTab('info');
+                this.switchTab('metadata');
             },
             
             hide: function() {
@@ -2545,7 +2578,7 @@
             },
             
             populateMetadataTab: function(file) {
-                const priorityFields = ['Project_ID', 'prompt', 'Model', 'Seed', 'Negative_Prompt', 'API_Call', 'Global_Hash', 'Height', 'Width', 'Steps', 'Cfg_Scale'];
+                const priorityFields = ['prompt','Project_ID','Model','Seed','Negative_Prompt','API_Call','Global_Hash','Height','Width','Steps','Cfg_Scale'];
                 const copyableFields = ['prompt', 'Seed', 'Negative_Prompt', 'API_Call', 'Global_Hash'];
                 
                 // Get all metadata
@@ -2994,7 +3027,12 @@
             const hasOtherStacks = stacksWithImages.some(stack => stack !== appState.currentStack);
             
             if (hasOtherStacks) {
-                elements.selectAnotherStackBtn.style.display = 'block';
+                
+                // Folder pill click to reopen folder picker
+                if (elements.folderPill) {
+                    elements.folderPill.addEventListener('click', () => utils.showScreen('folder-screen'));
+                }
+elements.selectAnotherStackBtn.style.display = 'block';
                 elements.selectAnotherFolderBtn.style.display = 'none';
             } else {
                 elements.selectAnotherStackBtn.style.display = 'none';
@@ -3468,37 +3506,6 @@
         
         document.addEventListener('DOMContentLoaded', initApp);
     </script>
-<script>
-// ===== Floating & Draggable Details Panel =====
-(function(){
-    const modal = document.getElementById('details-modal');
-    if(!modal) return;
-    const panel = modal.querySelector('.details-modal-content');
-    let ox=0, oy=0, dragging=false;
-    function start(e){ dragging=true; const p=(e.touches?e.touches[0]:e); ox=p.clientX - panel.offsetLeft; oy=p.clientY - panel.offsetTop; }
-    function move(e){ if(!dragging) return; const p=(e.touches?e.touches[0]:e); panel.style.left=(p.clientX-ox)+'px'; panel.style.top=(p.clientY-oy)+'px'; }
-    function end(){ dragging=false; }
-    panel.addEventListener('mousedown', start);
-    panel.addEventListener('touchstart', start);
-    window.addEventListener('mousemove', move);
-    window.addEventListener('touchmove', move);
-    window.addEventListener('mouseup', end);
-    window.addEventListener('touchend', end);
-})();
-
-// ===== Folder Pill =====
-(function(){
-    const pill = document.getElementById('pill-folder');
-    if(!pill) return;
-    pill.addEventListener('click', ()=> { if(window.utils) window.utils.showScreen('folder-screen'); });
-    function update(){
-        if(window.appState && window.appState.imageFiles && window.appState.imageFiles.length){
-            pill.textContent = `${window.appState.currentFolder.name}/${window.appState.currentImageIndex+1} of ${window.appState.imageFiles.length}`;
-        }
-    }
-    setInterval(update, 500);
-})();
-</script>
 </body>
 </html>
 <script>
