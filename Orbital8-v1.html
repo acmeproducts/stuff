@@ -493,17 +493,25 @@
         .delete-message { color: #4b5563; margin-bottom: 16px; }
         
         /* ===== Details Modal ===== */
-        .details-modal-content { max-width: 700px; max-height: 85vh; }
+        .details-modal-content { 
+            max-width: 800px; 
+            max-height: 95vh; 
+            height: 95vh;
+            display: flex;
+            flex-direction: column;
+        }
         
         .details-header {
             display: flex; align-items: center; justify-content: space-between;
             padding: 16px; border-bottom: 1px solid #e5e7eb;
+            flex-shrink: 0;
         }
         
         .details-title { font-size: 18px; font-weight: 500; color: #1f2937; }
         
         .tab-nav {
             display: flex; border-bottom: 1px solid #e5e7eb; background: #f8fafc;
+            flex-shrink: 0;
         }
         
         .tab-button {
@@ -515,8 +523,13 @@
         .tab-button:hover { color: #374151; background: rgba(0, 0, 0, 0.02); }
         .tab-button.active { color: #3b82f6; border-bottom-color: #3b82f6; background: white; }
         
-        .details-content { flex: 1; overflow-y: auto; overflow-x: hidden; }
-        .tab-content { display: none; padding: 20px; }
+        .details-content { 
+            flex: 1; 
+            overflow-y: auto; 
+            overflow-x: hidden; 
+            min-height: 0;
+        }
+        .tab-content { display: none; padding: 20px; height: 100%; }
         .tab-content.active { display: block; }
         
         .info-section { margin-bottom: 20px; }
@@ -594,29 +607,55 @@
         .star:hover, .star.active { color: #fbbf24; }
         
         .metadata-table {
-            width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb;
+            width: 100%; 
+            border-collapse: collapse; 
+            border: 1px solid #e5e7eb;
+            font-size: 13px;
         }
         
         .metadata-table td {
-            padding: 12px; border-bottom: 1px solid #e5e7eb; vertical-align: top;
+            padding: 8px 12px; 
+            border-bottom: 1px solid #e5e7eb; 
+            vertical-align: top;
+            word-wrap: break-word;
         }
         
         .metadata-table .key-cell {
-            font-weight: 500; color: #374151; width: 30%; word-wrap: break-word;
-            border-right: 1px solid #e5e7eb; background: #f9fafb;
+            font-weight: 500; 
+            color: #374151; 
+            width: 25%; 
+            border-right: 1px solid #e5e7eb; 
+            background: #f9fafb;
+            min-width: 120px;
         }
         
         .metadata-table .value-cell {
-            color: #6b7280; word-wrap: break-word; white-space: pre-wrap; position: relative;
+            color: #6b7280; 
+            white-space: pre-wrap; 
+            position: relative;
+            max-width: 0;
+            word-break: break-all;
         }
         
         .copy-button {
-            background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px;
-            padding: 4px 8px; font-size: 11px; color: #6b7280; cursor: pointer;
-            transition: all 0.2s; margin-left: 8px; vertical-align: top;
+            background: #f59e0b; 
+            border: none; 
+            border-radius: 4px;
+            padding: 4px 8px; 
+            font-size: 11px; 
+            color: white; 
+            cursor: pointer;
+            transition: all 0.2s; 
+            margin-left: 8px; 
+            vertical-align: top;
+            font-weight: 500;
         }
         
-        .copy-button:hover { background: #e5e7eb; color: #374151; }
+        .copy-button:hover { 
+            background: #d97706; 
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+        }
         
         /* ===== Toast ===== */
         .toast {
@@ -1908,13 +1947,12 @@
                     return { extracted: false, cached: false };
                 }
                 
-                // Check if we already have metadata cached with prefix
+                // Check if we already have complete metadata cached with prefix
                 const cachedMetadata = this.getCachedMetadata(file);
-                if (Object.keys(cachedMetadata).length > 0) {
-                    file.extractedMetadata = cachedMetadata;
-                    appState.metadataExtractor.log(`📥 Using cached metadata for ${file.name}`, 'info');
-                    return { extracted: false, cached: true };
-                }
+                const hasCachedData = Object.keys(cachedMetadata).length > 0;
+                
+                // For now, always extract to ensure we have complete metadata
+                // (since appProperties may be incomplete due to 124-byte limit)
                 
                 // Extract metadata from PNG file
                 if (!file.downloadUrl) {
@@ -1933,29 +1971,70 @@
                     );
                     
                     if (Object.keys(extractedMetadata).length > 0) {
-                        // Store in file object
+                        // Store in file object (all metadata, regardless of size)
                         file.extractedMetadata = extractedMetadata;
                         
-                        // Save to appProperties with prefix
+                        // Smart storage: only save fields that fit within Google Drive's 124-byte limit
                         const prefixedProperties = {};
+                        const skippedFields = [];
+                        const savedFields = [];
+                        
                         Object.entries(extractedMetadata).forEach(([key, value]) => {
-                            prefixedProperties[`pngMetadata_${key}`] = value;
+                            const prefixedKey = `pngMetadata_${key}`;
+                            const valueStr = String(value);
+                            const totalBytes = new TextEncoder().encode(prefixedKey + valueStr).length;
+                            
+                            if (totalBytes <= 124) {
+                                prefixedProperties[prefixedKey] = valueStr;
+                                savedFields.push(key);
+                            } else {
+                                skippedFields.push(`${key} (${totalBytes} bytes)`);
+                            }
                         });
                         
-                        // Merge with existing properties
-                        const updatedProperties = { ...file.appProperties, ...prefixedProperties };
+                        // Only update appProperties if we have fields that fit
+                        if (Object.keys(prefixedProperties).length > 0) {
+                            // Merge with existing properties
+                            const updatedProperties = { ...file.appProperties, ...prefixedProperties };
+                            
+                            await appState.cloudStorage.updateFileProperties(file.id, updatedProperties);
+                            file.appProperties = updatedProperties;
+                        }
                         
-                        await appState.cloudStorage.updateFileProperties(file.id, updatedProperties);
-                        file.appProperties = updatedProperties;
+                        // Log detailed results
+                        appState.metadataExtractor.log(
+                            `💾 Saved ${savedFields.length}/${Object.keys(extractedMetadata).length} fields for ${file.name}`, 
+                            'success'
+                        );
                         
-                        appState.metadataExtractor.log(`💾 Saved ${Object.keys(extractedMetadata).length} metadata fields for ${file.name}`, 'success');
+                        if (skippedFields.length > 0) {
+                            appState.metadataExtractor.log(
+                                `⚠️ Skipped ${skippedFields.length} fields (too large): ${skippedFields.join(', ')}`, 
+                                'info'
+                            );
+                        }
+                        
                         return { extracted: true, cached: false };
                     } else {
+                        // No metadata extracted, but we might have cached data
+                        if (hasCachedData) {
+                            file.extractedMetadata = cachedMetadata;
+                            appState.metadataExtractor.log(`📥 Using cached metadata for ${file.name}`, 'info');
+                            return { extracted: false, cached: true };
+                        }
+                        
                         appState.metadataExtractor.log(`ℹ️ No metadata found in ${file.name}`, 'info');
                         return { extracted: false, cached: false };
                     }
                     
                 } catch (error) {
+                    // On error, fall back to cached data if available
+                    if (hasCachedData) {
+                        file.extractedMetadata = cachedMetadata;
+                        appState.metadataExtractor.log(`📥 Using cached metadata for ${file.name} (extraction failed)`, 'info');
+                        return { extracted: false, cached: true };
+                    }
+                    
                     appState.metadataExtractor.log(`❌ Extraction failed for ${file.name}: ${error.message}`, 'error');
                     return { extracted: false, cached: false };
                 }
@@ -2598,38 +2677,74 @@
                     return;
                 }
                 
-                // Priority fields with copy buttons
-                const priorityFields = ['prompt', 'model', 'seed', 'negative_prompt', 'steps', 'cfg_scale', 'sampler', 'scheduler'];
+                // Priority fields with copy buttons - ensure prompt is first with copy button
+                const priorityFields = ['prompt', 'Prompt', 'model', 'Model', 'seed', 'Seed', 'negative_prompt', 'Negative_Prompt', 'steps', 'Steps', 'cfg_scale', 'CFG_Scale', 'sampler', 'Sampler', 'scheduler', 'Scheduler', 'api_call', 'API_Call'];
+                
+                // Add priority fields first
                 priorityFields.forEach(field => {
                     if (allMetadata[field]) {
                         this.addMetadataRow(field, allMetadata[field], true);
                     }
                 });
                 
-                // Other fields
-                Object.entries(allMetadata).forEach(([key, value]) => {
-                    if (!priorityFields.includes(key.toLowerCase()) && value) {
-                        this.addMetadataRow(key, value, false);
-                    }
+                // Add separator if we have both priority and other fields
+                const remainingFields = Object.entries(allMetadata).filter(([key, value]) => 
+                    !priorityFields.includes(key) && 
+                    !priorityFields.includes(key.toLowerCase()) && 
+                    value
+                );
+                
+                if (priorityFields.some(field => allMetadata[field]) && remainingFields.length > 0) {
+                    const separatorRow = document.createElement('tr');
+                    separatorRow.innerHTML = `
+                        <td colspan="2" style="padding: 8px; background: #f0f0f0; text-align: center; font-size: 12px; color: #666; font-weight: bold;">
+                            Other Metadata
+                        </td>
+                    `;
+                    elements.metadataTable.appendChild(separatorRow);
+                }
+                
+                // Add other fields without copy buttons
+                remainingFields.forEach(([key, value]) => {
+                    this.addMetadataRow(key, value, false);
                 });
+                
+                // Add separator for file info
+                if (Object.keys(allMetadata).length > 0) {
+                    const separatorRow = document.createElement('tr');
+                    separatorRow.innerHTML = `
+                        <td colspan="2" style="padding: 8px; background: #f0f0f0; text-align: center; font-size: 12px; color: #666; font-weight: bold;">
+                            File Information
+                        </td>
+                    `;
+                    elements.metadataTable.appendChild(separatorRow);
+                }
                 
                 // Basic file info
                 this.addMetadataRow('File Name', file.name || 'Unknown', false);
                 this.addMetadataRow('File Size', file.size ? utils.formatFileSize(file.size) : 'Unknown', false);
                 this.addMetadataRow('MIME Type', file.mimeType || 'Unknown', false);
+                this.addMetadataRow('Created', file.createdTime ? new Date(file.createdTime).toLocaleString() : 'Unknown', false);
+                this.addMetadataRow('Modified', file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : 'Unknown', false);
             },
             
             extractAllMetadata: function(file) {
                 const metadata = {};
                 
-                // From extracted metadata (embedded in image)
+                // Priority 1: From extracted metadata (embedded in image) - this has ALL fields
                 if (file.extractedMetadata) {
                     Object.assign(metadata, file.extractedMetadata);
                 }
                 
-                // From cached metadata (prefixed in appProperties)
+                // Priority 2: From cached metadata (prefixed in appProperties) - only smaller fields
                 const cachedMetadata = folderManager.getCachedMetadata(file);
-                Object.assign(metadata, cachedMetadata);
+                
+                // Only add cached data if we don't already have it from extractedMetadata
+                Object.entries(cachedMetadata).forEach(([key, value]) => {
+                    if (!metadata[key]) {
+                        metadata[key] = value;
+                    }
+                });
                 
                 return metadata;
             },
@@ -2640,16 +2755,45 @@
                 const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                 
                 let formattedValue = String(value);
-                if (formattedValue.length > 100) {
-                    formattedValue = formattedValue.replace(/,(?=\s)/g, ',\n').replace(/\s+/g, ' ').trim();
+                
+                // For long values (especially prompts), format them nicely
+                if (formattedValue.length > 200) {
+                    // Break very long lines at natural points
+                    formattedValue = formattedValue
+                        .replace(/,\s+/g, ',\n')
+                        .replace(/\.\s+/g, '.\n')
+                        .replace(/;\s+/g, ';\n')
+                        .trim();
+                } else if (formattedValue.length > 100) {
+                    // For medium length, just clean up spacing
+                    formattedValue = formattedValue.replace(/\s+/g, ' ').trim();
                 }
                 
                 const keyCell = document.createElement('td');
                 keyCell.className = 'key-cell';
-                keyCell.textContent = formattedKey;
+                
+                // Check if this field was too large to save to appProperties
+                const prefixedKey = `pngMetadata_${key}`;
+                const totalBytes = new TextEncoder().encode(prefixedKey + String(value)).length;
+                const wasSkipped = totalBytes > 124;
+                
+                if (wasSkipped && !['File Name', 'File Size', 'MIME Type', 'Created', 'Modified'].includes(formattedKey)) {
+                    keyCell.innerHTML = `${formattedKey} <span style="color: #f59e0b; font-size: 10px; font-weight: normal;">⚠ Too large</span>`;
+                } else {
+                    keyCell.textContent = formattedKey;
+                }
                 
                 const valueCell = document.createElement('td');
                 valueCell.className = 'value-cell';
+                
+                // For very long values, create a scrollable container
+                if (formattedValue.length > 500) {
+                    valueCell.style.maxHeight = '120px';
+                    valueCell.style.overflowY = 'auto';
+                    valueCell.style.fontSize = '12px';
+                    valueCell.style.lineHeight = '1.4';
+                }
+                
                 valueCell.textContent = formattedValue;
                 
                 if (needsCopyButton) {
@@ -2657,6 +2801,7 @@
                     copyButton.className = 'copy-button copy-metadata';
                     copyButton.textContent = 'Copy';
                     copyButton.dataset.value = String(value);
+                    copyButton.title = `Copy ${formattedKey} to clipboard`;
                     valueCell.appendChild(copyButton);
                 }
                 
