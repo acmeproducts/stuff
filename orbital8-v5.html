@@ -1620,7 +1620,11 @@
                 try {
                     const transaction = appState.db.transaction(['thumbnails'], 'readwrite');
                     const store = transaction.objectStore('thumbnails');
-                    await store.put({ id: fileId, url, timestamp: Date.now() });
+                    return new Promise((resolve, reject) => {
+                        const request = store.put({ id: fileId, url, timestamp: Date.now() });
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => reject(request.error);
+                    });
                 } catch (error) {
                     console.warn('Failed to cache thumbnail:', error);
                 }
@@ -1631,14 +1635,22 @@
                 try {
                     const transaction = appState.db.transaction(['thumbnails'], 'readonly');
                     const store = transaction.objectStore('thumbnails');
-                    const result = await store.get(fileId);
-                    if (result && (Date.now() - result.timestamp < 24 * 60 * 60 * 1000)) {
-                        return result.url;
-                    }
+                    return new Promise((resolve, reject) => {
+                        const request = store.get(fileId);
+                        request.onsuccess = () => {
+                            const result = request.result;
+                            if (result && (Date.now() - result.timestamp < 24 * 60 * 60 * 1000)) {
+                                resolve(result.url);
+                            } else {
+                                resolve(null);
+                            }
+                        };
+                        request.onerror = () => reject(request.error);
+                    });
                 } catch (error) {
                     console.warn('Failed to get cached thumbnail:', error);
+                    return null;
                 }
-                return null;
             },
             
             async storeFolderData(folderId, files) {
@@ -1646,10 +1658,14 @@
                 try {
                     const transaction = appState.db.transaction(['folderData'], 'readwrite');
                     const store = transaction.objectStore('folderData');
-                    await store.put({ 
-                        id: folderId, 
-                        files: files,
-                        timestamp: Date.now() 
+                    return new Promise((resolve, reject) => {
+                        const request = store.put({ 
+                            id: folderId, 
+                            files: files,
+                            timestamp: Date.now() 
+                        });
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => reject(request.error);
                     });
                 } catch (error) {
                     console.warn('Failed to store folder data:', error);
@@ -1661,14 +1677,22 @@
                 try {
                     const transaction = appState.db.transaction(['folderData'], 'readonly');
                     const store = transaction.objectStore('folderData');
-                    const result = await store.get(folderId);
-                    if (result && (Date.now() - result.timestamp < 24 * 60 * 60 * 1000)) {
-                        return result.files;
-                    }
+                    return new Promise((resolve, reject) => {
+                        const request = store.get(folderId);
+                        request.onsuccess = () => {
+                            const result = request.result;
+                            if (result && (Date.now() - result.timestamp < 24 * 60 * 60 * 1000)) {
+                                resolve(result.files);
+                            } else {
+                                resolve(null);
+                            }
+                        };
+                        request.onerror = () => reject(request.error);
+                    });
                 } catch (error) {
                     console.warn('Failed to get folder data:', error);
+                    return null;
                 }
-                return null;
             },
             
             async storeFileMetadata(folderId, fileId, metadata) {
@@ -1676,10 +1700,14 @@
                 try {
                     const transaction = appState.db.transaction(['metadata'], 'readwrite');
                     const store = transaction.objectStore('metadata');
-                    await store.put({ 
-                        id: `${folderId}_${fileId}`, 
-                        metadata: metadata,
-                        timestamp: Date.now() 
+                    return new Promise((resolve, reject) => {
+                        const request = store.put({ 
+                            id: `${folderId}_${fileId}`, 
+                            metadata: metadata,
+                            timestamp: Date.now() 
+                        });
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => reject(request.error);
                     });
                 } catch (error) {
                     console.warn('Failed to store metadata:', error);
@@ -1691,14 +1719,22 @@
                 try {
                     const transaction = appState.db.transaction(['metadata'], 'readonly');
                     const store = transaction.objectStore('metadata');
-                    const result = await store.get(`${folderId}_${fileId}`);
-                    if (result) {
-                        return result.metadata;
-                    }
+                    return new Promise((resolve, reject) => {
+                        const request = store.get(`${folderId}_${fileId}`);
+                        request.onsuccess = () => {
+                            const result = request.result;
+                            if (result) {
+                                resolve(result.metadata);
+                            } else {
+                                resolve(null);
+                            }
+                        };
+                        request.onerror = () => reject(request.error);
+                    });
                 } catch (error) {
                     console.warn('Failed to get metadata:', error);
+                    return null;
                 }
-                return null;
             }
         };
         
