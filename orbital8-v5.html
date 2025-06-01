@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V6 - Fixed Metadata Extraction</title>
+    <title>Orbital8 V6 - IndexedDB Version</title>
     <style>
         :root {
             --app-accent: #f59e0b;
@@ -172,7 +172,7 @@
         }
         
         .debug-log {
-            width: 100%; max-width: 500px; height: 200px;
+            width: 100%; max-width: 500px; height: 120px;
             background: rgba(0, 0, 0, 0.7); border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 8px; padding: 12px; margin-top: 20px;
             overflow-y: auto; font-family: monospace; font-size: 12px;
@@ -219,7 +219,8 @@
         .center-image.zoomable { pointer-events: auto; }
         
         .edge-glow {
-            position: absolute; opacity: 0; transition: opacity 0.2s ease; z-index: 2;
+            position: fixed; opacity: 0; transition: opacity 0.2s ease; z-index: 5;
+            pointer-events: none;
         }
         
         .edge-glow.top {
@@ -230,6 +231,7 @@
         .edge-glow.bottom {
             bottom: 0; left: 0; right: 0; height: 8px;
             background: linear-gradient(0deg, rgba(245, 158, 11, 0.4) 0%, transparent 100%);
+            pointer-events: none;
         }
         
         .edge-glow.left {
@@ -659,28 +661,9 @@
             .nav-button { font-size: 16px; padding: 12px 20px; border-radius: 25px; min-width: 80px; }
             .pill-counter.bottom { bottom: 80px; }
         }
-    
-        .folder-pill {
-            position: fixed;
-            top: 8px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(31, 41, 55, 0.9);
-            color: #fff;
-            padding: 4px 12px;
-            border-radius: 9999px;
-            font-size: 14px;
-            z-index: 2000;
-            pointer-events: auto;
-            cursor: pointer;
-            user-select: none;
-        }
-
-</style>
+    </style>
 </head>
 <body>
-    <div id="folder-pill" class="folder-pill hidden"></div>
-
     <!-- Authentication Screen -->
     <div class="screen" id="auth-screen">
         <div class="card">
@@ -864,16 +847,15 @@
                 </button>
             </div>
             
-            
-<div class="tab-nav">
-    <button class="tab-button active" data-tab="metadata">Metadata</button>
-    <button class="tab-button" data-tab="info">Info</button>
-    <button class="tab-button" data-tab="tags">Tags</button>
-    <button class="tab-button" data-tab="notes">Notes</button>
-</div>
+            <div class="tab-nav">
+                <button class="tab-button active" data-tab="info">Info</button>
+                <button class="tab-button" data-tab="metadata">Metadata</button>
+                <button class="tab-button" data-tab="tags">Tags</button>
+                <button class="tab-button" data-tab="notes">Notes</button>
+            </div>
             
             <div class="details-content">
-                <div id="tab-info" class="tab-content">
+                <div id="tab-info" class="tab-content active">
                     <div class="info-section">
                         <div class="info-item">
                             <span class="info-label">Filename:</span>
@@ -888,7 +870,7 @@
                     </div>
                 </div>
                 
-                <div id="tab-metadata" class="tab-content active">
+                <div id="tab-metadata" class="tab-content">
                     <div id="no-metadata-message" class="text-gray-500 italic text-sm">No metadata available for this image.</div>
                     <table class="metadata-table hidden" id="metadata-table">
                         <thead>
@@ -982,7 +964,7 @@
                     }
                 } catch (error) {
                     console.error('Error extracting metadata:', error);
-                    this.debugLog(`ERROR: Metadata extraction failed for ${filename}: ${error.message}`, 'error');
+                    this.debugLog(`Metadata extraction failed for ${filename}: ${error.message}`, 'error');
                 }
                 return metadata;
             }
@@ -991,26 +973,24 @@
                 const metadata = {};
                 const view = new DataView(buffer);
                 
-                this.debugLog(`INFO: Starting PNG metadata extraction for ${filename}`, 'info');
-                this.debugLog(`INFO: File size: ${(buffer.byteLength / 1024).toFixed(1)}KB`, 'info');
+                this.debugLog(`Starting PNG metadata extraction for ${filename}`, 'info');
+                this.debugLog(`File size: ${(buffer.byteLength / 1024).toFixed(1)}KB`, 'info');
                 
                 // PNG header validation
                 const expectedHeader = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
                 for (let i = 0; i < 8; i++) {
                     if (view.getUint8(i) !== expectedHeader[i]) {
-                        this.debugLog(`ERROR: Invalid PNG header in ${filename}`, 'error');
+                        this.debugLog(`Invalid PNG header in ${filename}`, 'error');
                         return {};
                     }
                 }
-                this.debugLog(`SUCCESS: Valid PNG header confirmed`, 'success');
+                this.debugLog(`Valid PNG header confirmed`, 'success');
                 
                 let pos = 8; // Skip PNG header
-                let chunkCount = 0;
                 let textChunks = 0;
                 
                 try {
                     while (pos < buffer.byteLength - 12) {
-                        chunkCount++;
                         const chunkLength = view.getUint32(pos, false); // Length is big-endian
                         pos += 4;
                         
@@ -1022,7 +1002,7 @@
                         pos += 4;
                         
                         if (chunkLength > this.options.maxChunkSize) {
-                            this.debugLog(`WARNING: Skipping large chunk ${chunkType} (${chunkLength} bytes)`, 'warning');
+                            this.debugLog(`Skipping large chunk ${chunkType} (${chunkLength} bytes)`, 'warning');
                             pos += chunkLength + 4; // Skip chunk data and CRC
                             continue;
                         }
@@ -1030,7 +1010,7 @@
                         // Process tEXt chunks
                         if (chunkType === 'tEXt') {
                             textChunks++;
-                            this.debugLog(`INFO: Found tEXt chunk #${textChunks} (${chunkLength} bytes)`, 'info');
+                            this.debugLog(`Found tEXt chunk #${textChunks}`, 'info');
                             
                             try {
                                 // tEXt chunks: Keyword\0Value
@@ -1054,10 +1034,10 @@
                                 
                                 if (keyword && value) {
                                     metadata[keyword] = value;
-                                    this.debugLog(`SUCCESS: Extracted ${keyword}: ${value.length > 50 ? value.substring(0, 50) + '...' : value}`, 'success');
+                                    this.debugLog(`Extracted ${keyword}`, 'success');
                                 }
                             } catch (decodeError) {
-                                this.debugLog(`ERROR: Failed to decode tEXt chunk: ${decodeError.message}`, 'error');
+                                this.debugLog(`Failed to decode tEXt chunk: ${decodeError.message}`, 'error');
                             }
                         } else if (chunkType === 'IHDR') {
                             // Extract dimensions from IHDR
@@ -1065,22 +1045,18 @@
                             const height = view.getUint32(pos + 4, false);
                             metadata['Width'] = width.toString();
                             metadata['Height'] = height.toString();
-                            this.debugLog(`SUCCESS: Image dimensions: ${width}x${height}`, 'success');
+                            this.debugLog(`Image dimensions: ${width}x${height}`, 'success');
                         }
                         
                         // Skip chunk data and CRC
                         pos += chunkLength + 4;
                     }
                 } catch (error) {
-                    this.debugLog(`ERROR: PNG parsing error at position ${pos}: ${error.message}`, 'error');
+                    this.debugLog(`PNG parsing error: ${error.message}`, 'error');
                 }
                 
                 const metadataCount = Object.keys(metadata).length;
-                this.debugLog(`SUCCESS: Extraction complete - found ${metadataCount} metadata fields from ${textChunks} tEXt chunks out of ${chunkCount} total chunks`, 'success');
-                
-                if (metadataCount > 0) {
-                    this.debugLog(`INFO: Metadata fields: ${Object.keys(metadata).join(', ')}`, 'info');
-                }
+                this.debugLog(`Extraction complete - found ${metadataCount} metadata fields from ${textChunks} tEXt chunks`, 'success');
                 
                 return metadata;
             }
@@ -1141,18 +1117,6 @@
                     throw new Error('Not authenticated. Call authenticate() first.');
                 }
                 return await this.currentProvider.getFolders();
-            }
-            
-            async moveFileToStack(fileId, targetStack) {
-                return await this.currentProvider.moveFileToStack(fileId, targetStack);
-            }
-            
-            async updateFileProperties(fileId, properties) {
-                return await this.currentProvider.updateFileProperties(fileId, properties);
-            }
-            
-            async deleteFile(fileId) {
-                return await this.currentProvider.deleteFile(fileId);
             }
             
             async disconnect() {
@@ -1413,7 +1377,7 @@
             }
             
             async getFiles(folderId = 'root') {
-                window.debugLogger(`INFO: Starting file scan for folder ID: ${folderId}`, 'info');
+                window.debugLogger(`Starting file scan for folder ID: ${folderId}`, 'info');
                 
                 const allFiles = [];
                 let nextPageToken = null;
@@ -1448,16 +1412,16 @@
                     totalFiles += files.length;
                     nextPageToken = response.nextPageToken;
                     
-                    window.debugLogger(`INFO: Retrieved ${files.length} files (${totalFiles} total so far)`, 'info');
+                    window.debugLogger(`Retrieved ${files.length} files (${totalFiles} total so far)`, 'info');
                     
                 } while (nextPageToken);
                 
-                window.debugLogger(`SUCCESS: Found ${totalFiles} image files total`, 'success');
+                window.debugLogger(`Found ${totalFiles} image files total`, 'success');
                 return { folders: [], files: allFiles };
             }
             
             async downloadFileContent(fileId, filename) {
-                window.debugLogger(`INFO: Downloading binary content for ${filename}`, 'info');
+                window.debugLogger(`Downloading binary content for ${filename}`, 'info');
                 
                 const url = `${this.apiBase}/files/${fileId}?alt=media`;
                 const headers = {
@@ -1483,36 +1447,8 @@
                 }
                 
                 const arrayBuffer = await response.arrayBuffer();
-                window.debugLogger(`SUCCESS: Downloaded ${(arrayBuffer.byteLength / 1024).toFixed(1)}KB binary data`, 'success');
+                window.debugLogger(`Downloaded ${(arrayBuffer.byteLength / 1024).toFixed(1)}KB binary data`, 'success');
                 return arrayBuffer;
-            }
-            
-            async moveFileToStack(fileId, targetStack) {
-                await this.makeApiCall(`/files/${fileId}`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({
-                        appProperties: { slideboxStack: targetStack }
-                    })
-                });
-                return true;
-            }
-            
-            async updateFileProperties(fileId, properties) {
-                await this.makeApiCall(`/files/${fileId}`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({
-                        appProperties: properties
-                    })
-                });
-                return true;
-            }
-            
-            async deleteFile(fileId) {
-                await this.makeApiCall(`/files/${fileId}`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ trashed: true })
-                });
-                return true;
             }
             
             async disconnect() {
@@ -1567,7 +1503,6 @@
         
         // ===== DOM Elements =====
         const elements = {
-            folderPill: document.getElementById('folder-pill'),
             authScreen: document.getElementById('auth-screen'),
             folderScreen: document.getElementById('folder-screen'),
             loadingScreen: document.getElementById('loading-screen'),
@@ -1648,13 +1583,18 @@
             
             debugLog.appendChild(line);
             debugLog.scrollTop = debugLog.scrollHeight;
+            
+            // Keep only last 20 lines for performance
+            if (debugLog.children.length > 20) {
+                debugLog.removeChild(debugLog.firstChild);
+            }
         };
 
         // ===== IndexedDB Cache Manager =====
         const cacheManager = {
             async init() {
                 return new Promise((resolve, reject) => {
-                    const request = indexedDB.open('Orbital8Cache', 1);
+                    const request = indexedDB.open('Orbital8Cache', 2);
                     request.onerror = () => reject(request.error);
                     request.onsuccess = () => {
                         appState.db = request.result;
@@ -1667,6 +1607,9 @@
                         }
                         if (!db.objectStoreNames.contains('metadata')) {
                             db.createObjectStore('metadata', { keyPath: 'id' });
+                        }
+                        if (!db.objectStoreNames.contains('folderData')) {
+                            db.createObjectStore('folderData', { keyPath: 'id' });
                         }
                     };
                 });
@@ -1696,6 +1639,66 @@
                     console.warn('Failed to get cached thumbnail:', error);
                 }
                 return null;
+            },
+            
+            async storeFolderData(folderId, files) {
+                if (!appState.db) return;
+                try {
+                    const transaction = appState.db.transaction(['folderData'], 'readwrite');
+                    const store = transaction.objectStore('folderData');
+                    await store.put({ 
+                        id: folderId, 
+                        files: files,
+                        timestamp: Date.now() 
+                    });
+                } catch (error) {
+                    console.warn('Failed to store folder data:', error);
+                }
+            },
+            
+            async getFolderData(folderId) {
+                if (!appState.db) return null;
+                try {
+                    const transaction = appState.db.transaction(['folderData'], 'readonly');
+                    const store = transaction.objectStore('folderData');
+                    const result = await store.get(folderId);
+                    if (result && (Date.now() - result.timestamp < 24 * 60 * 60 * 1000)) {
+                        return result.files;
+                    }
+                } catch (error) {
+                    console.warn('Failed to get folder data:', error);
+                }
+                return null;
+            },
+            
+            async storeFileMetadata(folderId, fileId, metadata) {
+                if (!appState.db) return;
+                try {
+                    const transaction = appState.db.transaction(['metadata'], 'readwrite');
+                    const store = transaction.objectStore('metadata');
+                    await store.put({ 
+                        id: `${folderId}_${fileId}`, 
+                        metadata: metadata,
+                        timestamp: Date.now() 
+                    });
+                } catch (error) {
+                    console.warn('Failed to store metadata:', error);
+                }
+            },
+            
+            async getFileMetadata(folderId, fileId) {
+                if (!appState.db) return null;
+                try {
+                    const transaction = appState.db.transaction(['metadata'], 'readonly');
+                    const store = transaction.objectStore('metadata');
+                    const result = await store.get(`${folderId}_${fileId}`);
+                    if (result) {
+                        return result.metadata;
+                    }
+                } catch (error) {
+                    console.warn('Failed to get metadata:', error);
+                }
+                return null;
             }
         };
         
@@ -1714,15 +1717,6 @@
         }
         
         const utils = {
-            updateFolderPill: function() {
-                if (!elements.folderPill) return;
-                const folderName = appState.currentFolder.name || 'Unknown';
-                const currentIndex = (appState.currentImageIndex || 0) + 1;
-                const total = appState.imageFiles.length || 0;
-                elements.folderPill.textContent = `${folderName}/${currentIndex} of ${total}`;
-                elements.folderPill.classList.remove('hidden');
-            },
-
             showScreen: function(screenId) {
                 const screens = [elements.authScreen, elements.folderScreen, elements.loadingScreen, elements.appContainer];
                 screens.forEach(screen => {
@@ -1751,15 +1745,6 @@
             },
             
             setImageSrc: async function(img, file) {
-                // Update folder pill
-                utils.updateFolderPill();
-                // Update details modal if visible
-                if (!elements.detailsModal.classList.contains('hidden')) {
-                    if (typeof detailsModal.populateAllTabs === 'function') {
-                        detailsModal.populateAllTabs(file);
-                    }
-                }
-
                 let imageUrl = appState.imageCache.get(file.id);
                 
                 if (!imageUrl) {
@@ -1918,125 +1903,108 @@
                 appState.currentFolder.id = folder.id;
                 appState.currentFolder.name = folder.name;
                 
+                // Update back button text
+                elements.backButton.textContent = `← ${folder.name}`;
+                
                 utils.showScreen('loading-screen');
                 utils.updateLoadingProgress(0, 0);
                 
                 // Clear debug log
                 elements.debugLog.innerHTML = '';
-                window.debugLogger(`INFO: Starting folder scan: ${folder.name}`, 'info');
+                window.debugLogger(`Starting folder scan: ${folder.name}`, 'info');
                 
                 try {
-                    elements.loadingMessage.textContent = 'Loading images from Google Drive...';
+                    // Check if we have cached data for this folder
+                    const cachedFiles = await cacheManager.getFolderData(folder.id);
                     
-                    const result = await appState.cloudStorage.getFiles(folder.id);
-                    const files = result.files || [];
-                    
-                    if (files.length === 0) {
-                        window.debugLogger('WARNING: No images found in this folder', 'warning');
-                        utils.showToast('No images found in this folder');
-                        setTimeout(() => utils.showScreen('folder-screen'), 2000);
-                        return;
-                    }
-                    
-                    window.debugLogger(`SUCCESS: Found ${files.length} image files to process`, 'success');
-                    utils.updateLoadingProgress(files.length, files.length);
-                    elements.loadingMessage.textContent = 'Extracting metadata from images...';
-                    
-                    // Process files sequentially for clean debug output
-                    appState.imageFiles = [];
-                    let processedCount = 0;
-                    let extractedCount = 0;
-                    let loadedCount = 0;
-                    let skippedCount = 0;
-                    
-                    for (let i = 0; i < files.length; i++) {
-                        const file = files[i];
-                        window.debugLogger(`INFO: Processing file ${i + 1}/${files.length}: ${file.name}`, 'info');
+                    if (cachedFiles) {
+                        window.debugLogger(`Found cached data for ${cachedFiles.length} files`, 'success');
+                        appState.imageFiles = cachedFiles;
+                        elements.loadingMessage.textContent = 'Loading from cache...';
+                        utils.updateLoadingProgress(cachedFiles.length, cachedFiles.length);
+                    } else {
+                        elements.loadingMessage.textContent = 'Loading images from Google Drive...';
                         
-                        const imageFile = {
-                            id: file.id,
-                            name: file.name,
-                            filename: file.name,
-                            originalName: file.name,
-                            mimeType: file.mimeType,
-                            size: file.size,
-                            createdTime: file.createdTime,
-                            modifiedTime: file.modifiedTime,
-                            thumbnailLink: file.thumbnailLink,
-                            downloadUrl: file.downloadUrl,
-                            appProperties: file.appProperties || {},
-                            extractedMetadata: {},
-                            qualityRating: parseInt(file.appProperties?.qualityRating) || 0,
-                            contentRating: parseInt(file.appProperties?.contentRating) || 0,
-                            notes: file.appProperties?.notes || ''
-                        };
+                        const result = await appState.cloudStorage.getFiles(folder.id);
+                        const files = result.files || [];
                         
-                        appState.imageFiles.push(imageFile);
+                        if (files.length === 0) {
+                            window.debugLogger('No images found in this folder', 'warning');
+                            utils.showToast('No images found in this folder');
+                            setTimeout(() => utils.showScreen('folder-screen'), 2000);
+                            return;
+                        }
                         
-                        // Check if metadata already exists in appProperties
-                        const hasExistingMetadata = file.appProperties && Object.keys(file.appProperties).some(key => 
-                            !['slideboxStack', 'slideboxTags', 'qualityRating', 'contentRating', 'notes'].includes(key)
-                        );
+                        window.debugLogger(`Found ${files.length} image files`, 'success');
+                        utils.updateLoadingProgress(files.length, files.length);
+                        elements.loadingMessage.textContent = 'Processing metadata...';
                         
-                        // Extract or load metadata
-                        utils.updateLoadingProgress(processedCount + 1, files.length);
+                        // Process files and extract metadata
+                        appState.imageFiles = [];
+                        let extractedCount = 0;
                         
-                        try {
-                            if (hasExistingMetadata) {
-                                loadedCount++;
-                                window.debugLogger(`INFO: Loading existing metadata from appProperties`, 'info');
-                                
-                                // Use existing metadata from appProperties
-                                imageFile.extractedMetadata = {};
-                                Object.entries(file.appProperties).forEach(([key, value]) => {
-                                    if (!['slideboxStack', 'slideboxTags', 'qualityRating', 'contentRating', 'notes'].includes(key)) {
-                                        imageFile.extractedMetadata[key] = value;
-                                    }
-                                });
-                                
-                                const metadataCount = Object.keys(imageFile.extractedMetadata).length;
-                                window.debugLogger(`SUCCESS: Loaded ${metadataCount} metadata fields from cache`, 'success');
-                                
-                            } else if (file.mimeType === 'image/png') {
-                                extractedCount++;
-                                window.debugLogger(`INFO: Extracting NEW metadata from PNG file`, 'info');
-                                
+                        for (let i = 0; i < files.length; i++) {
+                            const file = files[i];
+                            
+                            // Check for cached metadata first
+                            let cachedMetadata = await cacheManager.getFileMetadata(folder.id, file.id);
+                            
+                            const imageFile = {
+                                id: file.id,
+                                name: file.name,
+                                filename: file.name,
+                                originalName: file.name,
+                                mimeType: file.mimeType,
+                                size: file.size,
+                                createdTime: file.createdTime,
+                                modifiedTime: file.modifiedTime,
+                                thumbnailLink: file.thumbnailLink,
+                                downloadUrl: file.downloadUrl,
+                                appProperties: cachedMetadata?.appProperties || { slideboxStack: 'in' },
+                                extractedMetadata: cachedMetadata?.extractedMetadata || {},
+                                qualityRating: cachedMetadata?.qualityRating || 0,
+                                contentRating: cachedMetadata?.contentRating || 0,
+                                notes: cachedMetadata?.notes || ''
+                            };
+                            
+                            // If no cached metadata and it's a PNG, extract it
+                            if (!cachedMetadata && file.mimeType === 'image/png') {
                                 try {
-                                    // Download the actual file content for metadata extraction
+                                    extractedCount++;
+                                    window.debugLogger(`Extracting metadata from ${file.name}`, 'info');
                                     const arrayBuffer = await appState.cloudStorage.currentProvider.downloadFileContent(file.id, file.name);
-                                    
-                                    // Extract metadata using the enhanced extractor
                                     const metadata = await appState.metadataExtractor.extractImageMetadata(arrayBuffer, file.mimeType, file.name);
                                     
                                     if (Object.keys(metadata).length > 0) {
                                         imageFile.extractedMetadata = metadata;
                                         
-                                        // Store in Google Drive appProperties
-                                        const updatedProperties = { ...file.appProperties, ...metadata };
-                                        await appState.cloudStorage.updateFileProperties(file.id, updatedProperties);
-                                        imageFile.appProperties = updatedProperties;
+                                        // Store in IndexedDB
+                                        await cacheManager.storeFileMetadata(folder.id, file.id, {
+                                            appProperties: imageFile.appProperties,
+                                            extractedMetadata: metadata,
+                                            qualityRating: 0,
+                                            contentRating: 0,
+                                            notes: ''
+                                        });
                                         
-                                        window.debugLogger(`SUCCESS: Extracted and stored ${Object.keys(metadata).length} metadata fields`, 'success');
-                                    } else {
-                                        window.debugLogger(`INFO: No extractable metadata found in PNG`, 'info');
+                                        window.debugLogger(`Found ${Object.keys(metadata).length} metadata fields`, 'success');
                                     }
                                 } catch (error) {
-                                    window.debugLogger(`ERROR: Failed to extract metadata: ${error.message}`, 'error');
+                                    window.debugLogger(`Failed to extract metadata: ${error.message}`, 'error');
                                 }
-                            } else {
-                                skippedCount++;
-                                window.debugLogger(`INFO: Skipping non-PNG file (${file.mimeType})`, 'info');
                             }
-                        } catch (error) {
-                            window.debugLogger(`ERROR: Processing failed: ${error.message}`, 'error');
+                            
+                            appState.imageFiles.push(imageFile);
+                            utils.updateLoadingProgress(i + 1, files.length);
+                            elements.loadingMessage.textContent = `Processing ${i + 1}/${files.length} (${extractedCount} extracted)`;
                         }
                         
-                        processedCount++;
-                        elements.loadingMessage.textContent = `Processing ${processedCount}/${files.length} (${loadedCount} loaded, ${extractedCount} extracted, ${skippedCount} skipped)`;
+                        // Store the processed files in cache
+                        await cacheManager.storeFolderData(folder.id, appState.imageFiles);
                     }
                     
                     // Organize into stacks
-                    window.debugLogger(`INFO: Organizing ${appState.imageFiles.length} files into stacks`, 'info');
+                    window.debugLogger(`Organizing ${appState.imageFiles.length} files into stacks`, 'info');
                     stackManager.updateStacks();
                     appState.currentImageIndex = 0;
                     appState.currentStack = 'in';
@@ -2044,7 +2012,7 @@
                     // Background caching
                     elements.loadingMessage.textContent = 'Finalizing...';
                     this.backgroundCacheImages().then(() => {
-                        window.debugLogger('SUCCESS: Background caching complete', 'success');
+                        window.debugLogger('Background caching complete', 'success');
                     });
                     
                     setTimeout(() => {
@@ -2052,28 +2020,20 @@
                         imageViewer.displayTopImageFromStack('in');
                         updateActiveProxTab();
                         
-                        const totalProcessed = loadedCount + extractedCount;
-                        window.debugLogger(`SUCCESS: Loading complete - ${totalProcessed} files processed (${extractedCount} new extractions, ${loadedCount} from cache, ${skippedCount} skipped)`, 'success');
-                        
-                        if (extractedCount > 0 && loadedCount > 0) {
-                            utils.showToast(`Loaded ${files.length} images (${extractedCount} new extractions, ${loadedCount} from cache)`);
-                        } else if (extractedCount > 0) {
-                            utils.showToast(`Loaded ${files.length} images with new metadata extraction`);
-                        } else {
-                            utils.showToast(`Loaded ${files.length} images from cached metadata`);
-                        }
+                        window.debugLogger(`Loading complete - ${appState.imageFiles.length} files ready`, 'success');
+                        utils.showToast(`Loaded ${appState.imageFiles.length} images`);
                     }, 500);
                     
                 } catch (error) {
                     console.error('Error loading folder:', error);
-                    window.debugLogger(`ERROR: Folder loading failed: ${error.message}`, 'error');
+                    window.debugLogger(`Folder loading failed: ${error.message}`, 'error');
                     utils.showToast('Error loading images from folder', 'error');
                     setTimeout(() => utils.showScreen('folder-screen'), 2000);
                 }
             },
             
             async backgroundCacheImages() {
-                window.debugLogger('INFO: Starting background image caching', 'info');
+                window.debugLogger('Starting background caching', 'info');
                 const priorityFiles = [];
                 STACK_TYPES.forEach(stackName => {
                     const stackFiles = appState.stacks[stackName].slice(0, 3);
@@ -2187,8 +2147,7 @@
                 }
                 
                 try {
-                    await appState.cloudStorage.moveFileToStack(fileId, targetStack);
-                    
+                    // Update local state
                     const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
                     if (currentStackIndex !== -1) {
                         appState.stacks[currentStack].splice(currentStackIndex, 1);
@@ -2196,6 +2155,18 @@
                     appState.stacks[targetStack].unshift(file);
                     file.appProperties = file.appProperties || {};
                     file.appProperties.slideboxStack = targetStack;
+                    
+                    // Store in IndexedDB
+                    await cacheManager.storeFileMetadata(appState.currentFolder.id, fileId, {
+                        appProperties: file.appProperties,
+                        extractedMetadata: file.extractedMetadata || {},
+                        qualityRating: file.qualityRating || 0,
+                        contentRating: file.contentRating || 0,
+                        notes: file.notes || ''
+                    });
+                    
+                    // Update folder cache
+                    await cacheManager.storeFolderData(appState.currentFolder.id, appState.imageFiles);
                     
                     this.updateCounts();
                     return Promise.resolve(file);
@@ -2219,7 +2190,18 @@
                 file.appProperties.slideboxTags = newTags.join(',');
                 
                 try {
-                    await appState.cloudStorage.updateFileProperties(fileId, file.appProperties);
+                    // Store in IndexedDB
+                    await cacheManager.storeFileMetadata(appState.currentFolder.id, fileId, {
+                        appProperties: file.appProperties,
+                        extractedMetadata: file.extractedMetadata || {},
+                        qualityRating: file.qualityRating || 0,
+                        contentRating: file.contentRating || 0,
+                        notes: file.notes || ''
+                    });
+                    
+                    // Update folder cache
+                    await cacheManager.storeFolderData(appState.currentFolder.id, appState.imageFiles);
+                    
                     return Promise.resolve(newTags);
                 } catch (error) {
                     console.error('Error saving tags:', error);
@@ -2526,7 +2508,7 @@
         
         // ===== Details Modal =====
         const detailsModal = {
-            currentTab: 'metadata',
+            currentTab: 'info',
             
             show: function() {
                 const currentFile = appState.imageFiles[appState.currentImageIndex];
@@ -2534,7 +2516,7 @@
                 
                 this.populateAllTabs(currentFile);
                 elements.detailsModal.classList.remove('hidden');
-                this.switchTab('metadata');
+                this.switchTab('info');
             },
             
             hide: function() {
@@ -2578,7 +2560,7 @@
             },
             
             populateMetadataTab: function(file) {
-                const priorityFields = ['prompt','Project_ID','Model','Seed','Negative_Prompt','API_Call','Global_Hash','Height','Width','Steps','Cfg_Scale'];
+                const priorityFields = ['Project_ID', 'prompt', 'Model', 'Seed', 'Negative_Prompt', 'API_Call', 'Global_Hash', 'Height', 'Width', 'Steps', 'Cfg_Scale'];
                 const copyableFields = ['prompt', 'Seed', 'Negative_Prompt', 'API_Call', 'Global_Hash'];
                 
                 // Get all metadata
@@ -2739,7 +2721,18 @@
                 file.appProperties.slideboxTags = newTags.join(',');
                 
                 try {
-                    await appState.cloudStorage.updateFileProperties(file.id, file.appProperties);
+                    // Store in IndexedDB
+                    await cacheManager.storeFileMetadata(appState.currentFolder.id, file.id, {
+                        appProperties: file.appProperties,
+                        extractedMetadata: file.extractedMetadata || {},
+                        qualityRating: file.qualityRating || 0,
+                        contentRating: file.contentRating || 0,
+                        notes: file.notes || ''
+                    });
+                    
+                    // Update folder cache
+                    await cacheManager.storeFolderData(appState.currentFolder.id, appState.imageFiles);
+                    
                     this.populateTagsTab(file);
                     utils.showToast(`Removed tag: ${tagToRemove}`);
                 } catch (error) {
@@ -2761,7 +2754,18 @@
                     file.appProperties.notes = file.notes;
                     
                     try {
-                        await appState.cloudStorage.updateFileProperties(file.id, file.appProperties);
+                        // Store in IndexedDB
+                        await cacheManager.storeFileMetadata(appState.currentFolder.id, file.id, {
+                            appProperties: file.appProperties,
+                            extractedMetadata: file.extractedMetadata || {},
+                            qualityRating: file.qualityRating || 0,
+                            contentRating: file.contentRating || 0,
+                            notes: file.notes
+                        });
+                        
+                        // Update folder cache
+                        await cacheManager.storeFolderData(appState.currentFolder.id, appState.imageFiles);
+                        
                         utils.showToast('Notes saved');
                     } catch (error) {
                         console.error('Error saving notes:', error);
@@ -2775,7 +2779,18 @@
                     file.appProperties.qualityRating = rating;
                     
                     try {
-                        await appState.cloudStorage.updateFileProperties(file.id, file.appProperties);
+                        // Store in IndexedDB
+                        await cacheManager.storeFileMetadata(appState.currentFolder.id, file.id, {
+                            appProperties: file.appProperties,
+                            extractedMetadata: file.extractedMetadata || {},
+                            qualityRating: rating,
+                            contentRating: file.contentRating || 0,
+                            notes: file.notes || ''
+                        });
+                        
+                        // Update folder cache
+                        await cacheManager.storeFolderData(appState.currentFolder.id, appState.imageFiles);
+                        
                         utils.showToast('Quality rating saved');
                     } catch (error) {
                         console.error('Error saving quality rating:', error);
@@ -2789,7 +2804,18 @@
                     file.appProperties.contentRating = rating;
                     
                     try {
-                        await appState.cloudStorage.updateFileProperties(file.id, file.appProperties);
+                        // Store in IndexedDB
+                        await cacheManager.storeFileMetadata(appState.currentFolder.id, file.id, {
+                            appProperties: file.appProperties,
+                            extractedMetadata: file.extractedMetadata || {},
+                            qualityRating: file.qualityRating || 0,
+                            contentRating: rating,
+                            notes: file.notes || ''
+                        });
+                        
+                        // Update folder cache
+                        await cacheManager.storeFolderData(appState.currentFolder.id, appState.imageFiles);
+                        
                         utils.showToast('Content rating saved');
                     } catch (error) {
                         console.error('Error saving content rating:', error);
@@ -2914,68 +2940,56 @@
                     }
                 });
                 
-                elements.confirmDelete.addEventListener('click', () => {
+                elements.confirmDelete.addEventListener('click', async () => {
                     const currentStack = appState.grid.stack;
                     elements.confirmDelete.disabled = true;
                     elements.confirmDelete.textContent = 'Processing...';
                     
-                    if (currentStack === 'trash') {
-                        const promises = appState.grid.selected.map(fileId => 
-                            appState.cloudStorage.deleteFile(fileId)
-                        );
-                        
-                        Promise.all(promises)
-                            .then(() => {
-                                utils.showToast(`Moved ${promises.length} images to Google Drive trash`);
-                                this.hide('delete-modal');
-                                
-                                appState.grid.selected.forEach(fileId => {
-                                    const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
-                                    if (fileIndex !== -1) {
-                                        appState.imageFiles.splice(fileIndex, 1);
-                                    }
-                                    const trashIndex = appState.stacks.trash.findIndex(f => f.id === fileId);
-                                    if (trashIndex !== -1) {
-                                        appState.stacks.trash.splice(trashIndex, 1);
-                                    }
-                                });
-                                
-                                if (appState.grid.stack) {
-                                    gridView.populate(appState.grid.stack);
+                    try {
+                        if (currentStack === 'trash') {
+                            // Remove from IndexedDB and local state (simulate permanent deletion)
+                            appState.grid.selected.forEach(fileId => {
+                                const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
+                                if (fileIndex !== -1) {
+                                    appState.imageFiles.splice(fileIndex, 1);
                                 }
-                                
-                                appState.grid.selected = [];
-                                gridView.updateSelectionUI();
-                                stackManager.updateCounts();
-                            })
-                            .catch(() => {
-                                utils.showToast('Failed to delete some images', 'error');
-                                this.hide('delete-modal');
-                            })
-                            .finally(() => {
-                                elements.confirmDelete.disabled = false;
-                                elements.confirmDelete.textContent = 'Move to Google Drive Trash';
+                                const trashIndex = appState.stacks.trash.findIndex(f => f.id === fileId);
+                                if (trashIndex !== -1) {
+                                    appState.stacks.trash.splice(trashIndex, 1);
+                                }
                             });
-                    } else {
-                        const promises = appState.grid.selected.map(fileId => 
-                            stackManager.moveFileToStack(fileId, 'trash')
-                        );
-                        
-                        Promise.all(promises).then(() => {
+                            
+                            // Update folder cache
+                            await cacheManager.storeFolderData(appState.currentFolder.id, appState.imageFiles);
+                            
+                            utils.showToast(`Permanently deleted ${appState.grid.selected.length} images`);
+                        } else {
+                            // Move to trash stack
+                            const promises = appState.grid.selected.map(fileId => 
+                                stackManager.moveFileToStack(fileId, 'trash')
+                            );
+                            
+                            await Promise.all(promises);
                             utils.showToast(`Moved ${promises.length} images to trash`);
-                            this.hide('delete-modal');
-                            
-                            if (appState.grid.stack) {
-                                gridView.populate(appState.grid.stack);
-                            }
-                            
-                            appState.grid.selected = [];
-                            gridView.updateSelectionUI();
-                            stackManager.updateCounts();
-                        }).finally(() => {
-                            elements.confirmDelete.disabled = false;
-                            elements.confirmDelete.textContent = 'Move to Trash';
-                        });
+                        }
+                        
+                        this.hide('delete-modal');
+                        
+                        if (appState.grid.stack) {
+                            gridView.populate(appState.grid.stack);
+                        }
+                        
+                        appState.grid.selected = [];
+                        gridView.updateSelectionUI();
+                        stackManager.updateCounts();
+                        
+                    } catch (error) {
+                        console.error('Error deleting images:', error);
+                        utils.showToast('Failed to delete some images', 'error');
+                        this.hide('delete-modal');
+                    } finally {
+                        elements.confirmDelete.disabled = false;
+                        elements.confirmDelete.textContent = currentStack === 'trash' ? 'Permanently Delete' : 'Move to Trash';
                     }
                 });
                 
@@ -3009,8 +3023,8 @@
                     const currentStack = appState.grid.stack;
                     
                     if (currentStack === 'trash') {
-                        elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Google Drive trash? They can be recovered from Google Drive.`;
-                        elements.confirmDelete.textContent = 'Move to Google Drive Trash';
+                        elements.deleteMessage.textContent = `Are you sure you want to permanently delete ${selectedCount} image${selectedCount > 1 ? 's' : ''}? This action cannot be undone.`;
+                        elements.confirmDelete.textContent = 'Permanently Delete';
                     } else {
                         elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
                         elements.confirmDelete.textContent = 'Move to Trash';
@@ -3027,12 +3041,7 @@
             const hasOtherStacks = stacksWithImages.some(stack => stack !== appState.currentStack);
             
             if (hasOtherStacks) {
-                
-                // Folder pill click to reopen folder picker
-                if (elements.folderPill) {
-                    elements.folderPill.addEventListener('click', () => utils.showScreen('folder-screen'));
-                }
-elements.selectAnotherStackBtn.style.display = 'block';
+                elements.selectAnotherStackBtn.style.display = 'block';
                 elements.selectAnotherFolderBtn.style.display = 'none';
             } else {
                 elements.selectAnotherStackBtn.style.display = 'none';
@@ -3369,6 +3378,8 @@ elements.selectAnotherStackBtn.style.display = 'block';
                 elements.logout.addEventListener('click', () => authManager.logout());
                 
                 elements.backButton.addEventListener('click', () => {
+                    // Reset back button text
+                    elements.backButton.textContent = '← Folders';
                     utils.showScreen('folder-screen');
                     folderManager.loadFolders();
                 });
@@ -3495,7 +3506,7 @@ elements.selectAnotherStackBtn.style.display = 'block';
                 
                 updateActiveProxTab();
                 
-                console.log('Orbital8 V6 - Fixed Metadata Extraction ready');
+                console.log('Orbital8 V6 - IndexedDB Version ready');
                 
             } catch (error) {
                 console.error('Failed to initialize app:', error);
@@ -3508,60 +3519,3 @@ elements.selectAnotherStackBtn.style.display = 'block';
     </script>
 </body>
 </html>
-<script>
-// Chunking logic for prompt storage
-function splitIntoChunks(str, chunkSize=120) {
-  const chunks = [];
-  for (let i = 0; i < str.length; i += chunkSize) {
-    chunks.push(str.slice(i, i + chunkSize));
-  }
-  return chunks;
-}
-
-function reconstructFromChunks(props, prefix) {
-  let result = '';
-  let index = 0;
-  while (props[`${prefix}${index}`]) {
-    result += props[`${prefix}${index}`];
-    index++;
-  }
-  return result;
-}
-
-// Consolidated metadata manager
-class MetadataManager {
-  static updateFileMetadata(fileId, { stack, tags, prompt }) {
-    const appProperties = {};
-    const properties = {};
-
-    if (prompt) {
-      const chunks = splitIntoChunks(prompt);
-      chunks.forEach((chunk, i) => {
-        appProperties[`prompt${i}`] = chunk;
-      });
-    }
-
-    if (stack) properties['stack'] = stack;
-    if (tags) properties['tags'] = tags.join(',');
-
-    return makeApiCall(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        appProperties,
-        properties
-      }),
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
-
-async function updateTags(fileId, newTags) {
-  await MetadataManager.updateFileMetadata(fileId, { tags: newTags });
-}
-
-async function moveFileToStack(fileId, newStack) {
-  await MetadataManager.updateFileMetadata(fileId, { stack: newStack });
-}
-
-// Use these consolidated methods throughout the app wherever needed
-</script>
