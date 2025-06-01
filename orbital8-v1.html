@@ -657,6 +657,16 @@
             box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
         }
         
+        .copy-button:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 2px rgba(245, 158, 11, 0.3);
+        }
+        
+        .copy-button.copied {
+            background: #10b981;
+            transform: scale(1.1);
+        }
+        
         /* ===== Toast ===== */
         .toast {
             position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -681,6 +691,30 @@
         @media screen and (max-width: 767px) {
             .nav-button { font-size: 16px; padding: 12px 20px; border-radius: 25px; min-width: 80px; }
             .pill-counter.bottom { bottom: 80px; }
+            
+            /* Mobile details modal optimization */
+            .details-modal-content { 
+                max-width: 100vw; 
+                max-height: 100vh; 
+                height: 100vh;
+                margin: 0;
+                border-radius: 0;
+            }
+            
+            .metadata-table .key-cell {
+                width: 30%;
+                min-width: 80px;
+                font-size: 12px;
+            }
+            
+            .metadata-table .value-cell {
+                font-size: 12px;
+            }
+            
+            .copy-button {
+                font-size: 10px;
+                padding: 3px 6px;
+            }
         }
     </style>
 </head>
@@ -688,7 +722,7 @@
     <!-- Authentication Screen -->
     <div class="screen" id="auth-screen">
         <div class="card">
-            <h1 class="title" style="font-size: 32px;">Orbital8</h1>
+            <h1 class="title" style="font-size: 32px;">Orbital8 V1 (Dojo Version) </h1>
             <p class="subtitle">Connect to Google Drive</p>
             <input type="password" id="client-secret" class="input" placeholder="Enter Google Client Secret">
             <button class="button" id="auth-button">Connect Drive</button>
@@ -957,8 +991,8 @@
     </div>
 
     <script>
-        // ===== CLEAN METADATA EXTRACTOR =====
-        class CleanMetadataExtractor {
+        // ===== SIMPLE METADATA SYSTEM =====
+        class SimpleMetadataExtractor {
             constructor() {
                 this.statusLog = null;
             }
@@ -977,103 +1011,132 @@
                 }
             }
             
-            async extractPNGMetadata(arrayBuffer) {
-                if (!arrayBuffer || arrayBuffer.byteLength < 8) {
-                    this.log('❌ Invalid PNG file: Too small', 'error');
+            // Extract tEXt chunks from PNG buffer (from swipedrill)
+            async extractPNGMetadata(buffer) {
+                if (!buffer || buffer.byteLength < 8) {
                     return {};
                 }
                 
-                const view = new DataView(arrayBuffer);
                 const metadata = {};
+                const view = new DataView(buffer);
                 
-                // Verify PNG signature
+                // PNG header verification
                 const pngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
                 for (let i = 0; i < 8; i++) {
                     if (view.getUint8(i) !== pngSignature[i]) {
-                        this.log('❌ Invalid PNG signature', 'error');
                         return {};
                     }
                 }
                 
-                this.log('✅ Valid PNG file detected', 'success');
-                
-                let position = 8; // Skip PNG signature
-                let textChunksFound = 0;
+                let pos = 8;
                 
                 try {
-                    while (position < arrayBuffer.byteLength - 8) {
-                        // Read chunk length (4 bytes, big-endian)
-                        const chunkLength = view.getUint32(position, false);
-                        position += 4;
+                    while (pos < buffer.byteLength - 12) {
+                        const chunkLength = view.getUint32(pos, false);
+                        pos += 4;
                         
-                        // Read chunk type (4 bytes ASCII)
                         let chunkType = '';
                         for (let i = 0; i < 4; i++) {
-                            chunkType += String.fromCharCode(view.getUint8(position + i));
+                            chunkType += String.fromCharCode(view.getUint8(pos + i));
                         }
-                        position += 4;
+                        pos += 4;
                         
-                        // Process tEXt chunks
                         if (chunkType === 'tEXt') {
-                            textChunksFound++;
+                            let keyword = '';
+                            let value = '';
+                            let nullFound = false;
                             
-                            try {
-                                let keyword = '';
-                                let value = '';
-                                let nullSeparatorFound = false;
+                            for (let i = 0; i < chunkLength; i++) {
+                                const byte = view.getUint8(pos + i);
                                 
-                                // Read chunk data
-                                for (let i = 0; i < chunkLength; i++) {
-                                    const byte = view.getUint8(position + i);
-                                    
-                                    if (!nullSeparatorFound) {
-                                        if (byte === 0) {
-                                            nullSeparatorFound = true;
-                                        } else {
-                                            keyword += String.fromCharCode(byte);
-                                        }
+                                if (!nullFound) {
+                                    if (byte === 0) {
+                                        nullFound = true;
                                     } else {
-                                        value += String.fromCharCode(byte);
+                                        keyword += String.fromCharCode(byte);
                                     }
+                                } else {
+                                    value += String.fromCharCode(byte);
                                 }
-                                
-                                if (keyword && nullSeparatorFound) {
-                                    metadata[keyword] = value;
-                                    const displayValue = value.length > 50 ? value.substring(0, 50) + '...' : value;
-                                    this.log(`📄 Found: ${keyword} = "${displayValue}"`, 'success');
-                                }
-                            } catch (chunkError) {
-                                this.log(`⚠️ Error reading tEXt chunk: ${chunkError.message}`, 'error');
+                            }
+                            
+                            if (keyword && nullFound) {
+                                metadata[keyword] = value;
                             }
                         }
                         
-                        // Skip chunk data and CRC
-                        position += chunkLength + 4;
+                        pos += chunkLength + 4;
                         
-                        // Prevent infinite loops
-                        if (chunkLength > arrayBuffer.byteLength) {
-                            this.log('⚠️ Invalid chunk length detected, stopping', 'error');
-                            break;
-                        }
+                        if (chunkLength > buffer.byteLength) break;
                     }
-                    
-                    this.log(`🎯 Extraction complete: ${textChunksFound} tEXt chunks processed`, 'info');
-                    return metadata;
-                    
                 } catch (error) {
-                    this.log(`❌ PNG parsing error: ${error.message}`, 'error');
-                    return {};
+                    this.log(`Error extracting PNG metadata: ${error.message}`, 'error');
                 }
+                
+                return metadata;
+            }
+        }
+
+        // ===== SIMPLE CACHE MANAGER =====
+        class SimpleCache {
+            constructor() {
+                this.db = null;
             }
             
-            async extractImageMetadata(arrayBuffer, mimeType, filename) {
-                this.log(`🔍 Processing: ${filename} (${mimeType})`, 'info');
-                
-                if (mimeType === 'image/png') {
-                    return await this.extractPNGMetadata(arrayBuffer);
-                } else {
-                    this.log(`ℹ️ Skipping non-PNG file: ${mimeType}`, 'info');
-                    return {};
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open('Orbital8MetadataCache', 1);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => {
+                        this.db = request.result;
+                        resolve();
+                    };
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        if (!db.objectStoreNames.contains('metadata')) {
+                            db.createObjectStore('metadata', { keyPath: 'id' });
+                        }
+                    };
+                });
+            }
+            
+            async getMetadata(fileId, modifiedTime) {
+                if (!this.db) return null;
+                try {
+                    const transaction = this.db.transaction(['metadata'], 'readonly');
+                    const store = transaction.objectStore('metadata');
+                    const result = await new Promise((resolve, reject) => {
+                        const request = store.get(fileId);
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = () => reject(request.error);
+                    });
+                    
+                    if (result && result.modifiedTime === modifiedTime) {
+                        return result.metadata;
+                    }
+                } catch (error) {
+                    console.warn('Cache read error:', error);
+                }
+                return null;
+            }
+            
+            async setMetadata(fileId, modifiedTime, metadata) {
+                if (!this.db) return;
+                try {
+                    const transaction = this.db.transaction(['metadata'], 'readwrite');
+                    const store = transaction.objectStore('metadata');
+                    await new Promise((resolve, reject) => {
+                        const request = store.put({ 
+                            id: fileId, 
+                            modifiedTime, 
+                            metadata,
+                            cached: Date.now()
+                        });
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => reject(request.error);
+                    });
+                } catch (error) {
+                    console.warn('Cache write error:', error);
                 }
             }
         }
@@ -1655,16 +1718,14 @@
                 let imageUrl = appState.imageCache.get(file.id);
                 
                 if (!imageUrl) {
-                    imageUrl = await cacheManager.getCachedThumbnail(file.id);
+                    // Use thumbnail link or fallback to Google Drive viewer
+                    if (file.thumbnailLink) {
+                        imageUrl = file.thumbnailLink.replace('=s220', '=s1000');
+                    } else if (file.id) {
+                        imageUrl = `https://drive.google.com/thumbnail?id=${file.id}&sz=w1000`;
+                    }
                     
-                    if (!imageUrl) {
-                        imageUrl = file.thumbnailLink ? file.thumbnailLink.replace('=s220', '=s1000') : file.downloadUrl;
-                        
-                        if (imageUrl) {
-                            appState.imageCache.set(file.id, imageUrl);
-                            await cacheManager.cacheThumbnail(file.id, imageUrl);
-                        }
-                    } else {
+                    if (imageUrl) {
                         appState.imageCache.set(file.id, imageUrl);
                     }
                 }
@@ -1874,6 +1935,7 @@
                     let processedCount = 0;
                     let extractedCount = 0;
                     let cachedCount = 0;
+                    let failedCount = 0;
                     
                     for (let i = 0; i < files.length; i++) {
                         const file = files[i];
@@ -1888,7 +1950,6 @@
                             createdTime: file.createdTime,
                             modifiedTime: file.modifiedTime,
                             thumbnailLink: file.thumbnailLink,
-                            downloadUrl: file.downloadUrl,
                             appProperties: file.appProperties || {},
                             extractedMetadata: {},
                             qualityRating: parseInt(file.appProperties?.qualityRating) || 0,
@@ -1901,23 +1962,37 @@
                         utils.updateLoadingProgress(processedCount + 1, files.length);
                         elements.loadingMessage.textContent = `Processing metadata ${processedCount + 1} of ${files.length}...`;
                         
-                        try {
-                            const result = await this.processFileMetadata(imageFile);
-                            if (result.extracted) extractedCount++;
-                            if (result.cached) cachedCount++;
-                        } catch (error) {
-                            appState.metadataExtractor.log(`⚠️ Failed to process ${file.name}: ${error.message}`, 'error');
+                        if (imageFile.mimeType === 'image/png') {
+                            try {
+                                const result = await this.processFileMetadata(imageFile);
+                                if (result.extracted) extractedCount++;
+                                if (result.cached) cachedCount++;
+                                if (!result.extracted && !result.cached) failedCount++;
+                            } catch (error) {
+                                failedCount++;
+                                appState.metadataExtractor.log(`⚠️ Failed to process ${file.name}: ${error.message}`, 'error');
+                            }
                         }
                         
                         processedCount++;
                         
-                        // Throttle to prevent overwhelming
-                        if (i % 3 === 0) {
+                        // Throttle to prevent overwhelming and allow UI updates
+                        if (i % 2 === 0) {
                             await new Promise(resolve => setTimeout(resolve, 10));
                         }
                     }
                     
-                    appState.metadataExtractor.log(`✅ Processing complete: ${extractedCount} extracted, ${cachedCount} from cache`, 'success');
+                    // Final summary
+                    const pngCount = files.filter(f => f.mimeType === 'image/png').length;
+                    
+                    appState.metadataExtractor.log(`🎯 Processing complete:`, 'info');
+                    appState.metadataExtractor.log(`   📁 Total images: ${files.length}`, 'info');
+                    appState.metadataExtractor.log(`   🖼️ PNG files: ${pngCount}`, 'info');
+                    appState.metadataExtractor.log(`   ✅ New extractions: ${extractedCount}`, 'success');
+                    appState.metadataExtractor.log(`   📥 From cache: ${cachedCount}`, 'info');
+                    if (failedCount > 0) {
+                        appState.metadataExtractor.log(`   ❌ Failed: ${failedCount}`, 'error');
+                    }
                     
                     stackManager.updateStacks();
                     appState.currentImageIndex = 0;
@@ -1927,7 +2002,13 @@
                         utils.showScreen('app-container');
                         imageViewer.displayTopImageFromStack('in');
                         updateActiveProxTab();
-                        utils.showToast(`Loaded ${files.length} images (${extractedCount} new metadata extractions)`);
+                        
+                        const statusMessage = failedCount > 0 ? 
+                            `Loaded ${files.length} images (${extractedCount} new extractions, ${failedCount} failed)` :
+                            `Loaded ${files.length} images (${extractedCount} new extractions)`;
+                        const statusType = failedCount > 0 ? 'info' : 'success';
+                        
+                        utils.showToast(statusMessage, statusType);
                     }, 500);
                     
                 } catch (error) {
@@ -1941,117 +2022,49 @@
                 }
             },
             
-            // ===== CLEAN METADATA PROCESSING =====
+            // ===== SIMPLE METADATA PROCESSING =====
             async processFileMetadata(file) {
                 if (file.mimeType !== 'image/png') {
                     return { extracted: false, cached: false };
                 }
                 
-                // Check if we already have complete metadata cached with prefix
-                const cachedMetadata = this.getCachedMetadata(file);
-                const hasCachedData = Object.keys(cachedMetadata).length > 0;
-                
-                // For now, always extract to ensure we have complete metadata
-                // (since appProperties may be incomplete due to 124-byte limit)
-                
-                // Extract metadata from PNG file
-                if (!file.downloadUrl) {
-                    appState.metadataExtractor.log(`❌ No download URL for ${file.name}`, 'error');
-                    return { extracted: false, cached: false };
+                // Check cache first
+                const cachedMetadata = await appState.metadataCache.getMetadata(file.id, file.modifiedTime);
+                if (cachedMetadata) {
+                    file.extractedMetadata = cachedMetadata;
+                    appState.metadataExtractor.log(`📥 Using cached metadata for ${file.name}`, 'info');
+                    return { extracted: false, cached: true };
                 }
                 
+                // Extract from PNG
                 try {
-                    const response = await fetch(file.downloadUrl);
+                    appState.metadataExtractor.log(`🔄 Downloading ${file.name} for metadata extraction`, 'info');
+                    
+                    const response = await appState.cloudStorage.currentProvider.makeApiCall(`/files/${file.id}?alt=media`);
                     const arrayBuffer = await response.arrayBuffer();
                     
-                    const extractedMetadata = await appState.metadataExtractor.extractImageMetadata(
-                        arrayBuffer, 
-                        file.mimeType, 
-                        file.name
-                    );
+                    appState.metadataExtractor.log(`✅ Downloaded ${(arrayBuffer.byteLength / 1024).toFixed(1)}KB`, 'success');
                     
-                    if (Object.keys(extractedMetadata).length > 0) {
-                        // Store in file object (all metadata, regardless of size)
-                        file.extractedMetadata = extractedMetadata;
+                    const metadata = await appState.metadataExtractor.extractPNGMetadata(arrayBuffer);
+                    
+                    if (Object.keys(metadata).length > 0) {
+                        file.extractedMetadata = metadata;
                         
-                        // Smart storage: only save fields that fit within Google Drive's 124-byte limit
-                        const prefixedProperties = {};
-                        const skippedFields = [];
-                        const savedFields = [];
+                        // Cache the metadata
+                        await appState.metadataCache.setMetadata(file.id, file.modifiedTime, metadata);
                         
-                        Object.entries(extractedMetadata).forEach(([key, value]) => {
-                            const prefixedKey = `pngMetadata_${key}`;
-                            const valueStr = String(value);
-                            const totalBytes = new TextEncoder().encode(prefixedKey + valueStr).length;
-                            
-                            if (totalBytes <= 124) {
-                                prefixedProperties[prefixedKey] = valueStr;
-                                savedFields.push(key);
-                            } else {
-                                skippedFields.push(`${key} (${totalBytes} bytes)`);
-                            }
-                        });
-                        
-                        // Only update appProperties if we have fields that fit
-                        if (Object.keys(prefixedProperties).length > 0) {
-                            // Merge with existing properties
-                            const updatedProperties = { ...file.appProperties, ...prefixedProperties };
-                            
-                            await appState.cloudStorage.updateFileProperties(file.id, updatedProperties);
-                            file.appProperties = updatedProperties;
-                        }
-                        
-                        // Log detailed results
-                        appState.metadataExtractor.log(
-                            `💾 Saved ${savedFields.length}/${Object.keys(extractedMetadata).length} fields for ${file.name}`, 
-                            'success'
-                        );
-                        
-                        if (skippedFields.length > 0) {
-                            appState.metadataExtractor.log(
-                                `⚠️ Skipped ${skippedFields.length} fields (too large): ${skippedFields.join(', ')}`, 
-                                'info'
-                            );
-                        }
-                        
+                        appState.metadataExtractor.log(`💾 Extracted and cached ${Object.keys(metadata).length} fields`, 'success');
                         return { extracted: true, cached: false };
                     } else {
-                        // No metadata extracted, but we might have cached data
-                        if (hasCachedData) {
-                            file.extractedMetadata = cachedMetadata;
-                            appState.metadataExtractor.log(`📥 Using cached metadata for ${file.name}`, 'info');
-                            return { extracted: false, cached: true };
-                        }
-                        
                         appState.metadataExtractor.log(`ℹ️ No metadata found in ${file.name}`, 'info');
                         return { extracted: false, cached: false };
                     }
                     
                 } catch (error) {
-                    // On error, fall back to cached data if available
-                    if (hasCachedData) {
-                        file.extractedMetadata = cachedMetadata;
-                        appState.metadataExtractor.log(`📥 Using cached metadata for ${file.name} (extraction failed)`, 'info');
-                        return { extracted: false, cached: true };
-                    }
-                    
-                    appState.metadataExtractor.log(`❌ Extraction failed for ${file.name}: ${error.message}`, 'error');
+                    appState.metadataExtractor.log(`❌ Failed to extract metadata: ${error.message}`, 'error');
                     return { extracted: false, cached: false };
                 }
             },
-            
-            getCachedMetadata(file) {
-                const metadata = {};
-                if (file.appProperties) {
-                    Object.entries(file.appProperties).forEach(([key, value]) => {
-                        if (key.startsWith('pngMetadata_')) {
-                            const metadataKey = key.substring(12); // Remove 'pngMetadata_' prefix
-                            metadata[metadataKey] = value;
-                        }
-                    });
-                }
-                return metadata;
-            }
         };
         
         // ===== Stack Manager =====
@@ -2374,10 +2387,9 @@
                         if (appState.grid.selected.length === 1 && 
                             appState.grid.selected[0] === file.id && 
                             elements.gridSize.value === '1') {
-                            const imageUrl = appState.imageCache.get(file.id) || file.thumbnailLink || file.downloadUrl;
-                            if (imageUrl) {
-                                window.open(imageUrl, '_blank');
-                            }
+                            // Open image in new tab using Google Drive viewer
+                            const viewUrl = `https://drive.google.com/file/d/${file.id}/view`;
+                            window.open(viewUrl, '_blank');
                             return;
                         }
                         
@@ -2490,8 +2502,9 @@
                 const filename = file.name || 'Unknown';
                 elements.detailFilename.textContent = filename;
                 
-                if (file.downloadUrl) {
-                    elements.detailFilenameLink.href = file.downloadUrl;
+                // Create a direct Google Drive view link
+                if (file.id) {
+                    elements.detailFilenameLink.href = `https://drive.google.com/file/d/${file.id}/view`;
                     elements.detailFilenameLink.style.display = 'inline';
                 } else {
                     elements.detailFilenameLink.href = '#';
@@ -2666,35 +2679,35 @@
                 });
             },
             
-            // ===== CLEAN METADATA DISPLAY =====
+            // ===== SIMPLE METADATA DISPLAY =====
             populateMetadataTab: function(file) {
                 elements.metadataTable.innerHTML = '';
                 
-                const allMetadata = this.extractAllMetadata(file);
+                const metadata = file.extractedMetadata || {};
                 
-                if (Object.keys(allMetadata).length === 0) {
+                if (Object.keys(metadata).length === 0) {
                     this.addMetadataRow('Status', 'No embedded metadata found', false);
                     return;
                 }
                 
-                // Priority fields with copy buttons - ensure prompt is first with copy button
+                // Priority fields with copy buttons
                 const priorityFields = ['prompt', 'Prompt', 'model', 'Model', 'seed', 'Seed', 'negative_prompt', 'Negative_Prompt', 'steps', 'Steps', 'cfg_scale', 'CFG_Scale', 'sampler', 'Sampler', 'scheduler', 'Scheduler', 'api_call', 'API_Call'];
                 
                 // Add priority fields first
                 priorityFields.forEach(field => {
-                    if (allMetadata[field]) {
-                        this.addMetadataRow(field, allMetadata[field], true);
+                    if (metadata[field]) {
+                        this.addMetadataRow(field, metadata[field], true);
                     }
                 });
                 
                 // Add separator if we have both priority and other fields
-                const remainingFields = Object.entries(allMetadata).filter(([key, value]) => 
+                const remainingFields = Object.entries(metadata).filter(([key, value]) => 
                     !priorityFields.includes(key) && 
                     !priorityFields.includes(key.toLowerCase()) && 
                     value
                 );
                 
-                if (priorityFields.some(field => allMetadata[field]) && remainingFields.length > 0) {
+                if (priorityFields.some(field => metadata[field]) && remainingFields.length > 0) {
                     const separatorRow = document.createElement('tr');
                     separatorRow.innerHTML = `
                         <td colspan="2" style="padding: 8px; background: #f0f0f0; text-align: center; font-size: 12px; color: #666; font-weight: bold;">
@@ -2710,7 +2723,7 @@
                 });
                 
                 // Add separator for file info
-                if (Object.keys(allMetadata).length > 0) {
+                if (Object.keys(metadata).length > 0) {
                     const separatorRow = document.createElement('tr');
                     separatorRow.innerHTML = `
                         <td colspan="2" style="padding: 8px; background: #f0f0f0; text-align: center; font-size: 12px; color: #666; font-weight: bold;">
@@ -2729,24 +2742,7 @@
             },
             
             extractAllMetadata: function(file) {
-                const metadata = {};
-                
-                // Priority 1: From extracted metadata (embedded in image) - this has ALL fields
-                if (file.extractedMetadata) {
-                    Object.assign(metadata, file.extractedMetadata);
-                }
-                
-                // Priority 2: From cached metadata (prefixed in appProperties) - only smaller fields
-                const cachedMetadata = folderManager.getCachedMetadata(file);
-                
-                // Only add cached data if we don't already have it from extractedMetadata
-                Object.entries(cachedMetadata).forEach(([key, value]) => {
-                    if (!metadata[key]) {
-                        metadata[key] = value;
-                    }
-                });
-                
-                return metadata;
+                return file.extractedMetadata || {};
             },
             
             addMetadataRow: function(key, value, needsCopyButton = false) {
@@ -2771,17 +2767,7 @@
                 
                 const keyCell = document.createElement('td');
                 keyCell.className = 'key-cell';
-                
-                // Check if this field was too large to save to appProperties
-                const prefixedKey = `pngMetadata_${key}`;
-                const totalBytes = new TextEncoder().encode(prefixedKey + String(value)).length;
-                const wasSkipped = totalBytes > 124;
-                
-                if (wasSkipped && !['File Name', 'File Size', 'MIME Type', 'Created', 'Modified'].includes(formattedKey)) {
-                    keyCell.innerHTML = `${formattedKey} <span style="color: #f59e0b; font-size: 10px; font-weight: normal;">⚠ Too large</span>`;
-                } else {
-                    keyCell.textContent = formattedKey;
-                }
+                keyCell.textContent = formattedKey;
                 
                 const valueCell = document.createElement('td');
                 valueCell.className = 'value-cell';
@@ -2812,15 +2798,22 @@
             
             copyToClipboard: function(text) {
                 navigator.clipboard.writeText(text).then(() => {
-                    utils.showToast('Copied to clipboard');
+                    utils.showToast('📋 Copied to clipboard', 'success');
                 }).catch(() => {
+                    // Fallback for older browsers
                     const textArea = document.createElement('textarea');
                     textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.opacity = '0';
                     document.body.appendChild(textArea);
                     textArea.select();
-                    document.execCommand('copy');
+                    try {
+                        document.execCommand('copy');
+                        utils.showToast('📋 Copied to clipboard', 'success');
+                    } catch (err) {
+                        utils.showToast('❌ Failed to copy', 'error');
+                    }
                     document.body.removeChild(textArea);
-                    utils.showToast('Copied to clipboard');
                 });
             }
         };
@@ -3296,11 +3289,13 @@
         // ===== Initialize App =====
         async function initApp() {
             try {
-                await cacheManager.init();
+                // Initialize cache first
+                appState.metadataCache = new SimpleCache();
+                await appState.metadataCache.init();
                 
                 appState.cloudStorage = new CloudStorageModule();
                 appState.cloudStorage.setProvider('googledrive');
-                appState.metadataExtractor = new CleanMetadataExtractor();
+                appState.metadataExtractor = new SimpleMetadataExtractor();
                 
                 appState.cloudStorage.onAuthStateChanged = (authenticated, provider) => {
                     console.log(`Auth state changed: ${authenticated} (${provider})`);
@@ -3339,7 +3334,21 @@
                 document.addEventListener('click', (e) => {
                     if (e.target.classList.contains('copy-metadata')) {
                         const value = e.target.dataset.value;
+                        const button = e.target;
+                        
+                        // Visual feedback
+                        button.classList.add('copied');
+                        const originalText = button.textContent;
+                        button.textContent = '✓';
+                        
+                        // Copy to clipboard
                         detailsModal.copyToClipboard(value);
+                        
+                        // Reset button after 1 second
+                        setTimeout(() => {
+                            button.classList.remove('copied');
+                            button.textContent = originalText;
+                        }, 1000);
                     }
                 });
                 
