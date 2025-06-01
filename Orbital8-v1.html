@@ -657,6 +657,16 @@
             box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
         }
         
+        .copy-button:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 2px rgba(245, 158, 11, 0.3);
+        }
+        
+        .copy-button.copied {
+            background: #10b981;
+            transform: scale(1.1);
+        }
+        
         /* ===== Toast ===== */
         .toast {
             position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -681,6 +691,30 @@
         @media screen and (max-width: 767px) {
             .nav-button { font-size: 16px; padding: 12px 20px; border-radius: 25px; min-width: 80px; }
             .pill-counter.bottom { bottom: 80px; }
+            
+            /* Mobile details modal optimization */
+            .details-modal-content { 
+                max-width: 100vw; 
+                max-height: 100vh; 
+                height: 100vh;
+                margin: 0;
+                border-radius: 0;
+            }
+            
+            .metadata-table .key-cell {
+                width: 30%;
+                min-width: 80px;
+                font-size: 12px;
+            }
+            
+            .metadata-table .value-cell {
+                font-size: 12px;
+            }
+            
+            .copy-button {
+                font-size: 10px;
+                padding: 3px 6px;
+            }
         }
     </style>
 </head>
@@ -1658,7 +1692,12 @@
                     imageUrl = await cacheManager.getCachedThumbnail(file.id);
                     
                     if (!imageUrl) {
-                        imageUrl = file.thumbnailLink ? file.thumbnailLink.replace('=s220', '=s1000') : file.downloadUrl;
+                        // Use thumbnail link or fallback to Google Drive viewer
+                        if (file.thumbnailLink) {
+                            imageUrl = file.thumbnailLink.replace('=s220', '=s1000');
+                        } else if (file.id) {
+                            imageUrl = `https://drive.google.com/thumbnail?id=${file.id}&sz=w1000`;
+                        }
                         
                         if (imageUrl) {
                             appState.imageCache.set(file.id, imageUrl);
@@ -1874,6 +1913,7 @@
                     let processedCount = 0;
                     let extractedCount = 0;
                     let cachedCount = 0;
+                    let failedCount = 0;
                     
                     for (let i = 0; i < files.length; i++) {
                         const file = files[i];
@@ -1888,7 +1928,6 @@
                             createdTime: file.createdTime,
                             modifiedTime: file.modifiedTime,
                             thumbnailLink: file.thumbnailLink,
-                            downloadUrl: file.downloadUrl,
                             appProperties: file.appProperties || {},
                             extractedMetadata: {},
                             qualityRating: parseInt(file.appProperties?.qualityRating) || 0,
@@ -1901,23 +1940,39 @@
                         utils.updateLoadingProgress(processedCount + 1, files.length);
                         elements.loadingMessage.textContent = `Processing metadata ${processedCount + 1} of ${files.length}...`;
                         
-                        try {
-                            const result = await this.processFileMetadata(imageFile);
-                            if (result.extracted) extractedCount++;
-                            if (result.cached) cachedCount++;
-                        } catch (error) {
-                            appState.metadataExtractor.log(`⚠️ Failed to process ${file.name}: ${error.message}`, 'error');
+                        if (imageFile.mimeType === 'image/png') {
+                            try {
+                                const result = await this.processFileMetadata(imageFile);
+                                if (result.extracted) extractedCount++;
+                                if (result.cached) cachedCount++;
+                                if (!result.extracted && !result.cached) failedCount++;
+                            } catch (error) {
+                                failedCount++;
+                                appState.metadataExtractor.log(`⚠️ Failed to process ${file.name}: ${error.message}`, 'error');
+                            }
                         }
                         
                         processedCount++;
                         
-                        // Throttle to prevent overwhelming
-                        if (i % 3 === 0) {
+                        // Throttle to prevent overwhelming and allow UI updates
+                        if (i % 2 === 0) {
                             await new Promise(resolve => setTimeout(resolve, 10));
                         }
                     }
                     
-                    appState.metadataExtractor.log(`✅ Processing complete: ${extractedCount} extracted, ${cachedCount} from cache`, 'success');
+                    // Final summary
+                    const pngCount = files.filter(f => f.mimeType === 'image/png').length;
+                    const successRate = pngCount > 0 ? Math.round(((extractedCount + cachedCount) / pngCount) * 100) : 100;
+                    
+                    appState.metadataExtractor.log(`🎯 Processing Summary:`, 'info');
+                    appState.metadataExtractor.log(`   📁 Total images: ${files.length}`, 'info');
+                    appState.metadataExtractor.log(`   🖼️ PNG files: ${pngCount}`, 'info');
+                    appState.metadataExtractor.log(`   ✅ New extractions: ${extractedCount}`, 'success');
+                    appState.metadataExtractor.log(`   📥 From cache: ${cachedCount}`, 'info');
+                    if (failedCount > 0) {
+                        appState.metadataExtractor.log(`   ❌ Failed: ${failedCount}`, 'error');
+                    }
+                    appState.metadataExtractor.log(`   🎯 Success rate: ${successRate}%`, successRate >= 90 ? 'success' : successRate >= 70 ? 'info' : 'error');
                     
                     stackManager.updateStacks();
                     appState.currentImageIndex = 0;
@@ -1927,7 +1982,13 @@
                         utils.showScreen('app-container');
                         imageViewer.displayTopImageFromStack('in');
                         updateActiveProxTab();
-                        utils.showToast(`Loaded ${files.length} images (${extractedCount} new metadata extractions)`);
+                        
+                        const statusMessage = failedCount > 0 ? 
+                            `Loaded ${files.length} images (${extractedCount} new extractions, ${failedCount} failed)` :
+                            `Loaded ${files.length} images (${extractedCount} new extractions)`;
+                        const statusType = failedCount > 0 ? 'info' : 'success';
+                        
+                        utils.showToast(statusMessage, statusType);
                     }, 500);
                     
                 } catch (error) {
@@ -1947,22 +2008,45 @@
                     return { extracted: false, cached: false };
                 }
                 
-                // Check if we already have complete metadata cached with prefix
+                // Check if we already have cached metadata
                 const cachedMetadata = this.getCachedMetadata(file);
                 const hasCachedData = Object.keys(cachedMetadata).length > 0;
                 
-                // For now, always extract to ensure we have complete metadata
-                // (since appProperties may be incomplete due to 124-byte limit)
-                
-                // Extract metadata from PNG file
-                if (!file.downloadUrl) {
-                    appState.metadataExtractor.log(`❌ No download URL for ${file.name}`, 'error');
-                    return { extracted: false, cached: false };
+                // If we have cached data, use it and skip extraction
+                if (hasCachedData) {
+                    file.extractedMetadata = cachedMetadata;
+                    appState.metadataExtractor.log(`📥 Using cached metadata for ${file.name} (${Object.keys(cachedMetadata).length} fields)`, 'info');
+                    return { extracted: false, cached: true };
                 }
                 
+                // Extract metadata from PNG file using Google Drive API
                 try {
-                    const response = await fetch(file.downloadUrl);
+                    appState.metadataExtractor.log(`🔄 Downloading ${file.name} for metadata extraction`, 'info');
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 30000);
+                    
+                    // Use the correct Google Drive API endpoint for binary file data
+                    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+                        signal: controller.signal,
+                        headers: {
+                            'Authorization': `Bearer ${appState.cloudStorage.currentProvider.accessToken}`
+                        }
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
                     const arrayBuffer = await response.arrayBuffer();
+                    
+                    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+                        throw new Error('Empty file received');
+                    }
+                    
+                    appState.metadataExtractor.log(`✅ Downloaded ${(arrayBuffer.byteLength / 1024).toFixed(1)}KB for ${file.name}`, 'success');
                     
                     const extractedMetadata = await appState.metadataExtractor.extractImageMetadata(
                         arrayBuffer, 
@@ -1988,54 +2072,42 @@
                                 prefixedProperties[prefixedKey] = valueStr;
                                 savedFields.push(key);
                             } else {
-                                skippedFields.push(`${key} (${totalBytes} bytes)`);
+                                skippedFields.push(key);
                             }
                         });
                         
                         // Only update appProperties if we have fields that fit
                         if (Object.keys(prefixedProperties).length > 0) {
-                            // Merge with existing properties
-                            const updatedProperties = { ...file.appProperties, ...prefixedProperties };
-                            
-                            await appState.cloudStorage.updateFileProperties(file.id, updatedProperties);
-                            file.appProperties = updatedProperties;
-                        }
-                        
-                        // Log detailed results
-                        appState.metadataExtractor.log(
-                            `💾 Saved ${savedFields.length}/${Object.keys(extractedMetadata).length} fields for ${file.name}`, 
-                            'success'
-                        );
-                        
-                        if (skippedFields.length > 0) {
-                            appState.metadataExtractor.log(
-                                `⚠️ Skipped ${skippedFields.length} fields (too large): ${skippedFields.join(', ')}`, 
-                                'info'
-                            );
+                            try {
+                                const updatedProperties = { ...file.appProperties, ...prefixedProperties };
+                                await appState.cloudStorage.updateFileProperties(file.id, updatedProperties);
+                                file.appProperties = updatedProperties;
+                                
+                                appState.metadataExtractor.log(
+                                    `💾 Saved ${savedFields.length}/${Object.keys(extractedMetadata).length} fields for ${file.name}`, 
+                                    'success'
+                                );
+                                
+                                if (skippedFields.length > 0) {
+                                    appState.metadataExtractor.log(
+                                        `⚠️ Skipped ${skippedFields.length} large fields: ${skippedFields.join(', ')}`, 
+                                        'info'
+                                    );
+                                }
+                            } catch (saveError) {
+                                appState.metadataExtractor.log(`⚠️ Metadata extracted but failed to save to Drive: ${saveError.message}`, 'error');
+                            }
                         }
                         
                         return { extracted: true, cached: false };
                     } else {
-                        // No metadata extracted, but we might have cached data
-                        if (hasCachedData) {
-                            file.extractedMetadata = cachedMetadata;
-                            appState.metadataExtractor.log(`📥 Using cached metadata for ${file.name}`, 'info');
-                            return { extracted: false, cached: true };
-                        }
-                        
                         appState.metadataExtractor.log(`ℹ️ No metadata found in ${file.name}`, 'info');
                         return { extracted: false, cached: false };
                     }
                     
                 } catch (error) {
-                    // On error, fall back to cached data if available
-                    if (hasCachedData) {
-                        file.extractedMetadata = cachedMetadata;
-                        appState.metadataExtractor.log(`📥 Using cached metadata for ${file.name} (extraction failed)`, 'info');
-                        return { extracted: false, cached: true };
-                    }
-                    
-                    appState.metadataExtractor.log(`❌ Extraction failed for ${file.name}: ${error.message}`, 'error');
+                    const errorMsg = error.name === 'AbortError' ? 'Download timeout' : error.message;
+                    appState.metadataExtractor.log(`❌ Failed to extract metadata from ${file.name}: ${errorMsg}`, 'error');
                     return { extracted: false, cached: false };
                 }
             },
@@ -2374,10 +2446,9 @@
                         if (appState.grid.selected.length === 1 && 
                             appState.grid.selected[0] === file.id && 
                             elements.gridSize.value === '1') {
-                            const imageUrl = appState.imageCache.get(file.id) || file.thumbnailLink || file.downloadUrl;
-                            if (imageUrl) {
-                                window.open(imageUrl, '_blank');
-                            }
+                            // Open image in new tab using Google Drive viewer
+                            const viewUrl = `https://drive.google.com/file/d/${file.id}/view`;
+                            window.open(viewUrl, '_blank');
                             return;
                         }
                         
@@ -2490,8 +2561,9 @@
                 const filename = file.name || 'Unknown';
                 elements.detailFilename.textContent = filename;
                 
-                if (file.downloadUrl) {
-                    elements.detailFilenameLink.href = file.downloadUrl;
+                // Create a direct Google Drive view link
+                if (file.id) {
+                    elements.detailFilenameLink.href = `https://drive.google.com/file/d/${file.id}/view`;
                     elements.detailFilenameLink.style.display = 'inline';
                 } else {
                     elements.detailFilenameLink.href = '#';
@@ -2812,15 +2884,22 @@
             
             copyToClipboard: function(text) {
                 navigator.clipboard.writeText(text).then(() => {
-                    utils.showToast('Copied to clipboard');
+                    utils.showToast('📋 Copied to clipboard', 'success');
                 }).catch(() => {
+                    // Fallback for older browsers
                     const textArea = document.createElement('textarea');
                     textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.opacity = '0';
                     document.body.appendChild(textArea);
                     textArea.select();
-                    document.execCommand('copy');
+                    try {
+                        document.execCommand('copy');
+                        utils.showToast('📋 Copied to clipboard', 'success');
+                    } catch (err) {
+                        utils.showToast('❌ Failed to copy', 'error');
+                    }
                     document.body.removeChild(textArea);
-                    utils.showToast('Copied to clipboard');
                 });
             }
         };
@@ -3339,7 +3418,21 @@
                 document.addEventListener('click', (e) => {
                     if (e.target.classList.contains('copy-metadata')) {
                         const value = e.target.dataset.value;
+                        const button = e.target;
+                        
+                        // Visual feedback
+                        button.classList.add('copied');
+                        const originalText = button.textContent;
+                        button.textContent = '✓';
+                        
+                        // Copy to clipboard
                         detailsModal.copyToClipboard(value);
+                        
+                        // Reset button after 1 second
+                        setTimeout(() => {
+                            button.classList.remove('copied');
+                            button.textContent = originalText;
+                        }, 1000);
                     }
                 });
                 
