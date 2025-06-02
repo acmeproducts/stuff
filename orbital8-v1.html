@@ -4022,3 +4022,502 @@
                 debugLogger.log('Step 6: Setting up keyboard shortcuts...');
                 document.addEventListener('keydown', (e) => {
                     if (elements.appContainer.classList.contains('hidden')) return;
+                    
+                    if (!elements.detailsModal.classList.contains('hidden')) {
+                        if (e.key === 'Escape') {
+                            detailsModal.hide();
+                        }
+                        return;
+                    }
+                    
+                    if (!elements.gridModal.classList.contains('hidden')) {
+                        if (e.key === 'Escape') {
+                            gridView.close();
+                        }
+                        return;
+                    }
+                    
+                    switch (e.key) {
+                        case 'ArrowLeft':
+                        case 'ArrowRight':
+                            imageViewer.moveToNextImage();
+                            break;
+                        case 'Escape':
+                            utils.showScreen('folder-screen');
+                            break;
+                        case '1':
+                            appState.currentStack = 'in';
+                            updateActiveProxTab();
+                            gridView.open('in');
+                            break;
+                        case '2':
+                            appState.currentStack = 'out';
+                            updateActiveProxTab();
+                            gridView.open('out');
+                            break;
+                        case '3':
+                            appState.currentStack = 'priority';
+                            updateActiveProxTab();
+                            gridView.open('priority');
+                            break;
+                        case '4':
+                            appState.currentStack = 'trash';
+                            updateActiveProxTab();
+                            gridView.open('trash');
+                            break;
+                        case 'i':
+                        case 'I':
+                            detailsModal.show();
+                            break;
+                    }
+                });
+                debugLogger.log('✓ Keyboard shortcuts configured', 'success');
+                
+                // Close modals when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!elements.gridModal.classList.contains('hidden')) {
+                        if (e.target === elements.gridModal) {
+                            gridView.close();
+                        }
+                    }
+                    
+                    if (!elements.detailsModal.classList.contains('hidden')) {
+                        if (e.target === elements.detailsModal) {
+                            detailsModal.hide();
+                        }
+                    }
+                    
+                    if (!elements.cacheManagerModal.classList.contains('hidden')) {
+                        if (e.target === elements.cacheManagerModal) {
+                            cacheManagerUI.hide();
+                        }
+                    }
+                    
+                    [elements.moveModal, elements.tagModal, elements.deleteModal].forEach(modal => {
+                        if (modal && !modal.classList.contains('hidden')) {
+                            if (e.target === modal) {
+                                modal.classList.add('hidden');
+                            }
+                        }
+                    });
+                });
+                
+                updateActiveProxTab();
+                
+                debugLogger.log('✓ Orbital8 V6.5.2 - Complete Fixed Authentication ready!', 'success');
+                debugLogger.log('=== Initialization Complete ===', 'success');
+                
+                setTimeout(() => {
+                    if (authManager.provider.isAuthenticated) {
+                        utils.showToast('Welcome back! Now with fixed authentication and enhanced cache management.', 'info');
+                    } else {
+                        utils.showToast('Authentication system ready - enter your Google Client Secret to get started!', 'info');
+                    }
+                }, 2000);
+                
+            } catch (error) {
+                debugLogger.log(`✗ Failed to initialize app: ${error.message}`, 'error');
+                console.error('Error stack:', error.stack);
+                utils.showToast('Failed to initialize app: ' + error.message, 'error');
+            }
+        }
+        
+        // ===== Details Modal =====
+        const detailsModal = {
+            currentTab: 'info',
+            
+            show: function() {
+                const currentFile = appState.imageFiles[appState.currentImageIndex];
+                if (!currentFile) return;
+                
+                this.populateAllTabs(currentFile);
+                elements.detailsModal.classList.remove('hidden');
+                this.switchTab('info');
+            },
+            
+            hide: function() {
+                elements.detailsModal.classList.add('hidden');
+            },
+            
+            switchTab: function(tabName) {
+                document.querySelectorAll('.tab-button').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.tab === tabName);
+                });
+                
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.toggle('active', content.id === `tab-${tabName}`);
+                });
+                
+                this.currentTab = tabName;
+            },
+            
+            populateAllTabs: function(file) {
+                this.populateInfoTab(file);
+                this.populateMetadataTab(file);
+                this.populateTagsTab(file);
+                this.populateNotesTab(file);
+            },
+            
+            populateInfoTab: function(file) {
+                const filename = file.name || 'Unknown';
+                elements.detailFilename.textContent = filename;
+                
+                if (file.downloadUrl) {
+                    elements.detailFilenameLink.href = file.downloadUrl;
+                    elements.detailFilenameLink.style.display = 'inline';
+                } else {
+                    elements.detailFilenameLink.href = '#';
+                    elements.detailFilenameLink.style.display = 'none';
+                }
+                
+                const date = file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : 
+                           file.createdTime ? new Date(file.createdTime).toLocaleString() : 'Unknown';
+                elements.detailDate.textContent = date;
+            },
+            
+            populateMetadataTab: function(file) {
+                const allMetadata = file.extractedMetadata || {};
+                
+                if (Object.keys(allMetadata).length === 0) {
+                    elements.noMetadataMessage.style.display = 'block';
+                    elements.metadataTable.classList.add('hidden');
+                    return;
+                }
+                
+                elements.noMetadataMessage.style.display = 'none';
+                elements.metadataTable.classList.remove('hidden');
+                elements.metadataTableBody.innerHTML = '';
+                
+                Object.entries(allMetadata).forEach(([key, value]) => {
+                    if (value) {
+                        this.addMetadataRow(key, value, false);
+                    }
+                });
+            },
+            
+            addMetadataRow: function(key, value, needsCopyButton = false) {
+                const row = document.createElement('tr');
+                
+                const keyCell = document.createElement('td');
+                keyCell.className = 'key-cell';
+                keyCell.textContent = key.replace(/_/g, ' ');
+                
+                const valueCell = document.createElement('td');
+                valueCell.className = 'value-cell';
+                
+                let formattedValue = String(value);
+                if (formattedValue.length > 100) {
+                    formattedValue = formattedValue.replace(/,(?=\s)/g, ',\n').replace(/\s+/g, ' ').trim();
+                }
+                valueCell.textContent = formattedValue;
+                
+                if (needsCopyButton) {
+                    const copyButton = document.createElement('button');
+                    copyButton.className = 'copy-button';
+                    copyButton.textContent = 'Copy';
+                    copyButton.dataset.value = String(value);
+                    copyButton.addEventListener('click', () => this.copyToClipboard(String(value)));
+                    valueCell.appendChild(copyButton);
+                }
+                
+                row.appendChild(keyCell);
+                row.appendChild(valueCell);
+                elements.metadataTableBody.appendChild(row);
+            },
+            
+            populateTagsTab: function(file) {
+                const tags = file.tags || [];
+                
+                elements.detailTags.innerHTML = '';
+                
+                tags.forEach(tag => {
+                    const tagElement = document.createElement('div');
+                    tagElement.className = 'tag-item';
+                    tagElement.innerHTML = `
+                        <span>${tag}</span>
+                        <button class="tag-remove" data-tag="${tag}">×</button>
+                    `;
+                    elements.detailTags.appendChild(tagElement);
+                });
+                
+                const addButton = document.createElement('div');
+                addButton.className = 'add-tag-btn';
+                addButton.textContent = '+ Add Tag';
+                addButton.addEventListener('click', () => this.showAddTagInput());
+                elements.detailTags.appendChild(addButton);
+                
+                elements.detailTags.querySelectorAll('.tag-remove').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const tagToRemove = e.target.dataset.tag;
+                        this.removeTag(file, tagToRemove);
+                    });
+                });
+            },
+            
+            showAddTagInput: function() {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'tag-input';
+                input.placeholder = 'Enter tag name';
+                input.style.marginLeft = '8px';
+                
+                const addButton = elements.detailTags.querySelector('.add-tag-btn');
+                addButton.parentNode.insertBefore(input, addButton);
+                input.focus();
+                
+                input.addEventListener('keydown', async (e) => {
+                    if (e.key === 'Enter') {
+                        const tagName = input.value.trim();
+                        if (tagName) {
+                            const currentFile = appState.imageFiles[appState.currentImageIndex];
+                            try {
+                                await stackManager.addTagsToFile(currentFile.id, [tagName]);
+                                this.populateTagsTab(currentFile);
+                                utils.showToast(`Added tag: ${tagName}`);
+                            } catch (error) {
+                                debugLogger.log(`Error adding tag: ${error.message}`, 'error');
+                                utils.showToast('Failed to add tag', 'error');
+                            }
+                        }
+                    } else if (e.key === 'Escape') {
+                        input.remove();
+                    }
+                });
+                
+                input.addEventListener('blur', () => {
+                    setTimeout(() => input.remove(), 100);
+                });
+            },
+            
+            removeTag: async function(file, tagToRemove) {
+                debugLogger.log(`Removing tag "${tagToRemove}" from ${file.name}`);
+                const currentTags = Array.isArray(file.tags) ? file.tags : [];
+                const newTags = currentTags.filter(tag => tag !== tagToRemove);
+                
+                file.tags = newTags;
+                
+                try {
+                    const saveSuccess = await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
+                        stack: file.stack || 'in',
+                        tags: newTags,
+                        notes: file.notes || '',
+                        qualityRating: file.qualityRating || 0,
+                        contentRating: file.contentRating || 0
+                    });
+                    
+                    if (saveSuccess) {
+                        this.populateTagsTab(file);
+                        utils.showToast(`Removed tag: ${tagToRemove}`);
+                    } else {
+                        throw new Error('Failed to save to IndexedDB');
+                    }
+                } catch (error) {
+                    debugLogger.log(`Error removing tag: ${error.message}`, 'error');
+                    utils.showToast('Failed to remove tag', 'error');
+                    file.tags = currentTags;
+                }
+            },
+            
+            populateNotesTab: function(file) {
+                elements.detailNotes.value = file.notes || '';
+                
+                const newNotesTextarea = elements.detailNotes.cloneNode(true);
+                elements.detailNotes.parentNode.replaceChild(newNotesTextarea, elements.detailNotes);
+                elements.detailNotes = newNotesTextarea;
+                
+                elements.detailNotes.addEventListener('blur', async () => {
+                    const newNotes = elements.detailNotes.value;
+                    file.notes = newNotes;
+                    
+                    try {
+                        const saveSuccess = await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
+                            stack: file.stack || 'in',
+                            tags: file.tags || [],
+                            notes: newNotes,
+                            qualityRating: file.qualityRating || 0,
+                            contentRating: file.contentRating || 0
+                        });
+                        
+                        if (saveSuccess) {
+                            utils.showToast('Notes saved');
+                        } else {
+                            throw new Error('Failed to save to IndexedDB');
+                        }
+                    } catch (error) {
+                        debugLogger.log(`Error saving notes: ${error.message}`, 'error');
+                        utils.showToast('Failed to save notes', 'error');
+                    }
+                });
+                
+                this.setupStarRating(elements.qualityRating, file.qualityRating || 0, async (rating) => {
+                    file.qualityRating = rating;
+                    
+                    try {
+                        const saveSuccess = await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
+                            stack: file.stack || 'in',
+                            tags: file.tags || [],
+                            notes: file.notes || '',
+                            qualityRating: rating,
+                            contentRating: file.contentRating || 0
+                        });
+                        
+                        if (saveSuccess) {
+                            utils.showToast('Quality rating saved');
+                        } else {
+                            throw new Error('Failed to save to IndexedDB');
+                        }
+                    } catch (error) {
+                        debugLogger.log(`Error saving quality rating: ${error.message}`, 'error');
+                        utils.showToast('Failed to save rating', 'error');
+                    }
+                });
+                
+                this.setupStarRating(elements.contentRating, file.contentRating || 0, async (rating) => {
+                    file.contentRating = rating;
+                    
+                    try {
+                        const saveSuccess = await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
+                            stack: file.stack || 'in',
+                            tags: file.tags || [],
+                            notes: file.notes || '',
+                            qualityRating: file.qualityRating || 0,
+                            contentRating: rating
+                        });
+                        
+                        if (saveSuccess) {
+                            utils.showToast('Content rating saved');
+                        } else {
+                            throw new Error('Failed to save to IndexedDB');
+                        }
+                    } catch (error) {
+                        debugLogger.log(`Error saving content rating: ${error.message}`, 'error');
+                        utils.showToast('Failed to save rating', 'error');
+                    }
+                });
+            },
+            
+            setupStarRating: function(container, currentRating, onRatingChange) {
+                const stars = container.querySelectorAll('.star');
+                
+                stars.forEach((star, index) => {
+                    star.classList.toggle('active', index < currentRating);
+                });
+                
+                stars.forEach((star, index) => {
+                    const newClickHandler = () => {
+                        const newRating = index + 1;
+                        stars.forEach((s, i) => {
+                            s.classList.toggle('active', i < newRating);
+                        });
+                        onRatingChange(newRating);
+                    };
+                    
+                    star.replaceWith(star.cloneNode(true));
+                    const newStar = container.querySelectorAll('.star')[index];
+                    newStar.addEventListener('click', newClickHandler);
+                    
+                    newStar.addEventListener('mouseenter', () => {
+                        stars.forEach((s, i) => {
+                            s.style.color = i <= index ? '#fbbf24' : '#d1d5db';
+                        });
+                    });
+                    
+                    newStar.addEventListener('mouseleave', () => {
+                        stars.forEach((s, i) => {
+                            s.style.color = s.classList.contains('active') ? '#fbbf24' : '#d1d5db';
+                        });
+                    });
+                });
+            },
+            
+            copyToClipboard: function(text) {
+                navigator.clipboard.writeText(text).then(() => {
+                    utils.showToast('Copied to clipboard');
+                }).catch(() => {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    utils.showToast('Copied to clipboard');
+                });
+            }
+        };
+        
+        // ===== Enhanced OAuth Callback Handler =====
+        (function handleOAuthCallback() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const error = urlParams.get('error');
+            const state = urlParams.get('state');
+            
+            if (code || error) {
+                debugLogger.log(`OAuth callback detected - Code: ${!!code}, Error: ${error}, State: ${state}`);
+                
+                if (window.opener && !window.opener.closed) {
+                    try {
+                        if (error) {
+                            debugLogger.log(`OAuth error in popup: ${error}`, 'error');
+                            window.opener.postMessage({ 
+                                type: 'GOOGLE_AUTH_ERROR', 
+                                error: error 
+                            }, window.location.origin);
+                        } else if (code) {
+                            debugLogger.log('OAuth success in popup, sending code to parent');
+                            window.opener.postMessage({ 
+                                type: 'GOOGLE_AUTH_SUCCESS', 
+                                code: code,
+                                state: state
+                            }, window.location.origin);
+                        }
+                        
+                        setTimeout(() => {
+                            window.close();
+                        }, 100);
+                        
+                    } catch (postMessageError) {
+                        debugLogger.log(`Error sending OAuth result: ${postMessageError.message}`, 'error');
+                        window.close();
+                    }
+                } else {
+                    debugLogger.log('OAuth callback in main window');
+                    
+                    if (error) {
+                        debugLogger.log(`OAuth error in main window: ${error}`, 'error');
+                        utils.showToast(`Authentication error: ${error}`, 'error');
+                    } else if (code) {
+                        debugLogger.log('OAuth code received in main window, processing...');
+                    }
+                }
+            }
+        })();
+        
+        // ===== App Entry Point =====
+        document.addEventListener('DOMContentLoaded', initApp);
+        
+        // Hide version logger after 8 seconds
+        setTimeout(() => {
+            const logger = document.getElementById('version-logger');
+            if (logger) {
+                logger.style.opacity = '0';
+                setTimeout(() => logger.style.display = 'none', 500);
+            }
+        }, 8000);
+        
+        // Setup details modal events
+        document.addEventListener('DOMContentLoaded', function() {
+            elements.detailsButton.addEventListener('click', () => {
+                debugLogger.log('Details button clicked');
+                detailsModal.show();
+            });
+            
+            elements.detailsClose.addEventListener('click', () => detailsModal.hide());
+            
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.addEventListener('click', () => detailsModal.switchTab(btn.dataset.tab));
+            });
+        });
+    </script>
+</body>
+</html>
