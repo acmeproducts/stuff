@@ -131,14 +131,14 @@
         
         @keyframes spin { to { transform: rotate(360deg); } }
         
-        .folder-actions { display: flex; gap: 12px; }
+        .folder-actions { display: flex; gap: 8px; }
         
         .folder-button {
-            flex: 1; padding: 12px 24px;
+            flex: 1; padding: 12px 16px;
             border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 12px;
             background: rgba(255, 255, 255, 0.1); color: white;
             font-size: 14px; cursor: pointer; transition: all 0.2s ease;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px); min-width: 0;
         }
         
         .folder-button:hover {
@@ -173,9 +173,9 @@
         
         /* ===== Main App ===== */
         .app-container {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            position: relative; width: 100vw; height: 100vh;
             background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
-            overflow: hidden; z-index: 1;
+            overflow: hidden;
         }
         
         .nav-button {
@@ -206,28 +206,27 @@
         .center-image.zoomable { pointer-events: auto; }
         
         .edge-glow {
-            position: fixed; opacity: 0; transition: opacity 0.2s ease; z-index: 20;
-            pointer-events: none;
+            position: absolute; opacity: 0; transition: opacity 0.2s ease; z-index: 2;
         }
         
         .edge-glow.top {
-            top: 0; left: 0; right: 0; height: 12px;
-            background: linear-gradient(180deg, rgba(245, 158, 11, 0.6) 0%, transparent 100%);
+            top: 0; left: 0; right: 0; height: 8px;
+            background: linear-gradient(180deg, rgba(245, 158, 11, 0.4) 0%, transparent 100%);
         }
         
         .edge-glow.bottom {
-            bottom: 0; left: 0; right: 0; height: 12px;
-            background: linear-gradient(0deg, rgba(245, 158, 11, 0.6) 0%, transparent 100%);
+            bottom: 0; left: 0; right: 0; height: 8px;
+            background: linear-gradient(0deg, rgba(245, 158, 11, 0.4) 0%, transparent 100%);
         }
         
         .edge-glow.left {
-            top: 0; left: 0; bottom: 0; width: 12px;
-            background: linear-gradient(90deg, rgba(245, 158, 11, 0.6) 0%, transparent 100%);
+            top: 0; left: 0; bottom: 0; width: 8px;
+            background: linear-gradient(90deg, rgba(245, 158, 11, 0.4) 0%, transparent 100%);
         }
         
         .edge-glow.right {
-            top: 0; right: 0; bottom: 0; width: 12px;
-            background: linear-gradient(270deg, rgba(245, 158, 11, 0.6) 0%, transparent 100%);
+            top: 0; right: 0; bottom: 0; width: 8px;
+            background: linear-gradient(270deg, rgba(245, 158, 11, 0.4) 0%, transparent 100%);
         }
         
         .edge-glow.active { opacity: 1; }
@@ -635,21 +634,6 @@
         .toast.info { background: rgba(59, 130, 246, 0.9); }
         .toast.error { background: rgba(239, 68, 68, 0.9); }
         
-        /* ===== Status Indicator for Tablets ===== */
-        .status-indicator {
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8); color: white; padding: 8px 16px;
-            border-radius: 20px; font-size: 12px; font-weight: 500; z-index: 1000;
-            opacity: 0; transition: opacity 0.3s ease; backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2); max-width: 90vw; text-align: center;
-        }
-        
-        .status-indicator.show { opacity: 0.9; }
-        .status-indicator.success { background: rgba(16, 185, 129, 0.9); border-color: rgba(16, 185, 129, 0.3); }
-        .status-indicator.info { background: rgba(59, 130, 246, 0.9); border-color: rgba(59, 130, 246, 0.3); }
-        .status-indicator.error { background: rgba(239, 68, 68, 0.9); border-color: rgba(239, 68, 68, 0.3); }
-        .status-indicator.warning { background: rgba(245, 158, 11, 0.9); border-color: rgba(245, 158, 11, 0.3); }
-        
         .hidden { display: none !important; }
         
         @media screen and (min-width: 768px) {
@@ -660,439 +644,7 @@
         
         @media screen and (max-width: 767px) {
             .nav-button { font-size: 16px; padding: 12px 20px; border-radius: 25px; min-width: 80px; }
-            .pill-counter.bottom { bottom: 100px; }
-            .status-indicator { top: 15px; font-size: 11px; padding: 6px 12px; }
-            
-            /* Ensure full viewport coverage on mobile */
-            .app-container { 
-                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-                height: 100vh; height: 100dvh; /* Use dynamic viewport height */
-            },
-            
-            // Cache management utilities
-            async getCacheStatistics() {
-                if (!appState.db) return {};
-                try {
-                    const stats = {
-                        thumbnails: 0,
-                        metadata: {},
-                        fileData: {},
-                        totalSize: 0
-                    };
-        
-        // ===== Cache Manager =====
-        const cacheManagerUI = {
-            currentFolders: [],
-            
-            async show() {
-                elements.cacheManagerModal.classList.remove('hidden');
-                await this.refreshStats();
-            },
-            
-            hide() {
-                elements.cacheManagerModal.classList.add('hidden');
-            },
-            
-            async refreshStats() {
-                elements.cacheStatsContent.textContent = 'Loading cache statistics...';
-                elements.folderCacheList.innerHTML = 'Loading folder cache data...';
-                
-                try {
-                    const stats = await cacheManager.getCacheStatistics();
-                    
-                    // Display general stats
-                    let statsText = `Thumbnails: ${stats.thumbnails || 0}\n`;
-                    statsText += `Total Folders with Metadata: ${Object.keys(stats.metadata || {}).length}\n`;
-                    statsText += `Total Folders with File Data: ${Object.keys(stats.fileData || {}).length}\n`;
-                    
-                    elements.cacheStatsContent.textContent = statsText;
-                    
-                    // Get folder info
-                    const folders = await appState.cloudStorage.getFolders();
-                    this.currentFolders = folders;
-                    
-                    // Display folder-specific cache info
-                    let folderHtml = '';
-                    folders.forEach(folder => {
-                        const metadataCount = stats.metadata[folder.id] || 0;
-                        const fileDataCount = stats.fileData[folder.id] || 0;
-                        const hasCache = metadataCount > 0 || fileDataCount > 0;
-                        
-                        folderHtml += `
-                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 8px; background: ${hasCache ? '#f0fdf4' : '#f9fafb'};">
-                                <div style="flex: 1;">
-                                    <div style="font-weight: 500; color: #374151;">${folder.name}</div>
-                                    <div style="font-size: 12px; color: #6b7280;">
-                                        Metadata: ${metadataCount} | File Data: ${fileDataCount}
-                                    </div>
-                                </div>
-                                <div style="display: flex; gap: 4px;">
-                                    ${hasCache ? `
-                                        <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="window.cacheManagerUI.clearFolderCache('${folder.id}', '${folder.name}')">Clear</button>
-                                        <button class="btn btn-primary" style="font-size: 11px; padding: 4px 8px;" onclick="window.cacheManagerUI.exportFolderData('${folder.id}', '${folder.name}')">Export</button>
-                                    ` : `
-                                        <span style="font-size: 11px; color: #9ca3af;">No cache</span>
-                                    `}
-                                </div>
-                            </div>
-                        `;
-                    });
-                    
-                    elements.folderCacheList.innerHTML = folderHtml || '<div style="color: #6b7280; font-style: italic;">No cached folders found</div>';
-                    
-                } catch (error) {
-                    console.error('Error refreshing cache stats:', error);
-                    elements.cacheStatsContent.textContent = 'Error loading cache statistics';
-                    elements.folderCacheList.innerHTML = 'Error loading folder cache data';
-                    utils.showStatus('Failed to load cache stats', 'error');
-                }
-            },
-            
-            async clearFolderCache(folderId, folderName) {
-                if (!confirm(`Clear all cache data for "${folderName}"?\n\nThis will remove:\n• Metadata\n• File organization (stacks, tags, notes)\n• The folder will be re-indexed next time you select it.`)) {
-                    return;
-                }
-                
-                utils.showStatus(`Clearing cache for ${folderName}...`, 'info');
-                
-                try {
-                    const success = await cacheManager.clearFolderCache(folderId);
-                    if (success) {
-                        utils.showStatus(`Cache cleared for ${folderName}`, 'success');
-                        await this.refreshStats();
-                    } else {
-                        utils.showStatus('Failed to clear folder cache', 'error');
-                    }
-                } catch (error) {
-                    console.error('Error clearing folder cache:', error);
-                    utils.showStatus('Error clearing folder cache', 'error');
-                }
-            },
-            
-            async exportFolderData(folderId, folderName) {
-                utils.showStatus(`Exporting data for ${folderName}...`, 'info');
-                
-                try {
-                    const allData = await cacheManager.exportAllData();
-                    if (!allData) {
-                        utils.showStatus('Failed to export data', 'error');
-                        return;
-                    }
-                    
-                    // Filter data for this folder only
-                    const folderData = {
-                        timestamp: allData.timestamp,
-                        version: allData.version,
-                        folderId: folderId,
-                        folderName: folderName,
-                        metadata: allData.metadata.filter(item => item.folderId === folderId),
-                        fileData: allData.fileData.filter(item => item.folderId === folderId),
-                        thumbnails: [] // Don't export thumbnails for folder-specific exports
-                    };
-                    
-                    const blob = new Blob([JSON.stringify(folderData, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `orbital8-${folderName.replace(/[^a-zA-Z0-9]/g, '_')}-${new Date().toISOString().split('T')[0]}.json`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    
-                    utils.showStatus(`Exported data for ${folderName}`, 'success');
-                } catch (error) {
-                    console.error('Error exporting folder data:', error);
-                    utils.showStatus('Failed to export folder data', 'error');
-                }
-            },
-            
-            async clearAllCache() {
-                if (!confirm('Clear ALL cache data?\n\nThis will remove:\n• All thumbnails\n• All metadata\n• All file organization data\n\nEverything will be re-indexed when you next visit folders.')) {
-                    return;
-                }
-                
-                utils.showStatus('Clearing all cache...', 'info');
-                
-                try {
-                    const success = await cacheManager.clearAllCache();
-                    if (success) {
-                        utils.showStatus('All cache cleared', 'success');
-                        await this.refreshStats();
-                    } else {
-                        utils.showStatus('Failed to clear cache', 'error');
-                    }
-                } catch (error) {
-                    console.error('Error clearing all cache:', error);
-                    utils.showStatus('Error clearing cache', 'error');
-                }
-            },
-            
-            async clearThumbnailsOnly() {
-                if (!confirm('Clear thumbnail cache?\n\nThis will remove all cached thumbnail images but keep your organization data (stacks, tags, notes).')) {
-                    return;
-                }
-                
-                utils.showStatus('Clearing thumbnails...', 'info');
-                
-                try {
-                    const success = await cacheManager.clearThumbnailsOnly();
-                    if (success) {
-                        utils.showStatus('Thumbnails cleared', 'success');
-                        await this.refreshStats();
-                    } else {
-                        utils.showStatus('Failed to clear thumbnails', 'error');
-                    }
-                } catch (error) {
-                    console.error('Error clearing thumbnails:', error);
-                    utils.showStatus('Error clearing thumbnails', 'error');
-                }
-            },
-            
-            async exportAllData() {
-                utils.showStatus('Exporting all data...', 'info');
-                
-                try {
-                    const data = await cacheManager.exportAllData();
-                    if (!data) {
-                        utils.showStatus('Failed to export data', 'error');
-                        return;
-                    }
-                    
-                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `orbital8-full-backup-${new Date().toISOString().split('T')[0]}.json`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    
-                    utils.showStatus('Data exported successfully', 'success');
-                } catch (error) {
-                    console.error('Error exporting data:', error);
-                    utils.showStatus('Failed to export data', 'error');
-                }
-            },
-            
-            async importData() {
-                const file = elements.importFile.files[0];
-                if (!file) {
-                    utils.showStatus('Please select a file to import', 'warning');
-                    return;
-                }
-                
-                utils.showStatus('Importing data...', 'info');
-                
-                try {
-                    const text = await file.text();
-                    const data = JSON.parse(text);
-                    
-                    const success = await cacheManager.importData(data);
-                    if (success) {
-                        utils.showStatus('Data imported successfully', 'success');
-                        await this.refreshStats();
-                        elements.importFile.value = '';
-                    } else {
-                        utils.showStatus('Failed to import data', 'error');
-                    }
-                } catch (error) {
-                    console.error('Error importing data:', error);
-                    utils.showStatus('Invalid file or import failed', 'error');
-                }
-            }
-        };
-        
-        // Make cache manager globally accessible for onclick handlers
-        window.cacheManagerUI = cacheManagerUI;
-                    
-                    // Get thumbnail count
-                    const thumbnailTransaction = appState.db.transaction(['thumbnails'], 'readonly');
-                    const thumbnailStore = thumbnailTransaction.objectStore('thumbnails');
-                    const thumbnailRequest = thumbnailStore.getAll();
-                    const thumbnails = await this.promisifyRequest(thumbnailRequest);
-                    stats.thumbnails = thumbnails.length;
-                    
-                    // Get metadata by folder
-                    const metadataTransaction = appState.db.transaction(['metadata'], 'readonly');
-                    const metadataStore = metadataTransaction.objectStore('metadata');
-                    const metadataRequest = metadataStore.getAll();
-                    const metadata = await this.promisifyRequest(metadataRequest);
-                    
-                    metadata.forEach(item => {
-                        if (!stats.metadata[item.folderId]) {
-                            stats.metadata[item.folderId] = 0;
-                        }
-                        stats.metadata[item.folderId]++;
-                    });
-                    
-                    // Get file data by folder
-                    const fileDataTransaction = appState.db.transaction(['fileData'], 'readonly');
-                    const fileDataStore = fileDataTransaction.objectStore('fileData');
-                    const fileDataRequest = fileDataStore.getAll();
-                    const fileData = await this.promisifyRequest(fileDataRequest);
-                    
-                    fileData.forEach(item => {
-                        if (!stats.fileData[item.folderId]) {
-                            stats.fileData[item.folderId] = 0;
-                        }
-                        stats.fileData[item.folderId]++;
-                    });
-                    
-                    return stats;
-                } catch (error) {
-                    console.error('Failed to get cache statistics:', error);
-                    return {};
-                }
-            },
-            
-            async clearFolderCache(folderId) {
-                if (!appState.db) return false;
-                try {
-                    // Clear metadata for folder
-                    const metadataTransaction = appState.db.transaction(['metadata'], 'readwrite');
-                    const metadataStore = metadataTransaction.objectStore('metadata');
-                    const metadataIndex = metadataStore.index('folderId');
-                    const metadataRequest = metadataIndex.getAll(folderId);
-                    const metadataResults = await this.promisifyRequest(metadataRequest);
-                    
-                    for (const item of metadataResults) {
-                        await this.promisifyRequest(metadataStore.delete(item.fileId));
-                    }
-                    
-                    // Clear file data for folder
-                    const fileDataTransaction = appState.db.transaction(['fileData'], 'readwrite');
-                    const fileDataStore = fileDataTransaction.objectStore('fileData');
-                    const fileDataIndex = fileDataStore.index('folderId');
-                    const fileDataRequest = fileDataIndex.getAll(folderId);
-                    const fileDataResults = await this.promisifyRequest(fileDataRequest);
-                    
-                    for (const item of fileDataResults) {
-                        await this.promisifyRequest(fileDataStore.delete(item.fileId));
-                    }
-                    
-                    console.log(`Cleared cache for folder ${folderId}`);
-                    return true;
-                } catch (error) {
-                    console.error('Failed to clear folder cache:', error);
-                    return false;
-                }
-            },
-            
-            async clearAllCache() {
-                if (!appState.db) return false;
-                try {
-                    const storeNames = ['thumbnails', 'metadata', 'fileData'];
-                    
-                    for (const storeName of storeNames) {
-                        const transaction = appState.db.transaction([storeName], 'readwrite');
-                        const store = transaction.objectStore(storeName);
-                        await this.promisifyRequest(store.clear());
-                    }
-                    
-                    console.log('Cleared all cache data');
-                    return true;
-                } catch (error) {
-                    console.error('Failed to clear all cache:', error);
-                    return false;
-                }
-            },
-            
-            async clearThumbnailsOnly() {
-                if (!appState.db) return false;
-                try {
-                    const transaction = appState.db.transaction(['thumbnails'], 'readwrite');
-                    const store = transaction.objectStore('thumbnails');
-                    await this.promisifyRequest(store.clear());
-                    
-                    console.log('Cleared thumbnail cache');
-                    return true;
-                } catch (error) {
-                    console.error('Failed to clear thumbnails:', error);
-                    return false;
-                }
-            },
-            
-            async exportAllData() {
-                if (!appState.db) return null;
-                try {
-                    const exportData = {
-                        timestamp: Date.now(),
-                        version: 1,
-                        thumbnails: [],
-                        metadata: [],
-                        fileData: []
-                    };
-                    
-                    // Export thumbnails
-                    const thumbnailTransaction = appState.db.transaction(['thumbnails'], 'readonly');
-                    const thumbnailStore = thumbnailTransaction.objectStore('thumbnails');
-                    const thumbnailRequest = thumbnailStore.getAll();
-                    exportData.thumbnails = await this.promisifyRequest(thumbnailRequest);
-                    
-                    // Export metadata
-                    const metadataTransaction = appState.db.transaction(['metadata'], 'readonly');
-                    const metadataStore = metadataTransaction.objectStore('metadata');
-                    const metadataRequest = metadataStore.getAll();
-                    exportData.metadata = await this.promisifyRequest(metadataRequest);
-                    
-                    // Export file data
-                    const fileDataTransaction = appState.db.transaction(['fileData'], 'readonly');
-                    const fileDataStore = fileDataTransaction.objectStore('fileData');
-                    const fileDataRequest = fileDataStore.getAll();
-                    exportData.fileData = await this.promisifyRequest(fileDataRequest);
-                    
-                    return exportData;
-                } catch (error) {
-                    console.error('Failed to export data:', error);
-                    return null;
-                }
-            },
-            
-            async importData(importData) {
-                if (!appState.db || !importData) return false;
-                try {
-                    // Import thumbnails
-                    if (importData.thumbnails && Array.isArray(importData.thumbnails)) {
-                        const thumbnailTransaction = appState.db.transaction(['thumbnails'], 'readwrite');
-                        const thumbnailStore = thumbnailTransaction.objectStore('thumbnails');
-                        
-                        for (const item of importData.thumbnails) {
-                            await this.promisifyRequest(thumbnailStore.put(item));
-                        }
-                    }
-                    
-                    // Import metadata
-                    if (importData.metadata && Array.isArray(importData.metadata)) {
-                        const metadataTransaction = appState.db.transaction(['metadata'], 'readwrite');
-                        const metadataStore = metadataTransaction.objectStore('metadata');
-                        
-                        for (const item of importData.metadata) {
-                            await this.promisifyRequest(metadataStore.put(item));
-                        }
-                    }
-                    
-                    // Import file data
-                    if (importData.fileData && Array.isArray(importData.fileData)) {
-                        const fileDataTransaction = appState.db.transaction(['fileData'], 'readwrite');
-                        const fileDataStore = fileDataTransaction.objectStore('fileData');
-                        
-                        for (const item of importData.fileData) {
-                            await this.promisifyRequest(fileDataStore.put(item));
-                        }
-                    }
-                    
-                    console.log('Successfully imported data');
-                    return true;
-                } catch (error) {
-                    console.error('Failed to import data:', error);
-                    return false;
-                }
-            }
-            
-            .edge-glow { position: fixed; }
-            .edge-glow.bottom { bottom: 0; }
+            .pill-counter.bottom { bottom: 80px; }
         }
     </style>
 </head>
@@ -1123,7 +675,7 @@
             </div>
             <div class="folder-actions">
                 <button class="folder-button" id="refresh-folders">Refresh</button>
-                <button class="folder-button" id="cache-manager">Cache Manager</button>
+                <button class="folder-button" id="clear-cache">Clear Cache</button>
                 <button class="folder-button danger" id="logout">Disconnect</button>
             </div>
         </div>
@@ -1167,7 +719,6 @@
         </div>
         
         <div id="toast" class="toast"></div>
-        <div id="status-indicator" class="status-indicator"></div>
     </div>
     
     <!-- Grid Modal -->
@@ -1265,58 +816,6 @@
             <div class="action-buttons-row">
                 <button id="cancel-delete" class="btn btn-secondary">Cancel</button>
                 <button id="confirm-delete" class="btn btn-danger">Confirm</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Cache Manager Modal -->
-    <div id="cache-manager-modal" class="modal hidden">
-        <div class="modal-content" style="max-width: 600px; max-height: 90vh;">
-            <div class="modal-header">
-                <div class="modal-header-main">
-                    <h2 class="modal-title">Cache Manager</h2>
-                    <button id="close-cache-manager" class="close-btn">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            
-            <div style="padding: 20px; overflow-y: auto;">
-                <div class="cache-stats" style="margin-bottom: 20px;">
-                    <h3 style="color: #374151; margin-bottom: 12px;">Cache Statistics</h3>
-                    <div id="cache-stats-content" style="background: #f3f4f6; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 12px;">
-                        Loading cache statistics...
-                    </div>
-                </div>
-                
-                <div class="cache-actions" style="margin-bottom: 20px;">
-                    <h3 style="color: #374151; margin-bottom: 12px;">Cache Actions</h3>
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <button id="clear-all-cache" class="btn btn-danger" style="width: 100%;">Clear All Cache Data</button>
-                        <button id="clear-thumbnails" class="btn btn-secondary" style="width: 100%;">Clear Thumbnails Only</button>
-                        <button id="refresh-cache-stats" class="btn btn-secondary" style="width: 100%;">Refresh Statistics</button>
-                    </div>
-                </div>
-                
-                <div class="folder-cache-manager">
-                    <h3 style="color: #374151; margin-bottom: 12px;">Folder-Specific Actions</h3>
-                    <div id="folder-cache-list" style="max-height: 200px; overflow-y: auto;">
-                        Loading folder cache data...
-                    </div>
-                </div>
-                
-                <div class="import-export-section" style="margin-top: 20px;">
-                    <h3 style="color: #374151; margin-bottom: 12px;">Import/Export</h3>
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <button id="export-all-data" class="btn btn-primary" style="width: 100%;">Export All Data</button>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <input type="file" id="import-file" accept=".json" style="flex: 1;">
-                            <button id="import-data" class="btn btn-primary">Import</button>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
@@ -1441,36 +940,30 @@
             }
 
             async extractImageMetadata(arrayBuffer, mimeType, filename = '') {
-                console.log(`Starting metadata extraction for ${filename} (${mimeType})`);
                 const metadata = {};
-                
                 try {
                     if (mimeType === "image/png") {
                         Object.assign(metadata, this.extractPNGMetadata(arrayBuffer, filename));
                     } else {
-                        console.log(`Metadata extraction not supported for ${mimeType}`);
-                        return {};
+                        console.warn(`Metadata extraction not supported for ${mimeType}`);
                     }
                 } catch (error) {
-                    console.error(`Error extracting metadata for ${filename}:`, error);
-                    return {};
+                    console.error('Error extracting metadata:', error);
                 }
-                
-                console.log(`Metadata extraction complete for ${filename}: ${Object.keys(metadata).length} fields found`);
                 return metadata;
             }
 
             extractPNGMetadata(buffer, filename = '') {
-                console.log(`Extracting PNG metadata from ${filename} (${(buffer.byteLength / 1024).toFixed(1)}KB)`);
-                
                 const metadata = {};
                 const view = new DataView(buffer);
+                
+                console.log(`Extracting PNG metadata for ${filename}`);
                 
                 // PNG header validation
                 const expectedHeader = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
                 for (let i = 0; i < 8; i++) {
                     if (view.getUint8(i) !== expectedHeader[i]) {
-                        console.error(`Invalid PNG header in ${filename} at byte ${i}`);
+                        console.error(`Invalid PNG header in ${filename}`);
                         return {};
                     }
                 }
@@ -1478,15 +971,9 @@
                 let pos = 8; // Skip PNG header
                 let chunkCount = 0;
                 let textChunks = 0;
-                let metadataFound = 0;
                 
                 try {
                     while (pos < buffer.byteLength - 12) {
-                        if (pos + 8 >= buffer.byteLength) {
-                            console.log(`Reached end of file at position ${pos}`);
-                            break;
-                        }
-                        
                         chunkCount++;
                         const chunkLength = view.getUint32(pos, false); // Length is big-endian
                         pos += 4;
@@ -1498,23 +985,15 @@
                         }
                         pos += 4;
                         
-                        console.log(`Processing chunk ${chunkCount}: ${chunkType} (${chunkLength} bytes)`);
-                        
                         if (chunkLength > this.options.maxChunkSize) {
                             console.warn(`Skipping large chunk ${chunkType} (${chunkLength} bytes)`);
                             pos += chunkLength + 4; // Skip chunk data and CRC
                             continue;
                         }
                         
-                        if (pos + chunkLength + 4 > buffer.byteLength) {
-                            console.warn(`Chunk ${chunkType} extends beyond file bounds, stopping`);
-                            break;
-                        }
-                        
                         // Process tEXt chunks
                         if (chunkType === 'tEXt') {
                             textChunks++;
-                            console.log(`Processing tEXt chunk #${textChunks}`);
                             
                             try {
                                 // tEXt chunks: Keyword\0Value
@@ -1538,38 +1017,27 @@
                                 
                                 if (keyword && value) {
                                     metadata[keyword] = value;
-                                    metadataFound++;
-                                    console.log(`Found metadata: ${keyword} = ${value.length > 50 ? value.substring(0, 50) + '...' : value}`);
-                                } else {
-                                    console.warn(`Empty or malformed tEXt chunk: keyword="${keyword}", value="${value}"`);
                                 }
                             } catch (decodeError) {
-                                console.error(`Failed to decode tEXt chunk #${textChunks}:`, decodeError);
+                                console.error(`Failed to decode tEXt chunk: ${decodeError.message}`);
                             }
                         } else if (chunkType === 'IHDR') {
-                            console.log('Processing IHDR chunk for image dimensions');
                             // Extract dimensions from IHDR
                             const width = view.getUint32(pos, false);
                             const height = view.getUint32(pos + 4, false);
                             metadata['Width'] = width.toString();
                             metadata['Height'] = height.toString();
-                            metadataFound += 2;
-                            console.log(`Image dimensions: ${width}x${height}`);
                         }
                         
                         // Skip chunk data and CRC
                         pos += chunkLength + 4;
                     }
                 } catch (error) {
-                    console.error(`PNG parsing error at position ${pos}:`, error);
-                    console.error('Error stack:', error.stack);
+                    console.error(`PNG parsing error at position ${pos}: ${error.message}`);
                 }
                 
-                console.log(`PNG metadata extraction complete for ${filename}:`);
-                console.log(`- Processed ${chunkCount} chunks total`);
-                console.log(`- Found ${textChunks} tEXt chunks`);
-                console.log(`- Extracted ${metadataFound} metadata fields`);
-                console.log(`- Final metadata keys: ${Object.keys(metadata).join(', ')}`);
+                const metadataCount = Object.keys(metadata).length;
+                console.log(`Extraction complete - found ${metadataCount} metadata fields from ${textChunks} tEXt chunks`);
                 
                 return metadata;
             }
@@ -1957,6 +1425,14 @@
                 return arrayBuffer;
             }
             
+            async deleteFile(fileId) {
+                await this.makeApiCall(`/files/${fileId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ trashed: true })
+                });
+                return true;
+            }
+            
             async disconnect() {
                 super.disconnect();
                 this.accessToken = null;
@@ -1986,64 +1462,40 @@
         const cacheManager = {
             async init() {
                 return new Promise((resolve, reject) => {
-                    const request = indexedDB.open('Orbital8Cache', 3);
-                    request.onerror = () => {
-                        console.error('Failed to open IndexedDB:', request.error);
-                        reject(request.error);
-                    };
+                    const request = indexedDB.open('Orbital8Cache', 2);
+                    request.onerror = () => reject(request.error);
                     request.onsuccess = () => {
                         appState.db = request.result;
-                        console.log('IndexedDB initialized successfully');
                         resolve();
                     };
                     request.onupgradeneeded = (event) => {
                         const db = event.target.result;
-                        console.log('Upgrading IndexedDB schema...');
                         
-                        // Clear old stores if they exist
-                        ['thumbnails', 'metadata', 'fileData'].forEach(storeName => {
-                            if (db.objectStoreNames.contains(storeName)) {
-                                db.deleteObjectStore(storeName);
-                            }
-                        });
+                        if (!db.objectStoreNames.contains('thumbnails')) {
+                            db.createObjectStore('thumbnails', { keyPath: 'id' });
+                        }
                         
-                        // Create fresh stores
-                        db.createObjectStore('thumbnails', { keyPath: 'id' });
+                        if (!db.objectStoreNames.contains('metadata')) {
+                            const metadataStore = db.createObjectStore('metadata', { keyPath: 'fileId' });
+                            metadataStore.createIndex('folderId', 'folderId', { unique: false });
+                        }
                         
-                        const metadataStore = db.createObjectStore('metadata', { keyPath: 'fileId' });
-                        metadataStore.createIndex('folderId', 'folderId', { unique: false });
-                        
-                        const fileDataStore = db.createObjectStore('fileData', { keyPath: 'fileId' });
-                        fileDataStore.createIndex('folderId', 'folderId', { unique: false });
-                        
-                        console.log('IndexedDB schema upgrade complete');
+                        if (!db.objectStoreNames.contains('fileData')) {
+                            const fileDataStore = db.createObjectStore('fileData', { keyPath: 'fileId' });
+                            fileDataStore.createIndex('folderId', 'folderId', { unique: false });
+                        }
                     };
                 });
             },
             
-            // Helper to promisify IndexedDB requests
-            promisifyRequest(request) {
-                return new Promise((resolve, reject) => {
-                    request.onsuccess = () => resolve(request.result);
-                    request.onerror = () => reject(request.error);
-                });
-            },
-            
             async cacheThumbnail(fileId, url) {
-                if (!appState.db || !url) {
-                    console.warn('Cannot cache thumbnail - missing DB or URL');
-                    return false;
-                }
+                if (!appState.db) return;
                 try {
                     const transaction = appState.db.transaction(['thumbnails'], 'readwrite');
                     const store = transaction.objectStore('thumbnails');
-                    const request = store.put({ id: fileId, url, timestamp: Date.now() });
-                    await this.promisifyRequest(request);
-                    console.log(`Cached thumbnail for ${fileId}`);
-                    return true;
+                    await store.put({ id: fileId, url, timestamp: Date.now() });
                 } catch (error) {
-                    console.error('Failed to cache thumbnail:', error);
-                    return false;
+                    console.warn('Failed to cache thumbnail:', error);
                 }
             },
             
@@ -2052,50 +1504,34 @@
                 try {
                     const transaction = appState.db.transaction(['thumbnails'], 'readonly');
                     const store = transaction.objectStore('thumbnails');
-                    const request = store.get(fileId);
-                    const result = await this.promisifyRequest(request);
-                    
-                    if (result && (Date.now() - result.timestamp < 7 * 24 * 60 * 60 * 1000)) { // 7 days
-                        console.log(`Found cached thumbnail for ${fileId}`);
+                    const result = await store.get(fileId);
+                    if (result && (Date.now() - result.timestamp < 24 * 60 * 60 * 1000)) {
                         return result.url;
-                    } else if (result) {
-                        console.log(`Expired thumbnail cache for ${fileId}`);
-                        // Clean up expired thumbnail
-                        const deleteTransaction = appState.db.transaction(['thumbnails'], 'readwrite');
-                        const deleteStore = deleteTransaction.objectStore('thumbnails');
-                        deleteStore.delete(fileId);
                     }
                 } catch (error) {
-                    console.error('Failed to get cached thumbnail:', error);
+                    console.warn('Failed to get cached thumbnail:', error);
                 }
                 return null;
             },
             
             // Store file data (stack, tags, notes, ratings) per folder
             async storeFileData(folderId, fileId, data) {
-                if (!appState.db) {
-                    console.warn('Cannot store file data - DB not initialized');
-                    return false;
-                }
+                if (!appState.db) return;
                 try {
                     const transaction = appState.db.transaction(['fileData'], 'readwrite');
                     const store = transaction.objectStore('fileData');
-                    const request = store.put({
+                    await store.put({
                         fileId,
                         folderId,
                         stack: data.stack || 'in',
-                        tags: Array.isArray(data.tags) ? data.tags : [],
+                        tags: data.tags || [],
                         notes: data.notes || '',
                         qualityRating: data.qualityRating || 0,
                         contentRating: data.contentRating || 0,
                         timestamp: Date.now()
                     });
-                    await this.promisifyRequest(request);
-                    console.log(`Stored file data for ${fileId} in folder ${folderId}`);
-                    return true;
                 } catch (error) {
-                    console.error('Failed to store file data:', error);
-                    return false;
+                    console.warn('Failed to store file data:', error);
                 }
             },
             
@@ -2104,15 +1540,12 @@
                 try {
                     const transaction = appState.db.transaction(['fileData'], 'readonly');
                     const store = transaction.objectStore('fileData');
-                    const request = store.get(fileId);
-                    const result = await this.promisifyRequest(request);
-                    
+                    const result = await store.get(fileId);
                     if (result && result.folderId === folderId) {
-                        console.log(`Found cached file data for ${fileId}`);
                         return result;
                     }
                 } catch (error) {
-                    console.error('Failed to get file data:', error);
+                    console.warn('Failed to get file data:', error);
                 }
                 return null;
             },
@@ -2123,42 +1556,57 @@
                     const transaction = appState.db.transaction(['fileData'], 'readonly');
                     const store = transaction.objectStore('fileData');
                     const index = store.index('folderId');
-                    const request = index.getAll(folderId);
-                    const results = await this.promisifyRequest(request);
+                    const results = await index.getAll(folderId);
                     
                     const fileDataMap = {};
                     results.forEach(result => {
                         fileDataMap[result.fileId] = result;
                     });
-                    console.log(`Loaded ${results.length} cached file data entries for folder ${folderId}`);
                     return fileDataMap;
                 } catch (error) {
-                    console.error('Failed to get folder file data:', error);
+                    console.warn('Failed to get folder file data:', error);
                     return {};
+                }
+            },
+            
+            async clearAllCache() {
+                if (!appState.db) return false;
+                try {
+                    const transaction = appState.db.transaction(['thumbnails', 'metadata', 'fileData'], 'readwrite');
+                    const thumbnailStore = transaction.objectStore('thumbnails');
+                    const metadataStore = transaction.objectStore('metadata');
+                    const fileDataStore = transaction.objectStore('fileData');
+                    
+                    await Promise.all([
+                        thumbnailStore.clear(),
+                        metadataStore.clear(),
+                        fileDataStore.clear()
+                    ]);
+                    
+                    // Clear in-memory cache too
+                    appState.imageCache.clear();
+                    
+                    return true;
+                } catch (error) {
+                    console.warn('Failed to clear cache:', error);
+                    return false;
                 }
             },
             
             // Store extracted metadata per folder
             async storeMetadata(folderId, fileId, metadata) {
-                if (!appState.db || !metadata || Object.keys(metadata).length === 0) {
-                    console.warn('Cannot store metadata - missing DB or empty metadata');
-                    return false;
-                }
+                if (!appState.db) return;
                 try {
                     const transaction = appState.db.transaction(['metadata'], 'readwrite');
                     const store = transaction.objectStore('metadata');
-                    const request = store.put({
+                    await store.put({
                         fileId,
                         folderId,
                         metadata,
                         timestamp: Date.now()
                     });
-                    await this.promisifyRequest(request);
-                    console.log(`Stored metadata for ${fileId} (${Object.keys(metadata).length} fields)`);
-                    return true;
                 } catch (error) {
-                    console.error('Failed to store metadata:', error);
-                    return false;
+                    console.warn('Failed to store metadata:', error);
                 }
             },
             
@@ -2167,15 +1615,12 @@
                 try {
                     const transaction = appState.db.transaction(['metadata'], 'readonly');
                     const store = transaction.objectStore('metadata');
-                    const request = store.get(fileId);
-                    const result = await this.promisifyRequest(request);
-                    
+                    const result = await store.get(fileId);
                     if (result && result.folderId === folderId) {
-                        console.log(`Found cached metadata for ${fileId} (${Object.keys(result.metadata || {}).length} fields)`);
                         return result.metadata;
                     }
                 } catch (error) {
-                    console.error('Failed to get metadata:', error);
+                    console.warn('Failed to get metadata:', error);
                 }
                 return null;
             },
@@ -2186,17 +1631,15 @@
                     const transaction = appState.db.transaction(['metadata'], 'readonly');
                     const store = transaction.objectStore('metadata');
                     const index = store.index('folderId');
-                    const request = index.getAll(folderId);
-                    const results = await this.promisifyRequest(request);
+                    const results = await index.getAll(folderId);
                     
                     const metadataMap = {};
                     results.forEach(result => {
                         metadataMap[result.fileId] = result.metadata;
                     });
-                    console.log(`Loaded ${results.length} cached metadata entries for folder ${folderId}`);
                     return metadataMap;
                 } catch (error) {
-                    console.error('Failed to get folder metadata:', error);
+                    console.warn('Failed to get folder metadata:', error);
                     return {};
                 }
             }
@@ -2238,7 +1681,7 @@
             authStatus: document.getElementById('auth-status'),
             folderList: document.getElementById('folder-list'),
             refreshFolders: document.getElementById('refresh-folders'),
-            cacheManager: document.getElementById('cache-manager'),
+            clearCache: document.getElementById('clear-cache'),
             logout: document.getElementById('logout'),
             backButton: document.getElementById('back-button'),
             detailsButton: document.getElementById('details-button'),
@@ -2248,7 +1691,6 @@
             selectAnotherStackBtn: document.getElementById('select-another-stack-btn'),
             selectAnotherFolderBtn: document.getElementById('select-another-folder-btn'),
             toast: document.getElementById('toast'),
-            statusIndicator: document.getElementById('status-indicator'),
             loadingCounter: document.getElementById('loading-counter'),
             loadingMessage: document.getElementById('loading-message'),
             loadingProgressBar: document.getElementById('loading-progress-bar'),
@@ -2295,17 +1737,7 @@
             contentRating: document.getElementById('content-rating'),
             metadataTable: document.getElementById('metadata-table'),
             metadataTableBody: document.getElementById('metadata-table-body'),
-            noMetadataMessage: document.getElementById('no-metadata-message'),
-            cacheManagerModal: document.getElementById('cache-manager-modal'),
-            closeCacheManager: document.getElementById('close-cache-manager'),
-            cacheStatsContent: document.getElementById('cache-stats-content'),
-            clearAllCache: document.getElementById('clear-all-cache'),
-            clearThumbnails: document.getElementById('clear-thumbnails'),
-            refreshCacheStats: document.getElementById('refresh-cache-stats'),
-            folderCacheList: document.getElementById('folder-cache-list'),
-            exportAllData: document.getElementById('export-all-data'),
-            importFile: document.getElementById('import-file'),
-            importData: document.getElementById('import-data')
+            noMetadataMessage: document.getElementById('no-metadata-message')
         };
         
         // ===== Utility Functions =====
@@ -2337,13 +1769,6 @@
                 setTimeout(() => { toast.classList.remove('show'); }, 3000);
             },
             
-            showStatus: function(message, type = 'info', duration = 2000) {
-                const status = elements.statusIndicator;
-                status.textContent = message;
-                status.className = `status-indicator ${type} show`;
-                setTimeout(() => { status.classList.remove('show'); }, duration);
-            },
-            
             updateLoadingProgress: function(current, total) {
                 appState.loadingProgress = { current, total };
                 elements.loadingCounter.textContent = current;
@@ -2358,78 +1783,37 @@
             },
             
             setImageSrc: async function(img, file) {
-                // First check memory cache
                 let imageUrl = appState.imageCache.get(file.id);
                 
                 if (!imageUrl) {
-                    // Check IndexedDB cache
                     imageUrl = await cacheManager.getCachedThumbnail(file.id);
                     
                     if (!imageUrl) {
-                        // Generate new thumbnail URL
-                        console.log(`Generating new thumbnail URL for ${file.name}`);
-                        
-                        if (file.thumbnailLink) {
-                            // Use high quality thumbnail
-                            imageUrl = file.thumbnailLink.replace('=s220', '=s1000');
-                            console.log(`Using thumbnail URL: ${imageUrl}`);
-                        } else if (file.downloadUrl) {
-                            // Fallback to download URL
-                            imageUrl = file.downloadUrl;
-                            console.log(`Using download URL as fallback: ${imageUrl}`);
-                        } else {
-                            console.warn(`No valid URL found for ${file.name}`);
-                            imageUrl = null;
-                        }
+                        imageUrl = file.thumbnailLink ? file.thumbnailLink.replace('=s220', '=s1000') : file.downloadUrl;
                         
                         if (imageUrl) {
-                            // Cache in memory immediately
                             appState.imageCache.set(file.id, imageUrl);
-                            
-                            // Cache in IndexedDB (don't await to avoid blocking)
-                            cacheManager.cacheThumbnail(file.id, imageUrl).then(success => {
-                                if (success) {
-                                    console.log(`Successfully cached thumbnail for ${file.name}`);
-                                } else {
-                                    console.warn(`Failed to cache thumbnail for ${file.name}`);
-                                }
-                            });
+                            await cacheManager.cacheThumbnail(file.id, imageUrl);
                         }
                     } else {
-                        console.log(`Using cached thumbnail for ${file.name}`);
-                        // Cache in memory too
                         appState.imageCache.set(file.id, imageUrl);
                     }
                 }
                 
-                // Set the image source
                 if (imageUrl) {
                     img.src = imageUrl;
-                    img.alt = file.name || 'Image';
                 } else {
-                    console.warn(`No image URL available for ${file.name}, using placeholder`);
-                    img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Ctext x="75" y="75" text-anchor="middle" dominant-baseline="middle" fill="%239CA3AF" font-size="10"%3ENo Image%3C/text%3E%3C/svg%3E';
-                    img.alt = file.name || 'Image not available';
+                    img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
                 }
                 
+                img.alt = file.name || 'Image';
                 img.loading = 'lazy';
                 
                 return new Promise((resolve) => {
-                    img.onload = () => {
-                        console.log(`Successfully loaded image: ${file.name}`);
-                        resolve();
-                    };
-                    img.onerror = (error) => {
-                        console.error(`Failed to load image ${file.name}:`, error);
-                        // Try fallback URL if main URL fails
-                        if (img.src !== file.downloadUrl && file.downloadUrl) {
-                            console.log(`Trying fallback URL for ${file.name}`);
-                            img.src = file.downloadUrl;
-                        } else {
-                            // Use error placeholder
-                            img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23FEE2E2"/%3E%3Ctext x="75" y="70" text-anchor="middle" dominant-baseline="middle" fill="%23DC2626" font-size="10"%3ELoad Error%3C/text%3E%3Ctext x="75" y="85" text-anchor="middle" dominant-baseline="middle" fill="%23DC2626" font-size="8"%3E' + (file.name || 'Unknown') + '%3C/text%3E%3C/svg%3E';
-                            img.alt = 'Failed to load: ' + (file.name || 'Unknown');
-                        }
+                    img.onload = () => resolve();
+                    img.onerror = () => {
+                        img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
+                        img.alt = 'Image not available';
                         resolve();
                     };
                 });
@@ -2557,8 +1941,6 @@
                 appState.currentFolder.id = folder.id;
                 appState.currentFolder.name = folder.name;
                 
-                console.log(`Starting folder selection: ${folder.name} (${folder.id})`);
-                
                 utils.showScreen('loading-screen');
                 utils.updateLoadingProgress(0, 0);
                 
@@ -2576,22 +1958,14 @@
                     }
                     
                     console.log(`Found ${files.length} image files to process`);
-                    
-                    // Show initial file count
                     utils.updateLoadingProgress(files.length, files.length);
-                    elements.loadingMessage.textContent = 'Loading cached data...';
+                    elements.loadingMessage.textContent = 'Loading cached data and extracting metadata...';
                     
                     // Load cached data for this folder
-                    console.log('Loading cached data from IndexedDB...');
                     const [allFileData, allMetadata] = await Promise.all([
                         cacheManager.getAllFileDataForFolder(folder.id),
                         cacheManager.getAllMetadataForFolder(folder.id)
                     ]);
-                    
-                    console.log(`Loaded ${Object.keys(allFileData).length} file data entries from cache`);
-                    console.log(`Loaded ${Object.keys(allMetadata).length} metadata entries from cache`);
-                    
-                    elements.loadingMessage.textContent = 'Processing images and extracting metadata...';
                     
                     // Process files
                     appState.imageFiles = [];
@@ -2599,11 +1973,10 @@
                     let extractedCount = 0;
                     let loadedCount = 0;
                     let skippedCount = 0;
-                    let errorCount = 0;
                     
                     for (let i = 0; i < files.length; i++) {
                         const file = files[i];
-                        console.log(`\n=== Processing file ${i + 1}/${files.length}: ${file.name} ===`);
+                        console.log(`Processing file ${i + 1}/${files.length}: ${file.name}`);
                         
                         // Get cached data
                         const cachedFileData = allFileData[file.id];
@@ -2623,13 +1996,11 @@
                             extractedMetadata: cachedMetadata || {},
                             // Local data stored in IndexedDB
                             stack: cachedFileData?.stack || 'in',
-                            tags: Array.isArray(cachedFileData?.tags) ? cachedFileData.tags : [],
+                            tags: cachedFileData?.tags || [],
                             qualityRating: cachedFileData?.qualityRating || 0,
                             contentRating: cachedFileData?.contentRating || 0,
                             notes: cachedFileData?.notes || ''
                         };
-                        
-                        console.log(`File data - Stack: ${imageFile.stack}, Tags: ${imageFile.tags.length}, Metadata: ${Object.keys(imageFile.extractedMetadata).length} fields`);
                         
                         appState.imageFiles.push(imageFile);
                         
@@ -2637,69 +2008,53 @@
                         utils.updateLoadingProgress(processedCount + 1, files.length);
                         
                         try {
-                            if (cachedMetadata && Object.keys(cachedMetadata).length > 0) {
+                            if (cachedMetadata) {
                                 loadedCount++;
-                                console.log(`✓ Using cached metadata (${Object.keys(cachedMetadata).length} fields)`);
+                                console.log(`Loaded existing metadata from cache (${Object.keys(cachedMetadata).length} fields)`);
                             } else if (file.mimeType === 'image/png') {
                                 extractedCount++;
-                                console.log(`→ Extracting NEW metadata from PNG file...`);
+                                console.log(`Extracting NEW metadata from PNG file`);
                                 
                                 try {
                                     // Download the actual file content for metadata extraction
-                                    console.log('Downloading file content for metadata extraction...');
                                     const arrayBuffer = await appState.cloudStorage.currentProvider.downloadFileContent(file.id, file.name);
                                     
-                                    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-                                        console.error('Downloaded file is empty or invalid');
-                                        throw new Error('Downloaded file is empty');
-                                    }
-                                    
                                     // Extract metadata using the enhanced extractor
-                                    console.log('Extracting metadata from downloaded content...');
                                     const metadata = await appState.metadataExtractor.extractImageMetadata(arrayBuffer, file.mimeType, file.name);
                                     
                                     if (Object.keys(metadata).length > 0) {
                                         imageFile.extractedMetadata = metadata;
                                         
                                         // Store in IndexedDB
-                                        console.log('Saving extracted metadata to IndexedDB...');
-                                        const saveSuccess = await cacheManager.storeMetadata(folder.id, file.id, metadata);
+                                        await cacheManager.storeMetadata(folder.id, file.id, metadata);
                                         
-                                        if (saveSuccess) {
-                                            console.log(`✓ Extracted and stored ${Object.keys(metadata).length} metadata fields`);
-                                        } else {
-                                            console.warn('Failed to save metadata to IndexedDB');
-                                        }
+                                        console.log(`Extracted and stored ${Object.keys(metadata).length} metadata fields`);
                                     } else {
-                                        console.log(`ⓘ No extractable metadata found in PNG`);
+                                        console.log(`No extractable metadata found in PNG`);
                                     }
-                                } catch (extractError) {
-                                    errorCount++;
-                                    console.error(`✗ Failed to extract metadata: ${extractError.message}`);
-                                    console.error('Extract error details:', extractError);
+                                } catch (error) {
+                                    console.error(`Failed to extract metadata: ${error.message}`);
                                 }
                             } else {
                                 skippedCount++;
-                                console.log(`⚬ Skipping non-PNG file (${file.mimeType})`);
+                                console.log(`Skipping non-PNG file (${file.mimeType})`);
                             }
                         } catch (error) {
-                            errorCount++;
-                            console.error(`✗ Processing failed: ${error.message}`);
-                            console.error('Processing error details:', error);
+                            console.error(`Processing failed: ${error.message}`);
                         }
                         
                         processedCount++;
-                        elements.loadingMessage.textContent = `Processing ${processedCount}/${files.length} (${loadedCount} cached, ${extractedCount} extracted, ${skippedCount} skipped, ${errorCount} errors)`;
+                        elements.loadingMessage.textContent = `Processing ${processedCount}/${files.length} (${loadedCount} cached, ${extractedCount} extracted, ${skippedCount} skipped)`;
                     }
                     
                     // Organize into stacks
-                    console.log(`\n=== Organizing ${appState.imageFiles.length} files into stacks ===`);
+                    console.log(`Organizing ${appState.imageFiles.length} files into stacks`);
                     stackManager.updateStacks();
                     appState.currentImageIndex = 0;
                     appState.currentStack = 'in';
                     
                     // Background caching
-                    elements.loadingMessage.textContent = 'Finalizing and caching thumbnails...';
+                    elements.loadingMessage.textContent = 'Finalizing...';
                     this.backgroundCacheImages().then(() => {
                         console.log('Background caching complete');
                     });
@@ -2710,33 +2065,19 @@
                         updateActiveProxTab();
                         
                         const totalProcessed = loadedCount + extractedCount;
-                        console.log(`\n=== Loading Summary ===`);
-                        console.log(`Total files: ${files.length}`);
-                        console.log(`Processed: ${totalProcessed}`);
-                        console.log(`From cache: ${loadedCount}`);
-                        console.log(`New extractions: ${extractedCount}`);
-                        console.log(`Skipped: ${skippedCount}`);
-                        console.log(`Errors: ${errorCount}`);
+                        console.log(`Loading complete - ${totalProcessed} files processed (${extractedCount} new extractions, ${loadedCount} from cache, ${skippedCount} skipped)`);
                         
-                        let toastMessage = `Loaded ${files.length} images`;
                         if (extractedCount > 0 && loadedCount > 0) {
-                            toastMessage += ` (${extractedCount} new, ${loadedCount} cached)`;
+                            utils.showToast(`Loaded ${files.length} images (${extractedCount} new extractions, ${loadedCount} cached)`);
                         } else if (extractedCount > 0) {
-                            toastMessage += ` with new metadata extraction`;
-                        } else if (loadedCount > 0) {
-                            toastMessage += ` from cached data`;
+                            utils.showToast(`Loaded ${files.length} images with new metadata extraction`);
+                        } else {
+                            utils.showToast(`Loaded ${files.length} images from cached data`);
                         }
-                        
-                        if (errorCount > 0) {
-                            toastMessage += ` - ${errorCount} errors occurred`;
-                        }
-                        
-                        utils.showToast(toastMessage, errorCount > 0 ? 'info' : 'success');
                     }, 500);
                     
                 } catch (error) {
                     console.error('Error loading folder:', error);
-                    console.error('Error stack:', error.stack);
                     utils.showToast('Error loading images from folder', 'error');
                     setTimeout(() => utils.showScreen('folder-screen'), 2000);
                 }
@@ -2845,102 +2186,62 @@
             
             moveFileToStack: async function(fileId, targetStack) {
                 const file = appState.imageFiles.find(f => f.id === fileId);
-                if (!file) {
-                    console.error(`File not found: ${fileId}`);
-                    utils.showStatus('File not found', 'error');
-                    return Promise.reject(new Error('File not found'));
-                }
+                if (!file) return Promise.reject(new Error('File not found'));
                 
                 const currentStack = file.stack;
-                console.log(`Moving file ${file.name} from ${currentStack} to ${targetStack}`);
                 
                 if (currentStack === targetStack) {
-                    console.log(`File already in target stack ${targetStack}`);
                     return Promise.resolve(file);
                 }
                 
                 try {
-                    // Show status for tablet users
-                    utils.showStatus(`Moving to ${targetStack}...`, 'info', 1000);
-                    
-                    // Update local data first
+                    // Update local data
                     const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
                     if (currentStackIndex !== -1) {
                         appState.stacks[currentStack].splice(currentStackIndex, 1);
-                        console.log(`Removed from ${currentStack} stack`);
                     }
                     appState.stacks[targetStack].unshift(file);
                     file.stack = targetStack;
-                    console.log(`Added to ${targetStack} stack`);
                     
                     // Store in IndexedDB
-                    const saveSuccess = await cacheManager.storeFileData(appState.currentFolder.id, fileId, {
+                    await cacheManager.storeFileData(appState.currentFolder.id, fileId, {
                         stack: targetStack,
-                        tags: file.tags || [],
-                        notes: file.notes || '',
-                        qualityRating: file.qualityRating || 0,
-                        contentRating: file.contentRating || 0
+                        tags: file.tags,
+                        notes: file.notes,
+                        qualityRating: file.qualityRating,
+                        contentRating: file.contentRating
                     });
-                    
-                    if (!saveSuccess) {
-                        console.error('Failed to save file data to IndexedDB');
-                        utils.showToast('Warning: Changes may not be saved', 'error');
-                        utils.showStatus('Save failed!', 'error');
-                    } else {
-                        console.log(`Successfully saved file data for ${file.name}`);
-                        utils.showStatus(`Moved to ${targetStack}`, 'success', 1500);
-                    }
                     
                     this.updateCounts();
                     return Promise.resolve(file);
                 } catch (error) {
                     console.error('Error moving file:', error);
-                    utils.showStatus('Move failed!', 'error');
                     return Promise.reject(error);
                 }
             },
             
             addTagsToFile: async function(fileId, tags) {
                 const file = appState.imageFiles.find(f => f.id === fileId);
-                if (!file) {
-                    console.error(`File not found: ${fileId}`);
-                    utils.showStatus('File not found', 'error');
-                    return Promise.reject(new Error('File not found'));
-                }
+                if (!file) return Promise.reject(new Error('File not found'));
                 
-                console.log(`Adding tags to ${file.name}: ${tags.join(', ')}`);
-                utils.showStatus('Adding tags...', 'info', 1000);
-                
-                const currentTags = Array.isArray(file.tags) ? file.tags : [];
+                const currentTags = file.tags || [];
                 const newTags = [...new Set([...currentTags, ...tags])];
                 
                 tags.forEach(tag => appState.tags.add(tag));
                 
                 file.tags = newTags;
-                console.log(`Updated tags for ${file.name}: ${newTags.join(', ')}`);
                 
                 try {
-                    const saveSuccess = await cacheManager.storeFileData(appState.currentFolder.id, fileId, {
-                        stack: file.stack || 'in',
+                    await cacheManager.storeFileData(appState.currentFolder.id, fileId, {
+                        stack: file.stack,
                         tags: newTags,
-                        notes: file.notes || '',
-                        qualityRating: file.qualityRating || 0,
-                        contentRating: file.contentRating || 0
+                        notes: file.notes,
+                        qualityRating: file.qualityRating,
+                        contentRating: file.contentRating
                     });
-                    
-                    if (!saveSuccess) {
-                        console.error('Failed to save tag data to IndexedDB');
-                        utils.showToast('Warning: Tags may not be saved', 'error');
-                        utils.showStatus('Tag save failed!', 'error');
-                    } else {
-                        console.log(`Successfully saved tags for ${file.name}`);
-                        utils.showStatus('Tags saved', 'success');
-                    }
-                    
                     return Promise.resolve(newTags);
                 } catch (error) {
                     console.error('Error saving tags:', error);
-                    utils.showStatus('Tag save failed!', 'error');
                     return Promise.reject(error);
                 }
             }
@@ -3150,6 +2451,11 @@
                     div.className = 'grid-item';
                     div.dataset.fileId = file.id;
                     
+                    // Check if this item should be selected
+                    if (appState.grid.selected.includes(file.id)) {
+                        div.classList.add('selected');
+                    }
+                    
                     const img = document.createElement('img');
                     img.className = 'grid-image';
                     
@@ -3179,6 +2485,9 @@
                     div.appendChild(img);
                     container.appendChild(div);
                 });
+                
+                // Update selection UI after populating
+                this.updateSelectionUI();
             },
             
             toggleSelection: function(e, fileId) {
@@ -3215,6 +2524,14 @@
                 
                 buttons.forEach(btn => {
                     if (btn) btn.classList.toggle('hidden', count === 0);
+                });
+                
+                // Update visual selection in grid
+                document.querySelectorAll('#grid-container .grid-item').forEach(item => {
+                    const fileId = item.dataset.fileId;
+                    if (fileId) {
+                        item.classList.toggle('selected', appState.grid.selected.includes(fileId));
+                    }
                 });
             },
             
@@ -3423,34 +2740,24 @@
             },
             
             removeTag: async function(file, tagToRemove) {
-                console.log(`Removing tag "${tagToRemove}" from ${file.name}`);
-                const currentTags = Array.isArray(file.tags) ? file.tags : [];
+                const currentTags = file.tags || [];
                 const newTags = currentTags.filter(tag => tag !== tagToRemove);
                 
                 file.tags = newTags;
-                console.log(`Updated tags for ${file.name}: ${newTags.join(', ')}`);
                 
                 try {
-                    const saveSuccess = await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
-                        stack: file.stack || 'in',
+                    await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
+                        stack: file.stack,
                         tags: newTags,
-                        notes: file.notes || '',
-                        qualityRating: file.qualityRating || 0,
-                        contentRating: file.contentRating || 0
+                        notes: file.notes,
+                        qualityRating: file.qualityRating,
+                        contentRating: file.contentRating
                     });
-                    
-                    if (saveSuccess) {
-                        this.populateTagsTab(file);
-                        utils.showToast(`Removed tag: ${tagToRemove}`);
-                        console.log(`Successfully removed tag "${tagToRemove}" from ${file.name}`);
-                    } else {
-                        throw new Error('Failed to save to IndexedDB');
-                    }
+                    this.populateTagsTab(file);
+                    utils.showToast(`Removed tag: ${tagToRemove}`);
                 } catch (error) {
                     console.error('Error removing tag:', error);
                     utils.showToast('Failed to remove tag', 'error');
-                    // Revert the change
-                    file.tags = currentTags;
                 }
             },
             
@@ -3462,25 +2769,17 @@
                 elements.detailNotes = newNotesTextarea;
                 
                 elements.detailNotes.addEventListener('blur', async () => {
-                    const newNotes = elements.detailNotes.value;
-                    console.log(`Saving notes for ${file.name}: "${newNotes}"`);
-                    file.notes = newNotes;
+                    file.notes = elements.detailNotes.value;
                     
                     try {
-                        const saveSuccess = await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
-                            stack: file.stack || 'in',
-                            tags: file.tags || [],
-                            notes: newNotes,
-                            qualityRating: file.qualityRating || 0,
-                            contentRating: file.contentRating || 0
+                        await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
+                            stack: file.stack,
+                            tags: file.tags,
+                            notes: file.notes,
+                            qualityRating: file.qualityRating,
+                            contentRating: file.contentRating
                         });
-                        
-                        if (saveSuccess) {
-                            utils.showToast('Notes saved');
-                            console.log(`Successfully saved notes for ${file.name}`);
-                        } else {
-                            throw new Error('Failed to save to IndexedDB');
-                        }
+                        utils.showToast('Notes saved');
                     } catch (error) {
                         console.error('Error saving notes:', error);
                         utils.showToast('Failed to save notes', 'error');
@@ -3488,24 +2787,17 @@
                 });
                 
                 this.setupStarRating(elements.qualityRating, file.qualityRating || 0, async (rating) => {
-                    console.log(`Setting quality rating for ${file.name}: ${rating}`);
                     file.qualityRating = rating;
                     
                     try {
-                        const saveSuccess = await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
-                            stack: file.stack || 'in',
-                            tags: file.tags || [],
-                            notes: file.notes || '',
+                        await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
+                            stack: file.stack,
+                            tags: file.tags,
+                            notes: file.notes,
                             qualityRating: rating,
-                            contentRating: file.contentRating || 0
+                            contentRating: file.contentRating
                         });
-                        
-                        if (saveSuccess) {
-                            utils.showToast('Quality rating saved');
-                            console.log(`Successfully saved quality rating ${rating} for ${file.name}`);
-                        } else {
-                            throw new Error('Failed to save to IndexedDB');
-                        }
+                        utils.showToast('Quality rating saved');
                     } catch (error) {
                         console.error('Error saving quality rating:', error);
                         utils.showToast('Failed to save rating', 'error');
@@ -3513,24 +2805,17 @@
                 });
                 
                 this.setupStarRating(elements.contentRating, file.contentRating || 0, async (rating) => {
-                    console.log(`Setting content rating for ${file.name}: ${rating}`);
                     file.contentRating = rating;
                     
                     try {
-                        const saveSuccess = await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
-                            stack: file.stack || 'in',
-                            tags: file.tags || [],
-                            notes: file.notes || '',
-                            qualityRating: file.qualityRating || 0,
+                        await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
+                            stack: file.stack,
+                            tags: file.tags,
+                            notes: file.notes,
+                            qualityRating: file.qualityRating,
                             contentRating: rating
                         });
-                        
-                        if (saveSuccess) {
-                            utils.showToast('Content rating saved');
-                            console.log(`Successfully saved content rating ${rating} for ${file.name}`);
-                        } else {
-                            throw new Error('Failed to save to IndexedDB');
-                        }
+                        utils.showToast('Content rating saved');
                     } catch (error) {
                         console.error('Error saving content rating:', error);
                         utils.showToast('Failed to save rating', 'error');
@@ -3590,25 +2875,13 @@
         // ===== Modal Manager =====
         const modalManager = {
             show: function(modalId) {
-                console.log(`Showing modal: ${modalId}`);
                 const modal = document.getElementById(modalId);
-                if (modal) {
-                    modal.classList.remove('hidden');
-                    console.log(`Modal ${modalId} is now visible`);
-                } else {
-                    console.error(`Modal not found: ${modalId}`);
-                }
+                if (modal) modal.classList.remove('hidden');
             },
             
             hide: function(modalId) {
-                console.log(`Hiding modal: ${modalId}`);
                 const modal = document.getElementById(modalId);
-                if (modal) {
-                    modal.classList.add('hidden');
-                    console.log(`Modal ${modalId} is now hidden`);
-                } else {
-                    console.error(`Modal not found: ${modalId}`);
-                }
+                if (modal) modal.classList.add('hidden');
             },
             
             setup: function() {
@@ -3669,85 +2942,98 @@
                 elements.confirmDelete.addEventListener('click', async () => {
                     const currentStack = appState.grid.stack;
                     const selectedCount = appState.grid.selected.length;
-                    
-                    if (selectedCount === 0) {
-                        console.warn('No images selected for deletion');
-                        modalManager.hide('delete-modal');
-                        return;
-                    }
-                    
                     elements.confirmDelete.disabled = true;
                     elements.confirmDelete.textContent = 'Processing...';
                     
-                    console.log(`Deleting ${selectedCount} images from ${currentStack} stack`);
-                    utils.showStatus(`Moving ${selectedCount} images to trash...`, 'info');
-                    
                     try {
-                        let successCount = 0;
-                        let errorCount = 0;
-                        
-                        // Process each selected file
-                        for (const fileId of appState.grid.selected) {
-                            try {
-                                const file = appState.imageFiles.find(f => f.id === fileId);
-                                if (file) {
-                                    console.log(`Moving ${file.name} to trash`);
-                                    await stackManager.moveFileToStack(fileId, 'trash');
-                                    successCount++;
-                                } else {
-                                    console.warn(`File not found: ${fileId}`);
-                                    errorCount++;
+                        if (currentStack === 'trash') {
+                            // Actually delete from Google Drive when in trash
+                            const promises = appState.grid.selected.map(async fileId => {
+                                try {
+                                    await appState.cloudStorage.currentProvider.makeApiCall(`/files/${fileId}`, {
+                                        method: 'PATCH',
+                                        body: JSON.stringify({ trashed: true })
+                                    });
+                                    
+                                    // Remove from local data structures
+                                    const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
+                                    if (fileIndex !== -1) {
+                                        appState.imageFiles.splice(fileIndex, 1);
+                                    }
+                                    const trashIndex = appState.stacks.trash.findIndex(f => f.id === fileId);
+                                    if (trashIndex !== -1) {
+                                        appState.stacks.trash.splice(trashIndex, 1);
+                                    }
+                                    
+                                    return true;
+                                } catch (error) {
+                                    console.error(`Failed to delete file ${fileId}:`, error);
+                                    return false;
                                 }
-                            } catch (error) {
-                                console.error(`Failed to move file ${fileId}:`, error);
-                                errorCount++;
+                            });
+                            
+                            const results = await Promise.all(promises);
+                            const successCount = results.filter(r => r).length;
+                            const failCount = results.filter(r => !r).length;
+                            
+                            if (successCount > 0) {
+                                utils.showToast(`Moved ${successCount} image${successCount > 1 ? 's' : ''} to Google Drive trash`);
                             }
+                            if (failCount > 0) {
+                                utils.showToast(`Failed to delete ${failCount} image${failCount > 1 ? 's' : ''}`, 'error');
+                            }
+                        } else {
+                            // Move to trash stack for non-trash stacks
+                            const promises = appState.grid.selected.map(fileId => 
+                                stackManager.moveFileToStack(fileId, 'trash')
+                            );
+                            
+                            await Promise.all(promises);
+                            utils.showToast(`Moved ${selectedCount} image${selectedCount > 1 ? 's' : ''} to trash`);
                         }
                         
-                        // Show results
-                        if (successCount > 0) {
-                            utils.showToast(`Moved ${successCount} images to trash`);
-                            utils.showStatus(`${successCount} moved to trash`, 'success');
-                        }
+                        // Clear selection completely after delete operation
+                        appState.grid.selected = [];
                         
-                        if (errorCount > 0) {
-                            utils.showToast(`${errorCount} images failed to move`, 'error');
-                        }
-                        
-                        console.log(`Delete operation complete: ${successCount} success, ${errorCount} errors`);
-                        
-                    } catch (error) {
-                        console.error('Error during delete operation:', error);
-                        utils.showToast('Failed to move images to trash', 'error');
-                        utils.showStatus('Delete failed', 'error');
-                    } finally {
-                        // Hide modal and reset button
-                        modalManager.hide('delete-modal');
-                        elements.confirmDelete.disabled = false;
-                        elements.confirmDelete.textContent = 'Move to Trash';
-                        
-                        // Refresh the grid view if still viewing the same stack
+                        // Update grid display
                         if (appState.grid.stack) {
-                            console.log(`Refreshing grid view for ${appState.grid.stack} stack`);
                             gridView.populate(appState.grid.stack);
                         }
                         
-                        // Clear selection and update UI
-                        appState.grid.selected = [];
+                        // Update UI counters
                         gridView.updateSelectionUI();
                         stackManager.updateCounts();
+                        
+                        // Update main view if we're viewing the current stack and it's now empty
+                        if (appState.currentStack === currentStack && appState.stacks[currentStack].length === 0) {
+                            elements.centerImage.style.opacity = '0';
+                            setTimeout(() => {
+                                elements.centerImage.src = '';
+                                elements.centerImage.alt = 'No images in this stack';
+                                updateEmptyStateButtons();
+                                elements.emptyState.classList.remove('hidden');
+                                elements.centerImage.style.opacity = '1';
+                            }, 200);
+                        } else if (appState.currentStack === currentStack) {
+                            // Refresh current image if we're viewing this stack
+                            imageViewer.displayTopImageFromStack(currentStack);
+                        }
+                        
+                        this.hide('delete-modal');
+                        
+                    } catch (error) {
+                        console.error('Delete operation failed:', error);
+                        utils.showToast('Delete operation failed', 'error');
+                    } finally {
+                        elements.confirmDelete.disabled = false;
+                        elements.confirmDelete.textContent = currentStack === 'trash' ? 'Move to Google Drive Trash' : 'Move to Trash';
                     }
                 });
                 
                 ['cancel-move', 'cancel-tag', 'cancel-delete'].forEach(id => {
-                    const button = document.getElementById(id);
-                    if (button) {
-                        button.addEventListener('click', () => {
-                            const modalId = id.replace('cancel-', '') + '-modal';
-                            console.log(`Cancelling modal: ${modalId}`);
-                            modalManager.hide(modalId);
-                        });
-                    }
+                    document.getElementById(id).addEventListener('click', () => {
+                        this.hide(id.replace('cancel-', '') + '-modal');
+                    });
                 });
                 
                 elements.moveSelected.addEventListener('click', () => this.show('move-modal'));
@@ -3771,21 +3057,17 @@
                 
                 elements.deleteSelected.addEventListener('click', () => {
                     const selectedCount = appState.grid.selected.length;
-                    console.log(`Delete button clicked with ${selectedCount} selected images`);
+                    const currentStack = appState.grid.stack;
                     
-                    if (selectedCount === 0) {
-                        console.warn('Delete clicked but no images selected');
-                        utils.showStatus('No images selected', 'warning');
-                        return;
+                    if (currentStack === 'trash') {
+                        elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Google Drive trash? They can be recovered from Google Drive.`;
+                        elements.confirmDelete.textContent = 'Move to Google Drive Trash';
+                    } else {
+                        elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
+                        elements.confirmDelete.textContent = 'Move to Trash';
                     }
                     
-                    console.log(`Showing delete confirmation for ${selectedCount} images`);
-                    utils.showStatus(`Confirm deletion of ${selectedCount} images`, 'warning');
-                    
-                    elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
-                    elements.confirmDelete.textContent = 'Move to Trash';
-                    
-                    modalManager.show('delete-modal');
+                    this.show('delete-modal');
                 });
             }
         };
@@ -3902,10 +3184,9 @@
             let velocityHistory = [];
             let gestureStarted = false;
             
-            // Use both mouse and touch events
-            elements.imageViewport.addEventListener('mousedown', handleStart, { passive: false });
-            document.addEventListener('mousemove', handleMove, { passive: false });
-            document.addEventListener('mouseup', handleEnd, { passive: false });
+            elements.imageViewport.addEventListener('mousedown', handleStart);
+            document.addEventListener('mousemove', handleMove);
+            document.addEventListener('mouseup', handleEnd);
             
             elements.imageViewport.addEventListener('touchstart', handleStart, { passive: false });
             document.addEventListener('touchmove', handleMove, { passive: false });
@@ -3929,9 +3210,6 @@
                 
                 appState.isDragging = true;
                 elements.centerImage.classList.add('dragging');
-                
-                // Show status for tablet users
-                utils.showStatus('Swipe to move image', 'info', 1000);
             }
             
             function handleMove(e) {
@@ -3963,21 +3241,12 @@
                     velocityHistory = velocityHistory.filter(v => now - v.time < 100);
                 }
                 
-                if (distance > 20) { // Reduced threshold for better mobile responsiveness
+                if (distance > 30) {
                     gestureStarted = true;
                     const direction = determineSwipeDirection(deltaX, deltaY);
                     if (direction) {
                         hideAllEdgeGlows();
                         showEdgeGlow(direction);
-                        
-                        // Show directional feedback
-                        const stackNames = {
-                            'top': 'Priority',
-                            'bottom': 'Trash', 
-                            'left': 'In',
-                            'right': 'Out'
-                        };
-                        utils.showStatus(`→ ${stackNames[direction]}`, 'info', 500);
                     }
                 } else {
                     hideAllEdgeGlows();
@@ -4014,8 +3283,7 @@
                 
                 const velocity = Math.sqrt(avgVel.x * avgVel.x + avgVel.y * avgVel.y);
                 
-                // Reduced threshold for easier triggering on mobile
-                if (distance > 60 && velocity > 0.3) {
+                if (distance > 80 && velocity > 0.5) {
                     const direction = determineSwipeDirection(deltaX, deltaY);
                     const targetStack = directionToStack(direction);
                     if (targetStack && direction) {
@@ -4052,10 +3320,6 @@
             
             acknowledgePillCounter(targetStack);
             
-            // Show immediate feedback
-            const stackNames = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
-            utils.showStatus(`Moving to ${stackNames[targetStack]}...`, 'info', 1000);
-            
             if (currentStack === targetStack) {
                 const currentStackArray = appState.stacks[currentStack];
                 const index = currentStackArray.findIndex(img => img.id === currentImage.id);
@@ -4079,7 +3343,6 @@
                 
                 stackManager.updateCounts();
                 hideAllEdgeGlows();
-                utils.showStatus(`Reordered in ${stackNames[targetStack]}`, 'success');
                 return;
             }
             
@@ -4101,89 +3364,78 @@
                 hideAllEdgeGlows();
             } catch (error) {
                 utils.showToast(`Error moving image: ${error.message}`, 'error');
-                utils.showStatus('Move failed!', 'error');
                 hideAllEdgeGlows();
             }
         }
         
         // ===== Initialize App =====
         async function initApp() {
-            console.log('=== Initializing Orbital8 V6 - IndexedDB Storage ===');
+            console.log('Initializing Orbital8 V6 - IndexedDB Storage...');
             
             try {
-                console.log('Step 1: Initializing IndexedDB cache manager...');
+                console.log('Initializing cache manager...');
                 await cacheManager.init();
-                console.log('✓ IndexedDB initialized successfully');
                 
-                console.log('Step 2: Creating cloud storage module...');
+                console.log('Creating cloud storage module...');
                 appState.cloudStorage = new CloudStorageModule();
                 appState.cloudStorage.setProvider('googledrive');
-                console.log('✓ Cloud storage module created');
                 
-                console.log('Step 3: Creating metadata extractor...');
+                console.log('Creating metadata extractor...');
                 appState.metadataExtractor = new MetadataExtractor();
-                console.log('✓ Metadata extractor created');
                 
-                console.log('Step 4: Setting up cloud storage callbacks...');
+                console.log('Setting up cloud storage callbacks...');
                 appState.cloudStorage.onAuthStateChanged = (authenticated, provider) => {
                     console.log(`Auth state changed: ${authenticated} (${provider})`);
                 };
                 
                 appState.cloudStorage.onError = (error) => {
-                    console.error(`CloudStorage error: ${error.message}`);
+                    console.log(`CloudStorage error: ${error.message}`);
                     utils.showToast(`Error: ${error.message}`, 'error');
                 };
-                console.log('✓ Cloud storage callbacks configured');
                 
-                console.log('Step 5: Checking existing authentication...');
+                console.log('Checking existing authentication...');
                 if (appState.cloudStorage.isAuthenticated()) {
-                    console.log('✓ User already authenticated');
+                    console.log('User already authenticated');
                     authManager.setStatus('Already connected to Google Drive', 'success');
                     setTimeout(() => {
                         utils.showScreen('folder-screen');
                         folderManager.loadFolders();
                     }, 1000);
                 } else {
-                    console.log('ⓘ User not authenticated, showing login screen');
+                    console.log('User not authenticated, showing login screen');
                 }
                 
-                console.log('Step 6: Setting up event listeners...');
+                console.log('Setting up event listeners...');
                 // Setup event listeners
                 elements.authButton.addEventListener('click', () => {
                     console.log('Auth button clicked');
                     authManager.authenticate();
                 });
-                elements.refreshFolders.addEventListener('click', () => {
-                    console.log('Refresh folders clicked');
-                    folderManager.loadFolders();
+                elements.refreshFolders.addEventListener('click', () => folderManager.loadFolders());
+                elements.clearCache.addEventListener('click', async () => {
+                    if (confirm('This will clear all cached data including metadata, thumbnails, and file organization. Continue?')) {
+                        elements.clearCache.disabled = true;
+                        elements.clearCache.textContent = 'Clearing...';
+                        
+                        const success = await cacheManager.clearAllCache();
+                        if (success) {
+                            utils.showToast('Cache cleared successfully');
+                        } else {
+                            utils.showToast('Failed to clear cache', 'error');
+                        }
+                        
+                        elements.clearCache.disabled = false;
+                        elements.clearCache.textContent = 'Clear Cache';
+                    }
                 });
-                elements.cacheManager.addEventListener('click', () => {
-                    console.log('Cache manager clicked');
-                    cacheManagerUI.show();
-                });
-                elements.logout.addEventListener('click', () => {
-                    console.log('Logout clicked');
-                    authManager.logout();
-                });
-                
-                // Cache manager events
-                elements.closeCacheManager.addEventListener('click', () => cacheManagerUI.hide());
-                elements.clearAllCache.addEventListener('click', () => cacheManagerUI.clearAllCache());
-                elements.clearThumbnails.addEventListener('click', () => cacheManagerUI.clearThumbnailsOnly());
-                elements.refreshCacheStats.addEventListener('click', () => cacheManagerUI.refreshStats());
-                elements.exportAllData.addEventListener('click', () => cacheManagerUI.exportAllData());
-                elements.importData.addEventListener('click', () => cacheManagerUI.importData());
+                elements.logout.addEventListener('click', () => authManager.logout());
                 
                 elements.backButton.addEventListener('click', () => {
-                    console.log('Back button clicked');
                     utils.showScreen('folder-screen');
                     folderManager.loadFolders();
                 });
                 
-                elements.detailsButton.addEventListener('click', () => {
-                    console.log('Details button clicked');
-                    detailsModal.show();
-                });
+                elements.detailsButton.addEventListener('click', () => detailsModal.show());
                 elements.detailsClose.addEventListener('click', () => detailsModal.hide());
                 
                 document.querySelectorAll('.tab-button').forEach(btn => {
@@ -4191,7 +3443,6 @@
                 });
                 
                 elements.selectAnotherStackBtn.addEventListener('click', () => {
-                    console.log('Select another stack clicked');
                     const stacksWithImages = STACK_TYPES.filter(stack => appState.stacks[stack].length > 0);
                     if (stacksWithImages.length > 0) {
                         const nextStack = stacksWithImages.find(stack => stack !== appState.currentStack) || stacksWithImages[0];
@@ -4205,17 +3456,15 @@
                 });
                 
                 elements.selectAnotherFolderBtn.addEventListener('click', () => {
-                    console.log('Select another folder clicked');
                     utils.showScreen('folder-screen');
                     folderManager.loadFolders();
                 });
                 
-                console.log('Step 7: Setting up gesture and interaction systems...');
+                console.log('Setting up gesture and interaction systems...');
                 setupPinchZoom();
                 setupGestureSystem();
                 setupProxTabClicks();
                 modalManager.setup();
-                console.log('✓ Gesture systems configured');
                 
                 elements.closeGrid.addEventListener('click', () => gridView.close());
                 elements.selectAllBtn.addEventListener('click', () => gridView.selectAll());
@@ -4254,7 +3503,6 @@
                     }
                 });
                 
-                console.log('Step 8: Setting up keyboard shortcuts...');
                 document.addEventListener('keydown', (e) => {
                     if (elements.appContainer.classList.contains('hidden')) return;
                     
@@ -4306,15 +3554,13 @@
                             break;
                     }
                 });
-                console.log('✓ Keyboard shortcuts configured');
                 
                 updateActiveProxTab();
                 
-                console.log('✓ Orbital8 V6 - IndexedDB Storage ready!');
-                console.log('=== Initialization Complete ===');
+                console.log('Orbital8 V6 - IndexedDB Storage ready');
                 
             } catch (error) {
-                console.error('✗ Failed to initialize app:', error);
+                console.error('Failed to initialize app:', error);
                 console.error('Error stack:', error.stack);
                 utils.showToast('Failed to initialize app: ' + error.message, 'error');
             }
