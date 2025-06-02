@@ -667,6 +667,428 @@
             .app-container { 
                 position: fixed; top: 0; left: 0; right: 0; bottom: 0;
                 height: 100vh; height: 100dvh; /* Use dynamic viewport height */
+            },
+            
+            // Cache management utilities
+            async getCacheStatistics() {
+                if (!appState.db) return {};
+                try {
+                    const stats = {
+                        thumbnails: 0,
+                        metadata: {},
+                        fileData: {},
+                        totalSize: 0
+                    };
+        
+        // ===== Cache Manager =====
+        const cacheManagerUI = {
+            currentFolders: [],
+            
+            async show() {
+                elements.cacheManagerModal.classList.remove('hidden');
+                await this.refreshStats();
+            },
+            
+            hide() {
+                elements.cacheManagerModal.classList.add('hidden');
+            },
+            
+            async refreshStats() {
+                elements.cacheStatsContent.textContent = 'Loading cache statistics...';
+                elements.folderCacheList.innerHTML = 'Loading folder cache data...';
+                
+                try {
+                    const stats = await cacheManager.getCacheStatistics();
+                    
+                    // Display general stats
+                    let statsText = `Thumbnails: ${stats.thumbnails || 0}\n`;
+                    statsText += `Total Folders with Metadata: ${Object.keys(stats.metadata || {}).length}\n`;
+                    statsText += `Total Folders with File Data: ${Object.keys(stats.fileData || {}).length}\n`;
+                    
+                    elements.cacheStatsContent.textContent = statsText;
+                    
+                    // Get folder info
+                    const folders = await appState.cloudStorage.getFolders();
+                    this.currentFolders = folders;
+                    
+                    // Display folder-specific cache info
+                    let folderHtml = '';
+                    folders.forEach(folder => {
+                        const metadataCount = stats.metadata[folder.id] || 0;
+                        const fileDataCount = stats.fileData[folder.id] || 0;
+                        const hasCache = metadataCount > 0 || fileDataCount > 0;
+                        
+                        folderHtml += `
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 8px; background: ${hasCache ? '#f0fdf4' : '#f9fafb'};">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 500; color: #374151;">${folder.name}</div>
+                                    <div style="font-size: 12px; color: #6b7280;">
+                                        Metadata: ${metadataCount} | File Data: ${fileDataCount}
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 4px;">
+                                    ${hasCache ? `
+                                        <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="window.cacheManagerUI.clearFolderCache('${folder.id}', '${folder.name}')">Clear</button>
+                                        <button class="btn btn-primary" style="font-size: 11px; padding: 4px 8px;" onclick="window.cacheManagerUI.exportFolderData('${folder.id}', '${folder.name}')">Export</button>
+                                    ` : `
+                                        <span style="font-size: 11px; color: #9ca3af;">No cache</span>
+                                    `}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    elements.folderCacheList.innerHTML = folderHtml || '<div style="color: #6b7280; font-style: italic;">No cached folders found</div>';
+                    
+                } catch (error) {
+                    console.error('Error refreshing cache stats:', error);
+                    elements.cacheStatsContent.textContent = 'Error loading cache statistics';
+                    elements.folderCacheList.innerHTML = 'Error loading folder cache data';
+                    utils.showStatus('Failed to load cache stats', 'error');
+                }
+            },
+            
+            async clearFolderCache(folderId, folderName) {
+                if (!confirm(`Clear all cache data for "${folderName}"?\n\nThis will remove:\n• Metadata\n• File organization (stacks, tags, notes)\n• The folder will be re-indexed next time you select it.`)) {
+                    return;
+                }
+                
+                utils.showStatus(`Clearing cache for ${folderName}...`, 'info');
+                
+                try {
+                    const success = await cacheManager.clearFolderCache(folderId);
+                    if (success) {
+                        utils.showStatus(`Cache cleared for ${folderName}`, 'success');
+                        await this.refreshStats();
+                    } else {
+                        utils.showStatus('Failed to clear folder cache', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error clearing folder cache:', error);
+                    utils.showStatus('Error clearing folder cache', 'error');
+                }
+            },
+            
+            async exportFolderData(folderId, folderName) {
+                utils.showStatus(`Exporting data for ${folderName}...`, 'info');
+                
+                try {
+                    const allData = await cacheManager.exportAllData();
+                    if (!allData) {
+                        utils.showStatus('Failed to export data', 'error');
+                        return;
+                    }
+                    
+                    // Filter data for this folder only
+                    const folderData = {
+                        timestamp: allData.timestamp,
+                        version: allData.version,
+                        folderId: folderId,
+                        folderName: folderName,
+                        metadata: allData.metadata.filter(item => item.folderId === folderId),
+                        fileData: allData.fileData.filter(item => item.folderId === folderId),
+                        thumbnails: [] // Don't export thumbnails for folder-specific exports
+                    };
+                    
+                    const blob = new Blob([JSON.stringify(folderData, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `orbital8-${folderName.replace(/[^a-zA-Z0-9]/g, '_')}-${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    utils.showStatus(`Exported data for ${folderName}`, 'success');
+                } catch (error) {
+                    console.error('Error exporting folder data:', error);
+                    utils.showStatus('Failed to export folder data', 'error');
+                }
+            },
+            
+            async clearAllCache() {
+                if (!confirm('Clear ALL cache data?\n\nThis will remove:\n• All thumbnails\n• All metadata\n• All file organization data\n\nEverything will be re-indexed when you next visit folders.')) {
+                    return;
+                }
+                
+                utils.showStatus('Clearing all cache...', 'info');
+                
+                try {
+                    const success = await cacheManager.clearAllCache();
+                    if (success) {
+                        utils.showStatus('All cache cleared', 'success');
+                        await this.refreshStats();
+                    } else {
+                        utils.showStatus('Failed to clear cache', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error clearing all cache:', error);
+                    utils.showStatus('Error clearing cache', 'error');
+                }
+            },
+            
+            async clearThumbnailsOnly() {
+                if (!confirm('Clear thumbnail cache?\n\nThis will remove all cached thumbnail images but keep your organization data (stacks, tags, notes).')) {
+                    return;
+                }
+                
+                utils.showStatus('Clearing thumbnails...', 'info');
+                
+                try {
+                    const success = await cacheManager.clearThumbnailsOnly();
+                    if (success) {
+                        utils.showStatus('Thumbnails cleared', 'success');
+                        await this.refreshStats();
+                    } else {
+                        utils.showStatus('Failed to clear thumbnails', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error clearing thumbnails:', error);
+                    utils.showStatus('Error clearing thumbnails', 'error');
+                }
+            },
+            
+            async exportAllData() {
+                utils.showStatus('Exporting all data...', 'info');
+                
+                try {
+                    const data = await cacheManager.exportAllData();
+                    if (!data) {
+                        utils.showStatus('Failed to export data', 'error');
+                        return;
+                    }
+                    
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `orbital8-full-backup-${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    utils.showStatus('Data exported successfully', 'success');
+                } catch (error) {
+                    console.error('Error exporting data:', error);
+                    utils.showStatus('Failed to export data', 'error');
+                }
+            },
+            
+            async importData() {
+                const file = elements.importFile.files[0];
+                if (!file) {
+                    utils.showStatus('Please select a file to import', 'warning');
+                    return;
+                }
+                
+                utils.showStatus('Importing data...', 'info');
+                
+                try {
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+                    
+                    const success = await cacheManager.importData(data);
+                    if (success) {
+                        utils.showStatus('Data imported successfully', 'success');
+                        await this.refreshStats();
+                        elements.importFile.value = '';
+                    } else {
+                        utils.showStatus('Failed to import data', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error importing data:', error);
+                    utils.showStatus('Invalid file or import failed', 'error');
+                }
+            }
+        };
+        
+        // Make cache manager globally accessible for onclick handlers
+        window.cacheManagerUI = cacheManagerUI;
+                    
+                    // Get thumbnail count
+                    const thumbnailTransaction = appState.db.transaction(['thumbnails'], 'readonly');
+                    const thumbnailStore = thumbnailTransaction.objectStore('thumbnails');
+                    const thumbnailRequest = thumbnailStore.getAll();
+                    const thumbnails = await this.promisifyRequest(thumbnailRequest);
+                    stats.thumbnails = thumbnails.length;
+                    
+                    // Get metadata by folder
+                    const metadataTransaction = appState.db.transaction(['metadata'], 'readonly');
+                    const metadataStore = metadataTransaction.objectStore('metadata');
+                    const metadataRequest = metadataStore.getAll();
+                    const metadata = await this.promisifyRequest(metadataRequest);
+                    
+                    metadata.forEach(item => {
+                        if (!stats.metadata[item.folderId]) {
+                            stats.metadata[item.folderId] = 0;
+                        }
+                        stats.metadata[item.folderId]++;
+                    });
+                    
+                    // Get file data by folder
+                    const fileDataTransaction = appState.db.transaction(['fileData'], 'readonly');
+                    const fileDataStore = fileDataTransaction.objectStore('fileData');
+                    const fileDataRequest = fileDataStore.getAll();
+                    const fileData = await this.promisifyRequest(fileDataRequest);
+                    
+                    fileData.forEach(item => {
+                        if (!stats.fileData[item.folderId]) {
+                            stats.fileData[item.folderId] = 0;
+                        }
+                        stats.fileData[item.folderId]++;
+                    });
+                    
+                    return stats;
+                } catch (error) {
+                    console.error('Failed to get cache statistics:', error);
+                    return {};
+                }
+            },
+            
+            async clearFolderCache(folderId) {
+                if (!appState.db) return false;
+                try {
+                    // Clear metadata for folder
+                    const metadataTransaction = appState.db.transaction(['metadata'], 'readwrite');
+                    const metadataStore = metadataTransaction.objectStore('metadata');
+                    const metadataIndex = metadataStore.index('folderId');
+                    const metadataRequest = metadataIndex.getAll(folderId);
+                    const metadataResults = await this.promisifyRequest(metadataRequest);
+                    
+                    for (const item of metadataResults) {
+                        await this.promisifyRequest(metadataStore.delete(item.fileId));
+                    }
+                    
+                    // Clear file data for folder
+                    const fileDataTransaction = appState.db.transaction(['fileData'], 'readwrite');
+                    const fileDataStore = fileDataTransaction.objectStore('fileData');
+                    const fileDataIndex = fileDataStore.index('folderId');
+                    const fileDataRequest = fileDataIndex.getAll(folderId);
+                    const fileDataResults = await this.promisifyRequest(fileDataRequest);
+                    
+                    for (const item of fileDataResults) {
+                        await this.promisifyRequest(fileDataStore.delete(item.fileId));
+                    }
+                    
+                    console.log(`Cleared cache for folder ${folderId}`);
+                    return true;
+                } catch (error) {
+                    console.error('Failed to clear folder cache:', error);
+                    return false;
+                }
+            },
+            
+            async clearAllCache() {
+                if (!appState.db) return false;
+                try {
+                    const storeNames = ['thumbnails', 'metadata', 'fileData'];
+                    
+                    for (const storeName of storeNames) {
+                        const transaction = appState.db.transaction([storeName], 'readwrite');
+                        const store = transaction.objectStore(storeName);
+                        await this.promisifyRequest(store.clear());
+                    }
+                    
+                    console.log('Cleared all cache data');
+                    return true;
+                } catch (error) {
+                    console.error('Failed to clear all cache:', error);
+                    return false;
+                }
+            },
+            
+            async clearThumbnailsOnly() {
+                if (!appState.db) return false;
+                try {
+                    const transaction = appState.db.transaction(['thumbnails'], 'readwrite');
+                    const store = transaction.objectStore('thumbnails');
+                    await this.promisifyRequest(store.clear());
+                    
+                    console.log('Cleared thumbnail cache');
+                    return true;
+                } catch (error) {
+                    console.error('Failed to clear thumbnails:', error);
+                    return false;
+                }
+            },
+            
+            async exportAllData() {
+                if (!appState.db) return null;
+                try {
+                    const exportData = {
+                        timestamp: Date.now(),
+                        version: 1,
+                        thumbnails: [],
+                        metadata: [],
+                        fileData: []
+                    };
+                    
+                    // Export thumbnails
+                    const thumbnailTransaction = appState.db.transaction(['thumbnails'], 'readonly');
+                    const thumbnailStore = thumbnailTransaction.objectStore('thumbnails');
+                    const thumbnailRequest = thumbnailStore.getAll();
+                    exportData.thumbnails = await this.promisifyRequest(thumbnailRequest);
+                    
+                    // Export metadata
+                    const metadataTransaction = appState.db.transaction(['metadata'], 'readonly');
+                    const metadataStore = metadataTransaction.objectStore('metadata');
+                    const metadataRequest = metadataStore.getAll();
+                    exportData.metadata = await this.promisifyRequest(metadataRequest);
+                    
+                    // Export file data
+                    const fileDataTransaction = appState.db.transaction(['fileData'], 'readonly');
+                    const fileDataStore = fileDataTransaction.objectStore('fileData');
+                    const fileDataRequest = fileDataStore.getAll();
+                    exportData.fileData = await this.promisifyRequest(fileDataRequest);
+                    
+                    return exportData;
+                } catch (error) {
+                    console.error('Failed to export data:', error);
+                    return null;
+                }
+            },
+            
+            async importData(importData) {
+                if (!appState.db || !importData) return false;
+                try {
+                    // Import thumbnails
+                    if (importData.thumbnails && Array.isArray(importData.thumbnails)) {
+                        const thumbnailTransaction = appState.db.transaction(['thumbnails'], 'readwrite');
+                        const thumbnailStore = thumbnailTransaction.objectStore('thumbnails');
+                        
+                        for (const item of importData.thumbnails) {
+                            await this.promisifyRequest(thumbnailStore.put(item));
+                        }
+                    }
+                    
+                    // Import metadata
+                    if (importData.metadata && Array.isArray(importData.metadata)) {
+                        const metadataTransaction = appState.db.transaction(['metadata'], 'readwrite');
+                        const metadataStore = metadataTransaction.objectStore('metadata');
+                        
+                        for (const item of importData.metadata) {
+                            await this.promisifyRequest(metadataStore.put(item));
+                        }
+                    }
+                    
+                    // Import file data
+                    if (importData.fileData && Array.isArray(importData.fileData)) {
+                        const fileDataTransaction = appState.db.transaction(['fileData'], 'readwrite');
+                        const fileDataStore = fileDataTransaction.objectStore('fileData');
+                        
+                        for (const item of importData.fileData) {
+                            await this.promisifyRequest(fileDataStore.put(item));
+                        }
+                    }
+                    
+                    console.log('Successfully imported data');
+                    return true;
+                } catch (error) {
+                    console.error('Failed to import data:', error);
+                    return false;
+                }
             }
             
             .edge-glow { position: fixed; }
@@ -701,6 +1123,7 @@
             </div>
             <div class="folder-actions">
                 <button class="folder-button" id="refresh-folders">Refresh</button>
+                <button class="folder-button" id="cache-manager">Cache Manager</button>
                 <button class="folder-button danger" id="logout">Disconnect</button>
             </div>
         </div>
@@ -842,6 +1265,58 @@
             <div class="action-buttons-row">
                 <button id="cancel-delete" class="btn btn-secondary">Cancel</button>
                 <button id="confirm-delete" class="btn btn-danger">Confirm</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Cache Manager Modal -->
+    <div id="cache-manager-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 600px; max-height: 90vh;">
+            <div class="modal-header">
+                <div class="modal-header-main">
+                    <h2 class="modal-title">Cache Manager</h2>
+                    <button id="close-cache-manager" class="close-btn">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div style="padding: 20px; overflow-y: auto;">
+                <div class="cache-stats" style="margin-bottom: 20px;">
+                    <h3 style="color: #374151; margin-bottom: 12px;">Cache Statistics</h3>
+                    <div id="cache-stats-content" style="background: #f3f4f6; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 12px;">
+                        Loading cache statistics...
+                    </div>
+                </div>
+                
+                <div class="cache-actions" style="margin-bottom: 20px;">
+                    <h3 style="color: #374151; margin-bottom: 12px;">Cache Actions</h3>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <button id="clear-all-cache" class="btn btn-danger" style="width: 100%;">Clear All Cache Data</button>
+                        <button id="clear-thumbnails" class="btn btn-secondary" style="width: 100%;">Clear Thumbnails Only</button>
+                        <button id="refresh-cache-stats" class="btn btn-secondary" style="width: 100%;">Refresh Statistics</button>
+                    </div>
+                </div>
+                
+                <div class="folder-cache-manager">
+                    <h3 style="color: #374151; margin-bottom: 12px;">Folder-Specific Actions</h3>
+                    <div id="folder-cache-list" style="max-height: 200px; overflow-y: auto;">
+                        Loading folder cache data...
+                    </div>
+                </div>
+                
+                <div class="import-export-section" style="margin-top: 20px;">
+                    <h3 style="color: #374151; margin-bottom: 12px;">Import/Export</h3>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <button id="export-all-data" class="btn btn-primary" style="width: 100%;">Export All Data</button>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="file" id="import-file" accept=".json" style="flex: 1;">
+                            <button id="import-data" class="btn btn-primary">Import</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1763,6 +2238,7 @@
             authStatus: document.getElementById('auth-status'),
             folderList: document.getElementById('folder-list'),
             refreshFolders: document.getElementById('refresh-folders'),
+            cacheManager: document.getElementById('cache-manager'),
             logout: document.getElementById('logout'),
             backButton: document.getElementById('back-button'),
             detailsButton: document.getElementById('details-button'),
@@ -1819,7 +2295,17 @@
             contentRating: document.getElementById('content-rating'),
             metadataTable: document.getElementById('metadata-table'),
             metadataTableBody: document.getElementById('metadata-table-body'),
-            noMetadataMessage: document.getElementById('no-metadata-message')
+            noMetadataMessage: document.getElementById('no-metadata-message'),
+            cacheManagerModal: document.getElementById('cache-manager-modal'),
+            closeCacheManager: document.getElementById('close-cache-manager'),
+            cacheStatsContent: document.getElementById('cache-stats-content'),
+            clearAllCache: document.getElementById('clear-all-cache'),
+            clearThumbnails: document.getElementById('clear-thumbnails'),
+            refreshCacheStats: document.getElementById('refresh-cache-stats'),
+            folderCacheList: document.getElementById('folder-cache-list'),
+            exportAllData: document.getElementById('export-all-data'),
+            importFile: document.getElementById('import-file'),
+            importData: document.getElementById('import-data')
         };
         
         // ===== Utility Functions =====
@@ -3104,13 +3590,25 @@
         // ===== Modal Manager =====
         const modalManager = {
             show: function(modalId) {
+                console.log(`Showing modal: ${modalId}`);
                 const modal = document.getElementById(modalId);
-                if (modal) modal.classList.remove('hidden');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    console.log(`Modal ${modalId} is now visible`);
+                } else {
+                    console.error(`Modal not found: ${modalId}`);
+                }
             },
             
             hide: function(modalId) {
+                console.log(`Hiding modal: ${modalId}`);
                 const modal = document.getElementById(modalId);
-                if (modal) modal.classList.add('hidden');
+                if (modal) {
+                    modal.classList.add('hidden');
+                    console.log(`Modal ${modalId} is now hidden`);
+                } else {
+                    console.error(`Modal not found: ${modalId}`);
+                }
             },
             
             setup: function() {
@@ -3172,54 +3670,84 @@
                     const currentStack = appState.grid.stack;
                     const selectedCount = appState.grid.selected.length;
                     
+                    if (selectedCount === 0) {
+                        console.warn('No images selected for deletion');
+                        modalManager.hide('delete-modal');
+                        return;
+                    }
+                    
                     elements.confirmDelete.disabled = true;
                     elements.confirmDelete.textContent = 'Processing...';
                     
                     console.log(`Deleting ${selectedCount} images from ${currentStack} stack`);
+                    utils.showStatus(`Moving ${selectedCount} images to trash...`, 'info');
                     
                     try {
-                        // Move all selected items to trash
-                        const promises = appState.grid.selected.map(async (fileId) => {
-                            const file = appState.imageFiles.find(f => f.id === fileId);
-                            if (file) {
-                                console.log(`Moving ${file.name} to trash`);
-                                return await stackManager.moveFileToStack(fileId, 'trash');
+                        let successCount = 0;
+                        let errorCount = 0;
+                        
+                        // Process each selected file
+                        for (const fileId of appState.grid.selected) {
+                            try {
+                                const file = appState.imageFiles.find(f => f.id === fileId);
+                                if (file) {
+                                    console.log(`Moving ${file.name} to trash`);
+                                    await stackManager.moveFileToStack(fileId, 'trash');
+                                    successCount++;
+                                } else {
+                                    console.warn(`File not found: ${fileId}`);
+                                    errorCount++;
+                                }
+                            } catch (error) {
+                                console.error(`Failed to move file ${fileId}:`, error);
+                                errorCount++;
                             }
-                            return null;
-                        });
-                        
-                        const results = await Promise.all(promises);
-                        const successCount = results.filter(r => r !== null).length;
-                        
-                        utils.showToast(`Moved ${successCount} images to trash`);
-                        this.hide('delete-modal');
-                        
-                        // Refresh the grid view
-                        if (appState.grid.stack) {
-                            gridView.populate(appState.grid.stack);
                         }
                         
-                        // Clear selection
-                        appState.grid.selected = [];
-                        gridView.updateSelectionUI();
-                        stackManager.updateCounts();
+                        // Show results
+                        if (successCount > 0) {
+                            utils.showToast(`Moved ${successCount} images to trash`);
+                            utils.showStatus(`${successCount} moved to trash`, 'success');
+                        }
                         
-                        console.log(`Successfully moved ${successCount} images to trash`);
+                        if (errorCount > 0) {
+                            utils.showToast(`${errorCount} images failed to move`, 'error');
+                        }
+                        
+                        console.log(`Delete operation complete: ${successCount} success, ${errorCount} errors`);
                         
                     } catch (error) {
                         console.error('Error during delete operation:', error);
-                        utils.showToast('Failed to move some images to trash', 'error');
-                        this.hide('delete-modal');
+                        utils.showToast('Failed to move images to trash', 'error');
+                        utils.showStatus('Delete failed', 'error');
                     } finally {
+                        // Hide modal and reset button
+                        modalManager.hide('delete-modal');
                         elements.confirmDelete.disabled = false;
                         elements.confirmDelete.textContent = 'Move to Trash';
+                        
+                        // Refresh the grid view if still viewing the same stack
+                        if (appState.grid.stack) {
+                            console.log(`Refreshing grid view for ${appState.grid.stack} stack`);
+                            gridView.populate(appState.grid.stack);
+                        }
+                        
+                        // Clear selection and update UI
+                        appState.grid.selected = [];
+                        gridView.updateSelectionUI();
+                        stackManager.updateCounts();
                     }
                 });
                 
                 ['cancel-move', 'cancel-tag', 'cancel-delete'].forEach(id => {
-                    document.getElementById(id).addEventListener('click', () => {
-                        this.hide(id.replace('cancel-', '') + '-modal');
-                    });
+                    const button = document.getElementById(id);
+                    if (button) {
+                        button.addEventListener('click', () => {
+                            const modalId = id.replace('cancel-', '') + '-modal';
+                            console.log(`Cancelling modal: ${modalId}`);
+                            modalManager.hide(modalId);
+                        });
+                    }
                 });
                 
                 elements.moveSelected.addEventListener('click', () => this.show('move-modal'));
@@ -3243,11 +3771,21 @@
                 
                 elements.deleteSelected.addEventListener('click', () => {
                     const selectedCount = appState.grid.selected.length;
+                    console.log(`Delete button clicked with ${selectedCount} selected images`);
+                    
+                    if (selectedCount === 0) {
+                        console.warn('Delete clicked but no images selected');
+                        utils.showStatus('No images selected', 'warning');
+                        return;
+                    }
+                    
+                    console.log(`Showing delete confirmation for ${selectedCount} images`);
+                    utils.showStatus(`Confirm deletion of ${selectedCount} images`, 'warning');
                     
                     elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
                     elements.confirmDelete.textContent = 'Move to Trash';
                     
-                    this.show('delete-modal');
+                    modalManager.show('delete-modal');
                 });
             }
         };
@@ -3619,10 +4157,22 @@
                     console.log('Refresh folders clicked');
                     folderManager.loadFolders();
                 });
+                elements.cacheManager.addEventListener('click', () => {
+                    console.log('Cache manager clicked');
+                    cacheManagerUI.show();
+                });
                 elements.logout.addEventListener('click', () => {
                     console.log('Logout clicked');
                     authManager.logout();
                 });
+                
+                // Cache manager events
+                elements.closeCacheManager.addEventListener('click', () => cacheManagerUI.hide());
+                elements.clearAllCache.addEventListener('click', () => cacheManagerUI.clearAllCache());
+                elements.clearThumbnails.addEventListener('click', () => cacheManagerUI.clearThumbnailsOnly());
+                elements.refreshCacheStats.addEventListener('click', () => cacheManagerUI.refreshStats());
+                elements.exportAllData.addEventListener('click', () => cacheManagerUI.exportAllData());
+                elements.importData.addEventListener('click', () => cacheManagerUI.importData());
                 
                 elements.backButton.addEventListener('click', () => {
                     console.log('Back button clicked');
