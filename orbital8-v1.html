@@ -173,9 +173,9 @@
         
         /* ===== Main App ===== */
         .app-container {
-            position: relative; width: 100vw; height: 100vh;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
-            overflow: hidden;
+            overflow: hidden; z-index: 1;
         }
         
         .nav-button {
@@ -206,27 +206,28 @@
         .center-image.zoomable { pointer-events: auto; }
         
         .edge-glow {
-            position: absolute; opacity: 0; transition: opacity 0.2s ease; z-index: 2;
+            position: fixed; opacity: 0; transition: opacity 0.2s ease; z-index: 20;
+            pointer-events: none;
         }
         
         .edge-glow.top {
-            top: 0; left: 0; right: 0; height: 8px;
-            background: linear-gradient(180deg, rgba(245, 158, 11, 0.4) 0%, transparent 100%);
+            top: 0; left: 0; right: 0; height: 12px;
+            background: linear-gradient(180deg, rgba(245, 158, 11, 0.6) 0%, transparent 100%);
         }
         
         .edge-glow.bottom {
-            bottom: 0; left: 0; right: 0; height: 8px;
-            background: linear-gradient(0deg, rgba(245, 158, 11, 0.4) 0%, transparent 100%);
+            bottom: 0; left: 0; right: 0; height: 12px;
+            background: linear-gradient(0deg, rgba(245, 158, 11, 0.6) 0%, transparent 100%);
         }
         
         .edge-glow.left {
-            top: 0; left: 0; bottom: 0; width: 8px;
-            background: linear-gradient(90deg, rgba(245, 158, 11, 0.4) 0%, transparent 100%);
+            top: 0; left: 0; bottom: 0; width: 12px;
+            background: linear-gradient(90deg, rgba(245, 158, 11, 0.6) 0%, transparent 100%);
         }
         
         .edge-glow.right {
-            top: 0; right: 0; bottom: 0; width: 8px;
-            background: linear-gradient(270deg, rgba(245, 158, 11, 0.4) 0%, transparent 100%);
+            top: 0; right: 0; bottom: 0; width: 12px;
+            background: linear-gradient(270deg, rgba(245, 158, 11, 0.6) 0%, transparent 100%);
         }
         
         .edge-glow.active { opacity: 1; }
@@ -634,6 +635,21 @@
         .toast.info { background: rgba(59, 130, 246, 0.9); }
         .toast.error { background: rgba(239, 68, 68, 0.9); }
         
+        /* ===== Status Indicator for Tablets ===== */
+        .status-indicator {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8); color: white; padding: 8px 16px;
+            border-radius: 20px; font-size: 12px; font-weight: 500; z-index: 1000;
+            opacity: 0; transition: opacity 0.3s ease; backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2); max-width: 90vw; text-align: center;
+        }
+        
+        .status-indicator.show { opacity: 0.9; }
+        .status-indicator.success { background: rgba(16, 185, 129, 0.9); border-color: rgba(16, 185, 129, 0.3); }
+        .status-indicator.info { background: rgba(59, 130, 246, 0.9); border-color: rgba(59, 130, 246, 0.3); }
+        .status-indicator.error { background: rgba(239, 68, 68, 0.9); border-color: rgba(239, 68, 68, 0.3); }
+        .status-indicator.warning { background: rgba(245, 158, 11, 0.9); border-color: rgba(245, 158, 11, 0.3); }
+        
         .hidden { display: none !important; }
         
         @media screen and (min-width: 768px) {
@@ -644,7 +660,17 @@
         
         @media screen and (max-width: 767px) {
             .nav-button { font-size: 16px; padding: 12px 20px; border-radius: 25px; min-width: 80px; }
-            .pill-counter.bottom { bottom: 80px; }
+            .pill-counter.bottom { bottom: 100px; }
+            .status-indicator { top: 15px; font-size: 11px; padding: 6px 12px; }
+            
+            /* Ensure full viewport coverage on mobile */
+            .app-container { 
+                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                height: 100vh; height: 100dvh; /* Use dynamic viewport height */
+            }
+            
+            .edge-glow { position: fixed; }
+            .edge-glow.bottom { bottom: 0; }
         }
     </style>
 </head>
@@ -718,6 +744,7 @@
         </div>
         
         <div id="toast" class="toast"></div>
+        <div id="status-indicator" class="status-indicator"></div>
     </div>
     
     <!-- Grid Modal -->
@@ -1745,6 +1772,7 @@
             selectAnotherStackBtn: document.getElementById('select-another-stack-btn'),
             selectAnotherFolderBtn: document.getElementById('select-another-folder-btn'),
             toast: document.getElementById('toast'),
+            statusIndicator: document.getElementById('status-indicator'),
             loadingCounter: document.getElementById('loading-counter'),
             loadingMessage: document.getElementById('loading-message'),
             loadingProgressBar: document.getElementById('loading-progress-bar'),
@@ -1821,6 +1849,13 @@
                 toast.textContent = message;
                 toast.className = `toast ${type} show`;
                 setTimeout(() => { toast.classList.remove('show'); }, 3000);
+            },
+            
+            showStatus: function(message, type = 'info', duration = 2000) {
+                const status = elements.statusIndicator;
+                status.textContent = message;
+                status.className = `status-indicator ${type} show`;
+                setTimeout(() => { status.classList.remove('show'); }, duration);
             },
             
             updateLoadingProgress: function(current, total) {
@@ -2326,6 +2361,7 @@
                 const file = appState.imageFiles.find(f => f.id === fileId);
                 if (!file) {
                     console.error(`File not found: ${fileId}`);
+                    utils.showStatus('File not found', 'error');
                     return Promise.reject(new Error('File not found'));
                 }
                 
@@ -2338,6 +2374,9 @@
                 }
                 
                 try {
+                    // Show status for tablet users
+                    utils.showStatus(`Moving to ${targetStack}...`, 'info', 1000);
+                    
                     // Update local data first
                     const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
                     if (currentStackIndex !== -1) {
@@ -2360,14 +2399,17 @@
                     if (!saveSuccess) {
                         console.error('Failed to save file data to IndexedDB');
                         utils.showToast('Warning: Changes may not be saved', 'error');
+                        utils.showStatus('Save failed!', 'error');
                     } else {
                         console.log(`Successfully saved file data for ${file.name}`);
+                        utils.showStatus(`Moved to ${targetStack}`, 'success', 1500);
                     }
                     
                     this.updateCounts();
                     return Promise.resolve(file);
                 } catch (error) {
                     console.error('Error moving file:', error);
+                    utils.showStatus('Move failed!', 'error');
                     return Promise.reject(error);
                 }
             },
@@ -2376,10 +2418,12 @@
                 const file = appState.imageFiles.find(f => f.id === fileId);
                 if (!file) {
                     console.error(`File not found: ${fileId}`);
+                    utils.showStatus('File not found', 'error');
                     return Promise.reject(new Error('File not found'));
                 }
                 
                 console.log(`Adding tags to ${file.name}: ${tags.join(', ')}`);
+                utils.showStatus('Adding tags...', 'info', 1000);
                 
                 const currentTags = Array.isArray(file.tags) ? file.tags : [];
                 const newTags = [...new Set([...currentTags, ...tags])];
@@ -2401,13 +2445,16 @@
                     if (!saveSuccess) {
                         console.error('Failed to save tag data to IndexedDB');
                         utils.showToast('Warning: Tags may not be saved', 'error');
+                        utils.showStatus('Tag save failed!', 'error');
                     } else {
                         console.log(`Successfully saved tags for ${file.name}`);
+                        utils.showStatus('Tags saved', 'success');
                     }
                     
                     return Promise.resolve(newTags);
                 } catch (error) {
                     console.error('Error saving tags:', error);
+                    utils.showStatus('Tag save failed!', 'error');
                     return Promise.reject(error);
                 }
             }
@@ -3121,31 +3168,52 @@
                     }
                 });
                 
-                elements.confirmDelete.addEventListener('click', () => {
+                elements.confirmDelete.addEventListener('click', async () => {
                     const currentStack = appState.grid.stack;
+                    const selectedCount = appState.grid.selected.length;
+                    
                     elements.confirmDelete.disabled = true;
                     elements.confirmDelete.textContent = 'Processing...';
                     
-                    // For this app, we just move to trash since we're using IndexedDB
-                    const promises = appState.grid.selected.map(fileId => 
-                        stackManager.moveFileToStack(fileId, 'trash')
-                    );
+                    console.log(`Deleting ${selectedCount} images from ${currentStack} stack`);
                     
-                    Promise.all(promises).then(() => {
-                        utils.showToast(`Moved ${promises.length} images to trash`);
+                    try {
+                        // Move all selected items to trash
+                        const promises = appState.grid.selected.map(async (fileId) => {
+                            const file = appState.imageFiles.find(f => f.id === fileId);
+                            if (file) {
+                                console.log(`Moving ${file.name} to trash`);
+                                return await stackManager.moveFileToStack(fileId, 'trash');
+                            }
+                            return null;
+                        });
+                        
+                        const results = await Promise.all(promises);
+                        const successCount = results.filter(r => r !== null).length;
+                        
+                        utils.showToast(`Moved ${successCount} images to trash`);
                         this.hide('delete-modal');
                         
+                        // Refresh the grid view
                         if (appState.grid.stack) {
                             gridView.populate(appState.grid.stack);
                         }
                         
+                        // Clear selection
                         appState.grid.selected = [];
                         gridView.updateSelectionUI();
                         stackManager.updateCounts();
-                    }).finally(() => {
+                        
+                        console.log(`Successfully moved ${successCount} images to trash`);
+                        
+                    } catch (error) {
+                        console.error('Error during delete operation:', error);
+                        utils.showToast('Failed to move some images to trash', 'error');
+                        this.hide('delete-modal');
+                    } finally {
                         elements.confirmDelete.disabled = false;
                         elements.confirmDelete.textContent = 'Move to Trash';
-                    });
+                    }
                 });
                 
                 ['cancel-move', 'cancel-tag', 'cancel-delete'].forEach(id => {
@@ -3296,9 +3364,10 @@
             let velocityHistory = [];
             let gestureStarted = false;
             
-            elements.imageViewport.addEventListener('mousedown', handleStart);
-            document.addEventListener('mousemove', handleMove);
-            document.addEventListener('mouseup', handleEnd);
+            // Use both mouse and touch events
+            elements.imageViewport.addEventListener('mousedown', handleStart, { passive: false });
+            document.addEventListener('mousemove', handleMove, { passive: false });
+            document.addEventListener('mouseup', handleEnd, { passive: false });
             
             elements.imageViewport.addEventListener('touchstart', handleStart, { passive: false });
             document.addEventListener('touchmove', handleMove, { passive: false });
@@ -3322,6 +3391,9 @@
                 
                 appState.isDragging = true;
                 elements.centerImage.classList.add('dragging');
+                
+                // Show status for tablet users
+                utils.showStatus('Swipe to move image', 'info', 1000);
             }
             
             function handleMove(e) {
@@ -3353,12 +3425,21 @@
                     velocityHistory = velocityHistory.filter(v => now - v.time < 100);
                 }
                 
-                if (distance > 30) {
+                if (distance > 20) { // Reduced threshold for better mobile responsiveness
                     gestureStarted = true;
                     const direction = determineSwipeDirection(deltaX, deltaY);
                     if (direction) {
                         hideAllEdgeGlows();
                         showEdgeGlow(direction);
+                        
+                        // Show directional feedback
+                        const stackNames = {
+                            'top': 'Priority',
+                            'bottom': 'Trash', 
+                            'left': 'In',
+                            'right': 'Out'
+                        };
+                        utils.showStatus(`→ ${stackNames[direction]}`, 'info', 500);
                     }
                 } else {
                     hideAllEdgeGlows();
@@ -3395,7 +3476,8 @@
                 
                 const velocity = Math.sqrt(avgVel.x * avgVel.x + avgVel.y * avgVel.y);
                 
-                if (distance > 80 && velocity > 0.5) {
+                // Reduced threshold for easier triggering on mobile
+                if (distance > 60 && velocity > 0.3) {
                     const direction = determineSwipeDirection(deltaX, deltaY);
                     const targetStack = directionToStack(direction);
                     if (targetStack && direction) {
@@ -3432,6 +3514,10 @@
             
             acknowledgePillCounter(targetStack);
             
+            // Show immediate feedback
+            const stackNames = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
+            utils.showStatus(`Moving to ${stackNames[targetStack]}...`, 'info', 1000);
+            
             if (currentStack === targetStack) {
                 const currentStackArray = appState.stacks[currentStack];
                 const index = currentStackArray.findIndex(img => img.id === currentImage.id);
@@ -3455,6 +3541,7 @@
                 
                 stackManager.updateCounts();
                 hideAllEdgeGlows();
+                utils.showStatus(`Reordered in ${stackNames[targetStack]}`, 'success');
                 return;
             }
             
@@ -3476,6 +3563,7 @@
                 hideAllEdgeGlows();
             } catch (error) {
                 utils.showToast(`Error moving image: ${error.message}`, 'error');
+                utils.showStatus('Move failed!', 'error');
                 hideAllEdgeGlows();
             }
         }
