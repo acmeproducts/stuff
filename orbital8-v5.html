@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V6 - IndexedDB Version</title>
+    <title>Orbital8 V6 - IndexedDB Storage</title>
     <style>
         :root {
             --app-accent: #f59e0b;
@@ -151,7 +151,7 @@
         
         .folder-button.danger:hover { background: rgba(239, 68, 68, 0.1); }
         
-        /* ===== Loading Screen with Debug Log ===== */
+        /* ===== Simplified Loading Screen ===== */
         .loading-counter {
             color: var(--app-accent); font-size: 48px; font-weight: 700;
             margin: 20px 0; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
@@ -170,19 +170,6 @@
             height: 100%; background: linear-gradient(45deg, var(--app-accent), #d97706);
             border-radius: 3px; transition: width 0.3s ease; width: 0%;
         }
-        
-        .debug-log {
-            width: 100%; max-width: 500px; height: 120px;
-            background: rgba(0, 0, 0, 0.7); border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px; padding: 12px; margin-top: 20px;
-            overflow-y: auto; font-family: monospace; font-size: 12px;
-            color: rgba(255, 255, 255, 0.8);
-        }
-        
-        .debug-info { color: #3b82f6; }
-        .debug-success { color: #10b981; }
-        .debug-error { color: #ef4444; }
-        .debug-warning { color: #f59e0b; }
         
         /* ===== Main App ===== */
         .app-container {
@@ -219,8 +206,7 @@
         .center-image.zoomable { pointer-events: auto; }
         
         .edge-glow {
-            position: fixed; opacity: 0; transition: opacity 0.2s ease; z-index: 5;
-            pointer-events: none;
+            position: absolute; opacity: 0; transition: opacity 0.2s ease; z-index: 2;
         }
         
         .edge-glow.top {
@@ -231,7 +217,6 @@
         .edge-glow.bottom {
             bottom: 0; left: 0; right: 0; height: 8px;
             background: linear-gradient(0deg, rgba(245, 158, 11, 0.4) 0%, transparent 100%);
-            pointer-events: none;
         }
         
         .edge-glow.left {
@@ -673,7 +658,7 @@
             <button class="button" id="auth-button">Connect Drive</button>
             <div id="auth-status" class="status info">Enter your client secret to continue</div>
             <div style="margin-top: 16px; font-size: 12px; color: rgba(255, 255, 255, 0.5); text-align: center;">
-                If nothing happens, open browser console (F12) for debug info
+                Data is stored locally - no changes to your Google Drive files
             </div>
         </div>
     </div>
@@ -695,7 +680,7 @@
         </div>
     </div>
     
-    <!-- Loading Screen with Debug Log -->
+    <!-- Simplified Loading Screen -->
     <div class="screen hidden" id="loading-screen" style="z-index: 1500;">
         <div class="card">
             <h2 class="title">Loading Images</h2>
@@ -704,7 +689,6 @@
             <div class="loading-progress">
                 <div class="loading-progress-bar" id="loading-progress-bar"></div>
             </div>
-            <div class="debug-log" id="debug-log"></div>
         </div>
     </div>
     
@@ -943,7 +927,7 @@
     </div>
 
     <script>
-        // ===== Enhanced MetadataExtractor with SwipeDrill Logic =====
+        // ===== Enhanced MetadataExtractor =====
         class MetadataExtractor {
             constructor(options = {}) {
                 this.options = {
@@ -964,7 +948,6 @@
                     }
                 } catch (error) {
                     console.error('Error extracting metadata:', error);
-                    this.debugLog(`Metadata extraction failed for ${filename}: ${error.message}`, 'error');
                 }
                 return metadata;
             }
@@ -973,24 +956,24 @@
                 const metadata = {};
                 const view = new DataView(buffer);
                 
-                this.debugLog(`Starting PNG metadata extraction for ${filename}`, 'info');
-                this.debugLog(`File size: ${(buffer.byteLength / 1024).toFixed(1)}KB`, 'info');
+                console.log(`Extracting PNG metadata for ${filename}`);
                 
                 // PNG header validation
                 const expectedHeader = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
                 for (let i = 0; i < 8; i++) {
                     if (view.getUint8(i) !== expectedHeader[i]) {
-                        this.debugLog(`Invalid PNG header in ${filename}`, 'error');
+                        console.error(`Invalid PNG header in ${filename}`);
                         return {};
                     }
                 }
-                this.debugLog(`Valid PNG header confirmed`, 'success');
                 
                 let pos = 8; // Skip PNG header
+                let chunkCount = 0;
                 let textChunks = 0;
                 
                 try {
                     while (pos < buffer.byteLength - 12) {
+                        chunkCount++;
                         const chunkLength = view.getUint32(pos, false); // Length is big-endian
                         pos += 4;
                         
@@ -1002,7 +985,7 @@
                         pos += 4;
                         
                         if (chunkLength > this.options.maxChunkSize) {
-                            this.debugLog(`Skipping large chunk ${chunkType} (${chunkLength} bytes)`, 'warning');
+                            console.warn(`Skipping large chunk ${chunkType} (${chunkLength} bytes)`);
                             pos += chunkLength + 4; // Skip chunk data and CRC
                             continue;
                         }
@@ -1010,7 +993,6 @@
                         // Process tEXt chunks
                         if (chunkType === 'tEXt') {
                             textChunks++;
-                            this.debugLog(`Found tEXt chunk #${textChunks}`, 'info');
                             
                             try {
                                 // tEXt chunks: Keyword\0Value
@@ -1034,10 +1016,9 @@
                                 
                                 if (keyword && value) {
                                     metadata[keyword] = value;
-                                    this.debugLog(`Extracted ${keyword}`, 'success');
                                 }
                             } catch (decodeError) {
-                                this.debugLog(`Failed to decode tEXt chunk: ${decodeError.message}`, 'error');
+                                console.error(`Failed to decode tEXt chunk: ${decodeError.message}`);
                             }
                         } else if (chunkType === 'IHDR') {
                             // Extract dimensions from IHDR
@@ -1045,26 +1026,19 @@
                             const height = view.getUint32(pos + 4, false);
                             metadata['Width'] = width.toString();
                             metadata['Height'] = height.toString();
-                            this.debugLog(`Image dimensions: ${width}x${height}`, 'success');
                         }
                         
                         // Skip chunk data and CRC
                         pos += chunkLength + 4;
                     }
                 } catch (error) {
-                    this.debugLog(`PNG parsing error: ${error.message}`, 'error');
+                    console.error(`PNG parsing error at position ${pos}: ${error.message}`);
                 }
                 
                 const metadataCount = Object.keys(metadata).length;
-                this.debugLog(`Extraction complete - found ${metadataCount} metadata fields from ${textChunks} tEXt chunks`, 'success');
+                console.log(`Extraction complete - found ${metadataCount} metadata fields from ${textChunks} tEXt chunks`);
                 
                 return metadata;
-            }
-            
-            debugLog(message, type = 'info') {
-                if (typeof window !== 'undefined' && window.debugLogger) {
-                    window.debugLogger(message, type);
-                }
             }
         }
         
@@ -1377,7 +1351,7 @@
             }
             
             async getFiles(folderId = 'root') {
-                window.debugLogger(`Starting file scan for folder ID: ${folderId}`, 'info');
+                console.log(`Starting file scan for folder ID: ${folderId}`);
                 
                 const allFiles = [];
                 let nextPageToken = null;
@@ -1385,7 +1359,7 @@
                 
                 do {
                     const query = `'${folderId}' in parents and trashed=false and (mimeType contains 'image/')`;
-                    let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,appProperties),nextPageToken&pageSize=100`;
+                    let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink),nextPageToken&pageSize=100`;
                     
                     if (nextPageToken) {
                         url += `&pageToken=${nextPageToken}`;
@@ -1404,24 +1378,23 @@
                             createdTime: file.createdTime,
                             modifiedTime: file.modifiedTime,
                             thumbnailLink: file.thumbnailLink,
-                            downloadUrl: file.webContentLink,
-                            appProperties: file.appProperties || {}
+                            downloadUrl: file.webContentLink
                         }));
                     
                     allFiles.push(...files);
                     totalFiles += files.length;
                     nextPageToken = response.nextPageToken;
                     
-                    window.debugLogger(`Retrieved ${files.length} files (${totalFiles} total so far)`, 'info');
+                    console.log(`Retrieved ${files.length} files (${totalFiles} total so far)`);
                     
                 } while (nextPageToken);
                 
-                window.debugLogger(`Found ${totalFiles} image files total`, 'success');
+                console.log(`Found ${totalFiles} image files total`);
                 return { folders: [], files: allFiles };
             }
             
             async downloadFileContent(fileId, filename) {
-                window.debugLogger(`Downloading binary content for ${filename}`, 'info');
+                console.log(`Downloading binary content for ${filename}`);
                 
                 const url = `${this.apiBase}/files/${fileId}?alt=media`;
                 const headers = {
@@ -1447,7 +1420,7 @@
                 }
                 
                 const arrayBuffer = await response.arrayBuffer();
-                window.debugLogger(`Downloaded ${(arrayBuffer.byteLength / 1024).toFixed(1)}KB binary data`, 'success');
+                console.log(`Downloaded ${(arrayBuffer.byteLength / 1024).toFixed(1)}KB binary data`);
                 return arrayBuffer;
             }
             
@@ -1475,6 +1448,169 @@
                 window.close();
             }
         }
+
+        // ===== Enhanced IndexedDB Cache Manager =====
+        const cacheManager = {
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open('Orbital8Cache', 2);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => {
+                        appState.db = request.result;
+                        resolve();
+                    };
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        
+                        if (!db.objectStoreNames.contains('thumbnails')) {
+                            db.createObjectStore('thumbnails', { keyPath: 'id' });
+                        }
+                        
+                        if (!db.objectStoreNames.contains('metadata')) {
+                            const metadataStore = db.createObjectStore('metadata', { keyPath: 'fileId' });
+                            metadataStore.createIndex('folderId', 'folderId', { unique: false });
+                        }
+                        
+                        if (!db.objectStoreNames.contains('fileData')) {
+                            const fileDataStore = db.createObjectStore('fileData', { keyPath: 'fileId' });
+                            fileDataStore.createIndex('folderId', 'folderId', { unique: false });
+                        }
+                    };
+                });
+            },
+            
+            async cacheThumbnail(fileId, url) {
+                if (!appState.db) return;
+                try {
+                    const transaction = appState.db.transaction(['thumbnails'], 'readwrite');
+                    const store = transaction.objectStore('thumbnails');
+                    await store.put({ id: fileId, url, timestamp: Date.now() });
+                } catch (error) {
+                    console.warn('Failed to cache thumbnail:', error);
+                }
+            },
+            
+            async getCachedThumbnail(fileId) {
+                if (!appState.db) return null;
+                try {
+                    const transaction = appState.db.transaction(['thumbnails'], 'readonly');
+                    const store = transaction.objectStore('thumbnails');
+                    const result = await store.get(fileId);
+                    if (result && (Date.now() - result.timestamp < 24 * 60 * 60 * 1000)) {
+                        return result.url;
+                    }
+                } catch (error) {
+                    console.warn('Failed to get cached thumbnail:', error);
+                }
+                return null;
+            },
+            
+            // Store file data (stack, tags, notes, ratings) per folder
+            async storeFileData(folderId, fileId, data) {
+                if (!appState.db) return;
+                try {
+                    const transaction = appState.db.transaction(['fileData'], 'readwrite');
+                    const store = transaction.objectStore('fileData');
+                    await store.put({
+                        fileId,
+                        folderId,
+                        stack: data.stack || 'in',
+                        tags: data.tags || [],
+                        notes: data.notes || '',
+                        qualityRating: data.qualityRating || 0,
+                        contentRating: data.contentRating || 0,
+                        timestamp: Date.now()
+                    });
+                } catch (error) {
+                    console.warn('Failed to store file data:', error);
+                }
+            },
+            
+            async getFileData(folderId, fileId) {
+                if (!appState.db) return null;
+                try {
+                    const transaction = appState.db.transaction(['fileData'], 'readonly');
+                    const store = transaction.objectStore('fileData');
+                    const result = await store.get(fileId);
+                    if (result && result.folderId === folderId) {
+                        return result;
+                    }
+                } catch (error) {
+                    console.warn('Failed to get file data:', error);
+                }
+                return null;
+            },
+            
+            async getAllFileDataForFolder(folderId) {
+                if (!appState.db) return {};
+                try {
+                    const transaction = appState.db.transaction(['fileData'], 'readonly');
+                    const store = transaction.objectStore('fileData');
+                    const index = store.index('folderId');
+                    const results = await index.getAll(folderId);
+                    
+                    const fileDataMap = {};
+                    results.forEach(result => {
+                        fileDataMap[result.fileId] = result;
+                    });
+                    return fileDataMap;
+                } catch (error) {
+                    console.warn('Failed to get folder file data:', error);
+                    return {};
+                }
+            },
+            
+            // Store extracted metadata per folder
+            async storeMetadata(folderId, fileId, metadata) {
+                if (!appState.db) return;
+                try {
+                    const transaction = appState.db.transaction(['metadata'], 'readwrite');
+                    const store = transaction.objectStore('metadata');
+                    await store.put({
+                        fileId,
+                        folderId,
+                        metadata,
+                        timestamp: Date.now()
+                    });
+                } catch (error) {
+                    console.warn('Failed to store metadata:', error);
+                }
+            },
+            
+            async getMetadata(folderId, fileId) {
+                if (!appState.db) return null;
+                try {
+                    const transaction = appState.db.transaction(['metadata'], 'readonly');
+                    const store = transaction.objectStore('metadata');
+                    const result = await store.get(fileId);
+                    if (result && result.folderId === folderId) {
+                        return result.metadata;
+                    }
+                } catch (error) {
+                    console.warn('Failed to get metadata:', error);
+                }
+                return null;
+            },
+            
+            async getAllMetadataForFolder(folderId) {
+                if (!appState.db) return {};
+                try {
+                    const transaction = appState.db.transaction(['metadata'], 'readonly');
+                    const store = transaction.objectStore('metadata');
+                    const index = store.index('folderId');
+                    const results = await index.getAll(folderId);
+                    
+                    const metadataMap = {};
+                    results.forEach(result => {
+                        metadataMap[result.fileId] = result.metadata;
+                    });
+                    return metadataMap;
+                } catch (error) {
+                    console.warn('Failed to get folder metadata:', error);
+                    return {};
+                }
+            }
+        };
 
         // ===== App Configuration =====
         const STACK_TYPES = ['in', 'out', 'priority', 'trash'];
@@ -1524,7 +1660,6 @@
             loadingCounter: document.getElementById('loading-counter'),
             loadingMessage: document.getElementById('loading-message'),
             loadingProgressBar: document.getElementById('loading-progress-bar'),
-            debugLog: document.getElementById('debug-log'),
             edgeGlows: {
                 top: document.getElementById('edge-top'),
                 bottom: document.getElementById('edge-bottom'),
@@ -1569,173 +1704,6 @@
             metadataTable: document.getElementById('metadata-table'),
             metadataTableBody: document.getElementById('metadata-table-body'),
             noMetadataMessage: document.getElementById('no-metadata-message')
-        };
-
-        // ===== Debug Logger =====
-        window.debugLogger = function(message, type = 'info') {
-            const debugLog = elements.debugLog;
-            if (!debugLog) return;
-            
-            const timestamp = new Date().toLocaleTimeString();
-            const line = document.createElement('div');
-            line.className = `debug-${type}`;
-            line.textContent = `[${timestamp}] ${message}`;
-            
-            debugLog.appendChild(line);
-            debugLog.scrollTop = debugLog.scrollHeight;
-            
-            // Keep only last 20 lines for performance
-            if (debugLog.children.length > 20) {
-                debugLog.removeChild(debugLog.firstChild);
-            }
-        };
-
-        // ===== IndexedDB Cache Manager =====
-        const cacheManager = {
-            async init() {
-                return new Promise((resolve, reject) => {
-                    const request = indexedDB.open('Orbital8Cache', 2);
-                    request.onerror = () => reject(request.error);
-                    request.onsuccess = () => {
-                        appState.db = request.result;
-                        resolve();
-                    };
-                    request.onupgradeneeded = (event) => {
-                        const db = event.target.result;
-                        if (!db.objectStoreNames.contains('thumbnails')) {
-                            db.createObjectStore('thumbnails', { keyPath: 'id' });
-                        }
-                        if (!db.objectStoreNames.contains('metadata')) {
-                            db.createObjectStore('metadata', { keyPath: 'id' });
-                        }
-                        if (!db.objectStoreNames.contains('folderData')) {
-                            db.createObjectStore('folderData', { keyPath: 'id' });
-                        }
-                    };
-                });
-            },
-            
-            async cacheThumbnail(fileId, url) {
-                if (!appState.db) return;
-                try {
-                    const transaction = appState.db.transaction(['thumbnails'], 'readwrite');
-                    const store = transaction.objectStore('thumbnails');
-                    return new Promise((resolve, reject) => {
-                        const request = store.put({ id: fileId, url, timestamp: Date.now() });
-                        request.onsuccess = () => resolve();
-                        request.onerror = () => reject(request.error);
-                    });
-                } catch (error) {
-                    console.warn('Failed to cache thumbnail:', error);
-                }
-            },
-            
-            async getCachedThumbnail(fileId) {
-                if (!appState.db) return null;
-                try {
-                    const transaction = appState.db.transaction(['thumbnails'], 'readonly');
-                    const store = transaction.objectStore('thumbnails');
-                    return new Promise((resolve, reject) => {
-                        const request = store.get(fileId);
-                        request.onsuccess = () => {
-                            const result = request.result;
-                            if (result && (Date.now() - result.timestamp < 24 * 60 * 60 * 1000)) {
-                                resolve(result.url);
-                            } else {
-                                resolve(null);
-                            }
-                        };
-                        request.onerror = () => reject(request.error);
-                    });
-                } catch (error) {
-                    console.warn('Failed to get cached thumbnail:', error);
-                    return null;
-                }
-            },
-            
-            async storeFolderData(folderId, files) {
-                if (!appState.db) return;
-                try {
-                    const transaction = appState.db.transaction(['folderData'], 'readwrite');
-                    const store = transaction.objectStore('folderData');
-                    return new Promise((resolve, reject) => {
-                        const request = store.put({ 
-                            id: folderId, 
-                            files: files,
-                            timestamp: Date.now() 
-                        });
-                        request.onsuccess = () => resolve();
-                        request.onerror = () => reject(request.error);
-                    });
-                } catch (error) {
-                    console.warn('Failed to store folder data:', error);
-                }
-            },
-            
-            async getFolderData(folderId) {
-                if (!appState.db) return null;
-                try {
-                    const transaction = appState.db.transaction(['folderData'], 'readonly');
-                    const store = transaction.objectStore('folderData');
-                    return new Promise((resolve, reject) => {
-                        const request = store.get(folderId);
-                        request.onsuccess = () => {
-                            const result = request.result;
-                            if (result && (Date.now() - result.timestamp < 24 * 60 * 60 * 1000)) {
-                                resolve(result.files);
-                            } else {
-                                resolve(null);
-                            }
-                        };
-                        request.onerror = () => reject(request.error);
-                    });
-                } catch (error) {
-                    console.warn('Failed to get folder data:', error);
-                    return null;
-                }
-            },
-            
-            async storeFileMetadata(folderId, fileId, metadata) {
-                if (!appState.db) return;
-                try {
-                    const transaction = appState.db.transaction(['metadata'], 'readwrite');
-                    const store = transaction.objectStore('metadata');
-                    return new Promise((resolve, reject) => {
-                        const request = store.put({ 
-                            id: `${folderId}_${fileId}`, 
-                            metadata: metadata,
-                            timestamp: Date.now() 
-                        });
-                        request.onsuccess = () => resolve();
-                        request.onerror = () => reject(request.error);
-                    });
-                } catch (error) {
-                    console.warn('Failed to store metadata:', error);
-                }
-            },
-            
-            async getFileMetadata(folderId, fileId) {
-                if (!appState.db) return null;
-                try {
-                    const transaction = appState.db.transaction(['metadata'], 'readonly');
-                    const store = transaction.objectStore('metadata');
-                    return new Promise((resolve, reject) => {
-                        const request = store.get(`${folderId}_${fileId}`);
-                        request.onsuccess = () => {
-                            const result = request.result;
-                            if (result) {
-                                resolve(result.metadata);
-                            } else {
-                                resolve(null);
-                            }
-                        };
-                        request.onerror = () => reject(request.error);
-                    });
-                } catch (error) {
-                    console.warn('Failed to get metadata:', error);
-                    return null;
-                }
-            }
         };
         
         // ===== Utility Functions =====
@@ -1939,108 +1907,114 @@
                 appState.currentFolder.id = folder.id;
                 appState.currentFolder.name = folder.name;
                 
-                // Update back button text
-                elements.backButton.textContent = `← ${folder.name}`;
-                
                 utils.showScreen('loading-screen');
                 utils.updateLoadingProgress(0, 0);
                 
-                // Clear debug log
-                elements.debugLog.innerHTML = '';
-                window.debugLogger(`Starting folder scan: ${folder.name}`, 'info');
-                
                 try {
-                    // Check if we have cached data for this folder
-                    const cachedFiles = await cacheManager.getFolderData(folder.id);
+                    elements.loadingMessage.textContent = 'Loading images from Google Drive...';
                     
-                    if (cachedFiles) {
-                        window.debugLogger(`Found cached data for ${cachedFiles.length} files`, 'success');
-                        appState.imageFiles = cachedFiles;
-                        elements.loadingMessage.textContent = 'Loading from cache...';
-                        utils.updateLoadingProgress(cachedFiles.length, cachedFiles.length);
-                    } else {
-                        elements.loadingMessage.textContent = 'Loading images from Google Drive...';
+                    const result = await appState.cloudStorage.getFiles(folder.id);
+                    const files = result.files || [];
+                    
+                    if (files.length === 0) {
+                        console.warn('No images found in this folder');
+                        utils.showToast('No images found in this folder');
+                        setTimeout(() => utils.showScreen('folder-screen'), 2000);
+                        return;
+                    }
+                    
+                    console.log(`Found ${files.length} image files to process`);
+                    utils.updateLoadingProgress(files.length, files.length);
+                    elements.loadingMessage.textContent = 'Loading cached data and extracting metadata...';
+                    
+                    // Load cached data for this folder
+                    const [allFileData, allMetadata] = await Promise.all([
+                        cacheManager.getAllFileDataForFolder(folder.id),
+                        cacheManager.getAllMetadataForFolder(folder.id)
+                    ]);
+                    
+                    // Process files
+                    appState.imageFiles = [];
+                    let processedCount = 0;
+                    let extractedCount = 0;
+                    let loadedCount = 0;
+                    let skippedCount = 0;
+                    
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        console.log(`Processing file ${i + 1}/${files.length}: ${file.name}`);
                         
-                        const result = await appState.cloudStorage.getFiles(folder.id);
-                        const files = result.files || [];
+                        // Get cached data
+                        const cachedFileData = allFileData[file.id];
+                        const cachedMetadata = allMetadata[file.id];
                         
-                        if (files.length === 0) {
-                            window.debugLogger('No images found in this folder', 'warning');
-                            utils.showToast('No images found in this folder');
-                            setTimeout(() => utils.showScreen('folder-screen'), 2000);
-                            return;
-                        }
+                        const imageFile = {
+                            id: file.id,
+                            name: file.name,
+                            filename: file.name,
+                            originalName: file.name,
+                            mimeType: file.mimeType,
+                            size: file.size,
+                            createdTime: file.createdTime,
+                            modifiedTime: file.modifiedTime,
+                            thumbnailLink: file.thumbnailLink,
+                            downloadUrl: file.downloadUrl,
+                            extractedMetadata: cachedMetadata || {},
+                            // Local data stored in IndexedDB
+                            stack: cachedFileData?.stack || 'in',
+                            tags: cachedFileData?.tags || [],
+                            qualityRating: cachedFileData?.qualityRating || 0,
+                            contentRating: cachedFileData?.contentRating || 0,
+                            notes: cachedFileData?.notes || ''
+                        };
                         
-                        window.debugLogger(`Found ${files.length} image files`, 'success');
-                        utils.updateLoadingProgress(files.length, files.length);
-                        elements.loadingMessage.textContent = 'Processing metadata...';
+                        appState.imageFiles.push(imageFile);
                         
-                        // Process files and extract metadata
-                        appState.imageFiles = [];
-                        let extractedCount = 0;
+                        // Extract metadata if not cached and is PNG
+                        utils.updateLoadingProgress(processedCount + 1, files.length);
                         
-                        for (let i = 0; i < files.length; i++) {
-                            const file = files[i];
-                            
-                            // Check for cached metadata first
-                            let cachedMetadata = await cacheManager.getFileMetadata(folder.id, file.id);
-                            
-                            const imageFile = {
-                                id: file.id,
-                                name: file.name,
-                                filename: file.name,
-                                originalName: file.name,
-                                mimeType: file.mimeType,
-                                size: file.size,
-                                createdTime: file.createdTime,
-                                modifiedTime: file.modifiedTime,
-                                thumbnailLink: file.thumbnailLink,
-                                downloadUrl: file.downloadUrl,
-                                appProperties: cachedMetadata?.appProperties || { slideboxStack: 'in' },
-                                extractedMetadata: cachedMetadata?.extractedMetadata || {},
-                                qualityRating: cachedMetadata?.qualityRating || 0,
-                                contentRating: cachedMetadata?.contentRating || 0,
-                                notes: cachedMetadata?.notes || ''
-                            };
-                            
-                            // If no cached metadata and it's a PNG, extract it
-                            if (!cachedMetadata && file.mimeType === 'image/png') {
+                        try {
+                            if (cachedMetadata) {
+                                loadedCount++;
+                                console.log(`Loaded existing metadata from cache (${Object.keys(cachedMetadata).length} fields)`);
+                            } else if (file.mimeType === 'image/png') {
+                                extractedCount++;
+                                console.log(`Extracting NEW metadata from PNG file`);
+                                
                                 try {
-                                    extractedCount++;
-                                    window.debugLogger(`Extracting metadata from ${file.name}`, 'info');
+                                    // Download the actual file content for metadata extraction
                                     const arrayBuffer = await appState.cloudStorage.currentProvider.downloadFileContent(file.id, file.name);
+                                    
+                                    // Extract metadata using the enhanced extractor
                                     const metadata = await appState.metadataExtractor.extractImageMetadata(arrayBuffer, file.mimeType, file.name);
                                     
                                     if (Object.keys(metadata).length > 0) {
                                         imageFile.extractedMetadata = metadata;
                                         
                                         // Store in IndexedDB
-                                        await cacheManager.storeFileMetadata(folder.id, file.id, {
-                                            appProperties: imageFile.appProperties,
-                                            extractedMetadata: metadata,
-                                            qualityRating: 0,
-                                            contentRating: 0,
-                                            notes: ''
-                                        });
+                                        await cacheManager.storeMetadata(folder.id, file.id, metadata);
                                         
-                                        window.debugLogger(`Found ${Object.keys(metadata).length} metadata fields`, 'success');
+                                        console.log(`Extracted and stored ${Object.keys(metadata).length} metadata fields`);
+                                    } else {
+                                        console.log(`No extractable metadata found in PNG`);
                                     }
                                 } catch (error) {
-                                    window.debugLogger(`Failed to extract metadata: ${error.message}`, 'error');
+                                    console.error(`Failed to extract metadata: ${error.message}`);
                                 }
+                            } else {
+                                skippedCount++;
+                                console.log(`Skipping non-PNG file (${file.mimeType})`);
                             }
-                            
-                            appState.imageFiles.push(imageFile);
-                            utils.updateLoadingProgress(i + 1, files.length);
-                            elements.loadingMessage.textContent = `Processing ${i + 1}/${files.length} (${extractedCount} extracted)`;
+                        } catch (error) {
+                            console.error(`Processing failed: ${error.message}`);
                         }
                         
-                        // Store the processed files in cache
-                        await cacheManager.storeFolderData(folder.id, appState.imageFiles);
+                        processedCount++;
+                        elements.loadingMessage.textContent = `Processing ${processedCount}/${files.length} (${loadedCount} cached, ${extractedCount} extracted, ${skippedCount} skipped)`;
                     }
                     
                     // Organize into stacks
-                    window.debugLogger(`Organizing ${appState.imageFiles.length} files into stacks`, 'info');
+                    console.log(`Organizing ${appState.imageFiles.length} files into stacks`);
                     stackManager.updateStacks();
                     appState.currentImageIndex = 0;
                     appState.currentStack = 'in';
@@ -2048,7 +2022,7 @@
                     // Background caching
                     elements.loadingMessage.textContent = 'Finalizing...';
                     this.backgroundCacheImages().then(() => {
-                        window.debugLogger('Background caching complete', 'success');
+                        console.log('Background caching complete');
                     });
                     
                     setTimeout(() => {
@@ -2056,20 +2030,27 @@
                         imageViewer.displayTopImageFromStack('in');
                         updateActiveProxTab();
                         
-                        window.debugLogger(`Loading complete - ${appState.imageFiles.length} files ready`, 'success');
-                        utils.showToast(`Loaded ${appState.imageFiles.length} images`);
+                        const totalProcessed = loadedCount + extractedCount;
+                        console.log(`Loading complete - ${totalProcessed} files processed (${extractedCount} new extractions, ${loadedCount} from cache, ${skippedCount} skipped)`);
+                        
+                        if (extractedCount > 0 && loadedCount > 0) {
+                            utils.showToast(`Loaded ${files.length} images (${extractedCount} new extractions, ${loadedCount} cached)`);
+                        } else if (extractedCount > 0) {
+                            utils.showToast(`Loaded ${files.length} images with new metadata extraction`);
+                        } else {
+                            utils.showToast(`Loaded ${files.length} images from cached data`);
+                        }
                     }, 500);
                     
                 } catch (error) {
                     console.error('Error loading folder:', error);
-                    window.debugLogger(`Folder loading failed: ${error.message}`, 'error');
                     utils.showToast('Error loading images from folder', 'error');
                     setTimeout(() => utils.showScreen('folder-screen'), 2000);
                 }
             },
             
             async backgroundCacheImages() {
-                window.debugLogger('Starting background caching', 'info');
+                console.log('Starting background image caching');
                 const priorityFiles = [];
                 STACK_TYPES.forEach(stackName => {
                     const stackFiles = appState.stacks[stackName].slice(0, 3);
@@ -2106,10 +2087,9 @@
             currentSort: 'date-desc',
             
             getFileMetadata: function(file) {
-                const appProperties = file.appProperties || {};
                 return {
-                    slideboxStack: appProperties.slideboxStack || 'in',
-                    slideboxTags: appProperties.slideboxTags ? appProperties.slideboxTags.split(',') : []
+                    slideboxStack: file.stack || 'in',
+                    slideboxTags: file.tags || []
                 };
             },
             
@@ -2133,8 +2113,7 @@
             updateStacks: function() {
                 STACK_TYPES.forEach(stack => { appState.stacks[stack] = []; });
                 appState.imageFiles.forEach(file => {
-                    const metadata = this.getFileMetadata(file);
-                    const stack = metadata.slideboxStack;
+                    const stack = file.stack || 'in';
                     
                     if (STACK_TYPES.includes(stack)) {
                         appState.stacks[stack].push(file);
@@ -2175,34 +2154,29 @@
                 const file = appState.imageFiles.find(f => f.id === fileId);
                 if (!file) return Promise.reject(new Error('File not found'));
                 
-                const metadata = this.getFileMetadata(file);
-                const currentStack = metadata.slideboxStack;
+                const currentStack = file.stack;
                 
                 if (currentStack === targetStack) {
                     return Promise.resolve(file);
                 }
                 
                 try {
-                    // Update local state
+                    // Update local data
                     const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
                     if (currentStackIndex !== -1) {
                         appState.stacks[currentStack].splice(currentStackIndex, 1);
                     }
                     appState.stacks[targetStack].unshift(file);
-                    file.appProperties = file.appProperties || {};
-                    file.appProperties.slideboxStack = targetStack;
+                    file.stack = targetStack;
                     
                     // Store in IndexedDB
-                    await cacheManager.storeFileMetadata(appState.currentFolder.id, fileId, {
-                        appProperties: file.appProperties,
-                        extractedMetadata: file.extractedMetadata || {},
-                        qualityRating: file.qualityRating || 0,
-                        contentRating: file.contentRating || 0,
-                        notes: file.notes || ''
+                    await cacheManager.storeFileData(appState.currentFolder.id, fileId, {
+                        stack: targetStack,
+                        tags: file.tags,
+                        notes: file.notes,
+                        qualityRating: file.qualityRating,
+                        contentRating: file.contentRating
                     });
-                    
-                    // Update folder cache
-                    await cacheManager.storeFolderData(appState.currentFolder.id, appState.imageFiles);
                     
                     this.updateCounts();
                     return Promise.resolve(file);
@@ -2216,28 +2190,21 @@
                 const file = appState.imageFiles.find(f => f.id === fileId);
                 if (!file) return Promise.reject(new Error('File not found'));
                 
-                const metadata = this.getFileMetadata(file);
-                const currentTags = metadata.slideboxTags || [];
+                const currentTags = file.tags || [];
                 const newTags = [...new Set([...currentTags, ...tags])];
                 
                 tags.forEach(tag => appState.tags.add(tag));
                 
-                file.appProperties = file.appProperties || {};
-                file.appProperties.slideboxTags = newTags.join(',');
+                file.tags = newTags;
                 
                 try {
-                    // Store in IndexedDB
-                    await cacheManager.storeFileMetadata(appState.currentFolder.id, fileId, {
-                        appProperties: file.appProperties,
-                        extractedMetadata: file.extractedMetadata || {},
-                        qualityRating: file.qualityRating || 0,
-                        contentRating: file.contentRating || 0,
-                        notes: file.notes || ''
+                    await cacheManager.storeFileData(appState.currentFolder.id, fileId, {
+                        stack: file.stack,
+                        tags: newTags,
+                        notes: file.notes,
+                        qualityRating: file.qualityRating,
+                        contentRating: file.contentRating
                     });
-                    
-                    // Update folder cache
-                    await cacheManager.storeFolderData(appState.currentFolder.id, appState.imageFiles);
-                    
                     return Promise.resolve(newTags);
                 } catch (error) {
                     console.error('Error saving tags:', error);
@@ -2600,7 +2567,7 @@
                 const copyableFields = ['prompt', 'Seed', 'Negative_Prompt', 'API_Call', 'Global_Hash'];
                 
                 // Get all metadata
-                const allMetadata = this.extractAllMetadata(file);
+                const allMetadata = file.extractedMetadata || {};
                 
                 if (Object.keys(allMetadata).length === 0) {
                     elements.noMetadataMessage.style.display = 'block';
@@ -2626,31 +2593,6 @@
                         this.addMetadataRow(key, value, false);
                     }
                 });
-            },
-            
-            extractAllMetadata: function(file) {
-                const metadata = {};
-                
-                // From extracted metadata (embedded in image)
-                if (file.extractedMetadata && typeof file.extractedMetadata === 'object') {
-                    Object.entries(file.extractedMetadata).forEach(([key, value]) => {
-                        if (value && String(value).trim()) {
-                            metadata[key] = value;
-                        }
-                    });
-                }
-                
-                // From appProperties (fallback)
-                if (file.appProperties && typeof file.appProperties === 'object') {
-                    Object.entries(file.appProperties).forEach(([key, value]) => {
-                        if (!['slideboxStack', 'slideboxTags', 'qualityRating', 'contentRating', 'notes'].includes(key) && 
-                            value && String(value).trim() && !metadata[key]) {
-                            metadata[key] = value;
-                        }
-                    });
-                }
-                
-                return metadata;
             },
             
             addMetadataRow: function(key, value, needsCopyButton = false) {
@@ -2684,8 +2626,7 @@
             },
             
             populateTagsTab: function(file) {
-                const metadata = stackManager.getFileMetadata(file);
-                const tags = metadata.slideboxTags || [];
+                const tags = file.tags || [];
                 
                 elements.detailTags.innerHTML = '';
                 
@@ -2749,26 +2690,19 @@
             },
             
             removeTag: async function(file, tagToRemove) {
-                const metadata = stackManager.getFileMetadata(file);
-                const currentTags = metadata.slideboxTags || [];
+                const currentTags = file.tags || [];
                 const newTags = currentTags.filter(tag => tag !== tagToRemove);
                 
-                file.appProperties = file.appProperties || {};
-                file.appProperties.slideboxTags = newTags.join(',');
+                file.tags = newTags;
                 
                 try {
-                    // Store in IndexedDB
-                    await cacheManager.storeFileMetadata(appState.currentFolder.id, file.id, {
-                        appProperties: file.appProperties,
-                        extractedMetadata: file.extractedMetadata || {},
-                        qualityRating: file.qualityRating || 0,
-                        contentRating: file.contentRating || 0,
-                        notes: file.notes || ''
+                    await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
+                        stack: file.stack,
+                        tags: newTags,
+                        notes: file.notes,
+                        qualityRating: file.qualityRating,
+                        contentRating: file.contentRating
                     });
-                    
-                    // Update folder cache
-                    await cacheManager.storeFolderData(appState.currentFolder.id, appState.imageFiles);
-                    
                     this.populateTagsTab(file);
                     utils.showToast(`Removed tag: ${tagToRemove}`);
                 } catch (error) {
@@ -2786,22 +2720,15 @@
                 
                 elements.detailNotes.addEventListener('blur', async () => {
                     file.notes = elements.detailNotes.value;
-                    file.appProperties = file.appProperties || {};
-                    file.appProperties.notes = file.notes;
                     
                     try {
-                        // Store in IndexedDB
-                        await cacheManager.storeFileMetadata(appState.currentFolder.id, file.id, {
-                            appProperties: file.appProperties,
-                            extractedMetadata: file.extractedMetadata || {},
-                            qualityRating: file.qualityRating || 0,
-                            contentRating: file.contentRating || 0,
-                            notes: file.notes
+                        await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
+                            stack: file.stack,
+                            tags: file.tags,
+                            notes: file.notes,
+                            qualityRating: file.qualityRating,
+                            contentRating: file.contentRating
                         });
-                        
-                        // Update folder cache
-                        await cacheManager.storeFolderData(appState.currentFolder.id, appState.imageFiles);
-                        
                         utils.showToast('Notes saved');
                     } catch (error) {
                         console.error('Error saving notes:', error);
@@ -2811,22 +2738,15 @@
                 
                 this.setupStarRating(elements.qualityRating, file.qualityRating || 0, async (rating) => {
                     file.qualityRating = rating;
-                    file.appProperties = file.appProperties || {};
-                    file.appProperties.qualityRating = rating;
                     
                     try {
-                        // Store in IndexedDB
-                        await cacheManager.storeFileMetadata(appState.currentFolder.id, file.id, {
-                            appProperties: file.appProperties,
-                            extractedMetadata: file.extractedMetadata || {},
+                        await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
+                            stack: file.stack,
+                            tags: file.tags,
+                            notes: file.notes,
                             qualityRating: rating,
-                            contentRating: file.contentRating || 0,
-                            notes: file.notes || ''
+                            contentRating: file.contentRating
                         });
-                        
-                        // Update folder cache
-                        await cacheManager.storeFolderData(appState.currentFolder.id, appState.imageFiles);
-                        
                         utils.showToast('Quality rating saved');
                     } catch (error) {
                         console.error('Error saving quality rating:', error);
@@ -2836,22 +2756,15 @@
                 
                 this.setupStarRating(elements.contentRating, file.contentRating || 0, async (rating) => {
                     file.contentRating = rating;
-                    file.appProperties = file.appProperties || {};
-                    file.appProperties.contentRating = rating;
                     
                     try {
-                        // Store in IndexedDB
-                        await cacheManager.storeFileMetadata(appState.currentFolder.id, file.id, {
-                            appProperties: file.appProperties,
-                            extractedMetadata: file.extractedMetadata || {},
-                            qualityRating: file.qualityRating || 0,
-                            contentRating: rating,
-                            notes: file.notes || ''
+                        await cacheManager.storeFileData(appState.currentFolder.id, file.id, {
+                            stack: file.stack,
+                            tags: file.tags,
+                            notes: file.notes,
+                            qualityRating: file.qualityRating,
+                            contentRating: rating
                         });
-                        
-                        // Update folder cache
-                        await cacheManager.storeFolderData(appState.currentFolder.id, appState.imageFiles);
-                        
                         utils.showToast('Content rating saved');
                     } catch (error) {
                         console.error('Error saving content rating:', error);
@@ -2976,39 +2889,18 @@
                     }
                 });
                 
-                elements.confirmDelete.addEventListener('click', async () => {
+                elements.confirmDelete.addEventListener('click', () => {
                     const currentStack = appState.grid.stack;
                     elements.confirmDelete.disabled = true;
                     elements.confirmDelete.textContent = 'Processing...';
                     
-                    try {
-                        if (currentStack === 'trash') {
-                            // Remove from IndexedDB and local state (simulate permanent deletion)
-                            appState.grid.selected.forEach(fileId => {
-                                const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
-                                if (fileIndex !== -1) {
-                                    appState.imageFiles.splice(fileIndex, 1);
-                                }
-                                const trashIndex = appState.stacks.trash.findIndex(f => f.id === fileId);
-                                if (trashIndex !== -1) {
-                                    appState.stacks.trash.splice(trashIndex, 1);
-                                }
-                            });
-                            
-                            // Update folder cache
-                            await cacheManager.storeFolderData(appState.currentFolder.id, appState.imageFiles);
-                            
-                            utils.showToast(`Permanently deleted ${appState.grid.selected.length} images`);
-                        } else {
-                            // Move to trash stack
-                            const promises = appState.grid.selected.map(fileId => 
-                                stackManager.moveFileToStack(fileId, 'trash')
-                            );
-                            
-                            await Promise.all(promises);
-                            utils.showToast(`Moved ${promises.length} images to trash`);
-                        }
-                        
+                    // For this app, we just move to trash since we're using IndexedDB
+                    const promises = appState.grid.selected.map(fileId => 
+                        stackManager.moveFileToStack(fileId, 'trash')
+                    );
+                    
+                    Promise.all(promises).then(() => {
+                        utils.showToast(`Moved ${promises.length} images to trash`);
                         this.hide('delete-modal');
                         
                         if (appState.grid.stack) {
@@ -3018,15 +2910,10 @@
                         appState.grid.selected = [];
                         gridView.updateSelectionUI();
                         stackManager.updateCounts();
-                        
-                    } catch (error) {
-                        console.error('Error deleting images:', error);
-                        utils.showToast('Failed to delete some images', 'error');
-                        this.hide('delete-modal');
-                    } finally {
+                    }).finally(() => {
                         elements.confirmDelete.disabled = false;
-                        elements.confirmDelete.textContent = currentStack === 'trash' ? 'Permanently Delete' : 'Move to Trash';
-                    }
+                        elements.confirmDelete.textContent = 'Move to Trash';
+                    });
                 });
                 
                 ['cancel-move', 'cancel-tag', 'cancel-delete'].forEach(id => {
@@ -3056,15 +2943,9 @@
                 
                 elements.deleteSelected.addEventListener('click', () => {
                     const selectedCount = appState.grid.selected.length;
-                    const currentStack = appState.grid.stack;
                     
-                    if (currentStack === 'trash') {
-                        elements.deleteMessage.textContent = `Are you sure you want to permanently delete ${selectedCount} image${selectedCount > 1 ? 's' : ''}? This action cannot be undone.`;
-                        elements.confirmDelete.textContent = 'Permanently Delete';
-                    } else {
-                        elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
-                        elements.confirmDelete.textContent = 'Move to Trash';
-                    }
+                    elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
+                    elements.confirmDelete.textContent = 'Move to Trash';
                     
                     this.show('delete-modal');
                 });
@@ -3315,7 +3196,7 @@
         
         async function executeFlick(targetStack) {
             const currentImage = appState.imageFiles[appState.currentImageIndex];
-            const currentStack = stackManager.getFileMetadata(currentImage).slideboxStack;
+            const currentStack = currentImage.stack;
             
             acknowledgePillCounter(targetStack);
             
@@ -3369,7 +3250,7 @@
         
         // ===== Initialize App =====
         async function initApp() {
-            console.log('Initializing Orbital8 V6...');
+            console.log('Initializing Orbital8 V6 - IndexedDB Storage...');
             
             try {
                 console.log('Initializing cache manager...');
@@ -3414,8 +3295,6 @@
                 elements.logout.addEventListener('click', () => authManager.logout());
                 
                 elements.backButton.addEventListener('click', () => {
-                    // Reset back button text
-                    elements.backButton.textContent = '← Folders';
                     utils.showScreen('folder-screen');
                     folderManager.loadFolders();
                 });
@@ -3542,7 +3421,7 @@
                 
                 updateActiveProxTab();
                 
-                console.log('Orbital8 V6 - IndexedDB Version ready');
+                console.log('Orbital8 V6 - IndexedDB Storage ready');
                 
             } catch (error) {
                 console.error('Failed to initialize app:', error);
