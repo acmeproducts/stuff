@@ -2,21 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>OneDrive Browser - Redirect Login - Dojo Version</title>
+  <title>OneDrive Browser (Max Status Logging)</title>
   <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     button { margin: 5px; padding: 8px; }
-    #status { margin-top: 10px; color: #333; }
+    #status { margin-top: 10px; color: #333; white-space: pre-line; }
     table { border-collapse: collapse; width: 100%; margin-top: 20px; }
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     th { cursor: pointer; background-color: #f2f2f2; }
   </style>
 </head>
 <body>
-  <h1>OneDrive Browser (Redirect Login) Dojo Version</h1>
+  <h1>OneDrive Browser (Debug Logging) - Yo!</h1>
   <button onclick="signIn()">Sign In</button>
-  <div id="status">Status: Ready</div>
+  <div id="status">Status: Starting script…</div>
   <h2>Folders</h2>
   <ul id="folderList"></ul>
   <h2>Files</h2>
@@ -33,62 +33,76 @@
 
   <script>
     const statusDiv = document.getElementById('status');
+    statusDiv.textContent = 'Status: Initializing MSAL…';
+
     const msalConfig = {
       auth: {
         clientId: 'b407fd45-c551-4dbb-9da5-cab3a2c5a949',
         authority: 'https://login.microsoftonline.com/common',
         redirectUri: window.location.href
       },
-      cache: {
-        cacheLocation: "sessionStorage"
-      }
+      cache: { cacheLocation: 'sessionStorage' }
     };
-    const msalInstance = new msal.PublicClientApplication(msalConfig);
 
-    // If returning from a redirect, handle the response
-    msalInstance.handleRedirectPromise().then((response) => {
-      if (response) {
-        msalInstance.setActiveAccount(response.account);
-        statusDiv.textContent = 'Status: Signed in as ' + response.account.username;
-        loadRootFolders();
-      } else {
-        const account = msalInstance.getActiveAccount();
-        if (account) {
-          statusDiv.textContent = 'Status: Signed in as ' + account.username;
+    let msalInstance;
+
+    try {
+      msalInstance = new msal.PublicClientApplication(msalConfig);
+      statusDiv.textContent += '\\nStatus: MSAL initialized.';
+    } catch (err) {
+      statusDiv.textContent += '\\nError: ' + err.message;
+    }
+
+    statusDiv.textContent += '\\nStatus: Handling redirect response…';
+
+    msalInstance.handleRedirectPromise()
+      .then((response) => {
+        if (response) {
+          statusDiv.textContent += '\\nStatus: Redirect login response detected.';
+          msalInstance.setActiveAccount(response.account);
+          statusDiv.textContent += '\\nStatus: Signed in as ' + response.account.username;
           loadRootFolders();
         } else {
-          statusDiv.textContent = 'Status: Not signed in';
+          const account = msalInstance.getActiveAccount();
+          if (account) {
+            statusDiv.textContent += '\\nStatus: Already signed in as ' + account.username;
+            loadRootFolders();
+          } else {
+            statusDiv.textContent += '\\nStatus: Not signed in.';
+          }
         }
-      }
-    }).catch(error => {
-      statusDiv.textContent = 'Redirect error: ' + error.message;
-    });
+      }).catch(err => {
+        statusDiv.textContent += '\\nRedirect error: ' + err.message;
+      });
 
     function signIn() {
-      statusDiv.textContent = 'Status: Redirecting for login...';
-      msalInstance.loginRedirect({
-        scopes: ['Files.Read.All', 'User.Read']
-      });
+      statusDiv.textContent += '\\nStatus: Starting redirect login…';
+      try {
+        msalInstance.loginRedirect({
+          scopes: ['Files.Read.All', 'User.Read']
+        });
+      } catch (err) {
+        statusDiv.textContent += '\\nSignIn error: ' + err.message;
+      }
     }
 
     async function getAccessToken() {
-      statusDiv.textContent = 'Status: Acquiring token...';
-      try {
-        const account = msalInstance.getActiveAccount();
-        const response = await msalInstance.acquireTokenSilent({
-          scopes: ['Files.Read.All'],
-          account: account
-        });
-        statusDiv.textContent = 'Status: Token acquired';
-        return response.accessToken;
-      } catch (error) {
-        statusDiv.textContent = 'Token error: ' + error.message;
-        throw error;
+      statusDiv.textContent += '\\nStatus: Acquiring token…';
+      const account = msalInstance.getActiveAccount();
+      if (!account) {
+        statusDiv.textContent += '\\nNo active account found.';
+        throw new Error('No active account');
       }
+      const response = await msalInstance.acquireTokenSilent({
+        scopes: ['Files.Read.All'],
+        account: account
+      });
+      statusDiv.textContent += '\\nStatus: Token acquired.';
+      return response.accessToken;
     }
 
     async function loadRootFolders() {
-      statusDiv.textContent = 'Status: Loading folders...';
+      statusDiv.textContent += '\\nStatus: Loading folders…';
       try {
         const accessToken = await getAccessToken();
         const response = await fetch('https://graph.microsoft.com/v1.0/me/drive/root/children', {
@@ -108,14 +122,14 @@
             folderList.appendChild(li);
           }
         });
-        statusDiv.textContent = 'Status: Folders loaded';
-      } catch (error) {
-        statusDiv.textContent = 'Error loading folders: ' + error.message;
+        statusDiv.textContent += '\\nStatus: Folders loaded.';
+      } catch (err) {
+        statusDiv.textContent += '\\nError loading folders: ' + err.message;
       }
     }
 
     async function loadFolderFiles(folderId) {
-      statusDiv.textContent = 'Status: Loading files...';
+      statusDiv.textContent += '\\nStatus: Loading files for folder ID ' + folderId;
       try {
         const accessToken = await getAccessToken();
         const response = await fetch(\`https://graph.microsoft.com/v1.0/me/drive/items/\${folderId}/children\`, {
@@ -126,20 +140,14 @@
         tbody.innerHTML = '';
         data.value.forEach(item => {
           const tr = document.createElement('tr');
-          const nameCell = document.createElement('td');
-          nameCell.textContent = item.name;
-          tr.appendChild(nameCell);
-          const sizeCell = document.createElement('td');
-          sizeCell.textContent = item.size || '';
-          tr.appendChild(sizeCell);
-          const dateCell = document.createElement('td');
-          dateCell.textContent = item.lastModifiedDateTime || '';
-          tr.appendChild(dateCell);
+          tr.innerHTML = '<td>' + item.name + '</td>' +
+                         '<td>' + (item.size || '') + '</td>' +
+                         '<td>' + (item.lastModifiedDateTime || '') + '</td>';
           tbody.appendChild(tr);
         });
-        statusDiv.textContent = 'Status: Files loaded';
-      } catch (error) {
-        statusDiv.textContent = 'Error loading files: ' + error.message;
+        statusDiv.textContent += '\\nStatus: Files loaded.';
+      } catch (err) {
+        statusDiv.textContent += '\\nError loading files: ' + err.message;
       }
     }
 
