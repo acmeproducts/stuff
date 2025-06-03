@@ -1,4 +1,31 @@
-<!DOCTYPE html>
+// API Call with auth token (from swipedrill)
+            fetchWithAuth: async function(url, options = {}) {
+                const headers = {
+                    'Authorization': `Bearer ${appState.cloudStorage.currentProvider.accessToken}`,
+                    ...options.headers
+                };
+                
+                try {
+                    const response = await fetch(url, {
+                        ...options,
+                        headers
+                    });
+                    
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            throw new Error('Authentication token expired');
+                        }
+                        
+                        const errorText = await response.text();
+                        throw new Error(`API error (${response.status}): ${errorText}`);
+                    }
+                    
+                    return response;
+                } catch (error) {
+                    console.error('API call failed:', error);
+                    throw error;
+                }
+            },<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1011,37 +1038,32 @@
                 }
             }
             
-            // Extract tEXt chunks from PNG buffer (from swipedrill)
-            async extractPNGMetadata(buffer) {
-                if (!buffer || buffer.byteLength < 8) {
-                    return {};
-                }
+            // Extract tEXt chunks from PNG buffer (exact swipedrill method)
+            async extract(buffer) {
+                if (!buffer) return {};
                 
                 const metadata = {};
                 const view = new DataView(buffer);
                 
-                // PNG header verification
-                const pngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-                for (let i = 0; i < 8; i++) {
-                    if (view.getUint8(i) !== pngSignature[i]) {
-                        return {};
-                    }
-                }
-                
+                // PNG header is 8 bytes: 89 50 4E 47 0D 0A 1A 0A
+                // After that are chunks: 4 bytes length, 4 bytes type, data, 4 bytes CRC
                 let pos = 8;
                 
                 try {
                     while (pos < buffer.byteLength - 12) {
-                        const chunkLength = view.getUint32(pos, false);
+                        const chunkLength = view.getUint32(pos, false); // Length is big-endian
                         pos += 4;
                         
+                        // Get chunk type as a string
                         let chunkType = '';
                         for (let i = 0; i < 4; i++) {
                             chunkType += String.fromCharCode(view.getUint8(pos + i));
                         }
                         pos += 4;
                         
+                        // Check if it's a tEXt chunk
                         if (chunkType === 'tEXt') {
+                            // tEXt chunks have the format: Keyword\0Value
                             let keyword = '';
                             let value = '';
                             let nullFound = false;
@@ -1060,20 +1082,46 @@
                                 }
                             }
                             
-                            if (keyword && nullFound) {
-                                metadata[keyword] = value;
-                            }
+                            metadata[keyword] = value;
+                        } else if (chunkType === 'IHDR') {
+                            // Extract width and height from IHDR chunk
+                            const width = view.getUint32(pos, false);
+                            const height = view.getUint32(pos + 4, false);
+                            metadata._dimensions = { width, height };
                         }
                         
+                        // Skip chunk data and CRC
                         pos += chunkLength + 4;
-                        
-                        if (chunkLength > buffer.byteLength) break;
                     }
                 } catch (error) {
-                    this.log(`Error extracting PNG metadata: ${error.message}`, 'error');
+                    console.error('Error extracting PNG metadata:', error);
                 }
                 
                 return metadata;
+            }
+            
+            // Fetch and process PNG metadata (exact swipedrill method)
+            async fetchMetadata(file) {
+                if (file.mimeType !== 'image/png') {
+                    return { error: 'Not a PNG file' };
+                }
+                
+                try {
+                    // Get the raw file data
+                    const response = await utils.fetchWithAuth(
+                        `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`
+                    );
+                    
+                    const buffer = await response.arrayBuffer();
+                    
+                    // Extract metadata
+                    const metadata = await this.extract(buffer);
+                    
+                    return metadata;
+                } catch (error) {
+                    console.error('Error fetching PNG metadata:', error);
+                    return { error: error.message };
+                }
             }
         }
 
@@ -2022,7 +2070,7 @@
                 }
             },
             
-            // ===== SIMPLE METADATA PROCESSING =====
+            // ===== SIMPLE METADATA PROCESSING (using exact swipedrill approach) =====
             async processFileMetadata(file) {
                 if (file.mimeType !== 'image/png') {
                     return { extracted: false, cached: false };
@@ -2036,26 +2084,15 @@
                     return { extracted: false, cached: true };
                 }
                 
-                // Extract from PNG
+                // Extract from PNG using exact swipedrill method
                 try {
                     appState.metadataExtractor.log(`🔄 Downloading ${file.name} for metadata extraction`, 'info');
                     
-                    // Use direct fetch for binary data (makeApiCall tries to parse JSON)
-                    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
-                        headers: {
-                            'Authorization': `Bearer ${appState.cloudStorage.currentProvider.accessToken}`
-                        }
-                    });
+                    const metadata = await appState.metadataExtractor.fetchMetadata(file);
                     
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    if (metadata.error) {
+                        throw new Error(metadata.error);
                     }
-                    
-                    const arrayBuffer = await response.arrayBuffer();
-                    
-                    appState.metadataExtractor.log(`✅ Downloaded ${(arrayBuffer.byteLength / 1024).toFixed(1)}KB`, 'success');
-                    
-                    const metadata = await appState.metadataExtractor.extractPNGMetadata(arrayBuffer);
                     
                     if (Object.keys(metadata).length > 0) {
                         file.extractedMetadata = metadata;
