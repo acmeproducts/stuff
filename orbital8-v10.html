@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>OneDrive Browser with Grid, Sorting, Breadcrumbs, and Modal Viewer</title>
+  <meta charset="UTF-8" />
+  <title>OneDrive Browser (Complete)</title>
   <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
   <style>
@@ -13,8 +13,7 @@
     th { cursor: pointer; background: #f2f2f2; }
     tr:hover { background: #f1f1f1; }
     #breadcrumbs { margin-top: 10px; }
-    #modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8);
-             display: none; align-items: center; justify-content: center; flex-direction: column; color: #fff; }
+    #modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; flex-direction: column; color: #fff; }
     #modal img { max-height: 80vh; max-width: 80vw; }
     #modal .controls { margin-top: 10px; }
     #modal button { margin: 0 5px; }
@@ -22,8 +21,8 @@
   </style>
 </head>
 <body>
-  <h1>OneDrive Browser (Enhanced Grid)</h1>
-  <button onclick="signIn()">Sign In</button>
+  <h1>OneDrive Browser (Complete)</h1>
+  <button id="signInBtn">Sign In</button>
   <div id="status">Status: Ready</div>
   <div id="breadcrumbs"></div>
   <table>
@@ -59,17 +58,19 @@
     const msalInstance = new msal.PublicClientApplication(msalConfig);
     let activeAccount, currentFolder = 'root', items = [], currentIndex = 0, breadcrumbStack = [];
 
-    async function signIn() {
-      log('Signing in...');
-      try {
-        const response = await msalInstance.loginPopup({ scopes: ['Files.ReadWrite.All', 'User.Read'] });
-        activeAccount = response.account;
-        msalInstance.setActiveAccount(activeAccount);
-        log('Signed in as: ' + activeAccount.username);
-        breadcrumbStack = [{ id: 'root', name: 'Root' }];
-        loadFolder('root');
-      } catch (err) { log('Sign-in error: ' + err.message); }
-    }
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('signInBtn').addEventListener('click', async () => {
+        log('Signing in...');
+        try {
+          const response = await msalInstance.loginPopup({ scopes: ['Files.ReadWrite.All', 'User.Read'] });
+          activeAccount = response.account;
+          msalInstance.setActiveAccount(activeAccount);
+          log('Signed in as: ' + activeAccount.username);
+          breadcrumbStack = [{ id: 'root', name: 'Root' }];
+          loadFolder('root');
+        } catch (err) { log('Sign-in error: ' + err.message); }
+      });
+    });
 
     function log(msg) { statusDiv.textContent += '\\n' + msg; }
 
@@ -87,9 +88,7 @@
       log('Loading folder: ' + folderId);
       currentFolder = folderId;
       const token = await getToken();
-      const resp = await fetch(folderId==='root' ? 'https://graph.microsoft.com/v1.0/me/drive/root/children' : \`https://graph.microsoft.com/v1.0/me/drive/items/\${folderId}/children\`, {
-        headers: { Authorization: 'Bearer ' + token }
-      });
+      const resp = await fetch(folderId==='root' ? 'https://graph.microsoft.com/v1.0/me/drive/root/children' : \`https://graph.microsoft.com/v1.0/me/drive/items/\${folderId}/children\`, { headers: { Authorization: 'Bearer ' + token } });
       const data = await resp.json();
       items = data.value;
       updateBreadcrumbs();
@@ -154,12 +153,8 @@
       metaDiv.textContent = 'File: ' + item.name;
       const response = await fetch(item['@microsoft.graph.downloadUrl']);
       const blob = await response.blob();
-      EXIF.getData(blob, function() {
-        const tags = EXIF.getAllTags(this);
-        metaDiv.textContent += '\\nPNG Metadata: ' + JSON.stringify(tags, null, 2);
-      });
+      EXIF.getData(blob, function() { const tags = EXIF.getAllTags(this); metaDiv.textContent += '\\nPNG Metadata: ' + JSON.stringify(tags, null, 2); });
     }
-
     function closeModal() { document.getElementById('modal').style.display = 'none'; }
     function prevImage() { if (currentIndex > 0) { currentIndex--; showModal(); } }
     function nextImage() { if (currentIndex < items.length - 1) { currentIndex++; showModal(); } }
@@ -167,12 +162,8 @@
       const item = items[currentIndex];
       if (!confirm('Delete ' + item.name + '?')) return;
       const token = await getToken();
-      await fetch(\`https://graph.microsoft.com/v1.0/me/drive/items/\${item.id}\`, {
-        method: 'DELETE',
-        headers: { Authorization: 'Bearer ' + token }
-      });
-      closeModal();
-      loadFolder(currentFolder);
+      await fetch(\`https://graph.microsoft.com/v1.0/me/drive/items/\${item.id}\`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+      closeModal(); loadFolder(currentFolder);
     }
   </script>
 </body>
