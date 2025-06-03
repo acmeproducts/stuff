@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Interlocked Orbs Final</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: #111; touch-action: none; }
+  #controlPanel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    display: flex;
+    flex-direction: column;
+  }
+  #controlHeader {
+    background: #333;
+    padding: 8px;
+    cursor: pointer;
+  }
+  #controlContent {
+    display: none;
+    padding: 8px;
+    background: #222;
+  }
+  input[type=color] { width: 40px; height: 40px; border: none; margin: 0 5px; }
+  button { background: #333; color: #fff; border: none; padding: 8px; cursor: pointer; margin-right: 5px; }
+</style>
+</head>
+<body>
+<div id="controlPanel">
+  <div id="controlHeader" onclick="toggleControls()">Control Panel</div>
+  <div id="controlContent">
+    <button onclick="randomizeColors()">Random 2 Colors</button>
+    <input type="color" id="color1" value="#ff0000">
+    <input type="color" id="color2" value="#00ff00">
+    <button onclick="spawn()">Spawn</button>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js"></script>
+<script>
+let scene = new THREE.Scene();
+let camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+let renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+camera.position.z = 10;
+
+const orbs = [];
+let activeOrb = null;
+let lastTouch = null;
+let lastDistance = 0;
+
+function toggleControls() {
+  const content = document.getElementById('controlContent');
+  content.style.display = content.style.display === 'none' ? 'flex' : 'none';
+}
+
+function createOrb(colors) {
+  const group = new THREE.Group();
+  const geom = new THREE.TorusGeometry(2, 0.1, 16, 100);
+  for (let i = 0; i < 3; i++) {
+    const mat = new THREE.MeshBasicMaterial({ color: colors[i % colors.length] });
+    const torus = new THREE.Mesh(geom, mat);
+    torus.rotation.set(i * Math.PI / 3, i * Math.PI / 2, i);
+    group.add(torus);
+  }
+  group.userData.scale = 0.3;
+  group.scale.setScalar(group.userData.scale);
+  group.position.set(0, 0, 0);
+  scene.add(group);
+  orbs.push(group);
+}
+
+function randomizeColors() {
+  const color1 = Math.floor(Math.random() * 0xffffff);
+  const color2 = Math.floor(Math.random() * 0xffffff);
+  document.getElementById('color1').value = '#' + color1.toString(16).padStart(6, '0');
+  document.getElementById('color2').value = '#' + color2.toString(16).padStart(6, '0');
+}
+
+function spawn() {
+  const c1 = parseInt(document.getElementById('color1').value.slice(1), 16);
+  const c2 = parseInt(document.getElementById('color2').value.slice(1), 16);
+  createOrb([c1, c2]);
+}
+
+function mergeNearby() {
+  for (let i = 0; i < orbs.length; i++) {
+    for (let j = i + 1; j < orbs.length; j++) {
+      const a = orbs[i], b = orbs[j];
+      if (!a || !b) continue;
+      const d = a.position.distanceTo(b.position);
+      if (d < 1.5) {
+        const larger = a.userData.scale >= b.userData.scale ? a : b;
+        const smaller = a.userData.scale < b.userData.scale ? a : b;
+        larger.userData.scale = Math.min(larger.userData.scale * 1.3, 5);
+        larger.scale.setScalar(larger.userData.scale);
+        scene.remove(smaller);
+        orbs.splice(orbs.indexOf(smaller), 1);
+      }
+    }
+  }
+}
+
+renderer.domElement.addEventListener("pointerdown", e => {
+  const mouse = new THREE.Vector2(
+    (e.clientX / window.innerWidth) * 2 - 1,
+    -(e.clientY / window.innerHeight) * 2 + 1
+  );
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(orbs, true);
+  if (intersects.length > 0) {
+    activeOrb = intersects[0].object.parent;
+    lastTouch = { x: e.clientX, y: e.clientY };
+  }
+});
+
+renderer.domElement.addEventListener("pointermove", e => {
+  if (activeOrb && lastTouch) {
+    const dx = (e.clientX - lastTouch.x) / window.innerWidth * 10;
+    const dy = -(e.clientY - lastTouch.y) / window.innerHeight * 10;
+    activeOrb.position.x += dx;
+    activeOrb.position.y += dy;
+    lastTouch = { x: e.clientX, y: e.clientY };
+  }
+});
+
+renderer.domElement.addEventListener("pointerup", () => {
+  activeOrb = null;
+  lastTouch = null;
+});
+
+renderer.domElement.addEventListener('touchmove', e => {
+  if (activeOrb && e.touches.length == 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (lastDistance > 0) {
+      const delta = dist - lastDistance;
+      activeOrb.userData.scale = Math.max(0.1, Math.min(activeOrb.userData.scale + delta * 0.01, 5));
+      activeOrb.scale.setScalar(activeOrb.userData.scale);
+    }
+    lastDistance = dist;
+  }
+});
+
+renderer.domElement.addEventListener('touchend', () => {
+  lastDistance = 0;
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  orbs.forEach(orb => {
+    orb.rotation.y += 0.01;
+  });
+  mergeNearby();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
