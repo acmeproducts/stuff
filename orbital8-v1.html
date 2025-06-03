@@ -3104,13 +3104,25 @@
         // ===== Modal Manager =====
         const modalManager = {
             show: function(modalId) {
+                console.log(`Showing modal: ${modalId}`);
                 const modal = document.getElementById(modalId);
-                if (modal) modal.classList.remove('hidden');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    console.log(`Modal ${modalId} is now visible`);
+                } else {
+                    console.error(`Modal not found: ${modalId}`);
+                }
             },
             
             hide: function(modalId) {
+                console.log(`Hiding modal: ${modalId}`);
                 const modal = document.getElementById(modalId);
-                if (modal) modal.classList.add('hidden');
+                if (modal) {
+                    modal.classList.add('hidden');
+                    console.log(`Modal ${modalId} is now hidden`);
+                } else {
+                    console.error(`Modal not found: ${modalId}`);
+                }
             },
             
             setup: function() {
@@ -3172,54 +3184,84 @@
                     const currentStack = appState.grid.stack;
                     const selectedCount = appState.grid.selected.length;
                     
+                    if (selectedCount === 0) {
+                        console.warn('No images selected for deletion');
+                        modalManager.hide('delete-modal');
+                        return;
+                    }
+                    
                     elements.confirmDelete.disabled = true;
                     elements.confirmDelete.textContent = 'Processing...';
                     
                     console.log(`Deleting ${selectedCount} images from ${currentStack} stack`);
+                    utils.showStatus(`Moving ${selectedCount} images to trash...`, 'info');
                     
                     try {
-                        // Move all selected items to trash
-                        const promises = appState.grid.selected.map(async (fileId) => {
-                            const file = appState.imageFiles.find(f => f.id === fileId);
-                            if (file) {
-                                console.log(`Moving ${file.name} to trash`);
-                                return await stackManager.moveFileToStack(fileId, 'trash');
+                        let successCount = 0;
+                        let errorCount = 0;
+                        
+                        // Process each selected file
+                        for (const fileId of appState.grid.selected) {
+                            try {
+                                const file = appState.imageFiles.find(f => f.id === fileId);
+                                if (file) {
+                                    console.log(`Moving ${file.name} to trash`);
+                                    await stackManager.moveFileToStack(fileId, 'trash');
+                                    successCount++;
+                                } else {
+                                    console.warn(`File not found: ${fileId}`);
+                                    errorCount++;
+                                }
+                            } catch (error) {
+                                console.error(`Failed to move file ${fileId}:`, error);
+                                errorCount++;
                             }
-                            return null;
-                        });
-                        
-                        const results = await Promise.all(promises);
-                        const successCount = results.filter(r => r !== null).length;
-                        
-                        utils.showToast(`Moved ${successCount} images to trash`);
-                        this.hide('delete-modal');
-                        
-                        // Refresh the grid view
-                        if (appState.grid.stack) {
-                            gridView.populate(appState.grid.stack);
                         }
                         
-                        // Clear selection
-                        appState.grid.selected = [];
-                        gridView.updateSelectionUI();
-                        stackManager.updateCounts();
+                        // Show results
+                        if (successCount > 0) {
+                            utils.showToast(`Moved ${successCount} images to trash`);
+                            utils.showStatus(`${successCount} moved to trash`, 'success');
+                        }
                         
-                        console.log(`Successfully moved ${successCount} images to trash`);
+                        if (errorCount > 0) {
+                            utils.showToast(`${errorCount} images failed to move`, 'error');
+                        }
+                        
+                        console.log(`Delete operation complete: ${successCount} success, ${errorCount} errors`);
                         
                     } catch (error) {
                         console.error('Error during delete operation:', error);
-                        utils.showToast('Failed to move some images to trash', 'error');
-                        this.hide('delete-modal');
+                        utils.showToast('Failed to move images to trash', 'error');
+                        utils.showStatus('Delete failed', 'error');
                     } finally {
+                        // Hide modal and reset button
+                        modalManager.hide('delete-modal');
                         elements.confirmDelete.disabled = false;
                         elements.confirmDelete.textContent = 'Move to Trash';
+                        
+                        // Refresh the grid view if still viewing the same stack
+                        if (appState.grid.stack) {
+                            console.log(`Refreshing grid view for ${appState.grid.stack} stack`);
+                            gridView.populate(appState.grid.stack);
+                        }
+                        
+                        // Clear selection and update UI
+                        appState.grid.selected = [];
+                        gridView.updateSelectionUI();
+                        stackManager.updateCounts();
                     }
                 });
                 
                 ['cancel-move', 'cancel-tag', 'cancel-delete'].forEach(id => {
-                    document.getElementById(id).addEventListener('click', () => {
-                        this.hide(id.replace('cancel-', '') + '-modal');
-                    });
+                    const button = document.getElementById(id);
+                    if (button) {
+                        button.addEventListener('click', () => {
+                            const modalId = id.replace('cancel-', '') + '-modal';
+                            console.log(`Cancelling modal: ${modalId}`);
+                            modalManager.hide(modalId);
+                        });
+                    }
                 });
                 
                 elements.moveSelected.addEventListener('click', () => this.show('move-modal'));
@@ -3243,11 +3285,21 @@
                 
                 elements.deleteSelected.addEventListener('click', () => {
                     const selectedCount = appState.grid.selected.length;
+                    console.log(`Delete button clicked with ${selectedCount} selected images`);
+                    
+                    if (selectedCount === 0) {
+                        console.warn('Delete clicked but no images selected');
+                        utils.showStatus('No images selected', 'warning');
+                        return;
+                    }
+                    
+                    console.log(`Showing delete confirmation for ${selectedCount} images`);
+                    utils.showStatus(`Confirm deletion of ${selectedCount} images`, 'warning');
                     
                     elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
                     elements.confirmDelete.textContent = 'Move to Trash';
                     
-                    this.show('delete-modal');
+                    modalManager.show('delete-modal');
                 });
             }
         };
