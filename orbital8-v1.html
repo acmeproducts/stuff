@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Orbital8 V6 - IndexedDB Storage</title>
@@ -680,8 +681,10 @@
         <div class="card">
             <h1 class="title" style="font-size: 32px;">Orbital8 V6</h1>
             <p class="subtitle">Connect to Google Drive</p>
-            <input type="password" id="client-secret" class="input" placeholder="Enter Google Client Secret">
-            <button class="button" id="auth-button">Connect Drive</button>
+            <form id="auth-form" autocomplete="off">
+                <input type="password" id="client-secret" class="input" placeholder="Enter Google Client Secret" autocomplete="new-password" required>
+                <button type="submit" class="button" id="auth-button">Connect Drive</button>
+            </form>
             <div id="auth-status" class="status info">Enter your client secret to continue</div>
             <div style="margin-top: 16px; font-size: 12px; color: rgba(255, 255, 255, 0.5); text-align: center;">
                 Data is stored locally - no changes to your Google Drive files
@@ -1217,7 +1220,7 @@
             }
             
             async authenticate(clientSecret) {
-                console.log('GoogleDriveProvider.authenticate called');
+                console.log('GoogleDriveProvider.authenticate called with secret length:', clientSecret ? clientSecret.length : 0);
                 if (clientSecret) {
                     this.clientSecret = clientSecret;
                     this.storeCredentials();
@@ -1225,49 +1228,67 @@
                 }
                 
                 if (!this.clientSecret) {
-                    throw new Error('Client secret is required for Google Drive authentication');
+                    const error = 'Client secret is required for Google Drive authentication';
+                    console.error(error);
+                    throw new Error(error);
                 }
                 
                 // Check existing tokens first
                 if (this.accessToken && this.refreshToken) {
                     console.log('Checking existing tokens...');
                     try {
-                        await this.makeApiCall('/files?pageSize=1');
+                        const testResponse = await this.makeApiCall('/files?pageSize=1');
                         this.isAuthenticated = true;
-                        console.log('Existing tokens valid');
+                        console.log('Existing tokens valid, authentication successful');
                         return true;
                     } catch (error) {
                         console.log('Existing tokens invalid, starting fresh authentication:', error.message);
+                        // Clear invalid tokens
+                        this.clearStoredCredentials();
+                        this.accessToken = null;
+                        this.refreshToken = null;
                     }
                 }
                 
                 console.log('Starting OAuth flow...');
                 return new Promise((resolve, reject) => {
                     const authUrl = this.buildAuthUrl();
-                    console.log('Opening popup with URL:', authUrl);
+                    console.log('Opening popup with URL:', authUrl.substring(0, 100) + '...');
                     
-                    const popup = window.open(authUrl, 'google-auth', 'width=500,height=600,scrollbars=yes,resizable=yes');
+                    // Add timeout for popup
+                    const popupTimeout = setTimeout(() => {
+                        console.error('Popup authentication timed out');
+                        reject(new Error('Authentication timed out. Please try again.'));
+                    }, 120000); // 2 minutes
+                    
+                    const popup = window.open(authUrl, 'google-auth', 'width=600,height=700,scrollbars=yes,resizable=yes,centerscreen=yes');
                     
                     if (!popup) {
+                        clearTimeout(popupTimeout);
                         console.error('Popup blocked by browser');
-                        reject(new Error('Popup blocked by browser'));
+                        reject(new Error('Popup blocked by browser. Please allow popups for this site.'));
                         return;
                     }
                     
                     const checkClosed = setInterval(() => {
                         if (popup.closed) {
                             clearInterval(checkClosed);
+                            clearTimeout(popupTimeout);
                             console.log('Popup was closed by user');
-                            reject(new Error('Authentication cancelled'));
+                            reject(new Error('Authentication cancelled by user'));
                         }
                     }, 1000);
                     
                     const messageHandler = async (event) => {
-                        console.log('Received message:', event.data);
-                        if (event.origin !== window.location.origin) return;
+                        console.log('Received message from popup:', event.data);
+                        if (event.origin !== window.location.origin) {
+                            console.log('Ignoring message from different origin:', event.origin);
+                            return;
+                        }
                         
                         if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
                             clearInterval(checkClosed);
+                            clearTimeout(popupTimeout);
                             window.removeEventListener('message', messageHandler);
                             popup.close();
                             
@@ -1283,10 +1304,11 @@
                             }
                         } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
                             clearInterval(checkClosed);
+                            clearTimeout(popupTimeout);
                             window.removeEventListener('message', messageHandler);
                             popup.close();
                             console.error('OAuth error:', event.data.error);
-                            reject(new Error(event.data.error));
+                            reject(new Error(`OAuth error: ${event.data.error}`));
                         }
                     };
                     
@@ -1758,6 +1780,7 @@
             folderScreen: document.getElementById('folder-screen'),
             loadingScreen: document.getElementById('loading-screen'),
             appContainer: document.getElementById('app-container'),
+            authForm: document.getElementById('auth-form'),
             clientSecret: document.getElementById('client-secret'),
             authButton: document.getElementById('auth-button'),
             authStatus: document.getElementById('auth-status'),
@@ -1960,18 +1983,24 @@
         
         // ===== Authentication Manager =====
         const authManager = {
-            async authenticate() {
+            async authenticate(e) {
+                if (e) {
+                    e.preventDefault(); // Prevent form submission
+                }
+                
                 console.log('Starting authentication...');
                 const clientSecret = elements.clientSecret.value.trim();
                 
                 if (!clientSecret) {
                     this.setStatus('Please enter client secret', 'error');
+                    utils.showStatus('Please enter client secret', 'error');
                     return;
                 }
                 
                 if (!appState.cloudStorage) {
                     console.error('CloudStorage not initialized');
                     this.setStatus('App not properly initialized', 'error');
+                    utils.showStatus('App not properly initialized', 'error');
                     return;
                 }
                 
@@ -1979,6 +2008,7 @@
                     elements.authButton.disabled = true;
                     elements.authButton.textContent = 'Connecting...';
                     this.setStatus('Connecting to Google Drive...', 'info');
+                    utils.showStatus('Connecting to Google Drive...', 'info');
                     
                     console.log('Calling cloudStorage.authenticate...');
                     const success = await appState.cloudStorage.authenticate(clientSecret);
@@ -1986,6 +2016,7 @@
                     
                     if (success) {
                         this.setStatus('✅ Connected to Google Drive!', 'success');
+                        utils.showStatus('✅ Connected to Google Drive!', 'success');
                         elements.clientSecret.value = '';
                         
                         setTimeout(() => {
@@ -1994,10 +2025,15 @@
                         }, 1000);
                     } else {
                         this.setStatus('Authentication failed - no success response', 'error');
+                        utils.showStatus('Authentication failed', 'error');
                     }
                 } catch (error) {
                     console.error('Authentication error:', error);
                     this.setStatus(`Authentication failed: ${error.message}`, 'error');
+                    utils.showStatus(`Authentication failed: ${error.message}`, 'error');
+                    
+                    // Clear the client secret on auth failure
+                    elements.clientSecret.value = '';
                 } finally {
                     elements.authButton.disabled = false;
                     elements.authButton.textContent = 'Connect Drive';
@@ -2014,6 +2050,7 @@
                 utils.showScreen('auth-screen');
                 elements.clientSecret.value = '';
                 this.setStatus('Enter your client secret to continue', 'info');
+                utils.showStatus('Disconnected from Google Drive', 'info');
             }
         };
         
@@ -3663,9 +3700,25 @@
                 
                 console.log('Step 6: Setting up event listeners...');
                 // Setup event listeners
-                elements.authButton.addEventListener('click', () => {
+                const authForm = document.getElementById('auth-form');
+                if (authForm) {
+                    authForm.addEventListener('submit', (e) => {
+                        console.log('Auth form submitted');
+                        authManager.authenticate(e);
+                    });
+                }
+                
+                elements.authButton.addEventListener('click', (e) => {
                     console.log('Auth button clicked');
-                    authManager.authenticate();
+                    authManager.authenticate(e);
+                });
+                
+                // Allow Enter key to submit from client secret input
+                elements.clientSecret.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        console.log('Enter pressed in client secret field');
+                        authManager.authenticate(e);
+                    }
                 });
                 elements.refreshFolders.addEventListener('click', () => {
                     console.log('Refresh folders clicked');
