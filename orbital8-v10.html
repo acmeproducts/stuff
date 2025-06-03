@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>OneDrive Browser with In-Page Status</title>
+  <title>OneDrive Browser - Redirect Login - Dojo Version</title>
   <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
@@ -14,7 +14,7 @@
   </style>
 </head>
 <body>
-  <h1>OneDrive Browser</h1>
+  <h1>OneDrive Browser (Redirect Login)</h1>
   <button onclick="signIn()">Sign In</button>
   <div id="status">Status: Ready</div>
   <h2>Folders</h2>
@@ -30,6 +30,7 @@
     </thead>
     <tbody></tbody>
   </table>
+
   <script>
     const statusDiv = document.getElementById('status');
     const msalConfig = {
@@ -37,22 +38,37 @@
         clientId: 'b407fd45-c551-4dbb-9da5-cab3a2c5a949',
         authority: 'https://login.microsoftonline.com/common',
         redirectUri: window.location.href
+      },
+      cache: {
+        cacheLocation: "sessionStorage"
       }
     };
     const msalInstance = new msal.PublicClientApplication(msalConfig);
 
-    async function signIn() {
-      statusDiv.textContent = 'Status: Signing in...';
-      try {
-        const loginResponse = await msalInstance.loginPopup({
-          scopes: ['Files.Read.All', 'User.Read']
-        });
-        msalInstance.setActiveAccount(loginResponse.account);
-        statusDiv.textContent = 'Status: Signed in as ' + loginResponse.account.username;
-        await loadRootFolders();
-      } catch (error) {
-        statusDiv.textContent = 'Sign-in error: ' + error.message;
+    // If returning from a redirect, handle the response
+    msalInstance.handleRedirectPromise().then((response) => {
+      if (response) {
+        msalInstance.setActiveAccount(response.account);
+        statusDiv.textContent = 'Status: Signed in as ' + response.account.username;
+        loadRootFolders();
+      } else {
+        const account = msalInstance.getActiveAccount();
+        if (account) {
+          statusDiv.textContent = 'Status: Signed in as ' + account.username;
+          loadRootFolders();
+        } else {
+          statusDiv.textContent = 'Status: Not signed in';
+        }
       }
+    }).catch(error => {
+      statusDiv.textContent = 'Redirect error: ' + error.message;
+    });
+
+    function signIn() {
+      statusDiv.textContent = 'Status: Redirecting for login...';
+      msalInstance.loginRedirect({
+        scopes: ['Files.Read.All', 'User.Read']
+      });
     }
 
     async function getAccessToken() {
@@ -70,6 +86,7 @@
         throw error;
       }
     }
+
     async function loadRootFolders() {
       statusDiv.textContent = 'Status: Loading folders...';
       try {
