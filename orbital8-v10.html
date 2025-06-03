@@ -2,34 +2,39 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>OneDrive Browser (Updated)</title>
+  <title>OneDrive Browser with Viewer</title>
   <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
-    button { margin: 5px; padding: 8px; }
-    #status { margin-top: 10px; color: #333; white-space: pre-line; }
-    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    th { cursor: pointer; background-color: #f2f2f2; }
+    #status { margin-bottom: 10px; white-space: pre-line; }
+    #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+    .item { cursor: pointer; text-align: center; }
+    .item img { max-width: 100%; max-height: 100px; object-fit: cover; display: block; margin: 0 auto; }
+    #modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8);
+             display: none; align-items: center; justify-content: center; flex-direction: column; color: #fff; }
+    #modal img { max-height: 80vh; max-width: 80vw; }
+    #modal .controls { margin-top: 10px; }
+    #modal button { margin: 0 5px; }
+    #metadata { margin-top: 10px; }
   </style>
 </head>
 <body>
-  <h1>OneDrive Browser (Updated)</h1>
+  <h1>OneDrive Browser (Enhanced)</h1>
   <button id="signInBtn">Sign In</button>
   <div id="status">Status: Ready</div>
-  <h2>Current Folder</h2>
-  <ul id="folderList"></ul>
-  <h2>Files</h2>
-  <table id="fileTable">
-    <thead>
-      <tr>
-        <th onclick="sortTable(0)">Name</th>
-        <th onclick="sortTable(1)">Size (Bytes)</th>
-        <th onclick="sortTable(2)">Last Modified</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+  <div id="grid"></div>
+
+  <div id="modal">
+    <img id="modalImage" src="">
+    <div id="metadata"></div>
+    <div class="controls">
+      <button onclick="prevImage()">Prev</button>
+      <button onclick="nextImage()">Next</button>
+      <button onclick="deleteImage()">Delete</button>
+      <button onclick="closeModal()">Close</button>
+    </div>
+  </div>
 
   <script>
     const statusDiv = document.getElementById('status');
@@ -42,131 +47,96 @@
       cache: { cacheLocation: 'sessionStorage' }
     };
     const msalInstance = new msal.PublicClientApplication(msalConfig);
-    let activeAccount;
+    let activeAccount, currentFolder = 'root', items = [], currentIndex = 0;
 
     document.getElementById('signInBtn').addEventListener('click', async () => {
-      statusDiv.textContent += '\nStatus: Starting popup sign-in…';
+      log('Signing in...');
       try {
-        const loginResponse = await msalInstance.loginPopup({
-          scopes: ['Files.Read.All', 'User.Read']
-        });
-        activeAccount = loginResponse.account;
+        const response = await msalInstance.loginPopup({ scopes: ['Files.ReadWrite.All', 'User.Read'] });
+        activeAccount = response.account;
         msalInstance.setActiveAccount(activeAccount);
-        statusDiv.textContent += '\nStatus: Signed in as ' + activeAccount.username;
-        await loadFolder('root'); // Start from root
-      } catch (err) {
-        statusDiv.textContent += '\nSign-in error: ' + err.message;
-      }
+        log('Signed in as: ' + activeAccount.username);
+        loadFolder(currentFolder);
+      } catch (err) { log('Sign-in error: ' + err.message); }
     });
 
-    async function getAccessToken() {
-      statusDiv.textContent += '\nStatus: Acquiring token…';
-      if (!activeAccount) {
-        statusDiv.textContent += '\nError: No active account';
-        throw new Error('No active account');
-      }
+    function log(msg) { statusDiv.textContent += '\\n' + msg; }
+
+    async function getToken() {
       try {
-        const response = await msalInstance.acquireTokenSilent({
-          scopes: ['Files.Read.All'],
-          account: activeAccount
-        });
-        statusDiv.textContent += '\nStatus: Token acquired.';
-        return response.accessToken;
-      } catch (silentError) {
-        statusDiv.textContent += '\nSilent token acquisition failed. Trying interactive…';
-        const response = await msalInstance.acquireTokenPopup({
-          scopes: ['Files.Read.All'],
-          account: activeAccount
-        });
-        statusDiv.textContent += '\nStatus: Token acquired (interactive).';
-        return response.accessToken;
+        const resp = await msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite.All'], account: activeAccount });
+        return resp.accessToken;
+      } catch {
+        const resp = await msalInstance.acquireTokenPopup({ scopes: ['Files.ReadWrite.All'], account: activeAccount });
+        return resp.accessToken;
       }
     }
 
     async function loadFolder(folderId) {
-      statusDiv.textContent += `\nStatus: Loading contents for folder: ${folderId}`;
-      try {
-        const accessToken = await getAccessToken();
-        const url = folderId === 'root' ?
-          'https://graph.microsoft.com/v1.0/me/drive/root/children' :
-          `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children`;
-        const response = await fetch(url, {
-          headers: { Authorization: 'Bearer ' + accessToken }
-        });
-        if (response.status === 429) {
-          statusDiv.textContent += '\nError: Rate limit exceeded. Please retry later.';
-          return;
+      log('Loading folder: ' + folderId);
+      currentFolder = folderId;
+      const token = await getToken();
+      const resp = await fetch(folderId==='root' ? 'https://graph.microsoft.com/v1.0/me/drive/root/children' : `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children`, {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      const data = await resp.json();
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+      items = data.value;
+      items.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = 'item';
+        const img = document.createElement('img');
+        if (item.folder) {
+          img.src = 'https://cdn-icons-png.flaticon.com/512/716/716784.png';
+          div.onclick = () => loadFolder(item.id);
+        } else if (item.file && item.image) {
+          img.src = `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/thumbnails/0/medium/content?access_token=${token}`;
+          div.onclick = () => openModal(idx);
+        } else {
+          img.src = 'https://cdn-icons-png.flaticon.com/512/716/716784.png';
         }
-        const data = await response.json();
-
-        const folderList = document.getElementById('folderList');
-        folderList.innerHTML = '';
-        data.value.forEach(item => {
-          const li = document.createElement('li');
-          const link = document.createElement('a');
-          link.href = '#';
-          link.textContent = item.name;
-          if (item.folder) {
-            link.onclick = (e) => {
-              e.preventDefault();
-              loadFolder(item.id); // Recursive load
-            };
-          } else {
-            link.href = item['@microsoft.graph.downloadUrl'];
-            link.target = '_blank'; // Open file in new tab
-          }
-          li.appendChild(link);
-          folderList.appendChild(li);
-        });
-
-        const tbody = document.getElementById('fileTable').querySelector('tbody');
-        tbody.innerHTML = '';
-        data.value.forEach(item => {
-          if (!item.folder) {
-            const tr = document.createElement('tr');
-
-            const tdName = document.createElement('td');
-            const fileLink = document.createElement('a');
-            fileLink.href = item['@microsoft.graph.downloadUrl'];
-            fileLink.target = '_blank';
-            fileLink.textContent = item.name;
-            tdName.appendChild(fileLink);
-            tr.appendChild(tdName);
-
-            const tdSize = document.createElement('td');
-            tdSize.textContent = item.size || '';
-            tr.appendChild(tdSize);
-
-            const tdDate = document.createElement('td');
-            tdDate.textContent = item.lastModifiedDateTime || '';
-            tr.appendChild(tdDate);
-
-            tbody.appendChild(tr);
-          }
-        });
-
-        statusDiv.textContent += '\nStatus: Contents loaded.';
-      } catch (err) {
-        statusDiv.textContent += '\nError loading folder: ' + err.message;
-      }
+        const span = document.createElement('div');
+        span.textContent = item.name;
+        div.appendChild(img);
+        div.appendChild(span);
+        grid.appendChild(div);
+      });
+      log('Folder loaded.');
     }
 
-    function sortTable(colIndex) {
-      const table = document.getElementById('fileTable');
-      const rows = Array.from(table.rows).slice(1);
-      const isNumeric = colIndex === 1;
-      const direction = table.getAttribute('data-sort-dir') === 'asc' ? 'desc' : 'asc';
-      rows.sort((a, b) => {
-        let valA = a.cells[colIndex].textContent.trim();
-        let valB = b.cells[colIndex].textContent.trim();
-        if (isNumeric) {
-          valA = parseInt(valA, 10) || 0;
-          valB = parseInt(valB, 10) || 0;
-        }
-        return direction === 'asc' ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
+    function openModal(idx) { currentIndex = idx; showModal(); }
+    async function showModal() {
+      const item = items[currentIndex];
+      if (!item || item.folder) return;
+      const token = await getToken();
+      const img = document.getElementById('modalImage');
+      img.src = item['@microsoft.graph.downloadUrl'];
+      document.getElementById('modal').style.display = 'flex';
+      const metaDiv = document.getElementById('metadata');
+      metaDiv.textContent = 'File: ' + item.name;
+      const response = await fetch(item['@microsoft.graph.downloadUrl']);
+      const blob = await response.blob();
+      EXIF.getData(blob, function() {
+        const tags = EXIF.getAllTags(this);
+        metaDiv.textContent += '\\nPNG Metadata: ' + JSON.stringify(tags, null, 2);
       });
-      rows.forEach(row => table.querySelector('tbody').appendChild(row));
-      table.setAttribute('data-sort-dir', direction);
+    }
+
+    function closeModal() { document.getElementById('modal').style.display = 'none'; }
+    function prevImage() { if (currentIndex > 0) { currentIndex--; showModal(); } }
+    function nextImage() { if (currentIndex < items.length - 1) { currentIndex++; showModal(); } }
+
+    async function deleteImage() {
+      const item = items[currentIndex];
+      if (!confirm('Delete ' + item.name + '?')) return;
+      const token = await getToken();
+      await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      closeModal();
+      loadFolder(currentFolder);
     }
   </script>
 </body>
