@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>OneDrive Browser (Max Status Logging)</title>
+  <title>OneDrive Browser (Popup)</title>
   <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
@@ -14,9 +14,9 @@
   </style>
 </head>
 <body>
-  <h1>OneDrive Browser (Debug Logging) - Yo!</h1>
-  <button onclick="signIn()">Sign In</button>
-  <div id="status">Status: Starting script…</div>
+  <h1>OneDrive Browser (Popup) yo</h1>
+  <button id="signInBtn">Sign In</button>
+  <div id="status">Status: Ready</div>
   <h2>Folders</h2>
   <ul id="folderList"></ul>
   <h2>Files</h2>
@@ -43,59 +43,34 @@
       },
       cache: { cacheLocation: 'sessionStorage' }
     };
+    const msalInstance = new msal.PublicClientApplication(msalConfig);
 
-    let msalInstance;
+    let activeAccount;
 
-    try {
-      msalInstance = new msal.PublicClientApplication(msalConfig);
-      statusDiv.textContent += '\\nStatus: MSAL initialized.';
-    } catch (err) {
-      statusDiv.textContent += '\\nError: ' + err.message;
-    }
-
-    statusDiv.textContent += '\\nStatus: Handling redirect response…';
-
-    msalInstance.handleRedirectPromise()
-      .then((response) => {
-        if (response) {
-          statusDiv.textContent += '\\nStatus: Redirect login response detected.';
-          msalInstance.setActiveAccount(response.account);
-          statusDiv.textContent += '\\nStatus: Signed in as ' + response.account.username;
-          loadRootFolders();
-        } else {
-          const account = msalInstance.getActiveAccount();
-          if (account) {
-            statusDiv.textContent += '\\nStatus: Already signed in as ' + account.username;
-            loadRootFolders();
-          } else {
-            statusDiv.textContent += '\\nStatus: Not signed in.';
-          }
-        }
-      }).catch(err => {
-        statusDiv.textContent += '\\nRedirect error: ' + err.message;
-      });
-
-    function signIn() {
-      statusDiv.textContent += '\\nStatus: Starting redirect login…';
+    document.getElementById('signInBtn').addEventListener('click', async () => {
+      statusDiv.textContent += '\\nStatus: Starting popup sign-in…';
       try {
-        msalInstance.loginRedirect({
+        const loginResponse = await msalInstance.loginPopup({
           scopes: ['Files.Read.All', 'User.Read']
         });
+        activeAccount = loginResponse.account;
+        msalInstance.setActiveAccount(activeAccount);
+        statusDiv.textContent += '\\nStatus: Signed in as ' + activeAccount.username;
+        await loadRootFolders();
       } catch (err) {
-        statusDiv.textContent += '\\nSignIn error: ' + err.message;
+        statusDiv.textContent += '\\nSign-in error: ' + err.message;
       }
-    }
+    });
 
     async function getAccessToken() {
       statusDiv.textContent += '\\nStatus: Acquiring token…';
-      const account = msalInstance.getActiveAccount();
-      if (!account) {
-        statusDiv.textContent += '\\nNo active account found.';
+      if (!activeAccount) {
+        statusDiv.textContent += '\\nError: No active account';
         throw new Error('No active account');
       }
       const response = await msalInstance.acquireTokenSilent({
         scopes: ['Files.Read.All'],
-        account: account
+        account: activeAccount
       });
       statusDiv.textContent += '\\nStatus: Token acquired.';
       return response.accessToken;
