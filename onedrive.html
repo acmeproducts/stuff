@@ -1,0 +1,79 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OneDrive Folder Viewer</title>
+  <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    button { margin: 10px 0; padding: 10px; }
+    ul { list-style-type: none; padding: 0; }
+    li { margin: 5px 0; }
+  </style>
+</head>
+<body>
+  <h2>OneDrive Folder Viewer</h2>
+  <button onclick="signIn()">Sign In</button>
+  <button onclick="getFolders()">Get OneDrive Folders</button>
+  <ul id="folderList"></ul>
+
+  <script>
+    const msalConfig = {
+      auth: {
+        clientId: 'b407fd45-c551-4dbb-9da5-cab3a2c5a949',
+        authority: 'https://login.microsoftonline.com/common',
+        redirectUri: window.location.href
+      }
+    };
+
+    const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+    async function signIn() {
+      try {
+        const loginResponse = await msalInstance.loginPopup({
+          scopes: ['Files.Read.All', 'User.Read']
+        });
+        console.log('User signed in:', loginResponse.account);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    async function getFolders() {
+      const account = msalInstance.getAllAccounts()[0];
+      if (!account) {
+        alert("Please sign in first.");
+        return;
+      }
+
+      try {
+        const response = await msalInstance.acquireTokenSilent({
+          scopes: ['Files.Read.All'],
+          account: account
+        });
+
+        const accessToken = response.accessToken;
+        const graphResponse = await fetch("https://graph.microsoft.com/v1.0/me/drive/root/children", {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const data = await graphResponse.json();
+
+        const list = document.getElementById('folderList');
+        list.innerHTML = '';
+        if (data.value) {
+          data.value.forEach(item => {
+            const li = document.createElement('li');
+            li.textContent = item.name + (item.folder ? ' [Folder]' : '');
+            list.appendChild(li);
+          });
+        } else {
+          list.innerHTML = '<li>No items found</li>';
+        }
+      } catch (error) {
+        console.error('Error getting folders:', error);
+      }
+    }
+  </script>
+</body>
+</html>
