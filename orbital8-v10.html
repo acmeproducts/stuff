@@ -2,15 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>OneDrive Browser with Viewer</title>
+  <title>OneDrive Browser with Grid, Sorting, Breadcrumbs, and Modal Viewer</title>
   <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     #status { margin-bottom: 10px; white-space: pre-line; }
-    #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
-    .item { cursor: pointer; text-align: center; }
-    .item img { max-width: 100%; max-height: 100px; object-fit: cover; display: block; margin: 0 auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { cursor: pointer; background: #f2f2f2; }
+    tr:hover { background: #f1f1f1; }
+    #breadcrumbs { margin-top: 10px; }
     #modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8);
              display: none; align-items: center; justify-content: center; flex-direction: column; color: #fff; }
     #modal img { max-height: 80vh; max-width: 80vw; }
@@ -20,10 +22,21 @@
   </style>
 </head>
 <body>
-  <h1>OneDrive Browser (Enhanced)</h1>
-  <button id="signInBtn">Sign In</button>
+  <h1>OneDrive Browser (Enhanced Grid)</h1>
+  <button onclick="signIn()">Sign In</button>
   <div id="status">Status: Ready</div>
-  <div id="grid"></div>
+  <div id="breadcrumbs"></div>
+  <table>
+    <thead>
+      <tr>
+        <th onclick="sortTable(0)">Name</th>
+        <th onclick="sortTable(1)">Size</th>
+        <th onclick="sortTable(2)">Created</th>
+        <th onclick="sortTable(3)">Modified</th>
+      </tr>
+    </thead>
+    <tbody id="gridBody"></tbody>
+  </table>
 
   <div id="modal">
     <img id="modalImage" src="">
@@ -38,27 +51,25 @@
 
   <script>
     const statusDiv = document.getElementById('status');
+    const breadcrumbsDiv = document.getElementById('breadcrumbs');
     const msalConfig = {
-      auth: {
-        clientId: 'b407fd45-c551-4dbb-9da5-cab3a2c5a949',
-        authority: 'https://login.microsoftonline.com/common',
-        redirectUri: window.location.origin + window.location.pathname
-      },
+      auth: { clientId: 'b407fd45-c551-4dbb-9da5-cab3a2c5a949', authority: 'https://login.microsoftonline.com/common', redirectUri: window.location.origin + window.location.pathname },
       cache: { cacheLocation: 'sessionStorage' }
     };
     const msalInstance = new msal.PublicClientApplication(msalConfig);
-    let activeAccount, currentFolder = 'root', items = [], currentIndex = 0;
+    let activeAccount, currentFolder = 'root', items = [], currentIndex = 0, breadcrumbStack = [];
 
-    document.getElementById('signInBtn').addEventListener('click', async () => {
+    async function signIn() {
       log('Signing in...');
       try {
         const response = await msalInstance.loginPopup({ scopes: ['Files.ReadWrite.All', 'User.Read'] });
         activeAccount = response.account;
         msalInstance.setActiveAccount(activeAccount);
         log('Signed in as: ' + activeAccount.username);
-        loadFolder(currentFolder);
+        breadcrumbStack = [{ id: 'root', name: 'Root' }];
+        loadFolder('root');
       } catch (err) { log('Sign-in error: ' + err.message); }
-    });
+    }
 
     function log(msg) { statusDiv.textContent += '\\n' + msg; }
 
@@ -76,33 +87,59 @@
       log('Loading folder: ' + folderId);
       currentFolder = folderId;
       const token = await getToken();
-      const resp = await fetch(folderId==='root' ? 'https://graph.microsoft.com/v1.0/me/drive/root/children' : `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children`, {
+      const resp = await fetch(folderId==='root' ? 'https://graph.microsoft.com/v1.0/me/drive/root/children' : \`https://graph.microsoft.com/v1.0/me/drive/items/\${folderId}/children\`, {
         headers: { Authorization: 'Bearer ' + token }
       });
       const data = await resp.json();
-      const grid = document.getElementById('grid');
-      grid.innerHTML = '';
       items = data.value;
-      items.forEach((item, idx) => {
-        const div = document.createElement('div');
-        div.className = 'item';
-        const img = document.createElement('img');
-        if (item.folder) {
-          img.src = 'https://cdn-icons-png.flaticon.com/512/716/716784.png';
-          div.onclick = () => loadFolder(item.id);
-        } else if (item.file && item.image) {
-          img.src = `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/thumbnails/0/medium/content?access_token=${token}`;
-          div.onclick = () => openModal(idx);
-        } else {
-          img.src = 'https://cdn-icons-png.flaticon.com/512/716/716784.png';
-        }
-        const span = document.createElement('div');
-        span.textContent = item.name;
-        div.appendChild(img);
-        div.appendChild(span);
-        grid.appendChild(div);
-      });
+      updateBreadcrumbs();
+      renderGrid();
       log('Folder loaded.');
+    }
+
+    function updateBreadcrumbs() {
+      breadcrumbsDiv.innerHTML = '';
+      breadcrumbStack.forEach((crumb, idx) => {
+        const link = document.createElement('a');
+        link.href = '#';
+        link.textContent = crumb.name;
+        link.onclick = (e) => { e.preventDefault(); breadcrumbStack = breadcrumbStack.slice(0, idx+1); loadFolder(crumb.id); };
+        breadcrumbsDiv.appendChild(link);
+        if (idx < breadcrumbStack.length - 1) breadcrumbsDiv.appendChild(document.createTextNode(' / '));
+      });
+    }
+
+    function renderGrid() {
+      const tbody = document.getElementById('gridBody');
+      tbody.innerHTML = '';
+      items.forEach((item, idx) => {
+        const tr = document.createElement('tr');
+        tr.onclick = () => { if (item.folder) { breadcrumbStack.push({ id: item.id, name: item.name }); loadFolder(item.id); } else if (item.image) { openModal(idx); } };
+        tr.innerHTML = \`
+          <td>\${item.name}</td>
+          <td>\${item.size || ''}</td>
+          <td>\${item.createdDateTime || ''}</td>
+          <td>\${item.lastModifiedDateTime || ''}</td>
+        \`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function sortTable(col) {
+      const table = document.querySelector('table');
+      const tbody = table.querySelector('tbody');
+      const rows = Array.from(tbody.rows);
+      const direction = table.getAttribute('data-sort-dir') === 'asc' ? 'desc' : 'asc';
+      rows.sort((a, b) => {
+        let valA = a.cells[col].textContent.trim();
+        let valB = b.cells[col].textContent.trim();
+        if (!isNaN(valA) && !isNaN(valB)) {
+          valA = parseInt(valA, 10); valB = parseInt(valB, 10);
+        }
+        return direction==='asc' ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
+      });
+      rows.forEach(row => tbody.appendChild(row));
+      table.setAttribute('data-sort-dir', direction);
     }
 
     function openModal(idx) { currentIndex = idx; showModal(); }
@@ -126,12 +163,11 @@
     function closeModal() { document.getElementById('modal').style.display = 'none'; }
     function prevImage() { if (currentIndex > 0) { currentIndex--; showModal(); } }
     function nextImage() { if (currentIndex < items.length - 1) { currentIndex++; showModal(); } }
-
     async function deleteImage() {
       const item = items[currentIndex];
       if (!confirm('Delete ' + item.name + '?')) return;
       const token = await getToken();
-      await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}`, {
+      await fetch(\`https://graph.microsoft.com/v1.0/me/drive/items/\${item.id}\`, {
         method: 'DELETE',
         headers: { Authorization: 'Bearer ' + token }
       });
