@@ -1,45 +1,50 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>OneDrive Browser with Metadata Viewer</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <title>OneDrive Browser</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
   <style>
-    body { font-family: sans-serif; margin: 0; }
-    button { margin: 5px; }
+    html, body { height: 100%; margin: 0; font-family: sans-serif; }
+    #status { white-space: pre-line; max-height: 100px; overflow-y: auto; margin: 1em; }
     table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #ccc; padding: 6px; }
-    th { cursor: pointer; background: #f8f8f8; }
+    th, td { border: 1px solid #ccc; padding: 6px; word-break: break-word; }
+    th { background: #f8f8f8; cursor: pointer; }
     tr:hover { background: #f2f2f2; }
     #modal {
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(0,0,0,0.95); z-index: 9999;
-      display: none; flex-direction: column; color: white;
+      background: rgba(0,0,0,0.92); display: none; flex-direction: column;
+      z-index: 9999; justify-content: flex-start; align-items: center;
     }
-    #modalControls {
-      display: flex; justify-content: center; gap: 10px; padding: 10px;
+    #modal img {
+      max-width: 95vw; max-height: 75vh; margin-top: 1em;
     }
-    #modalImage {
-      max-width: 100%; max-height: 70vh; display: block; margin: auto;
+    #modal .controls {
+      display: flex; gap: 10px; margin-top: 10px;
     }
-    #metadataWrapper {
-      max-height: 30vh; overflow-y: auto; background: white; color: black;
-      margin: 10px; padding: 10px; border-radius: 6px;
+    #modal table {
+      margin-top: 1em; width: 90%; max-height: 25vh; overflow-y: auto; display: block;
     }
-    #metadataTable th, #metadataTable td { border: 1px solid #ccc; padding: 4px; word-break: break-word; }
-    #metadataTable th { background: #eee; }
-    .copy-btn { background: none; border: none; cursor: pointer; }
+    #modal table thead, #modal table tbody {
+      display: table; width: 100%;
+    }
+    #modal table tbody {
+      overflow-y: auto; display: block; max-height: 200px;
+    }
+    .copy-btn {
+      background: none; border: none; cursor: pointer;
+    }
     #closeBtn {
-      position: absolute; top: 10px; right: 20px;
-      font-size: 20px; background: none; border: none; color: white; cursor: pointer;
+      position: absolute; top: 10px; right: 14px; font-size: 24px;
+      background: none; border: none; color: #fff; cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <h2>OneDrive Browser</h2>
-  <button onclick="signIn()">Sign In</button>
-  <div id="breadcrumbs"></div>
+  <h2 style="margin: 1em;">OneDrive Browser</h2>
+  <button id="signInBtn" style="margin-left: 1em;">Sign In</button>
+  <div id="status">Status: Ready</div>
   <table>
     <thead>
       <tr>
@@ -53,150 +58,153 @@
   </table>
 
   <div id="modal">
-    <div id="modalControls">
+    <button id="closeBtn" onclick="document.getElementById('modal').style.display='none'">✕</button>
+    <div class="controls">
       <button onclick="prevImage()">Prev</button>
       <button onclick="nextImage()">Next</button>
       <button onclick="deleteImage()">Delete</button>
     </div>
-    <button id="closeBtn" onclick="closeModal()">✕</button>
     <img id="modalImage" />
-    <div id="metadataWrapper">
-      <table id="metadataTable">
-        <thead><tr><th>Key</th><th>Value</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
+    <table>
+      <thead><tr><th>Key</th><th>Value</th><th></th></tr></thead>
+      <tbody id="metaTable"></tbody>
+    </table>
   </div>
 
 <script>
-const msalInstance = new msal.PublicClientApplication({
+const msalConfig = {
   auth: {
     clientId: 'b407fd45-c551-4dbb-9da5-cab3a2c5a949',
     authority: 'https://login.microsoftonline.com/common',
     redirectUri: window.location.origin + window.location.pathname
   },
   cache: { cacheLocation: 'sessionStorage' }
-});
-let activeAccount = null, currentFolder = 'root', items = [], currentIndex = 0, breadcrumbStack = [];
+};
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+let activeAccount = null, items = [], currentIndex = 0;
 
-async function signIn() {
-  const resp = await msalInstance.loginPopup({ scopes: ['Files.ReadWrite.All', 'User.Read'] });
-  activeAccount = resp.account;
-  msalInstance.setActiveAccount(activeAccount);
-  breadcrumbStack = [{ id: 'root', name: 'Root' }];
-  loadFolder('root');
+document.getElementById('signInBtn').onclick = async () => {
+  try {
+    log('Signing in...');
+    const response = await msalInstance.loginPopup({ scopes: ['Files.ReadWrite.All', 'User.Read'] });
+    activeAccount = response.account;
+    msalInstance.setActiveAccount(activeAccount);
+    log('Signed in.');
+    loadFolder('root');
+  } catch (e) {
+    log('Sign-in error: ' + e.message);
+  }
+};
+
+function log(msg) {
+  document.getElementById('status').textContent += '\n' + msg;
 }
 
 async function getToken() {
+  const acct = msalInstance.getActiveAccount();
   try {
-    return (await msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite.All'], account: activeAccount })).accessToken;
+    const result = await msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite.All', 'User.Read'], account: acct });
+    return result.accessToken;
   } catch {
-    return (await msalInstance.acquireTokenPopup({ scopes: ['Files.ReadWrite.All'] })).accessToken;
+    const result = await msalInstance.acquireTokenPopup({ scopes: ['Files.ReadWrite.All', 'User.Read'] });
+    return result.accessToken;
   }
 }
 
 async function loadFolder(id) {
-  currentFolder = id;
   const token = await getToken();
-  const res = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${id}/children`, {
+  const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${id}/children`, {
     headers: { Authorization: 'Bearer ' + token }
   });
-  const data = await res.json();
+  const data = await resp.json();
   items = data.value;
-  renderGrid();
-}
-
-function renderGrid() {
   const tbody = document.getElementById('gridBody');
   tbody.innerHTML = '';
-  document.getElementById('breadcrumbs').innerHTML = breadcrumbStack.map((b, i) => `<a href="#" onclick="goBack(${i})">${b.name}</a>`).join(' / ');
   items.forEach((item, idx) => {
     const tr = document.createElement('tr');
     const isFolder = item.folder !== undefined;
+    const name = isFolder ? '▶ ' + item.name : item.name;
+    const td1 = document.createElement('td');
     const link = document.createElement('a');
-    link.href = '#';
-    link.textContent = isFolder ? '▶ ' + item.name : item.name;
+    link.href = '#'; link.textContent = name;
     link.onclick = (e) => {
       e.preventDefault();
-      if (isFolder) {
-        breadcrumbStack.push({ id: item.id, name: item.name });
-        loadFolder(item.id);
-      } else {
-        currentIndex = idx;
-        showModal();
-      }
+      if (isFolder) loadFolder(item.id);
+      else { currentIndex = idx; showModal(); }
     };
-    tr.appendChild(Object.assign(document.createElement('td'), { appendChild: () => tr.appendChild(link) }));
-    tr.appendChild(Object.assign(document.createElement('td'), { textContent: isFolder ? '' : (item.size / 1e6).toFixed(2) }));
-    tr.appendChild(Object.assign(document.createElement('td'), { textContent: formatDate(item.createdDateTime) }));
-    tr.appendChild(Object.assign(document.createElement('td'), { textContent: formatDate(item.lastModifiedDateTime) }));
-    tr.cells[0].appendChild(link);
+    td1.appendChild(link);
+    const td2 = document.createElement('td'); td2.textContent = isFolder ? '' : (item.size / 1e6).toFixed(2);
+    const td3 = document.createElement('td'); td3.textContent = formatDate(item.createdDateTime);
+    const td4 = document.createElement('td'); td4.textContent = formatDate(item.lastModifiedDateTime);
+    tr.append(td1, td2, td3, td4);
     tbody.appendChild(tr);
   });
 }
 
 function formatDate(str) {
   const d = new Date(str);
-  return `${String(d.getDate()).padStart(2,'0')}-${d.toLocaleString('default',{month:'short'})}-${d.getFullYear().toString().slice(-2)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-}
-
-function goBack(i) {
-  breadcrumbStack = breadcrumbStack.slice(0, i + 1);
-  loadFolder(breadcrumbStack[i].id);
-}
-
-function sortTable(col) {
-  const rows = Array.from(document.getElementById('gridBody').rows);
-  const dir = document.querySelector('table').getAttribute('data-sort-dir') === 'asc' ? 'desc' : 'asc';
-  rows.sort((a, b) => {
-    let A = a.cells[col].textContent, B = b.cells[col].textContent;
-    if (!isNaN(A) && !isNaN(B)) { A = parseFloat(A); B = parseFloat(B); }
-    return dir === 'asc' ? (A > B ? 1 : -1) : (A < B ? 1 : -1);
-  });
-  rows.forEach(r => document.getElementById('gridBody').appendChild(r));
-  document.querySelector('table').setAttribute('data-sort-dir', dir);
-}
-
-function closeModal() { document.getElementById('modal').style.display = 'none'; }
-
-function prevImage() { if (currentIndex > 0) { currentIndex--; showModal(); } }
-
-function nextImage() { if (currentIndex < items.length - 1) { currentIndex++; showModal(); } }
-
-async function deleteImage() {
-  const token = await getToken();
-  const item = items[currentIndex];
-  if (!confirm(`Delete ${item.name}?`)) return;
-  await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}`, {
-    method: 'DELETE', headers: { Authorization: 'Bearer ' + token }
-  });
-  closeModal(); loadFolder(currentFolder);
+  return `${d.getDate().toString().padStart(2,'0')}-${d.toLocaleString('default',{month:'short'})}-${String(d.getFullYear()).slice(-2)} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
 }
 
 async function showModal() {
   const item = items[currentIndex];
+  const token = await getToken();
+  const url = item['@microsoft.graph.downloadUrl'];
   document.getElementById('modal').style.display = 'flex';
   const img = document.getElementById('modalImage');
-  img.src = item['@microsoft.graph.downloadUrl'];
-  const tbody = document.querySelector('#metadataTable tbody');
-  tbody.innerHTML = '';
-  const resp = await fetch(img.src);
-  const buf = await resp.arrayBuffer();
-  const data = new Uint8Array(buf);
+  img.src = url;
+
+  // Parse metadata
+  const table = document.getElementById('metaTable');
+  table.innerHTML = '';
+  const resp = await fetch(url);
+  const buffer = await resp.arrayBuffer();
+  const data = new Uint8Array(buffer);
   const dec = new TextDecoder();
   let pos = 8;
   while (pos < data.length) {
     const len = (data[pos]<<24)|(data[pos+1]<<16)|(data[pos+2]<<8)|data[pos+3];
     const type = dec.decode(data.slice(pos+4, pos+8));
     if (type === 'tEXt') {
-      const chunk = dec.decode(data.slice(pos+8, pos+8+len));
-      const [k, v] = chunk.split('=');
+      const chunk = dec.decode(data.slice(pos+8,pos+8+len));
+      const eq = chunk.indexOf('=');
+      const k = chunk.slice(0, eq);
+      const v = chunk.slice(eq + 1);
       const tr = document.createElement('tr');
       tr.innerHTML = `<td>${k}</td><td>${v}</td><td><button class="copy-btn" onclick="navigator.clipboard.writeText(\`${v}\`)">📋</button></td>`;
-      tbody.appendChild(tr);
+      table.appendChild(tr);
     }
     pos += len + 12;
   }
+}
+
+function prevImage() { if (currentIndex > 0) { currentIndex--; showModal(); } }
+function nextImage() { if (currentIndex < items.length - 1) { currentIndex++; showModal(); } }
+
+async function deleteImage() {
+  const item = items[currentIndex];
+  if (!confirm('Delete ' + item.name + '?')) return;
+  const token = await getToken();
+  await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}`, {
+    method: 'DELETE',
+    headers: { Authorization: 'Bearer ' + token }
+  });
+  document.getElementById('modal').style.display = 'none';
+  loadFolder('root');
+}
+
+function sortTable(col) {
+  const tbody = document.getElementById('gridBody');
+  const rows = Array.from(tbody.rows);
+  const dir = document.querySelector('table').getAttribute('data-sort-dir') === 'asc' ? 'desc' : 'asc';
+  rows.sort((a,b)=>{
+    let valA = a.cells[col].textContent.trim();
+    let valB = b.cells[col].textContent.trim();
+    if (!isNaN(valA) && !isNaN(valB)) { valA=parseFloat(valA); valB=parseFloat(valB); }
+    return dir==='asc' ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
+  });
+  rows.forEach(r=>tbody.appendChild(r));
+  document.querySelector('table').setAttribute('data-sort-dir', dir);
 }
 </script>
 </body>
