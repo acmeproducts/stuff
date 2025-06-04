@@ -1,259 +1,167 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>OneDrive Viewer</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
+  <meta charset="UTF-8">
+  <title>Triangle Grid Mixed Patterns</title>
   <style>
-    html, body { margin:0; padding:0; font-family:sans-serif; height:100%; }
-    h2 { margin: 12px 20px; }
-    #statusToggle { cursor:pointer; margin-left:20px; }
-    #status { white-space:pre-line; margin: 10px 20px; display:none; max-height:100px; overflow-y:auto; background:#f9f9f9; padding:6px; border:1px solid #ccc; }
-    #breadcrumbs { margin:10px 20px; }
-    table { width:100%; border-collapse:collapse; margin:0 20px 20px; }
-    th, td { padding:6px; border:1px solid #ccc; }
-    th { background:#eee; cursor:pointer; }
-    tr:hover { background:#f5f5f5; }
-
-    #modal {
-      position:fixed; top:0; left:0; width:100vw; height:100vh;
-      background:#000c; display:none; flex-direction:column;
-      z-index:1000; color:white;
+    html, body { margin: 0; background: #555; overflow: hidden; }
+    canvas { display: block; }
+    #controls {
+      position: absolute; bottom: 10px; left: 10px; right: 10px;
+      display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
     }
-    #modalHeader {
-      display:flex; justify-content:space-between; align-items:center;
-      padding:10px; background:#111c;
-    }
-    #modalImageArea {
-      flex:1; display:flex; justify-content:center; align-items:center; overflow:auto;
-    }
-    #modalImage {
-      max-width:95%; max-height:90%; object-fit:contain;
-    }
-    #modalOtherViewer {
-      color:#eee; text-align:center; padding:20px;
-    }
-    #metadataSection {
-      max-height:35vh; overflow-y:auto; background:#fff; color:#000; padding:10px;
-    }
-    #metadataTable { width:100%; border-collapse:collapse; }
-    #metadataTable th, #metadataTable td {
-      border:1px solid #ccc; padding:6px; word-break:break-word;
-    }
-    .copy-btn { background:none; border:none; cursor:pointer; }
-
-    #modalControls {
-      padding:10px; background:#222; display:flex; justify-content:center; gap:10px;
+    button {
+      font-size: 14px;
+      padding: 6px 12px;
     }
   </style>
 </head>
 <body>
-  <h2>OneDrive Viewer</h2>
-  <button id="signInBtn" style="margin-left:20px;">Sign In</button>
-  <span id="statusToggle">&#x25B6; Debug</span>
-  <div id="status">Status: Ready</div>
-  <div id="breadcrumbs"></div>
-  <table>
-    <thead><tr><th onclick="sortTable(0)">Name</th><th onclick="sortTable(1)">Size (MB)</th><th onclick="sortTable(2)">Created</th><th onclick="sortTable(3)">Modified</th></tr></thead>
-    <tbody id="gridBody"></tbody>
-  </table>
-
-  <div id="modal">
-    <div id="modalHeader">
-      <span>
-        <button onclick="prevImage()">Prev</button>
-        <button onclick="nextImage()">Next</button>
-        <button onclick="deleteImage()">Delete</button>
-      </span>
-      <button onclick="closeModal()" style="background:none;color:white;font-size:20px;">✕</button>
-    </div>
-    <div id="modalImageArea">
-      <img id="modalImage" style="display:none;" />
-      <div id="modalOtherViewer" style="display:none;"></div>
-    </div>
-    <div id="metadataSection">
-      <table id="metadataTable"><thead><tr><th>Key</th><th>Value</th><th></th></tr></thead><tbody></tbody></table>
-    </div>
-  </div>
-
+<canvas id="c"></canvas>
+<div id="controls">
+  <button onclick="setPattern('checkerboard')">Checkerboard</button>
+  <button onclick="setPattern('radial')">Radial</button>
+  <button onclick="setPattern('wave')">Wave</button>
+  <button onclick="setPattern('mod')">Modulo</button>
+  <button onclick="setPattern('primes')">Primes</button>
+</div>
 <script>
-const wantedFields = ['Project_ID','Prompt','Model','Height','Width','Steps','Seed','CFG_Scale','Global_Hash'];
-const msalConfig = {
-  auth: {
-    clientId: 'b407fd45-c551-4dbb-9da5-cab3a2c5a949',
-    authority: 'https://login.microsoftonline.com/common',
-    redirectUri: window.location.origin + window.location.pathname
-  }, cache: { cacheLocation: 'sessionStorage' }
-};
-const msalInstance = new msal.PublicClientApplication(msalConfig);
-let activeAccount = null, currentFolder = 'root', items = [], currentIndex = 0, breadcrumbStack = [];
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+let w = canvas.width = window.innerWidth;
+let h = canvas.height = window.innerHeight;
 
-document.getElementById('signInBtn').onclick = async () => {
-  log('Signing in...');
-  try {
-    const result = await msalInstance.loginPopup({ scopes: ['Files.ReadWrite.All','User.Read'] });
-    activeAccount = result.account;
-    msalInstance.setActiveAccount(activeAccount);
-    log('Signed in as: ' + activeAccount.username);
-    breadcrumbStack = [{id:'root',name:'Root'}];
-    loadFolder('root');
-  } catch (e) { log('Sign-in error: ' + e.message); }
-};
+const cols = 10, rows = 10, size = 60;
+const colors = ['#000', '#fff', '#0ff', '#f0f', '#ff0'];
+const tiles = [];
 
-function log(msg) {
-  const s = document.getElementById('status');
-  s.textContent += '\n' + msg;
-}
-document.getElementById('statusToggle').onclick = () => {
-  const s = document.getElementById('status');
-  s.style.display = s.style.display === 'none' ? 'block' : 'none';
-};
+let patternMode = 'checkerboard';
+let blendMode = null;
+let loopIndex = 0;
+let frameCount = 0;
 
-async function getToken() {
-  try {
-    const result = await msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite.All'], account: msalInstance.getActiveAccount() });
-    return result.accessToken;
-  } catch {
-    const result = await msalInstance.acquireTokenPopup({ scopes: ['Files.ReadWrite.All'] });
-    return result.accessToken;
-  }
-}
-
-function formatDate(str) {
-  const d = new Date(str);
-  const dd = String(d.getDate()).padStart(2,'0');
-  const mon = d.toLocaleString('default',{month:'short'});
-  const yy = String(d.getFullYear()).slice(-2);
-  const hh = String(d.getHours()).padStart(2,'0');
-  const mi = String(d.getMinutes()).padStart(2,'0');
-  return `${dd}-${mon}-${yy} ${hh}:${mi}`;
-}
-
-async function loadFolder(id) {
-  currentFolder = id;
-  log('Loading folder: ' + id);
-  const token = await getToken();
-  const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${id}/children`, {
-    headers: { Authorization: 'Bearer ' + token }
-  });
-  const data = await resp.json();
-  items = data.value;
-  const tbody = document.getElementById('gridBody');
-  tbody.innerHTML = '';
-  const crumbs = breadcrumbStack.map((b, i) => `<a href="#" onclick="goBack(${i})">${b.name}</a>`).join(' / ');
-  document.getElementById('breadcrumbs').innerHTML = crumbs;
-
-  items.forEach((item, idx) => {
-    const tr = document.createElement('tr');
-    const isFolder = item.folder !== undefined;
-    const name = isFolder ? '▶ ' + item.name : item.name;
-    const sizeMB = isFolder ? '' : (item.size / 1e6).toFixed(2);
-    const created = formatDate(item.createdDateTime);
-    const modified = formatDate(item.lastModifiedDateTime);
-
-    const nameTd = document.createElement('td');
-    const link = document.createElement('a');
-    link.href = '#';
-    link.textContent = name;
-    link.onclick = (e) => {
-      e.preventDefault();
-      if (isFolder) {
-        breadcrumbStack.push({ id: item.id, name: item.name });
-        loadFolder(item.id);
-      } else {
-        currentIndex = idx;
-        showModal();
-      }
-    };
-    nameTd.appendChild(link);
-    tr.appendChild(nameTd);
-
-    const tdSize = document.createElement('td');
-    tdSize.textContent = sizeMB;
-    const tdCreated = document.createElement('td');
-    tdCreated.textContent = created;
-    const tdModified = document.createElement('td');
-    tdModified.textContent = modified;
-    tr.appendChild(tdSize);
-    tr.appendChild(tdCreated);
-    tr.appendChild(tdModified);
-    tbody.appendChild(tr);
-  });
-}
-
-function goBack(i) {
-  breadcrumbStack = breadcrumbStack.slice(0,i+1);
-  loadFolder(breadcrumbStack[i].id);
-}
-
-function sortTable(col) {
-  const tbody = document.getElementById('gridBody');
-  const rows = Array.from(tbody.rows);
-  const dir = document.querySelector('table').getAttribute('data-sort-dir') === 'asc' ? 'desc' : 'asc';
-  rows.sort((a,b)=>{
-    let valA = a.cells[col].textContent.trim();
-    let valB = b.cells[col].textContent.trim();
-    if (!isNaN(valA) && !isNaN(valB)) { valA=parseFloat(valA); valB=parseFloat(valB); }
-    return dir==='asc' ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
-  });
-  rows.forEach(r=>tbody.appendChild(r));
-  document.querySelector('table').setAttribute('data-sort-dir', dir);
-}
-
-async function showModal() {
-  const item = items[currentIndex];
-  const token = await getToken();
-  const viewer = document.getElementById('modalImage');
-  const alt = document.getElementById('modalOtherViewer');
-  const tableBody = document.querySelector('#metadataTable tbody');
-  document.getElementById('modal').style.display = 'flex';
-  viewer.style.display = 'none'; alt.style.display = 'none';
-  tableBody.innerHTML = '';
-  const url = item['@microsoft.graph.downloadUrl'];
-  const mime = item.file?.mimeType || '';
-
-  if (mime.startsWith('image/')) {
-    viewer.src = url;
-    viewer.onload = () => viewer.style.display = 'block';
-    extractPNGText(url, tableBody);
-  } else {
-    alt.innerHTML = `<p>MIME: ${mime}</p><p><a href="${url}" target="_blank" style="color:lightblue;">Open in new tab</a></p>`;
-    alt.style.display = 'block';
-  }
-}
-
-async function extractPNGText(url, table) {
-  const resp = await fetch(url);
-  const buffer = await resp.arrayBuffer();
-  const data = new Uint8Array(buffer);
-  const dec = new TextDecoder();
-  let pos = 8;
-  while (pos < data.length) {
-    const len = (data[pos]<<24)|(data[pos+1]<<16)|(data[pos+2]<<8)|data[pos+3];
-    const type = dec.decode(data.slice(pos+4, pos+8));
-    if (type==='tEXt') {
-      const chunk = dec.decode(data.slice(pos+8,pos+8+len));
-      const [k,v] = chunk.split('=');
-      if (!wantedFields.includes(k)) { pos += len+12; continue; }
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${k}</td><td>${v}</td><td><button class="copy-btn" onclick="navigator.clipboard.writeText(\`${v}\`)">📋</button></td>`;
-      table.appendChild(tr);
+function createTiles() {
+  tiles.length = 0;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const cx = x * size + size / 2 + 50;
+      const cy = y * size + size / 2 + 50;
+      tiles.push({ cx, cy, state: [0, 0, 0, 0], x, y });
     }
-    pos += len + 12;
   }
 }
 
-function closeModal() { document.getElementById('modal').style.display = 'none'; }
-function prevImage() { if (currentIndex > 0) { currentIndex--; showModal(); } }
-function nextImage() { if (currentIndex < items.length-1) { currentIndex++; showModal(); } }
-async function deleteImage() {
-  const item = items[currentIndex];
-  if (!confirm('Delete ' + item.name + '?')) return;
-  const token = await getToken();
-  await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
-  closeModal(); loadFolder(currentFolder);
+function drawTriangle(cx, cy, quad, color) {
+  const s = size / 2;
+  ctx.beginPath();
+  if (quad === 0) { ctx.moveTo(cx, cy); ctx.lineTo(cx - s, cy - s); ctx.lineTo(cx + s, cy - s); }
+  if (quad === 1) { ctx.moveTo(cx, cy); ctx.lineTo(cx + s, cy - s); ctx.lineTo(cx + s, cy + s); }
+  if (quad === 2) { ctx.moveTo(cx, cy); ctx.lineTo(cx + s, cy + s); ctx.lineTo(cx - s, cy + s); }
+  if (quad === 3) { ctx.moveTo(cx, cy); ctx.lineTo(cx - s, cy + s); ctx.lineTo(cx - s, cy - s); }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
 }
+
+function drawTile(tile) {
+  for (let i = 0; i < 4; i++) {
+    drawTriangle(tile.cx, tile.cy, i, colors[tile.state[i]]);
+  }
+}
+
+function drawAll() {
+  ctx.clearRect(0, 0, w, h);
+  for (let t of tiles) drawTile(t);
+}
+
+const modes = {
+  checkerboard(tile, tri) {
+    return (tile.x + tile.y + tri) % 2;
+  },
+  radial(tile, tri) {
+    let dx = tile.cx - w / 2, dy = tile.cy - h / 2;
+    let dist = Math.sqrt(dx * dx + dy * dy);
+    return Math.floor((dist / 50 + tri) % colors.length);
+  },
+  wave(tile, tri) {
+    return Math.floor((Math.sin(tile.x / 2 + tri) + 1) * 2);
+  },
+  mod(tile, tri) {
+    return (tile.x * rows + tile.y + tri) % colors.length;
+  },
+  primes(tile, tri) {
+    let i = tile.y * cols + tile.x;
+    function isPrime(n) {
+      if (n < 2) return false;
+      for (let d = 2; d * d <= n; d++) if (n % d === 0) return false;
+      return true;
+    }
+    return isPrime(i) ? (tri % 2) + 1 : 0;
+  }
+};
+
+function setPattern(name) {
+  patternMode = name;
+  blendMode = null;
+}
+
+function updatePatternCycle() {
+  const keys = Object.keys(modes);
+  const i = Math.floor(Math.random() * keys.length);
+  const j = Math.floor(Math.random() * keys.length);
+  patternMode = keys[i];
+  blendMode = keys[j] !== patternMode ? keys[j] : null;
+}
+
+function updateOneTriangle() {
+  const totalTriangles = tiles.length * 4;
+  const triIndex = loopIndex % totalTriangles;
+  const tileId = Math.floor(triIndex / 4);
+  const triId = triIndex % 4;
+  const tile = tiles[tileId];
+  let value = 0;
+
+  if (tile && modes[patternMode]) {
+    value = modes[patternMode](tile, triId);
+    if (blendMode && modes[blendMode]) {
+      const blendVal = modes[blendMode](tile, triId);
+      value = (value + blendVal) % colors.length;
+    }
+    tile.state[triId] = value;
+  }
+
+  if (loopIndex % 300 === 0) updatePatternCycle();
+  loopIndex++;
+  frameCount++;
+}
+
+function animationLoop() {
+  updateOneTriangle();
+  drawAll();
+  requestAnimationFrame(animationLoop);
+}
+
+function handleClick(e) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  for (let tile of tiles) {
+    if (Math.abs(mx - tile.cx) <= size / 2 && Math.abs(my - tile.cy) <= size / 2) {
+      const dx = mx - tile.cx;
+      const dy = my - tile.cy;
+      let quad = 0;
+      if (dx > 0 && dy < 0) quad = 1;
+      else if (dx > 0 && dy > 0) quad = 2;
+      else if (dx < 0 && dy > 0) quad = 3;
+      tile.state[quad] = (tile.state[quad] + 1) % colors.length;
+    }
+  }
+}
+
+canvas.addEventListener('click', handleClick);
+createTiles();
+drawAll();
+animationLoop();
 </script>
 </body>
 </html>
