@@ -750,6 +750,7 @@
             <div class="loading-progress">
                 <div class="loading-progress-bar" id="loading-progress-bar"></div>
             </div>
+            <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
             <div class="status-log" id="status-log">
                 <div class="status-log-entry info">Starting image processing...</div>
             </div>
@@ -1029,6 +1030,7 @@
                     loadingMessage: document.getElementById('loading-message'),
                     loadingProgressBar: document.getElementById('loading-progress-bar'),
                     statusLog: document.getElementById('status-log'),
+                    cancelLoading: document.getElementById('cancel-loading'),
                     
                     // Edge glows
                     edgeTop: document.getElementById('edge-top'),
@@ -1324,10 +1326,11 @@
             }
         }
 
-        // ===== Metadata System (Same as before) =====
-        class SimpleMetadataExtractor {
+        // ===== Optimized Metadata System =====
+        class OptimizedMetadataExtractor {
             constructor() {
                 this.statusLog = null;
+                this.abortController = null;
             }
             
             setStatusLog(logElement) {
@@ -1344,11 +1347,22 @@
                 }
             }
             
+            abort() {
+                if (this.abortController) {
+                    this.abortController.abort();
+                    this.abortController = null;
+                }
+            }
+            
             async extract(buffer) {
                 if (!buffer) return {};
                 
                 const metadata = {};
                 const view = new DataView(buffer);
+                
+                // Validate PNG header
+                if (buffer.byteLength < 8) return {};
+                
                 let pos = 8; // Skip PNG header
                 
                 try {
@@ -1386,12 +1400,20 @@
                             const width = view.getUint32(pos, false);
                             const height = view.getUint32(pos + 4, false);
                             metadata._dimensions = { width, height };
+                        } else if (chunkType === 'IEND') {
+                            // Reached end of PNG
+                            break;
                         }
                         
                         pos += chunkLength + 4;
+                        
+                        // Safety check for malformed files
+                        if (chunkLength > buffer.byteLength || pos > buffer.byteLength) {
+                            break;
+                        }
                     }
                 } catch (error) {
-                    // Simplified error handling
+                    // Return what we have so far
                 }
                 
                 return metadata;
@@ -1403,16 +1425,27 @@
                 }
                 
                 try {
-                    const response = await utils.withErrorHandling(
-                        () => fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
-                            headers: { 'Authorization': `Bearer ${appState.cloudStorage.currentProvider.accessToken}` }
-                        }),
-                        'Failed to fetch PNG metadata'
-                    );
+                    this.abortController = new AbortController();
+                    
+                    // Only fetch first 64KB for metadata - much faster!
+                    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+                        headers: { 
+                            'Authorization': `Bearer ${appState.cloudStorage.currentProvider.accessToken}`,
+                            'Range': 'bytes=0-65535' // First 64KB only
+                        },
+                        signal: this.abortController.signal
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
                     
                     const buffer = await response.arrayBuffer();
                     return await this.extract(buffer);
                 } catch (error) {
+                    if (error.name === 'AbortError') {
+                        return { error: 'Operation cancelled' };
+                    }
                     return { error: error.message };
                 }
             }
@@ -1830,8 +1863,10 @@
             }
         };
         
-        // ===== Enhanced Folder Manager with Cache Detection =====
+        // ===== Enhanced Folder Manager with Batch Processing =====
         const folderManager = {
+            isProcessing: false,
+            
             async loadFolders() {
                 utils.elements.folderList.innerHTML = `
                     <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
@@ -1874,6 +1909,12 @@
             },
             
             async selectFolder(folder) {
+                if (this.isProcessing) {
+                    utils.showToast('Please wait for current folder to finish loading', 'info', true);
+                    return;
+                }
+                
+                this.isProcessing = true;
                 appState.currentFolder.id = folder.id;
                 appState.currentFolder.name = folder.name;
                 
@@ -1887,71 +1928,64 @@
                     utils.updateLoadingProgress(count, 0);
                 };
                 
-                await utils.withErrorHandling(async () => {
-                    // Check cache first
-                    const cachedFiles = await appState.fileCache.getCachedFiles(folder.id);
-                    
-                    if (cachedFiles) {
-                        utils.elements.loadingMessage.textContent = 'Loading from cache...';
-                        appState.metadataExtractor.log('📥 Loading files from cache', 'success');
+                try {
+                    await utils.withErrorHandling(async () => {
+                        // Check cache first
+                        const cachedFiles = await appState.fileCache.getCachedFiles(folder.id);
                         
-                        // Use cached files directly
-                        const files = cachedFiles;
-                        if (files.length === 0) {
-                            utils.showToast('No images found in this folder', 'info', true);
-                            setTimeout(() => utils.showScreen('folder-screen'), 2000);
-                            return;
-                        }
-                        
-                        utils.updateLoadingProgress(files.length, files.length);
-                        utils.elements.loadingMessage.textContent = 'Processing cached images...';
-                        
-                        // Process cached files
-                        appState.imageFiles = files.map(file => ({
-                            id: file.id,
-                            name: file.name,
-                            filename: file.name,
-                            originalName: file.name,
-                            mimeType: file.mimeType,
-                            size: file.size,
-                            createdTime: file.createdTime,
-                            modifiedTime: file.modifiedTime,
-                            thumbnailLink: file.thumbnailLink,
-                            appProperties: file.appProperties || {},
-                            extractedMetadata: file.extractedMetadata || {},
-                            qualityRating: parseInt(file.appProperties?.qualityRating) || 0,
-                            contentRating: parseInt(file.appProperties?.contentRating) || 0,
-                            notes: file.appProperties?.notes || ''
-                        }));
-                        
-                        appState.metadataExtractor.log(`✅ Loaded ${files.length} images from cache`, 'success');
-                        
-                    } else {
-                        // Fresh fetch from Google Drive
-                        utils.elements.loadingMessage.textContent = 'Loading images from Google Drive...';
-                        appState.metadataExtractor.log('🔄 Fetching fresh data from Google Drive', 'info');
-                        
-                        const result = await appState.cloudStorage.getFiles(folder.id, false); // Don't use cache for this call
-                        const files = result.files || [];
-                        
-                        if (files.length === 0) {
-                            utils.showToast('No images found in this folder', 'info', true);
-                            setTimeout(() => utils.showScreen('folder-screen'), 2000);
-                            return;
-                        }
-                        
-                        utils.updateLoadingProgress(files.length, files.length);
-                        utils.elements.loadingMessage.textContent = 'Processing metadata...';
-                        
-                        appState.imageFiles = [];
-                        let processedCount = 0;
-                        let extractedCount = 0;
-                        let cachedCount = 0;
-                        
-                        for (let i = 0; i < files.length; i++) {
-                            const file = files[i];
+                        if (cachedFiles) {
+                            utils.elements.loadingMessage.textContent = 'Loading from cache...';
+                            appState.metadataExtractor.log('📥 Loading files from cache', 'success');
                             
-                            const imageFile = {
+                            const files = cachedFiles;
+                            if (files.length === 0) {
+                                utils.showToast('No images found in this folder', 'info', true);
+                                setTimeout(() => utils.showScreen('folder-screen'), 2000);
+                                return;
+                            }
+                            
+                            utils.updateLoadingProgress(files.length, files.length);
+                            utils.elements.loadingMessage.textContent = 'Processing cached images...';
+                            
+                            // Process cached files quickly
+                            appState.imageFiles = files.map(file => ({
+                                id: file.id,
+                                name: file.name,
+                                filename: file.name,
+                                originalName: file.name,
+                                mimeType: file.mimeType,
+                                size: file.size,
+                                createdTime: file.createdTime,
+                                modifiedTime: file.modifiedTime,
+                                thumbnailLink: file.thumbnailLink,
+                                appProperties: file.appProperties || {},
+                                extractedMetadata: file.extractedMetadata || {},
+                                qualityRating: parseInt(file.appProperties?.qualityRating) || 0,
+                                contentRating: parseInt(file.appProperties?.contentRating) || 0,
+                                notes: file.appProperties?.notes || ''
+                            }));
+                            
+                            appState.metadataExtractor.log(`✅ Loaded ${files.length} images from cache`, 'success');
+                            
+                        } else {
+                            // Fresh fetch from Google Drive
+                            utils.elements.loadingMessage.textContent = 'Loading images from Google Drive...';
+                            appState.metadataExtractor.log('🔄 Fetching fresh data from Google Drive', 'info');
+                            
+                            const result = await appState.cloudStorage.getFiles(folder.id, false);
+                            const files = result.files || [];
+                            
+                            if (files.length === 0) {
+                                utils.showToast('No images found in this folder', 'info', true);
+                                setTimeout(() => utils.showScreen('folder-screen'), 2000);
+                                return;
+                            }
+                            
+                            utils.updateLoadingProgress(files.length, files.length);
+                            utils.elements.loadingMessage.textContent = 'Processing files...';
+                            
+                            // Quick initial processing - no metadata extraction yet
+                            appState.imageFiles = files.map(file => ({
                                 id: file.id,
                                 name: file.name,
                                 filename: file.name,
@@ -1966,59 +2000,83 @@
                                 qualityRating: parseInt(file.appProperties?.qualityRating) || 0,
                                 contentRating: parseInt(file.appProperties?.contentRating) || 0,
                                 notes: file.appProperties?.notes || ''
-                            };
+                            }));
                             
-                            appState.imageFiles.push(imageFile);
+                            const pngCount = files.filter(f => f.mimeType === 'image/png').length;
                             
-                            utils.updateLoadingProgress(processedCount + 1, files.length);
-                            utils.elements.loadingMessage.textContent = `Processing metadata ${processedCount + 1} of ${files.length}...`;
+                            appState.metadataExtractor.log(`🎯 Files loaded:`, 'info');
+                            appState.metadataExtractor.log(`   📁 Total images: ${files.length}`, 'info');
+                            appState.metadataExtractor.log(`   🖼️ PNG files: ${pngCount}`, 'info');
                             
-                            if (imageFile.mimeType === 'image/png') {
-                                try {
-                                    const result = await this.processFileMetadata(imageFile);
-                                    if (result.extracted) extractedCount++;
-                                    if (result.cached) cachedCount++;
-                                } catch (error) {
-                                    appState.metadataExtractor.log(`⚠️ Failed to process ${file.name}: ${error.message}`, 'error');
-                                }
-                            }
+                            // Cache the basic files immediately
+                            await appState.fileCache.setCachedFiles(folder.id, appState.imageFiles);
+                            appState.metadataExtractor.log('💾 Files cached for future use', 'success');
                             
-                            processedCount++;
-                            
-                            if (i % 2 === 0) {
-                                await new Promise(resolve => setTimeout(resolve, 10));
+                            // Start background metadata extraction
+                            if (pngCount > 0) {
+                                this.extractMetadataInBackground(appState.imageFiles.filter(f => f.mimeType === 'image/png'));
                             }
                         }
                         
-                        const pngCount = files.filter(f => f.mimeType === 'image/png').length;
+                        stackManager.updateStacks();
+                        appState.currentImageIndex = 0;
+                        appState.currentStack = 'in';
                         
-                        appState.metadataExtractor.log(`🎯 Processing complete:`, 'info');
-                        appState.metadataExtractor.log(`   📁 Total images: ${files.length}`, 'info');
-                        appState.metadataExtractor.log(`   🖼️ PNG files: ${pngCount}`, 'info');
-                        appState.metadataExtractor.log(`   ✅ New extractions: ${extractedCount}`, 'success');
-                        appState.metadataExtractor.log(`   📥 From cache: ${cachedCount}`, 'info');
+                        setTimeout(() => {
+                            utils.showScreen('app-container');
+                            imageViewer.displayTopImageFromStack('in');
+                            updateActiveProxTab();
+                            utils.showToast(`Loaded ${appState.imageFiles.length} images`, 'success', true);
+                        }, 500);
                         
-                        // Cache the processed files
-                        await appState.fileCache.setCachedFiles(folder.id, appState.imageFiles);
-                        appState.metadataExtractor.log('💾 Files cached for future use', 'success');
-                    }
-                    
-                    stackManager.updateStacks();
-                    appState.currentImageIndex = 0;
-                    appState.currentStack = 'in';
-                    
-                    setTimeout(() => {
-                        utils.showScreen('app-container');
-                        imageViewer.displayTopImageFromStack('in');
-                        updateActiveProxTab();
-                        utils.showToast(`Loaded ${appState.imageFiles.length} images`, 'success', true);
-                    }, 500);
-                    
-                }, 'Error loading images from folder').finally(() => {
+                    }, 'Error loading images from folder');
+                } finally {
+                    this.isProcessing = false;
                     if (appState.cloudStorage.currentProvider) {
                         appState.cloudStorage.currentProvider.onProgressCallback = null;
                     }
-                });
+                }
+            },
+            
+            async extractMetadataInBackground(pngFiles) {
+                appState.metadataExtractor.log(`🔄 Starting background metadata extraction for ${pngFiles.length} PNG files`, 'info');
+                
+                const BATCH_SIZE = 5; // Process 5 files concurrently
+                let extractedCount = 0;
+                let cachedCount = 0;
+                
+                for (let i = 0; i < pngFiles.length; i += BATCH_SIZE) {
+                    const batch = pngFiles.slice(i, i + BATCH_SIZE);
+                    const batchPromises = batch.map(file => this.processFileMetadata(file));
+                    
+                    try {
+                        const results = await Promise.allSettled(batchPromises);
+                        results.forEach((result, index) => {
+                            if (result.status === 'fulfilled') {
+                                if (result.value.extracted) extractedCount++;
+                                if (result.value.cached) cachedCount++;
+                            } else {
+                                const fileName = batch[index]?.name || 'unknown';
+                                appState.metadataExtractor.log(`⚠️ Failed to process ${fileName}`, 'error');
+                            }
+                        });
+                        
+                        // Update cache with new metadata
+                        await appState.fileCache.setCachedFiles(appState.currentFolder.id, appState.imageFiles);
+                        
+                        // Small delay to prevent overwhelming the API
+                        if (i + BATCH_SIZE < pngFiles.length) {
+                            await new Promise(resolve => setTimeout(resolve, 200));
+                        }
+                        
+                    } catch (error) {
+                        appState.metadataExtractor.log(`❌ Batch processing error: ${error.message}`, 'error');
+                    }
+                }
+                
+                appState.metadataExtractor.log(`🎉 Background extraction complete!`, 'success');
+                appState.metadataExtractor.log(`   ✅ New extractions: ${extractedCount}`, 'success');
+                appState.metadataExtractor.log(`   📥 From cache: ${cachedCount}`, 'info');
             },
             
             async processFileMetadata(file) {
@@ -2029,13 +2087,10 @@
                 const cachedMetadata = await appState.fileCache.getMetadata(file.id, file.modifiedTime);
                 if (cachedMetadata) {
                     file.extractedMetadata = cachedMetadata;
-                    appState.metadataExtractor.log(`📥 Using cached metadata for ${file.name}`, 'info');
                     return { extracted: false, cached: true };
                 }
                 
                 try {
-                    appState.metadataExtractor.log(`🔄 Downloading ${file.name} for metadata extraction`, 'info');
-                    
                     const metadata = await appState.metadataExtractor.fetchMetadata(file);
                     
                     if (metadata.error) {
@@ -2045,15 +2100,12 @@
                     if (Object.keys(metadata).length > 0) {
                         file.extractedMetadata = metadata;
                         await appState.fileCache.setMetadata(file.id, file.modifiedTime, metadata);
-                        appState.metadataExtractor.log(`💾 Extracted and cached ${Object.keys(metadata).length} fields`, 'success');
                         return { extracted: true, cached: false };
                     } else {
-                        appState.metadataExtractor.log(`ℹ️ No metadata found in ${file.name}`, 'info');
                         return { extracted: false, cached: false };
                     }
                     
                 } catch (error) {
-                    appState.metadataExtractor.log(`❌ Failed to extract metadata: ${error.message}`, 'error');
                     return { extracted: false, cached: false };
                 }
             },
@@ -3231,12 +3283,22 @@
             }
         }
         
-        // ===== Event Handlers (Same as before) =====
+        // ===== Event Handlers (Enhanced with cancel) =====
         function setupEventHandlers() {
             // Authentication
             utils.elements.authButton.addEventListener('click', () => authManager.authenticate());
             utils.elements.refreshFolders.addEventListener('click', () => folderManager.loadFolders());
             utils.elements.logout.addEventListener('click', () => authManager.logout());
+            
+            // Loading screen cancel
+            utils.elements.cancelLoading.addEventListener('click', () => {
+                if (appState.metadataExtractor) {
+                    appState.metadataExtractor.abort();
+                }
+                folderManager.isProcessing = false;
+                utils.showScreen('folder-screen');
+                utils.showToast('Loading cancelled', 'info', true);
+            });
             
             // Navigation
             utils.elements.backButton.addEventListener('click', () => {
@@ -3408,7 +3470,7 @@
                 await appState.fileCache.init();
                 
                 appState.cloudStorage = new CloudStorageModule();
-                appState.metadataExtractor = new SimpleMetadataExtractor();
+                appState.metadataExtractor = new OptimizedMetadataExtractor();
                 
                 // Check existing authentication
                 if (appState.cloudStorage.isAuthenticated()) {
