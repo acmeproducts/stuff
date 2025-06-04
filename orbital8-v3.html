@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V2 Enhanced</title>
+    <title>Orbital8 - Fixed Caching</title>
     <style>
         :root {
             --app-accent: #f59e0b;
@@ -716,8 +716,8 @@
     <!-- Authentication Screen -->
     <div class="screen" id="auth-screen">
         <div class="card">
-            <h1 class="title" style="font-size: 32px;">Orbital8 V2</h1>
-            <p class="subtitle">Enhanced with Smart Caching</p>
+            <h1 class="title" style="font-size: 32px;">Orbital8</h1>
+            <p class="subtitle">Connect to Google Drive</p>
             <input type="password" id="client-secret" class="input" placeholder="Enter Google Client Secret">
             <button class="button" id="auth-button">Connect Drive</button>
             <div id="auth-status" class="status info">Enter your client secret to continue</div>
@@ -751,7 +751,7 @@
                 <div class="loading-progress-bar" id="loading-progress-bar"></div>
             </div>
             <div class="status-log" id="status-log">
-                <div class="status-log-entry info">Starting enhanced image processing...</div>
+                <div class="status-log-entry info">Starting image processing...</div>
             </div>
         </div>
     </div>
@@ -985,1757 +985,12 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V2 ENHANCED - COMPLETE APPLICATION =====
+        // ===== ORBITAL8 V2 - FIXED CACHING ISSUES =====
 
         // ===== Configuration & Constants =====
         const STACK_TYPES = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
         
-        // ===== Enhanced Cache System =====
-        class EnhancedCacheManager {
-            constructor() {
-                this.db = null;
-                this.dbVersion = 2;
-                this.cacheVersion = '2.0';
-                this.maxImageCacheSize = 500 * 1024 * 1024; // 500MB
-                this.imageRetentionDays = 7;
-                this.thumbnailRetentionDays = 1;
-                this.logger = null;
-            }
-            
-            setLogger(logger) {
-                this.logger = logger;
-            }
-            
-            log(message, type = 'info') {
-                if (this.logger) {
-                    this.logger.log(message, type);
-                }
-                console.log(`[CacheManager] ${message}`);
-            }
-            
-            async init() {
-                return new Promise((resolve, reject) => {
-                    const request = indexedDB.open('Orbital8EnhancedCache', this.dbVersion);
-                    
-                    request.onerror = () => {
-                        this.log('❌ Failed to open IndexedDB', 'error');
-                        reject(request.error);
-                    };
-        
-        // ===== Details Modal (Simplified) =====
-        const detailsModal = {
-            currentTab: 'info',
-            
-            show() {
-                const currentFile = appState.imageFiles[appState.currentImageIndex];
-                if (!currentFile) return;
-                
-                this.populateAllTabs(currentFile);
-                utils.modal.show('details-modal');
-                this.switchTab('info');
-            },
-            
-            hide() {
-                utils.modal.hide('details-modal');
-            },
-            
-            switchTab(tabName) {
-                document.querySelectorAll('.tab-button').forEach(btn => {
-                    btn.classList.toggle('active', btn.dataset.tab === tabName);
-                });
-                
-                document.querySelectorAll('.tab-content').forEach(content => {
-                    content.classList.toggle('active', content.id === `tab-${tabName}`);
-                });
-                
-                this.currentTab = tabName;
-            },
-            
-            populateAllTabs(file) {
-                this.populateInfoTab(file);
-                this.populateTagsTab(file);
-                this.populateNotesTab(file);
-                this.populateMetadataTab(file);
-            },
-            
-            populateInfoTab(file) {
-                const filename = file.name || 'Unknown';
-                utils.elements.detailFilename.textContent = filename;
-                
-                if (file.id) {
-                    utils.elements.detailFilenameLink.href = `https://drive.google.com/file/d/${file.id}/view`;
-                    utils.elements.detailFilenameLink.style.display = 'inline';
-                } else {
-                    utils.elements.detailFilenameLink.href = '#';
-                    utils.elements.detailFilenameLink.style.display = 'none';
-                }
-                
-                const date = file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : 
-                           file.createdTime ? new Date(file.createdTime).toLocaleString() : 'Unknown';
-                utils.elements.detailDate.textContent = date;
-                
-                const size = file.size ? utils.formatFileSize(file.size) : 'Unknown';
-                utils.elements.detailSize.textContent = size;
-            },
-            
-            populateTagsTab(file) {
-                const tags = stackManager.getFileTags(file);
-                
-                utils.elements.detailTags.innerHTML = '';
-                
-                tags.forEach(tag => {
-                    const tagElement = document.createElement('div');
-                    tagElement.className = 'tag-item';
-                    tagElement.innerHTML = `
-                        <span>${tag}</span>
-                        <button class="tag-remove" data-tag="${tag}">×</button>
-                    `;
-                    utils.elements.detailTags.appendChild(tagElement);
-                });
-                
-                const addButton = document.createElement('div');
-                addButton.className = 'add-tag-btn';
-                addButton.textContent = '+ Add Tag';
-                addButton.addEventListener('click', () => this.showAddTagInput());
-                utils.elements.detailTags.appendChild(addButton);
-                
-                utils.elements.detailTags.querySelectorAll('.tag-remove').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const tagToRemove = e.target.dataset.tag;
-                        this.removeTag(file, tagToRemove);
-                    });
-                });
-            },
-            
-            showAddTagInput() {
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.className = 'tag-input';
-                input.placeholder = 'Enter tag name';
-                input.style.marginLeft = '8px';
-                
-                const addButton = utils.elements.detailTags.querySelector('.add-tag-btn');
-                addButton.parentNode.insertBefore(input, addButton);
-                input.focus();
-                
-                input.addEventListener('keydown', async (e) => {
-                    if (e.key === 'Enter') {
-                        const tagName = input.value.trim();
-                        if (tagName) {
-                            const currentFile = appState.imageFiles[appState.currentImageIndex];
-                            try {
-                                await stackManager.addTagsToFile(currentFile.id, [tagName]);
-                                this.populateTagsTab(currentFile);
-                                input.remove();
-                            } catch (error) {
-                                utils.showToast('Failed to add tag', 'error', true);
-                            }
-                        }
-                    } else if (e.key === 'Escape') {
-                        input.remove();
-                    }
-                });
-                
-                input.addEventListener('blur', () => {
-                    setTimeout(() => input.remove(), 100);
-                });
-            },
-            
-            async removeTag(file, tagToRemove) {
-                try {
-                    await stackManager.removeTagFromFile(file.id, tagToRemove);
-                    this.populateTagsTab(file);
-                } catch (error) {
-                    utils.showToast('Failed to remove tag', 'error', true);
-                }
-            },
-            
-            populateNotesTab(file) {
-                utils.elements.detailNotes.value = file.notes || '';
-                
-                const newNotesTextarea = utils.elements.detailNotes.cloneNode(true);
-                utils.elements.detailNotes.parentNode.replaceChild(newNotesTextarea, utils.elements.detailNotes);
-                utils.elements.detailNotes = newNotesTextarea;
-                
-                utils.elements.detailNotes.addEventListener('blur', async () => {
-                    file.notes = utils.elements.detailNotes.value;
-                    file.appProperties = file.appProperties || {};
-                    file.appProperties.notes = file.notes;
-                    
-                    try {
-                        await appState.cloudStorage.updateFileProperties(file.id, file.appProperties);
-                    } catch (error) {
-                        utils.showToast('Failed to save notes', 'error', true);
-                    }
-                });
-                
-                this.setupStarRating(utils.elements.qualityRating, file.qualityRating || 0, async (rating) => {
-                    file.qualityRating = rating;
-                    file.appProperties = file.appProperties || {};
-                    file.appProperties.qualityRating = rating;
-                    
-                    try {
-                        await appState.cloudStorage.updateFileProperties(file.id, file.appProperties);
-                    } catch (error) {
-                        utils.showToast('Failed to save rating', 'error', true);
-                    }
-                });
-                
-                this.setupStarRating(utils.elements.contentRating, file.contentRating || 0, async (rating) => {
-                    file.contentRating = rating;
-                    file.appProperties = file.appProperties || {};
-                    file.appProperties.contentRating = rating;
-                    
-                    try {
-                        await appState.cloudStorage.updateFileProperties(file.id, file.appProperties);
-                    } catch (error) {
-                        utils.showToast('Failed to save rating', 'error', true);
-                    }
-                });
-            },
-            
-            setupStarRating(container, currentRating, onRatingChange) {
-                const stars = container.querySelectorAll('.star');
-                
-                stars.forEach((star, index) => {
-                    star.classList.toggle('active', index < currentRating);
-                });
-                
-                stars.forEach((star, index) => {
-                    const newClickHandler = () => {
-                        const newRating = index + 1;
-                        stars.forEach((s, i) => {
-                            s.classList.toggle('active', i < newRating);
-                        });
-                        onRatingChange(newRating);
-                    };
-                    
-                    star.replaceWith(star.cloneNode(true));
-                    const newStar = container.querySelectorAll('.star')[index];
-                    newStar.addEventListener('click', newClickHandler);
-                    
-                    newStar.addEventListener('mouseenter', () => {
-                        stars.forEach((s, i) => {
-                            s.style.color = i <= index ? '#fbbf24' : '#d1d5db';
-                        });
-                    });
-                    
-                    newStar.addEventListener('mouseleave', () => {
-                        stars.forEach((s, i) => {
-                            s.style.color = s.classList.contains('active') ? '#fbbf24' : '#d1d5db';
-                        });
-                    });
-                });
-            },
-            
-            populateMetadataTab(file) {
-                utils.elements.metadataTable.innerHTML = '';
-                
-                const metadata = file.extractedMetadata || {};
-                
-                if (Object.keys(metadata).length === 0) {
-                    this.addMetadataRow('Status', 'No embedded metadata found', false);
-                    return;
-                }
-                
-                const priorityFields = ['prompt', 'Prompt', 'model', 'Model', 'seed', 'Seed', 'negative_prompt', 'Negative_Prompt', 'steps', 'Steps', 'cfg_scale', 'CFG_Scale', 'sampler', 'Sampler', 'scheduler', 'Scheduler', 'api_call', 'API_Call'];
-                
-                priorityFields.forEach(field => {
-                    if (metadata[field]) {
-                        this.addMetadataRow(field, metadata[field], true);
-                    }
-                });
-                
-                const remainingFields = Object.entries(metadata).filter(([key, value]) => 
-                    !priorityFields.includes(key) && 
-                    !priorityFields.includes(key.toLowerCase()) && 
-                    value
-                );
-                
-                if (priorityFields.some(field => metadata[field]) && remainingFields.length > 0) {
-                    const separatorRow = document.createElement('tr');
-                    separatorRow.innerHTML = `
-                        <td colspan="2" style="padding: 8px; background: #f0f0f0; text-align: center; font-size: 12px; color: #666; font-weight: bold;">
-                            Other Metadata
-                        </td>
-                    `;
-                    utils.elements.metadataTable.appendChild(separatorRow);
-                }
-                
-                remainingFields.forEach(([key, value]) => {
-                    this.addMetadataRow(key, value, false);
-                });
-                
-                if (Object.keys(metadata).length > 0) {
-                    const separatorRow = document.createElement('tr');
-                    separatorRow.innerHTML = `
-                        <td colspan="2" style="padding: 8px; background: #f0f0f0; text-align: center; font-size: 12px; color: #666; font-weight: bold;">
-                            File Information
-                        </td>
-                    `;
-                    utils.elements.metadataTable.appendChild(separatorRow);
-                }
-                
-                this.addMetadataRow('File Name', file.name || 'Unknown', false);
-                this.addMetadataRow('File Size', file.size ? utils.formatFileSize(file.size) : 'Unknown', false);
-                this.addMetadataRow('MIME Type', file.mimeType || 'Unknown', false);
-                this.addMetadataRow('Created', file.createdTime ? new Date(file.createdTime).toLocaleString() : 'Unknown', false);
-                this.addMetadataRow('Modified', file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : 'Unknown', false);
-            },
-            
-            addMetadataRow(key, value, needsCopyButton = false) {
-                const row = document.createElement('tr');
-                
-                const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                
-                let formattedValue = String(value);
-                
-                if (formattedValue.length > 200) {
-                    formattedValue = formattedValue
-                        .replace(/,\s+/g, ',\n')
-                        .replace(/\.\s+/g, '.\n')
-                        .replace(/;\s+/g, ';\n')
-                        .trim();
-                } else if (formattedValue.length > 100) {
-                    formattedValue = formattedValue.replace(/\s+/g, ' ').trim();
-                }
-                
-                const keyCell = document.createElement('td');
-                keyCell.className = 'key-cell';
-                keyCell.textContent = formattedKey;
-                
-                const valueCell = document.createElement('td');
-                valueCell.className = 'value-cell';
-                
-                if (formattedValue.length > 500) {
-                    valueCell.style.maxHeight = '120px';
-                    valueCell.style.overflowY = 'auto';
-                    valueCell.style.fontSize = '12px';
-                    valueCell.style.lineHeight = '1.4';
-                }
-                
-                valueCell.textContent = formattedValue;
-                
-                if (needsCopyButton) {
-                    const copyButton = document.createElement('button');
-                    copyButton.className = 'copy-button copy-metadata';
-                    copyButton.textContent = 'Copy';
-                    copyButton.dataset.value = String(value);
-                    copyButton.title = `Copy ${formattedKey} to clipboard`;
-                    valueCell.appendChild(copyButton);
-                }
-                
-                row.appendChild(keyCell);
-                row.appendChild(valueCell);
-                utils.elements.metadataTable.appendChild(row);
-            },
-            
-            copyToClipboard(text) {
-                navigator.clipboard.writeText(text).then(() => {
-                    utils.showToast('📋 Copied to clipboard', 'success', true);
-                }).catch(() => {
-                    const textArea = document.createElement('textarea');
-                    textArea.value = text;
-                    textArea.style.position = 'fixed';
-                    textArea.style.opacity = '0';
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    try {
-                        document.execCommand('copy');
-                        utils.showToast('📋 Copied to clipboard', 'success', true);
-                    } catch (err) {
-                        utils.showToast('❌ Failed to copy', 'error', true);
-                    }
-                    document.body.removeChild(textArea);
-                });
-            }
-        };
-        
-        // ===== Modal Manager (Consolidated) =====
-        const modalManager = {
-            setup() {
-                document.querySelectorAll('.move-option').forEach(option => {
-                    option.addEventListener('click', () => {
-                        const targetStack = option.dataset.stack;
-                        const promises = appState.grid.selected.map(fileId => 
-                            stackManager.moveFileToStack(fileId, targetStack)
-                        );
-                        
-                        Promise.all(promises)
-                            .then(() => {
-                                utils.showToast(`Moved ${promises.length} images to ${targetStack}`, 'success', true);
-                                utils.modal.hide('move-modal');
-                                
-                                if (appState.grid.stack) {
-                                    gridView.populate(appState.grid.stack);
-                                }
-                                
-                                appState.grid.selected = [];
-                                gridView.updateSelectionUI();
-                                stackManager.updateCounts();
-                            })
-                            .catch(() => {
-                                utils.showToast('Failed to move some images', 'error', true);
-                                utils.modal.hide('move-modal');
-                            });
-                    });
-                });
-                
-                document.getElementById('apply-tag').addEventListener('click', async () => {
-                    const tagInput = utils.elements.tagInput.value.trim();
-                    if (!tagInput) return;
-                    
-                    const tags = tagInput.split(',').map(tag => tag.trim()).filter(tag => tag);
-                    
-                    try {
-                        for (const fileId of appState.grid.selected) {
-                            await stackManager.addTagsToFile(fileId, tags);
-                        }
-                        
-                        utils.showToast(`Tags added to ${appState.grid.selected.length} images`, 'success', true);
-                        utils.elements.tagInput.value = '';
-                        utils.modal.hide('tag-modal');
-                        
-                        if (appState.grid.stack) {
-                            gridView.populate(appState.grid.stack);
-                        }
-                        
-                    } catch (error) {
-                        utils.showToast('Failed to add tags', 'error', true);
-                    }
-                });
-                
-                utils.elements.confirmDelete.addEventListener('click', () => {
-                    const currentStack = appState.grid.stack;
-                    utils.elements.confirmDelete.disabled = true;
-                    utils.elements.confirmDelete.textContent = 'Processing...';
-                    
-                    if (currentStack === 'trash') {
-                        const promises = appState.grid.selected.map(fileId => 
-                            appState.cloudStorage.deleteFile(fileId)
-                        );
-                        
-                        Promise.all(promises)
-                            .then(() => {
-                                utils.showToast(`Moved ${promises.length} images to Google Drive trash`, 'success', true);
-                                utils.modal.hide('delete-modal');
-                                
-                                appState.grid.selected.forEach(fileId => {
-                                    const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
-                                    if (fileIndex !== -1) {
-                                        appState.imageFiles.splice(fileIndex, 1);
-                                    }
-                                    const trashIndex = appState.stacks.trash.findIndex(f => f.id === fileId);
-                                    if (trashIndex !== -1) {
-                                        appState.stacks.trash.splice(trashIndex, 1);
-                                    }
-                                });
-                                
-                                if (appState.grid.stack) {
-                                    gridView.populate(appState.grid.stack);
-                                }
-                                
-                                appState.grid.selected = [];
-                                gridView.updateSelectionUI();
-                                stackManager.updateCounts();
-                            })
-                            .catch(() => {
-                                utils.showToast('Failed to delete some images', 'error', true);
-                                utils.modal.hide('delete-modal');
-                            })
-                            .finally(() => {
-                                utils.elements.confirmDelete.disabled = false;
-                                utils.elements.confirmDelete.textContent = 'Move to Google Drive Trash';
-                            });
-                    } else {
-                        const promises = appState.grid.selected.map(fileId => 
-                            stackManager.moveFileToStack(fileId, 'trash')
-                        );
-                        
-                        Promise.all(promises).then(() => {
-                            utils.showToast(`Moved ${promises.length} images to trash`, 'success', true);
-                            utils.modal.hide('delete-modal');
-                            
-                            if (appState.grid.stack) {
-                                gridView.populate(appState.grid.stack);
-                            }
-                            
-                            appState.grid.selected = [];
-                            gridView.updateSelectionUI();
-                            stackManager.updateCounts();
-                        }).finally(() => {
-                            utils.elements.confirmDelete.disabled = false;
-                            utils.elements.confirmDelete.textContent = 'Move to Trash';
-                        });
-                    }
-                });
-                
-                ['cancel-move', 'cancel-tag', 'cancel-delete'].forEach(id => {
-                    document.getElementById(id).addEventListener('click', () => {
-                        utils.modal.hide(id.replace('cancel-', '') + '-modal');
-                    });
-                });
-                
-                utils.elements.moveSelected.addEventListener('click', () => utils.modal.show('move-modal'));
-                
-                utils.elements.tagSelected.addEventListener('click', () => {
-                    utils.elements.tagSuggestions.innerHTML = '';
-                    appState.tags.forEach(tag => {
-                        const button = document.createElement('button');
-                        button.className = 'tag-suggestion';
-                        button.textContent = tag;
-                        button.addEventListener('click', () => {
-                            utils.elements.tagInput.value += (utils.elements.tagInput.value ? ', ' : '') + tag;
-                        });
-                        utils.elements.tagSuggestions.appendChild(button);
-                    });
-                    
-                    utils.modal.show('tag-modal');
-                    utils.elements.tagInput.value = '';
-                    utils.elements.tagInput.focus();
-                });
-                
-                utils.elements.deleteSelected.addEventListener('click', () => {
-                    const selectedCount = appState.grid.selected.length;
-                    const currentStack = appState.grid.stack;
-                    
-                    if (currentStack === 'trash') {
-                        utils.elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Google Drive trash? They can be recovered from Google Drive.`;
-                        utils.elements.confirmDelete.textContent = 'Move to Google Drive Trash';
-                    } else {
-                        utils.elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
-                        utils.elements.confirmDelete.textContent = 'Move to Trash';
-                    }
-                    
-                    utils.modal.show('delete-modal');
-                });
-            }
-        };
-        
-        // ===== Utility Functions (Consolidated) =====
-        function updateEmptyStateButtons() {
-            const stacksWithImages = STACK_TYPES.filter(stack => appState.stacks[stack].length > 0);
-            const hasOtherStacks = stacksWithImages.some(stack => stack !== appState.currentStack);
-            
-            utils.elements.selectAnotherStackBtn.style.display = hasOtherStacks ? 'block' : 'none';
-            utils.elements.selectAnotherFolderBtn.style.display = hasOtherStacks ? 'none' : 'block';
-        }
-        
-        function updateActiveProxTab() {
-            Object.values(utils.elements).forEach(el => {
-                if (el.classList && el.classList.contains('pill-counter')) {
-                    el.classList.remove('active');
-                }
-            });
-            
-            const currentPill = utils.elements[`pill${appState.currentStack.charAt(0).toUpperCase() + appState.currentStack.slice(1)}`];
-            if (currentPill) {
-                currentPill.classList.add('active');
-            }
-        }
-        
-        function acknowledgePillCounter(stackName) {
-            const pill = utils.elements[`pill${stackName.charAt(0).toUpperCase() + stackName.slice(1)}`];
-            if (pill) {
-                pill.classList.remove('triple-ripple', 'glow-effect');
-                pill.offsetHeight;
-                pill.classList.add('triple-ripple');
-                
-                setTimeout(() => {
-                    pill.classList.add('glow-effect');
-                }, 100);
-                
-                setTimeout(() => {
-                    pill.classList.remove('triple-ripple', 'glow-effect');
-                }, 3000);
-            }
-        }
-        
-        // ===== Gesture System (Consolidated) =====
-        function setupGestureSystem() {
-            let startPos = { x: 0, y: 0 };
-            let currentPos = { x: 0, y: 0 };
-            let gestureStarted = false;
-            
-            const edgeElements = [utils.elements.edgeTop, utils.elements.edgeBottom, utils.elements.edgeLeft, utils.elements.edgeRight];
-            
-            function showEdgeGlow(direction) {
-                edgeElements.forEach(edge => edge.classList.remove('active'));
-                if (utils.elements[`edge${direction.charAt(0).toUpperCase() + direction.slice(1)}`]) {
-                    utils.elements[`edge${direction.charAt(0).toUpperCase() + direction.slice(1)}`].classList.add('active');
-                }
-            }
-            
-            function hideAllEdgeGlows() {
-                edgeElements.forEach(edge => edge.classList.remove('active'));
-            }
-            
-            function determineSwipeDirection(deltaX, deltaY) {
-                if (Math.abs(deltaX) > Math.abs(deltaY)) {
-                    return deltaX > 0 ? 'right' : 'left';
-                } else {
-                    return deltaY > 0 ? 'bottom' : 'top';
-                }
-            }
-            
-            function directionToStack(direction) {
-                const mapping = {
-                    'top': 'priority',
-                    'bottom': 'trash',
-                    'left': 'in',
-                    'right': 'out'
-                };
-                return mapping[direction];
-            }
-            
-            async function executeFlick(targetStack) {
-                const currentImage = appState.imageFiles[appState.currentImageIndex];
-                const currentStack = stackManager.getFileMetadata(currentImage).slideboxStack;
-                
-                acknowledgePillCounter(targetStack);
-                
-                if (currentStack === targetStack) {
-                    const currentStackArray = appState.stacks[currentStack];
-                    const index = currentStackArray.findIndex(img => img.id === currentImage.id);
-                    if (index > -1) {
-                        currentStackArray.splice(index, 1);
-                        currentStackArray.push(currentImage);
-                    }
-                    
-                    if (appState.stacks[appState.currentStack].length === 0) {
-                        utils.elements.centerImage.style.opacity = '0';
-                        setTimeout(() => {
-                            utils.elements.centerImage.src = '';
-                            utils.elements.centerImage.alt = 'No images in this stack';
-                            updateEmptyStateButtons();
-                            utils.elements.emptyState.classList.remove('hidden');
-                            utils.elements.centerImage.style.opacity = '1';
-                        }, 200);
-                    } else {
-                        imageViewer.moveToNextImage();
-                    }
-                    
-                    stackManager.updateCounts();
-                    hideAllEdgeGlows();
-                    return;
-                }
-                
-                try {
-                    await stackManager.moveFileToStack(currentImage.id, targetStack);
-                    
-                    if (appState.stacks[appState.currentStack].length === 0) {
-                        utils.elements.centerImage.style.opacity = '0';
-                        setTimeout(() => {
-                            utils.elements.centerImage.src = '';
-                            utils.elements.centerImage.alt = 'No images in this stack';
-                            updateEmptyStateButtons();
-                            utils.elements.emptyState.classList.remove('hidden');
-                            utils.elements.centerImage.style.opacity = '1';
-                        }, 200);
-                    } else {
-                        imageViewer.moveToNextImage();
-                    }
-                    hideAllEdgeGlows();
-                } catch (error) {
-                    utils.showToast(`Error moving image: ${error.message}`, 'error', true);
-                    hideAllEdgeGlows();
-                }
-            }
-            
-            utils.elements.imageViewport.addEventListener('mousedown', handleStart);
-            document.addEventListener('mousemove', handleMove);
-            document.addEventListener('mouseup', handleEnd);
-            
-            utils.elements.imageViewport.addEventListener('touchstart', handleStart, { passive: false });
-            document.addEventListener('touchmove', handleMove, { passive: false });
-            document.addEventListener('touchend', handleEnd, { passive: false });
-            
-            function handleStart(e) {
-                if (appState.imageFiles.length === 0) return;
-                if (e.touches && (e.touches.length > 1 || appState.isPinching)) return;
-                if (appState.currentScale > 1.1) return;
-                
-                e.preventDefault();
-                const point = e.touches ? e.touches[0] : e;
-                
-                startPos = { x: point.clientX, y: point.clientY };
-                currentPos = { x: point.clientX, y: point.clientY };
-                gestureStarted = false;
-                
-                appState.isDragging = true;
-                utils.elements.centerImage.classList.add('dragging');
-            }
-            
-            function handleMove(e) {
-                if (!appState.isDragging || appState.imageFiles.length === 0) return;
-                
-                if (e.touches && e.touches.length > 1) {
-                    appState.isDragging = false;
-                    utils.elements.centerImage.classList.remove('dragging');
-                    hideAllEdgeGlows();
-                    return;
-                }
-                
-                e.preventDefault();
-                const point = e.touches ? e.touches[0] : e;
-                
-                currentPos = { x: point.clientX, y: point.clientY };
-                
-                const deltaX = currentPos.x - startPos.x;
-                const deltaY = currentPos.y - startPos.y;
-                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-                
-                if (distance > 30) {
-                    gestureStarted = true;
-                    const direction = determineSwipeDirection(deltaX, deltaY);
-                    if (direction) {
-                        hideAllEdgeGlows();
-                        showEdgeGlow(direction);
-                    }
-                } else {
-                    hideAllEdgeGlows();
-                }
-            }
-            
-            function handleEnd(e) {
-                if (!appState.isDragging) return;
-                
-                e.preventDefault();
-                appState.isDragging = false;
-                utils.elements.centerImage.classList.remove('dragging');
-                
-                if (!gestureStarted) {
-                    hideAllEdgeGlows();
-                    return;
-                }
-                
-                const deltaX = currentPos.x - startPos.x;
-                const deltaY = currentPos.y - startPos.y;
-                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-                
-                if (distance > 80) {
-                    const direction = determineSwipeDirection(deltaX, deltaY);
-                    const targetStack = directionToStack(direction);
-                    if (targetStack && direction) {
-                        executeFlick(targetStack);
-                        return;
-                    }
-                }
-                
-                hideAllEdgeGlows();
-            }
-        }
-        
-        // ===== Pinch Zoom System (Simplified) =====
-        function setupPinchZoom() {
-            function getDistance(touch1, touch2) {
-                const dx = touch1.clientX - touch2.clientX;
-                const dy = touch1.clientY - touch2.clientY;
-                return Math.sqrt(dx * dx + dy * dy);
-            }
-            
-            function getCenter(touch1, touch2) {
-                return {
-                    x: (touch1.clientX + touch2.clientX) / 2,
-                    y: (touch1.clientY + touch2.clientY) / 2
-                };
-            }
-            
-            utils.elements.centerImage.addEventListener('touchstart', handleTouchStart, { passive: false });
-            utils.elements.centerImage.addEventListener('touchmove', handleTouchMove, { passive: false });
-            utils.elements.centerImage.addEventListener('touchend', handleTouchEnd, { passive: false });
-            utils.elements.centerImage.addEventListener('wheel', handleWheel, { passive: false });
-            
-            function handleTouchStart(e) {
-                if (e.touches.length === 2) {
-                    e.preventDefault();
-                    appState.isPinching = true;
-                    appState.initialDistance = getDistance(e.touches[0], e.touches[1]);
-                    appState.lastTouchPos = getCenter(e.touches[0], e.touches[1]);
-                } else if (e.touches.length === 1 && appState.currentScale > 1) {
-                    appState.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-                }
-            }
-            
-            function handleTouchMove(e) {
-                if (e.touches.length === 2 && appState.isPinching) {
-                    e.preventDefault();
-                    
-                    const currentDistance = getDistance(e.touches[0], e.touches[1]);
-                    const scaleFactor = currentDistance / appState.initialDistance;
-                    
-                    let newScale = appState.currentScale * scaleFactor;
-                    newScale = Math.max(appState.minScale, Math.min(appState.maxScale, newScale));
-                    
-                    appState.currentScale = newScale;
-                    appState.initialDistance = currentDistance;
-                    
-                    imageViewer.applyTransform();
-                } else if (e.touches.length === 1 && appState.currentScale > 1) {
-                    e.preventDefault();
-                    
-                    const deltaX = e.touches[0].clientX - appState.lastTouchPos.x;
-                    const deltaY = e.touches[0].clientY - appState.lastTouchPos.y;
-                    
-                    appState.panOffset.x += deltaX / appState.currentScale;
-                    appState.panOffset.y += deltaY / appState.currentScale;
-                    
-                    appState.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-                    
-                    imageViewer.applyTransform();
-                }
-            }
-            
-            function handleTouchEnd(e) {
-                if (e.touches.length < 2) {
-                    appState.isPinching = false;
-                }
-                
-                if (appState.currentScale < 1.1) {
-                    appState.currentScale = 1;
-                    appState.panOffset = { x: 0, y: 0 };
-                    imageViewer.applyTransform();
-                }
-            }
-            
-            function handleWheel(e) {
-                e.preventDefault();
-                
-                const scaleChange = e.deltaY > 0 ? 0.9 : 1.1;
-                let newScale = appState.currentScale * scaleChange;
-                newScale = Math.max(appState.minScale, Math.min(appState.maxScale, newScale));
-                
-                appState.currentScale = newScale;
-                
-                if (appState.currentScale <= 1.1) {
-                    appState.currentScale = 1;
-                    appState.panOffset = { x: 0, y: 0 };
-                }
-                
-                imageViewer.applyTransform();
-            }
-        }
-        
-        // ===== Event Handlers (Consolidated) =====
-        function setupEventHandlers() {
-            // Authentication
-            utils.elements.authButton.addEventListener('click', () => authManager.authenticate());
-            utils.elements.refreshFolders.addEventListener('click', () => folderManager.loadFolders());
-            utils.elements.logout.addEventListener('click', () => authManager.logout());
-            
-            // Navigation
-            utils.elements.backButton.addEventListener('click', () => {
-                utils.showScreen('folder-screen');
-                folderManager.loadFolders();
-            });
-            
-            utils.elements.detailsButton.addEventListener('click', () => detailsModal.show());
-            utils.elements.detailsClose.addEventListener('click', () => detailsModal.hide());
-            
-            // Tabs
-            document.querySelectorAll('.tab-button').forEach(btn => {
-                btn.addEventListener('click', () => detailsModal.switchTab(btn.dataset.tab));
-            });
-            
-            // Copy metadata buttons
-            document.addEventListener('click', (e) => {
-                if (e.target.classList.contains('copy-metadata')) {
-                    const value = e.target.dataset.value;
-                    const button = e.target;
-                    
-                    button.classList.add('copied');
-                    const originalText = button.textContent;
-                    button.textContent = '✓';
-                    
-                    detailsModal.copyToClipboard(value);
-                    
-                    setTimeout(() => {
-                        button.classList.remove('copied');
-                        button.textContent = originalText;
-                    }, 1000);
-                }
-            });
-            
-            // Empty state buttons
-            utils.elements.selectAnotherStackBtn.addEventListener('click', () => {
-                const stacksWithImages = STACK_TYPES.filter(stack => appState.stacks[stack].length > 0);
-                if (stacksWithImages.length > 0) {
-                    const nextStack = stacksWithImages.find(stack => stack !== appState.currentStack) || stacksWithImages[0];
-                    appState.currentStack = nextStack;
-                    imageViewer.displayTopImageFromStack(nextStack);
-                    utils.elements.emptyState.classList.add('hidden');
-                } else {
-                    utils.elements.selectAnotherStackBtn.style.display = 'none';
-                    utils.elements.selectAnotherFolderBtn.style.display = 'block';
-                }
-            });
-            
-            utils.elements.selectAnotherFolderBtn.addEventListener('click', () => {
-                utils.showScreen('folder-screen');
-                folderManager.loadFolders();
-            });
-            
-            // Pill counter clicks
-            STACK_TYPES.forEach(stackName => {
-                const pill = utils.elements[`pill${stackName.charAt(0).toUpperCase() + stackName.slice(1)}`];
-                if (pill) {
-                    pill.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        
-                        if (appState.currentStack === stackName) {
-                            gridView.open(stackName);
-                            acknowledgePillCounter(stackName);
-                            return;
-                        }
-                        
-                        appState.currentStack = stackName;
-                        updateActiveProxTab();
-                        imageViewer.displayTopImageFromStack(stackName);
-                        acknowledgePillCounter(stackName);
-                    });
-                }
-            });
-            
-            // Grid controls
-            utils.elements.closeGrid.addEventListener('click', () => gridView.close());
-            utils.elements.selectAllBtn.addEventListener('click', () => gridView.selectAll());
-            utils.elements.deselectAllBtn.addEventListener('click', () => gridView.deselectAll());
-            
-            utils.elements.gridSize.addEventListener('input', () => {
-                const value = utils.elements.gridSize.value;
-                utils.elements.gridSizeValue.textContent = value;
-                utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
-                
-                if (appState.grid.selected.length === 1 && value === '1') {
-                    setTimeout(() => gridView.focusOnSelectedItem(appState.grid.selected[0]), 100);
-                }
-            });
-            
-            utils.elements.gridSort.addEventListener('change', () => {
-                const sortValue = utils.elements.gridSort.value;
-                stackManager.currentSort = sortValue;
-                
-                STACK_TYPES.forEach(stack => {
-                    appState.stacks[stack] = stackManager.sortFiles(appState.stacks[stack], sortValue);
-                });
-                
-                if (appState.grid.stack) {
-                    gridView.populate(appState.grid.stack);
-                }
-                
-                if (appState.imageFiles.length > 0) {
-                    imageViewer.displayCurrentImage();
-                }
-            });
-            
-            // Keyboard shortcuts (enhanced with diagnostics)
-            document.addEventListener('keydown', (e) => {
-                // Global shortcuts (available anywhere)
-                if (e.ctrlKey || e.metaKey) {
-                    switch (e.key) {
-                        case 'd':
-                            e.preventDefault();
-                            // Show diagnostics
-                            const diagnostics = utils.getDiagnostics();
-                            console.log('🔍 Orbital8 Diagnostics:', diagnostics);
-                            utils.showToast('📊 Diagnostics logged to console', 'info', true);
-                            break;
-                        case 'r':
-                            if (e.shiftKey) {
-                                e.preventDefault();
-                                // Emergency cache reset
-                                if (confirm('⚠️ This will clear all cached data and reload the app. Continue?')) {
-                                    utils.resetCache();
-                                }
-                            }
-                            break;
-                    }
-                    return;
-                }
-                
-                if (utils.elements.appContainer.classList.contains('hidden')) return;
-                
-                if (!utils.elements.detailsModal.classList.contains('hidden')) {
-                    if (e.key === 'Escape') {
-                        detailsModal.hide();
-                    }
-                    return;
-                }
-                
-                if (!utils.elements.gridModal.classList.contains('hidden')) {
-                    if (e.key === 'Escape') {
-                        gridView.close();
-                    }
-                    return;
-                }
-                
-                switch (e.key) {
-                    case 'ArrowLeft':
-                    case 'ArrowRight':
-                        imageViewer.moveToNextImage();
-                        break;
-                    case 'Escape':
-                        utils.showScreen('folder-screen');
-                        break;
-                    case '1':
-                        appState.currentStack = 'in';
-                        updateActiveProxTab();
-                        gridView.open('in');
-                        break;
-                    case '2':
-                        appState.currentStack = 'out';
-                        updateActiveProxTab();
-                        gridView.open('out');
-                        break;
-                    case '3':
-                        appState.currentStack = 'priority';
-                        updateActiveProxTab();
-                        gridView.open('priority');
-                        break;
-                    case '4':
-                        appState.currentStack = 'trash';
-                        updateActiveProxTab();
-                        gridView.open('trash');
-                        break;
-                    case 'i':
-                    case 'I':
-                        detailsModal.show();
-                        break;
-                    case 'r':
-                        // Refresh current stack
-                        imageViewer.displayTopImageFromStack(appState.currentStack);
-                        utils.showToast('🔄 Refreshed current view', 'info');
-                        break;
-                }
-            });
-        }
-        
-        // ===== Initialize App (Enhanced) =====
-        async function initApp() {
-            try {
-                // Initialize utilities and cache elements
-                utils.init();
-                
-                // Initialize enhanced cache system
-                appState.enhancedCache = new EnhancedCacheManager();
-                await appState.enhancedCache.init();
-                
-                // Initialize cloud storage and metadata extractor
-                appState.cloudStorage = new CloudStorageModule();
-                appState.metadataExtractor = new SimpleMetadataExtractor();
-                
-                // Initialize enhanced image loader
-                appState.imageLoader = new EnhancedImageLoader(appState.enhancedCache, appState.cloudStorage);
-                
-                // Check existing authentication
-                if (appState.cloudStorage.isAuthenticated()) {
-                    authManager.setStatus('Already connected to Google Drive', 'success');
-                    setTimeout(() => {
-                        utils.showScreen('folder-screen');
-                        folderManager.loadFolders();
-                    }, 1000);
-                }
-                
-                // Setup all event handlers
-                setupEventHandlers();
-                setupGestureSystem();
-                setupPinchZoom();
-                modalManager.setup();
-                
-                updateActiveProxTab();
-                
-                // Log initialization success
-                console.log('🚀 Orbital8 V2 Enhanced initialized successfully');
-                console.log('📊 Cache system ready');
-                console.log('🖼️ Enhanced image loader ready');
-                
-            } catch (error) {
-                console.error('❌ Failed to initialize app:', error);
-                utils.showToast('Failed to initialize app - some features may not work properly', 'error', true);
-                
-                // Fallback initialization for basic functionality
-                try {
-                    appState.cloudStorage = new CloudStorageModule();
-                    appState.metadataExtractor = new SimpleMetadataExtractor();
-                    setupEventHandlers();
-                    updateActiveProxTab();
-                } catch (fallbackError) {
-                    console.error('❌ Fallback initialization failed:', fallbackError);
-                }
-            }
-        }
-        
-        document.addEventListener('DOMContentLoaded', initApp);
-    </script>
-</body>
-</html>
-    </script>
-</body>
-</html>
-                    
-                    request.onsuccess = () => {
-                        this.db = request.result;
-                        this.log('✅ IndexedDB initialized successfully', 'success');
-                        this.cleanupExpiredEntries();
-                        resolve();
-                    };
-                    
-                    request.onupgradeneeded = (event) => {
-                        const db = event.target.result;
-                        
-                        // Folder Inventory Store
-                        if (!db.objectStoreNames.contains('folderInventory')) {
-                            const folderStore = db.createObjectStore('folderInventory', { keyPath: 'folderId' });
-                            folderStore.createIndex('lastScanTime', 'lastScanTime');
-                            this.log('📁 Created folderInventory store', 'info');
-                        }
-                        
-                        // Image Cache Store
-                        if (!db.objectStoreNames.contains('imageCache')) {
-                            const imageStore = db.createObjectStore('imageCache', { keyPath: 'key' });
-                            imageStore.createIndex('fileId', 'fileId');
-                            imageStore.createIndex('cachedTime', 'cachedTime');
-                            imageStore.createIndex('sizeVariant', 'sizeVariant');
-                            this.log('🖼️ Created imageCache store', 'info');
-                        }
-                        
-                        // Enhanced Metadata Store
-                        if (!db.objectStoreNames.contains('metadata')) {
-                            const metadataStore = db.createObjectStore('metadata', { keyPath: 'id' });
-                            metadataStore.createIndex('modifiedTime', 'modifiedTime');
-                            this.log('📊 Created metadata store', 'info');
-                        }
-                        
-                        // Migration from old cache if exists
-                        if (event.oldVersion < 2) {
-                            this.log('🔄 Migrating cache structure', 'info');
-                        }
-                    };
-                });
-            }
-            
-            // ===== Folder Inventory Management =====
-            async getFolderInventory(folderId) {
-                if (!this.db) return null;
-                
-                try {
-                    const transaction = this.db.transaction(['folderInventory'], 'readonly');
-                    const store = transaction.objectStore('folderInventory');
-                    
-                    const result = await new Promise((resolve, reject) => {
-                        const request = store.get(folderId);
-                        request.onsuccess = () => resolve(request.result);
-                        request.onerror = () => reject(request.error);
-                    });
-                    
-                    if (result) {
-                        this.log(`📥 Retrieved cached folder inventory: ${result.totalFiles} files`, 'success');
-                        return result;
-                    }
-                    
-                    this.log('📭 No cached folder inventory found', 'info');
-                    return null;
-                    
-                } catch (error) {
-                    this.log(`❌ Error retrieving folder inventory: ${error.message}`, 'error');
-                    return null;
-                }
-            }
-            
-            async setFolderInventory(folderData) {
-                if (!this.db) return false;
-                
-                try {
-                    const transaction = this.db.transaction(['folderInventory'], 'readwrite');
-                    const store = transaction.objectStore('folderInventory');
-                    
-                    const inventoryRecord = {
-                        folderId: folderData.folderId,
-                        folderName: folderData.folderName,
-                        lastScanTime: Date.now(),
-                        folderModifiedTime: folderData.folderModifiedTime || null,
-                        totalFiles: folderData.fileInventory.length,
-                        fileInventory: folderData.fileInventory,
-                        scanVersion: this.cacheVersion
-                    };
-                    
-                    await new Promise((resolve, reject) => {
-                        const request = store.put(inventoryRecord);
-                        request.onsuccess = () => resolve();
-                        request.onerror = () => reject(request.error);
-                    });
-                    
-                    this.log(`💾 Cached folder inventory: ${inventoryRecord.totalFiles} files`, 'success');
-                    return true;
-                    
-                } catch (error) {
-                    this.log(`❌ Error caching folder inventory: ${error.message}`, 'error');
-                    return false;
-                }
-            }
-            
-            async checkFolderModified(folderId, currentModifiedTime) {
-                const cached = await this.getFolderInventory(folderId);
-                if (!cached) return true; // No cache, assume modified
-                
-                // If we have a modification time and it matches, folder is unchanged
-                if (currentModifiedTime && cached.folderModifiedTime) {
-                    return currentModifiedTime !== cached.folderModifiedTime;
-                }
-                
-                // Fallback: consider cache stale after 1 hour
-                const oneHourAgo = Date.now() - (60 * 60 * 1000);
-                return cached.lastScanTime < oneHourAgo;
-            }
-            
-            // ===== Image Cache Management =====
-            async getCachedImage(fileId, sizeVariant = 'thumbnail') {
-                if (!this.db) return null;
-                
-                try {
-                    const key = `${fileId}_${sizeVariant}`;
-                    const transaction = this.db.transaction(['imageCache'], 'readonly');
-                    const store = transaction.objectStore('imageCache');
-                    
-                    const result = await new Promise((resolve, reject) => {
-                        const request = store.get(key);
-                        request.onsuccess = () => resolve(request.result);
-                        request.onerror = () => reject(request.error);
-                    });
-                    
-                    if (result && this.isImageCacheValid(result)) {
-                        // Create object URL if needed
-                        if (!result.url) {
-                            result.url = URL.createObjectURL(result.blob);
-                        }
-                        
-                        this.log(`🎯 Cache hit for image: ${fileId} (${sizeVariant})`, 'success');
-                        return result;
-                    }
-                    
-                    this.log(`🎯 Cache miss for image: ${fileId} (${sizeVariant})`, 'info');
-                    return null;
-                    
-                } catch (error) {
-                    this.log(`❌ Error retrieving cached image: ${error.message}`, 'error');
-                    return null;
-                }
-            }
-            
-            async setCachedImage(fileId, sizeVariant, blob, originalUrl) {
-                if (!this.db || !blob) return false;
-                
-                try {
-                    // Check cache size before adding
-                    await this.manageCacheSize();
-                    
-                    const key = `${fileId}_${sizeVariant}`;
-                    const transaction = this.db.transaction(['imageCache'], 'readwrite');
-                    const store = transaction.objectStore('imageCache');
-                    
-                    const cacheRecord = {
-                        key: key,
-                        fileId: fileId,
-                        sizeVariant: sizeVariant,
-                        blob: blob,
-                        originalUrl: originalUrl,
-                        cachedTime: Date.now(),
-                        validUntil: Date.now() + (this.getTTLForVariant(sizeVariant) * 24 * 60 * 60 * 1000),
-                        url: null // Will be created on retrieval
-                    };
-                    
-                    await new Promise((resolve, reject) => {
-                        const request = store.put(cacheRecord);
-                        request.onsuccess = () => resolve();
-                        request.onerror = () => reject(request.error);
-                    });
-                    
-                    this.log(`💾 Cached image: ${fileId} (${sizeVariant}, ${(blob.size / 1024).toFixed(1)}KB)`, 'success');
-                    return true;
-                    
-                } catch (error) {
-                    this.log(`❌ Error caching image: ${error.message}`, 'error');
-                    return false;
-                }
-            }
-            
-            getTTLForVariant(sizeVariant) {
-                switch (sizeVariant) {
-                    case 'thumbnail': return this.thumbnailRetentionDays;
-                    case 'medium':
-                    case 'full': return this.imageRetentionDays;
-                    default: return 1;
-                }
-            }
-            
-            isImageCacheValid(cacheRecord) {
-                return cacheRecord.validUntil > Date.now();
-            }
-            
-            async manageCacheSize() {
-                try {
-                    const transaction = this.db.transaction(['imageCache'], 'readonly');
-                    const store = transaction.objectStore('imageCache');
-                    
-                    // Get all cache entries
-                    const allEntries = await new Promise((resolve, reject) => {
-                        const request = store.getAll();
-                        request.onsuccess = () => resolve(request.result);
-                        request.onerror = () => reject(request.error);
-                    });
-                    
-                    // Calculate total size
-                    let totalSize = 0;
-                    allEntries.forEach(entry => {
-                        if (entry.blob) {
-                            totalSize += entry.blob.size;
-                        }
-                    });
-                    
-                    // If over limit, remove oldest entries
-                    if (totalSize > this.maxImageCacheSize) {
-                        this.log(`🧹 Cache size limit exceeded (${(totalSize / 1024 / 1024).toFixed(1)}MB), cleaning up`, 'info');
-                        
-                        // Sort by cache time (oldest first)
-                        allEntries.sort((a, b) => a.cachedTime - b.cachedTime);
-                        
-                        const deleteTransaction = this.db.transaction(['imageCache'], 'readwrite');
-                        const deleteStore = deleteTransaction.objectStore('imageCache');
-                        
-                        let deletedSize = 0;
-                        let deletedCount = 0;
-                        
-                        for (const entry of allEntries) {
-                            if (totalSize - deletedSize <= this.maxImageCacheSize * 0.8) break; // Target 80% of limit
-                            
-                            deleteStore.delete(entry.key);
-                            deletedSize += entry.blob ? entry.blob.size : 0;
-                            deletedCount++;
-                        }
-                        
-                        this.log(`🧹 Cleaned up ${deletedCount} entries (${(deletedSize / 1024 / 1024).toFixed(1)}MB)`, 'success');
-                    }
-                    
-                } catch (error) {
-                    this.log(`❌ Error managing cache size: ${error.message}`, 'error');
-                }
-            }
-            
-            async cleanupExpiredEntries() {
-                if (!this.db) return;
-                
-                try {
-                    const transaction = this.db.transaction(['imageCache'], 'readwrite');
-                    const store = transaction.objectStore('imageCache');
-                    const index = store.index('cachedTime');
-                    
-                    let deletedCount = 0;
-                    const now = Date.now();
-                    
-                    const cursor = await new Promise((resolve, reject) => {
-                        const request = index.openCursor();
-                        request.onsuccess = () => resolve(request.result);
-                        request.onerror = () => reject(request.error);
-                    });
-                    
-                    const processEntry = (cursor) => {
-                        if (cursor) {
-                            const entry = cursor.value;
-                            if (entry.validUntil < now) {
-                                cursor.delete();
-                                deletedCount++;
-                            }
-                            cursor.continue();
-                        } else if (deletedCount > 0) {
-                            this.log(`🧹 Cleaned up ${deletedCount} expired cache entries`, 'success');
-                        }
-                    };
-                    
-                    if (cursor) {
-                        processEntry(cursor);
-                    }
-                    
-                } catch (error) {
-                    this.log(`❌ Error cleaning expired entries: ${error.message}`, 'error');
-                }
-            }
-            
-            // ===== Enhanced Metadata Management =====
-            async getMetadata(fileId, modifiedTime) {
-                if (!this.db) return null;
-                
-                try {
-                    const transaction = this.db.transaction(['metadata'], 'readonly');
-                    const store = transaction.objectStore('metadata');
-                    const result = await new Promise((resolve, reject) => {
-                        const request = store.get(fileId);
-                        request.onsuccess = () => resolve(request.result);
-                        request.onerror = () => reject(request.error);
-                    });
-                    
-                    if (result && result.modifiedTime === modifiedTime) {
-                        this.log(`📊 Metadata cache hit: ${fileId}`, 'success');
-                        return result.metadata;
-                    }
-                    
-                    this.log(`📊 Metadata cache miss: ${fileId}`, 'info');
-                    return null;
-                    
-                } catch (error) {
-                    this.log(`❌ Error retrieving metadata: ${error.message}`, 'error');
-                    return null;
-                }
-            }
-            
-            async setMetadata(fileId, modifiedTime, metadata) {
-                if (!this.db) return false;
-                
-                try {
-                    const transaction = this.db.transaction(['metadata'], 'readwrite');
-                    const store = transaction.objectStore('metadata');
-                    await new Promise((resolve, reject) => {
-                        const request = store.put({ 
-                            id: fileId, 
-                            modifiedTime, 
-                            metadata,
-                            cached: Date.now(),
-                            extractionVersion: this.cacheVersion
-                        });
-                        request.onsuccess = () => resolve();
-                        request.onerror = () => reject(request.error);
-                    });
-                    
-                    this.log(`📊 Cached metadata: ${fileId}`, 'success');
-                    return true;
-                    
-                } catch (error) {
-                    this.log(`❌ Error caching metadata: ${error.message}`, 'error');
-                    return false;
-                }
-            }
-        }
-
-        // ===== Enhanced Image Loader =====
-        class EnhancedImageLoader {
-            constructor(cacheManager, cloudStorage) {
-                this.cacheManager = cacheManager;
-                this.cloudStorage = cloudStorage;
-                this.logger = null;
-                this.retryAttempts = 3;
-                this.retryDelay = 1000; // ms
-                this.urlValidationCache = new Map(); // Cache URL validation results
-                this.loadingQueue = new Map(); // Prevent duplicate loads
-            }
-            
-            setLogger(logger) {
-                this.logger = logger;
-            }
-            
-            log(message, type = 'info') {
-                if (this.logger) {
-                    this.logger.log(message, type);
-                }
-                console.log(`[ImageLoader] ${message}`);
-            }
-            
-            async loadImage(file, sizeVariant = 'thumbnail', imgElement = null) {
-                const fileId = file.id;
-                const loadKey = `${fileId}_${sizeVariant}`;
-                
-                // Prevent duplicate loading requests
-                if (this.loadingQueue.has(loadKey)) {
-                    this.log(`⏳ Loading already in progress for ${fileId} (${sizeVariant})`, 'info');
-                    return this.loadingQueue.get(loadKey);
-                }
-                
-                const loadPromise = this._performLoad(file, sizeVariant, imgElement);
-                this.loadingQueue.set(loadKey, loadPromise);
-                
-                try {
-                    const result = await loadPromise;
-                    this.loadingQueue.delete(loadKey);
-                    return result;
-                } catch (error) {
-                    this.loadingQueue.delete(loadKey);
-                    throw error;
-                }
-            }
-            
-            async _performLoad(file, sizeVariant, imgElement) {
-                const fileId = file.id;
-                this.log(`🔄 Loading image: ${file.name} (${sizeVariant})`, 'info');
-                
-                // Step 1: Check cache first
-                const cached = await this.cacheManager.getCachedImage(fileId, sizeVariant);
-                if (cached && cached.url) {
-                    this.log(`🎯 Using cached image: ${fileId}`, 'success');
-                    if (imgElement) {
-                        return this.setImageSrc(imgElement, cached.url, file.name);
-                    }
-                    return { url: cached.url, source: 'cache' };
-                }
-                
-                // Step 2: Try image URL fallback chain
-                const urlResult = await this.tryImageUrlChain(file, sizeVariant, imgElement);
-                if (urlResult.success) {
-                    return urlResult;
-                }
-                
-                // Step 3: All failed, show error placeholder
-                this.log(`❌ All image loading methods failed for ${fileId}`, 'error');
-                const errorUrl = this.generateErrorPlaceholder(file.name);
-                
-                if (imgElement) {
-                    return this.setImageSrc(imgElement, errorUrl, `Error loading ${file.name}`);
-                }
-                
-                return { url: errorUrl, source: 'error', error: urlResult.lastError };
-            }
-            
-            async tryImageUrlChain(file, sizeVariant, imgElement) {
-                const fallbackChain = this.buildFallbackChain(file, sizeVariant);
-                let lastError = null;
-                
-                for (let i = 0; i < fallbackChain.length; i++) {
-                    const { url, method, needsAuth } = fallbackChain[i];
-                    
-                    try {
-                        this.log(`🔗 Trying ${method}: ${url ? url.substring(0, 100) + '...' : 'generated'}`, 'info');
-                        
-                        const result = await this.tryImageUrl(url, file, sizeVariant, method, needsAuth);
-                        
-                        if (result.success) {
-                            this.log(`✅ Success with ${method}`, 'success');
-                            
-                            if (imgElement) {
-                                await this.setImageSrc(imgElement, result.url, file.name);
-                            }
-                            
-                            return {
-                                success: true,
-                                url: result.url,
-                                source: method,
-                                cached: result.cached
-                            };
-                        }
-                        
-                        lastError = result.error;
-                        
-                    } catch (error) {
-                        this.log(`❌ ${method} failed: ${error.message}`, 'error');
-                        lastError = error.message;
-                    }
-                }
-                
-                return { success: false, lastError };
-            }
-            
-            buildFallbackChain(file, sizeVariant) {
-                const chain = [];
-                
-                // 1. Google Drive thumbnail link (if available)
-                if (file.thumbnailLink) {
-                    const sizeParam = this.getSizeParam(sizeVariant);
-                    const thumbnailUrl = file.thumbnailLink.replace(/=s\d+/, `=s${sizeParam}`);
-                    chain.push({
-                        url: thumbnailUrl,
-                        method: 'thumbnailLink',
-                        needsAuth: false
-                    });
-                }
-                
-                // 2. Google Drive thumbnail API (authenticated)
-                const sizeParam = this.getSizeParam(sizeVariant);
-                chain.push({
-                    url: `https://drive.google.com/thumbnail?id=${file.id}&sz=w${sizeParam}`,
-                    method: 'thumbnailAPI',
-                    needsAuth: true
-                });
-                
-                // 3. Direct file download with resizing (for smaller variants)
-                if (sizeVariant === 'thumbnail' || sizeVariant === 'medium') {
-                    chain.push({
-                        url: `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
-                        method: 'directDownload',
-                        needsAuth: true
-                    });
-                }
-                
-                // 4. Google Drive file view (fallback)
-                chain.push({
-                    url: `https://drive.google.com/uc?id=${file.id}`,
-                    method: 'driveView',
-                    needsAuth: false
-                });
-                
-                return chain;
-            }
-            
-            getSizeParam(sizeVariant) {
-                switch (sizeVariant) {
-                    case 'thumbnail': return 400;
-                    case 'medium': return 1000;
-                    case 'full': return 2000;
-                    default: return 400;
-                }
-            }
-            
-            async tryImageUrl(url, file, sizeVariant, method, needsAuth) {
-                // Check URL validation cache first
-                const validationKey = `${method}_${file.id}`;
-                if (this.urlValidationCache.has(validationKey)) {
-                    const cached = this.urlValidationCache.get(validationKey);
-                    if (Date.now() - cached.timestamp < 300000) { // 5 min cache
-                        if (!cached.valid) {
-                            throw new Error('URL previously failed validation');
-                        }
-                    }
-                }
-                
-                try {
-                    let finalUrl = url;
-                    let blob = null;
-                    
-                    if (needsAuth && this.cloudStorage?.currentProvider?.accessToken) {
-                        // Authenticated request
-                        const response = await fetch(url, {
-                            headers: {
-                                'Authorization': `Bearer ${this.cloudStorage.currentProvider.accessToken}`
-                            }
-                        });
-                        
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                        }
-                        
-                        blob = await response.blob();
-                        
-                        // Verify it's actually an image
-                        if (!blob.type.startsWith('image/')) {
-                            throw new Error(`Invalid content type: ${blob.type}`);
-                        }
-                        
-                        finalUrl = URL.createObjectURL(blob);
-                        
-                    } else {
-                        // Non-authenticated request - validate with HEAD first
-                        const headResponse = await fetch(url, { method: 'HEAD' });
-                        
-                        if (!headResponse.ok) {
-                            throw new Error(`HEAD request failed: ${headResponse.status}`);
-                        }
-                        
-                        const contentType = headResponse.headers.get('content-type');
-                        if (contentType && !contentType.startsWith('image/')) {
-                            throw new Error(`Invalid content type: ${contentType}`);
-                        }
-                        
-                        finalUrl = url;
-                    }
-                    
-                    // Cache URL validation result
-                    this.urlValidationCache.set(validationKey, {
-                        valid: true,
-                        timestamp: Date.now()
-                    });
-                    
-                    // Cache the blob if we downloaded it
-                    let cached = false;
-                    if (blob) {
-                        cached = await this.cacheManager.setCachedImage(file.id, sizeVariant, blob, url);
-                    }
-                    
-                    return {
-                        success: true,
-                        url: finalUrl,
-                        blob: blob,
-                        cached: cached
-                    };
-                    
-                } catch (error) {
-                    // Cache validation failure
-                    this.urlValidationCache.set(validationKey, {
-                        valid: false,
-                        timestamp: Date.now()
-                    });
-                    
-                    throw error;
-                }
-            }
-            
-            async setImageSrc(imgElement, url, altText) {
-                return new Promise((resolve) => {
-                    const handleLoad = () => {
-                        imgElement.removeEventListener('load', handleLoad);
-                        imgElement.removeEventListener('error', handleError);
-                        resolve({ success: true, url });
-                    };
-                    
-                    const handleError = () => {
-                        imgElement.removeEventListener('load', handleLoad);
-                        imgElement.removeEventListener('error', handleError);
-                        resolve({ success: false, error: 'Image load failed' });
-                    };
-                    
-                    imgElement.addEventListener('load', handleLoad);
-                    imgElement.addEventListener('error', handleError);
-                    
-                    imgElement.src = url;
-                    imgElement.alt = altText || 'Image';
-                });
-            }
-            
-            generateErrorPlaceholder(filename) {
-                // Create SVG error placeholder
-                const svg = `
-                    <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
-                        <rect width="200" height="200" fill="#f3f4f6"/>
-                        <circle cx="100" cy="80" r="30" fill="#ef4444"/>
-                        <text x="100" y="88" text-anchor="middle" fill="white" font-size="24" font-weight="bold">!</text>
-                        <text x="100" y="130" text-anchor="middle" fill="#6b7280" font-size="12" font-family="system-ui">
-                            Failed to load
-                        </text>
-                        <text x="100" y="150" text-anchor="middle" fill="#9ca3af" font-size="10" font-family="system-ui">
-                            ${filename ? filename.substring(0, 20) : 'image'}
-                        </text>
-                    </svg>
-                `;
-                
-                const blob = new Blob([svg], { type: 'image/svg+xml' });
-                return URL.createObjectURL(blob);
-            }
-            
-            // Preload images for better UX
-            async preloadImages(files, sizeVariant = 'thumbnail', maxConcurrent = 3) {
-                this.log(`🚀 Preloading ${files.length} images (${sizeVariant})`, 'info');
-                
-                const semaphore = new Array(maxConcurrent).fill(null);
-                let completed = 0;
-                
-                const loadImage = async (file) => {
-                    try {
-                        await this.loadImage(file, sizeVariant);
-                        completed++;
-                        
-                        if (completed % 10 === 0) {
-                            this.log(`📈 Preloaded ${completed}/${files.length} images`, 'info');
-                        }
-                    } catch (error) {
-                        this.log(`⚠️ Preload failed for ${file.name}: ${error.message}`, 'error');
-                    }
-                };
-                
-                // Process files in batches
-                for (let i = 0; i < files.length; i += maxConcurrent) {
-                    const batch = files.slice(i, i + maxConcurrent);
-                    await Promise.all(batch.map(loadImage));
-                }
-                
-                this.log(`✅ Preloading complete: ${completed}/${files.length} successful`, 'success');
-            }
-        }
-
         // ===== Core Utilities =====
         const utils = {
             // DOM utilities - cached elements
@@ -2849,26 +1104,47 @@
                 setTimeout(() => toast.classList.remove('show'), 3000);
             },
             
-            // Consolidated error handling with enhanced logging
+            // Consolidated error handling
             async withErrorHandling(operation, errorMessage = 'Operation failed') {
                 try {
                     return await operation();
                 } catch (error) {
-                    const fullMessage = `${errorMessage}: ${error.message}`;
-                    this.showToast(fullMessage, 'error', true);
-                    
-                    // Enhanced error logging
-                    console.error('🚨 Error Details:', {
-                        message: errorMessage,
-                        error: error.message,
-                        stack: error.stack,
-                        timestamp: new Date().toISOString(),
-                        userAgent: navigator.userAgent,
-                        url: window.location.href
-                    });
-                    
+                    this.showToast(`${errorMessage}: ${error.message}`, 'error', true);
                     throw error;
                 }
+            },
+            
+            // Enhanced image loading with persistent caching
+            async setImageSrc(img, file) {
+                // Generate consistent image URL
+                let imageUrl = this.generateImageUrl(file);
+                
+                return new Promise((resolve) => {
+                    img.onload = resolve;
+                    img.onerror = () => {
+                        // Try alternative URL if primary fails
+                        const fallbackUrl = file.thumbnailLink ? 
+                            file.thumbnailLink.replace('=s220', '=s800') :
+                            `https://drive.google.com/thumbnail?id=${file.id}&sz=w800`;
+                        
+                        img.onerror = () => {
+                            // Final fallback to placeholder
+                            img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
+                            resolve();
+                        };
+                        img.src = fallbackUrl;
+                    };
+                    img.src = imageUrl;
+                    img.alt = file.name || 'Image';
+                });
+            },
+            
+            // Generate consistent image URL for caching
+            generateImageUrl(file) {
+                if (file.thumbnailLink) {
+                    return file.thumbnailLink.replace('=s220', '=s1000');
+                }
+                return `https://drive.google.com/thumbnail?id=${file.id}&sz=w1000`;
             },
             
             formatFileSize(bytes) {
@@ -2890,75 +1166,6 @@
                     const percentage = (current / total) * 100;
                     this.elements.loadingProgressBar.style.width = `${percentage}%`;
                 }
-            },
-            
-            // Enhanced diagnostics for debugging
-            getDiagnostics() {
-                const diagnostics = {
-                    timestamp: new Date().toISOString(),
-                    folderInfo: {
-                        id: appState.currentFolder.id,
-                        name: appState.currentFolder.name,
-                        totalImages: appState.imageFiles.length,
-                        loadTime: appState.diagnostics.folderLoadTime
-                    },
-                    stackCounts: {
-                        in: appState.stacks.in.length,
-                        out: appState.stacks.out.length,
-                        priority: appState.stacks.priority.length,
-                        trash: appState.stacks.trash.length
-                    },
-                    performance: {
-                        cacheHitRate: appState.diagnostics.cacheHitRate,
-                        imageLoadFailures: appState.diagnostics.imageLoadFailures.length,
-                        lastScanStats: appState.diagnostics.lastScanStats
-                    },
-                    browser: {
-                        userAgent: navigator.userAgent,
-                        language: navigator.language,
-                        platform: navigator.platform,
-                        memoryInfo: performance.memory ? {
-                            usedJSSize: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024),
-                            totalJSSize: Math.round(performance.memory.totalJSHeapSize / 1024 / 1024),
-                            jsHeapSizeLimit: Math.round(performance.memory.jsHeapSizeLimit / 1024 / 1024)
-                        } : 'Not available'
-                    }
-                };
-                
-                return diagnostics;
-            },
-            
-            // Emergency cache reset for troubleshooting
-            async resetCache() {
-                try {
-                    if (appState.enhancedCache && appState.enhancedCache.db) {
-                        const stores = ['folderInventory', 'imageCache', 'metadata'];
-                        const transaction = appState.enhancedCache.db.transaction(stores, 'readwrite');
-                        
-                        for (const storeName of stores) {
-                            const store = transaction.objectStore(storeName);
-                            await new Promise((resolve, reject) => {
-                                const request = store.clear();
-                                request.onsuccess = () => resolve();
-                                request.onerror = () => reject(request.error);
-                            });
-                        }
-                        
-                        this.showToast('🧹 Cache cleared successfully', 'success', true);
-                        console.log('🧹 Emergency cache reset completed');
-                        
-                        // Restart app
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 1000);
-                        
-                    } else {
-                        this.showToast('❌ Cache system not available', 'error', true);
-                    }
-                } catch (error) {
-                    this.showToast(`❌ Failed to clear cache: ${error.message}`, 'error', true);
-                    console.error('❌ Cache reset failed:', error);
-                }
             }
         };
 
@@ -2966,8 +1173,8 @@
         const appState = {
             cloudStorage: null,
             metadataExtractor: null,
-            enhancedCache: null,
-            imageLoader: null,
+            fileCache: null,
+            metadataCache: null,
             currentFolder: { id: null, name: '' },
             imageFiles: [],
             currentImageIndex: 0,
@@ -2982,17 +1189,142 @@
             panOffset: { x: 0, y: 0 },
             grid: { stack: null, selected: [] },
             tags: new Set(),
-            imageCache: new Map(), // Legacy - kept for compatibility during transition
-            loadingProgress: { current: 0, total: 0 },
-            diagnostics: {
-                folderLoadTime: 0,
-                cacheHitRate: 0,
-                imageLoadFailures: [],
-                lastScanStats: null
-            }
+            loadingProgress: { current: 0, total: 0 }
         };
 
-        // ===== Metadata System (Simplified) =====
+        // ===== Enhanced File Cache System =====
+        class EnhancedFileCache {
+            constructor() {
+                this.db = null;
+            }
+            
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open('Orbital8FileCache', 2);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => {
+                        this.db = request.result;
+                        resolve();
+                    };
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        
+                        // Create file cache store
+                        if (!db.objectStoreNames.contains('files')) {
+                            const fileStore = db.createObjectStore('files', { keyPath: 'folderId' });
+                            fileStore.createIndex('folderId', 'folderId', { unique: true });
+                        }
+                        
+                        // Create metadata store
+                        if (!db.objectStoreNames.contains('metadata')) {
+                            const metadataStore = db.createObjectStore('metadata', { keyPath: 'id' });
+                        }
+                    };
+                });
+            }
+            
+            async getCachedFiles(folderId) {
+                if (!this.db) return null;
+                try {
+                    const transaction = this.db.transaction(['files'], 'readonly');
+                    const store = transaction.objectStore('files');
+                    const result = await new Promise((resolve, reject) => {
+                        const request = store.get(folderId);
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = () => reject(request.error);
+                    });
+                    
+                    if (result && this.isCacheValid(result.cached)) {
+                        return result.files;
+                    }
+                } catch (error) {
+                    console.warn('Failed to get cached files:', error);
+                }
+                return null;
+            }
+            
+            async setCachedFiles(folderId, files) {
+                if (!this.db) return;
+                try {
+                    const transaction = this.db.transaction(['files'], 'readwrite');
+                    const store = transaction.objectStore('files');
+                    await new Promise((resolve, reject) => {
+                        const request = store.put({
+                            folderId,
+                            files,
+                            cached: Date.now()
+                        });
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => reject(request.error);
+                    });
+                } catch (error) {
+                    console.warn('Failed to cache files:', error);
+                }
+            }
+            
+            async getMetadata(fileId, modifiedTime) {
+                if (!this.db) return null;
+                try {
+                    const transaction = this.db.transaction(['metadata'], 'readonly');
+                    const store = transaction.objectStore('metadata');
+                    const result = await new Promise((resolve, reject) => {
+                        const request = store.get(fileId);
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = () => reject(request.error);
+                    });
+                    
+                    if (result && result.modifiedTime === modifiedTime) {
+                        return result.metadata;
+                    }
+                } catch (error) {
+                    console.warn('Failed to get cached metadata:', error);
+                }
+                return null;
+            }
+            
+            async setMetadata(fileId, modifiedTime, metadata) {
+                if (!this.db) return;
+                try {
+                    const transaction = this.db.transaction(['metadata'], 'readwrite');
+                    const store = transaction.objectStore('metadata');
+                    await new Promise((resolve, reject) => {
+                        const request = store.put({ 
+                            id: fileId, 
+                            modifiedTime, 
+                            metadata,
+                            cached: Date.now()
+                        });
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => reject(request.error);
+                    });
+                } catch (error) {
+                    console.warn('Failed to cache metadata:', error);
+                }
+            }
+            
+            isCacheValid(cachedTime) {
+                // Cache is valid for 1 hour
+                const CACHE_DURATION = 60 * 60 * 1000;
+                return (Date.now() - cachedTime) < CACHE_DURATION;
+            }
+            
+            async clearCacheForFolder(folderId) {
+                if (!this.db) return;
+                try {
+                    const transaction = this.db.transaction(['files'], 'readwrite');
+                    const store = transaction.objectStore('files');
+                    await new Promise((resolve, reject) => {
+                        const request = store.delete(folderId);
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => reject(request.error);
+                    });
+                } catch (error) {
+                    console.warn('Failed to clear cache:', error);
+                }
+            }
+        }
+
+        // ===== Metadata System (Same as before) =====
         class SimpleMetadataExtractor {
             constructor() {
                 this.statusLog = null;
@@ -3086,7 +1418,7 @@
             }
         }
 
-        // ===== Cloud Storage (Consolidated) =====
+        // ===== Cloud Storage (Enhanced with caching) =====
         class CloudStorageModule {
             constructor() {
                 this.currentProvider = new GoogleDriveProvider();
@@ -3100,8 +1432,24 @@
                 return this.currentProvider?.isAuthenticated || false;
             }
             
-            async getFiles(folderId = 'root') {
-                return await this.currentProvider.getFiles(folderId);
+            async getFiles(folderId = 'root', useCache = true) {
+                // Check cache first if enabled
+                if (useCache && appState.fileCache) {
+                    const cachedFiles = await appState.fileCache.getCachedFiles(folderId);
+                    if (cachedFiles) {
+                        return { folders: [], files: cachedFiles };
+                    }
+                }
+                
+                // Fetch from API
+                const result = await this.currentProvider.getFiles(folderId);
+                
+                // Cache the results
+                if (useCache && appState.fileCache && result.files) {
+                    await appState.fileCache.setCachedFiles(folderId, result.files);
+                }
+                
+                return result;
             }
             
             async getFolders() {
@@ -3109,15 +1457,30 @@
             }
             
             async moveFileToStack(fileId, targetStack) {
-                return await this.currentProvider.moveFileToStack(fileId, targetStack);
+                const result = await this.currentProvider.moveFileToStack(fileId, targetStack);
+                // Invalidate cache when files are moved
+                if (appState.currentFolder.id && appState.fileCache) {
+                    await appState.fileCache.clearCacheForFolder(appState.currentFolder.id);
+                }
+                return result;
             }
             
             async updateFileProperties(fileId, properties) {
-                return await this.currentProvider.updateFileProperties(fileId, properties);
+                const result = await this.currentProvider.updateFileProperties(fileId, properties);
+                // Invalidate cache when properties are updated
+                if (appState.currentFolder.id && appState.fileCache) {
+                    await appState.fileCache.clearCacheForFolder(appState.currentFolder.id);
+                }
+                return result;
             }
             
             async deleteFile(fileId) {
-                return await this.currentProvider.deleteFile(fileId);
+                const result = await this.currentProvider.deleteFile(fileId);
+                // Invalidate cache when files are deleted
+                if (appState.currentFolder.id && appState.fileCache) {
+                    await appState.fileCache.clearCacheForFolder(appState.currentFolder.id);
+                }
+                return result;
             }
             
             async disconnect() {
@@ -3420,7 +1783,7 @@
             }
         }
 
-        // ===== Authentication Manager =====
+        // ===== Authentication Manager (Same as before) =====
         const authManager = {
             async authenticate() {
                 const clientSecret = utils.elements.clientSecret.value.trim();
@@ -3467,7 +1830,7 @@
             }
         };
         
-        // ===== Enhanced Folder Manager =====
+        // ===== Enhanced Folder Manager with Cache Detection =====
         const folderManager = {
             async loadFolders() {
                 utils.elements.folderList.innerHTML = `
@@ -3491,16 +1854,9 @@
                     
                     utils.elements.folderList.innerHTML = '';
                     
-                    // Add cache status indicators
-                    for (const folder of folders) {
-                        const cached = await appState.enhancedCache.getFolderInventory(folder.id);
+                    folders.forEach(folder => {
                         const div = document.createElement('div');
                         div.className = 'folder-item';
-                        
-                        const cacheIndicator = cached ? 
-                            `<span style="color: #10b981; font-size: 12px;">📁 Cached (${cached.totalFiles} images)</span>` :
-                            `<span style="color: #6b7280; font-size: 12px;">🔄 Not cached</span>`;
-                        
                         div.innerHTML = `
                             <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
@@ -3508,239 +1864,161 @@
                             <div class="folder-info">
                                 <div class="folder-name">${folder.name}</div>
                                 <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()}</div>
-                                <div style="margin-top: 4px;">${cacheIndicator}</div>
                             </div>
                         `;
                         
                         div.addEventListener('click', () => this.selectFolder(folder));
                         utils.elements.folderList.appendChild(div);
-                    }
+                    });
                 }, 'Error loading folders');
             },
             
             async selectFolder(folder) {
-                const startTime = Date.now();
                 appState.currentFolder.id = folder.id;
                 appState.currentFolder.name = folder.name;
                 
                 utils.showScreen('loading-screen');
                 utils.updateLoadingProgress(0, 0);
                 
-                utils.elements.statusLog.innerHTML = '<div class="status-log-entry info">Starting enhanced image processing...</div>';
+                utils.elements.statusLog.innerHTML = '<div class="status-log-entry info">Starting image processing...</div>';
                 appState.metadataExtractor.setStatusLog(utils.elements.statusLog);
-                appState.enhancedCache.setLogger(appState.metadataExtractor);
-                appState.imageLoader.setLogger(appState.metadataExtractor);
+                
+                appState.cloudStorage.currentProvider.onProgressCallback = (count) => {
+                    utils.updateLoadingProgress(count, 0);
+                };
                 
                 await utils.withErrorHandling(async () => {
-                    // Step 1: Check if folder needs scanning
-                    const needsFullScan = await this.checkIfScanNeeded(folder.id);
+                    // Check cache first
+                    const cachedFiles = await appState.fileCache.getCachedFiles(folder.id);
                     
-                    if (needsFullScan) {
-                        appState.metadataExtractor.log('🔄 Full folder scan required', 'info');
-                        await this.performFullScan(folder);
+                    if (cachedFiles) {
+                        utils.elements.loadingMessage.textContent = 'Loading from cache...';
+                        appState.metadataExtractor.log('📥 Loading files from cache', 'success');
+                        
+                        // Use cached files directly
+                        const files = cachedFiles;
+                        if (files.length === 0) {
+                            utils.showToast('No images found in this folder', 'info', true);
+                            setTimeout(() => utils.showScreen('folder-screen'), 2000);
+                            return;
+                        }
+                        
+                        utils.updateLoadingProgress(files.length, files.length);
+                        utils.elements.loadingMessage.textContent = 'Processing cached images...';
+                        
+                        // Process cached files
+                        appState.imageFiles = files.map(file => ({
+                            id: file.id,
+                            name: file.name,
+                            filename: file.name,
+                            originalName: file.name,
+                            mimeType: file.mimeType,
+                            size: file.size,
+                            createdTime: file.createdTime,
+                            modifiedTime: file.modifiedTime,
+                            thumbnailLink: file.thumbnailLink,
+                            appProperties: file.appProperties || {},
+                            extractedMetadata: file.extractedMetadata || {},
+                            qualityRating: parseInt(file.appProperties?.qualityRating) || 0,
+                            contentRating: parseInt(file.appProperties?.contentRating) || 0,
+                            notes: file.appProperties?.notes || ''
+                        }));
+                        
+                        appState.metadataExtractor.log(`✅ Loaded ${files.length} images from cache`, 'success');
+                        
                     } else {
-                        appState.metadataExtractor.log('📥 Loading from cache', 'success');
-                        await this.loadFromCache(folder.id);
+                        // Fresh fetch from Google Drive
+                        utils.elements.loadingMessage.textContent = 'Loading images from Google Drive...';
+                        appState.metadataExtractor.log('🔄 Fetching fresh data from Google Drive', 'info');
+                        
+                        const result = await appState.cloudStorage.getFiles(folder.id, false); // Don't use cache for this call
+                        const files = result.files || [];
+                        
+                        if (files.length === 0) {
+                            utils.showToast('No images found in this folder', 'info', true);
+                            setTimeout(() => utils.showScreen('folder-screen'), 2000);
+                            return;
+                        }
+                        
+                        utils.updateLoadingProgress(files.length, files.length);
+                        utils.elements.loadingMessage.textContent = 'Processing metadata...';
+                        
+                        appState.imageFiles = [];
+                        let processedCount = 0;
+                        let extractedCount = 0;
+                        let cachedCount = 0;
+                        
+                        for (let i = 0; i < files.length; i++) {
+                            const file = files[i];
+                            
+                            const imageFile = {
+                                id: file.id,
+                                name: file.name,
+                                filename: file.name,
+                                originalName: file.name,
+                                mimeType: file.mimeType,
+                                size: file.size,
+                                createdTime: file.createdTime,
+                                modifiedTime: file.modifiedTime,
+                                thumbnailLink: file.thumbnailLink,
+                                appProperties: file.appProperties || {},
+                                extractedMetadata: {},
+                                qualityRating: parseInt(file.appProperties?.qualityRating) || 0,
+                                contentRating: parseInt(file.appProperties?.contentRating) || 0,
+                                notes: file.appProperties?.notes || ''
+                            };
+                            
+                            appState.imageFiles.push(imageFile);
+                            
+                            utils.updateLoadingProgress(processedCount + 1, files.length);
+                            utils.elements.loadingMessage.textContent = `Processing metadata ${processedCount + 1} of ${files.length}...`;
+                            
+                            if (imageFile.mimeType === 'image/png') {
+                                try {
+                                    const result = await this.processFileMetadata(imageFile);
+                                    if (result.extracted) extractedCount++;
+                                    if (result.cached) cachedCount++;
+                                } catch (error) {
+                                    appState.metadataExtractor.log(`⚠️ Failed to process ${file.name}: ${error.message}`, 'error');
+                                }
+                            }
+                            
+                            processedCount++;
+                            
+                            if (i % 2 === 0) {
+                                await new Promise(resolve => setTimeout(resolve, 10));
+                            }
+                        }
+                        
+                        const pngCount = files.filter(f => f.mimeType === 'image/png').length;
+                        
+                        appState.metadataExtractor.log(`🎯 Processing complete:`, 'info');
+                        appState.metadataExtractor.log(`   📁 Total images: ${files.length}`, 'info');
+                        appState.metadataExtractor.log(`   🖼️ PNG files: ${pngCount}`, 'info');
+                        appState.metadataExtractor.log(`   ✅ New extractions: ${extractedCount}`, 'success');
+                        appState.metadataExtractor.log(`   📥 From cache: ${cachedCount}`, 'info');
+                        
+                        // Cache the processed files
+                        await appState.fileCache.setCachedFiles(folder.id, appState.imageFiles);
+                        appState.metadataExtractor.log('💾 Files cached for future use', 'success');
                     }
-                    
-                    // Step 2: Process and organize files
-                    await this.processLoadedFiles();
-                    
-                    // Step 3: Start background preloading
-                    this.startBackgroundPreloading();
-                    
-                    // Step 4: Finalize and show UI
-                    const loadTime = Date.now() - startTime;
-                    appState.diagnostics.folderLoadTime = loadTime;
                     
                     stackManager.updateStacks();
                     appState.currentImageIndex = 0;
                     appState.currentStack = 'in';
                     
-                    appState.metadataExtractor.log(`🎯 Folder loaded in ${(loadTime / 1000).toFixed(1)}s`, 'success');
-                    
                     setTimeout(() => {
                         utils.showScreen('app-container');
                         imageViewer.displayTopImageFromStack('in');
                         updateActiveProxTab();
-                        utils.showToast(`Loaded ${appState.imageFiles.length} images in ${(loadTime / 1000).toFixed(1)}s`, 'success', true);
+                        utils.showToast(`Loaded ${appState.imageFiles.length} images`, 'success', true);
                     }, 500);
                     
-                }, 'Error loading images from folder');
-            },
-            
-            async checkIfScanNeeded(folderId) {
-                try {
-                    // Quick check: get folder info from Google Drive
-                    const folderInfo = await appState.cloudStorage.currentProvider.makeApiCall(`/files/${folderId}?fields=modifiedTime`);
-                    
-                    // Check if cache exists and is still valid
-                    const needsScan = await appState.enhancedCache.checkFolderModified(folderId, folderInfo.modifiedTime);
-                    
-                    appState.metadataExtractor.log(
-                        needsScan ? 
-                        '📁 Folder has changes, scanning required' : 
-                        '✅ Cached folder is up to date',
-                        needsScan ? 'info' : 'success'
-                    );
-                    
-                    return needsScan;
-                    
-                } catch (error) {
-                    appState.metadataExtractor.log(`⚠️ Cannot check folder status, performing full scan: ${error.message}`, 'error');
-                    return true; // Default to full scan on error
-                }
-            },
-            
-            async loadFromCache(folderId) {
-                const cached = await appState.enhancedCache.getFolderInventory(folderId);
-                
-                if (!cached || !cached.fileInventory) {
-                    throw new Error('No valid cache found');
-                }
-                
-                utils.elements.loadingMessage.textContent = 'Loading from cache...';
-                utils.updateLoadingProgress(cached.totalFiles, cached.totalFiles);
-                
-                // Convert cached file records back to imageFiles format
-                appState.imageFiles = cached.fileInventory.map(fileRecord => ({
-                    id: fileRecord.id,
-                    name: fileRecord.name,
-                    filename: fileRecord.name,
-                    originalName: fileRecord.name,
-                    mimeType: fileRecord.mimeType,
-                    size: fileRecord.size,
-                    createdTime: fileRecord.createdTime,
-                    modifiedTime: fileRecord.modifiedTime,
-                    thumbnailLink: fileRecord.thumbnailLink,
-                    appProperties: fileRecord.appProperties || {},
-                    extractedMetadata: {}, // Will be loaded on demand
-                    qualityRating: parseInt(fileRecord.appProperties?.qualityRating) || 0,
-                    contentRating: parseInt(fileRecord.appProperties?.contentRating) || 0,
-                    notes: fileRecord.appProperties?.notes || '',
-                    thumbnailCached: fileRecord.thumbnailCached || false,
-                    metadataCached: fileRecord.metadataCached || false
-                }));
-                
-                appState.metadataExtractor.log(`📥 Loaded ${appState.imageFiles.length} files from cache`, 'success');
-            },
-            
-            async performFullScan(folder) {
-                utils.elements.loadingMessage.textContent = 'Scanning folder for images...';
-                
-                // Set up progress callback
-                appState.cloudStorage.currentProvider.onProgressCallback = (count) => {
-                    utils.updateLoadingProgress(count, 0);
-                };
-                
-                const result = await appState.cloudStorage.getFiles(folder.id);
-                const files = result.files || [];
-                
-                if (files.length === 0) {
-                    utils.showToast('No images found in this folder', 'info', true);
-                    setTimeout(() => utils.showScreen('folder-screen'), 2000);
-                    return;
-                }
-                
-                utils.updateLoadingProgress(files.length, files.length);
-                utils.elements.loadingMessage.textContent = 'Processing image metadata...';
-                
-                appState.imageFiles = [];
-                let processedCount = 0;
-                let extractedCount = 0;
-                let cachedCount = 0;
-                
-                // Build file inventory for caching
-                const fileInventory = [];
-                
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    
-                    const imageFile = {
-                        id: file.id,
-                        name: file.name,
-                        filename: file.name,
-                        originalName: file.name,
-                        mimeType: file.mimeType,
-                        size: file.size,
-                        createdTime: file.createdTime,
-                        modifiedTime: file.modifiedTime,
-                        thumbnailLink: file.thumbnailLink,
-                        appProperties: file.appProperties || {},
-                        extractedMetadata: {},
-                        qualityRating: parseInt(file.appProperties?.qualityRating) || 0,
-                        contentRating: parseInt(file.appProperties?.contentRating) || 0,
-                        notes: file.appProperties?.notes || '',
-                        thumbnailCached: false,
-                        metadataCached: false
-                    };
-                    
-                    appState.imageFiles.push(imageFile);
-                    
-                    // Create file record for cache
-                    const fileRecord = {
-                        id: file.id,
-                        name: file.name,
-                        mimeType: file.mimeType,
-                        size: file.size,
-                        createdTime: file.createdTime,
-                        modifiedTime: file.modifiedTime,
-                        thumbnailLink: file.thumbnailLink,
-                        appProperties: file.appProperties || {},
-                        thumbnailCached: false,
-                        metadataCached: false
-                    };
-                    
-                    utils.updateLoadingProgress(processedCount + 1, files.length);
-                    utils.elements.loadingMessage.textContent = `Processing metadata ${processedCount + 1} of ${files.length}...`;
-                    
-                    // Process PNG metadata
-                    if (imageFile.mimeType === 'image/png') {
-                        try {
-                            const result = await this.processFileMetadata(imageFile);
-                            if (result.extracted) extractedCount++;
-                            if (result.cached) cachedCount++;
-                            fileRecord.metadataCached = result.cached || result.extracted;
-                        } catch (error) {
-                            appState.metadataExtractor.log(`⚠️ Failed to process ${file.name}: ${error.message}`, 'error');
-                        }
+                }, 'Error loading images from folder').finally(() => {
+                    if (appState.cloudStorage.currentProvider) {
+                        appState.cloudStorage.currentProvider.onProgressCallback = null;
                     }
-                    
-                    fileInventory.push(fileRecord);
-                    processedCount++;
-                    
-                    // Yield control periodically
-                    if (i % 5 === 0) {
-                        await new Promise(resolve => setTimeout(resolve, 10));
-                    }
-                }
-                
-                // Cache the complete folder inventory
-                const folderData = {
-                    folderId: folder.id,
-                    folderName: folder.name,
-                    fileInventory: fileInventory
-                };
-                
-                await appState.enhancedCache.setFolderInventory(folderData);
-                
-                // Log statistics
-                const pngCount = files.filter(f => f.mimeType === 'image/png').length;
-                
-                appState.diagnostics.lastScanStats = {
-                    totalFiles: files.length,
-                    pngFiles: pngCount,
-                    newExtractions: extractedCount,
-                    fromCache: cachedCount,
-                    scanTime: Date.now()
-                };
-                
-                appState.metadataExtractor.log(`🎯 Scan complete:`, 'info');
-                appState.metadataExtractor.log(`   📁 Total images: ${files.length}`, 'info');
-                appState.metadataExtractor.log(`   🖼️ PNG files: ${pngCount}`, 'info');
-                appState.metadataExtractor.log(`   ✅ New extractions: ${extractedCount}`, 'success');
-                appState.metadataExtractor.log(`   📥 From cache: ${cachedCount}`, 'info');
-                appState.metadataExtractor.log(`   💾 Folder inventory cached`, 'success');
+                });
             },
             
             async processFileMetadata(file) {
@@ -3748,10 +2026,9 @@
                     return { extracted: false, cached: false };
                 }
                 
-                const cachedMetadata = await appState.enhancedCache.getMetadata(file.id, file.modifiedTime);
+                const cachedMetadata = await appState.fileCache.getMetadata(file.id, file.modifiedTime);
                 if (cachedMetadata) {
                     file.extractedMetadata = cachedMetadata;
-                    file.metadataCached = true;
                     appState.metadataExtractor.log(`📥 Using cached metadata for ${file.name}`, 'info');
                     return { extracted: false, cached: true };
                 }
@@ -3767,8 +2044,7 @@
                     
                     if (Object.keys(metadata).length > 0) {
                         file.extractedMetadata = metadata;
-                        file.metadataCached = true;
-                        await appState.enhancedCache.setMetadata(file.id, file.modifiedTime, metadata);
+                        await appState.fileCache.setMetadata(file.id, file.modifiedTime, metadata);
                         appState.metadataExtractor.log(`💾 Extracted and cached ${Object.keys(metadata).length} fields`, 'success');
                         return { extracted: true, cached: false };
                     } else {
@@ -3781,50 +2057,9 @@
                     return { extracted: false, cached: false };
                 }
             },
-            
-            async processLoadedFiles() {
-                // Update all file tags for search functionality
-                appState.imageFiles.forEach(file => {
-                    const fileTags = stackManager.getFileTags(file);
-                    fileTags.forEach(tag => appState.tags.add(tag));
-                });
-                
-                appState.metadataExtractor.log(`🏷️ Found ${appState.tags.size} unique tags across all images`, 'info');
-            },
-            
-            async startBackgroundPreloading() {
-                // Don't wait for this - let it run in background
-                setTimeout(async () => {
-                    try {
-                        appState.metadataExtractor.log('🚀 Starting background image preloading', 'info');
-                        
-                        // Preload thumbnails for first 20 images from "in" stack
-                        const inStackImages = appState.stacks.in.slice(0, 20);
-                        if (inStackImages.length > 0) {
-                            await appState.imageLoader.preloadImages(inStackImages, 'thumbnail', 2);
-                        }
-                        
-                        // Preload top images from other stacks
-                        const otherStackImages = [
-                            ...appState.stacks.out.slice(0, 5),
-                            ...appState.stacks.priority.slice(0, 5),
-                            ...appState.stacks.trash.slice(0, 5)
-                        ];
-                        
-                        if (otherStackImages.length > 0) {
-                            await appState.imageLoader.preloadImages(otherStackImages, 'thumbnail', 1);
-                        }
-                        
-                        appState.metadataExtractor.log('✅ Background preloading completed', 'success');
-                        
-                    } catch (error) {
-                        appState.metadataExtractor.log(`⚠️ Background preloading failed: ${error.message}`, 'error');
-                    }
-                }, 1000);
-            }
         };
         
-        // ===== Stack Manager (Consolidated) =====
+        // ===== Stack Manager (Enhanced for better image handling) =====
         const stackManager = {
             currentSort: 'date-desc',
             
@@ -3966,57 +2201,13 @@
                     return;
                 }
                 
-                // Show loading state
-                utils.elements.centerImage.style.opacity = '0.5';
+                await utils.setImageSrc(utils.elements.centerImage, currentFile);
                 
-                try {
-                    // Use enhanced image loader
-                    const result = await appState.imageLoader.loadImage(currentFile, 'medium', utils.elements.centerImage);
-                    
-                    if (result.success) {
-                        // Image loaded successfully
-                        utils.elements.centerImage.style.opacity = '1';
-                        
-                        // Log performance info
-                        if (appState.metadataExtractor && appState.metadataExtractor.logger) {
-                            appState.metadataExtractor.log(
-                                `🖼️ Displayed: ${currentFile.name} (source: ${result.source || 'unknown'})`, 
-                                'success'
-                            );
-                        }
-                    } else {
-                        // Image failed to load
-                        utils.elements.centerImage.style.opacity = '1';
-                        utils.showToast(`Failed to load image: ${currentFile.name}`, 'error');
-                        
-                        // Track failure for diagnostics
-                        appState.diagnostics.imageLoadFailures.push({
-                            fileId: currentFile.id,
-                            fileName: currentFile.name,
-                            error: result.error,
-                            timestamp: Date.now()
-                        });
-                    }
-                    
-                } catch (error) {
-                    utils.elements.centerImage.style.opacity = '1';
-                    utils.showToast(`Error loading image: ${error.message}`, 'error', true);
-                    
-                    // Fallback to error placeholder
-                    const errorUrl = appState.imageLoader.generateErrorPlaceholder(currentFile.name);
-                    utils.elements.centerImage.src = errorUrl;
-                    utils.elements.centerImage.alt = `Error loading ${currentFile.name}`;
-                }
-                
-                // Reset zoom and pan
                 appState.currentScale = 1;
                 appState.panOffset = { x: 0, y: 0 };
                 this.applyTransform();
                 
                 stackManager.updateCounts();
-                
-                // Preload next image in background
-                this.preloadNextImage();
             },
             
             async displayTopImageFromStack(stackName) {
@@ -4083,31 +2274,10 @@
                         utils.elements.centerImage.style.opacity = '1';
                     }, 200);
                 }
-            },
-            
-            async preloadNextImage() {
-                try {
-                    const activeStackImages = appState.stacks[appState.currentStack];
-                    if (activeStackImages.length <= 1) return;
-                    
-                    const currentImageInStack = activeStackImages.find(img => img.id === appState.imageFiles[appState.currentImageIndex].id);
-                    if (currentImageInStack) {
-                        const currentIndexInStack = activeStackImages.indexOf(currentImageInStack);
-                        const nextIndexInStack = (currentIndexInStack + 1) % activeStackImages.length;
-                        const nextImage = activeStackImages[nextIndexInStack];
-                        
-                        // Preload in background
-                        appState.imageLoader.loadImage(nextImage, 'medium').catch(() => {
-                            // Ignore preload failures
-                        });
-                    }
-                } catch (error) {
-                    // Ignore preload errors
-                }
             }
         };
         
-        // ===== Grid View (Consolidated) =====
+        // ===== Enhanced Grid View =====
         const gridView = {
             open(stack) {
                 utils.modal.show('grid-modal');
@@ -4170,13 +2340,22 @@
                     const img = document.createElement('img');
                     img.className = 'grid-image';
                     
-                    // Use enhanced image loader for grid images
-                    appState.imageLoader.loadImage(file, 'thumbnail', img).catch(() => {
-                        // If loading fails, show placeholder
-                        const errorUrl = appState.imageLoader.generateErrorPlaceholder(file.name);
-                        img.src = errorUrl;
-                        img.alt = `Error: ${file.name}`;
-                    });
+                    // Use consistent image URL generation
+                    const imageUrl = utils.generateImageUrl(file);
+                    img.src = imageUrl;
+                    img.alt = file.name || 'Image';
+                    
+                    // Handle image loading errors with fallback
+                    img.onerror = () => {
+                        const fallbackUrl = file.thumbnailLink ? 
+                            file.thumbnailLink.replace('=s220', '=s400') :
+                            `https://drive.google.com/thumbnail?id=${file.id}&sz=w400`;
+                        
+                        img.onerror = () => {
+                            img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
+                        };
+                        img.src = fallbackUrl;
+                    };
                     
                     div.addEventListener('click', e => {
                         e.stopPropagation();
@@ -4258,7 +2437,7 @@
             }
         };
         
-        // ===== Details Modal (Simplified) =====
+        // ===== Details Modal (Same as before) =====
         const detailsModal = {
             currentTab: 'info',
             
@@ -4587,7 +2766,7 @@
             }
         };
         
-        // ===== Modal Manager (Consolidated) =====
+        // ===== Modal Manager (Same as before) =====
         const modalManager = {
             setup() {
                 document.querySelectorAll('.move-option').forEach(option => {
@@ -4748,7 +2927,7 @@
             }
         };
         
-        // ===== Utility Functions (Consolidated) =====
+        // ===== Utility Functions =====
         function updateEmptyStateButtons() {
             const stacksWithImages = STACK_TYPES.filter(stack => appState.stacks[stack].length > 0);
             const hasOtherStacks = stacksWithImages.some(stack => stack !== appState.currentStack);
@@ -4787,7 +2966,7 @@
             }
         }
         
-        // ===== Gesture System (Consolidated) =====
+        // ===== Gesture System (Same as before) =====
         function setupGestureSystem() {
             let startPos = { x: 0, y: 0 };
             let currentPos = { x: 0, y: 0 };
@@ -4962,7 +3141,7 @@
             }
         }
         
-        // ===== Pinch Zoom System (Simplified) =====
+        // ===== Pinch Zoom System (Same as before) =====
         function setupPinchZoom() {
             function getDistance(touch1, touch2) {
                 const dx = touch1.clientX - touch2.clientX;
@@ -5052,7 +3231,7 @@
             }
         }
         
-        // ===== Event Handlers (Consolidated) =====
+        // ===== Event Handlers (Same as before) =====
         function setupEventHandlers() {
             // Authentication
             utils.elements.authButton.addEventListener('click', () => authManager.authenticate());
@@ -5164,31 +3343,8 @@
                 }
             });
             
-            // Keyboard shortcuts (enhanced with diagnostics)
+            // Keyboard shortcuts
             document.addEventListener('keydown', (e) => {
-                // Global shortcuts (available anywhere)
-                if (e.ctrlKey || e.metaKey) {
-                    switch (e.key) {
-                        case 'd':
-                            e.preventDefault();
-                            // Show diagnostics
-                            const diagnostics = utils.getDiagnostics();
-                            console.log('🔍 Orbital8 Diagnostics:', diagnostics);
-                            utils.showToast('📊 Diagnostics logged to console', 'info', true);
-                            break;
-                        case 'r':
-                            if (e.shiftKey) {
-                                e.preventDefault();
-                                // Emergency cache reset
-                                if (confirm('⚠️ This will clear all cached data and reload the app. Continue?')) {
-                                    utils.resetCache();
-                                }
-                            }
-                            break;
-                    }
-                    return;
-                }
-                
                 if (utils.elements.appContainer.classList.contains('hidden')) return;
                 
                 if (!utils.elements.detailsModal.classList.contains('hidden')) {
@@ -5237,11 +3393,6 @@
                     case 'I':
                         detailsModal.show();
                         break;
-                    case 'r':
-                        // Refresh current stack
-                        imageViewer.displayTopImageFromStack(appState.currentStack);
-                        utils.showToast('🔄 Refreshed current view', 'info');
-                        break;
                 }
             });
         }
@@ -5252,16 +3403,12 @@
                 // Initialize utilities and cache elements
                 utils.init();
                 
-                // Initialize enhanced cache system
-                appState.enhancedCache = new EnhancedCacheManager();
-                await appState.enhancedCache.init();
+                // Initialize enhanced cache systems
+                appState.fileCache = new EnhancedFileCache();
+                await appState.fileCache.init();
                 
-                // Initialize cloud storage and metadata extractor
                 appState.cloudStorage = new CloudStorageModule();
                 appState.metadataExtractor = new SimpleMetadataExtractor();
-                
-                // Initialize enhanced image loader
-                appState.imageLoader = new EnhancedImageLoader(appState.enhancedCache, appState.cloudStorage);
                 
                 // Check existing authentication
                 if (appState.cloudStorage.isAuthenticated()) {
@@ -5280,28 +3427,12 @@
                 
                 updateActiveProxTab();
                 
-                // Log initialization success
-                console.log('🚀 Orbital8 V2 Enhanced initialized successfully');
-                console.log('📊 Cache system ready');
-                console.log('🖼️ Enhanced image loader ready');
-                
             } catch (error) {
-                console.error('❌ Failed to initialize app:', error);
-                utils.showToast('Failed to initialize app - some features may not work properly', 'error', true);
-                
-                // Fallback initialization for basic functionality
-                try {
-                    appState.cloudStorage = new CloudStorageModule();
-                    appState.metadataExtractor = new SimpleMetadataExtractor();
-                    setupEventHandlers();
-                    updateActiveProxTab();
-                } catch (fallbackError) {
-                    console.error('❌ Fallback initialization failed:', fallbackError);
-                }
+                utils.showToast('Failed to initialize app', 'error', true);
             }
         }
         
         document.addEventListener('DOMContentLoaded', initApp);
-        </script>
+    </script>
 </body>
 </html>
