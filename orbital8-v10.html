@@ -2,49 +2,60 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>OneDrive Browser</title>
+  <title>OneDrive Metadata Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
   <style>
-    html, body { height: 100%; margin: 0; font-family: sans-serif; }
-    #status { white-space: pre-line; max-height: 100px; overflow-y: auto; margin: 1em; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #ccc; padding: 6px; word-break: break-word; }
-    th { background: #f8f8f8; cursor: pointer; }
-    tr:hover { background: #f2f2f2; }
+    html, body { margin: 0; font-family: sans-serif; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 6px; }
+    th { background: #f0f0f0; cursor: pointer; }
+    tr:hover { background: #f9f9f9; }
+    #breadcrumbs { padding: 10px; }
+    #status { white-space: pre-line; max-height: 100px; overflow-y: auto; margin: 10px; border: 1px solid #ccc; padding: 8px; font-size: 12px; }
     #modal {
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
       background: rgba(0,0,0,0.92); display: none; flex-direction: column;
-      z-index: 9999; justify-content: flex-start; align-items: center;
-    }
-    #modal img {
-      max-width: 95vw; max-height: 75vh; margin-top: 1em;
+      z-index: 10000; justify-content: flex-start; align-items: center;
     }
     #modal .controls {
-      display: flex; gap: 10px; margin-top: 10px;
+      width: 100%; background: #111a; color: #fff;
+      display: flex; justify-content: center; align-items: center; padding: 8px 0; gap: 12px;
+      position: sticky; top: 0;
     }
-    #modal table {
-      margin-top: 1em; width: 90%; max-height: 25vh; overflow-y: auto; display: block;
+    #modalCloseBtn {
+      position: absolute; top: 10px; right: 14px; font-size: 24px;
+      background: none; border: none; color: #fff; cursor: pointer;
     }
-    #modal table thead, #modal table tbody {
-      display: table; width: 100%;
+    #modal-content-row {
+      flex: 1 1 auto; width: 100vw; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      overflow: auto;
     }
-    #modal table tbody {
-      overflow-y: auto; display: block; max-height: 200px;
+    #modalImage {
+      max-width: 90vw; max-height: 60vh; margin: 10px auto; display: block;
+      background: #000; border-radius: 8px;
+    }
+    #metadataPanel {
+      width: 95vw; max-height: 30vh; overflow-y: auto;
+      background: #fff; padding: 10px;
+    }
+    #metadataTable {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    #metadataTable th, #metadataTable td {
+      border: 1px solid #ccc; padding: 6px;
     }
     .copy-btn {
       background: none; border: none; cursor: pointer;
     }
-    #closeBtn {
-      position: absolute; top: 10px; right: 14px; font-size: 24px;
-      background: none; border: none; color: #fff; cursor: pointer;
-    }
   </style>
 </head>
 <body>
-  <h2 style="margin: 1em;">OneDrive Browser</h2>
-  <button id="signInBtn" style="margin-left: 1em;">Sign In</button>
-  <div id="status">Status: Ready</div>
+  <h2 style="margin: 20px;">OneDrive Browser</h2>
+  <button id="signInBtn" style="margin-left: 20px;">Sign In</button>
+  <div id="breadcrumbs"></div>
   <table>
     <thead>
       <tr>
@@ -56,19 +67,24 @@
     </thead>
     <tbody id="gridBody"></tbody>
   </table>
+  <div id="status">Status: Ready</div>
 
   <div id="modal">
-    <button id="closeBtn" onclick="document.getElementById('modal').style.display='none'">✕</button>
     <div class="controls">
       <button onclick="prevImage()">Prev</button>
       <button onclick="nextImage()">Next</button>
       <button onclick="deleteImage()">Delete</button>
     </div>
-    <img id="modalImage" />
-    <table>
-      <thead><tr><th>Key</th><th>Value</th><th></th></tr></thead>
-      <tbody id="metaTable"></tbody>
-    </table>
+    <button id="modalCloseBtn" onclick="closeModal()">✕</button>
+    <div id="modal-content-row">
+      <img id="modalImage" />
+      <div id="metadataPanel">
+        <table id="metadataTable">
+          <thead><tr><th>Key</th><th>Value</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
 <script>
@@ -81,23 +97,23 @@ const msalConfig = {
   cache: { cacheLocation: 'sessionStorage' }
 };
 const msalInstance = new msal.PublicClientApplication(msalConfig);
-let activeAccount = null, items = [], currentIndex = 0;
+let activeAccount = null, currentFolder = 'root', items = [], currentIndex = 0, breadcrumbStack = [];
 
-document.getElementById('signInBtn').onclick = async () => {
+document.getElementById('signInBtn').addEventListener('click', async () => {
+  log('Signing in...');
   try {
-    log('Signing in...');
     const response = await msalInstance.loginPopup({ scopes: ['Files.ReadWrite.All', 'User.Read'] });
     activeAccount = response.account;
     msalInstance.setActiveAccount(activeAccount);
-    log('Signed in.');
+    log('Signed in as: ' + activeAccount.username);
+    breadcrumbStack = [{ id: 'root', name: 'Root' }];
     loadFolder('root');
-  } catch (e) {
-    log('Sign-in error: ' + e.message);
-  }
-};
+  } catch (err) { log('Sign-in error: ' + err.message); }
+});
 
 function log(msg) {
-  document.getElementById('status').textContent += '\n' + msg;
+  const statusDiv = document.getElementById('status');
+  statusDiv.textContent += '\n' + msg;
 }
 
 async function getToken() {
@@ -112,6 +128,7 @@ async function getToken() {
 }
 
 async function loadFolder(id) {
+  currentFolder = id;
   const token = await getToken();
   const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${id}/children`, {
     headers: { Authorization: 'Bearer ' + token }
@@ -120,22 +137,34 @@ async function loadFolder(id) {
   items = data.value;
   const tbody = document.getElementById('gridBody');
   tbody.innerHTML = '';
+  const crumbs = breadcrumbStack.map((b, i) => `<a href="#" onclick="goBack(${i})">${b.name}</a>`).join(' / ');
+  document.getElementById('breadcrumbs').innerHTML = crumbs;
+
   items.forEach((item, idx) => {
     const tr = document.createElement('tr');
     const isFolder = item.folder !== undefined;
     const name = isFolder ? '▶ ' + item.name : item.name;
-    const td1 = document.createElement('td');
+    const sizeMB = isFolder ? '' : (item.size / 1e6).toFixed(2);
+    const created = formatDate(item.createdDateTime);
+    const modified = formatDate(item.lastModifiedDateTime);
+
     const link = document.createElement('a');
-    link.href = '#'; link.textContent = name;
+    link.href = '#';
+    link.textContent = name;
     link.onclick = (e) => {
       e.preventDefault();
-      if (isFolder) loadFolder(item.id);
-      else { currentIndex = idx; showModal(); }
+      if (isFolder) {
+        breadcrumbStack.push({ id: item.id, name: item.name });
+        loadFolder(item.id);
+      } else {
+        currentIndex = idx;
+        showModal();
+      }
     };
-    td1.appendChild(link);
-    const td2 = document.createElement('td'); td2.textContent = isFolder ? '' : (item.size / 1e6).toFixed(2);
-    const td3 = document.createElement('td'); td3.textContent = formatDate(item.createdDateTime);
-    const td4 = document.createElement('td'); td4.textContent = formatDate(item.lastModifiedDateTime);
+    const td1 = document.createElement('td'); td1.appendChild(link);
+    const td2 = document.createElement('td'); td2.textContent = sizeMB;
+    const td3 = document.createElement('td'); td3.textContent = created;
+    const td4 = document.createElement('td'); td4.textContent = modified;
     tr.append(td1, td2, td3, td4);
     tbody.appendChild(tr);
   });
@@ -143,54 +172,17 @@ async function loadFolder(id) {
 
 function formatDate(str) {
   const d = new Date(str);
-  return `${d.getDate().toString().padStart(2,'0')}-${d.toLocaleString('default',{month:'short'})}-${String(d.getFullYear()).slice(-2)} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mon = d.toLocaleString('default',{month:'short'});
+  const yy = String(d.getFullYear()).slice(-2);
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mi = String(d.getMinutes()).padStart(2,'0');
+  return `${dd}-${mon}-${yy} ${hh}:${mi}`;
 }
 
-async function showModal() {
-  const item = items[currentIndex];
-  const token = await getToken();
-  const url = item['@microsoft.graph.downloadUrl'];
-  document.getElementById('modal').style.display = 'flex';
-  const img = document.getElementById('modalImage');
-  img.src = url;
-
-  // Parse metadata
-  const table = document.getElementById('metaTable');
-  table.innerHTML = '';
-  const resp = await fetch(url);
-  const buffer = await resp.arrayBuffer();
-  const data = new Uint8Array(buffer);
-  const dec = new TextDecoder();
-  let pos = 8;
-  while (pos < data.length) {
-    const len = (data[pos]<<24)|(data[pos+1]<<16)|(data[pos+2]<<8)|data[pos+3];
-    const type = dec.decode(data.slice(pos+4, pos+8));
-    if (type === 'tEXt') {
-      const chunk = dec.decode(data.slice(pos+8,pos+8+len));
-      const eq = chunk.indexOf('=');
-      const k = chunk.slice(0, eq);
-      const v = chunk.slice(eq + 1);
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${k}</td><td>${v}</td><td><button class="copy-btn" onclick="navigator.clipboard.writeText(\`${v}\`)">📋</button></td>`;
-      table.appendChild(tr);
-    }
-    pos += len + 12;
-  }
-}
-
-function prevImage() { if (currentIndex > 0) { currentIndex--; showModal(); } }
-function nextImage() { if (currentIndex < items.length - 1) { currentIndex++; showModal(); } }
-
-async function deleteImage() {
-  const item = items[currentIndex];
-  if (!confirm('Delete ' + item.name + '?')) return;
-  const token = await getToken();
-  await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}`, {
-    method: 'DELETE',
-    headers: { Authorization: 'Bearer ' + token }
-  });
-  document.getElementById('modal').style.display = 'none';
-  loadFolder('root');
+function goBack(i) {
+  breadcrumbStack = breadcrumbStack.slice(0,i+1);
+  loadFolder(breadcrumbStack[i].id);
 }
 
 function sortTable(col) {
@@ -205,6 +197,54 @@ function sortTable(col) {
   });
   rows.forEach(r=>tbody.appendChild(r));
   document.querySelector('table').setAttribute('data-sort-dir', dir);
+}
+
+async function showModal() {
+  const item = items[currentIndex];
+  const token = await getToken();
+  document.getElementById('modal').style.display = 'flex';
+  const viewer = document.getElementById('modalImage');
+  viewer.style.display = 'none';
+  const tableBody = document.querySelector('#metadataTable tbody');
+  tableBody.innerHTML = '';
+  const url = item['@microsoft.graph.downloadUrl'];
+  viewer.src = url; viewer.style.display = 'block';
+  extractPNGText(url, tableBody);
+}
+
+async function extractPNGText(url, table) {
+  const resp = await fetch(url);
+  const buffer = await resp.arrayBuffer();
+  const data = new Uint8Array(buffer);
+  const dec = new TextDecoder();
+  let pos = 8;
+  while (pos < data.length) {
+    const len = (data[pos]<<24)|(data[pos+1]<<16)|(data[pos+2]<<8)|data[pos+3];
+    const type = dec.decode(data.slice(pos+4, pos+8));
+    if (type==='tEXt') {
+      const chunk = dec.decode(data.slice(pos+8,pos+8+len));
+      const eqIdx = chunk.indexOf('=');
+      if (eqIdx !== -1) {
+        const key = chunk.slice(0, eqIdx).trim();
+        const val = chunk.slice(eqIdx + 1).trim();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${key}</td><td>${val}</td><td><button class="copy-btn" onclick="navigator.clipboard.writeText(\`${val}\`)">📋</button></td>`;
+        table.appendChild(tr);
+      }
+    }
+    pos += len + 12;
+  }
+}
+
+function closeModal() { document.getElementById('modal').style.display = 'none'; }
+function prevImage() { if (currentIndex > 0) { currentIndex--; showModal(); } }
+function nextImage() { if (currentIndex < items.length-1) { currentIndex++; showModal(); } }
+async function deleteImage() {
+  const item = items[currentIndex];
+  if (!confirm('Delete ' + item.name + '?')) return;
+  const token = await getToken();
+  await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+  closeModal(); loadFolder(currentFolder);
 }
 </script>
 </body>
