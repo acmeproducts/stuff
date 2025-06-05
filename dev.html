@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tool X: AI Code Deployer</title>
     <style>
+        /* General Styles */
         body { font-family: Arial, sans-serif; margin: 15px; background-color: #ffffff; color: #000000; font-size: 12pt; }
         .container { max-width: 850px; margin: auto; background-color: #ffffff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
 
@@ -21,12 +22,12 @@
             border-top-right-radius: 6px;
             margin-right: 2px;
             transition: background-color 0.2s ease;
-            color: #000000; /* Ensure black text */
+            color: #000000;
         }
         .tab-button.active {
             background-color: #ffffff;
             border-color: #ccc;
-            border-bottom: 1px solid #ffffff; /* Hide bottom border to merge with content */
+            border-bottom: 1px solid #ffffff;
             font-weight: bold;
         }
         .tab-content { display: none; padding-top: 10px; }
@@ -35,7 +36,7 @@
         /* Form Elements & Layout */
         label { display: block; margin-bottom: 5px; font-size: 12pt; }
         input[type="text"], select, textarea {
-            width: calc(100% - 16px); /* Adjust width for padding */
+            width: calc(100% - 16px);
             padding: 8px;
             margin-bottom: 10px;
             border: 1px solid #ccc;
@@ -81,31 +82,31 @@
             font-family: 'Courier New', monospace;
             white-space: pre-wrap;
             word-wrap: break-word;
-            font-size: 12pt; /* Enforced */
+            font-size: 12pt;
             margin-top: 8px;
             border-radius: 4px;
-            color: #000000; /* Enforced */
+            color: #000000;
         }
         .file-display-actions { text-align: right; margin-top: -8px; margin-bottom: 6px; }
         .file-display-actions button { background-color: #28a745; padding: 6px 12px; }
         .file-display-actions button:hover { background-color: #218838; }
 
         #previewFrame { width: 100%; height: 300px; border: 1px solid #ccc; margin-top: 12px; background-color: #f9f9f9; display: none; }
-        
-        /* Status Message */
+
+        /* Status Message - Strict 12pt, Black on Neutral/Color */
         .status-message {
             margin-bottom: 10px;
             padding: 8px;
             border-radius: 4px;
             font-weight: bold;
-            font-size: 12pt; /* Enforced */
+            font-size: 12pt;
             display: none;
-            color: #000000; /* Enforced */
-            background-color: #e0e0e0; /* Neutral background */
+            color: #000000;
+            background-color: #e0e0e0; /* Neutral grey for info */
         }
         .status-message.visible { display: block; }
-        .status-message.error { background-color: #fdd; } /* Light red for error */
-        .status-message.success { background-color: #dfd; } /* Light green for success */
+        .status-message.error { background-color: #ffdddd; } /* Light red for error */
+        .status-message.success { background-color: #ddffdd; } /* Light green for success */
 
         .checkbox-group { margin-top: 10px; margin-bottom: 5px; display: flex; align-items: center; }
         .checkbox-group input { width: auto; margin-right: 6px; margin-bottom: 0; }
@@ -129,7 +130,7 @@
         <div id="tab1" class="tab-content active">
             <div class="input-line">
                 <div><label for="ownerInput">User/Org:</label><input type="text" id="ownerInput" value="acmeproducts"></div>
-                <div><label for="repoSelect">Repository:</label><select id="repoSelect"><option value="">Loading...</option></select></div>
+                <div><label for="repoSelect">Repository:</label><select id="repoSelect"><option value="stuff">stuff</option></select></div>
                 <div><label for="fileSelect">File Name:</label><select id="fileSelect"><option value="">Loading...</option></select></div>
             </div>
             <label>AS-IS File Content:</label>
@@ -147,7 +148,7 @@
                 <button id="uploadFileBtn">Choose & Load Local File</button>
             </div>
             <hr>
-            <h2>Live Preview (TO-BE Version)</h2>
+            <label>Live Preview (TO-BE Version):</label>
             <iframe id="previewFrame" title="Live Preview of TO-BE Code"></iframe>
         </div>
 
@@ -162,7 +163,7 @@
                 <button id="deployBtn">Deploy TO-BE Code</button>
             </div>
             <hr>
-            <h2>Deployed Application View</h2>
+            <label>Deployed Application View:</label>
             <div class="checkbox-group">
                 <input type="checkbox" id="openNewTabCheckbox" checked>
                 <label for="openNewTabCheckbox">Open Deployed App in New Tab after Deploy</label>
@@ -192,7 +193,7 @@
 
         const DEFAULT_USERNAME = 'acmeproducts';
         const DEFAULT_REPO = 'stuff';
-        const DEFAULT_FILE = 'dev.html';
+        const DEFAULT_FILE = 'dev.html'; // Or any other default file within 'stuff'
         const FILENAME_TAG = '`));
             if (match && match[1]) {
                 return match[1].trim();
@@ -224,96 +225,25 @@
             });
         });
 
-        // --- Core Logic Functions for Automatic Workflow ---
+        // --- Core Logic for Initial Load and File Handling ---
 
-        async function fetchAndPopulateRepos(owner) {
-            repoSelect.innerHTML = '<option value="">Loading...</option>';
+        async function populateFilesForDefaultRepo() {
+            const owner = DEFAULT_USERNAME;
+            const repo = DEFAULT_REPO;
+
             fileSelect.innerHTML = '<option value="">Loading...</option>';
             fileDisplayArea.textContent = '';
+            showStatus(`Loading files for ${repo}...`, 'info');
 
-            if (!owner) {
-                repoSelect.innerHTML = '<option value="">Enter User/Org</option>';
-                return;
-            }
-
-            let repos = [];
-            showStatus(`Fetching repos for ${owner}...`, 'info');
-
-            try {
-                const publicUserRepos = await githubApi(`/users/${owner}/repos?type=public`, 'GET', null, false);
-                if (publicUserRepos) { repos = repos.concat(publicUserRepos); }
-                const publicOrgRepos = await githubApi(`/orgs/${owner}/repos?type=public`, 'GET', null, false);
-                if (publicOrgRepos) {
-                    const existingRepoNames = new Set(repos.map(r => r.name));
-                    publicOrgRepos.forEach(repo => { if (!existingRepoNames.has(repo.name)) { repos.push(repo); } });
-                }
-                if (githubToken) {
-                    const ownedRepos = await githubApi(`/user/repos?affiliation=owner`);
-                    if (ownedRepos) {
-                         const existingRepoIds = new Set(repos.map(r => r.id));
-                         ownedRepos.forEach(repo => { if (!existingRepoIds.has(repo.id)) { repos.push(repo); } });
-                    }
-                    const currentUser = await githubApi('/user');
-                    if (currentUser && owner.toLowerCase() !== currentUser.login.toLowerCase()) {
-                        const orgReposWithPat = await githubApi(`/orgs/${owner}/repos`);
-                        if (orgReposWithPat) {
-                            const existingOrgRepoIds = new Set(repos.map(r => r.id));
-                             orgReposWithPat.forEach(repo => { if (!existingOrgRepoIds.has(repo.id)) { repos.push(repo); } });
-                        }
-                    }
-                }
-            } catch (e) {
-                showStatus(`Failed to fetch repos.`, 'error', true);
-                repoSelect.innerHTML = '<option value="">Error Loading Repos</option>';
-                return;
-            }
-
-            const uniqueRepos = Array.from(new Set(repos.map(r => r.id))).map(id => repos.find(r => r.id === id));
-
-            if (!uniqueRepos || uniqueRepos.length === 0) {
-                showStatus(`No repos found for ${owner}.`, 'info');
-                repoSelect.innerHTML = '<option value="">No Repos Found</option>';
-                return;
-            }
-
-            repoSelect.innerHTML = ''; // Clear existing options
-            uniqueRepos.sort((a,b) => a.name.localeCompare(b.name));
-            uniqueRepos.forEach(repo => {
-                const option = document.createElement('option');
-                option.value = repo.name;
-                option.textContent = repo.name;
-                repoSelect.appendChild(option);
-            });
-
-            if (uniqueRepos.some(repo => repo.name.toLowerCase() === DEFAULT_REPO.toLowerCase())) {
-                repoSelect.value = DEFAULT_REPO;
-            } else if (uniqueRepos.length > 0) {
-                repoSelect.value = uniqueRepos[0].name;
-            }
-            showStatus(`Repos loaded.`, 'success');
-            if (repoSelect.value) {
-                await fetchAndPopulateFiles(owner, repoSelect.value);
-            }
-        }
-
-        async function fetchAndPopulateFiles(owner, repo) {
-            fileSelect.innerHTML = '<option value="">Loading...</option>';
-            fileDisplayArea.textContent = '';
-
-            if (!owner || !repo) {
-                fileSelect.innerHTML = '<option value="">Select Repo First</option>';
-                return;
-            }
-
-            showStatus(`Fetching files for ${repo}...`, 'info');
             const url = `/repos/${owner}/${repo}/contents`;
-            const contents = await githubApi(url, 'GET', null, !!githubToken);
+            // Fetch content without PAT initially, will use PAT only if needed (e.g. for private repos if token is present)
+            const contents = await githubApi(url, 'GET', null, false);
             if (!contents) {
                 fileSelect.innerHTML = '<option value="">Error Loading Files</option>';
                 return;
             }
 
-            fileSelect.innerHTML = ''; // Clear existing options
+            fileSelect.innerHTML = '';
             currentRepoFilesSha = {};
             const fileContents = contents.filter(item => item.type === 'file');
 
@@ -331,16 +261,20 @@
                 currentRepoFilesSha[item.path] = item.sha;
             });
 
+            // Select default file if it exists, otherwise select the first one
             if (fileContents.some(item => item.path.toLowerCase() === DEFAULT_FILE.toLowerCase())) {
                 fileSelect.value = DEFAULT_FILE;
             } else if (fileContents.length > 0) {
                 fileSelect.value = fileContents[0].path;
             }
             showStatus(`Files loaded.`, 'success');
+
+            // Trigger display of selected (or default) file
             if (fileSelect.value) {
                 await displayFileContent(owner, repo, fileSelect.value);
             }
         }
+
 
         async function displayFileContent(owner, repo, filePath) {
             if (!owner || !repo || !filePath) {
@@ -370,18 +304,15 @@
                 patInput.value = storedPat;
                 githubToken = storedPat;
                 showStatus('PAT loaded.', 'info');
+            } else {
+                showStatus('Enter PAT for deployment.', 'info');
             }
             ownerInput.value = DEFAULT_USERNAME;
-            fetchAndPopulateRepos(DEFAULT_USERNAME);
+            repoSelect.value = DEFAULT_REPO; // Set default repo directly
+            populateFilesForDefaultRepo(); // Populate files for the default repo immediately
         });
 
-        // Owner Input Changes
-        ownerInput.addEventListener('input', () => fetchAndPopulateRepos(ownerInput.value.trim()));
-
-        // Repo Selection Changes
-        repoSelect.addEventListener('change', () => fetchAndPopulateFiles(ownerInput.value.trim(), repoSelect.value));
-
-        // File Selection Changes
+        // ONLY File Selection Changes (no repo search)
         fileSelect.addEventListener('change', () => displayFileContent(ownerInput.value.trim(), repoSelect.value, fileSelect.value));
 
         // Copy to Editor Button
@@ -480,7 +411,7 @@
             const commitMessage = commitMessageInput.value.trim() || 'Deploying update via Tool X';
 
             if (!githubToken) { showStatus("PAT missing. Cannot deploy.", 'error', true); return; }
-            if (!owner || !repo) { showStatus("Select repository.", 'error', true); return; }
+            if (!owner || !repo) { showStatus("Repository missing.", 'error', true); return; }
             if (!codeContent) { showStatus("TO-BE editor empty.", 'error', true); return; }
 
             if (!filePath) {
@@ -500,12 +431,13 @@
 
             showStatus(`Deploying ${filePath} to ${repo}...`, 'info');
 
+            // Re-check for existing file SHA if not in cache (e.g., first deploy or cache cleared)
             if (!sha) {
                 const existingFile = await githubApi(`/repos/${owner}/${repo}/contents/${filePath}`, 'GET', null, true);
                 if (existingFile && existingFile.sha) {
                     sha = existingFile.sha;
                     showStatus(`Updating ${filePath}.`, 'info');
-                } else if (existingFile === null) { return; }
+                } else if (existingFile === null) { return; } // Error already shown by githubApi
                 else {
                     sha = undefined;
                     showStatus(`File ${filePath} is new.`, 'info');
