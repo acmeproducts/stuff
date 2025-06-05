@@ -6,17 +6,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
   <style>
-    html, body { margin: 0; height: 100%; font-family: sans-serif; overflow: hidden; }
+    html, body { margin: 0; font-family: sans-serif; height: 100%; overflow: hidden; }
     #breadcrumbs, #statusContainer { padding: 10px; }
     #statusToggle { cursor: pointer; }
     #status { display: none; white-space: pre-wrap; max-height: 100px; overflow-y: auto; }
     table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #ccc; padding: 6px; word-break: break-word; }
+    th, td { border: 1px solid #ccc; padding: 6px; }
     th { background: #eee; cursor: pointer; }
     tr:hover { background: #f8f8f8; }
+
     #modal {
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(0,0,0,0.95); display: none; flex-direction: column;
+      background: rgba(0,0,0,0.92); display: none; flex-direction: column;
       z-index: 10000;
     }
     #modalHeader {
@@ -28,7 +29,7 @@
     }
     #imageWrapper {
       flex: 1; display: flex; justify-content: center; align-items: center;
-      background: #000; overflow: auto;
+      background: #000; overflow: auto; position: relative;
     }
     #modalImage {
       max-width: 100%; max-height: 100%;
@@ -40,11 +41,10 @@
     }
     #metadata {
       max-height: 30vh; background: white; overflow-y: auto;
-      border-top: 1px solid #ccc;
+      border-top: 1px solid #ccc; display: none;
     }
     #metadata h3 {
       margin: 0; padding: 8px; background: #333; color: white;
-      cursor: pointer;
     }
     #metadataTable {
       width: 100%;
@@ -56,9 +56,7 @@
       word-break: break-word;
     }
     .copy-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
+      background: none; border: none; cursor: pointer;
     }
     #zoomSlider {
       position: absolute;
@@ -66,10 +64,21 @@
       top: 60px;
       z-index: 10001;
     }
+    #showMetaBtn {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      z-index: 10001;
+      background: #fff3;
+      color: white;
+      border: 1px solid white;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <h2 style="margin: 10px;">OneDrive Browser Dojo Edition</h2>
+  <h2 style="margin: 10px;">OneDrive Browser</h2>
   <button id="signInBtn" style="margin-left: 10px;">Sign In</button>
   <div id="statusContainer">
     <span id="statusToggle">&#x25B6; Debug</span>
@@ -100,9 +109,12 @@
     </div>
     <input id="zoomSlider" type="range" min="10" max="200" value="100" />
     <div id="modalContent">
-      <div id="imageWrapper"><img id="modalImage" /></div>
+      <div id="imageWrapper">
+        <img id="modalImage" />
+        <button id="showMetaBtn" onclick="toggleMetadata()">Show Metadata</button>
+      </div>
       <div id="metadata">
-        <h3 onclick="toggleMetadata()">Metadata ⯆</h3>
+        <h3>Metadata</h3>
         <table id="metadataTable">
           <thead><tr><th>Key</th><th>Value</th><th></th></tr></thead>
           <tbody></tbody>
@@ -130,9 +142,7 @@ document.getElementById('signInBtn').onclick = async () => {
     msalInstance.setActiveAccount(activeAccount);
     breadcrumbStack = [{ id: 'root', name: 'Root' }];
     loadFolder('root');
-  } catch (e) {
-    log('Login failed: ' + e.message);
-  }
+  } catch (e) { log('Login failed: ' + e.message); }
 };
 
 function log(msg) {
@@ -146,8 +156,8 @@ document.getElementById('statusToggle').onclick = () => {
 };
 
 function toggleMetadata() {
-  const meta = document.querySelector('#metadata');
-  meta.classList.toggle('collapsed');
+  const meta = document.getElementById('metadata');
+  meta.style.display = (meta.style.display === 'none') ? 'block' : 'none';
 }
 
 function sortTable(col) {
@@ -237,7 +247,9 @@ async function showModal() {
   const viewer = document.getElementById('modalImage');
   document.getElementById('modal').style.display = 'flex';
   viewer.src = url;
-  extractPNGText(url);
+  viewer.style.transform = 'scale(1)';
+  document.getElementById('metadata').style.display = 'none';
+  if (mime.startsWith('image/')) extractPNGText(url);
 }
 
 document.getElementById('zoomSlider').addEventListener('input', (e) => {
@@ -246,40 +258,4 @@ document.getElementById('zoomSlider').addEventListener('input', (e) => {
 });
 
 function closeModal() { document.getElementById('modal').style.display = 'none'; }
-function prevImage() { if (currentIndex > 0) { currentIndex--; showModal(); } }
-function nextImage() { if (currentIndex < items.length-1) { currentIndex++; showModal(); } }
-
-async function deleteImage() {
-  const item = items[currentIndex];
-  if (!confirm('Delete ' + item.name + '?')) return;
-  const token = await getToken();
-  await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
-  closeModal(); loadFolder(currentFolder);
-}
-
-async function extractPNGText(url) {
-  const resp = await fetch(url);
-  const buffer = await resp.arrayBuffer();
-  const data = new Uint8Array(buffer);
-  const dec = new TextDecoder();
-  let pos = 8;
-  const tableBody = document.querySelector('#metadataTable tbody');
-  tableBody.innerHTML = '';
-  while (pos < data.length) {
-    const len = (data[pos]<<24)|(data[pos+1]<<16)|(data[pos+2]<<8)|data[pos+3];
-    const type = dec.decode(data.slice(pos+4, pos+8));
-    if (type==='tEXt') {
-      const chunk = dec.decode(data.slice(pos+8,pos+8+len));
-      const [k,v] = chunk.split('=');
-      if (k && v) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${k}</td><td>${v}</td><td><button class="copy-btn" onclick="navigator.clipboard.writeText(\`${v}\`)">📋</button></td>`;
-        tableBody.appendChild(tr);
-      }
-    }
-    pos += len + 12;
-  }
-}
-</script>
-</body>
-</html>
+function prevImage() { if
