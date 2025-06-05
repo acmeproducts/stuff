@@ -7,7 +7,7 @@
   <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
   <style>
     html, body { margin: 0; font-family: sans-serif; height: 100%; overflow: hidden; }
-    #breadcrumbs, #statusContainer { padding: 10px; }
+    #statusContainer { padding: 10px; }
     #statusToggle { cursor: pointer; }
     #status { display: none; white-space: pre-wrap; max-height: 100px; overflow-y: auto; }
     table { width: 100%; border-collapse: collapse; }
@@ -27,32 +27,10 @@
     #modalContent {
       display: flex; flex-direction: column; flex: 1; overflow: hidden;
     }
-    #imageWrapper {
-      position: relative;
-      flex: 1; display: flex; justify-content: center; align-items: center;
-      background: #000; overflow: auto;
-    }
-    #modalImage {
-      max-width: 100%; max-height: 100%;
-      transition: transform 0.2s ease;
-    }
-    #toggleMetaBtn {
-      position: absolute;
-      bottom: 12px;
-      right: 12px;
-      padding: 6px 12px;
-      background: #fff;
-      border: none;
-      cursor: pointer;
-      z-index: 10001;
-    }
-    #controls {
-      background: #111; color: white; padding: 10px; display: flex;
-      justify-content: center; gap: 12px;
-    }
     #metadata {
-      max-height: 30vh; background: white; overflow-y: auto;
+      max-height: 100vh; background: white; overflow-y: auto;
       border-top: 1px solid #ccc;
+      display: block; /* Ensure metadata is always displayed */
     }
     #metadata h3 {
       margin: 0; padding: 8px; background: #333; color: white;
@@ -71,16 +49,10 @@
       border: none;
       cursor: pointer;
     }
-    #zoomSlider {
-      position: absolute;
-      left: 10px;
-      top: 60px;
-      z-index: 10001;
-    }
   </style>
 </head>
 <body>
-  <h2 style="margin: 10px;">OneDrive Browser - Dojo Gojo Editon</h2>
+  <h2 style="margin: 10px;">OneDrive Browser</h2>
   <button id="signInBtn" style="margin-left: 10px;">Sign In</button>
   <div id="statusContainer">
     <span id="statusToggle">&#x25B6; Debug</span>
@@ -101,21 +73,11 @@
 
   <div id="modal">
     <div id="modalHeader">
-      <div>Image Viewer</div>
+      <div>Metadata Viewer</div>
       <button onclick="closeModal()" style="background:none;border:none;font-size:24px;color:white;">✕</button>
     </div>
-    <div id="controls">
-      <button onclick="prevImage()">Prev</button>
-      <button onclick="nextImage()">Next</button>
-      <button onclick="deleteImage()">Delete</button>
-    </div>
-    <input id="zoomSlider" type="range" min="10" max="200" value="100" />
     <div id="modalContent">
-      <div id="imageWrapper">
-        <img id="modalImage" />
-        <button id="toggleMetaBtn" onclick="toggleMetadata()">Metadata</button>
-      </div>
-      <div id="metadata" style="display: none;">
+      <div id="metadata">
         <h3>Metadata</h3>
         <table id="metadataTable">
           <thead><tr><th>Key</th><th>Value</th><th></th></tr></thead>
@@ -158,11 +120,6 @@ document.getElementById('statusToggle').onclick = () => {
   const d = document.getElementById('status');
   d.style.display = d.style.display === 'none' ? 'block' : 'none';
 };
-
-function toggleMetadata() {
-  const meta = document.querySelector('#metadata');
-  meta.style.display = meta.style.display === 'none' ? 'block' : 'none';
-}
 
 function sortTable(col) {
   const tbody = document.getElementById('gridBody');
@@ -220,7 +177,7 @@ async function loadFolder(id) {
         loadFolder(item.id);
       } else {
         currentIndex = idx;
-        showModal();
+        showMetadata();
       }
     };
 
@@ -243,54 +200,50 @@ function formatDate(str) {
   return d.toLocaleString();
 }
 
-async function showModal() {
+async function showMetadata() {
   const item = items[currentIndex];
   const token = await getToken();
   const url = item['@microsoft.graph.downloadUrl'];
   const mime = item.file?.mimeType || '';
-  const viewer = document.getElementById('modalImage');
   document.getElementById('modal').style.display = 'flex';
-  viewer.src = url;
   extractPNGText(url);
 }
 
-document.getElementById('zoomSlider').addEventListener('input', (e) => {
-  const scale = e.target.value / 100;
-  document.getElementById('modalImage').style.transform = `scale(${scale})`;
-});
-
 function closeModal() { document.getElementById('modal').style.display = 'none'; }
-function prevImage() { if (currentIndex > 0) { currentIndex--; showModal(); } }
-function nextImage() { if (currentIndex < items.length-1) { currentIndex++; showModal(); } }
-
-async function deleteImage() {
-  const item = items[currentIndex];
-  if (!confirm('Delete ' + item.name + '?')) return;
-  const token = await getToken();
-  await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
-  closeModal(); loadFolder(currentFolder);
-}
 
 async function extractPNGText(url) {
-  const resp = await fetch(url);
-  const buffer = await resp.arrayBuffer();
-  const data = new Uint8Array(buffer);
-  const dec = new TextDecoder();
-  let pos = 8;
-  const tableBody = document.querySelector('#metadataTable tbody');
-  tableBody.innerHTML = '';
-  while (pos < data.length) {
-    const len = (data[pos]<<24)|(data[pos+1]<<16)|(data[pos+2]<<8)|data[pos+3];
-    const type = dec.decode(data.slice(pos+4, pos+8));
-    if (type==='tEXt') {
-      const chunk = dec.decode(data.slice(pos+8,pos+8+len));
-      const [k,v] = chunk.split('=');
-      if (!k || !v) { pos += len + 12; continue; }
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${k}</td><td>${v}</td><td><button class="copy-btn" onclick="navigator.clipboard.writeText(\`${v}\`)">📋</button></td>`;
-      tableBody.appendChild(tr);
+  try {
+    log('Fetching URL: ' + url);
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      throw new Error('Network response was not ok: ' + resp.statusText);
     }
-    pos += len + 12;
+    const buffer = await resp.arrayBuffer();
+    const data = new Uint8Array(buffer);
+    const dec = new TextDecoder();
+    let pos = 8;
+    const tableBody = document.querySelector('#metadataTable tbody');
+    tableBody.innerHTML = '';
+    let foundMetadata = false;
+    while (pos < data.length) {
+      const len = (data[pos]<<24)|(data[pos+1]<<16)|(data[pos+2]<<8)|data[pos+3];
+      const type = dec.decode(data.slice(pos+4, pos+8));
+      if (type==='tEXt') {
+        foundMetadata = true;
+        const chunk = dec.decode(data.slice(pos+8,pos+8+len));
+        const [k,v] = chunk.split('=');
+        if (!k || !v) { pos += len + 12; continue; }
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${k}</td><td>${v}</td><td><button class="copy-btn" onclick="navigator.clipboard.writeText('${v}')">📋</button></td>`;
+        tableBody.appendChild(tr);
+      }
+      pos += len + 12;
+    }
+    if (!foundMetadata) {
+      log('No metadata found in the image.');
+    }
+  } catch (error) {
+    log('Error extracting metadata: ' + error.message);
   }
 }
 </script>
