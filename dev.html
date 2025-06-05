@@ -22,11 +22,22 @@
         .checkbox-group input { width: auto; margin-right: 10px; }
         #fileDisplayArea { 
             background-color: #eee; padding: 10px; border: 1px solid #ccc; min-height: 100px; max-height: 300px; overflow-y: auto; 
-            font-family: 'Courier New', monospace; white-space: pre-wrap; word-wrap: break-word; font-size: 0.9em; 
+            font-family: 'Courier New', monospace; white-wrap: pre-wrap; word-wrap: break-word; font-size: 0.9em; 
             margin-top: 10px; border-radius: 4px;
         }
         #previewFrame { width: 100%; height: 400px; border: 1px solid #ccc; margin-top: 20px; display: none; }
-        .message { margin-top: 20px; padding: 10px; border-radius: 4px; /* Removed display:none; for debugging */ }
+        /* CRITICAL DEBUGGING CSS: Force status message visibility and position */
+        .message { 
+            margin-top: 0; padding: 20px; border-radius: 0; 
+            position: fixed; /* Fixed position */
+            top: 0; left: 0; /* At the top-left corner */
+            width: 100%; /* Full width */
+            box-sizing: border-box; /* Include padding in width */
+            z-index: 1000; /* Ensure it's on top of everything */
+            text-align: center;
+            font-weight: bold;
+            display: block; /* Ensure it's always block by default */
+        }
         .message.success { background-color: #d4edda; color: #155724; border-color: #c3e6cb; }
         .message.error { background-color: #f8d7da; color: #721c24; border-color: #f5c6cb; }
         .message.info { background-color: #d1ecf1; color: #0c5460; border-color: #bee5eb; }
@@ -34,16 +45,16 @@
     </style>
 </head>
 <body>
+    <div class="message" id="statusMessage" style="display: none;"></div> 
+
     <div class="container">
         <h1>Tool X: AI Code Deployer</h1>
-
-        <div class="message" id="statusMessage"></div> 
 
         <section>
             <h2>1. Setup & Authentication</h2>
             <label for="patInput">GitHub Personal Access Token (PAT):</label>
             <input type="text" id="patInput" placeholder="Enter your PAT (stored in browser's local storage)">
-            <button id="savePatBtn">Save PAT</button>
+            <button id="savePatBtn" onclick="alert('Button clicked via HTML!');">Save PAT</button>
             <p><small>Generate PATs in GitHub: Settings -> Developer settings -> Personal access tokens. Needs `repo`, `user`, `read:org` scopes.</small></p>
         </section>
 
@@ -103,15 +114,18 @@
     </div>
 
     <script>
+        // CRITICAL DEBUGGING JAVASCRIPT: Alert immediately on script load
+        alert('Script loaded!'); 
+
         const patInput = document.getElementById('patInput');
         const savePatBtn = document.getElementById('savePatBtn');
         const ownerInput = document.getElementById('ownerInput');
         const repoSelect = document.getElementById('repoSelect');
         const fetchReposBtn = document.getElementById('fetchReposBtn');
-        const fileNameInput = document.getElementById('fileNameInput'); // TO-BE file name
-        const fileSelect = document.getElementById('fileSelect'); // AS-IS file selector
-        const fileDisplayArea = document.getElementById('fileDisplayArea'); // AS-IS content display
-        const codeEditor = document.getElementById('codeEditor'); // TO-BE code editor
+        const fileNameInput = document.getElementById('fileNameInput'); 
+        const fileSelect = document.getElementById('fileSelect'); 
+        const fileDisplayArea = document.getElementById('fileDisplayArea'); 
+        const codeEditor = document.getElementById('codeEditor'); 
         const fileUploadInput = document.getElementById('fileUploadInput');
         const uploadFileBtn = document.getElementById('uploadFileBtn');
         const commitMessageInput = document.getElementById('commitMessageInput');
@@ -120,8 +134,8 @@
         const previewFrame = document.getElementById('previewFrame');
         const statusMessage = document.getElementById('statusMessage');
 
-        const DEFAULT_USERNAME = 'acmeproducts'; // Set default owner
-        const DEFAULT_REPO = 'stuff';             // Set default repo name
+        const DEFAULT_USERNAME = 'acmeproducts'; 
+        const DEFAULT_REPO = 'stuff';             
         const FILENAME_TAG = '`));
             if (match && match[1]) {
                 return match[1].trim();
@@ -132,10 +146,11 @@
         // --- Event Listeners & Logic ---
 
         // PAT Handling (FIXED: Added try/catch and immediate visual feedback)
+        // Keep the DOM event listener, but the direct HTML onclick will be the first test
         savePatBtn.addEventListener('click', () => {
             const originalBtnText = savePatBtn.textContent;
-            savePatBtn.textContent = 'Saving...'; // Immediate visual feedback
-            savePatBtn.disabled = true; // Disable to prevent multiple clicks
+            savePatBtn.textContent = 'Saving...'; 
+            savePatBtn.disabled = true; 
 
             const pat = patInput.value.trim();
             if (pat) {
@@ -143,23 +158,21 @@
                     localStorage.setItem('githubPat', pat);
                     githubToken = pat;
                     showStatus('PAT saved successfully!', 'success');
-                    fetchReposBtn.click(); // Auto-fetch repos after saving PAT
+                    fetchReposBtn.click(); 
                 } catch (e) {
                     showStatus(`Error saving PAT: ${e.message}. Browser storage might be restricted.`, 'error', true);
                 }
             } else {
                 showStatus('PAT cannot be empty!', 'error');
             }
-            savePatBtn.textContent = originalBtnText; // Restore button text
-            savePatBtn.disabled = false; // Re-enable button
+            savePatBtn.textContent = originalBtnText; 
+            savePatBtn.disabled = false; 
         });
 
         // Load PAT on startup (Corrected sequence and initial status)
         document.addEventListener('DOMContentLoaded', () => {
-            // Hide the status message initially if it's empty, otherwise keep it for initial prompt
-            if (statusMessage.textContent === '') {
-                statusMessage.style.display = 'none';
-            }
+            // No need to hide statusMessage here, it's always visible by CSS for debugging
+            // statusMessage.style.display = 'none'; // REMOVED FOR DEBUGGING
 
             const storedPat = localStorage.getItem('githubPat');
             if (storedPat) {
@@ -169,7 +182,6 @@
                 ownerInput.value = DEFAULT_USERNAME; 
                 fetchReposBtn.click(); 
             } else {
-                // This message will now be visible due to CSS change
                 showStatus('Please enter your GitHub PAT to begin. It will be remembered.', 'info', true); 
                 ownerInput.value = DEFAULT_USERNAME; 
             }
@@ -241,7 +253,7 @@
                 repoSelect.value = uniqueRepos[0].name; 
             }
             showStatus(`Fetched ${uniqueRepos.length} repositories.`, 'success');
-            if (repoSelect.value) { // Only dispatch if a repo is selected (default or first)
+            if (repoSelect.value) { 
                 repoSelect.dispatchEvent(new Event('change')); 
             }
         });
@@ -258,7 +270,7 @@
                 return;
             }
 
-            showStatus(`Loading files for ${repo}...`, 'info');
+            showStatus(`Fetching AS-IS content for ${filePath}...`, 'info');
             const url = `/repos/${owner}/${repo}/contents`;
             const contents = await githubApi(url);
 
