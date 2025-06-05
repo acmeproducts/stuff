@@ -104,4 +104,214 @@
       border-collapse: collapse;
     }
     #metadataTable th, #metadataTable td {
-      border: 1px solid
+      border: 1px solid #ccc;
+      padding: 4px;
+    }
+    .copy-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1001;
+    }
+
+    #controls button {
+      margin: 0 5px;
+    }
+  </style>
+</head>
+<body>
+  <h2 style="margin:10px;">OneDrive Browser</h2>
+  <button id="signInBtn" style="margin-left:10px;">Sign In</button>
+  <div id="statusContainer">
+    <span id="statusToggle">&#x25B6; Debug</span>
+    <div id="status">Status: Ready</div>
+  </div>
+  <div id="breadcrumbs"></div>
+  <table>
+    <thead>
+      <tr>
+        <th onclick="sortTable(0)">Name</th>
+        <th onclick="sortTable(1)">Size (MB)</th>
+        <th onclick="sortTable(2)">Created</th>
+        <th onclick="sortTable(3)">Modified</th>
+      </tr>
+    </thead>
+    <tbody id="gridBody"></tbody>
+  </table>
+
+  <div id="modal">
+    <div id="modalHeader">
+      <span>Image Viewer</span>
+      <div id="controls">
+        <button onclick="prevImage()">Prev</button>
+        <button onclick="nextImage()">Next</button>
+        <button onclick="deleteImage()">Delete</button>
+        <button onclick="closeModal()">✕</button>
+      </div>
+    </div>
+    <input id="zoomSlider" type="range" min="10" max="200" value="100" />
+    <img id="modalImage" />
+    <div id="metadataPanel">
+      <table id="metadataTable">
+        <thead><tr><th>Key</th><th>Value</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+const msalConfig = {
+  auth: {
+    clientId: 'b407fd45-c551-4dbb-9da5-cab3a2c5a949',
+    authority: 'https://login.microsoftonline.com/common',
+    redirectUri: window.location.origin + window.location.pathname
+  },
+  cache: { cacheLocation: 'sessionStorage' }
+};
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+let activeAccount = null, currentFolder = 'root', items = [], currentIndex = 0;
+
+document.getElementById('signInBtn').onclick = async () => {
+  try {
+    const response = await msalInstance.loginPopup({ scopes: ['Files.ReadWrite.All', 'User.Read'] });
+    activeAccount = response.account;
+    msalInstance.setActiveAccount(activeAccount);
+    loadFolder('root');
+  } catch (e) {
+    log('Login failed: ' + e.message);
+  }
+};
+
+function log(msg) {
+  const statusDiv = document.getElementById('status');
+  statusDiv.textContent += '\n' + msg;
+}
+
+document.getElementById('statusToggle').onclick = () => {
+  const d = document.getElementById('status');
+  d.style.display = d.style.display === 'none' ? 'block' : 'none';
+};
+
+async function getToken() {
+  const acct = msalInstance.getActiveAccount();
+  try {
+    const result = await msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite.All', 'User.Read'], account: acct });
+    return result.accessToken;
+  } catch {
+    const result = await msalInstance.acquireTokenPopup({ scopes: ['Files.ReadWrite.All', 'User.Read'] });
+    return result.accessToken;
+  }
+}
+
+async function loadFolder(id) {
+  const token = await getToken();
+  const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${id}/children`, {
+    headers: { Authorization: 'Bearer ' + token }
+  });
+  const data = await resp.json();
+  items = data.value;
+  const tbody = document.getElementById('gridBody');
+  tbody.innerHTML = '';
+  data.value.forEach((item, idx) => {
+    const tr = document.createElement('tr');
+    const isFolder = item.folder !== undefined;
+    const name = isFolder ? '▶ ' + item.name : item.name;
+    const sizeMB = isFolder ? '' : (item.size / 1e6).toFixed(2);
+    const created = formatDate(item.createdDateTime);
+    const modified = formatDate(item.lastModifiedDateTime);
+
+    const link = document.createElement('a');
+    link.href = '#';
+    link.textContent = name;
+    link.onclick = (e) => {
+      e.preventDefault();
+      if (isFolder) loadFolder(item.id);
+      else { currentIndex = idx; showModal(); }
+    };
+
+    tr.innerHTML = '';
+    const td1 = document.createElement('td'); td1.appendChild(link);
+    const td2 = document.createElement('td'); td2.textContent = sizeMB;
+    const td3 = document.createElement('td'); td3.textContent = created;
+    const td4 = document.createElement('td'); td4.textContent = modified;
+    tr.append(td1, td2, td3, td4);
+    tbody.appendChild(tr);
+  });
+}
+
+function formatDate(str) {
+  const d = new Date(str);
+  return d.toLocaleString();
+}
+
+async function showModal() {
+  const item = items[currentIndex];
+  const token = await getToken();
+  const url = item['@microsoft.graph.downloadUrl'];
+  document.getElementById('modal').style.display = 'block';
+  const img = document.getElementById('modalImage');
+  img.src = url;
+  const zoomSlider = document.getElementById('zoomSlider');
+  img.style.transform = `scale(${zoomSlider.value / 100})`;
+  extractPNGText(url);
+}
+
+document.getElementById('zoomSlider').addEventListener('input', (e) => {
+  document.getElementById('modalImage').style.transform = `scale(${e.target.value / 100})`;
+});
+
+function closeModal() {
+  document.getElementById('modal').style.display = 'none';
+}
+
+function prevImage() {
+  if (currentIndex > 0) { currentIndex--; showModal(); }
+}
+
+function nextImage() {
+  if (currentIndex < items.length - 1) { currentIndex++; showModal(); }
+}
+
+async function deleteImage() {
+  const item = items[currentIndex];
+  if (!confirm('Delete ' + item.name + '?')) return;
+  const token = await getToken();
+  await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}`, {
+    method: 'DELETE',
+    headers: { Authorization: 'Bearer ' + token }
+  });
+  closeModal();
+  loadFolder(currentFolder);
+}
+
+async function extractPNGText(url) {
+  const resp = await fetch(url);
+  const buffer = await resp.arrayBuffer();
+  const data = new Uint8Array(buffer);
+  const dec = new TextDecoder();
+  let pos = 8;
+  const tableBody = document.querySelector('#metadataTable tbody');
+  tableBody.innerHTML = '';
+  while (pos < data.length) {
+    const len = (data[pos]<<24)|(data[pos+1]<<16)|(data[pos+2]<<8)|data[pos+3];
+    const type = dec.decode(data.slice(pos+4, pos+8));
+    if (type === 'tEXt') {
+      const chunk = dec.decode(data.slice(pos+8, pos+8+len));
+      const [k,v] = chunk.split('=');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${k}</td><td>${v}</td><td><button class="copy-btn" onclick="navigator.clipboard.writeText(\`${v}\`)">📋</button></td>`;
+      tableBody.appendChild(tr);
+    }
+    pos += len + 12;
+  }
+}
+</script>
+</body>
+</html>
