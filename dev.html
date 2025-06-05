@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tool X: AI Code Deployer</title>
+    <title>Tool X: AI Code Deployer - Wizard Mode</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
         .container { max-width: 800px; margin: auto; background-color: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -26,45 +26,44 @@
             margin-top: 10px; border-radius: 4px;
         }
         #previewFrame { width: 100%; height: 400px; border: 1px solid #ccc; margin-top: 20px; display: none; }
-        /* Resetting status message to standard behavior */
+        
+        /* Status message styling */
         .message { 
-            margin-top: 20px; padding: 10px; border-radius: 4px; 
-            display: none; /* Hidden by default */
-            /* Removed fixed positioning and aggressive styling used for debugging */
+            margin-bottom: 20px; 
+            padding: 15px; border-radius: 4px; 
+            display: block; 
+            font-weight: bold;
         }
         .message.success { background-color: #d4edda; color: #155724; border-color: #c3e6cb; }
         .message.error { background-color: #f8d7da; color: #721c24; border-color: #f5c6cb; }
         .message.info { background-color: #d1ecf1; color: #0c5460; border-color: #bee5eb; }
-        #codeEditor.dragover { border: 2px dashed #007bff; } /* Visual feedback for drag/drop */
+        #codeEditor.dragover { border: 2px dashed #007bff; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Tool X: AI Code Deployer</h1>
+        <h1>Tool X: AI Code Deployer - Wizard Mode</h1>
 
-        <div class="message" id="statusMessage"></div>
+        <div class="message info" id="statusMessage">
+            Welcome! Start by fetching public repositories below.
+        </div> 
 
-        <section>
-            <h2>1. Setup & Authentication</h2>
-            <label for="patInput">GitHub Personal Access Token (PAT):</label>
-            <input type="text" id="patInput" placeholder="Enter your PAT (stored in browser's local storage)">
-            <button id="savePatBtn">Save PAT</button>
-            <p><small>Generate PATs in GitHub: Settings -> Developer settings -> Personal access tokens. Needs `repo`, `user`, `read:org` scopes.</small></p>
-        </section>
-
-        <hr style="margin: 25px 0;">
-
-        <section>
-            <h2>2. Load AS-IS Version from Repository (Display Only)</h2>
+        <section id="stage1">
+            <h2>1. Select Repository (Public Access First)</h2>
             <label for="ownerInput">GitHub Username/Org:</label>
             <input type="text" id="ownerInput" value="acmeproducts">
 
             <label for="repoSelect">Select Repository:</label>
             <select id="repoSelect">
-                <option value="">-- Fetching Repos --</option>
+                <option value="">-- Loading Repos --</option>
             </select>
             <button id="fetchReposBtn">Fetch Repos</button>
+        </section>
 
+        <hr style="margin: 25px 0;">
+
+        <section id="stage2">
+            <h2>2. Load AS-IS Version from Repository (Display Only)</h2>
             <label for="fileSelect">Select File to Display (AS-IS version):</label>
             <select id="fileSelect">
                 <option value="">-- Select a File to Display --</option>
@@ -76,13 +75,19 @@
 
         <hr style="margin: 25px 0;">
 
-        <section>
+        <section id="stage3">
             <h2>3. Prepare TO-BE Version for Deployment</h2>
+            <p>To **deploy** changes, you need a GitHub Personal Access Token (PAT). Enter it once, and it will be remembered.</p>
+            <label for="patInput">GitHub Personal Access Token (PAT):</label>
+            <input type="text" id="patInput" placeholder="Enter your PAT (stored in browser's local storage)">
+            <button id="savePatBtn">Save PAT</button>
+            <p><small>Generate PATs in GitHub: Settings -> Developer settings -> Personal access tokens. Needs `repo`, `user`, `read:org` scopes.</small></p>
+
             <label for="fileNameInput">File Name for Deployment (TO-BE version):</label>
             <input type="text" id="fileNameInput" placeholder="Type new name OR leave empty to parse from code comments">
 
             <label for="codeEditor">Paste AI Code Here (TO-BE version, or Drag & Drop a file):</label>
-            <textarea id="codeEditor" placeholder="Paste your AI-generated HTML/CSS/JS code here. Use for auto-naming."></textarea>
+            <textarea id="codeEditor" placeholder="Paste your AI-generated HTML/CSS/JS code here. Use <!-- TOOLX_FILENAME: your-file.html --> for auto-naming."></textarea>
             
             <input type="file" id="fileUploadInput" accept=".html,.js,.css,.txt" style="display: none;">
             <button id="uploadFileBtn">Choose & Load File</button>
@@ -108,8 +113,6 @@
     </div>
 
     <script>
-        // REMOVED: alert('Script loaded!'); -- No longer needed for debugging
-
         const patInput = document.getElementById('patInput');
         const savePatBtn = document.getElementById('savePatBtn');
         const ownerInput = document.getElementById('ownerInput');
@@ -127,9 +130,71 @@
         const previewFrame = document.getElementById('previewFrame');
         const statusMessage = document.getElementById('statusMessage');
 
-        const DEFAULT_USERNAME = 'acmeproducts'; // Set default owner
-        const DEFAULT_REPO = 'stuff';             // Set default repo name
-        const FILENAME_TAG = '`));
+        const DEFAULT_USERNAME = 'acmeproducts'; 
+        const DEFAULT_REPO = 'stuff';             
+        const FILENAME_TAG = '<!-- TOOLX_FILENAME:'; 
+
+        let githubToken = ''; // This will be loaded from localStorage or set by user
+
+        let currentRepoFilesSha = {}; 
+
+        // --- Utility Functions ---
+        function showStatus(message, type = 'info', sticky = false) {
+            statusMessage.textContent = message;
+            statusMessage.className = `message ${type}`;
+            statusMessage.style.display = 'block'; 
+            if (!sticky) {
+                setTimeout(() => { statusMessage.style.display = 'none'; }, 5000); 
+            }
+        }
+
+        // githubApi now has `usePat` parameter to control authentication
+        async function githubApi(url, method = 'GET', data = null, usePat = true, headers = {}) {
+            let authHeader = {};
+            if (usePat) { // If PAT is required for this specific call (e.g., write operations, private repos)
+                if (!githubToken) {
+                    showStatus("Error: GitHub Personal Access Token (PAT) is missing for this action.", 'error', true); 
+                    return null;
+                }
+                authHeader = { 'Authorization': `token ${githubToken}` };
+            }
+
+            try {
+                const response = await fetch(`https://api.github.com${url}`, {
+                    method: method,
+                    headers: {
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json',
+                        ...authHeader, // Apply auth header conditionally
+                        ...headers
+                    },
+                    body: data ? JSON.stringify(data) : null,
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    showStatus(`GitHub API Error (${response.status}): ${errorData.message || 'Unknown error'}`, 'error', true);
+                    console.error('GitHub API Error:', errorData); 
+                    return null;
+                }
+                return response.json();
+            } catch (e) {
+                showStatus(`Network or unexpected error: ${e.message}`, 'error', true);
+                console.error('Fetch Error:', e); 
+                return null;
+            }
+        }
+
+        function getGitHubPagesUrl(owner, repo, filePath) {
+            const baseUrl = `https://${owner}.github.io/${repo}/`;
+            if (filePath.toLowerCase() === 'index.html') {
+                return baseUrl; 
+            }
+            return `${baseUrl}${filePath}`;
+        }
+
+        function parseFilenameFromComment(code) {
+            const match = code.match(new RegExp(`${FILENAME_TAG}\\s*([a-zA-Z0-9_.-]+)\\s*-->`));
             if (match && match[1]) {
                 return match[1].trim();
             }
@@ -138,7 +203,7 @@
 
         // --- Event Listeners & Logic ---
 
-        // PAT Handling
+        // PAT Handling - now only for saving the PAT, not triggering repo fetch
         savePatBtn.addEventListener('click', () => {
             const originalBtnText = savePatBtn.textContent;
             savePatBtn.textContent = 'Saving...'; 
@@ -148,9 +213,8 @@
             if (pat) {
                 try {
                     localStorage.setItem('githubPat', pat);
-                    githubToken = pat;
-                    showStatus('PAT saved successfully!', 'success');
-                    fetchReposBtn.click(); 
+                    githubToken = pat; // Update the global token variable
+                    showStatus('PAT saved successfully! Now you can deploy changes.', 'success');
                 } catch (e) {
                     showStatus(`Error saving PAT: ${e.message}. Browser storage might be restricted.`, 'error', true);
                 }
@@ -161,22 +225,22 @@
             savePatBtn.disabled = false; 
         });
 
-        // Load PAT on startup
+        // Initial Load - Will attempt to fetch public repos automatically
         document.addEventListener('DOMContentLoaded', () => {
+            // Load PAT if it exists, but don't use it for initial repo fetch
             const storedPat = localStorage.getItem('githubPat');
             if (storedPat) {
                 patInput.value = storedPat;
-                githubToken = storedPat;
-                showStatus('PAT loaded from local storage.', 'info');
-                ownerInput.value = DEFAULT_USERNAME; 
-                fetchReposBtn.click(); 
+                githubToken = storedPat; // Store it, will be used later for deployment
+                showStatus('PAT loaded from local storage (will be used for deployment).', 'info');
             } else {
-                showStatus('Please enter your GitHub PAT to begin. It will be remembered.', 'info', true); 
-                ownerInput.value = DEFAULT_USERNAME; 
+                showStatus('Welcome! We\'ll start by fetching public repos. You\'ll need a PAT later for deployment.', 'info', true);
             }
+            ownerInput.value = DEFAULT_USERNAME; 
+            fetchReposBtn.click(); // Auto-fetch repos on load
         });
 
-        // Fetch Repos
+        // Fetch Repos - Now attempts public repos without PAT, but uses PAT if available for private
         fetchReposBtn.addEventListener('click', async () => {
             repoSelect.innerHTML = '<option value="">-- Loading Repos --</option>';
             fileSelect.innerHTML = '<option value="">-- Select a File to Display --</option>'; 
@@ -188,30 +252,60 @@
                 return;
             }
 
-            if (!githubToken) { 
-                 showStatus("Error: GitHub Personal Access Token (PAT) is missing. Cannot fetch repos.", 'error', true);
-                 repoSelect.innerHTML = '<option value="">-- PAT Required --</option>';
-                 return;
-            }
-
             let repos = [];
             showStatus(`Fetching repositories for ${owner}...`, 'info');
+            
             try {
-                const userRepos = await githubApi(`/user/repos?affiliation=owner`);
-                if (userRepos) {
-                    repos = userRepos;
+                // Attempt to fetch public repos for the user (no PAT needed for this specific endpoint)
+                const publicUserRepos = await githubApi(`/users/${owner}/repos?type=public`, 'GET', null, false); 
+                if (publicUserRepos) {
+                    repos = repos.concat(publicUserRepos);
                 }
                 
-                const currentUser = await githubApi('/user');
-                if (currentUser && owner.toLowerCase() !== currentUser.login.toLowerCase()) {
-                    const orgRepos = await githubApi(`/orgs/${owner}/repos`);
-                    if (orgRepos) {
-                        repos = repos.concat(orgRepos); 
+                // Attempt to fetch public org repos (no PAT needed for this specific endpoint)
+                const publicOrgRepos = await githubApi(`/orgs/${owner}/repos?type=public`, 'GET', null, false); 
+                 if (publicOrgRepos) {
+                     // Filter out duplicates if a user owns repos and is also an org with same named repos
+                     const existingRepoNames = new Set(repos.map(r => r.name));
+                     publicOrgRepos.forEach(repo => {
+                         if (!existingRepoNames.has(repo.name)) {
+                             repos.push(repo);
+                         }
+                     });
+                 }
+
+
+                // If a PAT is available, also try to fetch *all* repos (including private)
+                // This will overwrite/add to the public list
+                if (githubToken) {
+                    showStatus(`PAT detected. Also attempting to fetch private/all repositories for ${owner}...`, 'info');
+                    const privateAndPublicRepos = await githubApi(`/user/repos?affiliation=owner`); // Uses PAT
+                    if (privateAndPublicRepos) {
+                         // Filter out duplicates and add new ones
+                        const existingRepoIds = new Set(repos.map(r => r.id));
+                        privateAndPublicRepos.forEach(repo => {
+                            if (!existingRepoIds.has(repo.id)) {
+                                repos.push(repo);
+                            }
+                        });
+                    }
+                    // If owner is an org and not the current user's login, try fetching org repos with PAT
+                    const currentUser = await githubApi('/user'); // This call *does* use PAT
+                    if (currentUser && owner.toLowerCase() !== currentUser.login.toLowerCase()) {
+                        const orgReposWithPat = await githubApi(`/orgs/${owner}/repos`); // Uses PAT
+                        if (orgReposWithPat) {
+                            const existingOrgRepoIds = new Set(repos.map(r => r.id));
+                             orgReposWithPat.forEach(repo => {
+                                 if (!existingOrgRepoIds.has(repo.id)) {
+                                     repos.push(repo);
+                                 }
+                             });
+                        }
                     }
                 }
                 
             } catch (e) {
-                showStatus(`Failed to fetch repos for ${owner}. Check username/org and PAT permissions.`, 'error');
+                showStatus(`Failed to fetch repositories for ${owner}. Check username/org. If fetching private repos, ensure PAT is correct and has 'repo'/'read:org' scopes.`, 'error');
                 return;
             }
             
@@ -220,13 +314,14 @@
 
 
             if (!uniqueRepos || uniqueRepos.length === 0) {
-                showStatus(`No repositories found for ${owner}. Check username/org and PAT permissions.`, 'info');
+                showStatus(`No repositories found for ${owner}. Try different username/org or save PAT for private repos.`, 'info');
                 repoSelect.innerHTML = '<option value="">-- No Repos Found --</option>';
                 return;
             }
 
             repoSelect.innerHTML = '<option value="">-- Select a Repository --</option>';
             let defaultRepoFound = false;
+            uniqueRepos.sort((a,b) => a.name.localeCompare(b.name)); // Sort alphabetically
             uniqueRepos.forEach(repo => {
                 const option = document.createElement('option');
                 option.value = repo.name;
@@ -241,7 +336,7 @@
             if (!defaultRepoFound && uniqueRepos.length > 0) {
                 repoSelect.value = uniqueRepos[0].name; 
             }
-            showStatus(`Fetched ${uniqueRepos.length} repositories.`, 'success');
+            showStatus(`Fetched ${uniqueRepos.length} repositories for ${owner}. Select one to continue.`, 'success');
             if (repoSelect.value) { 
                 repoSelect.dispatchEvent(new Event('change')); 
             }
@@ -259,9 +354,11 @@
                 return;
             }
 
-            showStatus(`Fetching AS-IS content for ${repo}...`, 'info'); // Corrected message from filePath to repo
+            showStatus(`Fetching files for ${repo}...`, 'info');
+            // This API call fetches contents. If repo is private, it needs PAT.
+            // If githubToken is available, it will use it. Otherwise, it defaults to public access (usePat = false).
             const url = `/repos/${owner}/${repo}/contents`;
-            const contents = await githubApi(url);
+            const contents = await githubApi(url, 'GET', null, !!githubToken); // Use PAT if available
 
             if (!contents) {
                 fileSelect.innerHTML = '<option value="">-- Error Loading Files --</option>';
@@ -294,7 +391,8 @@
             }
 
             showStatus(`Fetching AS-IS content for ${filePath}...`, 'info');
-            const fileContentData = await githubApi(`/repos/${owner}/${repo}/contents/${filePath}`);
+            // This API call fetches content. If repo/file is private, it needs PAT.
+            const fileContentData = await githubApi(`/repos/${owner}/${repo}/contents/${filePath}`, 'GET', null, !!githubToken); // Use PAT if available
             if (fileContentData && fileContentData.content !== undefined) { 
                 fileDisplayArea.textContent = atob(fileContentData.content); 
                 showStatus(`Displayed AS-IS content of ${filePath}.`, 'success');
@@ -365,15 +463,19 @@
             }
         });
 
-        // Deploy TO-BE Code
+        // Deploy TO-BE Code - PAT is required here
         deployBtn.addEventListener('click', async () => {
             const owner = ownerInput.value.trim();
             const repo = repoSelect.value;
             let filePath = fileNameInput.value.trim(); 
             const codeContent = codeEditor.value;
-            const commitMessage = commitMessageInput.value.trim() || 'Update via Tool X';
+            const commitMessage = commitMessageInput.value.trim() || 'Deploying update via Tool X';
 
-            if (!githubToken) { showStatus("Error: GitHub Personal Access Token (PAT) is missing.", 'error', true); return; }
+            // PAT is mandatory for deployment
+            if (!githubToken) { 
+                showStatus("Error: GitHub Personal Access Token (PAT) is missing. Please enter and save your PAT in Step 3 before deploying.", 'error', true); 
+                return; 
+            }
             if (!owner || !repo) { showStatus("Error: Please select a repository.", 'error', true); return; }
             if (!codeContent) { showStatus("Error: TO-BE code editor cannot be empty.", 'error', true); return; }
 
@@ -394,8 +496,9 @@
             let sha = currentRepoFilesSha[filePath]; 
 
             showStatus(`Preparing to deploy TO-BE version of ${filePath} to ${repo}...`, 'info');
+            // When checking for existing files here, we must use the PAT as we are preparing for a write
             if (sha === undefined) {
-                const existingFile = await githubApi(`/repos/${owner}/${repo}/contents/${filePath}`);
+                const existingFile = await githubApi(`/repos/${owner}/${repo}/contents/${filePath}`, 'GET', null, true); // Use PAT here
                 if (existingFile && existingFile.sha) {
                     sha = existingFile.sha; 
                     showStatus(`Updating existing file ${filePath}.`, 'info');
@@ -417,7 +520,8 @@
             };
 
             const deployUrl = `/repos/${owner}/${repo}/contents/${filePath}`;
-            const result = await githubApi(deployUrl, 'PUT', data);
+            // This is the write operation, so PAT is essential here
+            const result = await githubApi(deployUrl, 'PUT', data, true); // Use PAT here
 
             if (result) {
                 showStatus(`Successfully deployed TO-BE version of ${filePath} to ${repo}! Commit: ${result.commit.html_url}`, 'success', true);
@@ -431,7 +535,7 @@
                     previewFrame.style.display = 'block';
                 }
             } else {
-                showStatus('Deployment failed. Check console for details.', 'error', true);
+                showStatus('Deployment failed. Check console for details (or PAT permissions).', 'error', true);
             }
         });
     </script>
