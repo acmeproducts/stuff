@@ -1,54 +1,52 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Image Metadata Viewer</title>
+  <title>OneDrive Browser</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
   <style>
-    html, body { margin: 0; height: 100%; font-family: sans-serif; overflow: hidden; }
+    html, body { height: 100%; margin: 0; font-family: sans-serif; overflow: hidden; }
     #modal {
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: #000; display: flex; flex-direction: column;
+      background: rgba(0,0,0,0.95); display: none; flex-direction: column;
+      z-index: 1000;
     }
-    .controls {
-      background: #111; color: #fff; display: flex; justify-content: center;
-      align-items: center; padding: 8px; gap: 12px;
+    #modal .controls {
+      padding: 10px; background: #111; color: #fff;
+      display: flex; gap: 12px; justify-content: center;
     }
     #modal-content {
-      flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden;
+      flex: 1; display: flex; flex-direction: column; overflow: hidden;
     }
     #imageWrapper {
-      flex: 1 1 auto; display: flex; justify-content: center; align-items: center;
-      background: #111; overflow: auto;
+      flex-grow: 1; display: flex; justify-content: center;
+      align-items: center; overflow: auto; background: #000;
     }
     #modalImage {
-      max-width: 100%; max-height: 100%; transition: transform 0.2s ease;
-    }
-    #zoomSlider {
-      position: absolute; top: 52px; left: 10px; z-index: 10;
+      max-width: 100%; max-height: 100%; transition: transform 0.3s;
     }
     #metadataPanel {
-      height: 35vh; overflow-y: auto; background: #fff;
+      max-height: 40vh; overflow-y: auto; background: #fff;
+      transition: max-height 0.3s; border-top: 1px solid #ccc;
+    }
+    #metadataPanel.collapsed {
+      max-height: 0; overflow: hidden;
     }
     #metadataHeader {
-      background: #333; color: #fff; padding: 6px; cursor: pointer;
+      background: #444; color: white; padding: 6px; cursor: pointer;
     }
-    #metadataTable {
-      width: 100%; border-collapse: collapse;
-    }
+    #metadataTable { width: 100%; border-collapse: collapse; }
     #metadataTable th, #metadataTable td {
       border: 1px solid #ccc; padding: 6px; word-break: break-word;
     }
-    .copy-btn {
-      background: none; border: none; cursor: pointer;
-    }
-    #modalCloseBtn {
-      position: absolute; top: 10px; right: 14px; font-size: 24px;
-      background: none; border: none; color: #fff; cursor: pointer;
+    .copy-btn { background: none; border: none; cursor: pointer; }
+    #zoomSlider {
+      position: absolute; top: 55px; left: 10px; z-index: 1001;
     }
   </style>
 </head>
 <body>
+  <button id="signInBtn">Sign In</button>
   <div id="modal">
     <div class="controls">
       <button onclick="prevImage()">Prev</button>
@@ -56,10 +54,9 @@
       <button onclick="deleteImage()">Delete</button>
     </div>
     <input id="zoomSlider" type="range" min="10" max="200" value="100" />
-    <button id="modalCloseBtn" onclick="closeModal()">✕</button>
     <div id="modal-content">
       <div id="imageWrapper"><img id="modalImage" /></div>
-      <div id="metadataPanel">
+      <div id="metadataPanel" class="collapsed">
         <div id="metadataHeader" onclick="toggleMetadata()">Metadata ⯆</div>
         <table id="metadataTable">
           <thead><tr><th>Key</th><th>Value</th><th></th></tr></thead>
@@ -68,73 +65,114 @@
       </div>
     </div>
   </div>
-
   <script>
-    let zoomSlider = document.getElementById("zoomSlider");
-    zoomSlider.addEventListener("input", () => {
-      let scale = zoomSlider.value / 100;
-      document.getElementById("modalImage").style.transform = `scale(${scale})`;
-    });
+    const msalConfig = {
+      auth: {
+        clientId: 'b407fd45-c551-4dbb-9da5-cab3a2c5a949',
+        authority: 'https://login.microsoftonline.com/common',
+        redirectUri: window.location.origin + window.location.pathname
+      },
+      cache: { cacheLocation: 'sessionStorage' }
+    };
+    const msalInstance = new msal.PublicClientApplication(msalConfig);
+    let activeAccount = null, currentFolder = 'root', items = [], currentIndex = 0;document.getElementById('signInBtn').addEventListener('click', async () => {
+  try {
+    const response = await msalInstance.loginPopup({ scopes: ['Files.ReadWrite.All', 'User.Read'] });
+    activeAccount = response.account;
+    msalInstance.setActiveAccount(activeAccount);
+    loadFolder('root');
+  } catch (err) { alert('Sign-in error: ' + err.message); }
+});
 
-    function toggleMetadata() {
-      const panel = document.getElementById('metadataPanel');
-      const header = document.getElementById('metadataHeader');
-      const collapsed = panel.style.height === '0px';
-      panel.style.height = collapsed ? '35vh' : '0px';
-      header.textContent = collapsed ? 'Metadata ⯆' : 'Metadata ⯈';
+async function getToken() {
+  const acct = msalInstance.getActiveAccount();
+  try {
+    const result = await msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite.All', 'User.Read'], account: acct });
+    return result.accessToken;
+  } catch {
+    const result = await msalInstance.acquireTokenPopup({ scopes: ['Files.ReadWrite.All', 'User.Read'] });
+    return result.accessToken;
+  }
+}
+
+async function loadFolder(id) {
+  const token = await getToken();
+  const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${id}/children`, {
+    headers: { Authorization: 'Bearer ' + token }
+  });
+  items = (await resp.json()).value;
+}
+
+async function showModal() {
+  const item = items[currentIndex];
+  const token = await getToken();
+  const img = document.getElementById('modalImage');
+  const tableBody = document.querySelector('#metadataTable tbody');
+  tableBody.innerHTML = '';
+
+  document.getElementById('modal').style.display = 'flex';
+  img.style.transform = 'scale(1)';
+
+  const url = item['@microsoft.graph.downloadUrl'];
+  const mime = item.file?.mimeType || '';
+
+  if (mime.startsWith('image/')) {
+    img.src = url;
+    img.onload = () => img.style.display = 'block';
+    extractPNGText(url);
+  } else {
+    img.src = '';
+  }
+}
+
+function toggleMetadata() {
+  const panel = document.getElementById('metadataPanel');
+  const header = document.getElementById('metadataHeader');
+  panel.classList.toggle('collapsed');
+  header.textContent = panel.classList.contains('collapsed') ? 'Metadata ⯈' : 'Metadata ⯆';
+}
+
+document.getElementById('zoomSlider').addEventListener('input', (e) => {
+  const scale = e.target.value / 100;
+  document.getElementById('modalImage').style.transform = `scale(${scale})`;
+});
+
+async function extractPNGText(url) {
+  const resp = await fetch(url);
+  const buffer = await resp.arrayBuffer();
+  const data = new Uint8Array(buffer);
+  const dec = new TextDecoder();
+  let pos = 8;
+  const tableBody = document.querySelector('#metadataTable tbody');
+
+  while (pos < data.length) {
+    const len = (data[pos]<<24)|(data[pos+1]<<16)|(data[pos+2]<<8)|data[pos+3];
+    const type = dec.decode(data.slice(pos+4, pos+8));
+    if (type==='tEXt') {
+      const chunk = dec.decode(data.slice(pos+8,pos+8+len));
+      const [k,v] = chunk.split('=');
+      if (!k || !v) { pos += len + 12; continue; }
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${k}</td><td>${v}</td><td><button class="copy-btn" onclick="navigator.clipboard.writeText(\`${v}\`)">📋</button></td>`;
+      tableBody.appendChild(tr);
     }
+    pos += len + 12;
+  }
+}
 
-    function closeModal() {
-      document.getElementById("modal").style.display = "none";
-    }
+function prevImage() { if (currentIndex > 0) { currentIndex--; showModal(); } }
+function nextImage() { if (currentIndex < items.length-1) { currentIndex++; showModal(); } }
+async function deleteImage() {
+  const item = items[currentIndex];
+  if (!confirm('Delete ' + item.name + '?')) return;
+  const token = await getToken();
+  await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}`, {
+    method: 'DELETE', headers: { Authorization: 'Bearer ' + token }
+  });
+  document.getElementById('modal').style.display = 'none';
+  loadFolder(currentFolder);
+}
 
-    function prevImage() {
-      // No-op sample
-    }
-
-    function nextImage() {
-      // No-op sample
-    }
-
-    function deleteImage() {
-      // No-op sample
-    }
-
-    async function loadImageAndMetadata(url) {
-      const img = document.getElementById("modalImage");
-      img.src = url;
-      img.onload = () => {
-        document.getElementById("modal").style.display = "flex";
-        img.style.transform = `scale(${zoomSlider.value / 100})`;
-      };
-      extractMetadata(url);
-    }
-
-    async function extractMetadata(url) {
-      const res = await fetch(url);
-      const buffer = await res.arrayBuffer();
-      const data = new Uint8Array(buffer);
-      const dec = new TextDecoder();
-      let pos = 8;
-      const tableBody = document.querySelector('#metadataTable tbody');
-      tableBody.innerHTML = '';
-      while (pos < data.length) {
-        const len = (data[pos]<<24)|(data[pos+1]<<16)|(data[pos+2]<<8)|data[pos+3];
-        const type = dec.decode(data.slice(pos+4, pos+8));
-        if (type === 'tEXt') {
-          const chunk = dec.decode(data.slice(pos+8, pos+8+len));
-          const [k, v] = chunk.split('=');
-          if (!k || !v) { pos += len + 12; continue; }
-          const tr = document.createElement("tr");
-          tr.innerHTML = `<td>${k}</td><td>${v}</td><td><button class="copy-btn" onclick="navigator.clipboard.writeText(\`${v}\`)">📋</button></td>`;
-          tableBody.appendChild(tr);
-        }
-        pos += len + 12;
-      }
-    }
-
-    // Example call:
-    // loadImageAndMetadata("your_image_url.png");
   </script>
 </body>
 </html>
