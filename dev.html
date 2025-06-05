@@ -174,7 +174,7 @@
 
     <script>
         const ownerInput = document.getElementById('ownerInput');
-        const repoInput = document.getElementById('repoInput'); // Changed to repoInput
+        const repoInput = document.getElementById('repoInput');
         const fileSelect = document.getElementById('fileSelect');
         const fileDisplayArea = document.getElementById('fileDisplayArea');
         const copyToEditorBtn = document.getElementById('copyToEditorBtn');
@@ -193,7 +193,7 @@
 
         const DEFAULT_USERNAME = 'acmeproducts';
         const DEFAULT_REPO = 'stuff';
-        const DEFAULT_FILE = 'dev.html'; // Or any other default file within 'stuff'
+        const DEFAULT_FILE = 'dev.html';
         const FILENAME_TAG = '`));
             if (match && match[1]) {
                 return match[1].trim();
@@ -225,9 +225,8 @@
             });
         });
 
-        // --- Core Logic for Initial Load and File Handling ---
-
-        async function populateFilesForCurrentRepo() {
+        // --- File Listing and Display Logic (from go.html adaptation) ---
+        async function fetchHtmlFilesForCurrentRepo() {
             const owner = ownerInput.value.trim();
             const repo = repoInput.value.trim();
 
@@ -235,43 +234,53 @@
             fileDisplayArea.textContent = '';
             showStatus(`Loading files for ${repo}...`, 'info');
 
-            const url = `/repos/${owner}/${repo}/contents`;
-            // Fetch content without PAT initially, will use PAT only if needed (e.g. for private repos if token is present)
-            const contents = await githubApi(url, 'GET', null, false);
-            if (!contents) {
+            if (!owner || !repo) {
+                fileSelect.innerHTML = '<option value="">Enter User/Org and Repo</option>';
+                showStatus('Enter GitHub User/Org and Repository.', 'info');
+                return;
+            }
+
+            try {
+                const response = await githubApi(`/repos/${owner}/${repo}/contents`, 'GET', null, false); // Use false for PAT here, as it's just for public repo content listing
+                if (!response) {
+                    fileSelect.innerHTML = '<option value="">Error Loading Files</option>';
+                    return;
+                }
+
+                fileSelect.innerHTML = '';
+                currentRepoFilesSha = {};
+                const htmlFiles = response.filter(file => file.type === 'file' && file.name.toLowerCase().endsWith('.html'));
+
+                if (htmlFiles.length === 0) {
+                    fileSelect.innerHTML = '<option value="">No HTML files found</option>';
+                    showStatus(`No HTML files found in ${repo}.`, 'info');
+                    return;
+                }
+
+                htmlFiles.forEach(file => {
+                    const option = document.createElement('option');
+                    option.value = file.path;
+                    option.textContent = file.name; // Display only the file name in dropdown
+                    fileSelect.appendChild(option);
+                    currentRepoFilesSha[file.path] = file.sha;
+                });
+
+                // Set default file selection
+                if (htmlFiles.some(file => file.name.toLowerCase() === DEFAULT_FILE.toLowerCase())) {
+                    fileSelect.value = DEFAULT_FILE;
+                } else if (htmlFiles.length > 0) {
+                    fileSelect.value = htmlFiles[0].path;
+                }
+                showStatus(`Files loaded.`, 'success');
+
+                // Display content of the selected file
+                if (fileSelect.value) {
+                    await displayFileContent(owner, repo, fileSelect.value);
+                }
+
+            } catch (err) {
+                showStatus(`Failed to fetch files: ${err.message}`, 'error', true);
                 fileSelect.innerHTML = '<option value="">Error Loading Files</option>';
-                return;
-            }
-
-            fileSelect.innerHTML = '';
-            currentRepoFilesSha = {};
-            const fileContents = contents.filter(item => item.type === 'file');
-
-            if (fileContents.length === 0) {
-                fileSelect.innerHTML = '<option value="">No files found</option>';
-                showStatus(`No files found in ${repo}.`, 'info');
-                return;
-            }
-
-            fileContents.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item.path;
-                option.textContent = item.path;
-                fileSelect.appendChild(option);
-                currentRepoFilesSha[item.path] = item.sha;
-            });
-
-            // Select default file if it exists, otherwise select the first one
-            if (fileContents.some(item => item.path.toLowerCase() === DEFAULT_FILE.toLowerCase())) {
-                fileSelect.value = DEFAULT_FILE;
-            } else if (fileContents.length > 0) {
-                fileSelect.value = fileContents[0].path;
-            }
-            showStatus(`Files loaded.`, 'success');
-
-            // Trigger display of selected (or default) file
-            if (fileSelect.value) {
-                await displayFileContent(owner, repo, fileSelect.value);
             }
         }
 
@@ -283,7 +292,8 @@
             }
 
             showStatus(`Loading ${filePath}...`, 'info');
-            const fileContentData = await githubApi(`/repos/${owner}/${repo}/contents/${filePath}`, 'GET', null, !!githubToken);
+            // Ensure PAT is used for content fetching, as it might be a private repo or require higher rate limits
+            const fileContentData = await githubApi(`/repos/${owner}/${repo}/contents/${filePath}`, 'GET', null, true);
             if (fileContentData && fileContentData.content !== undefined) {
                 fileDisplayArea.textContent = atob(fileContentData.content);
                 showStatus(`Displayed ${filePath}.`, 'success');
@@ -308,15 +318,15 @@
                 showStatus('Enter PAT for deployment.', 'info');
             }
             ownerInput.value = DEFAULT_USERNAME;
-            repoInput.value = DEFAULT_REPO; // Set default repo directly
-            populateFilesForCurrentRepo(); // Populate files for the default repo immediately
+            repoInput.value = DEFAULT_REPO;
+            fetchHtmlFilesForCurrentRepo(); // Trigger file loading on startup
         });
 
-        // Event listener for changes to User/Org or Repository (if user manually types)
-        ownerInput.addEventListener('input', populateFilesForCurrentRepo);
-        repoInput.addEventListener('input', populateFilesForCurrentRepo);
+        // Listen for changes on User/Org or Repository text fields to re-fetch files
+        ownerInput.addEventListener('input', fetchHtmlFilesForCurrentRepo);
+        repoInput.addEventListener('input', fetchHtmlFilesForCurrentRepo);
 
-        // ONLY File Selection Changes (no repo search)
+        // File Selection Changes
         fileSelect.addEventListener('change', () => displayFileContent(ownerInput.value.trim(), repoInput.value.trim(), fileSelect.value));
 
         // Copy to Editor Button
@@ -441,7 +451,7 @@
                 if (existingFile && existingFile.sha) {
                     sha = existingFile.sha;
                     showStatus(`Updating ${filePath}.`, 'info');
-                } else if (existingFile === null) { return; } // Error already shown by githubApi
+                } else if (existingFile === null) { return; }
                 else {
                     sha = undefined;
                     showStatus(`File ${filePath} is new.`, 'info');
