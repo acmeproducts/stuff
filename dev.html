@@ -3,106 +3,437 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TOOLX - JS Debugger</title>
+    <title>Tool X: AI Code Deployer</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        /* CRITICAL DEBUGGING CSS: Force status message visibility and position */
-        .message { 
-            position: fixed; /* Fixed position */
-            top: 0; left: 0; /* At the top-left corner */
-            width: 100%; /* Full width */
-            box-sizing: border-box; /* Include padding in width */
-            z-index: 1000; /* Ensure it's on top of everything */
-            text-align: center;
-            font-weight: bold;
-            padding: 15px;
-            background-color: lightyellow; /* Clear background for visibility */
-            color: #333;
-            border-bottom: 1px solid #ccc;
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+        .container { max-width: 800px; margin: auto; background-color: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #0056b3; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], textarea, select {
+            width: calc(100% - 20px); padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px; font-size: 1em;
         }
-        .message.success { background-color: #d4edda; color: #155724; }
-        .message.error { background-color: #f8d7da; color: #721c24; }
-        .message.info { background-color: #d1ecf1; color: #0c5460; }
-        .container { max-width: 800px; margin: 60px auto 20px auto; background-color: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        textarea { min-height: 250px; font-family: 'Courier New', monospace; white-space: pre-wrap; word-wrap: break-word; resize: vertical; }
+        .button-group button {
+            background-color: #007bff; color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; margin-right: 10px;
+            transition: background-color 0.3s ease;
+        }
+        .button-group button:hover { background-color: #0056b3; }
+        .checkbox-group { margin-bottom: 15px; display: flex; align-items: center; }
+        .checkbox-group input { width: auto; margin-right: 10px; }
+        #fileDisplayArea { 
+            background-color: #eee; padding: 10px; border: 1px solid #ccc; min-height: 100px; max-height: 300px; overflow-y: auto; 
+            font-family: 'Courier New', monospace; white-space: pre-wrap; word-wrap: break-word; font-size: 0.9em; 
+            margin-top: 10px; border-radius: 4px;
+        }
+        #previewFrame { width: 100%; height: 400px; border: 1px solid #ccc; margin-top: 20px; display: none; }
+        /* Resetting status message to standard behavior */
+        .message { 
+            margin-top: 20px; padding: 10px; border-radius: 4px; 
+            display: none; /* Hidden by default */
+            /* Removed fixed positioning and aggressive styling used for debugging */
+        }
+        .message.success { background-color: #d4edda; color: #155724; border-color: #c3e6cb; }
+        .message.error { background-color: #f8d7da; color: #721c24; border-color: #f5c6cb; }
+        .message.info { background-color: #d1ecf1; color: #0c5460; border-color: #bee5eb; }
+        #codeEditor.dragover { border: 2px dashed #007bff; } /* Visual feedback for drag/drop */
     </style>
 </head>
 <body>
-    <div class="message" id="statusMessage">
-        Initial Load: JavaScript not yet active. Trying to find `statusMessage`...
-    </div> 
-
     <div class="container">
-        <h1>JavaScript Debugger for Tool X</h1>
-        <p>This is a diagnostic page to figure out why JavaScript isn't running.</p>
+        <h1>Tool X: AI Code Deployer</h1>
+
+        <div class="message" id="statusMessage"></div>
 
         <section>
-            <h2>Test JavaScript Execution</h2>
-            <input type="text" id="testInput" placeholder="Type something">
-            <button id="testButton" onclick="handleDirectClick();">Click Me (Direct HTML)</button>
+            <h2>1. Setup & Authentication</h2>
+            <label for="patInput">GitHub Personal Access Token (PAT):</label>
+            <input type="text" id="patInput" placeholder="Enter your PAT (stored in browser's local storage)">
+            <button id="savePatBtn">Save PAT</button>
+            <p><small>Generate PATs in GitHub: Settings -> Developer settings -> Personal access tokens. Needs `repo`, `user`, `read:org` scopes.</small></p>
+        </section>
+
+        <hr style="margin: 25px 0;">
+
+        <section>
+            <h2>2. Load AS-IS Version from Repository (Display Only)</h2>
+            <label for="ownerInput">GitHub Username/Org:</label>
+            <input type="text" id="ownerInput" value="acmeproducts">
+
+            <label for="repoSelect">Select Repository:</label>
+            <select id="repoSelect">
+                <option value="">-- Fetching Repos --</option>
+            </select>
+            <button id="fetchReposBtn">Fetch Repos</button>
+
+            <label for="fileSelect">Select File to Display (AS-IS version):</label>
+            <select id="fileSelect">
+                <option value="">-- Select a File to Display --</option>
+            </select>
+            
+            <label>AS-IS File Content (Read Only):</label>
+            <div id="fileDisplayArea"></div>
+        </section>
+
+        <hr style="margin: 25px 0;">
+
+        <section>
+            <h2>3. Prepare TO-BE Version for Deployment</h2>
+            <label for="fileNameInput">File Name for Deployment (TO-BE version):</label>
+            <input type="text" id="fileNameInput" placeholder="Type new name OR leave empty to parse from code comments">
+
+            <label for="codeEditor">Paste AI Code Here (TO-BE version, or Drag & Drop a file):</label>
+            <textarea id="codeEditor" placeholder="Paste your AI-generated HTML/CSS/JS code here. Use for auto-naming."></textarea>
+            
+            <input type="file" id="fileUploadInput" accept=".html,.js,.css,.txt" style="display: none;">
+            <button id="uploadFileBtn">Choose & Load File</button>
+
+            <label for="commitMessageInput">Commit Message:</label>
+            <input type="text" id="commitMessageInput" value="Deploying update via Tool X">
+
+            <div class="button-group">
+                <button id="deployBtn">Deploy TO-BE Code</button>
+            </div>
+        </section>
+
+        <hr style="margin: 25px 0;">
+
+        <section>
+            <h2>4. Live Preview</h2>
+            <div class="checkbox-group">
+                <input type="checkbox" id="openNewTabCheckbox" checked>
+                <label for="openNewTabCheckbox">Open Live App in New Tab after Deploy</label>
+            </div>
+            <iframe id="previewFrame"></iframe>
         </section>
     </div>
 
     <script>
-        // --- 1. First possible point of JS execution: Immediately on script parsing ---
-        alert('ALERT 1: Script section has STARTED to execute!');
+        // REMOVED: alert('Script loaded!'); -- No longer needed for debugging
 
-        // Get the status message element. It should be found because it's higher in HTML.
+        const patInput = document.getElementById('patInput');
+        const savePatBtn = document.getElementById('savePatBtn');
+        const ownerInput = document.getElementById('ownerInput');
+        const repoSelect = document.getElementById('repoSelect');
+        const fetchReposBtn = document.getElementById('fetchReposBtn');
+        const fileNameInput = document.getElementById('fileNameInput'); // TO-BE file name
+        const fileSelect = document.getElementById('fileSelect'); // AS-IS file selector
+        const fileDisplayArea = document.getElementById('fileDisplayArea'); // AS-IS content display
+        const codeEditor = document.getElementById('codeEditor'); // TO-BE code editor
+        const fileUploadInput = document.getElementById('fileUploadInput');
+        const uploadFileBtn = document.getElementById('uploadFileBtn');
+        const commitMessageInput = document.getElementById('commitMessageInput');
+        const deployBtn = document.getElementById('deployBtn');
+        const openNewTabCheckbox = document.getElementById('openNewTabCheckbox');
+        const previewFrame = document.getElementById('previewFrame');
         const statusMessage = document.getElementById('statusMessage');
-        if (statusMessage) {
-            statusMessage.textContent = 'STATUS: `statusMessage` element found and JS is active!';
-            statusMessage.className = 'message info';
-        } else {
-            alert('ALERT: ERROR - `statusMessage` element NOT found by document.getElementById!');
-        }
 
-        // --- 2. Function called by the button's onclick attribute ---
-        function handleDirectClick() {
-            alert('ALERT 2: Button clicked via `onclick` attribute!');
-            if (statusMessage) {
-                statusMessage.textContent = 'STATUS: `onclick` handler fired. Basic JS is working.';
-                statusMessage.className = 'message success';
-            } else {
-                alert('ALERT: ERROR - `statusMessage` not found in `handleDirectClick`!');
+        const DEFAULT_USERNAME = 'acmeproducts'; // Set default owner
+        const DEFAULT_REPO = 'stuff';             // Set default repo name
+        const FILENAME_TAG = '`));
+            if (match && match[1]) {
+                return match[1].trim();
             }
+            return null;
         }
 
-        // --- 3. Test if DOMContentLoaded fires and if getElementById works inside it ---
-        document.addEventListener('DOMContentLoaded', () => {
-            alert('ALERT 3: `DOMContentLoaded` event fired!');
+        // --- Event Listeners & Logic ---
 
-            const testInput = document.getElementById('testInput');
-            const testButton = document.getElementById('testButton');
+        // PAT Handling
+        savePatBtn.addEventListener('click', () => {
+            const originalBtnText = savePatBtn.textContent;
+            savePatBtn.textContent = 'Saving...'; 
+            savePatBtn.disabled = true; 
 
-            if (testInput && testButton) {
-                if (statusMessage) {
-                    statusMessage.textContent = 'STATUS: All elements found and `DOMContentLoaded` fired. Attaching event listener via JS...';
-                    statusMessage.className = 'message success';
+            const pat = patInput.value.trim();
+            if (pat) {
+                try {
+                    localStorage.setItem('githubPat', pat);
+                    githubToken = pat;
+                    showStatus('PAT saved successfully!', 'success');
+                    fetchReposBtn.click(); 
+                } catch (e) {
+                    showStatus(`Error saving PAT: ${e.message}. Browser storage might be restricted.`, 'error', true);
                 }
-
-                // Attach an event listener via JavaScript for the button
-                testButton.addEventListener('click', () => {
-                    alert('ALERT 4: Event listener attached via JS worked!');
-                    if (statusMessage) {
-                        statusMessage.textContent = 'STATUS: Event listener attached via JS fired!';
-                        statusMessage.className = 'message info';
-                    }
-                });
-
             } else {
-                if (statusMessage) {
-                    statusMessage.textContent = 'ERROR: `testInput` or `testButton` not found by JS inside `DOMContentLoaded`!';
-                    statusMessage.className = 'message error';
-                }
+                showStatus('PAT cannot be empty!', 'error');
+            }
+            savePatBtn.textContent = originalBtnText; 
+            savePatBtn.disabled = false; 
+        });
+
+        // Load PAT on startup
+        document.addEventListener('DOMContentLoaded', () => {
+            const storedPat = localStorage.getItem('githubPat');
+            if (storedPat) {
+                patInput.value = storedPat;
+                githubToken = storedPat;
+                showStatus('PAT loaded from local storage.', 'info');
+                ownerInput.value = DEFAULT_USERNAME; 
+                fetchReposBtn.click(); 
+            } else {
+                showStatus('Please enter your GitHub PAT to begin. It will be remembered.', 'info', true); 
+                ownerInput.value = DEFAULT_USERNAME; 
             }
         });
 
-        // --- 4. A final check if script execution reaches here ---
-        // This will only show if all prior code parsed and ran without fatal errors.
-        if (statusMessage) {
-            statusMessage.textContent += ' (Script fully parsed to end.)';
-        }
+        // Fetch Repos
+        fetchReposBtn.addEventListener('click', async () => {
+            repoSelect.innerHTML = '<option value="">-- Loading Repos --</option>';
+            fileSelect.innerHTML = '<option value="">-- Select a File to Display --</option>'; 
+            fileDisplayArea.textContent = ''; 
+            
+            const owner = ownerInput.value.trim();
+            if (!owner) {
+                showStatus("Please enter a GitHub username or organization.", 'error');
+                return;
+            }
+
+            if (!githubToken) { 
+                 showStatus("Error: GitHub Personal Access Token (PAT) is missing. Cannot fetch repos.", 'error', true);
+                 repoSelect.innerHTML = '<option value="">-- PAT Required --</option>';
+                 return;
+            }
+
+            let repos = [];
+            showStatus(`Fetching repositories for ${owner}...`, 'info');
+            try {
+                const userRepos = await githubApi(`/user/repos?affiliation=owner`);
+                if (userRepos) {
+                    repos = userRepos;
+                }
+                
+                const currentUser = await githubApi('/user');
+                if (currentUser && owner.toLowerCase() !== currentUser.login.toLowerCase()) {
+                    const orgRepos = await githubApi(`/orgs/${owner}/repos`);
+                    if (orgRepos) {
+                        repos = repos.concat(orgRepos); 
+                    }
+                }
+                
+            } catch (e) {
+                showStatus(`Failed to fetch repos for ${owner}. Check username/org and PAT permissions.`, 'error');
+                return;
+            }
+            
+            const uniqueRepos = Array.from(new Set(repos.map(r => r.id)))
+                               .map(id => repos.find(r => r.id === id));
+
+
+            if (!uniqueRepos || uniqueRepos.length === 0) {
+                showStatus(`No repositories found for ${owner}. Check username/org and PAT permissions.`, 'info');
+                repoSelect.innerHTML = '<option value="">-- No Repos Found --</option>';
+                return;
+            }
+
+            repoSelect.innerHTML = '<option value="">-- Select a Repository --</option>';
+            let defaultRepoFound = false;
+            uniqueRepos.forEach(repo => {
+                const option = document.createElement('option');
+                option.value = repo.name;
+                option.textContent = repo.name;
+                repoSelect.appendChild(option);
+                if (repo.name.toLowerCase() === DEFAULT_REPO.toLowerCase()) {
+                    repoSelect.value = repo.name;
+                    defaultRepoFound = true;
+                }
+            });
+
+            if (!defaultRepoFound && uniqueRepos.length > 0) {
+                repoSelect.value = uniqueRepos[0].name; 
+            }
+            showStatus(`Fetched ${uniqueRepos.length} repositories.`, 'success');
+            if (repoSelect.value) { 
+                repoSelect.dispatchEvent(new Event('change')); 
+            }
+        });
+
+        // Repo Selection Change (Fetch Files for AS-IS selector)
+        repoSelect.addEventListener('change', async () => {
+            fileSelect.innerHTML = '<option value="">-- Loading Files --</option>';
+            fileDisplayArea.textContent = ''; 
+            
+            const owner = ownerInput.value.trim();
+            const repo = repoSelect.value;
+            if (!owner || !repo) {
+                fileSelect.innerHTML = '<option value="">-- Select Repo First --</option>';
+                return;
+            }
+
+            showStatus(`Fetching AS-IS content for ${repo}...`, 'info'); // Corrected message from filePath to repo
+            const url = `/repos/${owner}/${repo}/contents`;
+            const contents = await githubApi(url);
+
+            if (!contents) {
+                fileSelect.innerHTML = '<option value="">-- Error Loading Files --</option>';
+                return;
+            }
+
+            fileSelect.innerHTML = '<option value="">-- Select a File to Display --</option>';
+            currentRepoFilesSha = {}; 
+            contents.forEach(item => {
+                if (item.type === 'file') {
+                    const option = document.createElement('option');
+                    option.value = item.path;
+                    option.textContent = item.path;
+                    fileSelect.appendChild(option);
+                    currentRepoFilesSha[item.path] = item.sha; 
+                }
+            });
+            showStatus(`Loaded files for ${repo}.`, 'success');
+        });
+
+        // File Selection from AS-IS (Populate fileDisplayArea ONLY)
+        fileSelect.addEventListener('change', async () => {
+            const owner = ownerInput.value.trim();
+            const repo = repoSelect.value;
+            const filePath = fileSelect.value;
+            
+            if (!owner || !repo || !filePath) {
+                fileDisplayArea.textContent = ''; 
+                return;
+            }
+
+            showStatus(`Fetching AS-IS content for ${filePath}...`, 'info');
+            const fileContentData = await githubApi(`/repos/${owner}/${repo}/contents/${filePath}`);
+            if (fileContentData && fileContentData.content !== undefined) { 
+                fileDisplayArea.textContent = atob(fileContentData.content); 
+                showStatus(`Displayed AS-IS content of ${filePath}.`, 'success');
+            } else {
+                fileDisplayArea.textContent = 'Could not retrieve file content.';
+                showStatus(`Failed to display AS-IS content for ${filePath}.`, 'error');
+            }
+        });
+
+        // --- TO-BE Code Input Handlers ---
+
+        // File Upload Button (Triggers hidden input)
+        uploadFileBtn.addEventListener('click', () => fileUploadInput.click()); 
         
+        // Handle file selected from input
+        fileUploadInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    codeEditor.value = e.target.result;
+                    showStatus(`File "${file.name}" loaded into TO-BE editor.`, 'info');
+                    if (!fileNameInput.value) { 
+                        const parsedName = parseFilenameFromComment(codeEditor.value);
+                        if (parsedName) {
+                            fileNameInput.value = parsedName;
+                            showStatus(`Filename parsed from comments: "${parsedName}".`, 'info');
+                        }
+                    }
+                };
+                reader.readAsText(file);
+                event.target.value = ''; 
+            }
+        });
+
+        // Drag & Drop
+        codeEditor.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            codeEditor.classList.add('dragover'); 
+        });
+        codeEditor.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            codeEditor.classList.remove('dragover'); 
+        });
+        codeEditor.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            codeEditor.classList.remove('dragover'); 
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    codeEditor.value = event.target.result;
+                    showStatus(`File "${file.name}" dropped and loaded into TO-BE editor.`, 'info');
+                    if (!fileNameInput.value) { 
+                        const parsedName = parseFilenameFromComment(codeEditor.value);
+                        if (parsedName) {
+                            fileNameInput.value = parsedName;
+                            showStatus(`Filename parsed from comments: "${parsedName}".`, 'info');
+                        }
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // Deploy TO-BE Code
+        deployBtn.addEventListener('click', async () => {
+            const owner = ownerInput.value.trim();
+            const repo = repoSelect.value;
+            let filePath = fileNameInput.value.trim(); 
+            const codeContent = codeEditor.value;
+            const commitMessage = commitMessageInput.value.trim() || 'Update via Tool X';
+
+            if (!githubToken) { showStatus("Error: GitHub Personal Access Token (PAT) is missing.", 'error', true); return; }
+            if (!owner || !repo) { showStatus("Error: Please select a repository.", 'error', true); return; }
+            if (!codeContent) { showStatus("Error: TO-BE code editor cannot be empty.", 'error', true); return; }
+
+            if (!filePath) {
+                const parsedName = parseFilenameFromComment(codeContent);
+                if (parsedName) {
+                    filePath = parsedName;
+                    fileNameInput.value = parsedName; 
+                    showStatus(`File name for TO-BE version parsed from comments: "${parsedName}".`, 'info');
+                } else {
+                    showStatus("Error: File name for TO-BE version is missing and could not be parsed from code comments. Please enter one.", 'error', true);
+                    return;
+                }
+            }
+
+            const base64Content = btoa(unescape(encodeURIComponent(codeContent))); 
+
+            let sha = currentRepoFilesSha[filePath]; 
+
+            showStatus(`Preparing to deploy TO-BE version of ${filePath} to ${repo}...`, 'info');
+            if (sha === undefined) {
+                const existingFile = await githubApi(`/repos/${owner}/${repo}/contents/${filePath}`);
+                if (existingFile && existingFile.sha) {
+                    sha = existingFile.sha; 
+                    showStatus(`Updating existing file ${filePath}.`, 'info');
+                } else if (existingFile === null) {
+                    return; 
+                } else {
+                    sha = undefined; 
+                    showStatus(`File ${filePath} is new, creating it.`, 'info');
+                }
+            } else {
+                 showStatus(`Updating existing file ${filePath} (SHA from cache).`, 'info');
+            }
+
+
+            const data = {
+                message: commitMessage,
+                content: base64Content,
+                sha: sha, 
+            };
+
+            const deployUrl = `/repos/${owner}/${repo}/contents/${filePath}`;
+            const result = await githubApi(deployUrl, 'PUT', data);
+
+            if (result) {
+                showStatus(`Successfully deployed TO-BE version of ${filePath} to ${repo}! Commit: ${result.commit.html_url}`, 'success', true);
+                currentRepoFilesSha[filePath] = result.content.sha; 
+
+                const liveAppUrl = getGitHubPagesUrl(owner, repo, filePath);
+                if (openNewTabCheckbox.checked) {
+                    window.open(liveAppUrl, '_blank');
+                } else {
+                    previewFrame.src = liveAppUrl;
+                    previewFrame.style.display = 'block';
+                }
+            } else {
+                showStatus('Deployment failed. Check console for details.', 'error', true);
+            }
+        });
     </script>
 </body>
 </html>
