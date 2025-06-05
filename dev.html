@@ -1,13 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" style="height: 100%;">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tool X: AI Code Deployer</title>
     <style>
         /* General Styles */
-        html, body { height: 100%; margin: 0; padding: 0; } /* Ensure html and body take full height */
-        body { font-family: Arial, sans-serif; padding: 15px; background-color: #ffffff; color: #000000; font-size: 12pt; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 15px; background-color: #ffffff; color: #000000; font-size: 12pt; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; }
         .container {
             max-width: 850px;
             margin: auto;
@@ -19,7 +18,6 @@
             display: flex;
             flex-direction: column;
             box-sizing: border-box;
-            overflow: hidden; /* Prevent content overflow from breaking layout */
         }
 
         /* Tab Styles */
@@ -49,7 +47,7 @@
         /* Form Elements & Layout */
         label { display: block; margin-bottom: 5px; font-size: 12pt; }
         input[type="text"], select, textarea {
-            width: calc(100% - 16px); /* Default to almost full width */
+            width: calc(100% - 16px);
             padding: 8px;
             margin-bottom: 10px;
             border: 1px solid #ccc;
@@ -58,25 +56,16 @@
             background-color: #ffffff;
             color: #000000;
         }
-        
-        /* Enlarged textarea and iframe for Tab 2 */
-        textarea#codeEditor,
-        iframe#previewFrame {
+        /* Make textarea and iframe scrollable and grow */
+        textarea { resize: vertical; font-family: 'Courier New', monospace; flex-grow: 1; min-height: 150px; overflow: auto; } /* Added overflow: auto */
+        #previewFrame {
             width: 100%;
-            height: auto; /* Allow height to be determined by flex-grow */
-            flex-grow: 1; /* Makes them fill available space */
-            min-height: 250px; /* Increased min-height */
-            margin-bottom: 10px; /* Consistent margin */
-            box-sizing: border-box;
-        }
-        textarea#codeEditor {
-            resize: vertical; /* Allow manual vertical resize */
-            font-family: 'Courier New', monospace;
-        }
-        iframe#previewFrame {
             border: 1px solid #ccc;
             background-color: #f9f9f9;
-            display: block; /* Always visible on Tab 2 */
+            flex-grow: 1; /* Makes iframe fill available space */
+            min-height: 200px; /* Added min-height */
+            display: none; /* Controlled by JS when Viewer tab is active */
+            overflow: auto; /* Added overflow: auto */
         }
 
         .button-group { margin-top: 10px; margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
@@ -93,28 +82,40 @@
         button:hover { background-color: #0056b3; }
         button:disabled { background-color: #cccccc; cursor: not-allowed; }
 
-        /* Input line for Tab 1 */
         .input-line {
-            display: flex; /* Use flexbox */
-            flex-wrap: wrap; /* Allow items to wrap on smaller screens */
-            gap: 10px; /* Space between items */
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 8px;
             margin-bottom: 10px;
-            align-items: flex-end; /* Align labels and inputs better */
-            flex-shrink: 0;
+            align-items: center;
+            flex-shrink: 0; /* Prevents shrinking */
         }
-        .input-line > div {
-            flex: 1 1 150px; /* Allow items to grow/shrink, with a base of 150px */
-            display: flex;
-            flex-direction: column;
+        .input-line > div { display: flex; flex-direction: column; }
+        .input-line label { margin-bottom: 2px; }
+        .input-line input, .input-line select { height: 32px; padding: 5px 7px; }
+
+        /* Sub-tab styles for Tab 2 */
+        .sub-tabs { display: flex; margin-top: 10px; border-bottom: 1px solid #ddd; flex-shrink: 0; }
+        .sub-tab-button {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 11pt;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            margin-right: 2px;
+            color: #000000;
         }
-        .input-line input, .input-line select {
-            width: 100%; /* Make inputs/selects fill their container div */
-            height: 38px; /* Consistent height */
-            padding: 5px 7px;
-            box-sizing: border-box; /* Include padding/border in width */
-            margin-bottom: 0; /* Remove extra margin */
+        .sub-tab-button.active {
+            background-color: #ffffff;
+            border-color: #ddd;
+            border-bottom: 1px solid #ffffff;
+            font-weight: bold;
         }
-        .input-line label { margin-bottom: 4px; } /* Adjust label spacing */
+        .sub-tab-content { display: none; flex-grow: 1; padding-top: 10px; display: flex; flex-direction: column; box-sizing: border-box; }
+        .sub-tab-content.active { display: flex; }
 
         /* Status Message */
         .status-message {
@@ -137,11 +138,19 @@
         small { font-size: 12pt; color: #000000; display: block; margin-top: -5px; margin-bottom: 8px; flex-shrink: 0; }
 
         hr { border: 0; border-top: 1px solid #eee; margin: 18px 0; flex-shrink: 0; }
+
+        /* Ensure editor and preview grow */
+        #codeEditor { display: flex; flex-direction: column; } /* Needed if content in textarea is direct child of flex */
+        
+        /* Make Tab 2 scrollable */
+        #tab2.tab-content {
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Tool X: AI Code Deployer</h1>
+        <h1>Tool X: AI Code Deployer (Updated)</h1>
 
         <div class="status-message" id="statusMessage"></div>
 
@@ -169,11 +178,16 @@
                 <input type="file" id="fileUploadInput" accept=".html,.css,.js,.txt" style="display: none;">
                 <button id="uploadFileBtn">Choose & Load Local File</button>
             </div>
-            <!-- Removed sub-tabs as per instruction -->
-            <label for="codeEditor">TO-BE Code Editor:</label>
-            <textarea id="codeEditor"></textarea>
-            <label for="previewFrame">Live Preview (TO-BE Version):</label>
-            <iframe id="previewFrame" title="Live Preview of TO-BE Code"></iframe>
+            <div class="sub-tabs">
+                <button class="sub-tab-button active" data-sub-tab="source-tab">Source</button>
+                <button class="sub-tab-button" data-sub-tab="viewer-tab">Viewer</button>
+            </div>
+            <div id="source-tab" class="sub-tab-content active">
+                <textarea id="codeEditor"></textarea>
+            </div>
+            <div id="viewer-tab" class="sub-tab-content">
+                <iframe id="previewFrame" title="Live Preview of TO-BE Code"></iframe>
+            </div>
         </div>
 
         <div id="tab3" class="tab-content">
@@ -217,77 +231,7 @@
         const DEFAULT_USERNAME = 'acmeproducts';
         const DEFAULT_REPO = 'stuff';
         const DEFAULT_FILE = 'dev.html';
-        const FILENAME_TAG = '<!-- TOOLX_FILENAME:';
-
-        let githubToken = '';
-        let currentRepoFilesSha = {}; // To store SHAs for existing files
-
-        // --- Utility Functions ---
-        function showStatus(message, type = 'info', sticky = false) {
-            console.log(`STATUS (${type}): ${message}`);
-            statusMessage.textContent = message;
-            statusMessage.className = `status-message ${type} visible`;
-            if (!sticky) {
-                setTimeout(() => { statusMessage.classList.remove('visible'); }, 5000);
-            }
-        }
-
-        async function githubApi(url, method = 'GET', data = null, usePat = true, headers = {}) {
-            console.log(`[${new Date().toLocaleTimeString()}] githubApi called: ${method} ${url} (usePat: ${usePat})`);
-            let authHeader = {};
-            if (usePat && githubToken) {
-                authHeader = { 'Authorization': `token ${githubToken}` };
-                console.log(`[${new Date().toLocaleTimeString()}] Using PAT for authorization.`);
-            } else if (usePat && !githubToken) {
-                showStatus("Error: GitHub PAT missing for this action. Please save it in the Deploy tab.", 'error', true);
-                console.error(`[${new Date().toLocaleTimeString()}] GitHub PAT is required but not found for URL: ${url}`);
-                return null;
-            }
-
-            try {
-                const response = await fetch(`https://api.github.com${url}`, {
-                    method: method,
-                    headers: {
-                        'Accept': 'application/vnd.github.v3+json',
-                        'Content-Type': 'application/json',
-                        ...authHeader,
-                        ...headers
-                    },
-                    body: data ? JSON.stringify(data) : null,
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text(); // Get raw text to log
-                    console.error(`[${new Date().toLocaleTimeString()}] GitHub API Error Response (${response.status}): ${errorText}`);
-                    try {
-                        const errorData = JSON.parse(errorText);
-                        showStatus(`Error: ${errorData.message || 'API call failed'}. Status: ${response.status}`, 'error', true);
-                        console.error('GitHub API Error Data:', url, errorData);
-                    } catch (parseError) {
-                        showStatus(`Error: API call failed. Status: ${response.status}. Response: ${errorText.substring(0, 100)}...`, 'error', true);
-                        console.error('GitHub API Response (non-JSON):', url, errorText);
-                    }
-                    return null;
-                }
-                console.log(`[${new Date().toLocaleTimeString()}] GitHub API call successful: ${url}`);
-                return response.json();
-            } catch (e) {
-                showStatus(`Network error: ${e.message}.`, 'error', true);
-                console.error(`[${new Date().toLocaleTimeString()}] Fetch Error for ${url}:`, e);
-                return null;
-            }
-        }
-
-        function getGitHubPagesUrl(owner, repo, filePath) {
-            const baseUrl = `https://${owner}.github.io/${repo}/`;
-            if (filePath.toLowerCase() === 'index.html') {
-                return baseUrl;
-            }
-            return `${baseUrl}${filePath}`;
-        }
-
-        function parseFilenameFromComment(code) {
-            const match = code.match(new RegExp(`${FILENAME_TAG}\\s*([a-zA-Z0-9_.-]+)\\s*-->`));
+        const FILENAME_TAG = '`));
             if (match && match[1]) {
                 return match[1].trim();
             }
@@ -299,27 +243,30 @@
             const content = codeEditor.value;
             if (content.trim() === '') {
                 previewFrame.style.display = 'none';
-                console.log(`[${new Date().toLocaleTimeString()}] Preview: Editor content is empty.`);
                 return;
             }
-            // In this version, preview is always shown when content exists on Tab 2
-            previewFrame.srcdoc = content;
-            previewFrame.style.display = 'block';
-            console.log(`[${new Date().toLocaleTimeString()}] Preview: Updated iframe srcdoc.`);
+            // Only show preview frame if 'Viewer' tab is active
+            if (document.getElementById('viewer-tab').classList.contains('active')) {
+                previewFrame.srcdoc = content;
+                previewFrame.style.display = 'block';
+            }
         }
 
         // --- Tab Management ---
         function openTab(tabId) {
-            console.log(`[${new Date().toLocaleTimeString()}] Opening tab: ${tabId}`);
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
             document.querySelector(`.tab-button[data-tab="${tabId}"]`).classList.add('active');
 
-            // If switching to tab2, ensure preview is updated
+            // If switching to tab2, ensure correct sub-tab is active and preview is updated
             if (tabId === 'tab2') {
-                updateToBePreview(); // Update preview when Tab 2 is opened
-                console.log(`[${new Date().toLocaleTimeString()}] Tab 2 activated. Preview updated.`);
+                const activeSubTabContent = document.querySelector('#tab2 .sub-tab-content.active');
+                if (activeSubTabContent && activeSubTabContent.id === 'viewer-tab') {
+                    updateToBePreview();
+                } else {
+                    previewFrame.style.display = 'none';
+                }
             }
         }
 
@@ -329,47 +276,56 @@
             });
         });
 
+        // --- Sub-tab Management for Tab 2 ---
+        function openSubTab(subTabId) {
+            document.querySelectorAll('#tab2 .sub-tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('#tab2 .sub-tab-button').forEach(button => button.classList.remove('active'));
+            document.getElementById(subTabId).classList.add('active');
+            document.querySelector(`#tab2 .sub-tab-button[data-sub-tab="${subTabId}"]`).classList.add('active');
+
+            // Handle preview frame visibility based on sub-tab
+            if (subTabId === 'viewer-tab') {
+                updateToBePreview();
+            } else {
+                previewFrame.style.display = 'none';
+            }
+        }
+
+        document.querySelectorAll('.sub-tabs .sub-tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                openSubTab(button.dataset.subTab);
+            });
+        });
+
         // --- File Listing Logic ---
         async function fetchAndPopulateFiles() {
-            console.log(`[${new Date().toLocaleTimeString()}] fetchAndPopulateFiles started.`);
             const owner = ownerInput.value.trim();
             const repo = repoInput.value.trim();
 
-            fileSelect.innerHTML = '<option value="">Loading...</option>'; // Show loading state
-            fileSelect.disabled = true; // Disable until loaded
+            fileSelect.innerHTML = '<option value="">Loading...</option>';
 
             if (!owner || !repo) {
                 fileSelect.innerHTML = '<option value="">Enter User/Org and Repo</option>';
                 showStatus('Enter GitHub User/Org and Repository.', 'info');
-                fileSelect.disabled = false;
-                console.log(`[${new Date().toLocaleTimeString()}] fetchAndPopulateFiles: Missing owner or repo.`);
                 return;
             }
 
             showStatus(`Loading files for ${repo}...`, 'info');
-            console.log(`[${new Date().toLocaleTimeString()}] Attempting to fetch files for ${owner}/${repo}`);
 
             try {
-                // Use PAT if available for listing; it's generally good practice even for public repos to avoid rate limits
-                const response = await githubApi(`/repos/${owner}/${repo}/contents`, 'GET', null, !!githubToken);
-                
-                if (!response) { // If githubApi returned null (meaning it showed an error and returned)
+                const response = await githubApi(`/repos/${owner}/${repo}/contents`, 'GET', null, !!githubToken); // Use PAT if available for listing
+                if (!response) {
                     fileSelect.innerHTML = '<option value="">Error Loading Files</option>';
-                    showStatus('Failed to load files. Check console for details.', 'error', true);
-                    console.log(`[${new Date().toLocaleTimeString()}] fetchAndPopulateFiles: GitHub API call returned null.`);
                     return;
                 }
-                
-                console.log(`[${new Date().toLocaleTimeString()}] fetchAndPopulateFiles: Received response from API.`);
 
-                fileSelect.innerHTML = ''; // Clear loading state
+                fileSelect.innerHTML = '';
                 currentRepoFilesSha = {};
                 const htmlFiles = response.filter(file => file.type === 'file' && file.name.toLowerCase().endsWith('.html'));
 
                 if (htmlFiles.length === 0) {
                     fileSelect.innerHTML = '<option value="">No HTML files found</option>';
                     showStatus(`No HTML files found in ${repo}.`, 'info');
-                    console.log(`[${new Date().toLocaleTimeString()}] fetchAndPopulateFiles: No HTML files found.`);
                     return;
                 }
 
@@ -387,15 +343,10 @@
                     fileSelect.value = htmlFiles[0].path;
                 }
                 showStatus(`Files loaded.`, 'success');
-                console.log(`[${new Date().toLocaleTimeString()}] fetchAndPopulateFiles: Files successfully loaded and populated.`);
 
             } catch (err) {
                 showStatus(`Failed to fetch files: ${err.message}`, 'error', true);
                 fileSelect.innerHTML = '<option value="">Error Loading Files</option>';
-                console.error(`[${new Date().toLocaleTimeString()}] fetchAndPopulateFiles: Caught unexpected error:`, err);
-            } finally {
-                fileSelect.disabled = false; // Enable select regardless of outcome
-                console.log(`[${new Date().toLocaleTimeString()}] fetchAndPopulateFiles finished.`);
             }
         }
 
@@ -404,18 +355,16 @@
 
         // Initial Load - Set defaults and trigger file fetching
         document.addEventListener('DOMContentLoaded', () => {
-            console.log(`[${new Date().toLocaleTimeString()}] DOMContentLoaded fired.`);
-            openTab('tab1'); // Default to Tab 1
+            openTab('tab1');
+            openSubTab('source-tab'); // Default to Source tab in Tab 2
 
             const storedPat = localStorage.getItem('githubPat');
             if (storedPat) {
                 patInput.value = storedPat;
                 githubToken = storedPat;
                 showStatus('PAT loaded.', 'info');
-                console.log(`[${new Date().toLocaleTimeString()}] Stored PAT found and loaded.`);
             } else {
                 showStatus('Enter PAT for deployment.', 'info');
-                console.log(`[${new Date().toLocaleTimeString()}] No stored PAT found.`);
             }
             ownerInput.value = DEFAULT_USERNAME;
             repoInput.value = DEFAULT_REPO;
@@ -428,14 +377,12 @@
 
         // Copy to Editor Button
         copyToEditorBtn.addEventListener('click', async () => {
-            console.log(`[${new Date().toLocaleTimeString()}] Copy to Editor button clicked.`);
             const owner = ownerInput.value.trim();
             const repo = repoInput.value.trim();
             const filePath = fileSelect.value;
 
             if (!owner || !repo || !filePath) {
                 showStatus('Select a file to copy content from.', 'info');
-                console.log(`[${new Date().toLocaleTimeString()}] Copy to Editor: Missing owner, repo, or file path.`);
                 return;
             }
 
@@ -447,11 +394,10 @@
                 fileNameInput.value = filePath;
                 showStatus('Content copied to editor.', 'success');
                 openTab('tab2'); // Switch to TO-BE tab
-                updateToBePreview(); // Update preview since it's always shown on Tab 2
-                console.log(`[${new Date().toLocaleTimeString()}] Content copied and switched to tab 2.`);
+                openSubTab('source-tab'); // Ensure source tab is active
+                updateToBePreview(); // Trigger preview update (though it's hidden)
             } else {
-                showStatus('Failed to retrieve content for copying. Ensure PAT is valid and has `repo` scope, especially for private repos. Check console.', 'error', true);
-                console.error(`[${new Date().toLocaleTimeString()}] Failed to get fileContentData or content is undefined.`);
+                showStatus('Failed to retrieve content for copying. Ensure PAT is valid and has `repo` scope, especially for private repos.', 'error', true);
             }
         });
 
@@ -460,7 +406,6 @@
 
         // Handle file selected from input
         fileUploadInput.addEventListener('change', (event) => {
-            console.log(`[${new Date().toLocaleTimeString()}] File upload input changed.`);
             const file = event.target.files[0];
             if (file) {
                 const reader = new FileReader();
@@ -469,10 +414,9 @@
                     fileNameInput.value = file.name;
                     showStatus(`"${file.name}" loaded.`, 'info');
                     updateToBePreview();
-                    console.log(`[${new Date().toLocaleTimeString()}] File "${file.name}" loaded from local disk.`);
                 };
                 reader.readAsText(file);
-                event.target.value = ''; // Clear file input for next upload
+                event.target.value = '';
             }
         });
 
@@ -491,7 +435,6 @@
             e.preventDefault(); e.stopPropagation();
             codeEditor.style.border = '1px solid #ccc';
             codeEditor.style.backgroundColor = '#ffffff';
-            console.log(`[${new Date().toLocaleTimeString()}] File dropped into editor.`);
 
             const files = e.dataTransfer.files;
             if (files.length > 0) {
@@ -502,7 +445,6 @@
                     fileNameInput.value = file.name;
                     showStatus(`"${file.name}" dropped.`, 'info');
                     updateToBePreview();
-                    console.log(`[${new Date().toLocaleTimeString()}] Dropped file "${file.name}" loaded.`);
                 };
                 reader.readAsText(file);
             }
@@ -513,7 +455,6 @@
 
         // PAT Handling
         savePatBtn.addEventListener('click', () => {
-            console.log(`[${new Date().toLocaleTimeString()}] Save PAT button clicked.`);
             const originalBtnText = savePatBtn.textContent;
             savePatBtn.textContent = 'Saving...';
             savePatBtn.disabled = true;
@@ -524,14 +465,11 @@
                     localStorage.setItem('githubPat', pat);
                     githubToken = pat;
                     showStatus('PAT saved.', 'success');
-                    console.log(`[${new Date().toLocaleTimeString()}] PAT successfully saved to localStorage.`);
                 } catch (e) {
                     showStatus(`Error saving PAT.`, 'error', true);
-                    console.error(`[${new Date().toLocaleTimeString()}] Error saving PAT to localStorage:`, e);
                 }
             } else {
                 showStatus('PAT cannot be empty!', 'error');
-                console.warn(`[${new Date().toLocaleTimeString()}] Attempted to save empty PAT.`);
             }
             savePatBtn.textContent = originalBtnText;
             savePatBtn.disabled = false;
@@ -539,16 +477,15 @@
 
         // Deploy TO-BE Code
         deployBtn.addEventListener('click', async () => {
-            console.log(`[${new Date().toLocaleTimeString()}] Deploy button clicked.`);
             const owner = ownerInput.value.trim();
             const repo = repoInput.value.trim();
             let filePath = fileNameInput.value.trim();
             const codeContent = codeEditor.value;
             const commitMessage = commitMessageInput.value.trim() || 'Deploying update via Tool X';
 
-            if (!githubToken) { showStatus("PAT missing. Cannot deploy.", 'error', true); console.error(`[${new Date().toLocaleTimeString()}] Deployment failed: PAT missing.`); return; }
-            if (!owner || !repo) { showStatus("Repository missing.", 'error', true); console.error(`[${new Date().toLocaleTimeString()}] Deployment failed: Repository missing.`); return; }
-            if (!codeContent) { showStatus("TO-BE editor empty.", 'error', true); console.error(`[${new Date().toLocaleTimeString()}] Deployment failed: Editor content empty.`); return; }
+            if (!githubToken) { showStatus("PAT missing. Cannot deploy.", 'error', true); return; }
+            if (!owner || !repo) { showStatus("Repository missing.", 'error', true); return; }
+            if (!codeContent) { showStatus("TO-BE editor empty.", 'error', true); return; }
 
             if (!filePath) {
                 const parsedName = parseFilenameFromComment(codeContent);
@@ -556,10 +493,8 @@
                     filePath = parsedName;
                     fileNameInput.value = parsedName;
                     showStatus(`File name parsed: "${parsedName}".`, 'info');
-                    console.log(`[${new Date().toLocaleTimeString()}] Deployment: File name parsed from comment: "${parsedName}".`);
                 } else {
                     showStatus("File name missing. Add to editor or input.", 'error', true);
-                    console.error(`[${new Date().toLocaleTimeString()}] Deployment failed: File name missing and not found in comment.`);
                     return;
                 }
             }
@@ -568,26 +503,19 @@
             let sha = currentRepoFilesSha[filePath];
 
             showStatus(`Deploying ${filePath} to ${repo}...`, 'info');
-            console.log(`[${new Date().toLocaleTimeString()}] Deployment: Starting deployment for ${filePath}.`);
 
             if (!sha) {
-                console.log(`[${new Date().toLocaleTimeString()}] Deployment: Checking if file ${filePath} exists to get SHA.`);
                 const existingFile = await githubApi(`/repos/${owner}/${repo}/contents/${filePath}`, 'GET', null, true);
                 if (existingFile && existingFile.sha) {
                     sha = existingFile.sha;
-                    showStatus(`Updating existing file ${filePath}.`, 'info');
-                    console.log(`[${new Date().toLocaleTimeString()}] Deployment: Found existing file, SHA: ${sha}.`);
-                } else if (existingFile === null) {
-                    console.error(`[${new Date().toLocaleTimeString()}] Deployment: Failed to check for existing file, returning.`);
-                    return; // Error already shown by githubApi
-                } else {
-                    sha = undefined; // Ensure sha is undefined for new file creation
-                    showStatus(`File ${filePath} is new. Creating.`, 'info');
-                    console.log(`[${new Date().toLocaleTimeString()}] Deployment: File is new.`);
+                    showStatus(`Updating ${filePath}.`, 'info');
+                } else if (existingFile === null) { return; }
+                else {
+                    sha = undefined;
+                    showStatus(`File ${filePath} is new.`, 'info');
                 }
             } else {
-                 showStatus(`Updating existing file ${filePath}.`, 'info');
-                 console.log(`[${new Date().toLocaleTimeString()}] Deployment: Using cached SHA for ${filePath}: ${sha}.`);
+                 showStatus(`Updating ${filePath}.`, 'info');
             }
 
             const data = { message: commitMessage, content: base64Content, sha: sha };
@@ -600,15 +528,12 @@
 
                 const liveAppUrl = getGitHubPagesUrl(owner, repo, filePath);
                 deployedAppUrlDisplay.innerHTML = `URL: <a href="${liveAppUrl}" target="_blank">${liveAppUrl}</a>`;
-                console.log(`[${new Date().toLocaleTimeString()}] Deployed app URL: ${liveAppUrl}`);
 
                 if (openNewTabCheckbox.checked) {
                     window.open(liveAppUrl, '_blank');
-                    console.log(`[${new Date().toLocaleTimeString()}] Opening deployed app in new tab.`);
                 }
             } else {
-                showStatus('Deployment failed. Check console for details.', 'error', true);
-                console.error(`[${new Date().toLocaleTimeString()}] Deployment failed, result was null.`);
+                showStatus('Deployment failed.', 'error', true);
             }
         });
     </script>
