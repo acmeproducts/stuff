@@ -7,9 +7,8 @@
   <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
   <style>
     html, body { margin: 0; font-family: sans-serif; height: 100%; overflow: hidden; }
-    #statusContainer { padding: 10px; }
-    #statusToggle { cursor: pointer; }
-    #status { display: none; white-space: pre-wrap; max-height: 100px; overflow-y: auto; }
+    #statusContainer { padding: 10px; background: #f0f0f0; border-bottom: 1px solid #ccc; }
+    #status { white-space: pre-wrap; max-height: 100px; overflow-y: auto; }
     table { width: 100%; border-collapse: collapse; }
     th, td { border: 1px solid #ccc; padding: 6px; }
     th { background: #eee; cursor: pointer; }
@@ -55,7 +54,7 @@
   <h2 style="margin: 10px;">OneDrive Browser</h2>
   <button id="signInBtn" style="margin-left: 10px;">Sign In</button>
   <div id="statusContainer">
-    <span id="statusToggle">&#x25B6; Debug</span>
+    <h3>Status:</h3>
     <div id="status">Status: Ready</div>
   </div>
   <div id="breadcrumbs"></div>
@@ -115,11 +114,6 @@ function log(msg) {
   const statusDiv = document.getElementById('status');
   statusDiv.textContent += '\n' + msg;
 }
-
-document.getElementById('statusToggle').onclick = () => {
-  const d = document.getElementById('status');
-  d.style.display = d.style.display === 'none' ? 'block' : 'none';
-};
 
 function sortTable(col) {
   const tbody = document.getElementById('gridBody');
@@ -204,35 +198,52 @@ async function showMetadata() {
   const item = items[currentIndex];
   const token = await getToken();
   const url = item['@microsoft.graph.downloadUrl'];
-  const mime = item.file?.mimeType || '';
   document.getElementById('modal').style.display = 'flex';
-  extractPNGText(url);
+  extractMetadata(url);
 }
 
 function closeModal() { document.getElementById('modal').style.display = 'none'; }
 
-async function extractPNGText(url) {
+async function extractMetadata(url) {
   try {
+    log('Starting to extract metadata...');
     const resp = await fetch(url);
-    const buffer = await resp.arrayBuffer();
-    const data = new Uint8Array(buffer);
+    if (!resp.ok) {
+      throw new Error('Failed to fetch image: ' + resp.statusText);
+    }
+    const blob = await resp.blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    const data = new Uint8Array(arrayBuffer);
     const dec = new TextDecoder();
     let pos = 8;
     const tableBody = document.querySelector('#metadataTable tbody');
     tableBody.innerHTML = '';
-    while (pos < data.length) {
-      const len = (data[pos]<<24)|(data[pos+1]<<16)|(data[pos+2]<<8)|data[pos+3];
-      const type = dec.decode(data.slice(pos+4, pos+8));
-      if (type==='tEXt') {
-        const chunk = dec.decode(data.slice(pos+8,pos+8+len));
-        const [k,v] = chunk.split('=');
-        if (!k || !v) { pos += len + 12; continue; }
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${k}</td><td>${v}</td><td><button class="copy-btn" onclick="navigator.clipboard.writeText('${v}')">📋</button></td>`;
-        tableBody.appendChild(tr);
+
+    // Extract metadata from PNG files
+    if (url.endsWith('.png')) {
+      while (pos < data.length) {
+        const len = (data[pos] << 24) | (data[pos + 1] << 16) | (data[pos + 2] << 8) | data[pos + 3];
+        const type = dec.decode(data.slice(pos + 4, pos + 8));
+        if (type === 'tEXt') {
+          const chunk = dec.decode(data.slice(pos + 8, pos + 8 + len));
+          const [k, v] = chunk.split('=');
+          if (!k || !v) {
+            pos += len + 12;
+            continue;
+          }
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${k}</td><td>${v}</td><td><button class="copy-btn" onclick="navigator.clipboard.writeText('${v}')">📋</button></td>`;
+          tableBody.appendChild(tr);
+        }
+        pos += len + 12;
       }
-      pos += len + 12;
+      if (tableBody.innerHTML === '') {
+        log('No metadata found.');
+      }
+    } else {
+      log('File is not a PNG.');
     }
+    log('Metadata extraction completed.');
   } catch (error) {
     log('Error extracting metadata: ' + error.message);
   }
