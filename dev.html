@@ -138,13 +138,14 @@
                 localStorage.setItem('githubPat', pat);
                 githubToken = pat;
                 showStatus('PAT saved successfully!', 'success');
-                fetchReposBtn.click(); // Auto-fetch repos after saving PAT
+                // Attempt to fetch repos immediately after saving PAT
+                fetchReposBtn.click(); 
             } else {
                 showStatus('PAT cannot be empty!', 'error');
             }
         });
 
-        // Load PAT on startup
+        // Load PAT on startup (Corrected sequence)
         document.addEventListener('DOMContentLoaded', () => {
             const storedPat = localStorage.getItem('githubPat');
             if (storedPat) {
@@ -152,34 +153,40 @@
                 githubToken = storedPat;
                 showStatus('PAT loaded from local storage.', 'info');
                 ownerInput.value = DEFAULT_USERNAME; // Set default owner
-                fetchReposBtn.click(); // Auto-fetch repos if PAT is present
+                // Call fetchReposBtn.click() here to automatically populate repos if PAT is present
+                fetchReposBtn.click(); 
             } else {
-                showStatus('Please enter your GitHub PAT to begin.', 'info', true);
+                showStatus('Please enter your GitHub PAT to begin. It will be remembered.', 'info', true);
+                ownerInput.value = DEFAULT_USERNAME; // Ensure default owner is set even if no PAT
             }
         });
 
         // Fetch Repos
         fetchReposBtn.addEventListener('click', async () => {
             repoSelect.innerHTML = '<option value="">-- Loading Repos --</option>';
-            fileSelect.innerHTML = '<option value="">-- Select a File to Display --</option>'; // Clear AS-IS file selector
-            fileDisplayArea.textContent = ''; // Clear AS-IS content
+            fileSelect.innerHTML = '<option value="">-- Select a File to Display --</option>'; 
+            fileDisplayArea.textContent = ''; 
+            
             const owner = ownerInput.value.trim();
             if (!owner) {
                 showStatus("Please enter a GitHub username or organization.", 'error');
                 return;
             }
 
+            if (!githubToken) { // Double-check PAT before making API call
+                 showStatus("Error: GitHub Personal Access Token (PAT) is missing. Cannot fetch repos.", 'error', true);
+                 repoSelect.innerHTML = '<option value="">-- PAT Required --</option>';
+                 return;
+            }
+
             let repos = [];
             showStatus(`Fetching repositories for ${owner}...`, 'info');
             try {
-                // Try fetching repos for the specified owner. Prioritize user's own repos if PAT is theirs.
                 const userRepos = await githubApi(`/user/repos?affiliation=owner`);
                 if (userRepos) {
                     repos = userRepos;
                 }
                 
-                // If the owner input is explicitly different and not your user, try as an organization
-                // Note: This relies on PAT having 'read:org' scope for organization repos.
                 const currentUser = await githubApi('/user');
                 if (currentUser && owner.toLowerCase() !== currentUser.login.toLowerCase()) {
                     const orgRepos = await githubApi(`/orgs/${owner}/repos`);
@@ -193,7 +200,6 @@
                 return;
             }
             
-            // Filter out duplicates if both user and org repos were fetched and combined
             const uniqueRepos = Array.from(new Set(repos.map(r => r.id)))
                                .map(id => repos.find(r => r.id === id));
 
@@ -218,16 +224,19 @@
             });
 
             if (!defaultRepoFound && uniqueRepos.length > 0) {
-                repoSelect.value = uniqueRepos[0].name; // Select first if default not found
+                repoSelect.value = uniqueRepos[0].name; 
             }
             showStatus(`Fetched ${uniqueRepos.length} repositories.`, 'success');
-            repoSelect.dispatchEvent(new Event('change')); // Trigger change to load files for selected repo
+            // Trigger change to load files for selected repo if one was selected
+            if (repoSelect.value) {
+                repoSelect.dispatchEvent(new Event('change')); 
+            }
         });
 
         // Repo Selection Change (Fetch Files for AS-IS selector)
         repoSelect.addEventListener('change', async () => {
             fileSelect.innerHTML = '<option value="">-- Loading Files --</option>';
-            fileDisplayArea.textContent = ''; // Clear AS-IS content display
+            fileDisplayArea.textContent = ''; 
             
             const owner = ownerInput.value.trim();
             const repo = repoSelect.value;
@@ -253,7 +262,7 @@
                     option.value = item.path;
                     option.textContent = item.path;
                     fileSelect.appendChild(option);
-                    currentRepoFilesSha[item.path] = item.sha; // Cache SHA for potential future updates
+                    currentRepoFilesSha[item.path] = item.sha; 
                 }
             });
             showStatus(`Loaded files for ${repo}.`, 'success');
@@ -266,14 +275,14 @@
             const filePath = fileSelect.value;
             
             if (!owner || !repo || !filePath) {
-                fileDisplayArea.textContent = ''; // Clear display if no file selected
+                fileDisplayArea.textContent = ''; 
                 return;
             }
 
             showStatus(`Fetching AS-IS content for ${filePath}...`, 'info');
             const fileContentData = await githubApi(`/repos/${owner}/${repo}/contents/${filePath}`);
             if (fileContentData && fileContentData.content !== undefined) { 
-                fileDisplayArea.textContent = atob(fileContentData.content); // Base64 decode and load into AS-IS display
+                fileDisplayArea.textContent = atob(fileContentData.content); 
                 showStatus(`Displayed AS-IS content of ${filePath}.`, 'success');
             } else {
                 fileDisplayArea.textContent = 'Could not retrieve file content.';
@@ -295,7 +304,7 @@
                     codeEditor.value = e.target.result;
                     showStatus(`File "${file.name}" loaded into TO-BE editor.`, 'info');
                     // Try to parse filename from comments if fileNameInput is empty
-                    if (!fileNameInput.value) { // Only parse if TO-BE filename field is empty
+                    if (!fileNameInput.value) { 
                         const parsedName = parseFilenameFromComment(codeEditor.value);
                         if (parsedName) {
                             fileNameInput.value = parsedName;
@@ -304,6 +313,7 @@
                     }
                 };
                 reader.readAsText(file);
+                event.target.value = ''; // Clear file input so same file can be re-selected
             }
         });
 
@@ -331,7 +341,7 @@
                     codeEditor.value = event.target.result;
                     showStatus(`File "${file.name}" dropped and loaded into TO-BE editor.`, 'info');
                     // Try to parse filename from comments if fileNameInput is empty
-                    if (!fileNameInput.value) { // Only parse if TO-BE filename field is empty
+                    if (!fileNameInput.value) { 
                         const parsedName = parseFilenameFromComment(codeEditor.value);
                         if (parsedName) {
                             fileNameInput.value = parsedName;
@@ -347,28 +357,28 @@
         deployBtn.addEventListener('click', async () => {
             const owner = ownerInput.value.trim();
             const repo = repoSelect.value;
-            let filePath = fileNameInput.value.trim(); // Get current filename input for TO-BE version
+            let filePath = fileNameInput.value.trim(); 
             const codeContent = codeEditor.value;
             const commitMessage = commitMessageInput.value.trim() || 'Update via Tool X';
 
-            if (!githubToken) { showStatus("Please save your PAT.", 'error', true); return; }
-            if (!owner || !repo) { showStatus("Please select a repository.", 'error', true); return; }
-            if (!codeContent) { showStatus("TO-BE code editor cannot be empty.", 'error', true); return; }
+            if (!githubToken) { showStatus("Error: GitHub Personal Access Token (PAT) is missing.", 'error', true); return; }
+            if (!owner || !repo) { showStatus("Error: Please select a repository.", 'error', true); return; }
+            if (!codeContent) { showStatus("Error: TO-BE code editor cannot be empty.", 'error', true); return; }
 
             // Logic for parsing filename from comment if fileNameInput is empty (for TO-BE)
             if (!filePath) {
                 const parsedName = parseFilenameFromComment(codeContent);
                 if (parsedName) {
                     filePath = parsedName;
-                    fileNameInput.value = parsedName; // Update input field with parsed name
+                    fileNameInput.value = parsedName; 
                     showStatus(`File name for TO-BE version parsed from comments: "${parsedName}".`, 'info');
                 } else {
-                    showStatus("File name for TO-BE version is missing and could not be parsed from code comments. Please enter one.", 'error', true);
+                    showStatus("Error: File name for TO-BE version is missing and could not be parsed from code comments. Please enter one.", 'error', true);
                     return;
                 }
             }
 
-            const base64Content = btoa(unescape(encodeURIComponent(codeContent))); // Base64 encode, handling UTF-8
+            const base64Content = btoa(unescape(encodeURIComponent(codeContent))); 
 
             let sha = currentRepoFilesSha[filePath]; // Check if a file with this TO-BE filename exists in our cache
 
@@ -377,13 +387,12 @@
             if (sha === undefined) {
                 const existingFile = await githubApi(`/repos/${owner}/${repo}/contents/${filePath}`);
                 if (existingFile && existingFile.sha) {
-                    sha = existingFile.sha; // File exists, get its SHA
+                    sha = existingFile.sha; 
                     showStatus(`Updating existing file ${filePath}.`, 'info');
                 } else if (existingFile === null) {
-                    // API call failed, error already shown by githubApi function
-                    return; // Stop if there was an API error fetching file existence
+                    return; 
                 } else {
-                    sha = undefined; // File does not exist, it will be created
+                    sha = undefined; 
                     showStatus(`File ${filePath} is new, creating it.`, 'info');
                 }
             } else {
@@ -394,7 +403,7 @@
             const data = {
                 message: commitMessage,
                 content: base64Content,
-                sha: sha, // Only needed for updates, not for new files
+                sha: sha, 
             };
 
             const deployUrl = `/repos/${owner}/${repo}/contents/${filePath}`;
@@ -402,7 +411,7 @@
 
             if (result) {
                 showStatus(`Successfully deployed TO-BE version of ${filePath} to ${repo}! Commit: ${result.commit.html_url}`, 'success', true);
-                currentRepoFilesSha[filePath] = result.content.sha; // Update SHA cache for future edits to this file
+                currentRepoFilesSha[filePath] = result.content.sha; 
 
                 const liveAppUrl = getGitHubPagesUrl(owner, repo, filePath);
                 if (openNewTabCheckbox.checked) {
@@ -412,7 +421,6 @@
                     previewFrame.style.display = 'block';
                 }
             } else {
-                // Error status already shown by githubApi function
                 showStatus('Deployment failed. Check console for details.', 'error', true);
             }
         });
