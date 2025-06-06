@@ -25,7 +25,7 @@
   <script>
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 3000);
-    camera.position.z = 1200;
+    camera.position.z = 800;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -53,16 +53,16 @@
         this.blinks = new Float32Array(PARTICLES_PER_SWARM).fill(0);
         this.blinkSpeeds = new Float32Array(PARTICLES_PER_SWARM).map(() => Math.random() * 0.1 + 0.01);
         this.count = PARTICLES_PER_SWARM;
-        this.index = index;
         this.baseColor = baseColor;
+        this.center = new THREE.Vector3();
 
-        const offset = (index - 1) * 500;
+        const offsetX = (index - 1) * 250;
 
         for (let i = 0; i < PARTICLES_PER_SWARM; i++) {
           const idx = i * 3;
-          this.positions[idx] = (Math.random() - 0.5) * 600 + offset;
-          this.positions[idx + 1] = (Math.random() - 0.5) * 600;
-          this.positions[idx + 2] = (Math.random() - 0.5) * 600;
+          this.positions[idx] = offsetX + (Math.random() - 0.5) * 300;
+          this.positions[idx + 1] = (Math.random() - 0.5) * 300;
+          this.positions[idx + 2] = (Math.random() - 0.5) * 300;
 
           this.velocities[idx] = (Math.random() - 0.5);
           this.velocities[idx + 1] = (Math.random() - 0.5);
@@ -76,39 +76,60 @@
         this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
         this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
 
-        const material = new THREE.PointsMaterial({
-          size: 6,
+        this.material = new THREE.PointsMaterial({
+          size: 5,
           vertexColors: true,
           transparent: true,
           opacity: 1.0,
           depthWrite: false,
         });
 
-        this.points = new THREE.Points(this.geometry, material);
+        this.points = new THREE.Points(this.geometry, this.material);
         scene.add(this.points);
       }
 
-      updateBehavior(blinkBoost = 1.0) {
+      centerOfMass() {
+        let cx = 0, cy = 0, cz = 0;
         for (let i = 0; i < this.count; i++) {
           const idx = i * 3;
+          cx += this.positions[idx];
+          cy += this.positions[idx + 1];
+          cz += this.positions[idx + 2];
+        }
+        this.center.set(cx / this.count, cy / this.count, cz / this.count);
+        return this.center;
+      }
 
-          let vx = this.velocities[idx];
-          let vy = this.velocities[idx + 1];
-          let vz = this.velocities[idx + 2];
+      updateBehavior(blinkBoost = 1.0, attackPulse = false) {
+        const center = this.centerOfMass();
+
+        for (let i = 0; i < this.count; i++) {
+          const idx = i * 3;
 
           let px = this.positions[idx];
           let py = this.positions[idx + 1];
           let pz = this.positions[idx + 2];
 
-          const angle = Math.atan2(py, px) + 0.01;
-          const radius = Math.sqrt(px * px + py * py);
-          px = Math.cos(angle) * radius;
-          py = Math.sin(angle) * radius;
+          let vx = this.velocities[idx];
+          let vy = this.velocities[idx + 1];
+          let vz = this.velocities[idx + 2];
 
-          vx += (Math.random() - 0.5) * 0.3;
-          vy += (Math.random() - 0.5) * 0.3;
-          vz += (Math.random() - 0.5) * 0.3;
+          // Pull toward center
+          const dx = center.x - px;
+          const dy = center.y - py;
+          const dz = center.z - pz;
 
+          vx += dx * 0.0008;
+          vy += dy * 0.0008;
+          vz += dz * 0.0008;
+
+          // Swirl around center
+          const angle = Math.atan2(dy, dx) + 0.05;
+          const radius = Math.sqrt(dx * dx + dy * dy) * 0.02;
+          vx += -Math.sin(angle) * radius;
+          vy += Math.cos(angle) * radius;
+
+          // Dampen and cap velocity
           const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
           const maxSpeed = 2.0;
           if (speed > maxSpeed) {
@@ -117,20 +138,25 @@
             vz *= maxSpeed / speed;
           }
 
-          this.positions[idx] += vx;
-          this.positions[idx + 1] += vy;
-          this.positions[idx + 2] += vz;
+          // Update position
+          px += vx;
+          py += vy;
+          pz += vz;
 
-          this.velocities[idx] = vx * 0.97;
-          this.velocities[idx + 1] = vy * 0.97;
-          this.velocities[idx + 2] = vz * 0.97;
+          this.positions[idx] = px;
+          this.positions[idx + 1] = py;
+          this.positions[idx + 2] = pz;
+          this.velocities[idx] = vx * 0.96;
+          this.velocities[idx + 1] = vy * 0.96;
+          this.velocities[idx + 2] = vz * 0.96;
 
           this.blinks[i] += this.blinkSpeeds[i] * blinkBoost;
           const blink = (Math.sin(this.blinks[i]) + 1) / 2;
+          const pulse = attackPulse ? 1.5 : 1;
 
-          this.colors[idx] = this.baseColor.r * blink;
-          this.colors[idx + 1] = this.baseColor.g * blink;
-          this.colors[idx + 2] = this.baseColor.b * blink;
+          this.colors[idx] = this.baseColor.r * blink * pulse;
+          this.colors[idx + 1] = this.baseColor.g * blink * pulse;
+          this.colors[idx + 2] = this.baseColor.b * blink * pulse;
         }
 
         this.geometry.attributes.position.needsUpdate = true;
@@ -143,17 +169,6 @@
 
       regenerate() {
         if (this.count < PARTICLES_PER_SWARM) this.count += 0.01;
-      }
-
-      centerOfMass() {
-        let cx = 0, cy = 0, cz = 0;
-        for (let i = 0; i < this.count; i++) {
-          const idx = i * 3;
-          cx += this.positions[idx];
-          cy += this.positions[idx + 1];
-          cz += this.positions[idx + 2];
-        }
-        return new THREE.Vector3(cx / this.count, cy / this.count, cz / this.count);
       }
     }
 
@@ -171,11 +186,11 @@
 
       swarms.forEach((swarm, idx) => {
         const dist = swarm.centerOfMass().distanceTo(leadCenter);
-        const engaged = idx !== leadIndex && dist < 400;
+        const engaged = idx !== leadIndex && dist < 200;
         if (idx === leadIndex) swarm.regenerate();
         else swarm.decay();
 
-        swarm.updateBehavior(engaged ? 3.0 : 1.0);
+        swarm.updateBehavior(engaged ? 3.0 : 1.0, engaged);
       });
 
       controls.update();
