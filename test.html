@@ -25,7 +25,7 @@
   <script>
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
-    camera.position.z = 400;
+    camera.position.z = 500;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -35,86 +35,104 @@
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
 
-    const NUM_PARTICLES = 300;
+    const PARTICLES_PER_SWARM = 300;
     const SWARMS = 3;
-    const swarmColors = [0xff3399, 0x33ffcc, 0x9999ff];
+    const swarmColors = [
+      new THREE.Color(0xff3399),
+      new THREE.Color(0x33ffcc),
+      new THREE.Color(0x9999ff)
+    ];
     const swarms = [];
 
     class Swarm {
-      constructor(color) {
-        this.particles = [];
+      constructor(baseColor) {
         this.geometry = new THREE.BufferGeometry();
-        this.positions = new Float32Array(NUM_PARTICLES * 3);
-        this.velocities = new Float32Array(NUM_PARTICLES * 3);
-        this.blinks = new Float32Array(NUM_PARTICLES).fill(0);
-        this.blinkSpeeds = new Float32Array(NUM_PARTICLES).map(() => Math.random() * 0.1 + 0.01);
-        this.count = NUM_PARTICLES;
+        this.positions = new Float32Array(PARTICLES_PER_SWARM * 3);
+        this.velocities = new Float32Array(PARTICLES_PER_SWARM * 3);
+        this.colors = new Float32Array(PARTICLES_PER_SWARM * 3);
+        this.blinks = new Float32Array(PARTICLES_PER_SWARM).fill(0);
+        this.blinkSpeeds = new Float32Array(PARTICLES_PER_SWARM).map(() => Math.random() * 0.1 + 0.01);
+        this.count = PARTICLES_PER_SWARM;
 
-        for (let i = 0; i < NUM_PARTICLES; i++) {
-          const x = (Math.random() - 0.5) * 800;
-          const y = (Math.random() - 0.5) * 800;
-          const z = (Math.random() - 0.5) * 800;
-          this.positions.set([x, y, z], i * 3);
-          this.velocities.set([(Math.random() - 0.5), (Math.random() - 0.5), (Math.random() - 0.5)], i * 3);
+        for (let i = 0; i < PARTICLES_PER_SWARM; i++) {
+          const idx = i * 3;
+          this.positions[idx] = (Math.random() - 0.5) * 800;
+          this.positions[idx + 1] = (Math.random() - 0.5) * 800;
+          this.positions[idx + 2] = (Math.random() - 0.5) * 800;
+
+          this.velocities[idx] = (Math.random() - 0.5);
+          this.velocities[idx + 1] = (Math.random() - 0.5);
+          this.velocities[idx + 2] = (Math.random() - 0.5);
+
+          // Set initial color
+          this.colors[idx] = baseColor.r;
+          this.colors[idx + 1] = baseColor.g;
+          this.colors[idx + 2] = baseColor.b;
         }
 
         this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+        this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
+
         const material = new THREE.PointsMaterial({
-          color: color,
-          size: 6,
+          size: 5,
+          vertexColors: true,
           transparent: true,
-          opacity: 0.8,
+          opacity: 1.0,
           depthWrite: false,
         });
 
         this.points = new THREE.Points(this.geometry, material);
         scene.add(this.points);
+        this.baseColor = baseColor;
       }
 
-      updateBehavior(targets) {
+      updateBehavior() {
         for (let i = 0; i < this.count; i++) {
-          const ix = i * 3;
-          let vx = this.velocities[ix];
-          let vy = this.velocities[ix + 1];
-          let vz = this.velocities[ix + 2];
-          let px = this.positions[ix];
-          let py = this.positions[ix + 1];
-          let pz = this.positions[ix + 2];
+          const idx = i * 3;
 
-          // Swirl and attraction
-          const angle = Math.atan2(py, px) + 0.02;
+          let vx = this.velocities[idx];
+          let vy = this.velocities[idx + 1];
+          let vz = this.velocities[idx + 2];
+
+          let px = this.positions[idx];
+          let py = this.positions[idx + 1];
+          let pz = this.positions[idx + 2];
+
+          const angle = Math.atan2(py, px) + 0.01;
           const radius = Math.sqrt(px * px + py * py);
           px = Math.cos(angle) * radius;
           py = Math.sin(angle) * radius;
 
-          vx += (Math.random() - 0.5) * 0.5;
-          vy += (Math.random() - 0.5) * 0.5;
-          vz += (Math.random() - 0.5) * 0.5;
+          vx += (Math.random() - 0.5) * 0.3;
+          vy += (Math.random() - 0.5) * 0.3;
+          vz += (Math.random() - 0.5) * 0.3;
 
-          // Clamp velocity
           const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
-          const maxSpeed = 3.0;
+          const maxSpeed = 2.0;
           if (speed > maxSpeed) {
             vx *= maxSpeed / speed;
             vy *= maxSpeed / speed;
             vz *= maxSpeed / speed;
           }
 
-          this.positions[ix] += vx;
-          this.positions[ix + 1] += vy;
-          this.positions[ix + 2] += vz;
+          this.positions[idx] += vx;
+          this.positions[idx + 1] += vy;
+          this.positions[idx + 2] += vz;
 
-          this.velocities[ix] = vx * 0.98;
-          this.velocities[ix + 1] = vy * 0.98;
-          this.velocities[ix + 2] = vz * 0.98;
+          this.velocities[idx] = vx * 0.98;
+          this.velocities[idx + 1] = vy * 0.98;
+          this.velocities[idx + 2] = vz * 0.98;
 
-          // Blink animation
           this.blinks[i] += this.blinkSpeeds[i];
           const blink = (Math.sin(this.blinks[i]) + 1) / 2;
-          this.points.material.opacity = 0.4 + blink * 0.6;
+
+          this.colors[idx] = this.baseColor.r * blink;
+          this.colors[idx + 1] = this.baseColor.g * blink;
+          this.colors[idx + 2] = this.baseColor.b * blink;
         }
 
         this.geometry.attributes.position.needsUpdate = true;
+        this.geometry.attributes.color.needsUpdate = true;
       }
 
       decay() {
@@ -124,7 +142,7 @@
       }
 
       regenerate() {
-        if (this.count < NUM_PARTICLES) {
+        if (this.count < PARTICLES_PER_SWARM) {
           this.count += 0.01;
         }
       }
@@ -134,11 +152,8 @@
       swarms.push(new Swarm(swarmColors[i]));
     }
 
-    let tick = 0;
-
     function animate() {
       requestAnimationFrame(animate);
-      tick++;
 
       const leadIndex = swarms.reduce((a, b, i, arr) =>
         arr[a].count > b.count ? a : i, 0);
@@ -159,7 +174,7 @@
     animate();
 
     window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
