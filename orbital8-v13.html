@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>OneDrive Browser</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+    #modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: black;
+      display: none;
+      z-index: 1000;
+    }
+    #modalHeader {
+      position: absolute;
+      top: 0;
+      width: 100%;
+      background: #222;
+      color: white;
+      padding: 8px;
+      display: flex;
+      justify-content: space-between;
+      z-index: 1001;
+    }
+    #controls button {
+      margin-left: 10px;
+    }
+    #modalImage {
+      position: absolute;
+      top: 50px; bottom: 0; left: 0; right: 0;
+      max-width: 100%;
+      max-height: 100%;
+      margin: auto;
+      transform-origin: center;
+      transition: transform 0.2s ease;
+    }
+    #zoomSlider {
+      position: absolute;
+      left: 10px;
+      top: 60px;
+      z-index: 1002;
+    }
+    #metadataPanel {
+      position: fixed;
+      top: 100px;
+      right: 20px;
+      width: 300px;
+      height: 250px;
+      background: white;
+      border: 1px solid #aaa;
+      resize: both;
+      overflow: auto;
+      padding: 10px;
+      z-index: 1003;
+      box-sizing: border-box;
+      cursor: move;
+    }
+    #metadataTable {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    #metadataTable th, #metadataTable td {
+      border: 1px solid #ccc;
+      padding: 4px;
+      word-break: break-word;
+    }
+    .copy-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="modal">
+    <div id="modalHeader">
+      <span>Image Viewer</span>
+      <div id="controls">
+        <button onclick="prevImage()">Prev</button>
+        <button onclick="nextImage()">Next</button>
+        <button onclick="deleteImage()">Delete</button>
+        <button onclick="closeModal()">✕</button>
+      </div>
+    </div>
+    <input id="zoomSlider" type="range" min="10" max="200" value="100" />
+    <img id="modalImage" />
+    <div id="metadataPanel">
+      <table id="metadataTable">
+        <thead><tr><th>Key</th><th>Value</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+let items = [], currentIndex = 0;
+
+function showModal() {
+  const item = items[currentIndex];
+  const url = item.url;
+  const img = document.getElementById('modalImage');
+  document.getElementById('modal').style.display = 'block';
+  img.src = url;
+
+  const zoom = sessionStorage.getItem('zoomLevel') || 100;
+  document.getElementById('zoomSlider').value = zoom;
+  img.style.transform = `scale(${zoom / 100})`;
+  extractPNGText(url);
+}
+
+document.getElementById('zoomSlider').addEventListener('input', e => {
+  const scale = e.target.value / 100;
+  document.getElementById('modalImage').style.transform = `scale(${scale})`;
+  sessionStorage.setItem('zoomLevel', e.target.value);
+});
+
+function closeModal() { document.getElementById('modal').style.display = 'none'; }
+function prevImage() { if (currentIndex > 0) { currentIndex--; showModal(); } }
+function nextImage() { if (currentIndex < items.length - 1) { currentIndex++; showModal(); } }
+function deleteImage() {
+  if (!confirm("Confirm delete?")) return;
+  alert("Mock delete image"); // Insert real delete logic here.
+  closeModal();
+}
+
+function extractPNGText(url) {
+  fetch(url).then(resp => resp.arrayBuffer()).then(buffer => {
+    const data = new Uint8Array(buffer);
+    const dec = new TextDecoder();
+    let pos = 8;
+    const tableBody = document.querySelector('#metadataTable tbody');
+    tableBody.innerHTML = '';
+    while (pos < data.length) {
+      const len = (data[pos]<<24)|(data[pos+1]<<16)|(data[pos+2]<<8)|data[pos+3];
+      const type = dec.decode(data.slice(pos+4, pos+8));
+      if (type === 'tEXt') {
+        const chunk = dec.decode(data.slice(pos+8, pos+8+len));
+        const [k,v] = chunk.split('=');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${k}</td><td>${v}</td><td><button class="copy-btn" onclick="navigator.clipboard.writeText(\`${v}\`)">📋</button></td>`;
+        tableBody.appendChild(tr);
+      }
+      pos += len + 12;
+    }
+  });
+}
+
+// Make panel draggable and persistent
+(function() {
+  const panel = document.getElementById('metadataPanel');
+  const saved = JSON.parse(sessionStorage.getItem('metadataPanel') || '{}');
+  if (saved.top) panel.style.top = saved.top;
+  if (saved.left) panel.style.left = saved.left;
+  if (saved.width) panel.style.width = saved.width;
+  if (saved.height) panel.style.height = saved.height;
+
+  let isDragging = false, offsetX, offsetY;
+  panel.addEventListener('mousedown', e => {
+    if (e.target.tagName === 'TD' || e.target.tagName === 'BUTTON') return;
+    isDragging = true;
+    offsetX = e.offsetX;
+    offsetY = e.offsetY;
+  });
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    panel.style.left = `${e.clientX - offsetX}px`;
+    panel.style.top = `${e.clientY - offsetY}px`;
+  });
+  window.addEventListener('mouseup', () => {
+    if (!isDragging) return;
+    isDragging = false;
+    sessionStorage.setItem('metadataPanel', JSON.stringify({
+      top: panel.style.top,
+      left: panel.style.left,
+      width: panel.style.width,
+      height: panel.style.height
+    }));
+  });
+  panel.addEventListener('mouseup', () => {
+    sessionStorage.setItem('metadataPanel', JSON.stringify({
+      top: panel.style.top,
+      left: panel.style.left,
+      width: panel.style.width,
+      height: panel.style.height
+    }));
+  });
+})();
+
+// Mock data to test
+items = [{ url: "https://upload.wikimedia.org/wikipedia/commons/7/70/Example.png" }];
+showModal();
+</script>
+</body>
+</html>
