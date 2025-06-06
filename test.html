@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3js WebGL Boids Fight</title>
+<title>3js WebGL Competing Swarms</title>
 <style>
 body { margin: 0; overflow: hidden; background-color: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
 canvas { display: block; }
@@ -24,20 +24,25 @@ document.body.appendChild(renderer.domElement);
 
 const colors = [0xff0000, 0x00ff00, 0x0000ff];
 const swarms = [];
-const numBoids = 100;
+const numBoidsPerSwarm = 100;
 const separationDistance = 25;
 const alignmentDistance = 50;
 const cohesionDistance = 100;
+const attackDistance = 100;
+const decayRate = 0.005;
+const regenerationRate = 0.001;
 
 for (let i = 0; i < 3; i++) {
     const geometry = new THREE.SphereGeometry(0.5, 32, 32);
     const material = new THREE.MeshBasicMaterial({ color: colors[i], transparent: true, opacity: 0.8 });
     const swarm = [];
-    for (let j = 0; j < numBoids; j++) {
+    for (let j = 0; j < numBoidsPerSwarm; j++) {
         const boid = new THREE.Mesh(geometry, material);
         boid.position.set(Math.random() * 400 - 200, Math.random() * 400 - 200, Math.random() * 400 - 200);
         boid.velocity = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize();
         boid.acceleration = new THREE.Vector3();
+        boid.isAttacking = false;
+        boid.attackTimer = 0;
         scene.add(boid);
         swarm.push(boid);
     }
@@ -96,6 +101,26 @@ function cohesion(boid, neighbors) {
     return steering;
 }
 
+function attack(boid, enemies) {
+    let steering = new THREE.Vector3();
+    let count = 0;
+    for (let other of enemies) {
+        const distance = boid.position.distanceTo(other.position);
+        if (distance > 0 && distance < attackDistance) {
+            steering.sub(other.position);
+            steering.normalize().multiplyScalar(1.5);
+            steering.add(other.velocity);
+            count++;
+            boid.isAttacking = true;
+            boid.attackTimer = 10;
+        }
+    }
+    if (count > 0) {
+        steering.divideScalar(count);
+    }
+    return steering;
+}
+
 function getNeighbors(boid, swarm) {
     return swarm.filter(other => other !== boid);
 }
@@ -105,37 +130,63 @@ function applyForces(boid, swarm, others) {
     const sep = separate(boid, neighbors).multiplyScalar(1.5);
     const ali = align(boid, neighbors).multiplyScalar(1.0);
     const coh = cohesion(boid, neighbors).multiplyScalar(1.0);
-    boid.acceleration.add(sep).add(ali).add(coh);
+    let attackForce = new THREE.Vector3();
 
     let othersTogether = [];
     for (let otherSwarm of others) {
         othersTogether = othersTogether.concat(otherSwarm);
+        attackForce.add(attack(boid, otherSwarm)).multiplyScalar(0.5);
     }
 
-    let closestBoid = null;
-    let minDistance = Infinity;
-    for (let other of othersTogether) {
-        const distance = boid.position.distanceTo(other.position);
-        if (distance > 0 && distance < cohesionDistance * 2) {
-            if (distance < minDistance) {
-                minDistance = distance;
-                closestBoid = other;
-            }
+    boid.acceleration.add(sep).add(ali).add(coh).add(attackForce);
+
+    boid.velocity.add(boid.acceleration);
+    boid.velocity.clampScalar(-3, 3);
+    boid.position.add(boid.velocity);
+    boid.acceleration.set(0, 0, 0);
+
+    if (boid.isAttacking) {
+        boid.material.opacity = 1.0;
+        boid.attackTimer--;
+        if (boid.attackTimer <= 0) {
+            boid.isAttacking = false;
+            boid.material.opacity = 0.8;
         }
     }
+}
 
-    if (closestBoid) {
-        const steering = closestBoid.position.clone().sub(boid.position);
-        steering.normalize().multiplyScalar(2.0);
-        boid.acceleration.add(steering);
+function decayAndRegenerate() {
+    const swarmSizes = swarms.map(swarm => swarm.length);
+    const maxIndex = swarmSizes.indexOf(Math.max(...swarmSizes));
+    const minIndex = swarmSizes.indexOf(Math.min(...swarmSizes));
+
+    if (swarmSizes[maxIndex] > swarmSizes[minIndex]) {
+        const maxSwarm = swarms[maxIndex];
+        const minSwarm = swarms[minIndex];
+
+        if (Math.random() < decayRate && maxSwarm.length > numBoidsPerSwarm / 2) {
+            const boidToRemove = maxSwarm.pop();
+            scene.remove(boidToRemove);
+        }
+
+        if (Math.random() < regenerationRate) {
+            const geometry = new THREE.SphereGeometry(0.5, 32, 32);
+            const material = new THREE.MeshBasicMaterial({ color: colors[minIndex], transparent: true, opacity: 0.8 });
+            const boid = new THREE.Mesh(geometry, material);
+            boid.position.set(Math.random() * 400 - 200, Math.random() * 400 - 200, Math.random() * 400 - 200);
+            boid.velocity = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize();
+            boid.acceleration = new THREE.Vector3();
+            boid.isAttacking = false;
+            boid.attackTimer = 0;
+            scene.add(boid);
+            minSwarm.push(boid);
+        }
     }
 }
 
 camera.position.z = 500;
 
 let touchStart = null;
-let touchEnd = null;
-let isPinching = false;
 let pinchStartDistance = 0;
 let pinchCurrentDistance = 0;
 
@@ -149,7 +200,6 @@ window.addEventListener('touchstart', (event) => {
     if (event.touches.length === 1) {
         touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
     } else if (event.touches.length === 2) {
-        isPinching = true;
         const x1 = event.touches[0].clientX;
         const y1 = event.touches[0].clientY;
         const x2 = event.touches[1].clientX;
@@ -182,7 +232,6 @@ window.addEventListener('touchmove', (event) => {
 
 window.addEventListener('touchend', () => {
     touchStart = null;
-    isPinching = false;
 });
 
 function animate() {
@@ -193,14 +242,11 @@ function animate() {
         const otherSwarms = swarms.filter((_, index) => index !== i);
 
         for (let boid of currentSwarm) {
-            boid.velocity.add(boid.acceleration);
-            boid.velocity.clampScalar(-3, 3);
-            boid.position.add(boid.velocity);
-            boid.acceleration.set(0, 0, 0);
-
             applyForces(boid, currentSwarm, otherSwarms);
         }
     }
+
+    decayAndRegenerate();
 
     renderer.render(scene, camera);
 }
