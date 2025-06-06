@@ -6,7 +6,6 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Orbital8 V12 Enhanced - Smart Cache & Subfolders</title>
-    <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
         :root {
             --app-accent: #f59e0b;
@@ -760,8 +759,18 @@
         <div class="card">
             <h1 class="title" style="font-size: 32px;">Orbital8</h1>
             <p class="subtitle">Connect to OneDrive</p>
+            <input type="password" id="access-token" class="input" placeholder="Enter OneDrive Access Token">
             <button class="button" id="auth-button">Connect OneDrive</button>
-            <div id="auth-status" class="status info">Click to sign in with your Microsoft account</div>
+            <div id="auth-status" class="status info">Enter your OneDrive access token to continue</div>
+            <div style="margin-top: 16px; text-align: left; font-size: 12px; color: rgba(255, 255, 255, 0.6);">
+                <p><strong>How to get your access token:</strong></p>
+                <ol style="margin: 8px 0; padding-left: 16px;">
+                    <li>Go to <a href="https://developer.microsoft.com/en-us/graph/graph-explorer" target="_blank" style="color: var(--app-accent);">Graph Explorer</a></li>
+                    <li>Sign in with your Microsoft account</li>
+                    <li>Click "Access token" tab</li>
+                    <li>Copy the token and paste it above</li>
+                </ol>
+            </div>
         </div>
     </div>
     
@@ -769,7 +778,6 @@
     <div class="screen hidden" id="folder-screen">
         <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
             <h2 class="title">Select a Folder</h2>
-            <div id="breadcrumb" class="breadcrumb"></div>
             <div class="folder-list" id="folder-list">
                 <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
                     <div class="spinner"></div>
@@ -1051,11 +1059,11 @@
                     appContainer: document.getElementById('app-container'),
                     
                     // Auth elements
+                    accessToken: document.getElementById('access-token'),
                     authButton: document.getElementById('auth-button'),
                     authStatus: document.getElementById('auth-status'),
                     
                     // Folder elements
-                    breadcrumb: document.getElementById('breadcrumb'),
                     folderList: document.getElementById('folder-list'),
                     refreshFolders: document.getElementById('refresh-folders'),
                     logout: document.getElementById('logout'),
@@ -1731,10 +1739,13 @@
             }
             
             async fetchWithRange(fileId, start, end) {
-                const accessToken = await appState.cloudStorage.currentProvider.getAccessToken();
+                if (!appState.cloudStorage.currentProvider.accessToken) {
+                    throw new Error('No access token available');
+                }
+                
                 const response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`, {
                     headers: { 
-                        'Authorization': `Bearer ${accessToken}`,
+                        'Authorization': `Bearer ${appState.cloudStorage.currentProvider.accessToken}`,
                         'Range': `bytes=${start}-${end}`
                     },
                     signal: this.abortController.signal
@@ -1754,8 +1765,8 @@
                 this.currentProvider = new OneDriveProvider();
             }
             
-            async authenticate() {
-                return await this.currentProvider.authenticate();
+            async authenticate(token) {
+                return await this.currentProvider.authenticate(token);
             }
             
             isAuthenticated() {
@@ -1954,16 +1965,24 @@
         // ===== Authentication Manager (Enhanced) =====
         const authManager = {
             async authenticate() {
+                const token = utils.elements.accessToken.value.trim();
+                
+                if (!token) {
+                    this.setStatus('Please enter your OneDrive access token', 'error');
+                    return;
+                }
+                
                 utils.elements.authButton.disabled = true;
                 utils.elements.authButton.textContent = 'Connecting...';
-                this.setStatus('Connecting to OneDrive...', 'info');
+                this.setStatus('Testing access token...', 'info');
                 
                 try {
-                    console.log('Starting authentication...');
-                    const success = await appState.cloudStorage.authenticate();
+                    console.log('Testing access token...');
+                    const success = await appState.cloudStorage.authenticate(token);
                     
                     if (success) {
                         this.setStatus('✅ Connected to OneDrive!', 'success');
+                        utils.elements.accessToken.value = ''; // Clear token for security
                         console.log('Authentication successful, loading folders...');
                         
                         setTimeout(() => {
@@ -1975,9 +1994,9 @@
                     console.error('Authentication error:', error);
                     this.setStatus(`❌ ${error.message}`, 'error');
                     
-                    // Show detailed error for debugging
+                    // Show help after error
                     setTimeout(() => {
-                        this.setStatus('Click to try again', 'info');
+                        this.setStatus('Check that your access token is valid and has the right permissions', 'info');
                     }, 5000);
                 } finally {
                     utils.elements.authButton.disabled = false;
@@ -2018,28 +2037,25 @@
         // ===== Enhanced Folder Manager with Subfolder Navigation =====
         const folderManager = {
             isProcessing: false,
-            currentPath: [],
             
-            async loadFolders(parentId = 'root') {
+            async loadFolders() {
                 utils.elements.folderList.innerHTML = `
                     <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
                         <div class="spinner"></div>
-                        <span>Loading folders...</span>
+                        <span>Scanning OneDrive for folders with images...</span>
                     </div>
                 `;
                 
-                this.updateBreadcrumb(parentId);
-                
                 try {
-                    console.log('Loading folders from:', parentId);
-                    const folders = await appState.cloudStorage.getFolders(parentId);
-                    console.log('Loaded folders:', folders.length);
+                    console.log('Scanning OneDrive for folders with images...');
+                    const folders = await appState.cloudStorage.getFolders();
+                    console.log('Found folders with images:', folders.length);
                     
                     if (folders.length === 0) {
                         utils.elements.folderList.innerHTML = `
                             <div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
-                                <span>No folders found</span>
-                                ${parentId !== 'root' ? '<br><small>Try going back to parent folder</small>' : ''}
+                                <div style="margin-bottom: 12px;">📂 No folders with images found</div>
+                                <div style="font-size: 14px; opacity: 0.8;">Make sure you have image files in your OneDrive folders</div>
                             </div>
                         `;
                         return;
@@ -2049,121 +2065,51 @@
                     
                     folders.forEach(folder => {
                         const div = document.createElement('div');
-                        div.className = `folder-item ${folder.hasSubfolders ? 'has-subfolders' : ''}`;
+                        div.className = 'folder-item';
                         div.setAttribute('data-folder-id', folder.id);
                         
-                        const icon = folder.hasSubfolders ? 
-                            `<svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12l2 2 4-4"></path>
-                            </svg>` :
-                            `<svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-                            </svg>`;
+                        // Simple folder icon
+                        const icon = `<svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                        </svg>`;
+                        
+                        // Clean up folder name (remove "OneDrive/" prefix if present)
+                        const displayName = folder.name.replace(/^OneDrive\//, '');
                         
                         div.innerHTML = `
                             ${icon}
                             <div class="folder-info">
-                                <div class="folder-name">${folder.name}</div>
-                                <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()}</div>
-                                <div class="folder-count">Loading image count...</div>
+                                <div class="folder-name">${displayName}</div>
+                                <div class="folder-count">${folder.imageCount} images</div>
                             </div>
                         `;
                         
-                        // Event listeners for navigation
-                        if (folder.hasSubfolders) {
-                            div.addEventListener('click', () => this.navigateToFolder(folder));
-                            div.style.cursor = 'pointer';
-                            div.title = 'Click to browse subfolders';
-                        }
+                        // Click to select folder
+                        div.addEventListener('click', () => this.selectFolder(folder));
+                        div.style.cursor = 'pointer';
+                        div.title = `${folder.imageCount} images - Click to open`;
                         
-                        // Double-click for folders (once we know if they have images)
-                        div.addEventListener('dblclick', () => {
-                            if (folder.imageCount > 0) {
-                                this.selectFolder(folder);
-                            } else {
-                                utils.showToast('This folder has no images', 'info', true);
-                            }
-                        });
+                        // Highlight folders with many images
+                        if (folder.imageCount > 10) {
+                            div.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+                        }
                         
                         utils.elements.folderList.appendChild(div);
-                    });
-                    
-                    // Initial image count display
-                    folders.forEach(folder => {
-                        const folderElement = document.querySelector(`[data-folder-id="${folder.id}"] .folder-count`);
-                        if (folderElement) {
-                            folderElement.textContent = `${folder.imageCount} images${folder.hasSubfolders ? ' • Has subfolders' : ''}`;
-                            
-                            // Update click behavior once we know image count
-                            const parentDiv = folderElement.closest('.folder-item');
-                            if (folder.imageCount > 0) {
-                                parentDiv.style.borderColor = 'rgba(245, 158, 11, 0.4)';
-                                if (!folder.hasSubfolders) {
-                                    parentDiv.addEventListener('click', () => this.selectFolder(folder));
-                                    parentDiv.style.cursor = 'pointer';
-                                    parentDiv.title = 'Click to open folder';
-                                }
-                            }
-                        }
                     });
                     
                 } catch (error) {
                     console.error('Error loading folders:', error);
                     utils.elements.folderList.innerHTML = `
                         <div style="text-align: center; padding: 40px; color: rgba(239, 68, 68, 0.9);">
-                            <div style="margin-bottom: 12px;">❌ Failed to load folders</div>
-                            <div style="font-size: 14px; opacity: 0.8;">${error.message}</div>
-                            <button class="folder-button" onclick="folderManager.loadFolders('${parentId}')" style="margin-top: 16px;">
+                            <div style="margin-bottom: 12px;">❌ Failed to scan folders</div>
+                            <div style="font-size: 14px; opacity: 0.8; margin-bottom: 16px;">${error.message}</div>
+                            <button class="folder-button" onclick="folderManager.loadFolders()" style="margin-top: 16px;">
                                 Try Again
                             </button>
                         </div>
                     `;
-                    utils.showToast(`Error loading folders: ${error.message}`, 'error', true);
+                    utils.showToast(`Error scanning folders: ${error.message}`, 'error', true);
                 }
-            },
-            
-            updateBreadcrumb(currentId = 'root') {
-                const breadcrumb = utils.elements.breadcrumb;
-                breadcrumb.innerHTML = '';
-                
-                // Root
-                const rootItem = document.createElement('span');
-                rootItem.className = 'breadcrumb-item';
-                rootItem.textContent = 'OneDrive';
-                rootItem.addEventListener('click', () => {
-                    this.currentPath = [];
-                    this.loadFolders('root');
-                });
-                breadcrumb.appendChild(rootItem);
-                
-                // Path items
-                this.currentPath.forEach((folder, index) => {
-                    const separator = document.createElement('span');
-                    separator.className = 'breadcrumb-separator';
-                    separator.textContent = '>';
-                    breadcrumb.appendChild(separator);
-                    
-                    const item = document.createElement('span');
-                    item.className = 'breadcrumb-item';
-                    item.textContent = folder.name;
-                    
-                    if (index < this.currentPath.length - 1) {
-                        item.addEventListener('click', () => {
-                            this.currentPath = this.currentPath.slice(0, index + 1);
-                            this.loadFolders(folder.id);
-                        });
-                    } else {
-                        item.classList.add('current');
-                    }
-                    
-                    breadcrumb.appendChild(item);
-                });
-            },
-            
-            navigateToFolder(folder) {
-                this.currentPath.push(folder);
-                this.loadFolders(folder.id);
             },
             
             async selectFolder(folder) {
@@ -3620,6 +3566,11 @@
         function setupEventHandlers() {
             // Authentication
             utils.elements.authButton.addEventListener('click', () => authManager.authenticate());
+            utils.elements.accessToken.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    authManager.authenticate();
+                }
+            });
             utils.elements.refreshFolders.addEventListener('click', () => folderManager.loadFolders());
             utils.elements.logout.addEventListener('click', () => authManager.logout());
             
@@ -3806,32 +3757,28 @@
                 appState.metadataExtractor = new ProgressiveMetadataExtractor();
                 appState.userMetadataManager = new SmartOneDriveMetadataManager(appState.cloudStorage.currentProvider);
                 
-                // Check existing authentication
-                const accounts = appState.cloudStorage.currentProvider.msalInstance.getAllAccounts();
-                if (accounts.length > 0) {
-                    console.log('Found existing account, attempting silent login...');
-                    appState.cloudStorage.currentProvider.activeAccount = accounts[0];
-                    appState.cloudStorage.currentProvider.msalInstance.setActiveAccount(accounts[0]);
+                // Check for existing stored token
+                if (appState.cloudStorage.isAuthenticated()) {
+                    console.log('Found existing access token, testing...');
                     
                     try {
-                        // Test if we can make API calls
-                        await appState.cloudStorage.currentProvider.getAccessToken();
+                        // Test if stored token still works
                         await appState.cloudStorage.currentProvider.makeApiCall('/me');
                         
-                        appState.cloudStorage.currentProvider.isAuthenticated = true;
-                        authManager.setStatus('✅ Already connected to OneDrive', 'success');
+                        authManager.setStatus('✅ Using stored access token', 'success');
                         
                         setTimeout(() => {
                             utils.showScreen('folder-screen');
                             folderManager.loadFolders();
                         }, 1500);
                     } catch (error) {
-                        console.log('Existing session invalid:', error);
-                        authManager.setStatus('Please sign in to OneDrive', 'info');
+                        console.log('Stored token invalid:', error);
+                        appState.cloudStorage.currentProvider.disconnect();
+                        authManager.setStatus('Stored token expired - please enter a new one', 'info');
                     }
                 } else {
-                    console.log('No existing accounts found');
-                    authManager.setStatus('Click to sign in with your Microsoft account', 'info');
+                    console.log('No stored token found');
+                    authManager.setStatus('Enter your OneDrive access token to continue', 'info');
                 }
                 
                 // Setup all event handlers
