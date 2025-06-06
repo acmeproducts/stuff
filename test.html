@@ -4,15 +4,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Swarms Act 1</title>
+  <title>Hello World Check</title>
   <!-- Act 1 -->
   <style>
     html, body {
       margin: 0;
       padding: 0;
-      overflow: hidden;
       height: 100%;
-      background-color: black;
+      overflow: hidden;
+      background: black;
+      color: white;
+      font-family: sans-serif;
+    }
+    #overlay {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      font-size: 24px;
+      z-index: 1;
     }
     canvas {
       display: block;
@@ -20,183 +29,30 @@
   </style>
 </head>
 <body>
+  <div id="overlay">Hello, world</div>
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
   <script>
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 3000);
-    camera.position.z = 600;
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
+    const geometry = new THREE.BoxGeometry();
+    const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+    const cube = new THREE.Mesh(geometry, material);
+    scene.add(cube);
 
-    const PARTICLES_PER_SWARM = 600;
-    const SWARMS = 3;
-    const swarmColors = [
-      new THREE.Color(0xff3399),
-      new THREE.Color(0x33ffcc),
-      new THREE.Color(0x9999ff)
-    ];
-    const swarms = [];
-
-    class Swarm {
-      constructor(baseColor, index) {
-        this.geometry = new THREE.BufferGeometry();
-        this.positions = new Float32Array(PARTICLES_PER_SWARM * 3);
-        this.velocities = new Float32Array(PARTICLES_PER_SWARM * 3);
-        this.colors = new Float32Array(PARTICLES_PER_SWARM * 3);
-        this.blinks = new Float32Array(PARTICLES_PER_SWARM).fill(0);
-        this.blinkSpeeds = new Float32Array(PARTICLES_PER_SWARM).map(() => Math.random() * 0.1 + 0.01);
-        this.count = PARTICLES_PER_SWARM;
-        this.baseColor = baseColor;
-        this.center = new THREE.Vector3();
-        this.origin = new THREE.Vector3((index - 1) * 250, 0, 0);
-
-        for (let i = 0; i < PARTICLES_PER_SWARM; i++) {
-          const idx = i * 3;
-          this.positions[idx] = this.origin.x + (Math.random() - 0.5) * 200;
-          this.positions[idx + 1] = (Math.random() - 0.5) * 200;
-          this.positions[idx + 2] = (Math.random() - 0.5) * 200;
-
-          this.velocities[idx] = (Math.random() - 0.5);
-          this.velocities[idx + 1] = (Math.random() - 0.5);
-          this.velocities[idx + 2] = (Math.random() - 0.5);
-
-          this.colors[idx] = baseColor.r;
-          this.colors[idx + 1] = baseColor.g;
-          this.colors[idx + 2] = baseColor.b;
-        }
-
-        this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
-        this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
-
-        this.material = new THREE.PointsMaterial({
-          size: 5,
-          vertexColors: true,
-          transparent: true,
-          opacity: 1.0,
-          depthWrite: false,
-        });
-
-        this.points = new THREE.Points(this.geometry, this.material);
-        scene.add(this.points);
-      }
-
-      centerOfMass() {
-        let cx = 0, cy = 0, cz = 0;
-        for (let i = 0; i < this.count; i++) {
-          const idx = i * 3;
-          cx += this.positions[idx];
-          cy += this.positions[idx + 1];
-          cz += this.positions[idx + 2];
-        }
-        this.center.set(cx / this.count, cy / this.count, cz / this.count);
-        return this.center;
-      }
-
-      updateBehavior(blinkBoost = 1.0, attackPulse = false) {
-        const center = this.centerOfMass();
-
-        for (let i = 0; i < this.count; i++) {
-          const idx = i * 3;
-
-          let px = this.positions[idx];
-          let py = this.positions[idx + 1];
-          let pz = this.positions[idx + 2];
-
-          let vx = this.velocities[idx];
-          let vy = this.velocities[idx + 1];
-          let vz = this.velocities[idx + 2];
-
-          // Force toward center
-          const dx = center.x - px;
-          const dy = center.y - py;
-          const dz = center.z - pz;
-
-          vx += dx * 0.0024;
-          vy += dy * 0.0024;
-          vz += dz * 0.0024;
-
-          // Force toward original origin (keep cluster on screen)
-          const ox = this.origin.x - px;
-          const oy = this.origin.y - py;
-          const oz = this.origin.z - pz;
-          vx += ox * 0.0008;
-          vy += oy * 0.0008;
-          vz += oz * 0.0008;
-
-          // Velocity damping
-          vx *= 0.96;
-          vy *= 0.96;
-          vz *= 0.96;
-
-          this.positions[idx] += vx;
-          this.positions[idx + 1] += vy;
-          this.positions[idx + 2] += vz;
-
-          this.velocities[idx] = vx;
-          this.velocities[idx + 1] = vy;
-          this.velocities[idx + 2] = vz;
-
-          this.blinks[i] += this.blinkSpeeds[i] * blinkBoost;
-          const blink = (Math.sin(this.blinks[i]) + 1) / 2;
-          const pulse = attackPulse ? 1.5 : 1;
-
-          this.colors[idx] = this.baseColor.r * blink * pulse;
-          this.colors[idx + 1] = this.baseColor.g * blink * pulse;
-          this.colors[idx + 2] = this.baseColor.b * blink * pulse;
-        }
-
-        this.geometry.attributes.position.needsUpdate = true;
-        this.geometry.attributes.color.needsUpdate = true;
-      }
-
-      decay() {
-        if (this.count > 50) this.count -= 0.05;
-      }
-
-      regenerate() {
-        if (this.count < PARTICLES_PER_SWARM) this.count += 0.01;
-      }
-    }
-
-    for (let i = 0; i < SWARMS; i++) {
-      swarms.push(new Swarm(swarmColors[i], i));
-    }
+    camera.position.z = 5;
 
     function animate() {
       requestAnimationFrame(animate);
-
-      const leadIndex = swarms.reduce((a, _, i) =>
-        swarms[a].count > swarms[i].count ? a : i, 0);
-
-      const leadCenter = swarms[leadIndex].centerOfMass();
-
-      swarms.forEach((swarm, idx) => {
-        const dist = swarm.centerOfMass().distanceTo(leadCenter);
-        const engaged = idx !== leadIndex && dist < 200;
-        if (idx === leadIndex) swarm.regenerate();
-        else swarm.decay();
-
-        swarm.updateBehavior(engaged ? 3.0 : 1.0, engaged);
-      });
-
-      controls.update();
+      cube.rotation.x += 0.01;
+      cube.rotation.y += 0.01;
       renderer.render(scene, camera);
     }
 
     animate();
-
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
   </script>
 </body>
 </html>
