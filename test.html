@@ -2,256 +2,167 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3js WebGL Competing Swarms</title>
-<style>
-body { margin: 0; overflow: hidden; background-color: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
-canvas { display: block; }
-#controls { position: absolute; top: 10px; left: 10px; color: white; font-family: Arial, sans-serif; z-index: 1000; pointer-events: none; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Swarms Act 1</title>
+  <!-- Act 1 -->
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100%;
+      background-color: black;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
 </head>
 <body>
-<div id="controls">Use touch to rotate, pinch to zoom.</div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script>
-<!-- Act 1 -->
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+  <script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
+    camera.position.z = 400;
 
-const colors = [0xff0000, 0x00ff00, 0x0000ff];
-const swarms = [];
-const numBoidsPerSwarm = 100;
-const separationDistance = 25;
-const alignmentDistance = 50;
-const cohesionDistance = 100;
-const attackDistance = 100;
-const decayRate = 0.005;
-const regenerationRate = 0.001;
-
-for (let i = 0; i < 3; i++) {
-    const geometry = new THREE.SphereGeometry(0.5, 32, 32);
-    const material = new THREE.MeshBasicMaterial({ color: colors[i], transparent: true, opacity: 0.8 });
-    const swarm = [];
-    for (let j = 0; j < numBoidsPerSwarm; j++) {
-        const boid = new THREE.Mesh(geometry, material);
-        boid.position.set(Math.random() * 400 - 200, Math.random() * 400 - 200, Math.random() * 400 - 200);
-        boid.velocity = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize();
-        boid.acceleration = new THREE.Vector3();
-        boid.isAttacking = false;
-        boid.attackTimer = 0;
-        scene.add(boid);
-        swarm.push(boid);
-    }
-    swarms.push(swarm);
-}
-
-function separate(boid, neighbors) {
-    let steering = new THREE.Vector3();
-    let count = 0;
-    for (let other of neighbors) {
-        const distance = boid.position.distanceTo(other.position);
-        if (distance > 0 && distance < separationDistance) {
-            const diff = boid.position.clone().sub(other.position);
-            diff.divideScalar(distance);
-            steering.add(diff);
-            count++;
-        }
-    }
-    if (count > 0) {
-        steering.divideScalar(count);
-    }
-    return steering;
-}
-
-function align(boid, neighbors) {
-    let steering = new THREE.Vector3();
-    let count = 0;
-    for (let other of neighbors) {
-        const distance = boid.position.distanceTo(other.position);
-        if (distance > 0 && distance < alignmentDistance) {
-            steering.add(other.velocity);
-            count++;
-        }
-    }
-    if (count > 0) {
-        steering.divideScalar(count);
-        steering.sub(boid.velocity);
-    }
-    return steering;
-}
-
-function cohesion(boid, neighbors) {
-    let steering = new THREE.Vector3();
-    let count = 0;
-    for (let other of neighbors) {
-        const distance = boid.position.distanceTo(other.position);
-        if (distance > 0 && distance < cohesionDistance) {
-            steering.add(other.position);
-            count++;
-        }
-    }
-    if (count > 0) {
-        steering.divideScalar(count);
-        steering.sub(boid.position);
-    }
-    return steering;
-}
-
-function attack(boid, enemies) {
-    let steering = new THREE.Vector3();
-    let count = 0;
-    for (let other of enemies) {
-        const distance = boid.position.distanceTo(other.position);
-        if (distance > 0 && distance < attackDistance) {
-            steering.sub(other.position);
-            steering.normalize().multiplyScalar(1.5);
-            steering.add(other.velocity);
-            count++;
-            boid.isAttacking = true;
-            boid.attackTimer = 10;
-        }
-    }
-    if (count > 0) {
-        steering.divideScalar(count);
-    }
-    return steering;
-}
-
-function getNeighbors(boid, swarm) {
-    return swarm.filter(other => other !== boid);
-}
-
-function applyForces(boid, swarm, others) {
-    const neighbors = getNeighbors(boid, swarm);
-    const sep = separate(boid, neighbors).multiplyScalar(1.5);
-    const ali = align(boid, neighbors).multiplyScalar(1.0);
-    const coh = cohesion(boid, neighbors).multiplyScalar(1.0);
-    let attackForce = new THREE.Vector3();
-
-    let othersTogether = [];
-    for (let otherSwarm of others) {
-        othersTogether = othersTogether.concat(otherSwarm);
-        attackForce.add(attack(boid, otherSwarm)).multiplyScalar(0.5);
-    }
-
-    boid.acceleration.add(sep).add(ali).add(coh).add(attackForce);
-
-    boid.velocity.add(boid.acceleration);
-    boid.velocity.clampScalar(-3, 3);
-    boid.position.add(boid.velocity);
-    boid.acceleration.set(0, 0, 0);
-
-    if (boid.isAttacking) {
-        boid.material.opacity = 1.0;
-        boid.attackTimer--;
-        if (boid.attackTimer <= 0) {
-            boid.isAttacking = false;
-            boid.material.opacity = 0.8;
-        }
-    }
-}
-
-function decayAndRegenerate() {
-    const swarmSizes = swarms.map(swarm => swarm.length);
-    const maxIndex = swarmSizes.indexOf(Math.max(...swarmSizes));
-    const minIndex = swarmSizes.indexOf(Math.min(...swarmSizes));
-
-    if (swarmSizes[maxIndex] > swarmSizes[minIndex]) {
-        const maxSwarm = swarms[maxIndex];
-        const minSwarm = swarms[minIndex];
-
-        if (Math.random() < decayRate && maxSwarm.length > numBoidsPerSwarm / 2) {
-            const boidToRemove = maxSwarm.pop();
-            scene.remove(boidToRemove);
-        }
-
-        if (Math.random() < regenerationRate) {
-            const geometry = new THREE.SphereGeometry(0.5, 32, 32);
-            const material = new THREE.MeshBasicMaterial({ color: colors[minIndex], transparent: true, opacity: 0.8 });
-            const boid = new THREE.Mesh(geometry, material);
-            boid.position.set(Math.random() * 400 - 200, Math.random() * 400 - 200, Math.random() * 400 - 200);
-            boid.velocity = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize();
-            boid.acceleration = new THREE.Vector3();
-            boid.isAttacking = false;
-            boid.attackTimer = 0;
-            scene.add(boid);
-            minSwarm.push(boid);
-        }
-    }
-}
-
-camera.position.z = 500;
-
-let touchStart = null;
-let pinchStartDistance = 0;
-let pinchCurrentDistance = 0;
-
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-}, false);
+    document.body.appendChild(renderer.domElement);
 
-window.addEventListener('touchstart', (event) => {
-    if (event.touches.length === 1) {
-        touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
-    } else if (event.touches.length === 2) {
-        const x1 = event.touches[0].clientX;
-        const y1 = event.touches[0].clientY;
-        const x2 = event.touches[1].clientX;
-        const y2 = event.touches[1].clientY;
-        pinchStartDistance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-    }
-});
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
 
-window.addEventListener('touchmove', (event) => {
-    event.preventDefault();
-    if (event.touches.length === 1 && touchStart) {
-        const current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
-        const deltaX = (current.x - touchStart.x) * 0.002;
-        const deltaY = (current.y - touchStart.y) * 0.002;
-        camera.rotation.y -= deltaX;
-        camera.rotation.x -= deltaY;
-        touchStart = current;
-    } else if (event.touches.length === 2) {
-        const x1 = event.touches[0].clientX;
-        const y1 = event.touches[0].clientY;
-        const x2 = event.touches[1].clientX;
-        const y2 = event.touches[1].clientY;
-        pinchCurrentDistance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-        const deltaDistance = pinchCurrentDistance - pinchStartDistance;
-        camera.position.z += deltaDistance * 0.1;
-        camera.position.z = Math.max(camera.position.z, 1);
-        pinchStartDistance = pinchCurrentDistance;
-    }
-});
+    const NUM_PARTICLES = 300;
+    const SWARMS = 3;
+    const swarmColors = [0xff3399, 0x33ffcc, 0x9999ff];
+    const swarms = [];
 
-window.addEventListener('touchend', () => {
-    touchStart = null;
-});
+    class Swarm {
+      constructor(color) {
+        this.particles = [];
+        this.geometry = new THREE.BufferGeometry();
+        this.positions = new Float32Array(NUM_PARTICLES * 3);
+        this.velocities = new Float32Array(NUM_PARTICLES * 3);
+        this.blinks = new Float32Array(NUM_PARTICLES).fill(0);
+        this.blinkSpeeds = new Float32Array(NUM_PARTICLES).map(() => Math.random() * 0.1 + 0.01);
+        this.count = NUM_PARTICLES;
 
-function animate() {
-    requestAnimationFrame(animate);
-
-    for (let i = 0; i < swarms.length; i++) {
-        const currentSwarm = swarms[i];
-        const otherSwarms = swarms.filter((_, index) => index !== i);
-
-        for (let boid of currentSwarm) {
-            applyForces(boid, currentSwarm, otherSwarms);
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+          const x = (Math.random() - 0.5) * 800;
+          const y = (Math.random() - 0.5) * 800;
+          const z = (Math.random() - 0.5) * 800;
+          this.positions.set([x, y, z], i * 3);
+          this.velocities.set([(Math.random() - 0.5), (Math.random() - 0.5), (Math.random() - 0.5)], i * 3);
         }
+
+        this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+        const material = new THREE.PointsMaterial({
+          color: color,
+          size: 6,
+          transparent: true,
+          opacity: 0.8,
+          depthWrite: false,
+        });
+
+        this.points = new THREE.Points(this.geometry, material);
+        scene.add(this.points);
+      }
+
+      updateBehavior(targets) {
+        for (let i = 0; i < this.count; i++) {
+          const ix = i * 3;
+          let vx = this.velocities[ix];
+          let vy = this.velocities[ix + 1];
+          let vz = this.velocities[ix + 2];
+          let px = this.positions[ix];
+          let py = this.positions[ix + 1];
+          let pz = this.positions[ix + 2];
+
+          // Swirl and attraction
+          const angle = Math.atan2(py, px) + 0.02;
+          const radius = Math.sqrt(px * px + py * py);
+          px = Math.cos(angle) * radius;
+          py = Math.sin(angle) * radius;
+
+          vx += (Math.random() - 0.5) * 0.5;
+          vy += (Math.random() - 0.5) * 0.5;
+          vz += (Math.random() - 0.5) * 0.5;
+
+          // Clamp velocity
+          const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
+          const maxSpeed = 3.0;
+          if (speed > maxSpeed) {
+            vx *= maxSpeed / speed;
+            vy *= maxSpeed / speed;
+            vz *= maxSpeed / speed;
+          }
+
+          this.positions[ix] += vx;
+          this.positions[ix + 1] += vy;
+          this.positions[ix + 2] += vz;
+
+          this.velocities[ix] = vx * 0.98;
+          this.velocities[ix + 1] = vy * 0.98;
+          this.velocities[ix + 2] = vz * 0.98;
+
+          // Blink animation
+          this.blinks[i] += this.blinkSpeeds[i];
+          const blink = (Math.sin(this.blinks[i]) + 1) / 2;
+          this.points.material.opacity = 0.4 + blink * 0.6;
+        }
+
+        this.geometry.attributes.position.needsUpdate = true;
+      }
+
+      decay() {
+        if (this.count > 50) {
+          this.count -= 0.05;
+        }
+      }
+
+      regenerate() {
+        if (this.count < NUM_PARTICLES) {
+          this.count += 0.01;
+        }
+      }
     }
 
-    decayAndRegenerate();
+    for (let i = 0; i < SWARMS; i++) {
+      swarms.push(new Swarm(swarmColors[i]));
+    }
 
-    renderer.render(scene, camera);
-}
+    let tick = 0;
 
-animate();
-</script>
+    function animate() {
+      requestAnimationFrame(animate);
+      tick++;
+
+      const leadIndex = swarms.reduce((a, b, i, arr) =>
+        arr[a].count > b.count ? a : i, 0);
+
+      swarms.forEach((swarm, idx) => {
+        if (idx === leadIndex) {
+          swarm.regenerate();
+        } else {
+          swarm.decay();
+        }
+        swarm.updateBehavior();
+      });
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
 </body>
 </html>
