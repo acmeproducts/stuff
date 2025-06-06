@@ -95,9 +95,10 @@
             border: 1px solid rgba(245, 158, 11, 0.3);
         }
         
-        /* ===== Breadcrumb Navigation ===== */
+        /* ===== Breadcrumb Navigation (Hidden for V3 style) ===== */
         .breadcrumb {
-            display: flex; align-items: center; margin-bottom: 16px;
+            display: none; /* Hidden for flat V3-style navigation */
+            align-items: center; margin-bottom: 16px;
             padding: 8px 0; flex-wrap: wrap; gap: 4px;
         }
         
@@ -1145,6 +1146,21 @@
                 }
             },
             
+            async clearFolderCache() {
+                if (!this.db) return;
+                try {
+                    const transaction = this.db.transaction(['folders'], 'readwrite');
+                    const store = transaction.objectStore('folders');
+                    await new Promise((resolve, reject) => {
+                        const request = store.delete('root_folders');
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => reject(request.error);
+                    });
+                } catch (error) {
+                    console.warn('Failed to clear folder cache:', error);
+                }
+            },
+            
             hideSyncStatus() {
                 this.elements.syncStatus.classList.remove('visible');
             },
@@ -1209,12 +1225,16 @@
             },
             
             updateBackButton() {
+                // Always show just "← Folders" to avoid overlap with priority pill
+                this.elements.backButton.textContent = `← Folders`;
+                
+                // Add hover tooltip with folder info
                 if (appState.currentFolder.name && appState.imageFiles.length > 0) {
                     const folderName = appState.currentFolder.name;
                     const imageCount = appState.imageFiles.length;
-                    this.elements.backButton.textContent = `← ${folderName} (${imageCount} images)`;
+                    this.elements.backButton.title = `${folderName} (${imageCount} images)`;
                 } else {
-                    this.elements.backButton.textContent = `← Folders`;
+                    this.elements.backButton.title = 'Return to folder selection';
                 }
             }
         };
@@ -1976,7 +1996,7 @@
                     await appState.userMetadataManager.clearCache();
                 }
                 if (appState.fileCache) {
-                    await appState.fileCache.clearAll();
+                    await appState.fileCache.clearAll(); // This now includes folder cache
                 }
                 
                 // Clear image cache
@@ -1995,7 +2015,7 @@
             }
         };
         
-        // ===== Enhanced Folder Manager (Simplified like V3) =====
+        // ===== Enhanced Folder Manager (V3 Parity with Caching) =====
         const folderManager = {
             isProcessing: false,
             
@@ -2007,11 +2027,24 @@
                     </div>
                 `;
                 
-                // Hide breadcrumb for simplified V3-style navigation
+                // Hide breadcrumb for V3-style flat navigation
                 utils.elements.breadcrumb.style.display = 'none';
                 
                 await utils.withErrorHandling(async () => {
-                    const folders = await appState.cloudStorage.getFolders();
+                    // Try cache first for speed
+                    let folders = await appState.fileCache.getCachedFolders();
+                    
+                    if (!folders) {
+                        // Cache miss - load from OneDrive
+                        utils.elements.folderList.innerHTML = `
+                            <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
+                                <div class="spinner"></div>
+                                <span>Loading all folders from OneDrive...</span>
+                            </div>
+                        `;
+                        
+                        folders = await appState.cloudStorage.getFolders(true);
+                    }
                     
                     if (folders.length === 0) {
                         utils.elements.folderList.innerHTML = `
@@ -2037,11 +2070,23 @@
                             </div>
                         `;
                         
-                        // Simple click to select folder (like V3)
+                        // Simple click to select any folder (V3 style - all folders are accessible)
                         div.addEventListener('click', () => this.selectFolder(folder));
                         utils.elements.folderList.appendChild(div);
                     });
+                    
+                    utils.showToast(`Loaded ${folders.length} folders`, 'success', true);
+                    
                 }, 'Error loading folders');
+            },
+            
+            async refreshFolders() {
+                // Clear folder cache and reload fresh
+                if (appState.fileCache) {
+                    await appState.fileCache.clearFolderCache();
+                }
+                utils.showToast('Refreshing folders...', 'info', true);
+                await this.loadFolders();
             },
             
             async selectFolder(folder) {
@@ -3471,7 +3516,7 @@
         function setupEventHandlers() {
             // Authentication
             utils.elements.authButton.addEventListener('click', () => authManager.authenticate());
-            utils.elements.refreshFolders.addEventListener('click', () => folderManager.loadFolders());
+            utils.elements.refreshFolders.addEventListener('click', () => folderManager.refreshFolders());
             utils.elements.logout.addEventListener('click', () => authManager.logout());
             
             // Loading screen cancel
