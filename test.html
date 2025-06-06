@@ -24,8 +24,8 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
   <script>
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 3000);
-    camera.position.z = 800;
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 3000);
+    camera.position.z = 600;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -55,14 +55,13 @@
         this.count = PARTICLES_PER_SWARM;
         this.baseColor = baseColor;
         this.center = new THREE.Vector3();
-
-        const offsetX = (index - 1) * 250;
+        this.origin = new THREE.Vector3((index - 1) * 250, 0, 0);
 
         for (let i = 0; i < PARTICLES_PER_SWARM; i++) {
           const idx = i * 3;
-          this.positions[idx] = offsetX + (Math.random() - 0.5) * 300;
-          this.positions[idx + 1] = (Math.random() - 0.5) * 300;
-          this.positions[idx + 2] = (Math.random() - 0.5) * 300;
+          this.positions[idx] = this.origin.x + (Math.random() - 0.5) * 200;
+          this.positions[idx + 1] = (Math.random() - 0.5) * 200;
+          this.positions[idx + 2] = (Math.random() - 0.5) * 200;
 
           this.velocities[idx] = (Math.random() - 0.5);
           this.velocities[idx + 1] = (Math.random() - 0.5);
@@ -114,41 +113,35 @@
           let vy = this.velocities[idx + 1];
           let vz = this.velocities[idx + 2];
 
-          // Pull toward center
+          // Force toward center
           const dx = center.x - px;
           const dy = center.y - py;
           const dz = center.z - pz;
 
-          vx += dx * 0.0008;
-          vy += dy * 0.0008;
-          vz += dz * 0.0008;
+          vx += dx * 0.0024;
+          vy += dy * 0.0024;
+          vz += dz * 0.0024;
 
-          // Swirl around center
-          const angle = Math.atan2(dy, dx) + 0.05;
-          const radius = Math.sqrt(dx * dx + dy * dy) * 0.02;
-          vx += -Math.sin(angle) * radius;
-          vy += Math.cos(angle) * radius;
+          // Force toward original origin (keep cluster on screen)
+          const ox = this.origin.x - px;
+          const oy = this.origin.y - py;
+          const oz = this.origin.z - pz;
+          vx += ox * 0.0008;
+          vy += oy * 0.0008;
+          vz += oz * 0.0008;
 
-          // Dampen and cap velocity
-          const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
-          const maxSpeed = 2.0;
-          if (speed > maxSpeed) {
-            vx *= maxSpeed / speed;
-            vy *= maxSpeed / speed;
-            vz *= maxSpeed / speed;
-          }
+          // Velocity damping
+          vx *= 0.96;
+          vy *= 0.96;
+          vz *= 0.96;
 
-          // Update position
-          px += vx;
-          py += vy;
-          pz += vz;
+          this.positions[idx] += vx;
+          this.positions[idx + 1] += vy;
+          this.positions[idx + 2] += vz;
 
-          this.positions[idx] = px;
-          this.positions[idx + 1] = py;
-          this.positions[idx + 2] = pz;
-          this.velocities[idx] = vx * 0.96;
-          this.velocities[idx + 1] = vy * 0.96;
-          this.velocities[idx + 2] = vz * 0.96;
+          this.velocities[idx] = vx;
+          this.velocities[idx + 1] = vy;
+          this.velocities[idx + 2] = vz;
 
           this.blinks[i] += this.blinkSpeeds[i] * blinkBoost;
           const blink = (Math.sin(this.blinks[i]) + 1) / 2;
