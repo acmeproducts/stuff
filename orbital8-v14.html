@@ -1244,6 +1244,7 @@
             cloudStorage: null,
             metadataExtractor: null,
             userMetadataManager: null,
+            folderCache: null,
             fileCache: null,
             currentFolder: { id: null, name: '' },
             imageFiles: [],
@@ -1453,7 +1454,118 @@
             }
         }
 
-        // ===== Smart OneDrive User Metadata Manager =====
+        // ===== OneDrive Folder Cache Manager =====
+        class OneDriveFolderCache {
+            constructor(oneDriveProvider) {
+                this.provider = oneDriveProvider;
+                this.cache = [];
+                this.cacheTimestamp = 0;
+                this.cacheExpiry = 24 * 60 * 60 * 1000; // 24 hours for folders
+            }
+            
+            async loadFolders(forceRefresh = false) {
+                try {
+                    const now = Date.now();
+                    if (!forceRefresh && this.cache.length > 0 && (now - this.cacheTimestamp) < this.cacheExpiry) {
+                        return this.cache;
+                    }
+                    
+                    utils.showSyncStatus('Loading folder cache...', 'syncing');
+                    
+                    const response = await this.provider.makeApiCall('/me/drive/special/approot:/folder.json:/content');
+                    const data = await response.json();
+                    
+                    if (data && data.folders && Array.isArray(data.folders)) {
+                        this.cache = data.folders;
+                        this.cacheTimestamp = now;
+                        utils.showSyncStatus('Folders loaded from cache', 'success');
+                        return this.cache;
+                    }
+                    
+                } catch (error) {
+                    if (error.message.includes('404')) {
+                        // folder.json doesn't exist, fetch fresh and create it
+                        return await this.refreshFolders();
+                    }
+                    console.warn('Failed to load folder cache:', error);
+                    utils.showSyncStatus('Folder cache load failed', 'error');
+                }
+                
+                // Fallback to fresh fetch
+                return await this.refreshFolders();
+            }
+            
+            async refreshFolders() {
+                try {
+                    utils.showSyncStatus('Scanning OneDrive folders...', 'syncing');
+                    
+                    // Fetch fresh folders from OneDrive
+                    const response = await this.provider.makeApiCall('/me/drive/root/children');
+                    const data = await response.json();
+                    
+                    const folders = data.value
+                        .filter(item => item.folder)
+                        .map(folder => ({
+                            id: folder.id,
+                            name: folder.name,
+                            type: 'folder',
+                            createdTime: folder.createdDateTime,
+                            modifiedTime: folder.lastModifiedDateTime
+                        }))
+                        .sort((a, b) => a.name.localeCompare(b.name)); // Alpha sort
+                    
+                    // Cache to folder.json
+                    await this.saveFolders(folders);
+                    
+                    this.cache = folders;
+                    this.cacheTimestamp = Date.now();
+                    
+                    utils.showSyncStatus(`Cached ${folders.length} folders`, 'success');
+                    return folders;
+                    
+                } catch (error) {
+                    console.warn('Failed to refresh folders:', error);
+                    utils.showSyncStatus('Folder refresh failed', 'error');
+                    throw error;
+                }
+            }
+            
+            async saveFolders(folders) {
+                try {
+                    const data = {
+                        version: 1,
+                        lastUpdated: new Date().toISOString(),
+                        folders: folders
+                    };
+                    
+                    await this.provider.makeApiCall('/me/drive/special/approot:/folder.json:/content', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data, null, 2)
+                    });
+                    
+                } catch (error) {
+                    console.warn('Failed to save folder cache:', error);
+                    throw error;
+                }
+            }
+            
+            async clearCache() {
+                this.cache = [];
+                this.cacheTimestamp = 0;
+                try {
+                    // Delete folder.json
+                    await this.provider.makeApiCall('/me/drive/special/approot:/folder.json', {
+                        method: 'DELETE'
+                    });
+                } catch (error) {
+                    // Ignore 404 errors - file might not exist
+                    if (!error.message.includes('404')) {
+                        console.warn('Failed to clear folder cache:', error);
+                    }
+                }
+            }
+        }
         class SmartOneDriveMetadataManager {
             constructor(oneDriveProvider) {
                 this.provider = oneDriveProvider;
@@ -1995,8 +2107,11 @@
                 if (appState.userMetadataManager) {
                     await appState.userMetadataManager.clearCache();
                 }
+                if (appState.folderCache) {
+                    await appState.folderCache.clearCache();
+                }
                 if (appState.fileCache) {
-                    await appState.fileCache.clearAll(); // This now includes folder cache
+                    await appState.fileCache.clearAll();
                 }
                 
                 // Clear image cache
@@ -2015,15 +2130,15 @@
             }
         };
         
-        // ===== Enhanced Folder Manager (V3 Parity - Simplified) =====
+        // ===== Enhanced Folder Manager (V3 Parity with OneDrive Caching) =====
         const folderManager = {
             isProcessing: false,
             
-            async loadFolders() {
+            async loadFolders(forceRefresh = false) {
                 utils.elements.folderList.innerHTML = `
                     <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
                         <div class="spinner"></div>
-                        <span>Loading folders...</span>
+                        <span>${forceRefresh ? 'Refreshing folders...' : 'Loading folders...'}</span>
                     </div>
                 `;
                 
@@ -2031,7 +2146,7 @@
                 utils.elements.breadcrumb.style.display = 'none';
                 
                 await utils.withErrorHandling(async () => {
-                    const folders = await appState.cloudStorage.getFolders();
+                    const folders = await appState.cloudStorage.getFolders(forceRefresh);
                     
                     if (folders.length === 0) {
                         utils.elements.folderList.innerHTML = `
@@ -2062,11 +2177,14 @@
                         utils.elements.folderList.appendChild(div);
                     });
                     
+                    const cacheStatus = forceRefresh ? 'refreshed' : 'loaded from cache';
+                    utils.showToast(`${folders.length} folders ${cacheStatus}`, 'success', true);
+                    
                 }, 'Error loading folders');
             },
             
             async refreshFolders() {
-                await this.loadFolders();
+                await this.loadFolders(true); // Force refresh
             },
             
             async selectFolder(folder) {
@@ -3496,7 +3614,7 @@
         function setupEventHandlers() {
             // Authentication
             utils.elements.authButton.addEventListener('click', () => authManager.authenticate());
-            utils.elements.refreshFolders.addEventListener('click', () => folderManager.loadFolders());
+            utils.elements.refreshFolders.addEventListener('click', () => folderManager.refreshFolders());
             utils.elements.logout.addEventListener('click', () => authManager.logout());
             
             // Loading screen cancel
@@ -3664,6 +3782,7 @@
                 appState.cloudStorage = new CloudStorageModule();
                 appState.metadataExtractor = new ProgressiveMetadataExtractor();
                 appState.userMetadataManager = new SmartOneDriveMetadataManager(appState.cloudStorage.currentProvider);
+                appState.folderCache = new OneDriveFolderCache(appState.cloudStorage.currentProvider);
                 
                 // Check existing authentication
                 if (appState.cloudStorage.isAuthenticated()) {
