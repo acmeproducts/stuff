@@ -1,0 +1,210 @@
+<!-- TOOLX_FILENAME:test.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3js WebGL Boids Fight</title>
+<style>
+body { margin: 0; overflow: hidden; background-color: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
+canvas { display: block; }
+#controls { position: absolute; top: 10px; left: 10px; color: white; font-family: Arial, sans-serif; z-index: 1000; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="controls">Use touch to rotate, pinch to zoom.</div>
+<script>
+<!-- Act 1 -->
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const colors = [0xff0000, 0x00ff00, 0x0000ff];
+const swarms = [];
+const numBoids = 100;
+const separationDistance = 25;
+const alignmentDistance = 50;
+const cohesionDistance = 100;
+
+for (let i = 0; i < 3; i++) {
+    const geometry = new THREE.SphereGeometry(0.5, 32, 32);
+    const material = new THREE.MeshBasicMaterial({ color: colors[i], transparent: true, opacity: 0.8 });
+    const swarm = [];
+    for (let j = 0; j < numBoids; j++) {
+        const boid = new THREE.Mesh(geometry, material);
+        boid.position.set(Math.random() * 400 - 200, Math.random() * 400 - 200, Math.random() * 400 - 200);
+        boid.velocity = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize();
+        boid.acceleration = new THREE.Vector3();
+        scene.add(boid);
+        swarm.push(boid);
+    }
+    swarms.push(swarm);
+}
+
+function separate(boid, neighbors) {
+    let steering = new THREE.Vector3();
+    let count = 0;
+    for (let other of neighbors) {
+        const distance = boid.position.distanceTo(other.position);
+        if (distance > 0 && distance < separationDistance) {
+            const diff = boid.position.clone().sub(other.position);
+            diff.divideScalar(distance);
+            steering.add(diff);
+            count++;
+        }
+    }
+    if (count > 0) {
+        steering.divideScalar(count);
+    }
+    return steering;
+}
+
+function align(boid, neighbors) {
+    let steering = new THREE.Vector3();
+    let count = 0;
+    for (let other of neighbors) {
+        const distance = boid.position.distanceTo(other.position);
+        if (distance > 0 && distance < alignmentDistance) {
+            steering.add(other.velocity);
+            count++;
+        }
+    }
+    if (count > 0) {
+        steering.divideScalar(count);
+        steering.sub(boid.velocity);
+    }
+    return steering;
+}
+
+function cohesion(boid, neighbors) {
+    let steering = new THREE.Vector3();
+    let count = 0;
+    for (let other of neighbors) {
+        const distance = boid.position.distanceTo(other.position);
+        if (distance > 0 && distance < cohesionDistance) {
+            steering.add(other.position);
+            count++;
+        }
+    }
+    if (count > 0) {
+        steering.divideScalar(count);
+        steering.sub(boid.position);
+    }
+    return steering;
+}
+
+function getNeighbors(boid, swarm) {
+    return swarm.filter(other => other !== boid);
+}
+
+function applyForces(boid, swarm, others) {
+    const neighbors = getNeighbors(boid, swarm);
+    const sep = separate(boid, neighbors).multiplyScalar(1.5);
+    const ali = align(boid, neighbors).multiplyScalar(1.0);
+    const coh = cohesion(boid, neighbors).multiplyScalar(1.0);
+    boid.acceleration.add(sep).add(ali).add(coh);
+
+    let othersTogether = [];
+    for (let otherSwarm of others) {
+        othersTogether = othersTogether.concat(otherSwarm);
+    }
+
+    let closestBoid = null;
+    let minDistance = Infinity;
+    for (let other of othersTogether) {
+        const distance = boid.position.distanceTo(other.position);
+        if (distance > 0 && distance < cohesionDistance * 2) {
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestBoid = other;
+            }
+        }
+    }
+
+    if (closestBoid) {
+        const steering = closestBoid.position.clone().sub(boid.position);
+        steering.normalize().multiplyScalar(2.0);
+        boid.acceleration.add(steering);
+    }
+}
+
+camera.position.z = 500;
+
+let touchStart = null;
+let touchEnd = null;
+let isPinching = false;
+let pinchStartDistance = 0;
+let pinchCurrentDistance = 0;
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}, false);
+
+window.addEventListener('touchstart', (event) => {
+    if (event.touches.length === 1) {
+        touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+    } else if (event.touches.length === 2) {
+        isPinching = true;
+        const x1 = event.touches[0].clientX;
+        const y1 = event.touches[0].clientY;
+        const x2 = event.touches[1].clientX;
+        const y2 = event.touches[1].clientY;
+        pinchStartDistance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+    }
+});
+
+window.addEventListener('touchmove', (event) => {
+    event.preventDefault();
+    if (event.touches.length === 1 && touchStart) {
+        const current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+        const deltaX = (current.x - touchStart.x) * 0.002;
+        const deltaY = (current.y - touchStart.y) * 0.002;
+        camera.rotation.y -= deltaX;
+        camera.rotation.x -= deltaY;
+        touchStart = current;
+    } else if (event.touches.length === 2) {
+        const x1 = event.touches[0].clientX;
+        const y1 = event.touches[0].clientY;
+        const x2 = event.touches[1].clientX;
+        const y2 = event.touches[1].clientY;
+        pinchCurrentDistance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+        const deltaDistance = pinchCurrentDistance - pinchStartDistance;
+        camera.position.z += deltaDistance * 0.1;
+        camera.position.z = Math.max(camera.position.z, 1);
+        pinchStartDistance = pinchCurrentDistance;
+    }
+});
+
+window.addEventListener('touchend', () => {
+    touchStart = null;
+    isPinching = false;
+});
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    for (let i = 0; i < swarms.length; i++) {
+        const currentSwarm = swarms[i];
+        const otherSwarms = swarms.filter((_, index) => index !== i);
+
+        for (let boid of currentSwarm) {
+            boid.velocity.add(boid.acceleration);
+            boid.velocity.clampScalar(-3, 3);
+            boid.position.add(boid.velocity);
+            boid.acceleration.set(0, 0, 0);
+
+            applyForces(boid, currentSwarm, otherSwarms);
+        }
+    }
+
+    renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>
