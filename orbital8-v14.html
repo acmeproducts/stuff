@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V12 Enhanced - Smart Cache & Subfolders</title>
+    <title>Orbital8 V12 - OneDrive Enhanced</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
         :root {
@@ -95,24 +95,6 @@
             border: 1px solid rgba(245, 158, 11, 0.3);
         }
         
-        /* ===== Breadcrumb Navigation ===== */
-        .breadcrumb {
-            display: flex; align-items: center; margin-bottom: 16px;
-            padding: 8px 0; flex-wrap: wrap; gap: 4px;
-        }
-        
-        .breadcrumb-item {
-            color: rgba(255, 255, 255, 0.7); font-size: 14px;
-            cursor: pointer; transition: color 0.2s;
-        }
-        
-        .breadcrumb-item:hover { color: var(--app-accent); }
-        .breadcrumb-item.current { color: white; font-weight: 500; cursor: default; }
-        
-        .breadcrumb-separator {
-            color: rgba(255, 255, 255, 0.4); margin: 0 8px; font-size: 12px;
-        }
-        
         /* ===== Folder List ===== */
         .folder-list {
             flex: 1; overflow-y: auto; margin-bottom: 20px; max-height: 400px;
@@ -199,21 +181,6 @@
         .status-log-entry.success { color: #10b981; }
         .status-log-entry.error { color: #ef4444; }
         .status-log-entry.info { color: var(--app-accent); }
-        .status-log-entry.cache { color: #3b82f6; }
-        
-        /* ===== Sync Status ===== */
-        .sync-status {
-            position: absolute; top: 80px; right: 20px; 
-            background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 12px;
-            padding: 8px 12px; font-size: 12px; color: white;
-            z-index: 20; opacity: 0; transition: all 0.3s ease;
-        }
-        
-        .sync-status.visible { opacity: 1; }
-        .sync-status.syncing { border-color: var(--app-accent); color: var(--app-accent); }
-        .sync-status.error { border-color: #ef4444; color: #ef4444; }
-        .sync-status.success { border-color: #10b981; color: #10b981; }
         
         /* ===== Main App ===== */
         .app-container {
@@ -228,7 +195,6 @@
             border-radius: 20px; padding: 8px 12px; font-size: 11px;
             color: white; cursor: pointer; transition: all 0.3s ease;
             z-index: 15; display: flex; align-items: center; gap: 6px; opacity: 0.7;
-            max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         
         .nav-button:hover { opacity: 1; background: rgba(255, 255, 255, 0.2); }
@@ -763,7 +729,7 @@
     <div class="screen hidden" id="folder-screen">
         <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
             <h2 class="title">Select a Folder</h2>
-            <div id="breadcrumb" class="breadcrumb"></div>
+            <div class="subtitle" id="folder-subtitle" style="margin-bottom: 16px; font-size: 14px;">Choose any folder from your entire OneDrive</div>
             <div class="folder-list" id="folder-list">
                 <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
                     <div class="spinner"></div>
@@ -771,7 +737,7 @@
                 </div>
             </div>
             <div class="folder-actions">
-                <button class="folder-button" id="refresh-folders">Refresh</button>
+                <button class="folder-button" id="refresh-folders">Refresh All Folders</button>
                 <button class="folder-button danger" id="logout">Disconnect</button>
             </div>
         </div>
@@ -797,8 +763,6 @@
     <div class="app-container hidden" id="app-container">
         <div class="nav-button back" id="back-button">← Folders</div>
         <div class="nav-button details" id="details-button">Details →</div>
-        
-        <div class="sync-status" id="sync-status">Syncing...</div>
         
         <div class="image-viewport" id="image-viewport">
             <img class="center-image zoomable" id="center-image" alt="Select a folder to start" />
@@ -856,6 +820,15 @@
                             <span class="control-label">Grid Size:</span>
                             <input type="range" id="grid-size" class="grid-slider" min="1" max="10" value="4">
                             <span id="grid-size-value" class="grid-value">4</span>
+                        </div>
+                        <div class="control-group">
+                            <span class="control-label">Sort:</span>
+                            <select id="grid-sort" class="grid-select">
+                                <option value="date-desc">Date (newest first)</option>
+                                <option value="date-asc">Date (oldest first)</option>
+                                <option value="name-asc">Name (A-Z)</option>
+                                <option value="name-desc">Name (Z-A)</option>
+                            </select>
                         </div>
                     </div>
                     <div class="action-buttons">
@@ -1015,13 +988,12 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V12 ENHANCED - SMART CACHE & SUBFOLDERS =====
+        // ===== ORBITAL8 V12 - COMPLETE V3 PARITY WITH ONEDRIVE =====
 
         // ===== Configuration & Constants =====
         const STACK_TYPES = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
-        const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
-        const METADATA_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes for metadata
+        const CACHE_DURATION = 60 * 60 * 1000; // 1 hour like V3
         
         // ===== Core Utilities =====
         const utils = {
@@ -1040,7 +1012,6 @@
                     authStatus: document.getElementById('auth-status'),
                     
                     // Folder elements
-                    breadcrumb: document.getElementById('breadcrumb'),
                     folderList: document.getElementById('folder-list'),
                     refreshFolders: document.getElementById('refresh-folders'),
                     logout: document.getElementById('logout'),
@@ -1048,7 +1019,6 @@
                     // App elements
                     backButton: document.getElementById('back-button'),
                     detailsButton: document.getElementById('details-button'),
-                    syncStatus: document.getElementById('sync-status'),
                     imageViewport: document.getElementById('image-viewport'),
                     centerImage: document.getElementById('center-image'),
                     emptyState: document.getElementById('empty-state'),
@@ -1085,6 +1055,7 @@
                     closeGrid: document.getElementById('close-grid'),
                     gridSize: document.getElementById('grid-size'),
                     gridSizeValue: document.getElementById('grid-size-value'),
+                    gridSort: document.getElementById('grid-sort'),
                     tagSelected: document.getElementById('tag-selected'),
                     moveSelected: document.getElementById('move-selected'),
                     deleteSelected: document.getElementById('delete-selected'),
@@ -1131,22 +1102,6 @@
                 toast.textContent = message;
                 toast.className = `toast ${type} show`;
                 setTimeout(() => toast.classList.remove('show'), 3000);
-            },
-            
-            showSyncStatus(message, type = 'syncing') {
-                const status = this.elements.syncStatus;
-                status.textContent = message;
-                status.className = `sync-status visible ${type}`;
-                
-                if (type !== 'syncing') {
-                    setTimeout(() => {
-                        status.classList.remove('visible');
-                    }, 3000);
-                }
-            },
-            
-            hideSyncStatus() {
-                this.elements.syncStatus.classList.remove('visible');
             },
             
             async withErrorHandling(operation, errorMessage = 'Operation failed') {
@@ -1206,20 +1161,6 @@
                     const percentage = (current / total) * 100;
                     this.elements.loadingProgressBar.style.width = `${percentage}%`;
                 }
-            },
-            
-            updateBackButton() {
-                // Always show just "← Folders" to avoid overlap with priority pill
-                this.elements.backButton.textContent = `← Folders`;
-                
-                // Add hover tooltip with folder info
-                if (appState.currentFolder.name && appState.imageFiles.length > 0) {
-                    const folderName = appState.currentFolder.name;
-                    const imageCount = appState.imageFiles.length;
-                    this.elements.backButton.title = `${folderName} (${imageCount} images)`;
-                } else {
-                    this.elements.backButton.title = 'Return to folder selection';
-                }
             }
         };
 
@@ -1246,19 +1187,18 @@
             imageCache: new Map(),
             loadingProgress: { current: 0, total: 0 },
             isProcessing: false,
-            abortController: null,
-            lastSync: null
+            abortController: null
         };
 
-        // ===== Smart Cache System =====
-        class SmartFileCache {
+        // ===== Enhanced File Cache System (V3 Parity) =====
+        class EnhancedFileCache {
             constructor() {
                 this.db = null;
             }
             
             async init() {
                 return new Promise((resolve, reject) => {
-                    const request = indexedDB.open('Orbital8SmartCache', 4);
+                    const request = indexedDB.open('Orbital8EnhancedCache', 3);
                     request.onerror = () => reject(request.error);
                     request.onsuccess = () => {
                         this.db = request.result;
@@ -1274,10 +1214,6 @@
                         
                         if (!db.objectStoreNames.contains('metadata')) {
                             const metadataStore = db.createObjectStore('metadata', { keyPath: 'id' });
-                        }
-                        
-                        if (!db.objectStoreNames.contains('sync')) {
-                            const syncStore = db.createObjectStore('sync', { keyPath: 'id' });
                         }
                     };
                 });
@@ -1319,42 +1255,6 @@
                     });
                 } catch (error) {
                     console.warn('Failed to cache files:', error);
-                }
-            }
-            
-            async getLastSync(folderId) {
-                if (!this.db) return null;
-                try {
-                    const transaction = this.db.transaction(['sync'], 'readonly');
-                    const store = transaction.objectStore('sync');
-                    const result = await new Promise((resolve, reject) => {
-                        const request = store.get(folderId);
-                        request.onsuccess = () => resolve(request.result);
-                        request.onerror = () => reject(request.error);
-                    });
-                    
-                    return result ? result.timestamp : null;
-                } catch (error) {
-                    console.warn('Failed to get sync timestamp:', error);
-                    return null;
-                }
-            }
-            
-            async setLastSync(folderId, timestamp = Date.now()) {
-                if (!this.db) return;
-                try {
-                    const transaction = this.db.transaction(['sync'], 'readwrite');
-                    const store = transaction.objectStore('sync');
-                    await new Promise((resolve, reject) => {
-                        const request = store.put({
-                            id: folderId,
-                            timestamp
-                        });
-                        request.onsuccess = () => resolve();
-                        request.onerror = () => reject(request.error);
-                    });
-                } catch (error) {
-                    console.warn('Failed to set sync timestamp:', error);
                 }
             }
             
@@ -1402,60 +1302,188 @@
                 return (Date.now() - cachedTime) < CACHE_DURATION;
             }
             
-            async clearAll() {
-                if (!this.db) return;
-                try {
-                    const transaction = this.db.transaction(['files', 'metadata', 'sync'], 'readwrite');
-                    const fileStore = transaction.objectStore('files');
-                    const metadataStore = transaction.objectStore('metadata');
-                    const syncStore = transaction.objectStore('sync');
-                    
-                    await Promise.all([
-                        new Promise(resolve => { fileStore.clear().onsuccess = () => resolve(); }),
-                        new Promise(resolve => { metadataStore.clear().onsuccess = () => resolve(); }),
-                        new Promise(resolve => { syncStore.clear().onsuccess = () => resolve(); })
-                    ]);
-                } catch (error) {
-                    console.warn('Failed to clear cache:', error);
-                }
-            }
-            
             async clearCacheForFolder(folderId) {
                 if (!this.db) return;
                 try {
-                    const transaction = this.db.transaction(['files', 'sync'], 'readwrite');
-                    const fileStore = transaction.objectStore('files');
-                    const syncStore = transaction.objectStore('sync');
-                    
-                    await Promise.all([
-                        new Promise(resolve => { fileStore.delete(folderId).onsuccess = () => resolve(); }),
-                        new Promise(resolve => { syncStore.delete(folderId).onsuccess = () => resolve(); })
-                    ]);
+                    const transaction = this.db.transaction(['files'], 'readwrite');
+                    const store = transaction.objectStore('files');
+                    await new Promise((resolve, reject) => {
+                        const request = store.delete(folderId);
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => reject(request.error);
+                    });
                 } catch (error) {
                     console.warn('Failed to clear cache:', error);
                 }
             }
         }
 
-        // ===== Smart OneDrive User Metadata Manager =====
-        class SmartOneDriveMetadataManager {
+        // ===== OneDrive Folder Manager =====
+        class OneDriveFolderManager {
+            constructor(oneDriveProvider) {
+                this.provider = oneDriveProvider;
+                this.cache = [];
+                this.cacheTimestamp = 0;
+                this.cacheExpiry = 24 * 60 * 60 * 1000; // 24 hours for folders
+            }
+            
+            async loadFolders(forceRefresh = false) {
+                try {
+                    const now = Date.now();
+                    if (!forceRefresh && this.cache.length > 0 && (now - this.cacheTimestamp) < this.cacheExpiry) {
+                        return this.cache;
+                    }
+                    
+                    // Try to load from OneDrive AppFolder first
+                    if (!forceRefresh) {
+                        try {
+                            const response = await this.provider.makeApiCall('/me/drive/special/approot:/folders.json:/content');
+                            const data = await response.json();
+                            
+                            if (data && data.folders && data.timestamp && (now - data.timestamp) < this.cacheExpiry) {
+                                this.cache = data.folders;
+                                this.cacheTimestamp = data.timestamp;
+                                return this.cache;
+                            }
+                        } catch (error) {
+                            // File doesn't exist or is invalid, will scan fresh
+                        }
+                    }
+                    
+                    // Scan entire OneDrive for folders
+                    const allFolders = await this.scanAllFolders();
+                    
+                    // Cache to OneDrive AppFolder
+                    await this.saveFolders(allFolders);
+                    
+                    this.cache = allFolders;
+                    this.cacheTimestamp = now;
+                    
+                    return this.cache;
+                } catch (error) {
+                    console.warn('Failed to load folders:', error);
+                    return this.cache; // Return what we have
+                }
+            }
+            
+            async scanAllFolders() {
+                const allFolders = [];
+                const visited = new Set();
+                
+                // Start scanning from root
+                await this.scanFolderRecursive('root', '', allFolders, visited);
+                
+                // Sort by path for better UX
+                return allFolders.sort((a, b) => a.path.localeCompare(b.path));
+            }
+            
+            async scanFolderRecursive(folderId, currentPath, allFolders, visited) {
+                if (visited.has(folderId)) return;
+                visited.add(folderId);
+                
+                try {
+                    const endpoint = folderId === 'root' ? 
+                        '/me/drive/root/children' : 
+                        `/me/drive/items/${folderId}/children`;
+                    
+                    let nextLink = null;
+                    
+                    do {
+                        const url = nextLink || endpoint;
+                        const response = nextLink ? 
+                            await this.provider.makeApiCall(nextLink.replace(this.provider.apiBase, '')) :
+                            await this.provider.makeApiCall(url);
+                        
+                        const data = await response.json();
+                        
+                        // Process folders in this level
+                        const folders = data.value.filter(item => item.folder);
+                        
+                        for (const folder of folders) {
+                            const folderPath = currentPath ? `${currentPath}/${folder.name}` : folder.name;
+                            
+                            // Add to our flat list
+                            allFolders.push({
+                                id: folder.id,
+                                name: folder.name,
+                                path: folderPath,
+                                parentPath: currentPath,
+                                type: 'folder',
+                                createdTime: folder.createdDateTime,
+                                modifiedTime: folder.lastModifiedDateTime,
+                                itemCount: folder.folder.childCount || 0
+                            });
+                            
+                            // Recursively scan subfolders (but limit depth to prevent infinite loops)
+                            if (folderPath.split('/').length < 10) {
+                                await this.scanFolderRecursive(folder.id, folderPath, allFolders, visited);
+                            }
+                        }
+                        
+                        nextLink = data['@odata.nextLink'];
+                        
+                        // Small delay to prevent API throttling
+                        if (nextLink) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                        }
+                        
+                    } while (nextLink);
+                    
+                } catch (error) {
+                    console.warn(`Failed to scan folder ${folderId}:`, error);
+                }
+            }
+            
+            async saveFolders(folders) {
+                try {
+                    const data = {
+                        version: 1,
+                        timestamp: Date.now(),
+                        lastScanned: new Date().toISOString(),
+                        totalFolders: folders.length,
+                        folders: folders
+                    };
+                    
+                    await this.provider.makeApiCall('/me/drive/special/approot:/folders.json:/content', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data, null, 2)
+                    });
+                    
+                } catch (error) {
+                    console.warn('Failed to save folders cache:', error);
+                }
+            }
+            
+            async clearCache() {
+                this.cache = [];
+                this.cacheTimestamp = 0;
+                
+                try {
+                    await this.provider.makeApiCall('/me/drive/special/approot:/folders.json', {
+                        method: 'DELETE'
+                    });
+                } catch (error) {
+                    // File might not exist, that's ok
+                }
+            }
+        }
+
+        // ===== OneDrive User Metadata Manager =====
+        class OneDriveMetadataManager {
             constructor(oneDriveProvider) {
                 this.provider = oneDriveProvider;
                 this.cache = new Map();
                 this.cacheTimestamp = 0;
-                this.cacheExpiry = METADATA_CACHE_DURATION;
-                this.pendingChanges = new Map(); // Track unsaved changes
-                this.isSyncing = false;
+                this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
             }
             
-            async loadMetadata(forceRefresh = false) {
+            async loadMetadata() {
                 try {
                     const now = Date.now();
-                    if (!forceRefresh && this.cache.size > 0 && (now - this.cacheTimestamp) < this.cacheExpiry) {
+                    if (this.cache.size > 0 && (now - this.cacheTimestamp) < this.cacheExpiry) {
                         return this.cache;
                     }
-                    
-                    utils.showSyncStatus('Loading metadata...', 'syncing');
                     
                     const response = await this.provider.makeApiCall('/me/drive/special/approot:/tags.json:/content');
                     const data = await response.json();
@@ -1463,57 +1491,26 @@
                     if (data && data.files) {
                         this.cache.clear();
                         Object.entries(data.files).forEach(([fileId, metadata]) => {
-                            this.cache.set(fileId, {
-                                ...metadata,
-                                lastSyncedToCloud: metadata.lastUpdated || new Date().toISOString()
-                            });
+                            this.cache.set(fileId, metadata);
                         });
                         this.cacheTimestamp = now;
-                        utils.showSyncStatus('Metadata loaded', 'success');
                     }
                     
                     return this.cache;
                 } catch (error) {
                     if (error.message.includes('404')) {
                         await this.saveMetadata();
-                        utils.showSyncStatus('Created metadata file', 'success');
                         return this.cache;
                     }
                     console.warn('Failed to load user metadata:', error);
-                    utils.showSyncStatus('Metadata load failed', 'error');
                     return this.cache;
                 }
             }
             
             async saveMetadata() {
-                if (this.isSyncing) return;
-                this.isSyncing = true;
-                
                 try {
-                    utils.showSyncStatus('Saving metadata...', 'syncing');
-                    
-                    // Apply pending changes
-                    this.pendingChanges.forEach((updates, fileId) => {
-                        const current = this.cache.get(fileId) || {
-                            stack: 'in',
-                            tags: [],
-                            qualityRating: 0,
-                            contentRating: 0,
-                            notes: ''
-                        };
-                        
-                        this.cache.set(fileId, {
-                            ...current,
-                            ...updates,
-                            lastUpdated: new Date().toISOString(),
-                            lastSyncedToCloud: new Date().toISOString()
-                        });
-                    });
-                    
-                    this.pendingChanges.clear();
-                    
                     const data = {
-                        version: 2,
+                        version: 1,
                         lastModified: new Date().toISOString(),
                         files: Object.fromEntries(this.cache)
                     };
@@ -1525,14 +1522,9 @@
                     });
                     
                     this.cacheTimestamp = Date.now();
-                    utils.showSyncStatus('Metadata saved', 'success');
-                    
                 } catch (error) {
                     console.warn('Failed to save user metadata:', error);
-                    utils.showSyncStatus('Save failed', 'error');
                     throw error;
-                } finally {
-                    this.isSyncing = false;
                 }
             }
             
@@ -1547,20 +1539,13 @@
             }
             
             async setUserMetadata(fileId, metadata) {
-                // Store changes locally first for immediate UI update
-                this.pendingChanges.set(fileId, metadata);
-                
                 const updated = {
                     ...metadata,
-                    lastUpdated: new Date().toISOString(),
-                    pendingSync: true
+                    lastUpdated: new Date().toISOString()
                 };
                 
                 this.cache.set(fileId, updated);
-                
-                // Schedule save (debounced)
-                this.scheduleSave();
-                
+                await this.saveMetadata();
                 return updated;
             }
             
@@ -1569,40 +1554,9 @@
                 const updated = { ...current, ...updates };
                 return await this.setUserMetadata(fileId, updated);
             }
-            
-            scheduleSave() {
-                if (this.saveTimeout) {
-                    clearTimeout(this.saveTimeout);
-                }
-                
-                this.saveTimeout = setTimeout(() => {
-                    this.saveMetadata().catch(error => {
-                        console.error('Scheduled save failed:', error);
-                    });
-                }, 2000); // Save after 2 seconds of inactivity
-            }
-            
-            async clearCache() {
-                this.cache.clear();
-                this.cacheTimestamp = 0;
-                this.pendingChanges.clear();
-                if (this.saveTimeout) {
-                    clearTimeout(this.saveTimeout);
-                }
-            }
-            
-            hasPendingChanges() {
-                return this.pendingChanges.size > 0;
-            }
-            
-            async syncPendingChanges() {
-                if (this.pendingChanges.size > 0) {
-                    await this.saveMetadata();
-                }
-            }
         }
 
-        // ===== Progressive Metadata Extractor (Enhanced) =====
+        // ===== Progressive Metadata Extractor (V3 Parity) =====
         class ProgressiveMetadataExtractor {
             constructor() {
                 this.statusLog = null;
@@ -1697,7 +1651,7 @@
                 try {
                     this.abortController = new AbortController();
                     
-                    // Progressive loading: start with 2KB
+                    // Progressive loading: start with 2KB like V3
                     let buffer = await this.fetchWithRange(file.id, 0, 2047);
                     let metadata = await this.extract(buffer);
                     
@@ -1744,10 +1698,16 @@
         class CloudStorageModule {
             constructor() {
                 this.currentProvider = new OneDriveProvider();
+                this.folderManager = null;
             }
             
             async authenticate() {
-                return await this.currentProvider.authenticate();
+                const result = await this.currentProvider.authenticate();
+                if (result) {
+                    // Initialize folder manager after authentication
+                    this.folderManager = new OneDriveFolderManager(this.currentProvider);
+                }
+                return result;
             }
             
             isAuthenticated() {
@@ -1758,12 +1718,23 @@
                 return await this.currentProvider.getFiles(folderId);
             }
             
-            async getFolders(parentId = 'root') {
-                return await this.currentProvider.getFolders(parentId);
+            async getFolders(forceRefresh = false) {
+                if (!this.folderManager) {
+                    this.folderManager = new OneDriveFolderManager(this.currentProvider);
+                }
+                return await this.folderManager.loadFolders(forceRefresh);
+            }
+            
+            async refreshFolders() {
+                if (!this.folderManager) {
+                    this.folderManager = new OneDriveFolderManager(this.currentProvider);
+                }
+                return await this.folderManager.loadFolders(true);
             }
             
             async disconnect() {
                 await this.currentProvider.disconnect();
+                this.folderManager = null;
             }
         }
 
@@ -1842,43 +1813,21 @@
                 return response;
             }
             
-            async getFolders(parentId = 'root') {
-                const response = await this.makeApiCall(`/me/drive/items/${parentId}/children`);
+            async getFolders() {
+                // This method is now handled by OneDriveFolderManager
+                // Keeping for backward compatibility but should use CloudStorageModule.getFolders()
+                const response = await this.makeApiCall('/me/drive/root/children');
                 const data = await response.json();
-                
-                const folders = data.value
+                return data.value
                     .filter(item => item.folder)
                     .map(folder => ({
                         id: folder.id,
                         name: folder.name,
+                        path: folder.name,
                         type: 'folder',
                         createdTime: folder.createdDateTime,
-                        modifiedTime: folder.lastModifiedDateTime,
-                        itemCount: folder.folder?.childCount || 0,
-                        hasSubfolders: (folder.folder?.childCount || 0) > 0
+                        modifiedTime: folder.lastModifiedDateTime
                     }));
-                
-                // Get image counts for each folder
-                for (const folder of folders) {
-                    try {
-                        const imageCount = await this.getImageCount(folder.id);
-                        folder.imageCount = imageCount;
-                    } catch (error) {
-                        folder.imageCount = 0;
-                    }
-                }
-                
-                return folders;
-            }
-            
-            async getImageCount(folderId) {
-                try {
-                    const response = await this.makeApiCall(`/me/drive/items/${folderId}/children?$filter=file ne null and (contains(file/mimeType,'image/'))&$select=id&$top=1000`);
-                    const data = await response.json();
-                    return data.value.length;
-                } catch (error) {
-                    return 0;
-                }
             }
             
             async getFiles(folderId = 'root') {
@@ -1943,7 +1892,7 @@
             }
         }
 
-        // ===== Authentication Manager (Enhanced) =====
+        // ===== Authentication Manager =====
         const authManager = {
             async authenticate() {
                 utils.elements.authButton.disabled = true;
@@ -1974,48 +1923,36 @@
                 utils.elements.authStatus.className = `status ${type}`;
             },
             
-            async logout() {
-                // Clear all caches and state on logout
-                if (appState.userMetadataManager) {
-                    await appState.userMetadataManager.clearCache();
-                }
-                if (appState.fileCache) {
-                    await appState.fileCache.clearAll();
-                }
-                
-                // Clear image cache
-                appState.imageCache.clear();
-                
-                // Reset app state
-                appState.currentFolder = { id: null, name: '' };
-                appState.imageFiles = [];
-                appState.stacks = { in: [], out: [], priority: [], trash: [] };
-                appState.lastSync = null;
-                
-                await appState.cloudStorage.disconnect();
+            logout() {
+                appState.cloudStorage.disconnect();
                 utils.showScreen('auth-screen');
                 this.setStatus('Click to sign in with your Microsoft account', 'info');
-                utils.showToast('Disconnected from OneDrive', 'info', true);
             }
         };
         
-        // ===== Enhanced Folder Manager (Simplified like V3) =====
+        // ===== Enhanced Folder Manager with Flat List =====
         const folderManager = {
-            isProcessing: false,
+            isScanning: false,
             
-            async loadFolders() {
+            async loadFolders(forceRefresh = false) {
+                if (this.isScanning) {
+                    utils.showToast('Folder scan already in progress', 'info', true);
+                    return;
+                }
+                
+                const isRefresh = forceRefresh;
+                
                 utils.elements.folderList.innerHTML = `
                     <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
                         <div class="spinner"></div>
-                        <span>Loading folders...</span>
+                        <span>${isRefresh ? 'Refreshing folder list...' : 'Loading folders...'}</span>
                     </div>
                 `;
                 
-                // Hide breadcrumb for simplified V3-style navigation
-                utils.elements.breadcrumb.style.display = 'none';
+                this.isScanning = true;
                 
                 await utils.withErrorHandling(async () => {
-                    const folders = await appState.cloudStorage.getFolders();
+                    const folders = await appState.cloudStorage.getFolders(forceRefresh);
                     
                     if (folders.length === 0) {
                         utils.elements.folderList.innerHTML = `
@@ -2028,33 +1965,109 @@
                     
                     utils.elements.folderList.innerHTML = '';
                     
+                    // Group folders by parent path for better organization
+                    const groupedFolders = this.groupFoldersByParent(folders);
+                    
+                    // Display folders with improved layout
+                    this.displayGroupedFolders(groupedFolders);
+                    
+                    if (isRefresh) {
+                        utils.showToast(`Refreshed ${folders.length} folders`, 'success', true);
+                    }
+                    
+                }, isRefresh ? 'Error refreshing folders' : 'Error loading folders');
+                
+                this.isScanning = false;
+            },
+            
+            groupFoldersByParent(folders) {
+                const grouped = {};
+                
+                folders.forEach(folder => {
+                    const parentPath = folder.parentPath || '/';
+                    if (!grouped[parentPath]) {
+                        grouped[parentPath] = [];
+                    }
+                    grouped[parentPath].push(folder);
+                });
+                
+                return grouped;
+            },
+            
+            displayGroupedFolders(groupedFolders) {
+                // Sort parent paths - root first, then alphabetically
+                const sortedParentPaths = Object.keys(groupedFolders).sort((a, b) => {
+                    if (a === '/') return -1;
+                    if (b === '/') return 1;
+                    return a.localeCompare(b);
+                });
+                
+                sortedParentPaths.forEach(parentPath => {
+                    const folders = groupedFolders[parentPath];
+                    
+                    // Add section header for non-root folders
+                    if (parentPath !== '/' && folders.length > 0) {
+                        const sectionHeader = document.createElement('div');
+                        sectionHeader.style.cssText = `
+                            padding: 8px 16px; 
+                            color: rgba(245, 158, 11, 0.8); 
+                            font-size: 12px; 
+                            font-weight: 600; 
+                            border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+                            margin: 8px 0 4px 0;
+                            background: rgba(245, 158, 11, 0.1);
+                            border-radius: 6px;
+                        `;
+                        sectionHeader.textContent = parentPath;
+                        utils.elements.folderList.appendChild(sectionHeader);
+                    }
+                    
+                    // Sort folders within each group by name
+                    folders.sort((a, b) => a.name.localeCompare(b.name));
+                    
                     folders.forEach(folder => {
                         const div = document.createElement('div');
                         div.className = 'folder-item';
+                        
+                        // Show different icon for root vs nested folders
+                        const iconPath = parentPath === '/' ? 
+                            "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" :
+                            "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z M7 13l3 3 3-3";
+                        
                         div.innerHTML = `
                             <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"></path>
                             </svg>
                             <div class="folder-info">
                                 <div class="folder-name">${folder.name}</div>
-                                <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()}</div>
+                                <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()} • ${folder.itemCount || 0} items</div>
                             </div>
                         `;
                         
-                        // Simple click to select folder (like V3)
+                        // Add indentation for nested folders
+                        if (parentPath !== '/') {
+                            div.style.marginLeft = '20px';
+                            div.style.borderLeft = '2px solid rgba(245, 158, 11, 0.3)';
+                            div.style.paddingLeft = '12px';
+                        }
+                        
                         div.addEventListener('click', () => this.selectFolder(folder));
                         utils.elements.folderList.appendChild(div);
                     });
-                }, 'Error loading folders');
+                });
+            },
+            
+            async refreshFolders() {
+                await this.loadFolders(true);
             },
             
             async selectFolder(folder) {
-                if (this.isProcessing) {
+                if (appState.isProcessing) {
                     utils.showToast('Please wait for current folder to finish loading', 'info', true);
                     return;
                 }
                 
-                this.isProcessing = true;
+                appState.isProcessing = true;
                 appState.abortController = new AbortController();
                 appState.currentFolder.id = folder.id;
                 appState.currentFolder.name = folder.name;
@@ -2062,7 +2075,7 @@
                 utils.showScreen('loading-screen');
                 utils.updateLoadingProgress(0, 0);
                 
-                utils.elements.statusLog.innerHTML = '<div class="status-log-entry info">Starting smart cache analysis...</div>';
+                utils.elements.statusLog.innerHTML = '<div class="status-log-entry info">Starting image processing...</div>';
                 appState.metadataExtractor.setStatusLog(utils.elements.statusLog);
                 
                 appState.cloudStorage.currentProvider.onProgressCallback = (count) => {
@@ -2071,30 +2084,87 @@
                 
                 try {
                     await utils.withErrorHandling(async () => {
-                        // Smart cache strategy
-                        const lastSync = await appState.fileCache.getLastSync(folder.id);
+                        // Check cache first (V3 pattern)
                         const cachedFiles = await appState.fileCache.getCachedFiles(folder.id);
-                        const now = Date.now();
                         
-                        if (cachedFiles && lastSync && (now - lastSync) < CACHE_DURATION) {
-                            // Use cache
-                            utils.elements.loadingMessage.textContent = 'Loading from smart cache...';
-                            appState.metadataExtractor.log('📥 Using smart cache (verified fresh)', 'cache');
+                        if (cachedFiles) {
+                            utils.elements.loadingMessage.textContent = 'Loading from cache...';
+                            appState.metadataExtractor.log('📥 Loading files from cache', 'success');
                             
-                            await this.loadFromCache(cachedFiles, folder);
+                            const files = cachedFiles;
+                            if (files.length === 0) {
+                                utils.showToast('No images found in this folder', 'info', true);
+                                setTimeout(() => utils.showScreen('folder-screen'), 2000);
+                                return;
+                            }
                             
-                            // Background sync check
-                            this.performBackgroundSync(folder.id);
+                            utils.updateLoadingProgress(files.length, files.length);
+                            
+                            appState.imageFiles = files;
+                            appState.metadataExtractor.log(`✅ Loaded ${files.length} images from cache`, 'success');
                             
                         } else {
-                            // Fresh load with smart sync
-                            utils.elements.loadingMessage.textContent = 'Smart loading from OneDrive...';
-                            appState.metadataExtractor.log('🔄 Performing smart sync from OneDrive', 'info');
+                            // Fresh fetch from OneDrive
+                            utils.elements.loadingMessage.textContent = 'Loading images from OneDrive...';
+                            appState.metadataExtractor.log('🔄 Fetching fresh data from OneDrive', 'info');
                             
-                            await this.loadFreshWithSmartSync(folder, cachedFiles);
+                            // Load user metadata first
+                            utils.elements.loadingMessage.textContent = 'Loading user metadata...';
+                            await appState.userMetadataManager.loadMetadata();
+                            
+                            const result = await appState.cloudStorage.getFiles(folder.id);
+                            const files = result.files || [];
+                            
+                            if (files.length === 0) {
+                                utils.showToast('No images found in this folder', 'info', true);
+                                setTimeout(() => utils.showScreen('folder-screen'), 2000);
+                                return;
+                            }
+                            
+                            utils.updateLoadingProgress(files.length, files.length);
+                            
+                            // Process files with user metadata
+                            appState.imageFiles = files.map(file => {
+                                const userMetadata = appState.userMetadataManager.getUserMetadata(file.id);
+                                
+                                return {
+                                    id: file.id,
+                                    name: file.name,
+                                    filename: file.name,
+                                    originalName: file.name,
+                                    mimeType: file.mimeType,
+                                    size: file.size,
+                                    createdTime: file.createdTime,
+                                    modifiedTime: file.modifiedTime,
+                                    thumbnails: file.thumbnails,
+                                    downloadUrl: file.downloadUrl,
+                                    extractedMetadata: {},
+                                    
+                                    // User metadata from OneDrive AppFolder
+                                    stack: userMetadata.stack || 'in',
+                                    tags: userMetadata.tags || [],
+                                    qualityRating: userMetadata.qualityRating || 0,
+                                    contentRating: userMetadata.contentRating || 0,
+                                    notes: userMetadata.notes || ''
+                                };
+                            });
+                            
+                            const pngCount = files.filter(f => f.mimeType === 'image/png').length;
+                            
+                            appState.metadataExtractor.log(`🎯 Files loaded:`, 'info');
+                            appState.metadataExtractor.log(`   📁 Total images: ${files.length}`, 'info');
+                            appState.metadataExtractor.log(`   🖼️ PNG files: ${pngCount}`, 'info');
+                            
+                            // Cache the files immediately
+                            await appState.fileCache.setCachedFiles(folder.id, appState.imageFiles);
+                            appState.metadataExtractor.log('💾 Files cached for future use', 'success');
+                            
+                            // Start background metadata extraction (V3 pattern)
+                            if (pngCount > 0) {
+                                this.extractMetadataInBackground(appState.imageFiles.filter(f => f.mimeType === 'image/png'));
+                            }
                         }
                         
-                        utils.updateBackButton();
                         stackManager.updateStacks();
                         appState.currentImageIndex = 0;
                         appState.currentStack = 'in';
@@ -2108,158 +2178,25 @@
                         
                     }, 'Error loading images from folder');
                 } finally {
-                    this.isProcessing = false;
+                    appState.isProcessing = false;
                     if (appState.cloudStorage.currentProvider) {
                         appState.cloudStorage.currentProvider.onProgressCallback = null;
                     }
                 }
             },
             
-            async loadFromCache(cachedFiles, folder) {
-                if (cachedFiles.length === 0) {
-                    utils.showToast('No images found in this folder', 'info', true);
-                    setTimeout(() => utils.showScreen('folder-screen'), 2000);
-                    return;
-                }
-                
-                utils.updateLoadingProgress(cachedFiles.length, cachedFiles.length);
-                
-                // Load user metadata
-                await appState.userMetadataManager.loadMetadata();
-                
-                // Process cached files with user metadata
-                appState.imageFiles = cachedFiles.map(file => {
-                    const userMetadata = appState.userMetadataManager.getUserMetadata(file.id);
-                    
-                    return {
-                        ...file,
-                        stack: userMetadata.stack || 'in',
-                        tags: userMetadata.tags || [],
-                        qualityRating: userMetadata.qualityRating || 0,
-                        contentRating: userMetadata.contentRating || 0,
-                        notes: userMetadata.notes || ''
-                    };
-                });
-                
-                appState.metadataExtractor.log(`✅ Loaded ${cachedFiles.length} images from smart cache`, 'success');
-            },
-            
-            async loadFreshWithSmartSync(folder, cachedFiles) {
-                // Load user metadata first
-                await appState.userMetadataManager.loadMetadata();
-                
-                const result = await appState.cloudStorage.getFiles(folder.id);
-                const freshFiles = result.files || [];
-                
-                if (freshFiles.length === 0) {
-                    utils.showToast('No images found in this folder', 'info', true);
-                    setTimeout(() => utils.showScreen('folder-screen'), 2000);
-                    return;
-                }
-                
-                utils.updateLoadingProgress(freshFiles.length, freshFiles.length);
-                
-                // Smart conflict detection
-                let conflictsDetected = 0;
-                const cachedFileMap = new Map(cachedFiles ? cachedFiles.map(f => [f.id, f]) : []);
-                
-                appState.imageFiles = freshFiles.map(file => {
-                    const cachedFile = cachedFileMap.get(file.id);
-                    const userMetadata = appState.userMetadataManager.getUserMetadata(file.id);
-                    
-                    // Detect conflicts (file modified since last cache)
-                    if (cachedFile && cachedFile.modifiedTime !== file.modifiedTime) {
-                        conflictsDetected++;
-                    }
-                    
-                    return {
-                        id: file.id,
-                        name: file.name,
-                        filename: file.name,
-                        originalName: file.name,
-                        mimeType: file.mimeType,
-                        size: file.size,
-                        createdTime: file.createdTime,
-                        modifiedTime: file.modifiedTime,
-                        thumbnails: file.thumbnails,
-                        downloadUrl: file.downloadUrl,
-                        extractedMetadata: cachedFile?.extractedMetadata || {},
-                        
-                        // User metadata from OneDrive AppFolder
-                        stack: userMetadata.stack || 'in',
-                        tags: userMetadata.tags || [],
-                        qualityRating: userMetadata.qualityRating || 0,
-                        contentRating: userMetadata.contentRating || 0,
-                        notes: userMetadata.notes || ''
-                    };
-                });
-                
-                if (conflictsDetected > 0) {
-                    appState.metadataExtractor.log(`⚠️ Detected ${conflictsDetected} file changes since last sync`, 'info');
-                }
-                
-                const pngCount = freshFiles.filter(f => f.mimeType === 'image/png').length;
-                
-                appState.metadataExtractor.log(`🎯 Smart sync complete:`, 'info');
-                appState.metadataExtractor.log(`   📁 Total images: ${freshFiles.length}`, 'info');
-                appState.metadataExtractor.log(`   🖼️ PNG files: ${pngCount}`, 'info');
-                appState.metadataExtractor.log(`   🔄 Changes detected: ${conflictsDetected}`, 'info');
-                
-                // Cache immediately
-                await appState.fileCache.setCachedFiles(folder.id, appState.imageFiles);
-                await appState.fileCache.setLastSync(folder.id);
-                appState.metadataExtractor.log('💾 Smart cache updated', 'cache');
-                
-                // Background metadata extraction for PNG files
-                if (pngCount > 0) {
-                    this.extractMetadataInBackground(appState.imageFiles.filter(f => f.mimeType === 'image/png'));
-                }
-            },
-            
-            async performBackgroundSync(folderId) {
-                // Perform lightweight background check for changes
-                setTimeout(async () => {
-                    try {
-                        utils.showSyncStatus('Checking for updates...', 'syncing');
-                        
-                        // Quick check - just get file list with modification times
-                        const result = await appState.cloudStorage.getFiles(folderId);
-                        const freshFiles = result.files || [];
-                        
-                        // Compare with cached data
-                        const cachedFiles = await appState.fileCache.getCachedFiles(folderId);
-                        
-                        if (!cachedFiles || cachedFiles.length !== freshFiles.length) {
-                            utils.showSyncStatus('Changes detected - cache updated', 'info');
-                            await appState.fileCache.clearCacheForFolder(folderId);
-                            return;
-                        }
-                        
-                        const cachedMap = new Map(cachedFiles.map(f => [f.id, f.modifiedTime]));
-                        const hasChanges = freshFiles.some(f => cachedMap.get(f.id) !== f.modifiedTime);
-                        
-                        if (hasChanges) {
-                            utils.showSyncStatus('Changes detected - cache updated', 'info');
-                            await appState.fileCache.clearCacheForFolder(folderId);
-                        } else {
-                            utils.showSyncStatus('Cache verified current', 'success');
-                        }
-                        
-                    } catch (error) {
-                        console.warn('Background sync failed:', error);
-                        utils.hideSyncStatus();
-                    }
-                }, 5000); // Check after 5 seconds
-            },
-            
             async extractMetadataInBackground(pngFiles) {
                 appState.metadataExtractor.log(`🔄 Starting background metadata extraction for ${pngFiles.length} PNG files`, 'info');
                 
-                const BATCH_SIZE = 3; // Reduced for better performance
+                const BATCH_SIZE = 5; // Process 5 files concurrently like V3
                 let extractedCount = 0;
                 let cachedCount = 0;
                 
                 for (let i = 0; i < pngFiles.length; i += BATCH_SIZE) {
+                    if (appState.abortController && appState.abortController.signal.aborted) {
+                        break;
+                    }
+                    
                     const batch = pngFiles.slice(i, i + BATCH_SIZE);
                     const batchPromises = batch.map(file => this.processFileMetadata(file));
                     
@@ -2280,7 +2217,7 @@
                         
                         // Small delay to prevent overwhelming the API
                         if (i + BATCH_SIZE < pngFiles.length) {
-                            await new Promise(resolve => setTimeout(resolve, 500));
+                            await new Promise(resolve => setTimeout(resolve, 200));
                         }
                         
                     } catch (error) {
@@ -2290,7 +2227,7 @@
                 
                 appState.metadataExtractor.log(`🎉 Background extraction complete!`, 'success');
                 appState.metadataExtractor.log(`   ✅ New extractions: ${extractedCount}`, 'success');
-                appState.metadataExtractor.log(`   📥 From cache: ${cachedCount}`, 'cache');
+                appState.metadataExtractor.log(`   📥 From cache: ${cachedCount}`, 'info');
             },
             
             async processFileMetadata(file) {
@@ -2322,29 +2259,47 @@
                 } catch (error) {
                     return { extracted: false, cached: false };
                 }
-            }
+            },
         };
         
-        // ===== Stack Manager (Enhanced for better persistence) =====
+        // ===== Stack Manager =====
         const stackManager = {
-            getFileMetadata(file) {
-                return {
-                    stack: file.stack || 'in',
-                    tags: file.tags || []
-                };
+            currentSort: 'date-desc',
+            
+            sortFiles(files, sortOrder) {
+                const sorted = [...files];
+                
+                switch (sortOrder) {
+                    case 'date-desc':
+                        return sorted.sort((a, b) => new Date(b.modifiedTime || b.createdTime) - new Date(a.modifiedTime || a.createdTime));
+                    case 'date-asc':
+                        return sorted.sort((a, b) => new Date(a.modifiedTime || a.createdTime) - new Date(b.modifiedTime || b.createdTime));
+                    case 'name-asc':
+                        return sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    case 'name-desc':
+                        return sorted.sort((a, b) => (b.name || '').localeCompare(a.name || ''));
+                    default:
+                        return sorted;
+                }
             },
             
             updateStacks() {
+                // Reset stacks
                 STACK_TYPES.forEach(stack => { appState.stacks[stack] = []; });
+                
+                // Organize files into stacks
                 appState.imageFiles.forEach(file => {
-                    const metadata = this.getFileMetadata(file);
-                    const stack = metadata.stack;
-                    
+                    const stack = file.stack || 'in';
                     if (STACK_TYPES.includes(stack)) {
                         appState.stacks[stack].push(file);
                     } else {
                         appState.stacks.in.push(file);
                     }
+                });
+                
+                // Sort each stack
+                STACK_TYPES.forEach(stack => {
+                    appState.stacks[stack] = this.sortFiles(appState.stacks[stack], this.currentSort);
                 });
                 
                 this.updateCounts();
@@ -2373,24 +2328,20 @@
                 
                 if (currentStack === targetStack) return file;
                 
-                // Update file metadata
-                file.stack = targetStack;
-                
-                // Update user metadata in cloud
-                await appState.userMetadataManager.updateUserMetadata(fileId, { stack: targetStack });
-                
-                // Update local stacks
+                // Remove from current stack
                 const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
                 if (currentStackIndex !== -1) {
                     appState.stacks[currentStack].splice(currentStackIndex, 1);
                 }
+                
+                // Add to target stack
                 appState.stacks[targetStack].unshift(file);
+                file.stack = targetStack;
+                
+                // Save to OneDrive
+                await appState.userMetadataManager.updateUserMetadata(fileId, { stack: targetStack });
                 
                 this.updateCounts();
-                
-                // Update cache
-                await appState.fileCache.setCachedFiles(appState.currentFolder.id, appState.imageFiles);
-                
                 return file;
             },
             
@@ -2404,10 +2355,8 @@
                 file.tags = newTags;
                 tags.forEach(tag => appState.tags.add(tag));
                 
+                // Save to OneDrive
                 await appState.userMetadataManager.updateUserMetadata(fileId, { tags: newTags });
-                
-                // Update cache
-                await appState.fileCache.setCachedFiles(appState.currentFolder.id, appState.imageFiles);
                 
                 return newTags;
             },
@@ -2421,16 +2370,25 @@
                 
                 file.tags = newTags;
                 
+                // Save to OneDrive
                 await appState.userMetadataManager.updateUserMetadata(fileId, { tags: newTags });
                 
-                // Update cache
-                await appState.fileCache.setCachedFiles(appState.currentFolder.id, appState.imageFiles);
-                
                 return newTags;
+            },
+            
+            async updateFileUserData(fileId, updates) {
+                const file = appState.imageFiles.find(f => f.id === fileId);
+                if (!file) throw new Error('File not found');
+                
+                // Update file properties
+                Object.assign(file, updates);
+                
+                // Save to OneDrive
+                await appState.userMetadataManager.updateUserMetadata(fileId, updates);
             }
         };
         
-        // ===== Enhanced Image Viewer =====
+        // ===== Image Viewer =====
         const imageViewer = {
             async displayCurrentImage() {
                 if (appState.imageFiles.length === 0 || appState.currentImageIndex < 0 || appState.currentImageIndex >= appState.imageFiles.length) {
@@ -2526,7 +2484,7 @@
             }
         };
         
-        // ===== Enhanced Grid View =====
+        // ===== Grid View =====
         const gridView = {
             open(stack) {
                 utils.modal.show('grid-modal');
@@ -2547,17 +2505,16 @@
                 utils.modal.hide('grid-modal');
                 
                 if (hasSelection) {
-                    // If one image selected, show that specific image
                     const selectedFileId = selectedImages[0];
                     const selectedIndex = appState.imageFiles.findIndex(f => f.id === selectedFileId);
                     if (selectedIndex !== -1) {
                         appState.currentImageIndex = selectedIndex;
                         
                         const currentStackImages = appState.stacks[appState.currentStack];
+                        const selectedFile = appState.imageFiles[selectedIndex];
                         const stackIndex = currentStackImages.findIndex(f => f.id === selectedFileId);
                         
                         if (stackIndex !== -1) {
-                            // Reorder stack to put selected image first
                             const reorderedStack = [
                                 ...currentStackImages.slice(stackIndex),
                                 ...currentStackImages.slice(0, stackIndex)
@@ -2566,12 +2523,8 @@
                         }
                         
                         imageViewer.displayCurrentImage();
-                    } else {
-                        // Image was deleted, show top image from current stack
-                        imageViewer.displayTopImageFromStack(appState.currentStack);
                     }
                 } else {
-                    // No selection or multiple selections, show top image from current stack
                     imageViewer.displayTopImageFromStack(appState.currentStack);
                 }
                 
@@ -2584,10 +2537,9 @@
                 container.innerHTML = '';
                 container.style.gridTemplateColumns = `repeat(${utils.elements.gridSize.value}, 1fr)`;
                 
-                // Use the exact same order as center stage (no sorting)
-                const stackFiles = appState.stacks[stack];
+                const sortedFiles = stackManager.sortFiles(appState.stacks[stack], stackManager.currentSort);
                 
-                stackFiles.forEach((file) => {
+                sortedFiles.forEach((file) => {
                     const div = document.createElement('div');
                     div.className = 'grid-item';
                     div.dataset.fileId = file.id;
@@ -2595,17 +2547,14 @@
                     const img = document.createElement('img');
                     img.className = 'grid-image';
                     
+                    // Use consistent image URL generation
                     const imageUrl = utils.generateImageUrl(file);
                     img.src = imageUrl;
                     img.alt = file.name || 'Image';
                     
+                    // Handle image loading errors with fallback
                     img.onerror = () => {
-                        const fallbackUrl = file.thumbnails && file.thumbnails.large ? 
-                            file.thumbnails.large.url :
-                            `data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E`;
-                        
-                        img.onerror = null;
-                        img.src = fallbackUrl;
+                        img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
                     };
                     
                     div.addEventListener('click', e => {
@@ -2614,7 +2563,7 @@
                         if (appState.grid.selected.length === 1 && 
                             appState.grid.selected[0] === file.id && 
                             utils.elements.gridSize.value === '1') {
-                            const viewUrl = `https://onedrive.live.com/?cid=${file.id}`;
+                            const viewUrl = file.downloadUrl || `https://1drv.ms/i/s!${file.id}`;
                             window.open(viewUrl, '_blank');
                             return;
                         }
@@ -2688,7 +2637,7 @@
             }
         };
         
-        // ===== Details Modal (Same functionality, enhanced with save detection) =====
+        // ===== Details Modal =====
         const detailsModal = {
             currentTab: 'info',
             
@@ -2702,10 +2651,6 @@
             },
             
             hide() {
-                // Sync any pending metadata changes before closing
-                if (appState.userMetadataManager.hasPendingChanges()) {
-                    appState.userMetadataManager.syncPendingChanges();
-                }
                 utils.modal.hide('details-modal');
             },
             
@@ -2732,8 +2677,8 @@
                 const filename = file.name || 'Unknown';
                 utils.elements.detailFilename.textContent = filename;
                 
-                if (file.id) {
-                    utils.elements.detailFilenameLink.href = `https://onedrive.live.com/?cid=${file.id}`;
+                if (file.downloadUrl) {
+                    utils.elements.detailFilenameLink.href = file.downloadUrl;
                     utils.elements.detailFilenameLink.style.display = 'inline';
                 } else {
                     utils.elements.detailFilenameLink.href = '#';
@@ -2828,36 +2773,24 @@
                 utils.elements.detailNotes = newNotesTextarea;
                 
                 utils.elements.detailNotes.addEventListener('blur', async () => {
-                    const newNotes = utils.elements.detailNotes.value;
-                    if (newNotes !== file.notes) {
-                        file.notes = newNotes;
-                        
-                        try {
-                            await appState.userMetadataManager.updateUserMetadata(file.id, { notes: newNotes });
-                            await appState.fileCache.setCachedFiles(appState.currentFolder.id, appState.imageFiles);
-                        } catch (error) {
-                            utils.showToast('Failed to save notes', 'error', true);
-                        }
+                    try {
+                        await stackManager.updateFileUserData(file.id, { notes: utils.elements.detailNotes.value });
+                    } catch (error) {
+                        utils.showToast('Failed to save notes', 'error', true);
                     }
                 });
                 
                 this.setupStarRating(utils.elements.qualityRating, file.qualityRating || 0, async (rating) => {
-                    file.qualityRating = rating;
-                    
                     try {
-                        await appState.userMetadataManager.updateUserMetadata(file.id, { qualityRating: rating });
-                        await appState.fileCache.setCachedFiles(appState.currentFolder.id, appState.imageFiles);
+                        await stackManager.updateFileUserData(file.id, { qualityRating: rating });
                     } catch (error) {
                         utils.showToast('Failed to save rating', 'error', true);
                     }
                 });
                 
                 this.setupStarRating(utils.elements.contentRating, file.contentRating || 0, async (rating) => {
-                    file.contentRating = rating;
-                    
                     try {
-                        await appState.userMetadataManager.updateUserMetadata(file.id, { contentRating: rating });
-                        await appState.fileCache.setCachedFiles(appState.currentFolder.id, appState.imageFiles);
+                        await stackManager.updateFileUserData(file.id, { contentRating: rating });
                     } catch (error) {
                         utils.showToast('Failed to save rating', 'error', true);
                     }
@@ -2951,6 +2884,7 @@
                 this.addMetadataRow('MIME Type', file.mimeType || 'Unknown', false);
                 this.addMetadataRow('Created', file.createdTime ? new Date(file.createdTime).toLocaleString() : 'Unknown', false);
                 this.addMetadataRow('Modified', file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : 'Unknown', false);
+                this.addMetadataRow('Provider', 'OneDrive', false);
             },
             
             addMetadataRow(key, value, needsCopyButton = false) {
@@ -3021,32 +2955,33 @@
             }
         };
         
-        // ===== Modal Manager (Enhanced) =====
+        // ===== Modal Manager =====
         const modalManager = {
             setup() {
                 document.querySelectorAll('.move-option').forEach(option => {
-                    option.addEventListener('click', async () => {
+                    option.addEventListener('click', () => {
                         const targetStack = option.dataset.stack;
                         const promises = appState.grid.selected.map(fileId => 
                             stackManager.moveFileToStack(fileId, targetStack)
                         );
                         
-                        try {
-                            await Promise.all(promises);
-                            utils.showToast(`Moved ${promises.length} images to ${targetStack}`, 'success', true);
-                            utils.modal.hide('move-modal');
-                            
-                            if (appState.grid.stack) {
-                                gridView.populate(appState.grid.stack);
-                            }
-                            
-                            appState.grid.selected = [];
-                            gridView.updateSelectionUI();
-                            stackManager.updateCounts();
-                        } catch (error) {
-                            utils.showToast('Failed to move some images', 'error', true);
-                            utils.modal.hide('move-modal');
-                        }
+                        Promise.all(promises)
+                            .then(() => {
+                                utils.showToast(`Moved ${promises.length} images to ${targetStack}`, 'success', true);
+                                utils.modal.hide('move-modal');
+                                
+                                if (appState.grid.stack) {
+                                    gridView.populate(appState.grid.stack);
+                                }
+                                
+                                appState.grid.selected = [];
+                                gridView.updateSelectionUI();
+                                stackManager.updateCounts();
+                            })
+                            .catch(() => {
+                                utils.showToast('Failed to move some images', 'error', true);
+                                utils.modal.hide('move-modal');
+                            });
                     });
                 });
                 
@@ -3074,59 +3009,69 @@
                     }
                 });
                 
-                utils.elements.confirmDelete.addEventListener('click', async () => {
+                utils.elements.confirmDelete.addEventListener('click', () => {
+                    const currentStack = appState.grid.stack;
                     utils.elements.confirmDelete.disabled = true;
                     utils.elements.confirmDelete.textContent = 'Processing...';
                     
-                    try {
-                        // Always move to OneDrive recycle bin for all stacks
+                    if (currentStack === 'trash') {
+                        // Move to OneDrive Recycle Bin
                         const promises = appState.grid.selected.map(fileId => 
                             appState.cloudStorage.currentProvider.deleteFile(fileId)
                         );
                         
-                        await Promise.all(promises);
-                        utils.showToast(`Moved ${promises.length} images to OneDrive recycle bin`, 'success', true);
+                        Promise.all(promises)
+                            .then(() => {
+                                utils.showToast(`Moved ${promises.length} images to OneDrive recycle bin`, 'success', true);
+                                utils.modal.hide('delete-modal');
+                                
+                                appState.grid.selected.forEach(fileId => {
+                                    const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
+                                    if (fileIndex !== -1) {
+                                        appState.imageFiles.splice(fileIndex, 1);
+                                    }
+                                    const trashIndex = appState.stacks.trash.findIndex(f => f.id === fileId);
+                                    if (trashIndex !== -1) {
+                                        appState.stacks.trash.splice(trashIndex, 1);
+                                    }
+                                });
+                                
+                                if (appState.grid.stack) {
+                                    gridView.populate(appState.grid.stack);
+                                }
+                                
+                                appState.grid.selected = [];
+                                gridView.updateSelectionUI();
+                                stackManager.updateCounts();
+                            })
+                            .catch(() => {
+                                utils.showToast('Failed to delete some images', 'error', true);
+                                utils.modal.hide('delete-modal');
+                            })
+                            .finally(() => {
+                                utils.elements.confirmDelete.disabled = false;
+                                utils.elements.confirmDelete.textContent = 'Move to OneDrive Recycle Bin';
+                            });
+                    } else {
+                        const promises = appState.grid.selected.map(fileId => 
+                            stackManager.moveFileToStack(fileId, 'trash')
+                        );
                         
-                        // Remove from local state and current stack
-                        const currentStack = appState.grid.stack;
-                        appState.grid.selected.forEach(fileId => {
-                            // Remove from main image files array
-                            const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
-                            if (fileIndex !== -1) {
-                                appState.imageFiles.splice(fileIndex, 1);
+                        Promise.all(promises).then(() => {
+                            utils.showToast(`Moved ${promises.length} images to trash`, 'success', true);
+                            utils.modal.hide('delete-modal');
+                            
+                            if (appState.grid.stack) {
+                                gridView.populate(appState.grid.stack);
                             }
                             
-                            // Remove from current stack
-                            const stackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
-                            if (stackIndex !== -1) {
-                                appState.stacks[currentStack].splice(stackIndex, 1);
-                            }
+                            appState.grid.selected = [];
+                            gridView.updateSelectionUI();
+                            stackManager.updateCounts();
+                        }).finally(() => {
+                            utils.elements.confirmDelete.disabled = false;
+                            utils.elements.confirmDelete.textContent = 'Move to Trash';
                         });
-                        
-                        utils.modal.hide('delete-modal');
-                        
-                        // Update grid view
-                        if (appState.grid.stack) {
-                            gridView.populate(appState.grid.stack);
-                        }
-                        
-                        // Clear selection and update UI
-                        appState.grid.selected = [];
-                        gridView.updateSelectionUI();
-                        stackManager.updateCounts();
-                        
-                        // Update cache
-                        await appState.fileCache.setCachedFiles(appState.currentFolder.id, appState.imageFiles);
-                        
-                        // Update back button text
-                        utils.updateBackButton();
-                        
-                    } catch (error) {
-                        utils.showToast('Failed to delete some images', 'error', true);
-                        utils.modal.hide('delete-modal');
-                    } finally {
-                        utils.elements.confirmDelete.disabled = false;
-                        utils.elements.confirmDelete.textContent = 'Move to OneDrive Recycle Bin';
                     }
                 });
                 
@@ -3157,10 +3102,15 @@
                 
                 utils.elements.deleteSelected.addEventListener('click', () => {
                     const selectedCount = appState.grid.selected.length;
+                    const currentStack = appState.grid.stack;
                     
-                    // Consistent message for all stacks
-                    utils.elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to OneDrive recycle bin? They can be recovered from OneDrive.`;
-                    utils.elements.confirmDelete.textContent = 'Move to OneDrive Recycle Bin';
+                    if (currentStack === 'trash') {
+                        utils.elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to OneDrive Recycle Bin?`;
+                        utils.elements.confirmDelete.textContent = 'Move to OneDrive Recycle Bin';
+                    } else {
+                        utils.elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
+                        utils.elements.confirmDelete.textContent = 'Move to Trash';
+                    }
                     
                     utils.modal.show('delete-modal');
                 });
@@ -3206,7 +3156,7 @@
             }
         }
         
-        // ===== Gesture System (Same as before) =====
+        // ===== Gesture System =====
         function setupGestureSystem() {
             let startPos = { x: 0, y: 0 };
             let currentPos = { x: 0, y: 0 };
@@ -3381,7 +3331,7 @@
             }
         }
         
-        // ===== Pinch Zoom System (Same as before) =====
+        // ===== Pinch Zoom System =====
         function setupPinchZoom() {
             function getDistance(touch1, touch2) {
                 const dx = touch1.clientX - touch2.clientX;
@@ -3471,11 +3421,12 @@
             }
         }
         
-        // ===== Event Handlers (Enhanced) =====
+        // ===== Event Handlers =====
         function setupEventHandlers() {
             // Authentication
             utils.elements.authButton.addEventListener('click', () => authManager.authenticate());
-            utils.elements.refreshFolders.addEventListener('click', () => folderManager.loadFolders());
+            
+            utils.elements.refreshFolders.addEventListener('click', () => folderManager.refreshFolders());
             utils.elements.logout.addEventListener('click', () => authManager.logout());
             
             // Loading screen cancel
@@ -3483,7 +3434,10 @@
                 if (appState.metadataExtractor) {
                     appState.metadataExtractor.abort();
                 }
-                folderManager.isProcessing = false;
+                if (appState.abortController) {
+                    appState.abortController.abort();
+                }
+                appState.isProcessing = false;
                 utils.showScreen('folder-screen');
                 utils.showToast('Loading cancelled', 'info', true);
             });
@@ -3576,6 +3530,23 @@
                 }
             });
             
+            utils.elements.gridSort.addEventListener('change', () => {
+                const sortValue = utils.elements.gridSort.value;
+                stackManager.currentSort = sortValue;
+                
+                STACK_TYPES.forEach(stack => {
+                    appState.stacks[stack] = stackManager.sortFiles(appState.stacks[stack], sortValue);
+                });
+                
+                if (appState.grid.stack) {
+                    gridView.populate(appState.grid.stack);
+                }
+                
+                if (appState.imageFiles.length > 0) {
+                    imageViewer.displayCurrentImage();
+                }
+            });
+            
             // Keyboard shortcuts
             document.addEventListener('keydown', (e) => {
                 if (utils.elements.appContainer.classList.contains('hidden')) return;
@@ -3630,19 +3601,21 @@
             });
         }
         
-        // ===== Initialize App (Enhanced) =====
+        // ===== Initialize App =====
         async function initApp() {
             try {
                 // Initialize utilities and cache elements
                 utils.init();
                 
-                // Initialize smart cache systems
-                appState.fileCache = new SmartFileCache();
+                // Initialize core systems
+                appState.fileCache = new EnhancedFileCache();
                 await appState.fileCache.init();
                 
                 appState.cloudStorage = new CloudStorageModule();
                 appState.metadataExtractor = new ProgressiveMetadataExtractor();
-                appState.userMetadataManager = new SmartOneDriveMetadataManager(appState.cloudStorage.currentProvider);
+                
+                // Initialize OneDrive metadata manager
+                appState.userMetadataManager = new OneDriveMetadataManager(appState.cloudStorage.currentProvider);
                 
                 // Check existing authentication
                 if (appState.cloudStorage.isAuthenticated()) {
