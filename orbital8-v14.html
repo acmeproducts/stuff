@@ -821,6 +821,15 @@
                             <input type="range" id="grid-size" class="grid-slider" min="1" max="10" value="4">
                             <span id="grid-size-value" class="grid-value">4</span>
                         </div>
+                        <div class="control-group">
+                            <span class="control-label">Sort:</span>
+                            <select id="grid-sort" class="grid-select">
+                                <option value="date-desc">Date (newest first)</option>
+                                <option value="date-asc">Date (oldest first)</option>
+                                <option value="name-asc">Name (A-Z)</option>
+                                <option value="name-desc">Name (Z-A)</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="action-buttons">
                         <button id="tag-selected" class="btn btn-primary hidden">Tag</button>
@@ -2005,12 +2014,44 @@
                     subtitle.textContent = 'Step 1: Choose your starting folder (Downloads recommended)';
                 }
                 
+                // Add root folder as first selectable option
+                const rootDiv = document.createElement('div');
+                rootDiv.className = 'folder-item';
+                rootDiv.innerHTML = `
+                    <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                    </svg>
+                    <div class="folder-info">
+                        <div class="folder-name">📁 OneDrive Root</div>
+                        <div class="folder-date">Process images directly from OneDrive root level</div>
+                    </div>
+                `;
+                
+                rootDiv.addEventListener('click', () => this.selectFinalFolder({
+                    id: 'root',
+                    name: 'OneDrive Root',
+                    type: 'folder',
+                    isCurrentFolder: true,
+                    createdTime: new Date().toISOString(),
+                    modifiedTime: new Date().toISOString(),
+                    itemCount: '?'
+                }));
+                utils.elements.folderList.appendChild(rootDiv);
+                
+                // Add separator
+                const separator = document.createElement('div');
+                separator.style.cssText = `
+                    height: 1px; 
+                    background: rgba(245, 158, 11, 0.3); 
+                    margin: 8px 16px;
+                `;
+                utils.elements.folderList.appendChild(separator);
+                
                 if (folders.length === 0) {
-                    utils.elements.folderList.innerHTML = `
-                        <div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
-                            <span>No top-level folders found in your OneDrive</span>
-                        </div>
-                    `;
+                    const noFoldersDiv = document.createElement('div');
+                    noFoldersDiv.style.cssText = 'text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);';
+                    noFoldersDiv.textContent = 'No top-level folders found (you can still select OneDrive Root above)';
+                    utils.elements.folderList.appendChild(noFoldersDiv);
                     return;
                 }
                 
@@ -2018,15 +2059,10 @@
                     const div = document.createElement('div');
                     div.className = 'folder-item';
                     
-                    // Highlight default folder (Downloads) or root folder
+                    // Highlight default folder (Downloads)
                     const isDefault = defaultFolder && folder.id === defaultFolder.id;
                     if (isDefault) {
                         div.classList.add('recommended');
-                    }
-                    
-                    // Special styling for root folder
-                    if (folder.isRoot) {
-                        div.classList.add('root-folder');
                     }
                     
                     div.innerHTML = `
@@ -2653,9 +2689,6 @@
                 
                 utils.modal.hide('grid-modal');
                 
-                // Update stack counts when returning from grid
-                stackManager.updateCounts();
-                
                 if (hasSelection) {
                     const selectedFileId = selectedImages[0];
                     const selectedIndex = appState.imageFiles.findIndex(f => f.id === selectedFileId);
@@ -2677,7 +2710,6 @@
                         imageViewer.displayCurrentImage();
                     }
                 } else {
-                    // Display next image in current stack or show empty state
                     imageViewer.displayTopImageFromStack(appState.currentStack);
                 }
                 
@@ -2690,10 +2722,9 @@
                 container.innerHTML = '';
                 container.style.gridTemplateColumns = `repeat(${utils.elements.gridSize.value}, 1fr)`;
                 
-                // Use exact same order as displayed in center stage
-                const stackFiles = appState.stacks[stack];
+                const sortedFiles = stackManager.sortFiles(appState.stacks[stack], stackManager.currentSort);
                 
-                stackFiles.forEach((file) => {
+                sortedFiles.forEach((file) => {
                     const div = document.createElement('div');
                     div.className = 'grid-item';
                     div.dataset.fileId = file.id;
@@ -3163,51 +3194,69 @@
                     }
                 });
                 
-                utils.elements.confirmDelete.addEventListener('click', async () => {
-                    const selectedFiles = appState.grid.selected.slice(); // Copy array
+                utils.elements.confirmDelete.addEventListener('click', () => {
                     const currentStack = appState.grid.stack;
-                    
                     utils.elements.confirmDelete.disabled = true;
-                    utils.elements.confirmDelete.textContent = 'Deleting...';
+                    utils.elements.confirmDelete.textContent = 'Processing...';
                     
-                    try {
-                        // Always move to OneDrive Recycle Bin regardless of current stack
-                        const promises = selectedFiles.map(fileId => 
+                    if (currentStack === 'trash') {
+                        // Move to OneDrive Recycle Bin
+                        const promises = appState.grid.selected.map(fileId => 
                             appState.cloudStorage.currentProvider.deleteFile(fileId)
                         );
                         
-                        await Promise.all(promises);
+                        Promise.all(promises)
+                            .then(() => {
+                                utils.showToast(`Moved ${promises.length} images to OneDrive recycle bin`, 'success', true);
+                                utils.modal.hide('delete-modal');
+                                
+                                appState.grid.selected.forEach(fileId => {
+                                    const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
+                                    if (fileIndex !== -1) {
+                                        appState.imageFiles.splice(fileIndex, 1);
+                                    }
+                                    const trashIndex = appState.stacks.trash.findIndex(f => f.id === fileId);
+                                    if (trashIndex !== -1) {
+                                        appState.stacks.trash.splice(trashIndex, 1);
+                                    }
+                                });
+                                
+                                if (appState.grid.stack) {
+                                    gridView.populate(appState.grid.stack);
+                                }
+                                
+                                appState.grid.selected = [];
+                                gridView.updateSelectionUI();
+                                stackManager.updateCounts();
+                            })
+                            .catch(() => {
+                                utils.showToast('Failed to delete some images', 'error', true);
+                                utils.modal.hide('delete-modal');
+                            })
+                            .finally(() => {
+                                utils.elements.confirmDelete.disabled = false;
+                                utils.elements.confirmDelete.textContent = 'Move to OneDrive Recycle Bin';
+                            });
+                    } else {
+                        const promises = appState.grid.selected.map(fileId => 
+                            stackManager.moveFileToStack(fileId, 'trash')
+                        );
                         
-                        utils.showToast(`Moved ${selectedFiles.length} images to OneDrive Recycle Bin`, 'success', true);
-                        utils.modal.hide('delete-modal');
-                        
-                        // Remove from imageFiles and current stack
-                        selectedFiles.forEach(fileId => {
-                            const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
-                            if (fileIndex !== -1) {
-                                appState.imageFiles.splice(fileIndex, 1);
+                        Promise.all(promises).then(() => {
+                            utils.showToast(`Moved ${promises.length} images to trash`, 'success', true);
+                            utils.modal.hide('delete-modal');
+                            
+                            if (appState.grid.stack) {
+                                gridView.populate(appState.grid.stack);
                             }
-                            const stackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
-                            if (stackIndex !== -1) {
-                                appState.stacks[currentStack].splice(stackIndex, 1);
-                            }
+                            
+                            appState.grid.selected = [];
+                            gridView.updateSelectionUI();
+                            stackManager.updateCounts();
+                        }).finally(() => {
+                            utils.elements.confirmDelete.disabled = false;
+                            utils.elements.confirmDelete.textContent = 'Move to Trash';
                         });
-                        
-                        // Refresh grid view
-                        if (appState.grid.stack) {
-                            gridView.populate(appState.grid.stack);
-                        }
-                        
-                        appState.grid.selected = [];
-                        gridView.updateSelectionUI();
-                        stackManager.updateCounts();
-                        
-                    } catch (error) {
-                        utils.showToast('Failed to delete some images', 'error', true);
-                        utils.modal.hide('delete-modal');
-                    } finally {
-                        utils.elements.confirmDelete.disabled = false;
-                        utils.elements.confirmDelete.textContent = 'Move to OneDrive Recycle Bin';
                     }
                 });
                 
@@ -3238,9 +3287,15 @@
                 
                 utils.elements.deleteSelected.addEventListener('click', () => {
                     const selectedCount = appState.grid.selected.length;
+                    const currentStack = appState.grid.stack;
                     
-                    utils.elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to OneDrive Recycle Bin? This will permanently remove them from the current stack.`;
-                    utils.elements.confirmDelete.textContent = 'Move to OneDrive Recycle Bin';
+                    if (currentStack === 'trash') {
+                        utils.elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to OneDrive Recycle Bin?`;
+                        utils.elements.confirmDelete.textContent = 'Move to OneDrive Recycle Bin';
+                    } else {
+                        utils.elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
+                        utils.elements.confirmDelete.textContent = 'Move to Trash';
+                    }
                     
                     utils.modal.show('delete-modal');
                 });
@@ -3646,7 +3701,6 @@
                         e.stopPropagation();
                         
                         if (appState.currentStack === stackName) {
-                            // If clicking the active stack, open grid mode
                             gridView.open(stackName);
                             acknowledgePillCounter(stackName);
                             return;
@@ -3672,6 +3726,23 @@
                 
                 if (appState.grid.selected.length === 1 && value === '1') {
                     setTimeout(() => gridView.focusOnSelectedItem(appState.grid.selected[0]), 100);
+                }
+            });
+            
+            utils.elements.gridSort.addEventListener('change', () => {
+                const sortValue = utils.elements.gridSort.value;
+                stackManager.currentSort = sortValue;
+                
+                STACK_TYPES.forEach(stack => {
+                    appState.stacks[stack] = stackManager.sortFiles(appState.stacks[stack], sortValue);
+                });
+                
+                if (appState.grid.stack) {
+                    gridView.populate(appState.grid.stack);
+                }
+                
+                if (appState.imageFiles.length > 0) {
+                    imageViewer.displayCurrentImage();
                 }
             });
             
