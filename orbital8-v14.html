@@ -728,8 +728,8 @@
     <!-- Folder Selection Screen -->
     <div class="screen hidden" id="folder-screen">
         <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
-            <h2 class="title">Select a Folder</h2>
-            <div class="subtitle" id="folder-subtitle" style="margin-bottom: 16px; font-size: 14px;">Choose any folder from your entire OneDrive</div>
+            <h2 class="title">Navigate to Your Images</h2>
+            <div class="subtitle" id="folder-subtitle" style="margin-bottom: 16px; font-size: 14px;">Step 1: Choose your starting folder (Downloads recommended)</div>
             <div class="folder-list" id="folder-list">
                 <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
                     <div class="spinner"></div>
@@ -737,7 +737,7 @@
                 </div>
             </div>
             <div class="folder-actions">
-                <button class="folder-button" id="refresh-folders">Refresh All Folders</button>
+                <button class="folder-button" id="refresh-folders">Start Over</button>
                 <button class="folder-button danger" id="logout">Disconnect</button>
             </div>
         </div>
@@ -1318,154 +1318,188 @@
             }
         }
 
-        // ===== OneDrive Folder Manager =====
+        // ===== OneDrive Folder Manager (3-Step Navigation) =====
         class OneDriveFolderManager {
             constructor(oneDriveProvider) {
                 this.provider = oneDriveProvider;
-                this.cache = [];
-                this.cacheTimestamp = 0;
-                this.cacheExpiry = 24 * 60 * 60 * 1000; // 24 hours for folders
+                this.cache = new Map(); // Cache by folder ID
+                this.cacheExpiry = 60 * 60 * 1000; // 1 hour for folder contents
+                this.currentRootId = null;
+                this.currentRootName = '';
+                this.navigationStack = [];
             }
             
-            async loadFolders(forceRefresh = false) {
+            async selectRootFolder() {
+                // Step 1: Let user choose root folder from top-level folders
+                const topLevelFolders = await this.getTopLevelFolders();
+                
+                // Find Downloads folder as default, fallback to first folder
+                let defaultFolder = topLevelFolders.find(f => 
+                    f.name.toLowerCase() === 'downloads' || 
+                    f.name.toLowerCase() === 'download'
+                );
+                
+                if (!defaultFolder && topLevelFolders.length > 0) {
+                    defaultFolder = topLevelFolders[0];
+                }
+                
+                return {
+                    folders: topLevelFolders,
+                    defaultFolder: defaultFolder,
+                    isRootSelection: true
+                };
+            }
+            
+            async getTopLevelFolders() {
+                const cacheKey = 'root_folders';
+                const cached = this.getCachedFolders(cacheKey);
+                if (cached) return cached;
+                
                 try {
-                    const now = Date.now();
-                    if (!forceRefresh && this.cache.length > 0 && (now - this.cacheTimestamp) < this.cacheExpiry) {
-                        return this.cache;
-                    }
+                    const response = await this.provider.makeApiCall('/me/drive/root/children?$filter=folder ne null&$orderby=name');
+                    const data = await response.json();
                     
-                    // Try to load from OneDrive AppFolder first
-                    if (!forceRefresh) {
-                        try {
-                            const response = await this.provider.makeApiCall('/me/drive/special/approot:/folders.json:/content');
-                            const data = await response.json();
-                            
-                            if (data && data.folders && data.timestamp && (now - data.timestamp) < this.cacheExpiry) {
-                                this.cache = data.folders;
-                                this.cacheTimestamp = data.timestamp;
-                                return this.cache;
-                            }
-                        } catch (error) {
-                            // File doesn't exist or is invalid, will scan fresh
-                        }
-                    }
+                    const folders = data.value.map(folder => ({
+                        id: folder.id,
+                        name: folder.name,
+                        type: 'folder',
+                        createdTime: folder.createdDateTime,
+                        modifiedTime: folder.lastModifiedDateTime,
+                        itemCount: folder.folder.childCount || 0,
+                        isTopLevel: true
+                    }));
                     
-                    // Scan entire OneDrive for folders
-                    const allFolders = await this.scanAllFolders();
-                    
-                    // Cache to OneDrive AppFolder
-                    await this.saveFolders(allFolders);
-                    
-                    this.cache = allFolders;
-                    this.cacheTimestamp = now;
-                    
-                    return this.cache;
+                    this.setCachedFolders(cacheKey, folders);
+                    return folders;
                 } catch (error) {
-                    console.warn('Failed to load folders:', error);
-                    return this.cache; // Return what we have
+                    console.warn('Failed to get top-level folders:', error);
+                    return [];
                 }
             }
             
-            async scanAllFolders() {
-                const allFolders = [];
-                const visited = new Set();
+            async setRootFolder(folderId, folderName) {
+                // Step 2: Set the selected folder as root and get its contents
+                this.currentRootId = folderId;
+                this.currentRootName = folderName;
+                this.navigationStack = [{ id: folderId, name: folderName }];
                 
-                // Start scanning from root
-                await this.scanFolderRecursive('root', '', allFolders, visited);
-                
-                // Sort by path for better UX
-                return allFolders.sort((a, b) => a.path.localeCompare(b.path));
+                return await this.getFoldersInRoot();
             }
             
-            async scanFolderRecursive(folderId, currentPath, allFolders, visited) {
-                if (visited.has(folderId)) return;
-                visited.add(folderId);
+            async getFoldersInRoot() {
+                // Get folders within the current root
+                if (!this.currentRootId) {
+                    throw new Error('No root folder selected');
+                }
+                
+                const folders = await this.getFolderContents(this.currentRootId);
+                return {
+                    folders: folders,
+                    rootName: this.currentRootName,
+                    canGoBack: false,
+                    isRootSelection: false
+                };
+            }
+            
+            async selectSubfolder(folderId, folderName) {
+                // Step 3: Navigate into subfolder and show only it + its subfolders
+                this.navigationStack.push({ id: folderId, name: folderName });
+                
+                const folders = await this.getFolderContents(folderId);
+                
+                // Add the selected folder itself as an option (for processing images in it)
+                const currentFolder = {
+                    id: folderId,
+                    name: `📁 ${folderName} (this folder)`,
+                    type: 'folder',
+                    isCurrentFolder: true,
+                    createdTime: new Date().toISOString(),
+                    modifiedTime: new Date().toISOString(),
+                    itemCount: '?'
+                };
+                
+                return {
+                    folders: [currentFolder, ...folders],
+                    currentPath: this.getNavigationPath(),
+                    canGoBack: true,
+                    isRootSelection: false
+                };
+            }
+            
+            async getFolderContents(folderId) {
+                const cached = this.getCachedFolders(folderId);
+                if (cached) return cached;
                 
                 try {
-                    const endpoint = folderId === 'root' ? 
-                        '/me/drive/root/children' : 
-                        `/me/drive/items/${folderId}/children`;
+                    const response = await this.provider.makeApiCall(
+                        `/me/drive/items/${folderId}/children?$filter=folder ne null&$orderby=name`
+                    );
+                    const data = await response.json();
                     
-                    let nextLink = null;
+                    const folders = data.value.map(folder => ({
+                        id: folder.id,
+                        name: folder.name,
+                        type: 'folder',
+                        createdTime: folder.createdDateTime,
+                        modifiedTime: folder.lastModifiedDateTime,
+                        itemCount: folder.folder.childCount || 0
+                    }));
                     
-                    do {
-                        const url = nextLink || endpoint;
-                        const response = nextLink ? 
-                            await this.provider.makeApiCall(nextLink.replace(this.provider.apiBase, '')) :
-                            await this.provider.makeApiCall(url);
-                        
-                        const data = await response.json();
-                        
-                        // Process folders in this level
-                        const folders = data.value.filter(item => item.folder);
-                        
-                        for (const folder of folders) {
-                            const folderPath = currentPath ? `${currentPath}/${folder.name}` : folder.name;
-                            
-                            // Add to our flat list
-                            allFolders.push({
-                                id: folder.id,
-                                name: folder.name,
-                                path: folderPath,
-                                parentPath: currentPath,
-                                type: 'folder',
-                                createdTime: folder.createdDateTime,
-                                modifiedTime: folder.lastModifiedDateTime,
-                                itemCount: folder.folder.childCount || 0
-                            });
-                            
-                            // Recursively scan subfolders (but limit depth to prevent infinite loops)
-                            if (folderPath.split('/').length < 10) {
-                                await this.scanFolderRecursive(folder.id, folderPath, allFolders, visited);
-                            }
-                        }
-                        
-                        nextLink = data['@odata.nextLink'];
-                        
-                        // Small delay to prevent API throttling
-                        if (nextLink) {
-                            await new Promise(resolve => setTimeout(resolve, 100));
-                        }
-                        
-                    } while (nextLink);
-                    
+                    this.setCachedFolders(folderId, folders);
+                    return folders;
                 } catch (error) {
-                    console.warn(`Failed to scan folder ${folderId}:`, error);
+                    console.warn(`Failed to get folder contents for ${folderId}:`, error);
+                    return [];
                 }
             }
             
-            async saveFolders(folders) {
-                try {
-                    const data = {
-                        version: 1,
-                        timestamp: Date.now(),
-                        lastScanned: new Date().toISOString(),
-                        totalFolders: folders.length,
-                        folders: folders
-                    };
-                    
-                    await this.provider.makeApiCall('/me/drive/special/approot:/folders.json:/content', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data, null, 2)
-                    });
-                    
-                } catch (error) {
-                    console.warn('Failed to save folders cache:', error);
+            async goBack() {
+                if (this.navigationStack.length <= 1) {
+                    // Go back to root selection
+                    return await this.selectRootFolder();
+                }
+                
+                // Go back one level
+                this.navigationStack.pop();
+                const parent = this.navigationStack[this.navigationStack.length - 1];
+                
+                if (this.navigationStack.length === 1) {
+                    // Back to root contents
+                    return await this.getFoldersInRoot();
+                } else {
+                    // Back to parent subfolder
+                    return await this.selectSubfolder(parent.id, parent.name);
                 }
             }
             
-            async clearCache() {
-                this.cache = [];
-                this.cacheTimestamp = 0;
-                
-                try {
-                    await this.provider.makeApiCall('/me/drive/special/approot:/folders.json', {
-                        method: 'DELETE'
-                    });
-                } catch (error) {
-                    // File might not exist, that's ok
+            getNavigationPath() {
+                return this.navigationStack.map(item => item.name).join(' / ');
+            }
+            
+            getCachedFolders(key) {
+                const cached = this.cache.get(key);
+                if (cached && (Date.now() - cached.timestamp) < this.cacheExpiry) {
+                    return cached.folders;
                 }
+                return null;
+            }
+            
+            setCachedFolders(key, folders) {
+                this.cache.set(key, {
+                    folders: folders,
+                    timestamp: Date.now()
+                });
+            }
+            
+            clearCache() {
+                this.cache.clear();
+            }
+            
+            reset() {
+                this.currentRootId = null;
+                this.currentRootName = '';
+                this.navigationStack = [];
+                this.clearCache();
             }
         }
 
@@ -1718,22 +1752,39 @@
                 return await this.currentProvider.getFiles(folderId);
             }
             
-            async getFolders(forceRefresh = false) {
+            async selectRootFolder() {
                 if (!this.folderManager) {
                     this.folderManager = new OneDriveFolderManager(this.currentProvider);
                 }
-                return await this.folderManager.loadFolders(forceRefresh);
+                return await this.folderManager.selectRootFolder();
             }
             
-            async refreshFolders() {
+            async setRootFolder(folderId, folderName) {
                 if (!this.folderManager) {
                     this.folderManager = new OneDriveFolderManager(this.currentProvider);
                 }
-                return await this.folderManager.loadFolders(true);
+                return await this.folderManager.setRootFolder(folderId, folderName);
+            }
+            
+            async selectSubfolder(folderId, folderName) {
+                if (!this.folderManager) {
+                    this.folderManager = new OneDriveFolderManager(this.currentProvider);
+                }
+                return await this.folderManager.selectSubfolder(folderId, folderName);
+            }
+            
+            async goBackInNavigation() {
+                if (!this.folderManager) {
+                    this.folderManager = new OneDriveFolderManager(this.currentProvider);
+                }
+                return await this.folderManager.goBack();
             }
             
             async disconnect() {
                 await this.currentProvider.disconnect();
+                if (this.folderManager) {
+                    this.folderManager.reset();
+                }
                 this.folderManager = null;
             }
         }
@@ -1930,135 +1981,237 @@
             }
         };
         
-        // ===== Enhanced Folder Manager with Flat List =====
+        // ===== Enhanced Folder Manager with 3-Step Navigation =====
         const folderManager = {
-            isScanning: false,
+            currentState: 'root_selection', // 'root_selection', 'folder_contents', 'subfolder_contents'
+            currentData: null,
             
-            async loadFolders(forceRefresh = false) {
-                if (this.isScanning) {
-                    utils.showToast('Folder scan already in progress', 'info', true);
-                    return;
-                }
-                
-                const isRefresh = forceRefresh;
+            async loadFolders() {
+                this.currentState = 'root_selection';
                 
                 utils.elements.folderList.innerHTML = `
                     <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
                         <div class="spinner"></div>
-                        <span>${isRefresh ? 'Refreshing folder list...' : 'Loading folders...'}</span>
+                        <span>Loading root folders...</span>
                     </div>
                 `;
                 
-                this.isScanning = true;
-                
                 await utils.withErrorHandling(async () => {
-                    const folders = await appState.cloudStorage.getFolders(forceRefresh);
-                    
-                    if (folders.length === 0) {
-                        utils.elements.folderList.innerHTML = `
-                            <div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
-                                <span>No folders found in your OneDrive</span>
-                            </div>
-                        `;
-                        return;
-                    }
-                    
-                    utils.elements.folderList.innerHTML = '';
-                    
-                    // Group folders by parent path for better organization
-                    const groupedFolders = this.groupFoldersByParent(folders);
-                    
-                    // Display folders with improved layout
-                    this.displayGroupedFolders(groupedFolders);
-                    
-                    if (isRefresh) {
-                        utils.showToast(`Refreshed ${folders.length} folders`, 'success', true);
-                    }
-                    
-                }, isRefresh ? 'Error refreshing folders' : 'Error loading folders');
-                
-                this.isScanning = false;
+                    const result = await appState.cloudStorage.selectRootFolder();
+                    this.currentData = result;
+                    this.displayRootSelection(result);
+                }, 'Error loading root folders');
             },
             
-            groupFoldersByParent(folders) {
-                const grouped = {};
+            displayRootSelection(result) {
+                const { folders, defaultFolder } = result;
+                
+                utils.elements.folderList.innerHTML = '';
+                
+                // Update subtitle to show current step
+                const subtitle = document.getElementById('folder-subtitle');
+                if (subtitle) {
+                    subtitle.textContent = 'Step 1: Choose your starting folder (Downloads recommended)';
+                }
+                
+                if (folders.length === 0) {
+                    utils.elements.folderList.innerHTML = `
+                        <div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
+                            <span>No top-level folders found in your OneDrive</span>
+                        </div>
+                    `;
+                    return;
+                }
                 
                 folders.forEach(folder => {
-                    const parentPath = folder.parentPath || '/';
-                    if (!grouped[parentPath]) {
-                        grouped[parentPath] = [];
-                    }
-                    grouped[parentPath].push(folder);
-                });
-                
-                return grouped;
-            },
-            
-            displayGroupedFolders(groupedFolders) {
-                // Sort parent paths - root first, then alphabetically
-                const sortedParentPaths = Object.keys(groupedFolders).sort((a, b) => {
-                    if (a === '/') return -1;
-                    if (b === '/') return 1;
-                    return a.localeCompare(b);
-                });
-                
-                sortedParentPaths.forEach(parentPath => {
-                    const folders = groupedFolders[parentPath];
+                    const div = document.createElement('div');
+                    div.className = 'folder-item';
                     
-                    // Add section header for non-root folders
-                    if (parentPath !== '/' && folders.length > 0) {
-                        const sectionHeader = document.createElement('div');
-                        sectionHeader.style.cssText = `
-                            padding: 8px 16px; 
-                            color: rgba(245, 158, 11, 0.8); 
-                            font-size: 12px; 
-                            font-weight: 600; 
-                            border-bottom: 1px solid rgba(245, 158, 11, 0.2);
-                            margin: 8px 0 4px 0;
-                            background: rgba(245, 158, 11, 0.1);
-                            border-radius: 6px;
-                        `;
-                        sectionHeader.textContent = parentPath;
-                        utils.elements.folderList.appendChild(sectionHeader);
+                    // Highlight default folder (Downloads)
+                    const isDefault = defaultFolder && folder.id === defaultFolder.id;
+                    if (isDefault) {
+                        div.classList.add('recommended');
                     }
                     
-                    // Sort folders within each group by name
-                    folders.sort((a, b) => a.name.localeCompare(b.name));
+                    div.innerHTML = `
+                        <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                        </svg>
+                        <div class="folder-info">
+                            <div class="folder-name">${folder.name}${isDefault ? ' (Recommended)' : ''}</div>
+                            <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()} • ${folder.itemCount} items</div>
+                        </div>
+                    `;
                     
-                    folders.forEach(folder => {
-                        const div = document.createElement('div');
-                        div.className = 'folder-item';
-                        
-                        // Show different icon for root vs nested folders
-                        const iconPath = parentPath === '/' ? 
-                            "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" :
-                            "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z M7 13l3 3 3-3";
-                        
-                        div.innerHTML = `
-                            <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"></path>
-                            </svg>
-                            <div class="folder-info">
-                                <div class="folder-name">${folder.name}</div>
-                                <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()} • ${folder.itemCount || 0} items</div>
-                            </div>
-                        `;
-                        
-                        // Add indentation for nested folders
-                        if (parentPath !== '/') {
-                            div.style.marginLeft = '20px';
-                            div.style.borderLeft = '2px solid rgba(245, 158, 11, 0.3)';
-                            div.style.paddingLeft = '12px';
-                        }
-                        
-                        div.addEventListener('click', () => this.selectFolder(folder));
-                        utils.elements.folderList.appendChild(div);
-                    });
+                    div.addEventListener('click', () => this.selectRootFolder(folder));
+                    utils.elements.folderList.appendChild(div);
                 });
             },
             
-            async refreshFolders() {
-                await this.loadFolders(true);
+            async selectRootFolder(folder) {
+                this.currentState = 'folder_contents';
+                
+                utils.elements.folderList.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
+                        <div class="spinner"></div>
+                        <span>Loading folders in ${folder.name}...</span>
+                    </div>
+                `;
+                
+                await utils.withErrorHandling(async () => {
+                    const result = await appState.cloudStorage.setRootFolder(folder.id, folder.name);
+                    this.currentData = result;
+                    this.displayFolderContents(result);
+                }, `Error loading contents of ${folder.name}`);
+            },
+            
+            displayFolderContents(result) {
+                const { folders, rootName } = result;
+                
+                utils.elements.folderList.innerHTML = '';
+                
+                // Update subtitle to show current step
+                const subtitle = document.getElementById('folder-subtitle');
+                if (subtitle) {
+                    subtitle.textContent = `Step 2: Choose a folder within "${rootName}" or go back`;
+                }
+                
+                // Add back button
+                this.addBackButton();
+                
+                if (folders.length === 0) {
+                    const noFoldersDiv = document.createElement('div');
+                    noFoldersDiv.style.cssText = 'text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);';
+                    noFoldersDiv.innerHTML = `
+                        <div>No subfolders found in "${rootName}"</div>
+                        <div style="margin-top: 12px; font-size: 12px;">You can go back and choose a different root folder</div>
+                    `;
+                    utils.elements.folderList.appendChild(noFoldersDiv);
+                    return;
+                }
+                
+                folders.forEach(folder => {
+                    const div = document.createElement('div');
+                    div.className = 'folder-item';
+                    div.innerHTML = `
+                        <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                        </svg>
+                        <div class="folder-info">
+                            <div class="folder-name">${folder.name}</div>
+                            <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()} • ${folder.itemCount} items</div>
+                        </div>
+                    `;
+                    
+                    div.addEventListener('click', () => this.selectSubfolder(folder));
+                    utils.elements.folderList.appendChild(div);
+                });
+            },
+            
+            async selectSubfolder(folder) {
+                this.currentState = 'subfolder_contents';
+                
+                utils.elements.folderList.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
+                        <div class="spinner"></div>
+                        <span>Loading ${folder.name} and subfolders...</span>
+                    </div>
+                `;
+                
+                await utils.withErrorHandling(async () => {
+                    const result = await appState.cloudStorage.selectSubfolder(folder.id, folder.name);
+                    this.currentData = result;
+                    this.displaySubfolderContents(result);
+                }, `Error loading subfolder ${folder.name}`);
+            },
+            
+            displaySubfolderContents(result) {
+                const { folders, currentPath } = result;
+                
+                utils.elements.folderList.innerHTML = '';
+                
+                // Update subtitle to show current step
+                const subtitle = document.getElementById('folder-subtitle');
+                if (subtitle) {
+                    subtitle.textContent = `Step 3: Select folder to process images from "${currentPath}"`;
+                }
+                
+                // Add back button
+                this.addBackButton();
+                
+                folders.forEach(folder => {
+                    const div = document.createElement('div');
+                    div.className = 'folder-item';
+                    
+                    // Highlight the current folder option
+                    if (folder.isCurrentFolder) {
+                        div.classList.add('current-folder');
+                    }
+                    
+                    const iconPath = folder.isCurrentFolder ? 
+                        "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z M9 12l2 2 4-4" :
+                        "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z";
+                    
+                    div.innerHTML = `
+                        <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"></path>
+                        </svg>
+                        <div class="folder-info">
+                            <div class="folder-name">${folder.name}</div>
+                            <div class="folder-date">${folder.isCurrentFolder ? 'Process images in this folder' : `${new Date(folder.modifiedTime).toLocaleDateString()} • ${folder.itemCount} items`}</div>
+                        </div>
+                    `;
+                    
+                    div.addEventListener('click', () => this.selectFinalFolder(folder));
+                    utils.elements.folderList.appendChild(div);
+                });
+            },
+            
+            addBackButton() {
+                const backDiv = document.createElement('div');
+                backDiv.className = 'folder-item back-button';
+                backDiv.innerHTML = `
+                    <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    <div class="folder-info">
+                        <div class="folder-name">← Go Back</div>
+                        <div class="folder-date">Return to previous level</div>
+                    </div>
+                `;
+                
+                backDiv.addEventListener('click', () => this.goBack());
+                utils.elements.folderList.appendChild(backDiv);
+            },
+            
+            async goBack() {
+                utils.elements.folderList.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
+                        <div class="spinner"></div>
+                        <span>Going back...</span>
+                    </div>
+                `;
+                
+                await utils.withErrorHandling(async () => {
+                    const result = await appState.cloudStorage.goBackInNavigation();
+                    this.currentData = result;
+                    
+                    if (result.isRootSelection) {
+                        this.currentState = 'root_selection';
+                        this.displayRootSelection(result);
+                    } else if (result.canGoBack === false) {
+                        this.currentState = 'folder_contents';
+                        this.displayFolderContents(result);
+                    } else {
+                        this.currentState = 'subfolder_contents';
+                        this.displaySubfolderContents(result);
+                    }
+                }, 'Error going back');
+            },
+            
+            selectFinalFolder(folder) {
+                // This is the final selection - proceed to load images
+                this.selectFolder(folder);
             },
             
             async selectFolder(folder) {
@@ -3426,7 +3579,13 @@
             // Authentication
             utils.elements.authButton.addEventListener('click', () => authManager.authenticate());
             
-            utils.elements.refreshFolders.addEventListener('click', () => folderManager.refreshFolders());
+            utils.elements.refreshFolders.addEventListener('click', () => {
+                // Reset to beginning and reload
+                if (appState.cloudStorage.folderManager) {
+                    appState.cloudStorage.folderManager.reset();
+                }
+                folderManager.loadFolders();
+            });
             utils.elements.logout.addEventListener('click', () => authManager.logout());
             
             // Loading screen cancel
@@ -3444,6 +3603,10 @@
             
             // Navigation
             utils.elements.backButton.addEventListener('click', () => {
+                // Reset folder navigation when going back to folder screen
+                if (appState.cloudStorage.folderManager) {
+                    appState.cloudStorage.folderManager.reset();
+                }
                 utils.showScreen('folder-screen');
                 folderManager.loadFolders();
             });
@@ -3490,6 +3653,10 @@
             });
             
             utils.elements.selectAnotherFolderBtn.addEventListener('click', () => {
+                // Reset folder navigation when selecting another folder
+                if (appState.cloudStorage.folderManager) {
+                    appState.cloudStorage.folderManager.reset();
+                }
                 utils.showScreen('folder-screen');
                 folderManager.loadFolders();
             });
@@ -3571,7 +3738,12 @@
                         imageViewer.moveToNextImage();
                         break;
                     case 'Escape':
+                        // Reset folder navigation when going back to folder screen
+                        if (appState.cloudStorage.folderManager) {
+                            appState.cloudStorage.folderManager.reset();
+                        }
                         utils.showScreen('folder-screen');
+                        folderManager.loadFolders();
                         break;
                     case '1':
                         appState.currentStack = 'in';
