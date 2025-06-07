@@ -1384,20 +1384,8 @@
                 }
                 
                 const folders = await this.getFolderContents(this.currentRootId);
-                
-                // Add the root folder itself as a selectable option
-                const rootFolder = {
-                    id: this.currentRootId,
-                    name: `📁 ${this.currentRootName} (this folder)`,
-                    type: 'folder',
-                    isRootFolder: true,
-                    createdTime: new Date().toISOString(),
-                    modifiedTime: new Date().toISOString(),
-                    itemCount: '?'
-                };
-                
                 return {
-                    folders: [rootFolder, ...folders],
+                    folders: folders,
                     rootName: this.currentRootName,
                     canGoBack: false,
                     isRootSelection: false
@@ -2030,10 +2018,15 @@
                     const div = document.createElement('div');
                     div.className = 'folder-item';
                     
-                    // Highlight default folder (Downloads)
+                    // Highlight default folder (Downloads) or root folder
                     const isDefault = defaultFolder && folder.id === defaultFolder.id;
                     if (isDefault) {
                         div.classList.add('recommended');
+                    }
+                    
+                    // Special styling for root folder
+                    if (folder.isRoot) {
+                        div.classList.add('root-folder');
                     }
                     
                     div.innerHTML = `
@@ -2076,7 +2069,7 @@
                 // Update subtitle to show current step
                 const subtitle = document.getElementById('folder-subtitle');
                 if (subtitle) {
-                    subtitle.textContent = `Step 2: Choose a folder within "${rootName}", select "${rootName}" itself, or go back`;
+                    subtitle.textContent = `Step 2: Choose a folder within "${rootName}" or go back`;
                 }
                 
                 // Add back button
@@ -2096,31 +2089,17 @@
                 folders.forEach(folder => {
                     const div = document.createElement('div');
                     div.className = 'folder-item';
-                    
-                    // Highlight the root folder option
-                    if (folder.isRootFolder) {
-                        div.classList.add('current-folder');
-                    }
-                    
-                    const iconPath = folder.isRootFolder ? 
-                        "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z M9 12l2 2 4-4" :
-                        "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z";
-                    
                     div.innerHTML = `
                         <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
                         </svg>
                         <div class="folder-info">
                             <div class="folder-name">${folder.name}</div>
-                            <div class="folder-date">${folder.isRootFolder ? 'Process images in this root folder' : `${new Date(folder.modifiedTime).toLocaleDateString()} • ${folder.itemCount} items`}</div>
+                            <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()} • ${folder.itemCount} items</div>
                         </div>
                     `;
                     
-                    if (folder.isRootFolder) {
-                        div.addEventListener('click', () => this.selectFinalFolder(folder));
-                    } else {
-                        div.addEventListener('click', () => this.selectSubfolder(folder));
-                    }
+                    div.addEventListener('click', () => this.selectSubfolder(folder));
                     utils.elements.folderList.appendChild(div);
                 });
             },
@@ -2674,6 +2653,9 @@
                 
                 utils.modal.hide('grid-modal');
                 
+                // Update stack counts when returning from grid
+                stackManager.updateCounts();
+                
                 if (hasSelection) {
                     const selectedFileId = selectedImages[0];
                     const selectedIndex = appState.imageFiles.findIndex(f => f.id === selectedFileId);
@@ -2695,6 +2677,7 @@
                         imageViewer.displayCurrentImage();
                     }
                 } else {
+                    // Display next image in current stack or show empty state
                     imageViewer.displayTopImageFromStack(appState.currentStack);
                 }
                 
@@ -2707,8 +2690,8 @@
                 container.innerHTML = '';
                 container.style.gridTemplateColumns = `repeat(${utils.elements.gridSize.value}, 1fr)`;
                 
-                // Use exact stack order - no sorting
-                const stackFiles = appState.stacks[stack] || [];
+                // Use exact same order as displayed in center stage
+                const stackFiles = appState.stacks[stack];
                 
                 stackFiles.forEach((file) => {
                     const div = document.createElement('div');
@@ -3181,69 +3164,47 @@
                 });
                 
                 utils.elements.confirmDelete.addEventListener('click', async () => {
+                    const selectedFiles = appState.grid.selected.slice(); // Copy array
                     const currentStack = appState.grid.stack;
-                    const selectedFiles = [...appState.grid.selected]; // Copy array
-                    const selectedCount = selectedFiles.length;
                     
                     utils.elements.confirmDelete.disabled = true;
                     utils.elements.confirmDelete.textContent = 'Deleting...';
                     
                     try {
-                        // Always delete from OneDrive (move to recycle bin)
-                        const deletePromises = selectedFiles.map(fileId => 
+                        // Always move to OneDrive Recycle Bin regardless of current stack
+                        const promises = selectedFiles.map(fileId => 
                             appState.cloudStorage.currentProvider.deleteFile(fileId)
                         );
                         
-                        await Promise.all(deletePromises);
+                        await Promise.all(promises);
                         
-                        // Remove from all data structures
+                        utils.showToast(`Moved ${selectedFiles.length} images to OneDrive Recycle Bin`, 'success', true);
+                        utils.modal.hide('delete-modal');
+                        
+                        // Remove from imageFiles and current stack
                         selectedFiles.forEach(fileId => {
-                            // Remove from main image files array
                             const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
                             if (fileIndex !== -1) {
                                 appState.imageFiles.splice(fileIndex, 1);
                             }
-                            
-                            // Remove from all stacks
-                            STACK_TYPES.forEach(stackType => {
-                                const stackIndex = appState.stacks[stackType].findIndex(f => f.id === fileId);
-                                if (stackIndex !== -1) {
-                                    appState.stacks[stackType].splice(stackIndex, 1);
-                                }
-                            });
+                            const stackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
+                            if (stackIndex !== -1) {
+                                appState.stacks[currentStack].splice(stackIndex, 1);
+                            }
                         });
                         
-                        utils.showToast(`Moved ${selectedCount} image${selectedCount > 1 ? 's' : ''} to OneDrive Recycle Bin`, 'success', true);
-                        utils.modal.hide('delete-modal');
-                        
-                        // Update grid display
+                        // Refresh grid view
                         if (appState.grid.stack) {
                             gridView.populate(appState.grid.stack);
                         }
                         
-                        // Clear selection and update UI
                         appState.grid.selected = [];
                         gridView.updateSelectionUI();
                         stackManager.updateCounts();
                         
-                        // If the currently displayed image was deleted, show next image
-                        const currentFile = appState.imageFiles[appState.currentImageIndex];
-                        if (!currentFile || selectedFiles.includes(currentFile.id)) {
-                            // Current image was deleted, need to update the display
-                            if (appState.stacks[appState.currentStack].length > 0) {
-                                imageViewer.displayTopImageFromStack(appState.currentStack);
-                            } else {
-                                // No more images in current stack, show empty state
-                                utils.elements.centerImage.src = '';
-                                utils.elements.centerImage.alt = 'No images in this stack';
-                                updateEmptyStateButtons();
-                                utils.elements.emptyState.classList.remove('hidden');
-                            }
-                        }
-                        
                     } catch (error) {
                         utils.showToast('Failed to delete some images', 'error', true);
-                        console.error('Delete error:', error);
+                        utils.modal.hide('delete-modal');
                     } finally {
                         utils.elements.confirmDelete.disabled = false;
                         utils.elements.confirmDelete.textContent = 'Move to OneDrive Recycle Bin';
@@ -3277,15 +3238,9 @@
                 
                 utils.elements.deleteSelected.addEventListener('click', () => {
                     const selectedCount = appState.grid.selected.length;
-                    const currentStack = appState.grid.stack;
                     
-                    if (currentStack === 'trash') {
-                        utils.elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to OneDrive Recycle Bin?`;
-                        utils.elements.confirmDelete.textContent = 'Move to OneDrive Recycle Bin';
-                    } else {
-                        utils.elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
-                        utils.elements.confirmDelete.textContent = 'Move to Trash';
-                    }
+                    utils.elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to OneDrive Recycle Bin? This will permanently remove them from the current stack.`;
+                    utils.elements.confirmDelete.textContent = 'Move to OneDrive Recycle Bin';
                     
                     utils.modal.show('delete-modal');
                 });
@@ -3683,19 +3638,23 @@
                 folderManager.loadFolders();
             });
             
-            // Pill counter clicks - now activates grid mode
+            // Pill counter clicks
             STACK_TYPES.forEach(stackName => {
                 const pill = utils.elements[`pill${stackName.charAt(0).toUpperCase() + stackName.slice(1)}`];
                 if (pill) {
                     pill.addEventListener('click', (e) => {
                         e.stopPropagation();
                         
-                        // Always switch to the clicked stack first
+                        if (appState.currentStack === stackName) {
+                            // If clicking the active stack, open grid mode
+                            gridView.open(stackName);
+                            acknowledgePillCounter(stackName);
+                            return;
+                        }
+                        
                         appState.currentStack = stackName;
                         updateActiveProxTab();
-                        
-                        // Then open grid mode for that stack
-                        gridView.open(stackName);
+                        imageViewer.displayTopImageFromStack(stackName);
                         acknowledgePillCounter(stackName);
                     });
                 }
@@ -3713,23 +3672,6 @@
                 
                 if (appState.grid.selected.length === 1 && value === '1') {
                     setTimeout(() => gridView.focusOnSelectedItem(appState.grid.selected[0]), 100);
-                }
-            });
-            
-            utils.elements.gridSort.addEventListener('change', () => {
-                const sortValue = utils.elements.gridSort.value;
-                stackManager.currentSort = sortValue;
-                
-                STACK_TYPES.forEach(stack => {
-                    appState.stacks[stack] = stackManager.sortFiles(appState.stacks[stack], sortValue);
-                });
-                
-                if (appState.grid.stack) {
-                    gridView.populate(appState.grid.stack);
-                }
-                
-                if (appState.imageFiles.length > 0) {
-                    imageViewer.displayCurrentImage();
                 }
             });
             
