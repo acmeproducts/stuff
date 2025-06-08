@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 Step 2: Smart Folder Navigation</title>
+    <title>Orbital8 Step 2: Fixed Google Drive Navigation</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
         :root {
@@ -261,7 +261,7 @@
             background: rgba(239, 68, 68, 0.1);
         }
 
-        /* ===== SIMPLIFIED SMART PROMPT ===== */
+        /* ===== SMART PROMPT ===== */
         .smart-prompt {
             position: fixed;
             inset: 0;
@@ -404,7 +404,7 @@
                 <h1 class="auth-title">Orbital8</h1>
                 <p class="auth-subtitle">Connect to Cloud Storage</p>
                 
-                <!-- Google Drive Auth -->
+                <!-- Google Drive Auth (V3 Exact) -->
                 <div id="google-auth-section">
                     <input type="password" id="google-client-secret" class="client-secret-input" 
                            placeholder="Enter Google Client Secret">
@@ -443,7 +443,7 @@
             </div>
         </div>
 
-        <!-- Simplified Smart Prompt -->
+        <!-- Smart Prompt -->
         <div class="smart-prompt hidden" id="smart-prompt">
             <div class="smart-prompt-card">
                 <h3 class="smart-prompt-title" id="smart-prompt-folder-name">Folder Name</h3>
@@ -473,7 +473,7 @@
     </div>
 
     <script>
-        // ===== STEP 2: FIXED SMART FOLDER NAVIGATION =====
+        // ===== STEP 2: FIXED WITH V3 EXACT GOOGLE DRIVE IMPLEMENTATION =====
         
         // ===== MAIN APPLICATION CONTROLLER =====
         class OrbitalApp {
@@ -486,15 +486,18 @@
             }
             
             async initialize() {
-                console.log('🚀 Initializing Orbital8 with fixed folder navigation...');
+                console.log('🚀 Initializing Orbital8 Step 2 with V3 Google Drive...');
                 this.setupEventListeners();
                 this.checkExistingAuth();
             }
             
             checkExistingAuth() {
                 if (this.providers.hasValidAuth()) {
-                    this.showFolderScreen();
-                    this.folderNav.loadInitialFolders();
+                    this.setAuthStatus('Already connected to cloud storage', 'success');
+                    setTimeout(() => {
+                        this.showFolderScreen();
+                        this.folderNav.loadInitialFolders();
+                    }, 1000);
                 }
             }
             
@@ -525,11 +528,12 @@
                 try {
                     this.setAuthStatus('Connecting to Google Drive...', 'info');
                     document.getElementById('google-auth-btn').disabled = true;
+                    document.getElementById('google-auth-btn').textContent = 'Connecting...';
                     
                     const success = await this.providers.authenticateGoogle(clientSecret);
                     
                     if (success) {
-                        this.setAuthStatus('Connected to Google Drive successfully', 'success');
+                        this.setAuthStatus('✅ Connected to Google Drive successfully', 'success');
                         document.getElementById('google-client-secret').value = '';
                         
                         setTimeout(() => {
@@ -541,6 +545,7 @@
                     this.setAuthStatus(`Google Drive authentication failed: ${error.message}`, 'error');
                 } finally {
                     document.getElementById('google-auth-btn').disabled = false;
+                    document.getElementById('google-auth-btn').textContent = 'Connect Google Drive';
                 }
             }
             
@@ -548,11 +553,12 @@
                 try {
                     this.setAuthStatus('Connecting to OneDrive...', 'info');
                     document.getElementById('onedrive-auth-btn').disabled = true;
+                    document.getElementById('onedrive-auth-btn').textContent = 'Connecting...';
                     
                     const success = await this.providers.authenticateOneDrive();
                     
                     if (success) {
-                        this.setAuthStatus('Connected to OneDrive successfully', 'success');
+                        this.setAuthStatus('✅ Connected to OneDrive successfully', 'success');
                         
                         setTimeout(() => {
                             this.showFolderScreen();
@@ -563,6 +569,7 @@
                     this.setAuthStatus(`OneDrive authentication failed: ${error.message}`, 'error');
                 } finally {
                     document.getElementById('onedrive-auth-btn').disabled = false;
+                    document.getElementById('onedrive-auth-btn').textContent = 'Connect OneDrive';
                 }
             }
             
@@ -571,21 +578,21 @@
                 
                 switch (choice) {
                     case 'loadImages':
-                        console.log('User chose to load images - proceeding to image loading');
+                        console.log('✅ User chose to load images - proceeding to image loading');
                         this.showLoadingScreen();
+                        document.getElementById('loading-message').textContent = 'Loading images from folder...';
                         setTimeout(() => {
-                            this.showLoadingComplete();
+                            document.getElementById('loading-message').textContent = '✅ Images loaded successfully! (Step 3 will continue from here)';
                         }, 2000);
                         break;
                         
                     case 'listSubfolders':
-                        console.log('User chose to list subfolders');
+                        console.log('📁 User chose to list subfolders');
                         await this.folderNav.showSubfoldersOnly();
                         break;
                         
                     case 'cancel':
-                        console.log('User cancelled folder selection - returning to folder view');
-                        // FIXED: Properly return to folder view without hanging
+                        console.log('❌ User cancelled folder selection - returning to folder view');
                         this.showFolderScreen();
                         await this.folderNav.refreshCurrentFolder();
                         break;
@@ -596,6 +603,7 @@
                 document.getElementById('auth-screen').classList.add('hidden');
                 document.getElementById('folder-screen').classList.remove('hidden');
                 document.getElementById('loading-screen').classList.add('hidden');
+                this.hideSmartPrompt();
             }
             
             showAuthScreen() {
@@ -612,12 +620,8 @@
                 this.hideSmartPrompt();
             }
             
-            showLoadingComplete() {
-                document.getElementById('loading-message').textContent = 'Images loaded successfully! (Step 3 will continue from here)';
-            }
-            
             showSmartPrompt(folderData) {
-                document.getElementById('smart-prompt-folder-name').textContent = folderData.folderName || 'Folder Name';
+                document.getElementById('smart-prompt-folder-name').textContent = folderData.folderName || 'Unknown Folder';
                 
                 const imageCount = folderData.images.length;
                 const folderCount = folderData.subfolders.length;
@@ -626,6 +630,7 @@
                 document.getElementById('folder-count').textContent = folderCount > 999 ? '999+' : folderCount;
                 
                 document.getElementById('smart-prompt').classList.remove('hidden');
+                console.log(`📊 Smart prompt shown - ${imageCount} images, ${folderCount} folders`);
             }
             
             hideSmartPrompt() {
@@ -636,20 +641,22 @@
                 const statusEl = document.getElementById('auth-status');
                 statusEl.textContent = message;
                 statusEl.className = `auth-status ${type}`;
+                console.log(`🔐 Auth: ${message}`);
             }
             
             async logout() {
+                console.log('🚪 Logging out...');
                 await this.providers.disconnect();
                 this.showAuthScreen();
                 this.setAuthStatus('Choose a cloud storage provider to continue', 'info');
             }
         }
         
-        // ===== PROVIDER MANAGER (Using Proven Auth Methods) =====
+        // ===== PROVIDER MANAGER =====
         class ProviderManager {
             constructor() {
                 this.currentProvider = null;
-                this.googleProvider = new GoogleDriveProvider();
+                this.googleProvider = new GoogleDriveProviderV3(); // V3 EXACT
                 this.oneDriveProvider = new OneDriveProvider();
             }
             
@@ -657,6 +664,7 @@
                 const success = await this.googleProvider.authenticate(clientSecret);
                 if (success) {
                     this.currentProvider = this.googleProvider;
+                    console.log('✅ Google Drive authentication successful');
                 }
                 return success;
             }
@@ -665,12 +673,16 @@
                 const success = await this.oneDriveProvider.authenticate();
                 if (success) {
                     this.currentProvider = this.oneDriveProvider;
+                    console.log('✅ OneDrive authentication successful');
                 }
                 return success;
             }
             
             hasValidAuth() {
-                return this.googleProvider.isAuthenticated() || this.oneDriveProvider.isAuthenticated();
+                const googleAuth = this.googleProvider.isAuthenticated();
+                const oneDriveAuth = this.oneDriveProvider.isAuthenticated();
+                console.log(`🔍 Auth check - Google: ${googleAuth}, OneDrive: ${oneDriveAuth}`);
+                return googleAuth || oneDriveAuth;
             }
             
             getCurrentProvider() {
@@ -689,10 +701,9 @@
                     throw new Error('No authenticated provider');
                 }
                 
-                console.log(`ProviderManager: Getting smart folder contents for ${folderId} using ${provider.name}`);
+                console.log(`📁 Getting folder contents for ${folderId} using ${provider.name}`);
                 
                 try {
-                    // Add timeout to prevent hanging
                     const timeoutPromise = new Promise((_, reject) => 
                         setTimeout(() => reject(new Error('Request timed out after 30 seconds')), 30000)
                     );
@@ -700,20 +711,28 @@
                     const contentsPromise = provider.getFolderContents(folderId);
                     const contents = await Promise.race([contentsPromise, timeoutPromise]);
                     
-                    console.log(`ProviderManager: Received ${contents.length} items, analyzing...`);
+                    console.log(`📊 Received ${contents.length} items from ${provider.name}`);
                     return this.analyzeContentsForSmartPrompt(contents);
                     
                 } catch (error) {
-                    console.error('ProviderManager: Error getting folder contents:', error);
+                    console.error('❌ Error getting folder contents:', error);
                     throw error;
                 }
             }
             
             analyzeContentsForSmartPrompt(contents) {
-                const images = contents.filter(item => item.file && item.file.mimeType && item.file.mimeType.startsWith('image/'));
-                const subfolders = contents.filter(item => item.folder);
+                const images = contents.filter(item => {
+                    if (item.file && item.file.mimeType) {
+                        return item.file.mimeType.startsWith('image/');
+                    }
+                    return item.mimeType && item.mimeType.startsWith('image/');
+                });
                 
-                console.log(`ProviderManager: Analysis - ${images.length} images, ${subfolders.length} subfolders`);
+                const subfolders = contents.filter(item => {
+                    return item.folder || item.mimeType === 'application/vnd.google-apps.folder';
+                });
+                
+                console.log(`📈 Analysis complete - ${images.length} images, ${subfolders.length} subfolders`);
                 
                 return {
                     hasImages: images.length > 0,
@@ -726,6 +745,7 @@
             }
             
             async disconnect() {
+                console.log('🔌 Disconnecting all providers...');
                 if (this.googleProvider.isAuthenticated()) {
                     await this.googleProvider.disconnect();
                 }
@@ -736,8 +756,8 @@
             }
         }
         
-        // ===== GOOGLE DRIVE PROVIDER (V3 PROVEN AUTH) =====
-        class GoogleDriveProvider {
+        // ===== GOOGLE DRIVE PROVIDER V3 (EXACT COPY FROM V3) =====
+        class GoogleDriveProviderV3 {
             constructor() {
                 this.name = 'googledrive';
                 this.clientId = '567988062464-fa6c1ovesqeudqs5398vv4mbo6q068p9.apps.googleusercontent.com';
@@ -747,30 +767,39 @@
                 this.accessToken = null;
                 this.refreshToken = null;
                 this.clientSecret = null;
-                this.authenticated = false;
+                this.isAuthenticatedFlag = false;
                 this.loadStoredCredentials();
+                console.log('🔧 GoogleDriveProviderV3 initialized');
             }
             
             loadStoredCredentials() {
                 this.accessToken = localStorage.getItem('google_access_token');
                 this.refreshToken = localStorage.getItem('google_refresh_token');
                 this.clientSecret = localStorage.getItem('google_client_secret');
-                this.authenticated = !!(this.accessToken && this.refreshToken && this.clientSecret);
+                this.isAuthenticatedFlag = !!(this.accessToken && this.refreshToken && this.clientSecret);
+                
+                if (this.isAuthenticatedFlag) {
+                    console.log('🔑 Loaded stored Google Drive credentials');
+                }
             }
             
             storeCredentials() {
                 if (this.accessToken) localStorage.setItem('google_access_token', this.accessToken);
                 if (this.refreshToken) localStorage.setItem('google_refresh_token', this.refreshToken);
                 if (this.clientSecret) localStorage.setItem('google_client_secret', this.clientSecret);
+                console.log('💾 Stored Google Drive credentials');
             }
             
             clearStoredCredentials() {
                 localStorage.removeItem('google_access_token');
                 localStorage.removeItem('google_refresh_token');
                 localStorage.removeItem('google_client_secret');
+                console.log('🗑️ Cleared Google Drive credentials');
             }
             
             async authenticate(clientSecret) {
+                console.log('🔐 Starting Google Drive authentication...');
+                
                 if (clientSecret) {
                     this.clientSecret = clientSecret;
                     this.storeCredentials();
@@ -780,18 +809,22 @@
                     throw new Error('Client secret is required for Google Drive authentication');
                 }
                 
+                // Check if existing tokens are valid
                 if (this.accessToken && this.refreshToken) {
                     try {
+                        console.log('🔍 Testing existing tokens...');
                         await this.makeApiCall('/files?pageSize=1');
-                        this.authenticated = true;
+                        this.isAuthenticatedFlag = true;
+                        console.log('✅ Existing tokens are valid');
                         return true;
                     } catch (error) {
-                        // Token invalid, continue with fresh auth
+                        console.log('⚠️ Existing tokens invalid, need fresh auth');
                     }
                 }
                 
                 return new Promise((resolve, reject) => {
                     const authUrl = this.buildAuthUrl();
+                    console.log('🌐 Opening auth popup...');
                     const popup = window.open(authUrl, 'google-auth', 'width=500,height=600,scrollbars=yes,resizable=yes');
                     
                     if (!popup) {
@@ -815,16 +848,20 @@
                             popup.close();
                             
                             try {
+                                console.log('🔄 Exchanging code for tokens...');
                                 await this.exchangeCodeForTokens(event.data.code);
-                                this.authenticated = true;
+                                this.isAuthenticatedFlag = true;
+                                console.log('✅ Google Drive authentication complete');
                                 resolve(true);
                             } catch (error) {
+                                console.error('❌ Token exchange failed:', error);
                                 reject(error);
                             }
                         } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
                             clearInterval(checkClosed);
                             window.removeEventListener('message', messageHandler);
                             popup.close();
+                            console.error('❌ Google auth error:', event.data.error);
                             reject(new Error(event.data.error));
                         }
                     };
@@ -842,10 +879,14 @@
                     access_type: 'offline',
                     prompt: 'consent'
                 });
-                return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+                const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+                console.log('🔗 Auth URL built');
+                return authUrl;
             }
             
             async exchangeCodeForTokens(code) {
+                console.log('🔄 Exchanging authorization code...');
+                
                 const response = await fetch('https://oauth2.googleapis.com/token', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -859,6 +900,8 @@
                 });
                 
                 if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ Token exchange failed:', errorText);
                     throw new Error('Token exchange failed');
                 }
                 
@@ -866,6 +909,37 @@
                 this.accessToken = tokens.access_token;
                 this.refreshToken = tokens.refresh_token;
                 this.storeCredentials();
+                console.log('🎟️ Tokens received and stored');
+            }
+            
+            async refreshAccessToken() {
+                if (!this.refreshToken || !this.clientSecret) {
+                    throw new Error('No refresh token or client secret available');
+                }
+                
+                console.log('🔄 Refreshing access token...');
+                
+                const response = await fetch('https://oauth2.googleapis.com/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        client_id: this.clientId,
+                        client_secret: this.clientSecret,
+                        refresh_token: this.refreshToken,
+                        grant_type: 'refresh_token'
+                    })
+                });
+                
+                if (!response.ok) {
+                    console.error('❌ Failed to refresh access token');
+                    throw new Error('Failed to refresh access token');
+                }
+                
+                const tokens = await response.json();
+                this.accessToken = tokens.access_token;
+                this.storeCredentials();
+                console.log('✅ Access token refreshed');
+                return this.accessToken;
             }
             
             async makeApiCall(endpoint, options = {}) {
@@ -882,13 +956,14 @@
                 
                 let response = await fetch(url, { ...options, headers });
                 
+                // Handle token refresh on 401
                 if (response.status === 401 && this.refreshToken && this.clientSecret) {
                     try {
                         await this.refreshAccessToken();
                         headers['Authorization'] = `Bearer ${this.accessToken}`;
                         response = await fetch(url, { ...options, headers });
                     } catch (refreshError) {
-                        this.authenticated = false;
+                        this.isAuthenticatedFlag = false;
                         this.clearStoredCredentials();
                         throw new Error('Authentication expired. Please reconnect.');
                     }
@@ -901,42 +976,20 @@
                 return await response.json();
             }
             
-            async refreshAccessToken() {
-                if (!this.refreshToken || !this.clientSecret) {
-                    throw new Error('No refresh token or client secret available');
-                }
-                
-                const response = await fetch('https://oauth2.googleapis.com/token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
-                        client_id: this.clientId,
-                        client_secret: this.clientSecret,
-                        refresh_token: this.refreshToken,
-                        grant_type: 'refresh_token'
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to refresh access token');
-                }
-                
-                const tokens = await response.json();
-                this.accessToken = tokens.access_token;
-                this.storeCredentials();
-                return this.accessToken;
-            }
-            
             async getFolderContents(folderId = 'root') {
-                console.log(`Google Drive: Getting folder contents for ${folderId}`);
+                console.log(`📁 Google Drive: Getting contents for folder ${folderId}`);
                 
                 try {
                     const query = `'${folderId}' in parents and trashed=false`;
-                    console.log(`Google Drive: Query: ${query}`);
+                    console.log(`🔍 Query: ${query}`);
                     
-                    const response = await this.makeApiCall(`/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,parents,folder)&pageSize=100`);
-                    console.log(`Google Drive: API response received, ${response.files.length} files found`);
+                    const response = await this.makeApiCall(
+                        `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,parents)&pageSize=100`
+                    );
                     
+                    console.log(`📊 Google Drive API returned ${response.files.length} items`);
+                    
+                    // Process files to match expected format
                     const processedFiles = response.files.map(file => ({
                         id: file.id,
                         name: file.name,
@@ -945,25 +998,27 @@
                         createdTime: file.createdTime,
                         modifiedTime: file.modifiedTime,
                         parents: file.parents,
+                        // Add folder/file flags for compatibility
                         folder: file.mimeType === 'application/vnd.google-apps.folder' ? {} : null,
                         file: file.mimeType !== 'application/vnd.google-apps.folder' ? { mimeType: file.mimeType } : null
                     }));
                     
-                    console.log(`Google Drive: Processed ${processedFiles.length} files`);
+                    console.log(`✅ Processed ${processedFiles.length} files for smart analysis`);
                     return processedFiles;
                     
                 } catch (error) {
-                    console.error('Google Drive: Error getting folder contents:', error);
+                    console.error('❌ Google Drive error getting folder contents:', error);
                     throw error;
                 }
             }
             
             isAuthenticated() {
-                return this.authenticated;
+                return this.isAuthenticatedFlag;
             }
             
             async disconnect() {
-                this.authenticated = false;
+                console.log('🔌 Disconnecting Google Drive...');
+                this.isAuthenticatedFlag = false;
                 this.accessToken = null;
                 this.refreshToken = null;
                 this.clientSecret = null;
@@ -971,7 +1026,7 @@
             }
         }
         
-        // ===== ONEDRIVE PROVIDER (V14 PROVEN AUTH) =====
+        // ===== ONEDRIVE PROVIDER (PROVEN FROM V14) =====
         class OneDriveProvider {
             constructor() {
                 this.name = 'onedrive';
@@ -981,6 +1036,7 @@
                 this.activeAccount = null;
                 this.msalInstance = null;
                 this.initMSAL();
+                console.log('🔧 OneDriveProvider initialized');
             }
             
             initMSAL() {
@@ -993,19 +1049,23 @@
                     cache: { cacheLocation: 'sessionStorage' }
                 };
                 this.msalInstance = new msal.PublicClientApplication(msalConfig);
+                console.log('🔧 MSAL initialized for OneDrive');
             }
             
             async authenticate() {
                 try {
+                    console.log('🔐 Starting OneDrive authentication...');
                     const loginResponse = await this.msalInstance.loginPopup({
                         scopes: ['Files.ReadWrite.AppFolder', 'User.Read']
                     });
                     this.activeAccount = loginResponse.account;
                     this.msalInstance.setActiveAccount(this.activeAccount);
                     this.authenticated = true;
+                    console.log('✅ OneDrive authentication successful');
                     return true;
                 } catch (error) {
                     this.authenticated = false;
+                    console.error('❌ OneDrive authentication failed:', error);
                     throw new Error(`OneDrive authentication failed: ${error.message}`);
                 }
             }
@@ -1049,19 +1109,19 @@
             }
             
             async getFolderContents(folderId = 'root') {
-                console.log(`OneDrive: Getting folder contents for ${folderId}`);
+                console.log(`📁 OneDrive: Getting contents for folder ${folderId}`);
                 
                 try {
                     const endpoint = folderId === 'root' ? 
                         '/me/drive/root/children' : 
                         `/me/drive/items/${folderId}/children`;
                     
-                    console.log(`OneDrive: Calling endpoint: ${endpoint}`);
+                    console.log(`🔍 OneDrive endpoint: ${endpoint}`);
                     
                     const response = await this.makeApiCall(endpoint);
                     const data = await response.json();
                     
-                    console.log(`OneDrive: API response received, ${data.value.length} items found`);
+                    console.log(`📊 OneDrive API returned ${data.value.length} items`);
                     
                     const processedFiles = data.value.map(item => ({
                         id: item.id,
@@ -1074,11 +1134,11 @@
                         mimeType: item.file ? item.file.mimeType : null
                     }));
                     
-                    console.log(`OneDrive: Processed ${processedFiles.length} files`);
+                    console.log(`✅ Processed ${processedFiles.length} OneDrive items`);
                     return processedFiles;
                     
                 } catch (error) {
-                    console.error('OneDrive: Error getting folder contents:', error);
+                    console.error('❌ OneDrive error getting folder contents:', error);
                     throw error;
                 }
             }
@@ -1088,6 +1148,7 @@
             }
             
             async disconnect() {
+                console.log('🔌 Disconnecting OneDrive...');
                 this.authenticated = false;
                 this.activeAccount = null;
                 if (this.msalInstance) {
@@ -1096,21 +1157,22 @@
             }
         }
         
-        // ===== FIXED SMART FOLDER NAVIGATOR =====
+        // ===== SMART FOLDER NAVIGATOR =====
         class SmartFolderNavigator {
             constructor() {
                 this.currentFolderId = 'root';
                 this.folderHistory = [{ id: 'root', name: 'Root' }];
                 this.lastAnalyzedFolder = null;
+                console.log('🧭 SmartFolderNavigator initialized');
             }
             
             async loadInitialFolders() {
                 try {
-                    console.log('Loading initial folders...');
+                    console.log('📁 Loading initial folders...');
                     this.resetNavigation();
                     await this.loadFolder('root');
                 } catch (error) {
-                    console.error('Failed to load initial folders:', error);
+                    console.error('❌ Failed to load initial folders:', error);
                     this.showErrorMessage('Failed to load folders. Please try again.');
                 }
             }
@@ -1120,40 +1182,42 @@
                 this.folderHistory = [{ id: 'root', name: 'Root' }];
                 this.lastAnalyzedFolder = null;
                 this.updateBreadcrumbs();
+                console.log('🔄 Navigation reset to root');
             }
             
             async loadFolder(folderId) {
                 try {
-                    console.log(`Loading folder: ${folderId}`);
+                    console.log(`📂 Loading folder: ${folderId}`);
                     this.showLoadingState();
                     
                     const folderAnalysis = await window.OrbitalApp.providers.getSmartFolderContents(folderId);
-                    console.log('Folder analysis result:', folderAnalysis);
+                    console.log('📊 Folder analysis result:', folderAnalysis);
                     this.lastAnalyzedFolder = folderAnalysis;
                     
                     // Get current folder name for smart prompt
-                    const currentFolderName = this.folderHistory[this.folderHistory.length - 1]?.name || 'Folder';
+                    const currentFolderName = this.folderHistory[this.folderHistory.length - 1]?.name || 'Unknown Folder';
                     folderAnalysis.folderName = currentFolderName;
                     
                     if (folderAnalysis.needsSmartPrompt) {
-                        console.log('Mixed content detected - showing smart prompt');
+                        console.log('🤔 Mixed content detected - showing smart prompt');
                         window.OrbitalApp.showSmartPrompt(folderAnalysis);
                     } else if (folderAnalysis.hasImages && !folderAnalysis.hasSubfolders) {
-                        console.log('Only images found - proceeding to image loading');
+                        console.log('🖼️ Only images found - proceeding to image loading');
                         window.OrbitalApp.showLoadingScreen();
+                        document.getElementById('loading-message').textContent = `Loading ${folderAnalysis.images.length} images...`;
                         setTimeout(() => {
-                            window.OrbitalApp.showLoadingComplete();
+                            document.getElementById('loading-message').textContent = '✅ Images loaded successfully! (Step 3 will continue from here)';
                         }, 2000);
                     } else if (folderAnalysis.hasSubfolders && !folderAnalysis.hasImages) {
-                        console.log('Only subfolders found - displaying folder list');
+                        console.log('📁 Only subfolders found - displaying folder list');
                         this.displayFolders(folderAnalysis.subfolders);
                     } else {
-                        console.log('Empty folder detected');
+                        console.log('📭 Empty folder detected');
                         this.displayFolders([]);
                     }
                     
                 } catch (error) {
-                    console.error('Error loading folder:', error);
+                    console.error('❌ Error loading folder:', error);
                     this.showErrorMessage(`Error loading folder: ${error.message}`);
                 }
             }
@@ -1178,17 +1242,17 @@
             }
             
             async showSubfoldersOnly() {
-                console.log('Showing subfolders only');
+                console.log('📁 Showing subfolders only');
                 if (this.lastAnalyzedFolder && this.lastAnalyzedFolder.hasSubfolders) {
                     this.displayFolders(this.lastAnalyzedFolder.subfolders);
                 } else {
-                    console.error('No subfolder data available');
+                    console.error('❌ No subfolder data available');
                     this.showErrorMessage('No subfolder data available');
                 }
             }
             
             displayFolders(folders) {
-                console.log(`Displaying ${folders.length} folders`);
+                console.log(`📋 Displaying ${folders.length} folders`);
                 const folderList = document.getElementById('folder-list');
                 folderList.innerHTML = '';
                 
@@ -1210,11 +1274,10 @@
                         </svg>
                         <div class="folder-info">
                             <div class="folder-name">${folder.name}</div>
-                            <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()}</div>
+                            <div class="folder-date">${new Date(folder.modifiedTime || folder.createdTime).toLocaleDateString()}</div>
                         </div>
                     `;
                     
-                    // Click anywhere on folder item to select it
                     div.addEventListener('click', () => {
                         this.selectFolder(folder);
                     });
@@ -1224,9 +1287,9 @@
             }
             
             async selectFolder(folder) {
-                console.log(`Selecting folder: ${folder.name} (${folder.id})`);
+                console.log(`📂 Selecting folder: ${folder.name} (${folder.id})`);
                 
-                // FIXED: Proper breadcrumb management
+                // Add to breadcrumb history
                 this.folderHistory.push({ id: folder.id, name: folder.name });
                 this.currentFolderId = folder.id;
                 this.updateBreadcrumbs();
@@ -1235,7 +1298,7 @@
             }
             
             async navigateUp() {
-                console.log('Navigating up');
+                console.log('⬆️ Navigating up');
                 if (this.folderHistory.length > 1) {
                     this.folderHistory.pop(); // Remove current folder
                     const parentFolder = this.folderHistory[this.folderHistory.length - 1];
@@ -1243,23 +1306,19 @@
                     this.updateBreadcrumbs();
                     await this.loadFolder(parentFolder.id);
                 } else {
-                    console.log('Already at root level');
+                    console.log('📍 Already at root level');
                 }
             }
             
             async refreshCurrentFolder() {
-                console.log('Refreshing current folder');
+                console.log('🔄 Refreshing current folder');
                 await this.loadFolder(this.currentFolderId);
             }
             
             updateBreadcrumbs() {
                 const pathText = this.folderHistory.map(f => f.name).join(' / ');
                 document.getElementById('folder-subtitle').textContent = `Current: ${pathText}`;
-                console.log(`Breadcrumbs updated: ${pathText}`);
-            }
-            
-            showFolderStatus(message) {
-                console.log(`[FolderNav] ${message}`);
+                console.log(`🍞 Breadcrumbs: ${pathText}`);
             }
         }
         
@@ -1272,7 +1331,7 @@
             }
         }
         
-        // Handle OAuth callback for Google Drive
+        // Handle OAuth callback for Google Drive (V3 EXACT)
         if (window.location.search.includes('code=') || window.location.search.includes('error=')) {
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
@@ -1280,8 +1339,10 @@
             
             if (window.opener) {
                 if (error) {
+                    console.error('❌ OAuth error:', error);
                     window.opener.postMessage({ type: 'GOOGLE_AUTH_ERROR', error: error }, window.location.origin);
                 } else if (code) {
+                    console.log('✅ OAuth success, code received');
                     window.opener.postMessage({ type: 'GOOGLE_AUTH_SUCCESS', code: code }, window.location.origin);
                 }
                 window.close();
@@ -1290,6 +1351,7 @@
         
         // ===== INITIALIZE APPLICATION =====
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 DOM loaded, initializing Orbital8 Step 2...');
             window.OrbitalApp = new OrbitalApp();
         });
     </script>
