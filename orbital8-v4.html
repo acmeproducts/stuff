@@ -509,7 +509,7 @@
         .pill-counter {
             position: fixed;
             backdrop-filter: blur(10px);
-            border-radius: 25px;
+            border-radius: 20px;
             padding: 10px 18px;
             font-size: 18px;
             font-weight: 500;
@@ -822,6 +822,7 @@
         <!-- Main Image Viewer -->
         <div class="image-viewer hidden" id="image-viewer">
             <div class="nav-button back" id="back-to-folders">← Folders</div>
+            <div class="nav-button details" id="details-button" style="right: 20px;">Details →</div>
             
             <div class="image-viewport" id="image-viewport">
                 <img class="center-image zoomable" id="center-image" alt="Select images to start" />
@@ -898,6 +899,10 @@
                 
                 // Image viewer navigation
                 document.getElementById('back-to-folders').addEventListener('click', () => this.backToFolders());
+                document.getElementById('details-button').addEventListener('click', () => {
+                    console.log('📋 Details button clicked (Step 4 feature)');
+                    alert('Image details modal (Step 4 feature)');
+                });
                 document.getElementById('select-another-stack-btn').addEventListener('click', () => this.selectAnotherStack());
                 document.getElementById('select-another-folder-btn').addEventListener('click', () => this.backToFolders());
                 
@@ -1015,7 +1020,7 @@
                             size: image.size || 0,
                             createdTime: image.createdTime,
                             modifiedTime: image.modifiedTime,
-                            thumbnailUrl: this.generateImageUrl(image),
+                            thumbnailUrl: await this.generateImageUrl(image),
                             downloadUrl: this.generateDownloadUrl(image),
                             
                             // Stack management (V3 pattern)
@@ -1025,6 +1030,8 @@
                             contentRating: 0,
                             notes: ''
                         };
+                        
+                        console.log(`📝 Processed image ${i+1}/${images.length}: ${processedImage.name} - URL: ${processedImage.thumbnailUrl}`);
                         
                         processedImages.push(processedImage);
                         
@@ -1057,6 +1064,7 @@
                         this.showImageViewer();
                         this.imageViewer.displayTopImageFromStack('in');
                         this.updateActiveStackUI();
+                        console.log('🎯 Image viewer initialized with first image');
                     }, 1000);
                     
                 } catch (error) {
@@ -1068,16 +1076,21 @@
                 }
             }
             
-            generateImageUrl(image) {
+            async generateImageUrl(image) {
                 const provider = this.providers.getCurrentProvider();
                 if (provider.name === 'googledrive') {
-                    // Google Drive thumbnail URL
                     return `https://drive.google.com/thumbnail?id=${image.id}&sz=w1000`;
                 } else if (provider.name === 'onedrive') {
-                    // OneDrive thumbnail URL  
-                    return image.thumbnails?.large?.url || `https://graph.microsoft.com/v1.0/me/drive/items/${image.id}/thumbnails/0/large/content`;
+                    // For OneDrive, we need to get a direct content URL with auth
+                    try {
+                        const accessToken = await provider.getAccessToken();
+                        return `https://graph.microsoft.com/v1.0/me/drive/items/${image.id}/content?access_token=${accessToken}`;
+                    } catch (error) {
+                        console.warn('Failed to get OneDrive access token for image URL');
+                        return `data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E`;
+                    }
                 }
-                return null;
+                return `data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E`;
             }
             
             generateDownloadUrl(image) {
@@ -1278,10 +1291,14 @@
             }
             
             async setImageSrc(img, file) {
+                console.log(`🖼️ Loading image: ${file.name} from URL: ${file.thumbnailUrl}`);
                 return new Promise((resolve) => {
-                    img.onload = resolve;
+                    img.onload = () => {
+                        console.log(`✅ Image loaded successfully: ${file.name}`);
+                        resolve();
+                    };
                     img.onerror = () => {
-                        console.warn(`⚠️ Failed to load image: ${file.name}`);
+                        console.warn(`⚠️ Failed to load image: ${file.name}, using fallback`);
                         img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
                         resolve();
                     };
@@ -1292,8 +1309,10 @@
             
             async displayTopImageFromStack(stackName) {
                 const state = window.OrbitalApp.state;
+                console.log(`📋 Displaying top image from ${stackName} stack (${state.stacks[stackName].length} images)`);
                 
                 if (state.stacks[stackName].length === 0) {
+                    console.log(`📭 ${stackName} stack is empty`);
                     const centerImage = document.getElementById('center-image');
                     centerImage.style.opacity = '0';
                     setTimeout(() => {
@@ -1308,6 +1327,7 @@
                 
                 document.getElementById('empty-state').classList.add('hidden');
                 const topImage = state.stacks[stackName][0];
+                console.log(`🎯 Found top image: ${topImage.name} with URL: ${topImage.thumbnailUrl}`);
                 const imageIndex = state.imageFiles.findIndex(f => f.id === topImage.id);
                 
                 if (imageIndex !== -1) {
@@ -1315,6 +1335,9 @@
                     state.currentStack = stackName;
                     await this.displayCurrentImage();
                     window.OrbitalApp.updateActiveStackUI();
+                    console.log(`✅ Successfully displayed image ${imageIndex + 1} of ${state.imageFiles.length}`);
+                } else {
+                    console.error(`❌ Could not find image index for ${topImage.name}`);
                 }
             }
             
@@ -1505,7 +1528,9 @@
                             e.stopPropagation();
                             
                             if (window.OrbitalApp.state.currentStack === stackName) {
-                                // Same stack - just acknowledge
+                                // Same stack - open grid view (placeholder for now)
+                                console.log(`📊 Opening grid view for ${stackName} stack`);
+                                alert(`Grid view for ${STACK_NAMES[stackName]} stack (Step 4 feature)`);
                                 window.OrbitalApp.acknowledgePillCounter(stackName);
                                 return;
                             }
