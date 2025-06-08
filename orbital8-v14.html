@@ -104,6 +104,7 @@
             display: flex; align-items: center; padding: 12px 16px; margin-bottom: 8px;
             background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px; cursor: pointer; transition: all 0.2s ease; color: white;
+            justify-content: space-between;
         }
         
         .folder-item:hover {
@@ -118,6 +119,37 @@
         .folder-info { flex: 1; }
         .folder-name { font-weight: 500; margin-bottom: 2px; }
         .folder-date { font-size: 12px; color: rgba(255, 255, 255, 0.6); }
+        
+        .folder-actions { 
+            display: flex; gap: 8px; margin-left: 12px; 
+        }
+        
+        .folder-action-btn {
+            padding: 6px 12px; border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px; background: rgba(255, 255, 255, 0.1);
+            color: white; font-size: 12px; cursor: pointer;
+            transition: all 0.2s ease; backdrop-filter: blur(10px);
+        }
+        
+        .folder-action-btn:hover {
+            background: rgba(255, 255, 255, 0.2); transform: translateY(-1px);
+        }
+        
+        .folder-action-btn.drill-btn {
+            border-color: rgba(245, 158, 11, 0.4); color: var(--app-accent);
+        }
+        
+        .folder-action-btn.drill-btn:hover {
+            background: rgba(245, 158, 11, 0.2);
+        }
+        
+        .folder-action-btn.select-btn {
+            border-color: rgba(16, 185, 129, 0.4); color: #10b981;
+        }
+        
+        .folder-action-btn.select-btn:hover {
+            background: rgba(16, 185, 129, 0.2);
+        }
         
         .spinner {
             width: 20px; height: 20px; border: 2px solid rgba(245, 158, 11, 0.3);
@@ -729,7 +761,7 @@
     <div class="screen hidden" id="folder-screen">
         <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
             <h2 class="title">Select a Folder</h2>
-            <div class="subtitle" id="folder-subtitle" style="margin-bottom: 16px; font-size: 14px;">Choose any folder from your entire OneDrive</div>
+            <div class="subtitle" id="folder-subtitle" style="margin-bottom: 16px; font-size: 14px;">Starting from Downloads folder - browse or select any folder</div>
             <div class="folder-list" id="folder-list">
                 <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
                     <div class="spinner"></div>
@@ -737,7 +769,7 @@
                 </div>
             </div>
             <div class="folder-actions">
-                <button class="folder-button" id="refresh-folders">Refresh All Folders</button>
+                <button class="folder-button" id="refresh-folders">Refresh</button>
                 <button class="folder-button danger" id="logout">Disconnect</button>
             </div>
         </div>
@@ -877,11 +909,11 @@
     
     <div id="delete-modal" class="modal hidden">
         <div class="modal-content action-modal">
-            <h3 class="action-title">Move to OneDrive Recycle Bin</h3>
-            <p id="delete-message" class="delete-message">Are you sure you want to move the selected images to OneDrive Recycle Bin?</p>
+            <h3 class="action-title">Confirm Delete</h3>
+            <p id="delete-message" class="delete-message">Are you sure you want to move the selected images to Trash?</p>
             <div class="action-buttons-row">
                 <button id="cancel-delete" class="btn btn-secondary">Cancel</button>
-                <button id="confirm-delete" class="btn btn-danger">Move to OneDrive Recycle Bin</button>
+                <button id="confirm-delete" class="btn btn-danger">Confirm</button>
             </div>
         </div>
     </div>
@@ -1318,75 +1350,71 @@
             }
         }
 
-        // ===== OneDrive Folder Manager =====
+        // ===== OneDrive Folder Manager - Downloads Scoped =====
         class OneDriveFolderManager {
             constructor(oneDriveProvider) {
                 this.provider = oneDriveProvider;
-                this.cache = [];
-                this.cacheTimestamp = 0;
-                this.cacheExpiry = 24 * 60 * 60 * 1000; // 24 hours for folders
+                this.currentParentId = null;
+                this.currentParentPath = '';
+                this.breadcrumb = [];
             }
             
-            async loadFolders(forceRefresh = false) {
+            async getDownloadsFolder() {
                 try {
-                    const now = Date.now();
-                    if (!forceRefresh && this.cache.length > 0 && (now - this.cacheTimestamp) < this.cacheExpiry) {
-                        return this.cache;
+                    // Try to find Downloads folder by name
+                    const response = await this.provider.makeApiCall('/me/drive/root/children');
+                    const data = await response.json();
+                    
+                    const downloadsFolder = data.value.find(item => 
+                        item.folder && 
+                        (item.name.toLowerCase() === 'downloads' || item.name.toLowerCase() === 'download')
+                    );
+                    
+                    if (downloadsFolder) {
+                        return downloadsFolder;
                     }
                     
-                    // Try to load from OneDrive AppFolder first
-                    if (!forceRefresh) {
-                        try {
-                            const response = await this.provider.makeApiCall('/me/drive/special/approot:/folders.json:/content');
-                            const data = await response.json();
-                            
-                            if (data && data.folders && data.timestamp && (now - data.timestamp) < this.cacheExpiry) {
-                                this.cache = data.folders;
-                                this.cacheTimestamp = data.timestamp;
-                                return this.cache;
-                            }
-                        } catch (error) {
-                            // File doesn't exist or is invalid, will scan fresh
-                        }
-                    }
-                    
-                    // Scan entire OneDrive for folders
-                    const allFolders = await this.scanAllFolders();
-                    
-                    // Cache to OneDrive AppFolder
-                    await this.saveFolders(allFolders);
-                    
-                    this.cache = allFolders;
-                    this.cacheTimestamp = now;
-                    
-                    return this.cache;
+                    // Fallback to root if no Downloads folder found
+                    return {
+                        id: 'root',
+                        name: 'Root',
+                        folder: true
+                    };
                 } catch (error) {
-                    console.warn('Failed to load folders:', error);
-                    return this.cache; // Return what we have
+                    console.warn('Could not find Downloads folder, using root:', error);
+                    return {
+                        id: 'root',
+                        name: 'Root', 
+                        folder: true
+                    };
                 }
             }
             
-            async scanAllFolders() {
-                const allFolders = [];
-                const visited = new Set();
-                
-                // Start scanning from root
-                await this.scanFolderRecursive('root', '', allFolders, visited);
-                
-                // Sort by path for better UX
-                return allFolders.sort((a, b) => a.path.localeCompare(b.path));
+            async loadInitialFolders() {
+                try {
+                    const downloadsFolder = await this.getDownloadsFolder();
+                    
+                    // Set up initial state
+                    this.currentParentId = downloadsFolder.id;
+                    this.currentParentPath = downloadsFolder.name;
+                    this.breadcrumb = [{ id: downloadsFolder.id, name: downloadsFolder.name }];
+                    
+                    // Load folders under Downloads
+                    return await this.loadFoldersInParent(downloadsFolder.id);
+                } catch (error) {
+                    console.warn('Failed to load initial folders:', error);
+                    return [];
+                }
             }
             
-            async scanFolderRecursive(folderId, currentPath, allFolders, visited) {
-                if (visited.has(folderId)) return;
-                visited.add(folderId);
-                
+            async loadFoldersInParent(parentId) {
                 try {
-                    const endpoint = folderId === 'root' ? 
-                        '/me/drive/root/children' : 
-                        `/me/drive/items/${folderId}/children`;
-                    
+                    const folders = [];
                     let nextLink = null;
+                    
+                    const endpoint = parentId === 'root' ? 
+                        '/me/drive/root/children' : 
+                        `/me/drive/items/${parentId}/children`;
                     
                     do {
                         const url = nextLink || endpoint;
@@ -1396,76 +1424,69 @@
                         
                         const data = await response.json();
                         
-                        // Process folders in this level
-                        const folders = data.value.filter(item => item.folder);
-                        
-                        for (const folder of folders) {
-                            const folderPath = currentPath ? `${currentPath}/${folder.name}` : folder.name;
-                            
-                            // Add to our flat list
-                            allFolders.push({
+                        // Filter for folders only
+                        const folderItems = data.value
+                            .filter(item => item.folder)
+                            .map(folder => ({
                                 id: folder.id,
                                 name: folder.name,
-                                path: folderPath,
-                                parentPath: currentPath,
                                 type: 'folder',
                                 createdTime: folder.createdDateTime,
                                 modifiedTime: folder.lastModifiedDateTime,
-                                itemCount: folder.folder.childCount || 0
-                            });
-                            
-                            // Recursively scan subfolders (but limit depth to prevent infinite loops)
-                            if (folderPath.split('/').length < 10) {
-                                await this.scanFolderRecursive(folder.id, folderPath, allFolders, visited);
-                            }
-                        }
+                                itemCount: folder.folder.childCount || 0,
+                                hasChildren: (folder.folder.childCount || 0) > 0
+                            }));
                         
+                        folders.push(...folderItems);
                         nextLink = data['@odata.nextLink'];
-                        
-                        // Small delay to prevent API throttling
-                        if (nextLink) {
-                            await new Promise(resolve => setTimeout(resolve, 100));
-                        }
                         
                     } while (nextLink);
                     
+                    // Sort by name
+                    return folders.sort((a, b) => a.name.localeCompare(b.name));
+                    
                 } catch (error) {
-                    console.warn(`Failed to scan folder ${folderId}:`, error);
+                    console.warn('Failed to load folders:', error);
+                    return [];
                 }
             }
             
-            async saveFolders(folders) {
+            async drillIntoFolder(folder) {
                 try {
-                    const data = {
-                        version: 1,
-                        timestamp: Date.now(),
-                        lastScanned: new Date().toISOString(),
-                        totalFolders: folders.length,
-                        folders: folders
-                    };
+                    // Add to breadcrumb
+                    this.breadcrumb.push({ id: folder.id, name: folder.name });
+                    this.currentParentId = folder.id;
+                    this.currentParentPath = this.breadcrumb.map(b => b.name).join(' / ');
                     
-                    await this.provider.makeApiCall('/me/drive/special/approot:/folders.json:/content', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data, null, 2)
-                    });
-                    
+                    // Load subfolders
+                    return await this.loadFoldersInParent(folder.id);
                 } catch (error) {
-                    console.warn('Failed to save folders cache:', error);
+                    console.warn('Failed to drill into folder:', error);
+                    return [];
                 }
             }
             
-            async clearCache() {
-                this.cache = [];
-                this.cacheTimestamp = 0;
+            async navigateToParent() {
+                if (this.breadcrumb.length <= 1) {
+                    return await this.loadInitialFolders();
+                }
                 
-                try {
-                    await this.provider.makeApiCall('/me/drive/special/approot:/folders.json', {
-                        method: 'DELETE'
-                    });
-                } catch (error) {
-                    // File might not exist, that's ok
-                }
+                // Remove current folder from breadcrumb
+                this.breadcrumb.pop();
+                const parentFolder = this.breadcrumb[this.breadcrumb.length - 1];
+                
+                this.currentParentId = parentFolder.id;
+                this.currentParentPath = this.breadcrumb.map(b => b.name).join(' / ');
+                
+                return await this.loadFoldersInParent(parentFolder.id);
+            }
+            
+            getCurrentPath() {
+                return this.currentParentPath;
+            }
+            
+            canGoUp() {
+                return this.breadcrumb.length > 1;
             }
         }
 
@@ -1718,18 +1739,33 @@
                 return await this.currentProvider.getFiles(folderId);
             }
             
-            async getFolders(forceRefresh = false) {
+            async getInitialFolders() {
                 if (!this.folderManager) {
                     this.folderManager = new OneDriveFolderManager(this.currentProvider);
                 }
-                return await this.folderManager.loadFolders(forceRefresh);
+                return await this.folderManager.loadInitialFolders();
             }
             
-            async refreshFolders() {
+            async drillIntoFolder(folder) {
                 if (!this.folderManager) {
                     this.folderManager = new OneDriveFolderManager(this.currentProvider);
                 }
-                return await this.folderManager.loadFolders(true);
+                return await this.folderManager.drillIntoFolder(folder);
+            }
+            
+            async navigateUp() {
+                if (!this.folderManager) {
+                    this.folderManager = new OneDriveFolderManager(this.currentProvider);
+                }
+                return await this.folderManager.navigateToParent();
+            }
+            
+            getCurrentPath() {
+                return this.folderManager ? this.folderManager.getCurrentPath() : '';
+            }
+            
+            canGoUp() {
+                return this.folderManager ? this.folderManager.canGoUp() : false;
             }
             
             async disconnect() {
@@ -1905,6 +1941,9 @@
                     if (success) {
                         this.setStatus('✅ Connected to OneDrive!', 'success');
                         
+                        // Set initial refresh button handler
+                        utils.elements.refreshFolders.onclick = () => folderManager.loadFolders();
+                        
                         setTimeout(() => {
                             utils.showScreen('folder-screen');
                             folderManager.loadFolders();
@@ -1930,135 +1969,158 @@
             }
         };
         
-        // ===== Enhanced Folder Manager with Flat List =====
+        // ===== Scoped Folder Manager =====
         const folderManager = {
-            isScanning: false,
+            isLoading: false,
             
-            async loadFolders(forceRefresh = false) {
-                if (this.isScanning) {
-                    utils.showToast('Folder scan already in progress', 'info', true);
-                    return;
-                }
-                
-                const isRefresh = forceRefresh;
+            async loadFolders() {
+                if (this.isLoading) return;
+                this.isLoading = true;
                 
                 utils.elements.folderList.innerHTML = `
                     <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
                         <div class="spinner"></div>
-                        <span>${isRefresh ? 'Refreshing folder list...' : 'Loading folders...'}</span>
+                        <span>Loading folders...</span>
                     </div>
                 `;
                 
-                this.isScanning = true;
+                await utils.withErrorHandling(async () => {
+                    const folders = await appState.cloudStorage.getInitialFolders();
+                    this.displayFolders(folders);
+                }, 'Error loading folders');
+                
+                this.isLoading = false;
+            },
+            
+            async drillInto(folder) {
+                if (this.isLoading) return;
+                this.isLoading = true;
+                
+                utils.elements.folderList.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
+                        <div class="spinner"></div>
+                        <span>Loading subfolders...</span>
+                    </div>
+                `;
                 
                 await utils.withErrorHandling(async () => {
-                    const folders = await appState.cloudStorage.getFolders(forceRefresh);
-                    
-                    if (folders.length === 0) {
-                        utils.elements.folderList.innerHTML = `
-                            <div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
-                                <span>No folders found in your OneDrive</span>
-                            </div>
-                        `;
-                        return;
-                    }
-                    
-                    utils.elements.folderList.innerHTML = '';
-                    
-                    // Group folders by parent path for better organization
-                    const groupedFolders = this.groupFoldersByParent(folders);
-                    
-                    // Display folders with improved layout
-                    this.displayGroupedFolders(groupedFolders);
-                    
-                    if (isRefresh) {
-                        utils.showToast(`Refreshed ${folders.length} folders`, 'success', true);
-                    }
-                    
-                }, isRefresh ? 'Error refreshing folders' : 'Error loading folders');
+                    const folders = await appState.cloudStorage.drillIntoFolder(folder);
+                    this.displayFolders(folders);
+                    this.updateNavigationButtons();
+                }, 'Error loading subfolders');
                 
-                this.isScanning = false;
+                this.isLoading = false;
             },
             
-            groupFoldersByParent(folders) {
-                const grouped = {};
+            async navigateUp() {
+                if (this.isLoading) return;
+                this.isLoading = true;
+                
+                utils.elements.folderList.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
+                        <div class="spinner"></div>
+                        <span>Loading parent folder...</span>
+                    </div>
+                `;
+                
+                await utils.withErrorHandling(async () => {
+                    const folders = await appState.cloudStorage.navigateUp();
+                    this.displayFolders(folders);
+                    this.updateNavigationButtons();
+                }, 'Error navigating to parent folder');
+                
+                this.isLoading = false;
+            },
+            
+            displayFolders(folders) {
+                utils.elements.folderList.innerHTML = '';
+                
+                if (folders.length === 0) {
+                    utils.elements.folderList.innerHTML = `
+                        <div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
+                            <span>No folders found in this location</span>
+                        </div>
+                    `;
+                    return;
+                }
                 
                 folders.forEach(folder => {
-                    const parentPath = folder.parentPath || '/';
-                    if (!grouped[parentPath]) {
-                        grouped[parentPath] = [];
-                    }
-                    grouped[parentPath].push(folder);
+                    const div = document.createElement('div');
+                    div.className = 'folder-item';
+                    
+                    // Different styling based on whether folder has children
+                    const hasChildren = folder.hasChildren;
+                    const iconColor = hasChildren ? 'var(--app-accent)' : 'rgba(255, 255, 255, 0.6)';
+                    
+                    div.innerHTML = `
+                        <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: ${iconColor};">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                        </svg>
+                        <div class="folder-info">
+                            <div class="folder-name">${folder.name}</div>
+                            <div class="folder-date">
+                                ${new Date(folder.modifiedTime).toLocaleDateString()} • ${folder.itemCount} items
+                                ${hasChildren ? ' • Has subfolders' : ''}
+                            </div>
+                        </div>
+                        <div class="folder-actions">
+                            ${hasChildren ? `<button class="folder-action-btn drill-btn" data-folder-id="${folder.id}">Browse →</button>` : ''}
+                            <button class="folder-action-btn select-btn" data-folder-id="${folder.id}">Select</button>
+                        </div>
+                    `;
+                    
+                    utils.elements.folderList.appendChild(div);
                 });
                 
-                return grouped;
+                // Add event listeners for action buttons
+                this.setupFolderActions();
             },
             
-            displayGroupedFolders(groupedFolders) {
-                // Sort parent paths - root first, then alphabetically
-                const sortedParentPaths = Object.keys(groupedFolders).sort((a, b) => {
-                    if (a === '/') return -1;
-                    if (b === '/') return 1;
-                    return a.localeCompare(b);
+            setupFolderActions() {
+                // Drill into subfolder buttons
+                document.querySelectorAll('.drill-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const folderId = btn.dataset.folderId;
+                        const folderElement = btn.closest('.folder-item');
+                        const folderName = folderElement.querySelector('.folder-name').textContent;
+                        
+                        this.drillInto({ id: folderId, name: folderName });
+                    });
                 });
                 
-                sortedParentPaths.forEach(parentPath => {
-                    const folders = groupedFolders[parentPath];
-                    
-                    // Add section header for non-root folders
-                    if (parentPath !== '/' && folders.length > 0) {
-                        const sectionHeader = document.createElement('div');
-                        sectionHeader.style.cssText = `
-                            padding: 8px 16px; 
-                            color: rgba(245, 158, 11, 0.8); 
-                            font-size: 12px; 
-                            font-weight: 600; 
-                            border-bottom: 1px solid rgba(245, 158, 11, 0.2);
-                            margin: 8px 0 4px 0;
-                            background: rgba(245, 158, 11, 0.1);
-                            border-radius: 6px;
-                        `;
-                        sectionHeader.textContent = parentPath;
-                        utils.elements.folderList.appendChild(sectionHeader);
-                    }
-                    
-                    // Sort folders within each group by name
-                    folders.sort((a, b) => a.name.localeCompare(b.name));
-                    
-                    folders.forEach(folder => {
-                        const div = document.createElement('div');
-                        div.className = 'folder-item';
+                // Select folder buttons  
+                document.querySelectorAll('.select-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const folderId = btn.dataset.folderId;
+                        const folderElement = btn.closest('.folder-item');
+                        const folderName = folderElement.querySelector('.folder-name').textContent;
                         
-                        // Show different icon for root vs nested folders
-                        const iconPath = parentPath === '/' ? 
-                            "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" :
-                            "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z M7 13l3 3 3-3";
-                        
-                        div.innerHTML = `
-                            <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"></path>
-                            </svg>
-                            <div class="folder-info">
-                                <div class="folder-name">${folder.name}</div>
-                                <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()} • ${folder.itemCount || 0} items</div>
-                            </div>
-                        `;
-                        
-                        // Add indentation for nested folders
-                        if (parentPath !== '/') {
-                            div.style.marginLeft = '20px';
-                            div.style.borderLeft = '2px solid rgba(245, 158, 11, 0.3)';
-                            div.style.paddingLeft = '12px';
-                        }
-                        
-                        div.addEventListener('click', () => this.selectFolder(folder));
-                        utils.elements.folderList.appendChild(div);
+                        this.selectFolder({ id: folderId, name: folderName });
                     });
                 });
             },
             
-            async refreshFolders() {
-                await this.loadFolders(true);
+            updateNavigationButtons() {
+                const currentPath = appState.cloudStorage.getCurrentPath();
+                const canGoUp = appState.cloudStorage.canGoUp();
+                
+                // Update subtitle to show current path
+                const subtitle = document.getElementById('folder-subtitle');
+                if (subtitle) {
+                    subtitle.textContent = `Current: ${currentPath}`;
+                }
+                
+                // Update refresh button to show "Up" option when not at root
+                const refreshBtn = utils.elements.refreshFolders;
+                if (canGoUp) {
+                    refreshBtn.textContent = '← Go Up';
+                    refreshBtn.onclick = () => this.navigateUp();
+                } else {
+                    refreshBtn.textContent = 'Refresh';
+                    refreshBtn.onclick = () => this.loadFolders();
+                }
             },
             
             async selectFolder(folder) {
@@ -2315,8 +2377,7 @@
                     }
                 });
                 
-                // Update grid modal header count if grid is open
-                if (appState.grid.stack && utils.elements.selectAllBtn && !utils.elements.gridModal.classList.contains('hidden')) {
+                if (appState.grid.stack && utils.elements.selectAllBtn) {
                     utils.elements.selectAllBtn.textContent = appState.stacks[appState.grid.stack].length;
                 }
             },
@@ -2526,26 +2587,22 @@
                         imageViewer.displayCurrentImage();
                     }
                 } else {
-                    // Check if current stack is empty after potential deletions
-                    if (appState.stacks[appState.currentStack].length === 0) {
-                        utils.elements.centerImage.style.opacity = '0';
-                        setTimeout(() => {
-                            utils.elements.centerImage.src = '';
-                            utils.elements.centerImage.alt = 'No images in this stack';
-                            updateEmptyStateButtons();
-                            utils.elements.emptyState.classList.remove('hidden');
-                            utils.elements.centerImage.style.opacity = '1';
-                        }, 200);
+                    // Check if current image still exists after potential deletions
+                    const currentFile = appState.imageFiles[appState.currentImageIndex];
+                    if (!currentFile || !appState.stacks[appState.currentStack].find(f => f.id === currentFile.id)) {
+                        // Current image was deleted or moved, display top image from current stack
+                        imageViewer.displayTopImageFromStack(appState.currentStack);
                     } else {
                         imageViewer.displayTopImageFromStack(appState.currentStack);
                     }
                 }
                 
+                // Always update pill counters when closing grid to reflect any deletions
+                stackManager.updateCounts();
+                updateActiveProxTab();
+                
                 appState.grid.stack = null;
                 appState.grid.selected = [];
-                
-                // Ensure pill counters are updated after closing
-                stackManager.updateCounts();
             },
             
             populate(stack) {
@@ -3030,7 +3087,7 @@
                     const selectedCount = appState.grid.selected.length;
                     
                     utils.elements.confirmDelete.disabled = true;
-                    utils.elements.confirmDelete.textContent = 'Processing...';
+                    utils.elements.confirmDelete.textContent = 'Moving to Recycle Bin...';
                     
                     // Always move to OneDrive Recycle Bin regardless of current stack
                     const promises = appState.grid.selected.map(fileId => 
@@ -3039,12 +3096,12 @@
                     
                     Promise.all(promises)
                         .then(() => {
-                            utils.showToast(`Moved ${selectedCount} images to OneDrive recycle bin`, 'success', true);
+                            utils.showToast(`Moved ${selectedCount} images to OneDrive Recycle Bin`, 'success', true);
                             utils.modal.hide('delete-modal');
                             
-                            // Remove files from imageFiles array and current stack
+                            // Remove images from current stack and image files
                             appState.grid.selected.forEach(fileId => {
-                                // Remove from global imageFiles array
+                                // Remove from global image files array
                                 const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
                                 if (fileIndex !== -1) {
                                     appState.imageFiles.splice(fileIndex, 1);
@@ -3055,60 +3112,29 @@
                                 if (stackIndex !== -1) {
                                     appState.stacks[currentStack].splice(stackIndex, 1);
                                 }
-                                
-                                // Remove from user metadata cache
-                                if (appState.userMetadataManager) {
-                                    appState.userMetadataManager.cache.delete(fileId);
-                                }
                             });
                             
-                            // Save updated metadata cache (without deleted files)
-                            if (appState.userMetadataManager) {
-                                appState.userMetadataManager.saveMetadata().catch(error => {
-                                    console.warn('Failed to update metadata cache after deletion:', error);
-                                });
-                            }
-                            
-                            // Invalidate file cache for current folder so deleted files don't reappear
-                            if (appState.fileCache && appState.currentFolder.id) {
-                                appState.fileCache.clearCacheForFolder(appState.currentFolder.id).catch(error => {
-                                    console.warn('Failed to clear file cache after deletion:', error);
-                                });
-                            }
-                            
-                            // Update grid view
-                            if (appState.grid.stack) {
-                                gridView.populate(appState.grid.stack);
-                                
-                                // Update grid modal header count
-                                utils.elements.selectAllBtn.textContent = appState.stacks[appState.grid.stack].length;
-                            }
-                            
-                            // Clear selection
+                            // Update grid display and counters
+                            gridView.populate(appState.grid.stack);
                             appState.grid.selected = [];
                             gridView.updateSelectionUI();
-                            
-                            // Update all pill counters
                             stackManager.updateCounts();
                             
-                            // If we deleted all images from current viewing stack, show empty state when grid closes
-                            if (appState.stacks[appState.currentStack].length === 0) {
-                                setTimeout(() => {
-                                    if (utils.elements.gridModal.classList.contains('hidden')) {
-                                        utils.elements.centerImage.style.opacity = '0';
-                                        setTimeout(() => {
-                                            utils.elements.centerImage.src = '';
-                                            utils.elements.centerImage.alt = 'No images in this stack';
-                                            updateEmptyStateButtons();
-                                            utils.elements.emptyState.classList.remove('hidden');
-                                            utils.elements.centerImage.style.opacity = '1';
-                                        }, 200);
-                                    }
-                                }, 100);
+                            // Update select all button count
+                            utils.elements.selectAllBtn.textContent = appState.stacks[currentStack].length;
+                            
+                            // If current stack is now empty, show appropriate message in grid
+                            if (appState.stacks[currentStack].length === 0) {
+                                utils.elements.gridContainer.innerHTML = `
+                                    <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #6b7280;">
+                                        <span>No images remaining in ${STACK_NAMES[currentStack]} stack</span>
+                                    </div>
+                                `;
                             }
+                            
                         })
                         .catch((error) => {
-                            utils.showToast(`Failed to delete some images: ${error.message}`, 'error', true);
+                            utils.showToast('Failed to delete some images', 'error', true);
                             utils.modal.hide('delete-modal');
                         })
                         .finally(() => {
@@ -3144,9 +3170,10 @@
                 
                 utils.elements.deleteSelected.addEventListener('click', () => {
                     const selectedCount = appState.grid.selected.length;
+                    const currentStack = appState.grid.stack;
                     
-                    // Always show OneDrive recycle bin message since we always delete to OneDrive
-                    utils.elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to OneDrive Recycle Bin? This will permanently remove them from Orbital8 but they can be recovered from OneDrive.`;
+                    // Always show OneDrive Recycle Bin message regardless of stack
+                    utils.elements.deleteMessage.textContent = `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to OneDrive Recycle Bin? This will permanently remove them from ${STACK_NAMES[currentStack]} stack and they can be recovered from OneDrive.`;
                     utils.elements.confirmDelete.textContent = 'Move to OneDrive Recycle Bin';
                     
                     utils.modal.show('delete-modal');
@@ -3463,7 +3490,7 @@
             // Authentication
             utils.elements.authButton.addEventListener('click', () => authManager.authenticate());
             
-            utils.elements.refreshFolders.addEventListener('click', () => folderManager.refreshFolders());
+            // Note: refresh button handler is now dynamic and set by updateNavigationButtons()
             utils.elements.logout.addEventListener('click', () => authManager.logout());
             
             // Loading screen cancel
@@ -3661,6 +3688,9 @@
                         utils.showScreen('folder-screen');
                         folderManager.loadFolders();
                     }, 1000);
+                } else {
+                    // Set initial refresh button handler
+                    utils.elements.refreshFolders.onclick = () => folderManager.loadFolders();
                 }
                 
                 // Setup all event handlers
