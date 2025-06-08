@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!V2 January 19, 2025, 6:58 PM>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -574,7 +573,6 @@
                     case 'loadImages':
                         console.log('User chose to load images - proceeding to image loading');
                         this.showLoadingScreen();
-                        // TODO: Proceed to Step 3 (image loading)
                         setTimeout(() => {
                             this.showLoadingComplete();
                         }, 2000);
@@ -586,7 +584,10 @@
                         break;
                         
                     case 'cancel':
-                        console.log('User cancelled folder selection');
+                        console.log('User cancelled folder selection - returning to folder view');
+                        // FIXED: Properly return to folder view without hanging
+                        this.showFolderScreen();
+                        await this.folderNav.refreshCurrentFolder();
                         break;
                 }
             }
@@ -688,13 +689,31 @@
                     throw new Error('No authenticated provider');
                 }
                 
-                const contents = await provider.getFolderContents(folderId);
-                return this.analyzeContentsForSmartPrompt(contents);
+                console.log(`ProviderManager: Getting smart folder contents for ${folderId} using ${provider.name}`);
+                
+                try {
+                    // Add timeout to prevent hanging
+                    const timeoutPromise = new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Request timed out after 30 seconds')), 30000)
+                    );
+                    
+                    const contentsPromise = provider.getFolderContents(folderId);
+                    const contents = await Promise.race([contentsPromise, timeoutPromise]);
+                    
+                    console.log(`ProviderManager: Received ${contents.length} items, analyzing...`);
+                    return this.analyzeContentsForSmartPrompt(contents);
+                    
+                } catch (error) {
+                    console.error('ProviderManager: Error getting folder contents:', error);
+                    throw error;
+                }
             }
             
             analyzeContentsForSmartPrompt(contents) {
                 const images = contents.filter(item => item.file && item.file.mimeType && item.file.mimeType.startsWith('image/'));
                 const subfolders = contents.filter(item => item.folder);
+                
+                console.log(`ProviderManager: Analysis - ${images.length} images, ${subfolders.length} subfolders`);
                 
                 return {
                     hasImages: images.length > 0,
@@ -909,20 +928,34 @@
             }
             
             async getFolderContents(folderId = 'root') {
-                const query = `'${folderId}' in parents and trashed=false`;
-                const response = await this.makeApiCall(`/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,parents,folder)&pageSize=100`);
+                console.log(`Google Drive: Getting folder contents for ${folderId}`);
                 
-                return response.files.map(file => ({
-                    id: file.id,
-                    name: file.name,
-                    mimeType: file.mimeType,
-                    size: file.size ? parseInt(file.size) : 0,
-                    createdTime: file.createdTime,
-                    modifiedTime: file.modifiedTime,
-                    parents: file.parents,
-                    folder: file.mimeType === 'application/vnd.google-apps.folder' ? {} : null,
-                    file: file.mimeType !== 'application/vnd.google-apps.folder' ? { mimeType: file.mimeType } : null
-                }));
+                try {
+                    const query = `'${folderId}' in parents and trashed=false`;
+                    console.log(`Google Drive: Query: ${query}`);
+                    
+                    const response = await this.makeApiCall(`/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,parents,folder)&pageSize=100`);
+                    console.log(`Google Drive: API response received, ${response.files.length} files found`);
+                    
+                    const processedFiles = response.files.map(file => ({
+                        id: file.id,
+                        name: file.name,
+                        mimeType: file.mimeType,
+                        size: file.size ? parseInt(file.size) : 0,
+                        createdTime: file.createdTime,
+                        modifiedTime: file.modifiedTime,
+                        parents: file.parents,
+                        folder: file.mimeType === 'application/vnd.google-apps.folder' ? {} : null,
+                        file: file.mimeType !== 'application/vnd.google-apps.folder' ? { mimeType: file.mimeType } : null
+                    }));
+                    
+                    console.log(`Google Drive: Processed ${processedFiles.length} files`);
+                    return processedFiles;
+                    
+                } catch (error) {
+                    console.error('Google Drive: Error getting folder contents:', error);
+                    throw error;
+                }
             }
             
             isAuthenticated() {
@@ -1016,23 +1049,38 @@
             }
             
             async getFolderContents(folderId = 'root') {
-                const endpoint = folderId === 'root' ? 
-                    '/me/drive/root/children' : 
-                    `/me/drive/items/${folderId}/children`;
+                console.log(`OneDrive: Getting folder contents for ${folderId}`);
                 
-                const response = await this.makeApiCall(endpoint);
-                const data = await response.json();
-                
-                return data.value.map(item => ({
-                    id: item.id,
-                    name: item.name,
-                    size: item.size || 0,
-                    createdTime: item.createdDateTime,
-                    modifiedTime: item.lastModifiedDateTime,
-                    folder: item.folder || null,
-                    file: item.file || null,
-                    mimeType: item.file ? item.file.mimeType : null
-                }));
+                try {
+                    const endpoint = folderId === 'root' ? 
+                        '/me/drive/root/children' : 
+                        `/me/drive/items/${folderId}/children`;
+                    
+                    console.log(`OneDrive: Calling endpoint: ${endpoint}`);
+                    
+                    const response = await this.makeApiCall(endpoint);
+                    const data = await response.json();
+                    
+                    console.log(`OneDrive: API response received, ${data.value.length} items found`);
+                    
+                    const processedFiles = data.value.map(item => ({
+                        id: item.id,
+                        name: item.name,
+                        size: item.size || 0,
+                        createdTime: item.createdDateTime,
+                        modifiedTime: item.lastModifiedDateTime,
+                        folder: item.folder || null,
+                        file: item.file || null,
+                        mimeType: item.file ? item.file.mimeType : null
+                    }));
+                    
+                    console.log(`OneDrive: Processed ${processedFiles.length} files`);
+                    return processedFiles;
+                    
+                } catch (error) {
+                    console.error('OneDrive: Error getting folder contents:', error);
+                    throw error;
+                }
             }
             
             isAuthenticated() {
@@ -1058,18 +1106,29 @@
             
             async loadInitialFolders() {
                 try {
+                    console.log('Loading initial folders...');
+                    this.resetNavigation();
                     await this.loadFolder('root');
                 } catch (error) {
                     console.error('Failed to load initial folders:', error);
-                    this.showFolderStatus('Failed to load folders. Please try again.');
+                    this.showErrorMessage('Failed to load folders. Please try again.');
                 }
+            }
+            
+            resetNavigation() {
+                this.currentFolderId = 'root';
+                this.folderHistory = [{ id: 'root', name: 'Root' }];
+                this.lastAnalyzedFolder = null;
+                this.updateBreadcrumbs();
             }
             
             async loadFolder(folderId) {
                 try {
-                    this.showFolderStatus('Analyzing folder contents...');
+                    console.log(`Loading folder: ${folderId}`);
+                    this.showLoadingState();
                     
                     const folderAnalysis = await window.OrbitalApp.providers.getSmartFolderContents(folderId);
+                    console.log('Folder analysis result:', folderAnalysis);
                     this.lastAnalyzedFolder = folderAnalysis;
                     
                     // Get current folder name for smart prompt
@@ -1077,46 +1136,68 @@
                     folderAnalysis.folderName = currentFolderName;
                     
                     if (folderAnalysis.needsSmartPrompt) {
-                        // Show simplified smart prompt for mixed content
-                        this.showFolderStatus(`Found ${folderAnalysis.images.length} images and ${folderAnalysis.subfolders.length} subfolders`);
+                        console.log('Mixed content detected - showing smart prompt');
                         window.OrbitalApp.showSmartPrompt(folderAnalysis);
                     } else if (folderAnalysis.hasImages && !folderAnalysis.hasSubfolders) {
-                        // Only images - proceed directly to image loading
-                        this.showFolderStatus(`Found ${folderAnalysis.images.length} images - proceeding to load`);
                         console.log('Only images found - proceeding to image loading');
                         window.OrbitalApp.showLoadingScreen();
-                        // TODO: Proceed to Step 3 (image loading)
+                        setTimeout(() => {
+                            window.OrbitalApp.showLoadingComplete();
+                        }, 2000);
                     } else if (folderAnalysis.hasSubfolders && !folderAnalysis.hasImages) {
-                        // Only subfolders - show folder list
+                        console.log('Only subfolders found - displaying folder list');
                         this.displayFolders(folderAnalysis.subfolders);
                     } else {
-                        // Empty folder
-                        this.showFolderStatus('This folder is empty');
+                        console.log('Empty folder detected');
                         this.displayFolders([]);
                     }
                     
                 } catch (error) {
-                    this.showFolderStatus(`Error loading folder: ${error.message}`);
+                    console.error('Error loading folder:', error);
+                    this.showErrorMessage(`Error loading folder: ${error.message}`);
                 }
             }
             
+            showLoadingState() {
+                const folderList = document.getElementById('folder-list');
+                folderList.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
+                        <div class="spinner"></div>
+                        <span>Loading folders...</span>
+                    </div>
+                `;
+            }
+            
+            showErrorMessage(message) {
+                const folderList = document.getElementById('folder-list');
+                folderList.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #ef4444;">
+                        <span>${message}</span>
+                    </div>
+                `;
+            }
+            
             async showSubfoldersOnly() {
+                console.log('Showing subfolders only');
                 if (this.lastAnalyzedFolder && this.lastAnalyzedFolder.hasSubfolders) {
                     this.displayFolders(this.lastAnalyzedFolder.subfolders);
+                } else {
+                    console.error('No subfolder data available');
+                    this.showErrorMessage('No subfolder data available');
                 }
             }
             
             displayFolders(folders) {
+                console.log(`Displaying ${folders.length} folders`);
                 const folderList = document.getElementById('folder-list');
                 folderList.innerHTML = '';
                 
                 if (folders.length === 0) {
                     folderList.innerHTML = `
                         <div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
-                            <span>No subfolders found</span>
+                            <span>No folders found</span>
                         </div>
                     `;
-                    this.showFolderStatus('No subfolders in this location');
                     return;
                 }
                 
@@ -1140,23 +1221,21 @@
                     
                     folderList.appendChild(div);
                 });
-                
-                this.showFolderStatus(`Showing ${folders.length} folders`);
             }
             
             async selectFolder(folder) {
-                // Add to history without duplicates
-                const isAlreadyInHistory = this.folderHistory.some(f => f.id === folder.id);
-                if (!isAlreadyInHistory) {
-                    this.folderHistory.push({ id: folder.id, name: folder.name });
-                }
+                console.log(`Selecting folder: ${folder.name} (${folder.id})`);
                 
+                // FIXED: Proper breadcrumb management
+                this.folderHistory.push({ id: folder.id, name: folder.name });
                 this.currentFolderId = folder.id;
                 this.updateBreadcrumbs();
+                
                 await this.loadFolder(folder.id);
             }
             
             async navigateUp() {
+                console.log('Navigating up');
                 if (this.folderHistory.length > 1) {
                     this.folderHistory.pop(); // Remove current folder
                     const parentFolder = this.folderHistory[this.folderHistory.length - 1];
@@ -1164,17 +1243,19 @@
                     this.updateBreadcrumbs();
                     await this.loadFolder(parentFolder.id);
                 } else {
-                    this.showFolderStatus('Already at root level');
+                    console.log('Already at root level');
                 }
             }
             
             async refreshCurrentFolder() {
+                console.log('Refreshing current folder');
                 await this.loadFolder(this.currentFolderId);
             }
             
             updateBreadcrumbs() {
                 const pathText = this.folderHistory.map(f => f.name).join(' / ');
                 document.getElementById('folder-subtitle').textContent = `Current: ${pathText}`;
+                console.log(`Breadcrumbs updated: ${pathText}`);
             }
             
             showFolderStatus(message) {
