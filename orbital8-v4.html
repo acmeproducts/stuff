@@ -366,7 +366,7 @@
         </div>
     </div>
 
-    <script src="https://alcdn.msauth.net/lib/1.4.17/js/msal.min.js">
+    <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <script>
         // ===== FIXED NAVIGATION STATE MANAGER =====
         class NavigationStateManager {
@@ -597,35 +597,47 @@
                         authority: 'https://login.microsoftonline.com/common',
                         redirectUri: window.location.origin + window.location.pathname
                     },
-                    cache: {
-                        cacheLocation: 'localStorage',
-                        storeAuthStateInCookie: false,
-                    }
+                    cache: { cacheLocation: 'sessionStorage' }
                 };
-                
-                this.msalInstance = new Msal.UserAgentApplication(msalConfig);
-                
-                if (this.msalInstance.getAccount()) {
-                    this.authenticated = true;
-                    this.activeAccount = this.msalInstance.getAccount();
-                    console.log('📁 OneDrive: Found existing authentication');
-                }
+                this.msalInstance = new msal.PublicClientApplication(msalConfig);
+                console.log('🔧 MSAL initialized for OneDrive');
             }
             
             async authenticate() {
                 try {
+                    console.log('🔐 Starting OneDrive authentication...');
                     const loginResponse = await this.msalInstance.loginPopup({
-                        scopes: ['Files.Read', 'Files.Read.All'],
-                        prompt: 'select_account'
+                        scopes: ['Files.ReadWrite.AppFolder', 'User.Read']
                     });
-                    
-                    this.authenticated = true;
                     this.activeAccount = loginResponse.account;
-                    console.log('✅ OneDrive authenticated successfully');
+                    this.msalInstance.setActiveAccount(this.activeAccount);
+                    this.authenticated = true;
+                    console.log('✅ OneDrive authentication successful');
                     return true;
                 } catch (error) {
+                    this.authenticated = false;
                     console.error('❌ OneDrive authentication failed:', error);
-                    throw error;
+                    throw new Error(`OneDrive authentication failed: ${error.message}`);
+                }
+            }
+            
+            async getAccessToken() {
+                if (!this.activeAccount) {
+                    throw new Error('No active account');
+                }
+                
+                try {
+                    const response = await this.msalInstance.acquireTokenSilent({
+                        scopes: ['Files.ReadWrite.AppFolder'],
+                        account: this.activeAccount
+                    });
+                    return response.accessToken;
+                } catch (silentError) {
+                    const response = await this.msalInstance.acquireTokenPopup({
+                        scopes: ['Files.ReadWrite.AppFolder'],
+                        account: this.activeAccount
+                    });
+                    return response.accessToken;
                 }
             }
             
@@ -635,14 +647,10 @@
                 }
                 
                 try {
-                    const tokenResponse = await this.msalInstance.acquireTokenSilent({
-                        scopes: ['Files.Read', 'Files.Read.All'],
-                        account: this.activeAccount
-                    });
-                    
+                    const accessToken = await this.getAccessToken();
                     const url = endpoint.startsWith('http') ? endpoint : `${this.apiBase}${endpoint}`;
                     const response = await fetch(url, {
-                        headers: { 'Authorization': `Bearer ${tokenResponse.accessToken}` }
+                        headers: { 'Authorization': `Bearer ${accessToken}` }
                     });
                     
                     if (!response.ok) {
