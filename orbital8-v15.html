@@ -1,0 +1,53 @@
+// ===== OneDrive Folder Manager - Mixed Content Strategy =====
+        class OneDriveFolderManager {
+            constructor(oneDriveProvider) {
+                this.provider = oneDriveProvider;
+                this.currentParentId = null;
+                this.currentParentPath = '';
+                this.breadcrumb = [];
+                this.mixedContentMode = false;
+                this.mixedContentParent = null;
+            }
+            
+            async loadInitialFolders() {
+                try {
+                    // Start from root and load first 50 folders
+                    this.currentParentId = 'root';
+                    this.currentParentPath = 'Root';
+                    this.breadcrumb = [{ id: 'root', name: 'Root' }];
+                    this.mixedContentMode = false;
+                    this.mixedContentParent = null;
+                    
+                    return await this.loadFoldersInParent('root');
+                } catch (error) {
+                    console.warn('Failed to load initial folders:', error);
+                    return [];
+                }
+            }
+            
+            async detectMixedContent(folderId) {
+                try {
+                    const endpoint = folderId === 'root' ? 
+                        '/me/drive/root/children' : 
+                        `/me/drive/items/${folderId}/children`;
+                    
+                    const response = await this.provider.makeApiCall(endpoint + '?$top=100');
+                    const data = await response.json();
+                    
+                    const folders = data.value.filter(item => item.folder);
+                    const images = data.value.filter(item => 
+                        item.file && item.file.mimeType && item.file.mimeType.startsWith('image/')
+                    );
+                    
+                    return {
+                        hasImages: images.length > 0,
+                        hasFolders: folders.length > 0,
+                        folders: folders,
+                        imageCount: images.length,
+                        isMixedContent: images.length > 0 && folders.length > 0
+                    };
+                } catch (error) {
+                    console.warn('Failed to detect mixed content:', error);
+                    return { hasImages: false, hasFolders: false, folders: [], imageCount: 0, isMixedContent: false };
+                }
+            }
