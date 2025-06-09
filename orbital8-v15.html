@@ -1,4 +1,27 @@
-<!DOCTYPE html>
+            async getInitialFolders() {
+                if (!this.folderManager) {
+                    this.folderManager = new OneDriveFolderManager(this.currentProvider);
+                }
+                return await this.folderManager.loadInitialFolders();
+            }
+            
+            async handleFolderClick(folder) {
+                if (!this.folderManager) {
+                    this.folderManager = new OneDriveFolderManager(this.currentProvider);
+                }
+                return await this.folderManager.handleFolderClick(folder);
+            }
+            
+            async cancelMixedContent() {
+                if (!this.folderManager) {
+                    this.folderManager = new OneDriveFolderManager(this.currentProvider);
+                }
+                return await this.folderManager.cancelMixedContent();
+            }
+            
+            isInMixedContentMode() {
+                return this.folderManager ? this.folderManager.isInMixedContentMode : false;
+            }<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -100,21 +123,55 @@
             flex: 1; overflow-y: auto; margin-bottom: 20px; max-height: 400px;
         }
         
-        /* ===== Simplified Folder List ===== */
-        .folder-item-simple {
-            padding: 16px 20px; margin-bottom: 8px;
+        .folder-item {
+            display: flex; align-items: center; padding: 12px 16px; margin-bottom: 8px;
             background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px; cursor: pointer; transition: all 0.2s ease; color: white;
-            font-size: 16px;
+            justify-content: space-between;
         }
         
-        .folder-item-simple:hover {
+        .folder-item:hover {
             background: rgba(255, 255, 255, 0.1);
             border-color: rgba(245, 158, 11, 0.3); transform: translateY(-1px);
         }
         
-        .folder-item-simple strong {
-            font-weight: 600;
+        .folder-icon {
+            width: 20px; height: 20px; margin-right: 12px; color: var(--app-accent);
+        }
+        
+        .folder-info { flex: 1; }
+        .folder-name { font-weight: 500; margin-bottom: 2px; }
+        .folder-date { font-size: 12px; color: rgba(255, 255, 255, 0.6); }
+        
+        .folder-actions { 
+            display: flex; gap: 8px; margin-left: 12px; 
+        }
+        
+        .folder-action-btn {
+            padding: 6px 12px; border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px; background: rgba(255, 255, 255, 0.1);
+            color: white; font-size: 12px; cursor: pointer;
+            transition: all 0.2s ease; backdrop-filter: blur(10px);
+        }
+        
+        .folder-action-btn:hover {
+            background: rgba(255, 255, 255, 0.2); transform: translateY(-1px);
+        }
+        
+        .folder-action-btn.browse-btn {
+            border-color: rgba(245, 158, 11, 0.4); color: var(--app-accent);
+        }
+        
+        .folder-action-btn.browse-btn:hover {
+            background: rgba(245, 158, 11, 0.2);
+        }
+        
+        .folder-action-btn.select-btn {
+            border-color: rgba(16, 185, 129, 0.4); color: #10b981;
+        }
+        
+        .folder-action-btn.select-btn:hover {
+            background: rgba(16, 185, 129, 0.2);
         }
         
         .spinner {
@@ -758,9 +815,13 @@
     <div class="screen hidden" id="folder-screen">
         <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
             <h2 class="title">Select a Folder</h2>
-            <div class="breadcrumb-nav" id="breadcrumb-nav">
-                <span class="breadcrumb-current">My Files</span>
+            <div class="breadcrumb-nav" id="breadcrumb-nav" style="display: none;">
+                <span class="breadcrumb-current">Root</span>
             </div>
+            <div class="mixed-content-notice" id="mixed-content-notice" style="display: none;">
+                This folder contains both images and subfolders. Choose what to load:
+            </div>
+            <div class="subtitle" id="folder-subtitle" style="margin-bottom: 16px; font-size: 14px;">Browse your OneDrive folders to find images</div>
             <div class="folder-list" id="folder-list">
                 <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
                     <div class="spinner"></div>
@@ -1049,6 +1110,8 @@
                     goBack: document.getElementById('go-back'),
                     logout: document.getElementById('logout'),
                     breadcrumbNav: document.getElementById('breadcrumb-nav'),
+                    mixedContentNotice: document.getElementById('mixed-content-notice'),
+                    folderSubtitle: document.getElementById('folder-subtitle'),
                     
                     // App elements
                     backButton: document.getElementById('back-button'),
@@ -1352,25 +1415,20 @@
             }
         }
 
-        // ===== Enhanced OneDrive Folder Manager - Smart Folder Selection =====
+        // ===== Simple OneDrive Folder Manager =====
         class OneDriveFolderManager {
             constructor(oneDriveProvider) {
                 this.provider = oneDriveProvider;
-                this.navigationStack = [];  // Track folder navigation history
-                this.currentFolderId = 'root';
-                this.currentFolderName = 'Root';
+                this.isInMixedContentMode = false;
+                this.mixedContentData = null;
             }
             
             async loadInitialFolders() {
                 try {
-                    this.navigationStack = [];
-                    this.currentFolderId = 'root';
-                    this.currentFolderName = 'Root';
+                    this.isInMixedContentMode = false;
+                    this.mixedContentData = null;
                     
-                    this.updateBreadcrumb();
-                    this.updateNavigation();
-                    
-                    // Load first 50 folders from root
+                    // Load first 50 folders from root, alphabetically sorted
                     return await this.loadFoldersFromLocation('root', 50);
                 } catch (error) {
                     console.warn('Failed to load initial folders:', error);
@@ -1402,23 +1460,19 @@
                             .map(folder => ({
                                 id: folder.id,
                                 name: folder.name,
-                                type: 'folder',
-                                createdTime: folder.createdDateTime,
-                                modifiedTime: folder.lastModifiedDateTime,
-                                itemCount: folder.folder.childCount || 0,
-                                hasChildren: (folder.folder.childCount || 0) > 0
+                                type: 'folder'
                             }));
                         
                         folders.push(...folderItems);
                         count += folderItems.length;
                         nextLink = data['@odata.nextLink'];
                         
-                        // Stop at limit to avoid overwhelming UI
+                        // Stop at limit
                         if (count >= limit) break;
                         
                     } while (nextLink && count < limit);
                     
-                    // Sort by name
+                    // Sort alphabetically
                     return folders.sort((a, b) => a.name.localeCompare(b.name));
                     
                 } catch (error) {
@@ -1427,36 +1481,7 @@
                 }
             }
             
-            async browseIntoFolder(folder) {
-                try {
-                    // Add current location to navigation stack
-                    this.navigationStack.push({
-                        id: this.currentFolderId,
-                        name: this.currentFolderName
-                    });
-                    
-                    this.currentFolderId = folder.id;
-                    this.currentFolderName = folder.name;
-                    
-                    this.updateBreadcrumb();
-                    this.updateNavigation();
-                    
-                    // Check for mixed content (images + subfolders)
-                    const mixedContent = await this.checkForMixedContent(folder.id);
-                    
-                    if (mixedContent.hasMixedContent) {
-                        return this.displayMixedContentOptions(mixedContent);
-                    } else {
-                        // No mixed content, just show subfolders
-                        return await this.loadFoldersFromLocation(folder.id);
-                    }
-                } catch (error) {
-                    console.warn('Failed to browse into folder:', error);
-                    return [];
-                }
-            }
-            
-            async checkForMixedContent(folderId) {
+            async checkFolderForMixedContent(folderId) {
                 try {
                     const endpoint = `/me/drive/items/${folderId}/children`;
                     const response = await this.provider.makeApiCall(endpoint);
@@ -1469,141 +1494,46 @@
                     const subfolders = data.value.filter(item => item.folder);
                     
                     return {
-                        hasMixedContent: images.length > 0 && subfolders.length > 0,
-                        images: images,
-                        subfolders: subfolders,
-                        parentFolder: { id: folderId, name: this.currentFolderName }
+                        hasImages: images.length > 0,
+                        hasSubfolders: subfolders.length > 0,
+                        subfolders: subfolders.map(subfolder => ({
+                            id: subfolder.id,
+                            name: subfolder.name,
+                            type: 'folder'
+                        }))
                     };
                 } catch (error) {
-                    console.warn('Failed to check for mixed content:', error);
-                    return { hasMixedContent: false, images: [], subfolders: [] };
+                    console.warn('Failed to check folder content:', error);
+                    return { hasImages: false, hasSubfolders: false, subfolders: [] };
                 }
             }
             
-            displayMixedContentOptions(mixedContent) {
-                // Show notice about mixed content
-                utils.elements.mixedContentNotice.style.display = 'block';
-                utils.elements.folderSubtitle.textContent = 
-                    `This folder has ${mixedContent.images.length} images and ${mixedContent.subfolders.length} subfolders`;
+            async handleFolderClick(folder) {
+                const content = await this.checkFolderForMixedContent(folder.id);
                 
-                // Create options array with parent folder first, then subfolders
-                const options = [
-                    {
-                        id: mixedContent.parentFolder.id,
-                        name: `📁 ${mixedContent.parentFolder.name} (${mixedContent.images.length} images)`,
-                        type: 'folder-with-images',
-                        isParent: true,
-                        itemCount: mixedContent.images.length
-                    },
-                    ...mixedContent.subfolders.map(subfolder => ({
-                        id: subfolder.id,
-                        name: subfolder.name,
-                        type: 'folder',
-                        createdTime: subfolder.createdDateTime,
-                        modifiedTime: subfolder.lastModifiedDateTime,
-                        itemCount: subfolder.folder.childCount || 0,
-                        hasChildren: (subfolder.folder.childCount || 0) > 0
-                    }))
-                ];
-                
-                return options;
-            }
-            
-            async goBack() {
-                if (this.navigationStack.length === 0) {
-                    // Already at root
-                    return await this.loadInitialFolders();
-                }
-                
-                const previousLocation = this.navigationStack.pop();
-                this.currentFolderId = previousLocation.id;
-                this.currentFolderName = previousLocation.name;
-                
-                this.updateBreadcrumb();
-                this.updateNavigation();
-                
-                // Hide mixed content notice when going back
-                utils.elements.mixedContentNotice.style.display = 'none';
-                utils.elements.folderSubtitle.textContent = 'Browse your OneDrive folders to find images';
-                
-                return await this.loadFoldersFromLocation(this.currentFolderId);
-            }
-            
-            updateBreadcrumb() {
-                const breadcrumb = utils.elements.breadcrumbNav;
-                
-                if (this.navigationStack.length === 0) {
-                    breadcrumb.style.display = 'none';
-                    return;
-                }
-                
-                breadcrumb.style.display = 'block';
-                
-                const pathItems = ['Root', ...this.navigationStack.slice(1).map(item => item.name), this.currentFolderName];
-                const breadcrumbHtml = pathItems.map((item, index) => {
-                    if (index === pathItems.length - 1) {
-                        return `<span class="breadcrumb-current">${item}</span>`;
-                    } else {
-                        return `<span class="breadcrumb-item" data-index="${index}">${item}</span>`;
-                    }
-                }).join('<span class="breadcrumb-separator">›</span>');
-                
-                breadcrumb.innerHTML = breadcrumbHtml;
-                
-                // Add click handlers for breadcrumb navigation
-                breadcrumb.querySelectorAll('.breadcrumb-item').forEach(item => {
-                    item.addEventListener('click', (e) => {
-                        const index = parseInt(e.target.dataset.index);
-                        this.navigateToBreadcrumbLevel(index);
-                    });
-                });
-            }
-            
-            async navigateToBreadcrumbLevel(index) {
-                // Navigate to a specific level in the breadcrumb
-                this.navigationStack = this.navigationStack.slice(0, index);
-                
-                if (index === 0) {
-                    this.currentFolderId = 'root';
-                    this.currentFolderName = 'Root';
+                // If has both images and subfolders, show choice
+                if (content.hasImages && content.hasSubfolders) {
+                    this.isInMixedContentMode = true;
+                    this.mixedContentData = {
+                        parentFolder: folder,
+                        subfolders: content.subfolders
+                    };
+                    
+                    // Return parent folder + subfolders for display
+                    return [
+                        { id: folder.id, name: folder.name, type: 'folder' },
+                        ...content.subfolders
+                    ];
                 } else {
-                    const targetLocation = this.navigationStack[index - 1];
-                    this.currentFolderId = targetLocation.id;
-                    this.currentFolderName = targetLocation.name;
-                }
-                
-                this.updateBreadcrumb();
-                this.updateNavigation();
-                
-                utils.elements.mixedContentNotice.style.display = 'none';
-                utils.elements.folderSubtitle.textContent = 'Browse your OneDrive folders to find images';
-                
-                const folders = await this.loadFoldersFromLocation(this.currentFolderId);
-                folderManager.displayFolders(folders);
-            }
-            
-            updateNavigation() {
-                const goBackBtn = utils.elements.goBack;
-                const refreshBtn = utils.elements.refreshFolders;
-                
-                if (this.navigationStack.length > 0) {
-                    goBackBtn.style.display = 'block';
-                    refreshBtn.textContent = 'Refresh';
-                } else {
-                    goBackBtn.style.display = 'none';
-                    refreshBtn.textContent = 'Refresh';
+                    // Just process this folder directly
+                    return 'SELECT_FOLDER';
                 }
             }
             
-            getCurrentPath() {
-                if (this.navigationStack.length === 0) {
-                    return 'Root';
-                }
-                return this.navigationStack.map(item => item.name).join(' › ') + ` › ${this.currentFolderName}`;
-            }
-            
-            canGoBack() {
-                return this.navigationStack.length > 0;
+            cancelMixedContent() {
+                this.isInMixedContentMode = false;
+                this.mixedContentData = null;
+                return this.loadInitialFolders();
             }
         }
 
@@ -2141,78 +2071,38 @@
                 
                 folders.forEach(folder => {
                     const div = document.createElement('div');
-                    div.className = 'folder-item-simple';
-                    div.dataset.folderId = folder.id;
-                    div.dataset.folderName = folder.name;
+                    div.className = 'folder-item';
                     
-                    // Clean folder name display - just the name in bold
-                    div.innerHTML = `<strong>${folder.name}</strong>`;
+                    // Different styling based on folder type
+                    const isParentWithImages = folder.isParent || folder.type === 'folder-with-images';
+                    const hasChildren = folder.hasChildren && !isParentWithImages;
+                    const iconColor = isParentWithImages ? '#10b981' : hasChildren ? 'var(--app-accent)' : 'rgba(255, 255, 255, 0.6)';
                     
-                    // Make entire folder item clickable
-                    div.addEventListener('click', () => {
-                        this.handleFolderClick(folder);
-                    });
+                    div.innerHTML = `
+                        <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: ${iconColor};">
+                            ${isParentWithImages ? 
+                                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H8a2 2 0 00-2 2v12a2 2 0 002 2z"/>' :
+                                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>'
+                            }
+                        </svg>
+                        <div class="folder-info">
+                            <div class="folder-name">${folder.name}</div>
+                            <div class="folder-date">
+                                ${new Date(folder.modifiedTime || folder.createdTime || Date.now()).toLocaleDateString()} • ${folder.itemCount} items
+                                ${isParentWithImages ? ' • Contains images' : hasChildren ? ' • Has subfolders' : ''}
+                            </div>
+                        </div>
+                        <div class="folder-actions">
+                            ${hasChildren ? `<button class="folder-action-btn browse-btn" data-folder-id="${folder.id}">Browse →</button>` : ''}
+                            <button class="folder-action-btn select-btn" data-folder-id="${folder.id}">Select</button>
+                        </div>
+                    `;
                     
                     utils.elements.folderList.appendChild(div);
                 });
-            },
-            
-            async handleFolderClick(folder) {
-                // Check if this folder has mixed content
-                const mixedContent = await this.checkMixedContent(folder);
                 
-                if (mixedContent.hasMixedContent) {
-                    // Show user choice: browse into subfolders or select parent folder for images
-                    this.showFolderChoiceDialog(folder, mixedContent);
-                } else if (mixedContent.hasSubfoldersOnly) {
-                    // Browse into folder
-                    this.browseInto(folder);
-                } else {
-                    // Select folder for images
-                    this.selectFolder(folder);
-                }
-            },
-            
-            async checkMixedContent(folder) {
-                try {
-                    const endpoint = `/me/drive/items/${folder.id}/children`;
-                    const response = await appState.cloudStorage.currentProvider.makeApiCall(endpoint);
-                    const data = await response.json();
-                    
-                    const images = data.value.filter(item => 
-                        item.file && item.file.mimeType && item.file.mimeType.startsWith('image/')
-                    );
-                    
-                    const subfolders = data.value.filter(item => item.folder);
-                    
-                    return {
-                        hasMixedContent: images.length > 0 && subfolders.length > 0,
-                        hasSubfoldersOnly: subfolders.length > 0 && images.length === 0,
-                        hasImagesOnly: images.length > 0 && subfolders.length === 0,
-                        images: images,
-                        subfolders: subfolders
-                    };
-                } catch (error) {
-                    console.warn('Failed to check folder content:', error);
-                    return { 
-                        hasMixedContent: false, 
-                        hasSubfoldersOnly: false,
-                        hasImagesOnly: false,
-                        images: [], 
-                        subfolders: [] 
-                    };
-                }
-            },
-            
-            showFolderChoiceDialog(folder, mixedContent) {
-                // Show a simple modal asking: Browse subfolders or Select this folder?
-                if (confirm(`"${folder.name}" contains ${mixedContent.images.length} images and ${mixedContent.subfolders.length} subfolders.\n\nClick OK to browse subfolders, or Cancel to select this folder for images.`)) {
-                    // Browse into subfolders
-                    this.browseInto(folder);
-                } else {
-                    // Select this folder for images
-                    this.selectFolder(folder);
-                }
+                // Add event listeners for action buttons
+                this.setupFolderActions();
             },
             
             setupFolderActions() {
