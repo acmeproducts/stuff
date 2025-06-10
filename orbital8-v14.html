@@ -104,6 +104,7 @@
             display: flex; align-items: center; padding: 16px 20px; margin-bottom: 8px;
             background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px; cursor: pointer; transition: all 0.2s ease; color: white;
+            text-align: left;
         }
         
         .folder-item:hover {
@@ -116,8 +117,18 @@
             flex-shrink: 0;
         }
         
-        .folder-info { flex: 1; text-align: left; }
-        .folder-name { font-weight: 500; font-size: 16px; text-align: left; }
+        .folder-info { 
+            flex: 1; 
+            text-align: left;
+        }
+        .folder-name { 
+            font-weight: 500; 
+            font-size: 16px; 
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
         
         .spinner {
             width: 20px; height: 20px; border: 2px solid rgba(245, 158, 11, 0.3);
@@ -718,8 +729,16 @@
     <!-- Authentication Screen -->
     <div class="screen" id="auth-screen">
         <div class="card">
-            <h1 class="title" style="font-size: 32px;">Orbital8</h1>
-            <p class="subtitle">Connect to OneDrive</p>
+            <h1 class="title" style="font-size: 32px;">Orbital8 V14</h1>
+            <p class="subtitle">Streamlined Folder Selection</p>
+            <div style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; text-align: left;">
+                <strong>✅ V14 Improvements:</strong><br>
+                • Starts from OneDrive root (not Downloads)<br>
+                • Shows first 50 folders only<br>
+                • Smart folder detection (real-time)<br>
+                • Clean left-justified folder names<br>
+                • No recursive deep scanning
+            </div>
             <button class="button" id="auth-button">Connect OneDrive</button>
             <div id="auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
@@ -729,6 +748,9 @@
     <div class="screen hidden" id="folder-screen">
         <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
             <h2 class="title">Select a Folder</h2>
+            <div style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px; border-radius: 6px; margin-bottom: 16px; font-size: 12px; text-align: center;">
+                V14 Streamlined: Root + 50 folders | Real-time detection | No deep scanning
+            </div>
             <div class="folder-list" id="folder-list">
                 <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
                     <div class="spinner"></div>
@@ -1323,16 +1345,16 @@
             constructor(oneDriveProvider) {
                 this.provider = oneDriveProvider;
                 this.currentParentId = 'root';
-                this.currentParentPath = 'OneDrive';
-                this.breadcrumb = [{ id: 'root', name: 'OneDrive' }];
+                this.currentParentPath = 'OneDrive Root';
+                this.breadcrumb = [{ id: 'root', name: 'OneDrive Root' }];
             }
             
             async loadInitialFolders() {
                 try {
-                    // Start at root, show first 50 folders
+                    // Always start from root, show first 50 folders
                     this.currentParentId = 'root';
-                    this.currentParentPath = 'OneDrive';
-                    this.breadcrumb = [{ id: 'root', name: 'OneDrive' }];
+                    this.currentParentPath = 'OneDrive Root';
+                    this.breadcrumb = [{ id: 'root', name: 'OneDrive Root' }];
                     
                     return await this.loadFoldersInParent('root');
                 } catch (error) {
@@ -1344,6 +1366,8 @@
             async loadFoldersInParent(parentId) {
                 try {
                     const folders = [];
+                    let count = 0;
+                    
                     const endpoint = parentId === 'root' ? 
                         '/me/drive/root/children' : 
                         `/me/drive/items/${parentId}/children`;
@@ -1351,14 +1375,18 @@
                     const response = await this.provider.makeApiCall(endpoint);
                     const data = await response.json();
                     
-                    // Get only folders, limit to first 50, no deep scanning
+                    // Filter for folders only and limit to MAX_FOLDER_DISPLAY
                     const folderItems = data.value
                         .filter(item => item.folder)
                         .slice(0, MAX_FOLDER_DISPLAY)
                         .map(folder => ({
                             id: folder.id,
                             name: folder.name,
-                            type: 'folder'
+                            type: 'folder',
+                            createdTime: folder.createdDateTime,
+                            modifiedTime: folder.lastModifiedDateTime,
+                            itemCount: folder.folder.childCount || 0,
+                            hasChildren: (folder.folder.childCount || 0) > 0
                         }));
                     
                     // Sort by name
@@ -1408,7 +1436,7 @@
                 return this.breadcrumb.length > 1;
             }
             
-            // Simple real-time check of folder contents
+            // Real-time folder content check (no caching)
             async checkFolderContents(folderId) {
                 try {
                     const endpoint = folderId === 'root' ? 
@@ -1421,7 +1449,7 @@
                     let hasImages = false;
                     let hasSubfolders = false;
                     
-                    // Simple check - just look at immediate children
+                    // Check first page only for immediate assessment
                     for (const item of data.value) {
                         if (item.folder) {
                             hasSubfolders = true;
@@ -1429,7 +1457,7 @@
                             hasImages = true;
                         }
                         
-                        // Stop as soon as we find both
+                        // Stop early if we found both
                         if (hasImages && hasSubfolders) {
                             break;
                         }
@@ -1956,20 +1984,23 @@
                 utils.elements.folderList.innerHTML = `
                     <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
                         <div class="spinner"></div>
-                        <span>Checking folder...</span>
+                        <span>Checking "${folder.name}" contents...</span>
                     </div>
                 `;
                 
                 await utils.withErrorHandling(async () => {
-                    // Real-time check of folder contents
+                    console.log(`Checking folder: ${folder.name} (${folder.id})`);
                     const { hasImages, hasSubfolders } = await appState.cloudStorage.checkFolderContents(folder.id);
+                    console.log(`Folder ${folder.name}: images=${hasImages}, subfolders=${hasSubfolders}`);
                     
                     if (hasImages && hasSubfolders) {
-                        // Show parent folder and subfolders for selection
+                        // Show parent folder and subfolders
+                        console.log(`Folder ${folder.name} has both images and subfolders - showing both options`);
                         const subfolders = await appState.cloudStorage.drillIntoFolder(folder);
                         this.displayParentAndSubfolders(folder, subfolders);
                     } else {
-                        // Direct selection
+                        // Select this folder directly
+                        console.log(`Folder ${folder.name} - selecting directly`);
                         this.selectFolder(folder);
                     }
                 }, 'Error processing folder');
@@ -1989,7 +2020,6 @@
                     return;
                 }
                 
-                // Simple display - just folder icon and left-justified name
                 folders.forEach(folder => {
                     const div = document.createElement('div');
                     div.className = 'folder-item';
@@ -2010,21 +2040,33 @@
             displayParentAndSubfolders(parentFolder, subfolders) {
                 utils.elements.folderList.innerHTML = '';
                 
-                // Display parent folder first - clean icon and left-justified name
+                // Add parent folder first with clear indication
                 const parentDiv = document.createElement('div');
                 parentDiv.className = 'folder-item';
+                parentDiv.style.borderColor = 'rgba(16, 185, 129, 0.4)';
                 parentDiv.innerHTML = `
-                    <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: #10b981;">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
                     </svg>
                     <div class="folder-info">
-                        <div class="folder-name">${parentFolder.name}</div>
+                        <div class="folder-name">📁 ${parentFolder.name} (This Folder)</div>
                     </div>
                 `;
                 parentDiv.addEventListener('click', () => this.selectFolder(parentFolder));
                 utils.elements.folderList.appendChild(parentDiv);
                 
-                // Display subfolders - clean icon and left-justified name
+                // Add separator if there are subfolders
+                if (subfolders.length > 0) {
+                    const separator = document.createElement('div');
+                    separator.style.padding = '8px 20px';
+                    separator.style.color = 'rgba(255, 255, 255, 0.5)';
+                    separator.style.fontSize = '12px';
+                    separator.style.textAlign = 'left';
+                    separator.textContent = 'Or choose a subfolder:';
+                    utils.elements.folderList.appendChild(separator);
+                }
+                
+                // Add subfolders
                 subfolders.forEach(subfolder => {
                     const div = document.createElement('div');
                     div.className = 'folder-item';
@@ -2048,59 +2090,102 @@
                 }
                 
                 appState.isProcessing = true;
+                appState.abortController = new AbortController();
                 appState.currentFolder.id = folder.id;
                 appState.currentFolder.name = folder.name;
                 
                 utils.showScreen('loading-screen');
                 utils.updateLoadingProgress(0, 0);
                 
-                utils.elements.statusLog.innerHTML = '<div class="status-log-entry info">Loading images from folder...</div>';
+                utils.elements.statusLog.innerHTML = '<div class="status-log-entry info">Starting image processing...</div>';
                 appState.metadataExtractor.setStatusLog(utils.elements.statusLog);
+                
+                appState.cloudStorage.currentProvider.onProgressCallback = (count) => {
+                    utils.updateLoadingProgress(count, 0);
+                };
                 
                 try {
                     await utils.withErrorHandling(async () => {
-                        // Direct fetch from OneDrive - no caching complexity
-                        utils.elements.loadingMessage.textContent = 'Loading images from OneDrive...';
+                        // Check cache first (V3 pattern)
+                        const cachedFiles = await appState.fileCache.getCachedFiles(folder.id);
                         
-                        // Load user metadata
-                        await appState.userMetadataManager.loadMetadata();
-                        
-                        const result = await appState.cloudStorage.getFiles(folder.id);
-                        const files = result.files || [];
-                        
-                        if (files.length === 0) {
-                            utils.showToast('No images found in this folder', 'info', true);
-                            setTimeout(() => utils.showScreen('folder-screen'), 2000);
-                            return;
-                        }
-                        
-                        utils.updateLoadingProgress(files.length, files.length);
-                        
-                        // Process files with user metadata
-                        appState.imageFiles = files.map(file => {
-                            const userMetadata = appState.userMetadataManager.getUserMetadata(file.id);
+                        if (cachedFiles) {
+                            utils.elements.loadingMessage.textContent = 'Loading from cache...';
+                            appState.metadataExtractor.log('📥 Loading files from cache', 'success');
                             
-                            return {
-                                id: file.id,
-                                name: file.name,
-                                filename: file.name,
-                                originalName: file.name,
-                                mimeType: file.mimeType,
-                                size: file.size,
-                                createdTime: file.createdTime,
-                                modifiedTime: file.modifiedTime,
-                                thumbnails: file.thumbnails,
-                                downloadUrl: file.downloadUrl,
-                                extractedMetadata: {},
+                            const files = cachedFiles;
+                            if (files.length === 0) {
+                                utils.showToast('No images found in this folder', 'info', true);
+                                setTimeout(() => utils.showScreen('folder-screen'), 2000);
+                                return;
+                            }
+                            
+                            utils.updateLoadingProgress(files.length, files.length);
+                            
+                            appState.imageFiles = files;
+                            appState.metadataExtractor.log(`✅ Loaded ${files.length} images from cache`, 'success');
+                            
+                        } else {
+                            // Fresh fetch from OneDrive
+                            utils.elements.loadingMessage.textContent = 'Loading images from OneDrive...';
+                            appState.metadataExtractor.log('🔄 Fetching fresh data from OneDrive', 'info');
+                            
+                            // Load user metadata first
+                            utils.elements.loadingMessage.textContent = 'Loading user metadata...';
+                            await appState.userMetadataManager.loadMetadata();
+                            
+                            const result = await appState.cloudStorage.getFiles(folder.id);
+                            const files = result.files || [];
+                            
+                            if (files.length === 0) {
+                                utils.showToast('No images found in this folder', 'info', true);
+                                setTimeout(() => utils.showScreen('folder-screen'), 2000);
+                                return;
+                            }
+                            
+                            utils.updateLoadingProgress(files.length, files.length);
+                            
+                            // Process files with user metadata
+                            appState.imageFiles = files.map(file => {
+                                const userMetadata = appState.userMetadataManager.getUserMetadata(file.id);
                                 
-                                // User metadata from OneDrive AppFolder
-                                stack: userMetadata.stack || 'in',
-                                tags: userMetadata.tags || [],
-                                qualityRating: userMetadata.qualityRating || 0,
-                                contentRating: userMetadata.contentRating || 0,
-                                notes: userMetadata.notes || ''
-                            };
-                        });
+                                return {
+                                    id: file.id,
+                                    name: file.name,
+                                    filename: file.name,
+                                    originalName: file.name,
+                                    mimeType: file.mimeType,
+                                    size: file.size,
+                                    createdTime: file.createdTime,
+                                    modifiedTime: file.modifiedTime,
+                                    thumbnails: file.thumbnails,
+                                    downloadUrl: file.downloadUrl,
+                                    extractedMetadata: {},
+                                    
+                                    // User metadata from OneDrive AppFolder
+                                    stack: userMetadata.stack || 'in',
+                                    tags: userMetadata.tags || [],
+                                    qualityRating: userMetadata.qualityRating || 0,
+                                    contentRating: userMetadata.contentRating || 0,
+                                    notes: userMetadata.notes || ''
+                                };
+                            });
+                            
+                            const pngCount = files.filter(f => f.mimeType === 'image/png').length;
+                            
+                            appState.metadataExtractor.log(`🎯 Files loaded:`, 'info');
+                            appState.metadataExtractor.log(`   📁 Total images: ${files.length}`, 'info');
+                            appState.metadataExtractor.log(`   🖼️ PNG files: ${pngCount}`, 'info');
+                            
+                            // Cache the files immediately
+                            await appState.fileCache.setCachedFiles(folder.id, appState.imageFiles);
+                            appState.metadataExtractor.log('💾 Files cached for future use', 'success');
+                            
+                            // Start background metadata extraction (V3 pattern)
+                            if (pngCount > 0) {
+                                this.extractMetadataInBackground(appState.imageFiles.filter(f => f.mimeType === 'image/png'));
+                            }
+                        }
                         
                         stackManager.updateStacks();
                         appState.currentImageIndex = 0;
@@ -2116,8 +2201,87 @@
                     }, 'Error loading images from folder');
                 } finally {
                     appState.isProcessing = false;
+                    if (appState.cloudStorage.currentProvider) {
+                        appState.cloudStorage.currentProvider.onProgressCallback = null;
+                    }
                 }
-        };
+            },
+            
+            async extractMetadataInBackground(pngFiles) {
+                appState.metadataExtractor.log(`🔄 Starting background metadata extraction for ${pngFiles.length} PNG files`, 'info');
+                
+                const BATCH_SIZE = 5; // Process 5 files concurrently like V3
+                let extractedCount = 0;
+                let cachedCount = 0;
+                
+                for (let i = 0; i < pngFiles.length; i += BATCH_SIZE) {
+                    if (appState.abortController && appState.abortController.signal.aborted) {
+                        break;
+                    }
+                    
+                    const batch = pngFiles.slice(i, i + BATCH_SIZE);
+                    const batchPromises = batch.map(file => this.processFileMetadata(file));
+                    
+                    try {
+                        const results = await Promise.allSettled(batchPromises);
+                        results.forEach((result, index) => {
+                            if (result.status === 'fulfilled') {
+                                if (result.value.extracted) extractedCount++;
+                                if (result.value.cached) cachedCount++;
+                            } else {
+                                const fileName = batch[index]?.name || 'unknown';
+                                appState.metadataExtractor.log(`⚠️ Failed to process ${fileName}`, 'error');
+                            }
+                        });
+                        
+                        // Update cache with new metadata
+                        await appState.fileCache.setCachedFiles(appState.currentFolder.id, appState.imageFiles);
+                        
+                        // Small delay to prevent overwhelming the API
+                        if (i + BATCH_SIZE < pngFiles.length) {
+                            await new Promise(resolve => setTimeout(resolve, 200));
+                        }
+                        
+                    } catch (error) {
+                        appState.metadataExtractor.log(`❌ Batch processing error: ${error.message}`, 'error');
+                    }
+                }
+                
+                appState.metadataExtractor.log(`🎉 Background extraction complete!`, 'success');
+                appState.metadataExtractor.log(`   ✅ New extractions: ${extractedCount}`, 'success');
+                appState.metadataExtractor.log(`   📥 From cache: ${cachedCount}`, 'info');
+            },
+            
+            async processFileMetadata(file) {
+                if (file.mimeType !== 'image/png') {
+                    return { extracted: false, cached: false };
+                }
+                
+                const cachedMetadata = await appState.fileCache.getMetadata(file.id, file.modifiedTime);
+                if (cachedMetadata) {
+                    file.extractedMetadata = cachedMetadata;
+                    return { extracted: false, cached: true };
+                }
+                
+                try {
+                    const metadata = await appState.metadataExtractor.fetchMetadata(file);
+                    
+                    if (metadata.error) {
+                        throw new Error(metadata.error);
+                    }
+                    
+                    if (Object.keys(metadata).length > 0) {
+                        file.extractedMetadata = metadata;
+                        await appState.fileCache.setMetadata(file.id, file.modifiedTime, metadata);
+                        return { extracted: true, cached: false };
+                    } else {
+                        return { extracted: false, cached: false };
+                    }
+                    
+                } catch (error) {
+                    return { extracted: false, cached: false };
+                }
+            },
         };
         
         // ===== Stack Manager =====
