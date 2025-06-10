@@ -729,15 +729,15 @@
     <!-- Authentication Screen -->
     <div class="screen" id="auth-screen">
         <div class="card">
-            <h1 class="title" style="font-size: 32px;">Orbital8 V14</h1>
+            <h1 class="title" style="font-size: 32px;">Orbital8 V14.1</h1>
             <p class="subtitle">Streamlined Folder Selection</p>
             <div style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; text-align: left;">
-                <strong>✅ V14 Improvements:</strong><br>
+                <strong>✅ V14.1 Fixed:</strong><br>
                 • Starts from OneDrive root (not Downloads)<br>
                 • Shows first 50 folders only<br>
-                • Smart folder detection (real-time)<br>
+                • Smart folder detection (real-time, no recursion)<br>
                 • Clean left-justified folder names<br>
-                • No recursive deep scanning
+                • Fixed mixed content handling
             </div>
             <button class="button" id="auth-button">Connect OneDrive</button>
             <div id="auth-status" class="status info">Click to sign in with your Microsoft account</div>
@@ -749,7 +749,7 @@
         <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
             <h2 class="title">Select a Folder</h2>
             <div style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px; border-radius: 6px; margin-bottom: 16px; font-size: 12px; text-align: center;">
-                V14 Streamlined: Root + 50 folders | Real-time detection | No deep scanning
+                V14.1 Fixed: Root + 50 folders | Real-time detection | No recursion | Mixed content handling
             </div>
             <div class="folder-list" id="folder-list">
                 <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
@@ -1469,6 +1469,39 @@
                     return { hasImages: false, hasSubfolders: false };
                 }
             }
+            
+            // Get subfolders without changing navigation state
+            async getSubfoldersOnly(folderId) {
+                try {
+                    const endpoint = folderId === 'root' ? 
+                        '/me/drive/root/children' : 
+                        `/me/drive/items/${folderId}/children`;
+                    
+                    const response = await this.provider.makeApiCall(endpoint);
+                    const data = await response.json();
+                    
+                    // Filter for folders only, limit to first 50
+                    const folderItems = data.value
+                        .filter(item => item.folder)
+                        .slice(0, MAX_FOLDER_DISPLAY)
+                        .map(folder => ({
+                            id: folder.id,
+                            name: folder.name,
+                            type: 'folder',
+                            createdTime: folder.createdDateTime,
+                            modifiedTime: folder.lastModifiedDateTime,
+                            itemCount: folder.folder.childCount || 0,
+                            hasChildren: (folder.folder.childCount || 0) > 0
+                        }));
+                    
+                    // Sort by name and return (NO navigation state changes)
+                    return folderItems.sort((a, b) => a.name.localeCompare(b.name));
+                    
+                } catch (error) {
+                    console.warn('Failed to get subfolders:', error);
+                    return [];
+                }
+            }
         }
 
         // ===== OneDrive User Metadata Manager =====
@@ -1994,9 +2027,9 @@
                     console.log(`Folder ${folder.name}: images=${hasImages}, subfolders=${hasSubfolders}`);
                     
                     if (hasImages && hasSubfolders) {
-                        // Show parent folder and subfolders
+                        // Show parent folder and subfolders WITHOUT navigation changes
                         console.log(`Folder ${folder.name} has both images and subfolders - showing both options`);
-                        const subfolders = await appState.cloudStorage.drillIntoFolder(folder);
+                        const subfolders = await appState.cloudStorage.getSubfoldersOnly(folder.id);
                         this.displayParentAndSubfolders(folder, subfolders);
                     } else {
                         // Select this folder directly
