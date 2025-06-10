@@ -353,7 +353,8 @@
         
         // ===== App State =====
         const appState = {
-            oneDriveProvider: null,
+            cloudStorage: null,
+            userMetadataManager: null,
             metadataExtractor: null,
             fileCache: null,
             currentFolder: { id: null, name: '' },
@@ -508,197 +509,379 @@
             }
         };
         
-        // ===== Unified OneDrive Provider (Merged from OneDriveProvider + OneDriveFolderManager) =====
-        class UnifiedOneDriveProvider {
+        // ===== OneDrive Provider (Original Authentication) =====
+        class OneDriveProvider {
             constructor() {
+                this.name = 'onedrive';
+                this.apiBase = 'https://graph.microsoft.com/v1.0';
+                this.isAuthenticated = false;
+                this.activeAccount = null;
                 this.msalInstance = null;
-                this.accessToken = null;
-                this.initialized = false;
-                this.currentFolderId = null;
-                this.breadcrumbs = [];
+                this.initMSAL();
             }
             
-            async initialize() {
-                if (this.initialized) return;
-                
+            initMSAL() {
                 const msalConfig = {
                     auth: {
-                        clientId: '5a5b9f41-7088-4cae-a9d6-83c2493bc8ad',
+                        clientId: 'b407fd45-c551-4dbb-9da5-cab3a2c5a949',
                         authority: 'https://login.microsoftonline.com/common',
                         redirectUri: window.location.origin + window.location.pathname
                     },
-                    cache: {
-                        cacheLocation: "localStorage",
-                        storeAuthStateInCookie: false
-                    }
+                    cache: { cacheLocation: 'sessionStorage' }
                 };
-                
                 this.msalInstance = new msal.PublicClientApplication(msalConfig);
-                await this.msalInstance.initialize();
-                this.initialized = true;
             }
             
             async authenticate() {
-                if (!this.initialized) await this.initialize();
-                
-                const loginRequest = {
-                    scopes: ['files.readwrite', 'files.readwrite.all', 'user.read']
-                };
+                try {
+                    const loginResponse = await this.msalInstance.loginPopup({
+                        scopes: ['Files.ReadWrite.AppFolder', 'User.Read']
+                    });
+                    this.activeAccount = loginResponse.account;
+                    this.msalInstance.setActiveAccount(this.activeAccount);
+                    this.isAuthenticated = true;
+                    return true;
+                } catch (error) {
+                    this.isAuthenticated = false;
+                    throw new Error(`Authentication failed: ${error.message}`);
+                }
+            }
+            
+            async getAccessToken() {
+                if (!this.activeAccount) {
+                    throw new Error('No active account');
+                }
                 
                 try {
-                    // Try silent authentication first
-                    const accounts = this.msalInstance.getAllAccounts();
-                    if (accounts.length > 0) {
-                        const silentRequest = { ...loginRequest, account: accounts[0] };
-                        const response = await this.msalInstance.acquireTokenSilent(silentRequest);
-                        this.accessToken = response.accessToken;
-                        return { success: true };
-                    }
-                    
-                    // Fallback to popup
-                    const response = await this.msalInstance.acquireTokenPopup(loginRequest);
-                    this.accessToken = response.accessToken;
-                    return { success: true };
-                } catch (error) {
-                    return { success: false, error: error.message };
+                    const response = await this.msalInstance.acquireTokenSilent({
+                        scopes: ['Files.ReadWrite.AppFolder'],
+                        account: this.activeAccount
+                    });
+                    return response.accessToken;
+                } catch (silentError) {
+                    const response = await this.msalInstance.acquireTokenPopup({
+                        scopes: ['Files.ReadWrite.AppFolder'],
+                        account: this.activeAccount
+                    });
+                    return response.accessToken;
                 }
             }
             
-            async makeRequest(url, options = {}) {
-                if (!this.accessToken) throw new Error('Not authenticated');
+            async makeApiCall(endpoint, options = {}) {
+                const accessToken = await this.getAccessToken();
+                const url = `${this.apiBase}${endpoint}`;
+                const headers = {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                };
                 
-                const response = await fetch(url, {
-                    ...options,
-                    headers: {
-                        'Authorization': `Bearer ${this.accessToken}`,
-                        'Content-Type': 'application/json',
-                        ...options.headers
-                    }
-                });
+                const response = await fetch(url, { ...options, headers });
                 
                 if (!response.ok) {
-                    throw new Error(`Request failed: ${response.status} ${response.statusText}`);
+                    throw new Error(`API call failed: ${response.statusText}`);
                 }
                 
-                return response.json();
+                return response;
             }
             
-            async loadFolders(folderId = null) {
-                const url = folderId 
-                    ? `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children`
-                    : 'https://graph.microsoft.com/v1.0/me/drive/special/downloads/children';
+            async getFiles(folderId = 'root') {
+                const allFiles = [];
+                let nextLink = null;
+                let endpoint = folderId === 'root' ? 
+                    '/me/drive/root/children' : 
+                    `/me/drive/items/${folderId}/children`;
                 
-                const data = await this.makeRequest(url);
+                do {
+                    const url = nextLink || endpoint;
+                    const response = nextLink ? 
+                        await this.makeApiCall(nextLink.replace(this.apiBase, '')) :
+                        await this.makeApiCall(url);
+                    
+                    const data = await response.json();
+                    
+                    const files = data.value
+                        .filter(item => item.file && item.file.mimeType && item.file.mimeType.startsWith('image/'))
+                        .map(item => {
+                            return {
+                                id: item.id,
+                                name: item.name,
+                                type: 'file',
+                                mimeType: item.file.mimeType,
+                                size: item.size || 0,
+                                createdTime: item.createdDateTime,
+                                modifiedTime: item.lastModifiedDateTime,
+                                thumbnails: item.thumbnails && item.thumbnails.length > 0 ? {
+                                    large: item.thumbnails[0].large
+                                } : null,
+                                downloadUrl: item['@microsoft.graph.downloadUrl']
+                            };
+                        });
+                    
+                    allFiles.push(...files);
+                    nextLink = data['@odata.nextLink'];
+                    
+                    if (this.onProgressCallback) {
+                        this.onProgressCallback(allFiles.length);
+                    }
+                    
+                } while (nextLink);
                 
-                // Separate folders and images
-                const folders = data.value.filter(item => item.folder).slice(0, 50);
+                return { folders: [], files: allFiles };
+            }
+            
+            async deleteFile(fileId) {
+                await this.makeApiCall(`/me/drive/items/${fileId}`, {
+                    method: 'DELETE'
+                });
+                return true;
+            }
+            
+            async disconnect() {
+                this.isAuthenticated = false;
+                this.activeAccount = null;
+                if (this.msalInstance) {
+                    await this.msalInstance.logoutPopup();
+                }
+            }
+        }
+        
+        // ===== OneDrive Folder Manager =====
+        class OneDriveFolderManager {
+            constructor(oneDriveProvider) {
+                this.provider = oneDriveProvider;
+                this.currentParentId = null;
+                this.currentParentPath = '';
+                this.breadcrumb = [];
+            }
+            
+            async getDownloadsFolder() {
+                try {
+                    const response = await this.provider.makeApiCall('/me/drive/root/children');
+                    const data = await response.json();
+                    
+                    const downloadsFolder = data.value.find(item => 
+                        item.folder && item.name.toLowerCase() === 'downloads'
+                    );
+                    
+                    if (downloadsFolder) {
+                        return downloadsFolder;
+                    }
+                    
+                    return { id: 'root', name: 'OneDrive Root' };
+                } catch (error) {
+                    return { id: 'root', name: 'OneDrive Root' };
+                }
+            }
+            
+            async loadInitialFolders() {
+                const downloadsFolder = await this.getDownloadsFolder();
+                this.breadcrumb = [downloadsFolder];
+                this.currentParentId = downloadsFolder.id;
+                this.currentParentPath = downloadsFolder.name;
+                
+                return await this.loadFoldersInParent(downloadsFolder.id);
+            }
+            
+            async loadFoldersInParent(parentId) {
+                const endpoint = parentId === 'root' ? 
+                    '/me/drive/root/children' : 
+                    `/me/drive/items/${parentId}/children`;
+                
+                const response = await this.provider.makeApiCall(endpoint);
+                const data = await response.json();
+                
+                const folders = data.value.filter(item => item.folder);
                 const images = data.value.filter(item => 
-                    item.file && ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(item.file.mimeType)
+                    item.file && item.file.mimeType && item.file.mimeType.startsWith('image/')
                 );
                 
-                // Mixed content strategy - if folder has both images and subfolders, allow selection of parent
                 const result = [];
                 
                 if (images.length > 0) {
-                    // Add parent folder as selectable option
-                    const parentItem = folderId ? await this.makeRequest(`https://graph.microsoft.com/v1.0/me/drive/items/${folderId}`) : 
-                        await this.makeRequest('https://graph.microsoft.com/v1.0/me/drive/special/downloads');
-                    
                     result.push({
-                        ...parentItem,
-                        displayName: `📁 ${parentItem.name} (${images.length} images)`,
-                        isParentFolder: true,
-                        imageCount: images.length
+                        id: parentId,
+                        name: `Current Folder (${images.length} images)`,
+                        type: 'current_folder',
+                        imageCount: images.length,
+                        isSelectable: true
                     });
                 }
                 
-                // Add subfolders
-                folders.forEach(folder => {
+                folders.slice(0, 50).forEach(folder => {
                     result.push({
-                        ...folder,
-                        displayName: `📁 ${folder.name}`,
-                        isParentFolder: false
+                        id: folder.id,
+                        name: folder.name,
+                        type: 'folder',
+                        createdTime: folder.createdDateTime,
+                        modifiedTime: folder.lastModifiedDateTime,
+                        isSelectable: false
                     });
                 });
                 
                 return result;
             }
             
-            async loadImages(folderId) {
-                const url = `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children`;
-                const data = await this.makeRequest(url);
+            async drillIntoFolder(folder) {
+                this.breadcrumb.push({
+                    id: folder.id,
+                    name: folder.name
+                });
                 
-                return data.value.filter(item => 
-                    item.file && ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(item.file.mimeType)
-                ).map(item => ({
-                    id: item.id,
-                    name: item.name,
-                    size: item.size,
-                    mimeType: item.file.mimeType,
-                    createdTime: item.createdDateTime,
-                    modifiedTime: item.lastModifiedDateTime,
-                    downloadUrl: item['@microsoft.graph.downloadUrl'],
-                    thumbnailUrl: item.thumbnails?.[0]?.large?.url
-                }));
+                this.currentParentId = folder.id;
+                this.currentParentPath = this.breadcrumb.map(b => b.name).join(' / ');
+                
+                return await this.loadFoldersInParent(folder.id);
             }
             
-            async getUserData(fileId) {
+            async navigateToParent() {
+                if (this.breadcrumb.length <= 1) {
+                    return await this.loadFoldersInParent(this.currentParentId);
+                }
+                
+                this.breadcrumb.pop();
+                const parentFolder = this.breadcrumb[this.breadcrumb.length - 1];
+                
+                this.currentParentId = parentFolder.id;
+                this.currentParentPath = this.breadcrumb.map(b => b.name).join(' / ');
+                
+                return await this.loadFoldersInParent(parentFolder.id);
+            }
+            
+            getCurrentPath() {
+                return this.currentParentPath;
+            }
+            
+            canGoUp() {
+                return this.breadcrumb.length > 1;
+            }
+        }
+        
+        // ===== Cloud Storage Module =====
+        class CloudStorageModule {
+            constructor() {
+                this.currentProvider = new OneDriveProvider();
+                this.folderManager = null;
+            }
+            
+            async authenticate() {
+                const result = await this.currentProvider.authenticate();
+                if (result) {
+                    this.folderManager = new OneDriveFolderManager(this.currentProvider);
+                }
+                return result;
+            }
+            
+            isAuthenticated() {
+                return this.currentProvider?.isAuthenticated || false;
+            }
+            
+            async getFiles(folderId = 'root') {
+                return await this.currentProvider.getFiles(folderId);
+            }
+            
+            async getInitialFolders() {
+                if (!this.folderManager) {
+                    this.folderManager = new OneDriveFolderManager(this.currentProvider);
+                }
+                return await this.folderManager.loadInitialFolders();
+            }
+            
+            async drillIntoFolder(folder) {
+                if (!this.folderManager) {
+                    this.folderManager = new OneDriveFolderManager(this.currentProvider);
+                }
+                return await this.folderManager.drillIntoFolder(folder);
+            }
+            
+            async navigateUp() {
+                if (!this.folderManager) {
+                    this.folderManager = new OneDriveFolderManager(this.currentProvider);
+                }
+                return await this.folderManager.navigateToParent();
+            }
+            
+            getCurrentPath() {
+                return this.folderManager ? this.folderManager.getCurrentPath() : '';
+            }
+            
+            canGoUp() {
+                return this.folderManager ? this.folderManager.canGoUp() : false;
+            }
+            
+            async disconnect() {
+                await this.currentProvider.disconnect();
+                this.folderManager = null;
+            }
+        }
+        
+        // ===== OneDrive User Metadata Manager =====
+        class OneDriveMetadataManager {
+            constructor(oneDriveProvider) {
+                this.provider = oneDriveProvider;
+                this.cache = new Map();
+                this.cacheTimestamp = 0;
+                this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
+            }
+            
+            async loadMetadata() {
                 try {
-                    const url = `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}`;
-                    const item = await this.makeRequest(url);
-                    
-                    // Parse sidecar data from description field
-                    const description = item.description || '';
-                    const sidecarData = {};
-                    
-                    if (description.includes('ORBITAL8_DATA:')) {
-                        try {
-                            const dataString = description.split('ORBITAL8_DATA:')[1];
-                            Object.assign(sidecarData, JSON.parse(dataString));
-                        } catch (e) {
-                            // Ignore parsing errors
-                        }
+                    const now = Date.now();
+                    if (this.cache.size > 0 && (now - this.cacheTimestamp) < this.cacheExpiry) {
+                        return this.cache;
                     }
                     
-                    return {
-                        stack: sidecarData.stack || 'in',
-                        tags: sidecarData.tags || [],
-                        notes: sidecarData.notes || '',
-                        qualityRating: sidecarData.qualityRating || 0,
-                        contentRating: sidecarData.contentRating || 0
-                    };
+                    const response = await this.provider.makeApiCall('/me/drive/special/approot:/tags.json:/content');
+                    const data = await response.json();
+                    
+                    if (data && data.files) {
+                        this.cache.clear();
+                        Object.entries(data.files).forEach(([fileId, metadata]) => {
+                            this.cache.set(fileId, metadata);
+                        });
+                        this.cacheTimestamp = now;
+                    }
+                    
+                    return this.cache;
                 } catch (error) {
-                    return {
-                        stack: 'in',
-                        tags: [],
-                        notes: '',
-                        qualityRating: 0,
-                        contentRating: 0
-                    };
+                    if (error.message.includes('404')) {
+                        await this.saveMetadata();
+                        return this.cache;
+                    }
+                    return this.cache;
                 }
             }
             
-            async updateUserData(fileId, userData) {
-                const sidecarData = {
-                    stack: userData.stack,
-                    tags: userData.tags,
-                    notes: userData.notes,
-                    qualityRating: userData.qualityRating,
-                    contentRating: userData.contentRating
-                };
-                
-                const description = `ORBITAL8_DATA:${JSON.stringify(sidecarData)}`;
-                
-                const url = `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}`;
-                await this.makeRequest(url, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ description })
-                });
+            async saveMetadata() {
+                try {
+                    const data = {
+                        files: Object.fromEntries(this.cache),
+                        lastUpdated: new Date().toISOString()
+                    };
+                    
+                    await this.provider.makeApiCall('/me/drive/special/approot:/tags.json:/content', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                } catch (error) {
+                    // Ignore save errors
+                }
             }
             
-            async moveToTrash(fileId) {
-                const url = `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}`;
-                await this.makeRequest(url, { method: 'DELETE' });
+            getFileMetadata(fileId) {
+                return this.cache.get(fileId) || {
+                    stack: 'in',
+                    tags: [],
+                    notes: '',
+                    qualityRating: 0,
+                    contentRating: 0
+                };
+            }
+            
+            async updateFileMetadata(fileId, metadata) {
+                this.cache.set(fileId, { ...this.getFileMetadata(fileId), ...metadata });
+                await this.saveMetadata();
             }
         }
         
@@ -903,17 +1086,18 @@
             currentSort: 'name-asc',
             
             async loadUserData() {
-                const promises = appState.imageFiles.map(async file => {
-                    const userData = await appState.oneDriveProvider.getUserData(file.id);
-                    file.stack = userData.stack;
-                    file.tags = userData.tags;
-                    file.notes = userData.notes;
-                    file.qualityRating = userData.qualityRating;
-                    file.contentRating = userData.contentRating;
-                    return file;
+                // Load metadata for all files
+                await appState.userMetadataManager.loadMetadata();
+                
+                appState.imageFiles.forEach(file => {
+                    const metadata = appState.userMetadataManager.getFileMetadata(file.id);
+                    file.stack = metadata.stack;
+                    file.tags = metadata.tags;
+                    file.notes = metadata.notes;
+                    file.qualityRating = metadata.qualityRating;
+                    file.contentRating = metadata.contentRating;
                 });
                 
-                await Promise.all(promises);
                 this.organizeStacks();
             },
             
@@ -948,10 +1132,9 @@
                 const file = appState.imageFiles.find(f => f.id === fileId);
                 if (!file) return;
                 
-                const oldStack = file.stack;
                 file.stack = newStack;
                 
-                await appState.oneDriveProvider.updateUserData(fileId, {
+                await appState.userMetadataManager.updateFileMetadata(fileId, {
                     stack: newStack,
                     tags: file.tags,
                     notes: file.notes,
@@ -969,7 +1152,7 @@
                 file.tags.push(tag);
                 appState.tags.add(tag);
                 
-                await appState.oneDriveProvider.updateUserData(fileId, {
+                await appState.userMetadataManager.updateFileMetadata(fileId, {
                     stack: file.stack,
                     tags: file.tags,
                     notes: file.notes,
@@ -984,7 +1167,7 @@
                 
                 file.tags = file.tags.filter(t => t !== tag);
                 
-                await appState.oneDriveProvider.updateUserData(fileId, {
+                await appState.userMetadataManager.updateFileMetadata(fileId, {
                     stack: file.stack,
                     tags: file.tags,
                     notes: file.notes,
@@ -999,7 +1182,7 @@
                 
                 Object.assign(file, userData);
                 
-                await appState.oneDriveProvider.updateUserData(fileId, {
+                await appState.userMetadataManager.updateFileMetadata(fileId, {
                     stack: file.stack,
                     tags: file.tags,
                     notes: file.notes,
@@ -1033,7 +1216,7 @@
                 if (!file) return;
                 
                 const img = utils.elements.centerImage;
-                const imageUrl = file.thumbnailUrl || file.downloadUrl;
+                const imageUrl = (file.thumbnails && file.thumbnails.large && file.thumbnails.large.url) || file.downloadUrl;
                 
                 img.style.opacity = '0';
                 
@@ -1077,7 +1260,7 @@
                 `;
                 
                 stack.forEach((file, index) => {
-                    const imageUrl = file.thumbnailUrl || file.downloadUrl;
+                    const imageUrl = (file.thumbnails && file.thumbnails.large && file.thumbnails.large.url) || file.downloadUrl;
                     gridHtml += `
                         <div class="grid-item" data-file-id="${file.id}" onclick="gridManager.toggleSelection('${file.id}')">
                             <img src="${imageUrl}" alt="${file.name}" loading="lazy">
@@ -1350,14 +1533,14 @@
                 utils.elements.authStatus.textContent = 'Connecting...';
                 
                 try {
-                    const result = await appState.oneDriveProvider.authenticate();
+                    const result = await appState.cloudStorage.authenticate();
                     
-                    if (result.success) {
+                    if (result) {
                         utils.elements.authStatus.textContent = 'Connected! Loading folders...';
                         await this.loadFolders();
                         utils.showScreen('folder-screen');
                     } else {
-                        utils.elements.authStatus.textContent = `Error: ${result.error}`;
+                        utils.elements.authStatus.textContent = 'Authentication failed';
                         utils.elements.authButton.disabled = false;
                     }
                 } catch (error) {
@@ -1370,13 +1553,18 @@
                 utils.elements.folderList.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);"><div class="spinner"></div><span>Loading folders...</span></div>';
                 
                 try {
-                    const folders = await appState.oneDriveProvider.loadFolders(appState.oneDriveProvider.currentFolderId);
+                    const folders = await appState.cloudStorage.getInitialFolders();
                     
                     let html = '';
                     folders.forEach(folder => {
+                        const isSelectable = folder.isSelectable || folder.type === 'current_folder';
+                        const clickHandler = isSelectable ? 
+                            `eventHandlers.selectFolder('${folder.id}', '${folder.name}')` :
+                            `eventHandlers.drillIntoFolder('${folder.id}', '${folder.name}')`;
+                            
                         html += `
-                            <div class="folder-item" onclick="eventHandlers.selectFolder('${folder.id}', '${folder.name}', ${folder.isParentFolder})">
-                                <span class="folder-icon">${folder.isParentFolder ? '📁' : '📂'}</span>
+                            <div class="folder-item" onclick="${clickHandler}">
+                                <span class="folder-icon">${folder.type === 'current_folder' ? '📁' : '📂'}</span>
                                 <div class="folder-details">
                                     <div class="folder-name">${folder.name}</div>
                                     ${folder.imageCount ? `<div class="folder-info">${folder.imageCount} images</div>` : ''}
@@ -1395,16 +1583,90 @@
                 }
             },
             
-            async selectFolder(folderId, folderName, isParentFolder) {
-                if (isParentFolder) {
-                    // Load images from this folder
-                    appState.currentFolder = { id: folderId, name: folderName };
-                    utils.showScreen('loading-screen');
-                    await this.loadImages();
-                } else {
-                    // Navigate into subfolder
-                    appState.oneDriveProvider.currentFolderId = folderId;
-                    await this.loadFolders();
+            async selectFolder(folderId, folderName) {
+                appState.currentFolder = { id: folderId, name: folderName };
+                utils.showScreen('loading-screen');
+                await this.loadImages();
+            },
+            
+            async drillIntoFolder(folderId, folderName) {
+                try {
+                    const folders = await appState.cloudStorage.drillIntoFolder({ id: folderId, name: folderName });
+                    
+                    let html = '';
+                    
+                    // Add navigation options
+                    if (appState.cloudStorage.canGoUp()) {
+                        html += `
+                            <div class="folder-item" onclick="eventHandlers.navigateUp()" style="background: rgba(245, 158, 11, 0.1);">
+                                <span class="folder-icon">↑</span>
+                                <div class="folder-details">
+                                    <div class="folder-name">Back to Parent Folder</div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    folders.forEach(folder => {
+                        const isSelectable = folder.isSelectable || folder.type === 'current_folder';
+                        const clickHandler = isSelectable ? 
+                            `eventHandlers.selectFolder('${folder.id}', '${folder.name}')` :
+                            `eventHandlers.drillIntoFolder('${folder.id}', '${folder.name}')`;
+                            
+                        html += `
+                            <div class="folder-item" onclick="${clickHandler}">
+                                <span class="folder-icon">${folder.type === 'current_folder' ? '📁' : '📂'}</span>
+                                <div class="folder-details">
+                                    <div class="folder-name">${folder.name}</div>
+                                    ${folder.imageCount ? `<div class="folder-info">${folder.imageCount} images</div>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    utils.elements.folderList.innerHTML = html;
+                } catch (error) {
+                    utils.elements.folderList.innerHTML = `<div style="padding: 40px; text-align: center; color: rgba(239, 68, 68, 0.8);">Error loading folders: ${error.message}</div>`;
+                }
+            },
+            
+            async navigateUp() {
+                try {
+                    const folders = await appState.cloudStorage.navigateUp();
+                    
+                    let html = '';
+                    
+                    if (appState.cloudStorage.canGoUp()) {
+                        html += `
+                            <div class="folder-item" onclick="eventHandlers.navigateUp()" style="background: rgba(245, 158, 11, 0.1);">
+                                <span class="folder-icon">↑</span>
+                                <div class="folder-details">
+                                    <div class="folder-name">Back to Parent Folder</div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    folders.forEach(folder => {
+                        const isSelectable = folder.isSelectable || folder.type === 'current_folder';
+                        const clickHandler = isSelectable ? 
+                            `eventHandlers.selectFolder('${folder.id}', '${folder.name}')` :
+                            `eventHandlers.drillIntoFolder('${folder.id}', '${folder.name}')`;
+                            
+                        html += `
+                            <div class="folder-item" onclick="${clickHandler}">
+                                <span class="folder-icon">${folder.type === 'current_folder' ? '📁' : '📂'}</span>
+                                <div class="folder-details">
+                                    <div class="folder-name">${folder.name}</div>
+                                    ${folder.imageCount ? `<div class="folder-info">${folder.imageCount} images</div>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    utils.elements.folderList.innerHTML = html;
+                } catch (error) {
+                    utils.elements.folderList.innerHTML = `<div style="padding: 40px; text-align: center; color: rgba(239, 68, 68, 0.8);">Error loading folders: ${error.message}</div>`;
                 }
             },
             
@@ -1415,8 +1677,9 @@
                     utils.elements.loadingMessage.textContent = 'Loading images...';
                     utils.elements.loadingProgressBar.style.width = '0%';
                     
-                    // Load images
-                    appState.imageFiles = await appState.oneDriveProvider.loadImages(appState.currentFolder.id);
+                    // Load images using cloudStorage
+                    const { files } = await appState.cloudStorage.getFiles(appState.currentFolder.id);
+                    appState.imageFiles = files;
                     appState.loadingProgress.total = appState.imageFiles.length;
                     
                     if (appState.imageFiles.length === 0) {
@@ -1501,8 +1764,8 @@
             },
             
             handleLogout() {
-                if (appState.oneDriveProvider.msalInstance) {
-                    appState.oneDriveProvider.msalInstance.logout();
+                if (appState.cloudStorage) {
+                    appState.cloudStorage.disconnect();
                 }
                 location.reload();
             },
@@ -1748,8 +2011,9 @@
             // Initialize utilities
             utils.init();
             
-            // Initialize providers
-            appState.oneDriveProvider = new UnifiedOneDriveProvider();
+            // Initialize providers using original structure
+            appState.cloudStorage = new CloudStorageModule();
+            appState.userMetadataManager = new OneDriveMetadataManager(appState.cloudStorage.currentProvider);
             appState.metadataExtractor = new MetadataExtractor();
             appState.fileCache = new FileCache();
             
@@ -1765,6 +2029,9 @@
             
             // Set up event listeners
             eventHandlers.setupEventListeners();
+            
+            // Make event handlers available globally for onclick
+            window.eventHandlers = eventHandlers;
             
             // Show auth screen
             utils.showScreen('auth-screen');
