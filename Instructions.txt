@@ -1,0 +1,2051 @@
+# Comprehensive Bolt Instructions: Orbital8 Unified Implementation
+
+
+Do not create any type of react structure everything is to be in one HTML file with inline JS and CSS except for referencing external libraries. 
+
+You have two source input files version 14b and version 3A they are for OneDrive and Google drive respectively. The authentication and folder selection for cloud providers is unique as well as the storage and retrieval of metadata. These are the only cloud provider specific functions, otherwise the application can be combined to have a single UX UI regardless of cloud provider. 
+
+It is imperative that you do not break any functionality it is imperative that all look feel and flow is intact it is imperative that all authentication and folder selection is used as is with no changes or improvements these are tested and proven.
+
+
+## Input Files
+- **orbital8-v14.html** - OneDrive version code structure is not optimized
+- **orbital8-v3a.html** - Google Drive version with optimized code structure  
+- **restructure.txt** - Architecture guidance for provider separation
+- **Wishlist** - Feature requirements and specifications
+
+## Architecture Overview
+Following the exact structure from restructure.txt:
+
+```
+                         ----------
+                         | Wrapper |
+                         ----------
+                             |
+    |---------|                     |----------|
+    | GDrive  |                     | OneDrive |
+    -----------                     ------------
+    - Login                         - Login
+    - Folder Select                 - Folder Select
+                             |
+                       <provider-id>
+                        <folder-id>
+                             |
+                    --------------------
+                    |  Master Control  |
+                    --------------------
+                             |
+    |---------|      |       |----------|
+    | Common  | -----|-------| Specific |
+    -----------      |       ------------
+                     |
+    ------------------------------------
+    |        User Experience           |
+    ------------------------------------
+```
+
+## User Experience Flow
+1. **Launch App** - Show wrapper/entry point
+2. **Select Provider Panel** - Choose Google Drive or OneDrive door 
+3. **Provider-Specific Authentication & Folder Selection**
+4. **Pass provider-id + folder-id to Master Control**
+5. **Load Images** with provider-specific persistence
+6. **Use Application Panel** with common UI
+
+## Step-by-Step Implementation Instructions
+
+### STEP 1: Create Wrapper/Entry Point
+1. **Copy orbital8-v3a.html as starting template**
+2. **Replace auth-screen with provider selection screen**:
+```html
+<!-- Provider Selection Screen (Entry Point) -->
+<div class="screen" id="provider-screen">
+    <div class="card">
+        <h1 class="title">Orbital8</h1>
+        <p class="subtitle">Select your cloud storage provider</p>
+        <button class="button" id="google-drive-btn">
+            <svg style="width: 20px; height: 20px; margin-right: 8px;" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M6.28 7L9.69 1h4.62l3.41 6zM16.05 7H7.95l4.05 7zM11.76 15h8.58L24 21H7.05z"/>
+            </svg>
+            Google Drive
+        </button>
+        <button class="button" id="onedrive-btn">
+            <svg style="width: 20px; height: 20px; margin-right: 8px;" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M17.75 8C16.82 8 16 8.82 16 9.75S16.82 11.5 17.75 11.5s1.75-.82 1.75-1.75S18.68 8 17.75 8z"/>
+            </svg>
+            OneDrive
+        </button>
+        <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
+    </div>
+</div>
+
+<!-- Google Drive Auth Screen -->
+<div class="screen hidden" id="gdrive-auth-screen">
+    <div class="card">
+        <h1 class="title">Google Drive</h1>
+        <p class="subtitle">Connect to Google Drive</p>
+        <input type="password" id="gdrive-client-secret" class="input" placeholder="Enter Google Client Secret">
+        <button class="button" id="gdrive-auth-button">Connect Drive</button>
+        <button class="button" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
+        <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
+    </div>
+</div>
+
+<!-- OneDrive Auth Screen -->
+<div class="screen hidden" id="onedrive-auth-screen">
+    <div class="card">
+        <h1 class="title">OneDrive</h1>
+        <p class="subtitle">Connect to OneDrive</p>
+        <button class="button" id="onedrive-auth-button">Connect OneDrive</button>
+        <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
+        <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
+    </div>
+</div>
+
+<!-- Google Drive Folder Screen --> 
+<div class="screen hidden" id="gdrive-folder-screen">
+    <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
+        <h2 class="title">Google Drive - Select Folder</h2>
+        <div class="subtitle">Choose a folder containing images</div>
+        <div class="folder-list" id="gdrive-folder-list"></div>
+        <div class="folder-actions">
+            <button class="folder-button" id="gdrive-refresh-folders">Refresh</button>
+            <button class="folder-button" id="gdrive-back-to-provider">← Provider</button>
+            <button class="folder-button danger" id="gdrive-logout">Disconnect</button>
+        </div>
+    </div>
+</div>
+
+<!-- OneDrive Folder Screen -->
+<div class="screen hidden" id="onedrive-folder-screen">
+    <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
+        <h2 class="title">OneDrive - Select Folder</h2>
+        <div class="subtitle" id="onedrive-folder-subtitle">Starting from Downloads folder - browse or select any folder</div>
+        <div class="folder-list" id="onedrive-folder-list"></div>
+        <div class="folder-actions">
+            <button class="folder-button" id="onedrive-refresh-folders">Refresh</button>
+            <button class="folder-button" id="onedrive-back-to-provider">← Provider</button>
+            <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
+        </div>
+    </div>
+</div>
+```
+
+### STEP 2: Implement Provider-Specific Authentication
+
+1. **Create provider-specific authentication managers**:
+```javascript
+// Google Drive Authentication Manager
+class GoogleDriveAuthManager {
+    constructor() {
+        this.provider = new GoogleDriveProvider(); // From V3A
+    }
+    
+    async authenticate(clientSecret) {
+        return await this.provider.authenticate(clientSecret);
+    }
+    
+    isAuthenticated() {
+        return this.provider.isAuthenticated;
+    }
+    
+    async disconnect() {
+        await this.provider.disconnect();
+    }
+    
+    setStatus(message, type) {
+        const statusEl = document.getElementById('gdrive-auth-status');
+        statusEl.textContent = message;
+        statusEl.className = `status ${type}`;
+    }
+}
+
+// OneDrive Authentication Manager  
+class OneDriveAuthManager {
+    constructor() {
+        this.provider = new OneDriveProvider(); // From V14B
+    }
+    
+    async authenticate() {
+        return await this.provider.authenticate();
+    }
+    
+    isAuthenticated() {
+        return this.provider.isAuthenticated;
+    }
+    
+    async disconnect() {
+        await this.provider.disconnect();
+    }
+    
+    setStatus(message, type) {
+        const statusEl = document.getElementById('onedrive-auth-status');
+        statusEl.textContent = message;
+        statusEl.className = `status ${type}`;
+    }
+}
+```
+
+2. **Setup provider selection handlers**:
+```javascript
+const appController = {
+    currentProvider: null,
+    currentProviderType: null,
+    
+    selectGoogleDrive() {
+        this.currentProviderType = 'googledrive';
+        utils.showScreen('gdrive-auth-screen');
+    },
+    
+    selectOneDrive() {
+        this.currentProviderType = 'onedrive';
+        utils.showScreen('onedrive-auth-screen');
+    },
+    
+    backToProviderSelection() {
+        this.currentProvider = null;
+        this.currentProviderType = null;
+        utils.showScreen('provider-screen');
+    }
+};
+```
+
+### STEP 3: Implement Provider-Specific Folder Selection
+
+1. **Copy complete GoogleDriveProvider from V3A** - keep exactly as-is:
+   - Keep existing folder loading from V3A (whatever V3 does is the standard)
+   - Keep simple folder selection without mixed content detection
+   - Keep app properties for metadata storage
+
+2. **Copy complete OneDriveProvider from V14B** - keep exactly as-is:
+   - Keep smart folder navigation with drill-down capability  
+   - Keep mixed content detection and user choice prompts
+   - Keep sidecar files for metadata storage
+
+3. **Create Google Drive folder manager**:
+```javascript
+class GoogleDriveFolderManager {
+    constructor(provider) {
+        this.provider = provider;
+        this.isLoading = false;
+    }
+    
+    async loadFolders() {
+        // Use exact V3A implementation - simple folder list
+        if (this.isLoading) return;
+        this.isLoading = true;
+        
+        const folderListEl = document.getElementById('gdrive-folder-list');
+        folderListEl.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; padding: 40px;">
+                <div class="spinner"></div>
+                <span>Loading folders...</span>
+            </div>
+        `;
+        
+        try {
+            const folders = await this.provider.getFolders();
+            this.displayFolders(folders);
+        } catch (error) {
+            utils.showToast('Error loading folders', 'error', true);
+        }
+        
+        this.isLoading = false;
+    }
+    
+    displayFolders(folders) {
+        const folderListEl = document.getElementById('gdrive-folder-list');
+        folderListEl.innerHTML = '';
+        
+        folders.forEach(folder => {
+            const div = document.createElement('div');
+            div.className = 'folder-item';
+            div.innerHTML = `
+                <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                </svg>
+                <div class="folder-info">
+                    <div class="folder-name">${folder.name}</div>
+                    <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()}</div>
+                </div>
+            `;
+            
+            div.addEventListener('click', () => this.selectFolder(folder));
+            folderListEl.appendChild(div);
+        });
+    }
+    
+    async selectFolder(folder) {
+        // Pass to Master Control
+        masterController.initializeWithProvider('googledrive', folder.id, folder.name, this.provider);
+    }
+}
+```
+
+4. **Create OneDrive folder manager**:
+```javascript
+class OneDriveFolderManager {
+    constructor(provider) {
+        this.provider = provider;
+        this.isLoading = false;
+    }
+    
+    // Copy exact V14B implementation with mixed content detection
+    async loadFolders() {
+        // Use exact V14B smart folder navigation
+        // Include drill-down, breadcrumbs, mixed content prompts
+        // Keep all existing folder selection logic from V14B
+    }
+    
+    async drillInto(folder) {
+        // Copy from V14B - exact implementation
+    }
+    
+    async navigateUp() {
+        // Copy from V14B - exact implementation  
+    }
+    
+    async selectFolder(folder) {
+        // Pass to Master Control
+        masterController.initializeWithProvider('onedrive', folder.id, folder.name, this.provider);
+    }
+}
+```
+
+### STEP 4: Create Master Control Layer
+
+1. **Implement Master Controller** - receives provider-id and folder-id:
+```javascript
+class MasterController {
+    constructor() {
+        this.currentProvider = null;
+        this.currentProviderType = null;
+        this.currentFolderId = null;
+        this.currentFolderName = null;
+        this.metadataManager = null;
+    }
+    
+    async initializeWithProvider(providerType, folderId, folderName, providerInstance) {
+        this.currentProviderType = providerType;
+        this.currentProvider = providerInstance;
+        this.currentFolderId = folderId;
+        this.currentFolderName = folderName;
+        
+        // Setup provider-specific metadata manager
+        this.setupMetadataManager();
+        
+        // Start loading images with provider-specific persistence
+        await this.loadImages();
+        
+        // Switch to common UI
+        this.switchToCommonUI();
+    }
+    
+    setupMetadataManager() {
+        if (this.currentProviderType === 'googledrive') {
+            this.metadataManager = new GoogleDriveMetadataManager(this.currentProvider);
+        } else if (this.currentProviderType === 'onedrive') {
+            this.metadataManager = new OneDriveMetadataManager(this.currentProvider);
+        }
+    }
+    
+    async loadImages() {
+        // Show loading screen
+        utils.showScreen('loading-screen');
+        utils.updateLoadingProgress(0, 0);
+        
+        // Provider-specific image loading
+        appState.currentFolder.id = this.currentFolderId;
+        appState.currentFolder.name = this.currentFolderName;
+        
+        try {
+            // Load user metadata first (provider-specific)
+            if (this.metadataManager.loadMetadata) {
+                await this.metadataManager.loadMetadata();
+            }
+            
+            // Get files using provider
+            const result = await this.currentProvider.getFiles(this.currentFolderId);
+            const files = result.files || [];
+            
+            if (files.length === 0) {
+                utils.showToast('No images found in this folder', 'info', true);
+                this.returnToFolderSelection();
+                return;
+            }
+            
+            // Process files with provider-specific metadata
+            appState.imageFiles = files.map(file => this.processFileWithProviderMetadata(file));
+            
+            // Initialize common functions
+            commonFunctions.initializeStacks();
+            commonFunctions.initializeImageDisplay();
+            
+        } catch (error) {
+            utils.showToast('Error loading images', 'error', true);
+            this.returnToFolderSelection();
+        }
+    }
+    
+    processFileWithProviderMetadata(file) {
+        const userMetadata = this.metadataManager.getUserMetadata(file);
+        
+        return {
+            id: file.id,
+            name: file.name,
+            filename: file.name,
+            originalName: file.name,
+            mimeType: file.mimeType,
+            size: file.size,
+            createdTime: file.createdTime,
+            modifiedTime: file.modifiedTime,
+            thumbnails: file.thumbnails,
+            downloadUrl: file.downloadUrl,
+            extractedMetadata: {},
+            
+            // Provider-specific user metadata
+            stack: userMetadata.stack || 'in',
+            tags: userMetadata.tags || [],
+            qualityRating: userMetadata.qualityRating || 0,
+            contentRating: userMetadata.contentRating || 0,
+            notes: userMetadata.notes || ''
+        };
+    }
+    
+    switchToCommonUI() {
+        utils.showScreen('app-container');
+        
+        // Update navigation buttons to be provider-aware
+        this.setupProviderAwareNavigation();
+    }
+    
+    setupProviderAwareNavigation() {
+        const backButton = document.getElementById('back-button');
+        backButton.textContent = '← Folders';
+        backButton.onclick = () => this.returnToFolderSelection();
+        
+        // Add "Go Back" functionality to return to provider selection
+        const detailsButton = document.getElementById('details-button');
+        const goBackButton = document.createElement('div');
+        goBackButton.className = 'nav-button';
+        goBackButton.style.left = '140px'; // Position next to back button
+        goBackButton.innerHTML = '← Provider';
+        goBackButton.onclick = () => appController.backToProviderSelection();
+        
+        detailsButton.parentNode.insertBefore(goBackButton, detailsButton);
+    }
+    
+    returnToFolderSelection() {
+        if (this.currentProviderType === 'googledrive') {
+            utils.showScreen('gdrive-folder-screen');
+        } else if (this.currentProviderType === 'onedrive') {
+            utils.showScreen('onedrive-folder-screen');
+        }
+    }
+    
+    // Provider-specific operations (delegate to current provider and metadata manager)
+    async moveFileToStack(fileId, targetStack) {
+        const file = appState.imageFiles.find(f => f.id === fileId);
+        if (!file) throw new Error('File not found');
+        
+        // Update local state
+        file.stack = targetStack;
+        
+        // Provider-specific persistence
+        await this.metadataManager.updateUserMetadata(fileId, { stack: targetStack });
+        
+        return file;
+    }
+    
+    async updateUserMetadata(fileId, updates) {
+        const file = appState.imageFiles.find(f => f.id === fileId);
+        if (!file) throw new Error('File not found');
+        
+        // Update local state
+        Object.assign(file, updates);
+        
+        // Provider-specific persistence
+        await this.metadataManager.updateUserMetadata(fileId, updates);
+    }
+    
+    async deleteFile(fileId) {
+        // Provider-specific deletion
+        return await this.currentProvider.deleteFile(fileId);
+    }
+    
+    async moveFileToFolder(fileId, targetFolderId) {
+        // Provider-specific folder movement (if supported)
+        if (this.currentProvider.moveFileToFolder) {
+            return await this.currentProvider.moveFileToFolder(fileId, targetFolderId);
+        } else {
+            throw new Error('Folder movement not supported by this provider');
+        }
+    }
+}
+
+// Global instance
+const masterController = new MasterController();
+```
+
+### STEP 5: Implement Common Functions Layer
+
+1. **Create common functions module** - handles all UI after folder selection:
+```javascript
+const commonFunctions = {
+    initializeStacks() {
+        // Reset stacks
+        STACK_TYPES.forEach(stack => { appState.stacks[stack] = []; });
+        
+        // Populate stacks from user metadata
+        appState.imageFiles.forEach(file => {
+            const stack = file.stack || 'in';
+            if (STACK_TYPES.includes(stack)) {
+                appState.stacks[stack].push(file);
+            } else {
+                appState.stacks.in.push(file);
+            }
+        });
+        
+        // Sort stacks by filename (requirement 5a)
+        STACK_TYPES.forEach(stack => {
+            appState.stacks[stack] = this.sortFiles(appState.stacks[stack], 'name-asc');
+        });
+        
+        this.updateStackCounts();
+    },
+    
+    sortFiles(files, sortOrder) {
+        const sorted = [...files];
+        
+        switch (sortOrder) {
+            case 'name-asc':
+                return sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            case 'name-desc':
+                return sorted.sort((a, b) => (b.name || '').localeCompare(a.name || ''));
+            case 'date-desc':
+                return sorted.sort((a, b) => new Date(b.modifiedTime || b.createdTime) - new Date(a.modifiedTime || a.createdTime));
+            case 'date-asc':
+                return sorted.sort((a, b) => new Date(a.modifiedTime || a.createdTime) - new Date(b.modifiedTime || b.createdTime));
+            default:
+                return sorted;
+        }
+    },
+    
+    updateStackCounts() {
+        STACK_TYPES.forEach(stack => {
+            const count = appState.stacks[stack].length;
+            const pill = document.getElementById(`pill-${stack}`);
+            if (pill) {
+                pill.textContent = count > 999 ? '999+' : count;
+                pill.classList.toggle('visible', count > 0);
+            }
+        });
+    },
+    
+    initializeImageDisplay() {
+        // Display first image from In stack, sorted by filename
+        appState.currentImageIndex = 0;
+        appState.currentStack = 'in';
+        
+        // Display first image in center stage (requirement 5a)
+        this.displayTopImageFromStack('in');
+        this.updateActiveProxTab();
+        
+        // Display number of images for In Proxtab (requirement 5b)
+        this.updateStackCounts();
+    },
+    
+    async displayTopImageFromStack(stackName) {
+        if (appState.stacks[stackName].length === 0) {
+            // Show empty state
+            utils.elements.centerImage.style.opacity = '0';
+            setTimeout(() => {
+                utils.elements.centerImage.src = '';
+                utils.elements.centerImage.alt = 'No images in this stack';
+                utils.elements.emptyState.classList.remove('hidden');
+                utils.elements.centerImage.style.opacity = '1';
+            }, 200);
+            return;
+        }
+        
+        utils.elements.emptyState.classList.add('hidden');
+        const topImage = appState.stacks[stackName][0];
+        const imageIndex = appState.imageFiles.findIndex(f => f.id === topImage.id);
+        
+        if (imageIndex !== -1) {
+            appState.currentImageIndex = imageIndex;
+            appState.currentStack = stackName;
+            await this.displayCurrentImage();
+            this.updateActiveProxTab();
+        }
+    },
+    
+    async displayCurrentImage() {
+        if (appState.imageFiles.length === 0) return;
+        
+        const currentFile = appState.imageFiles[appState.currentImageIndex];
+        if (!currentFile) return;
+        
+        await utils.setImageSrc(utils.elements.centerImage, currentFile);
+        
+        appState.currentScale = 1;
+        appState.panOffset = { x: 0, y: 0 };
+        this.applyTransform();
+    },
+    
+    applyTransform() {
+        const transform = `scale(${appState.currentScale}) translate(${appState.panOffset.x}px, ${appState.panOffset.y}px)`;
+        utils.elements.centerImage.style.transform = transform;
+    },
+    
+    updateActiveProxTab() {
+        // Remove active from all pills
+        STACK_TYPES.forEach(stack => {
+            const pill = document.getElementById(`pill-${stack}`);
+            if (pill) pill.classList.remove('active');
+        });
+        
+        // Add active to current stack
+        const currentPill = document.getElementById(`pill-${appState.currentStack}`);
+        if (currentPill) currentPill.classList.add('active');
+    },
+    
+    // Swipe and gesture handling (requirements 6a-6f)
+    async moveToStack(targetStack) {
+        const currentImage = appState.imageFiles[appState.currentImageIndex];
+        const currentStack = currentImage.stack;
+        
+        if (currentStack === targetStack) {
+            // Move to end of same stack
+            const currentStackArray = appState.stacks[currentStack];
+            const index = currentStackArray.findIndex(img => img.id === currentImage.id);
+            if (index > -1) {
+                currentStackArray.splice(index, 1);
+                currentStackArray.push(currentImage);
+            }
+        } else {
+            // Move to different stack via Master Control (provider-specific persistence)
+            await masterController.moveFileToStack(currentImage.id, targetStack);
+            
+            // Update local stacks
+            const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === currentImage.id);
+            if (currentStackIndex !== -1) {
+                appState.stacks[currentStack].splice(currentStackIndex, 1);
+            }
+            appState.stacks[targetStack].unshift(currentImage);
+        }
+        
+        this.updateStackCounts();
+        
+        // Show next image or empty state
+        if (appState.stacks[appState.currentStack].length === 0) {
+            this.showEmptyState();
+        } else {
+            this.moveToNextImage();
+        }
+    },
+    
+    async moveToNextImage() {
+        const activeStackImages = appState.stacks[appState.currentStack];
+        if (activeStackImages.length > 0) {
+            const nextImage = activeStackImages[0];
+            const nextGlobalIndex = appState.imageFiles.findIndex(img => img.id === nextImage.id);
+            if (nextGlobalIndex !== -1) {
+                appState.currentImageIndex = nextGlobalIndex;
+            }
+            await this.displayCurrentImage();
+        }
+    },
+    
+    showEmptyState() {
+        utils.elements.centerImage.style.opacity = '0';
+        setTimeout(() => {
+            utils.elements.centerImage.src = '';
+            utils.elements.centerImage.alt = 'No images in this stack';
+            utils.elements.emptyState.classList.remove('hidden');
+            utils.elements.centerImage.style.opacity = '1';
+        }, 200);
+    }
+};
+```
+
+### STEP 6: Implement Provider-Specific Metadata Managers
+
+1. **Create GoogleDriveMetadataManager** (uses app properties):
+```javascript
+class GoogleDriveMetadataManager {
+    constructor(googleDriveProvider) {
+        this.provider = googleDriveProvider;
+    }
+    
+    getUserMetadata(file) {
+        return {
+            stack: file.appProperties?.slideboxStack || 'in',
+            tags: file.appProperties?.slideboxTags ? file.appProperties.slideboxTags.split(',').map(t => t.trim()) : [],
+            qualityRating: parseInt(file.appProperties?.qualityRating) || 0,
+            contentRating: parseInt(file.appProperties?.contentRating) || 0,
+            notes: file.appProperties?.notes || ''
+        };
+    }
+    
+    async updateUserMetadata(fileId, updates) {
+        const newProps = {};
+        
+        if (updates.stack) newProps.slideboxStack = updates.stack;
+        if (updates.tags) newProps.slideboxTags = updates.tags.join(',');
+        if (updates.qualityRating !== undefined) newProps.qualityRating = updates.qualityRating.toString();
+        if (updates.contentRating !== undefined) newProps.contentRating = updates.contentRating.toString();
+        if (updates.notes !== undefined) newProps.notes = updates.notes;
+        
+        await this.provider.updateFileProperties(fileId, newProps);
+    }
+}
+```
+
+2. **Copy OneDriveMetadataManager from V14B** (uses sidecar files) - keep exactly as-is
+
+### STEP 7: Implement Common UI Components
+
+1. **Copy and adapt these exact components from V3A** (make provider-agnostic):
+   - `utils` object and all utility functions
+   - `imageViewer` with gesture system and pinch zoom
+   - `detailsModal` with all tabs (Info/Tags/Notes/Metadata)
+   - `gridView` system
+   - All CSS styling
+
+2. **Modify detailsModal to use Master Control**:
+```javascript
+const detailsModal = {
+    // Copy all existing functions from V3A
+    
+    // Modify save functions to use Master Control
+    async saveNotes(fileId, notes) {
+        await masterController.updateUserMetadata(fileId, { notes });
+    },
+    
+    async saveRating(fileId, ratingType, rating) {
+        const update = {};
+        update[ratingType] = rating;
+        await masterController.updateUserMetadata(fileId, update);
+    },
+    
+    async addTags(fileId, tags) {
+        const file = appState.imageFiles.find(f => f.id === fileId);
+        const currentTags = file.tags || [];
+        const newTags = [...new Set([...currentTags, ...tags])];
+        
+        await masterController.updateUserMetadata(fileId, { tags: newTags });
+        
+        // Update local state
+        file.tags = newTags;
+        tags.forEach(tag => appState.tags.add(tag));
+    },
+    
+    async removeTag(fileId, tagToRemove) {
+        const file = appState.imageFiles.find(f => f.id === fileId);
+        const currentTags = file.tags || [];
+        const newTags = currentTags.filter(tag => tag !== tagToRemove);
+        
+        await masterController.updateUserMetadata(fileId, { tags: newTags });
+        
+        // Update local state
+        file.tags = newTags;
+    }
+};
+```
+
+### STEP 8: Implement Folder Hover Tooltips (Wishlist Item 1)
+1. **Add tooltip to navigation button**:
+```javascript
+// Add to common functions initialization
+function setupFolderTooltips() {
+    const backButton = document.getElementById('back-button');
+    
+    backButton.addEventListener('mouseenter', () => {
+        const folderName = masterController.currentFolderName || 'Unknown';
+        const imageCount = appState.imageFiles.length;
+        showTooltip(backButton, `Current Folder: ${folderName} • ${imageCount} images`);
+    });
+    
+    backButton.addEventListener('mouseleave', hideTooltip);
+}
+
+function showTooltip(element, text) {
+    const existingTooltip = document.querySelector('.folder-tooltip');
+    if (existingTooltip) existingTooltip.remove();
+    
+    const tooltip = document.createElement('div');
+    tooltip.className = 'folder-tooltip';
+    tooltip.textContent = text;
+    tooltip.style.cssText = `
+        position: absolute; background: rgba(0,0,0,0.85); color: white;
+        padding: 8px 12px; border-radius: 6px; font-size: 12px;
+        z-index: 1000; pointer-events: none; white-space: nowrap;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    `;
+    
+    document.body.appendChild(tooltip);
+    
+    // Position tooltip
+    const rect = element.getBoundingClientRect();
+    tooltip.style.left = `${rect.left}px`;
+    tooltip.style.top = `${rect.bottom + 8}px`;
+    
+    // Ensure tooltip stays on screen
+    const tooltipRect = tooltip.getBoundingClientRect();
+    if (tooltipRect.right > window.innerWidth) {
+        tooltip.style.left = `${window.innerWidth - tooltipRect.width - 10}px`;
+    }
+}
+
+function hideTooltip() {
+    const tooltip = document.querySelector('.folder-tooltip');
+    if (tooltip) tooltip.remove();
+}
+```
+
+### STEP 9: Implement Grid Mode Restructuring (Wishlist Item 2)
+1. **Replace grid modal content with 4-row structure**:
+```html
+<!-- Exact 4-row structure as specified in wishlist -->
+<div class="modal-header">
+    <!-- Row 1: Stack Name + Image Count Pill (NO CHANGE) -->
+    <div class="modal-header-main">
+        <div class="modal-header-left">
+            <h2 class="modal-title">${STACK_NAMES[stack]}</h2>
+            <button id="select-all-btn" class="select-all-btn">${appState.stacks[stack].length}</button>
+        </div>
+        <button id="close-grid" class="close-btn">×</button>
+    </div>
+    
+    <!-- Row 2: Selected Count + Zoom Slider (MOVED FROM ROW 3) -->
+    <div class="grid-row-2">
+        <span class="selection-count" id="selection-text">0 selected</span>
+        <div class="zoom-control">
+            <label>Grid Size:</label>
+            <input type="range" id="grid-size" min="1" max="10" value="4">
+            <span id="grid-size-value">4</span>
+        </div>
+    </div>
+    
+    <!-- Row 3: Search Fields (NEW) -->
+    <div class="grid-row-3">
+        <div class="search-group">
+            <label>Tags:</label>
+            <input type="text" id="search-tags" placeholder="nature*">
+        </div>
+        <div class="search-group">
+            <label>Notes:</label>
+            <input type="text" id="search-notes" placeholder="vacation*">
+        </div>
+        <div class="search-group">
+            <label>Meta:</label>
+            <input type="text" id="search-meta" placeholder="camera*">
+        </div>
+        <button id="search-btn" class="btn btn-primary">Search</button>
+    </div>
+    
+    <!-- Row 4: Action Buttons (MOVED + NEW BUTTONS) -->
+    <div class="grid-row-4">
+        <button id="tag-selected" class="btn btn-primary">Tag</button>
+        <button id="move-selected" class="btn btn-primary">Move</button>
+        <button id="delete-selected" class="btn btn-danger">Delete</button>
+        <button id="export-selected" class="btn btn-primary">Export</button>
+        <button id="folder-selected" class="btn btn-primary">Folder</button>
+    </div>
+</div>
+```
+
+2. **Add corresponding CSS for 4-row layout**:
+```css
+.grid-row-2, .grid-row-3, .grid-row-4 {
+    padding: 8px 16px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.grid-row-2 {
+    justify-content: space-between;
+}
+
+.grid-row-3 {
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+.grid-row-4 {
+    justify-content: flex-end;
+}
+
+.search-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.search-group label {
+    font-size: 14px;
+    color: #4b5563;
+    min-width: 50px;
+}
+
+.search-group input {
+    width: 120px;
+    padding: 4px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.zoom-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.zoom-control label {
+    font-size: 14px;
+    color: #4b5563;
+}
+
+#grid-size {
+    width: 80px;
+}
+
+#grid-size-value {
+    font-size: 14px;
+    color: #4b5563;
+    min-width: 20px;
+}
+```
+
+### STEP 10: Implement Search with Wildcards (Wishlist Item 2B)
+1. **Add search functionality to grid view**:
+```javascript
+// Add to gridView object
+const gridSearcher = {
+    performSearch() {
+        const searchCriteria = {
+            tags: document.getElementById('search-tags').value.trim(),
+            notes: document.getElementById('search-notes').value.trim(),
+            meta: document.getElementById('search-meta').value.trim()
+        };
+        
+        const filteredImages = this.searchImages(searchCriteria);
+        gridView.displayFilteredImages(filteredImages);
+    },
+    
+    searchImages(searchCriteria) {
+        const { tags, notes, meta } = searchCriteria;
+        
+        return appState.stacks[appState.grid.stack].filter(file => {
+            // Tags search with wildcard support
+            if (tags && !this.matchesWildcard(file.tags?.join(' ') || '', tags)) {
+                return false;
+            }
+            
+            // Notes search with wildcard support  
+            if (notes && !this.matchesWildcard(file.notes || '', notes)) {
+                return false;
+            }
+            
+            // Metadata search with wildcard support
+            if (meta) {
+                const metaText = JSON.stringify(file.extractedMetadata || {});
+                if (!this.matchesWildcard(metaText, meta)) {
+                    return false;
+                }
+            }
+            
+            return true;
+        });
+    },
+    
+    matchesWildcard(text, pattern) {
+        // Convert wildcard pattern to regex
+        // * matches any sequence of characters
+        // ? matches any single character
+        const regexPattern = pattern
+            .replace(/[.*+?^${}()|[\]\\]/g, '\\### STEP 6: Implement Smart Folder Navigation for Both Providers
+1. **Copy the complete folder navigation UI from V14B**:
+   - Folder list with drill-down and select buttons
+   - Breadcrumb navigation in subtitle
+   - "Go Up" button functionality
+
+2. **Replace folderManager in V3A** with the enhanced version from V14B:
+   - Keep `loadFolders()`, `drillInto()`, `navigateUp()`, `selectFolder()`
+   - Keep the smart folder selection UX with action buttons
+   - Keep the path display and navigation state management
+
+3. **For Google Drive provider**, add simple folder navigation:
+```javascript
+// Add to GoogleDriveProvider class
+async getInitialFolders() {
+    return await this.getFolders(); // Use existing method
+}
+
+async drillIntoFolder(folder) {
+    this.currentParentId = folder.id;
+    this.currentParentPath = folder.name;
+    return await this.getFolders(); // Get subfolders
+}
+
+async navigateToParent() {
+    this.currentParentId = 'root';
+    this.currentParentPath = 'My Drive';
+    return await this.getFolders();
+}
+
+getCurrentPath() { return this.currentParentPath || 'My Drive'; }
+canGoUp() { return this.currentParentId !== 'root'; }
+```
+
+### STEP 7: Implement Wishlist Feature - Folder Hover Tooltips
+1. **Add tooltip functionality to folder buttons**:
+```javascript
+// Add to folderManager or create new tooltip manager
+function addFolderTooltips() {
+    const folderButton = document.getElementById('back-button');
+    
+    folderButton.addEventListener('mouseenter', () => {
+        const folderName = appState.currentFolder.name || 'Unknown';
+        const imageCount = appState.imageFiles.length;
+        showTooltip(folderButton, `Current Folder: ${folderName} • ${imageCount} images`);
+    });
+    
+    folderButton.addEventListener('mouseleave', hideTooltip);
+}
+
+function showTooltip(element, text) {
+    const tooltip = document.createElement('div');
+    tooltip.className = 'folder-tooltip';
+    tooltip.textContent = text;
+    tooltip.style.cssText = `
+        position: absolute; background: rgba(0,0,0,0.8); color: white;
+        padding: 8px 12px; border-radius: 6px; font-size: 12px;
+        z-index: 1000; pointer-events: none; white-space: nowrap;
+    `;
+    
+    document.body.appendChild(tooltip);
+    // Position near element
+    const rect = element.getBoundingClientRect();
+    tooltip.style.left = rect.left + 'px';
+    tooltip.style.top = (rect.bottom + 5) + 'px';
+}
+```') // Escape special regex chars
+            .replace(/\\\*/g, '.*') // Convert * to .*
+            .replace(/\\\?/g, '.'); // Convert ? to .
+        
+        const regex = new RegExp(regexPattern, 'i');
+        return regex.test(text);
+    }
+};
+
+// Add search event handlers
+function setupGridSearchHandlers() {
+    document.getElementById('search-btn').addEventListener('click', () => {
+        gridSearcher.performSearch();
+    });
+    
+    // Real-time search on Enter key
+    ['search-tags', 'search-notes', 'search-meta'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                gridSearcher.performSearch();
+            }
+        });
+    });
+}
+```
+
+### STEP 11: Implement Export Functionality (Wishlist Item 2D)
+1. **Create ExportSystem class**:
+```javascript
+class ExportSystem {
+    async exportSelectedImages(imageIds) {
+        if (imageIds.length === 0) {
+            utils.showToast('No images selected for export', 'info', true);
+            return;
+        }
+        
+        const images = imageIds.map(id => appState.imageFiles.find(f => f.id === id)).filter(f => f);
+        const csvData = this.formatForCSV(images);
+        this.downloadCSV(csvData, 'orbital8-export.csv');
+        
+        utils.showToast(`Exported ${images.length} images to spreadsheet`, 'success', true);
+    }
+    
+    formatForCSV(images) {
+        const headers = [
+            'Filename',
+            'Direct Image URL', 
+            'Size',
+            'Created Date',
+            'Modified Date',
+            'Tags',
+            'Notes',
+            'Quality Rating',
+            'Content Rating',
+            'Metadata (JSON)'
+        ];
+        
+        const rows = images.map(image => [
+            image.name || '',
+            this.getDirectImageURL(image),
+            this.formatFileSize(image.size || 0),
+            image.createdTime ? new Date(image.createdTime).toISOString() : '',
+            image.modifiedTime ? new Date(image.modifiedTime).toISOString() : '',
+            (image.tags || []).join('; '),
+            image.notes || '',
+            image.qualityRating || 0,
+            image.contentRating || 0,
+            JSON.stringify(image.extractedMetadata || {})
+        ]);
+        
+        return [headers, ...rows];
+    }
+    
+    getDirectImageURL(image) {
+        // Provider-specific direct image URL
+        if (masterController.currentProviderType === 'googledrive') {
+            return `https://drive.google.com/uc?id=${image.id}&export=view`;
+        } else if (masterController.currentProviderType === 'onedrive') {
+            return image.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${image.id}/content`;
+        }
+        return '';
+    }
+    
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    downloadCSV(data, filename) {
+        const csvContent = data.map(row => 
+            row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',')
+        ).join('\n');
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        URL.revokeObjectURL(url);
+    }
+}
+
+// Add export button handler
+document.getElementById('export-selected').addEventListener('click', () => {
+    if (appState.grid.selected.length === 0) {
+        utils.showToast('Please select images to export', 'info', true);
+        return;
+    }
+    
+    const exportSystem = new ExportSystem();
+    exportSystem.exportSelectedImages(appState.grid.selected);
+});
+```
+
+### STEP 12: Implement Folder Movement (Wishlist Item 2E)
+1. **Add folder movement functionality**:
+```javascript
+// Add folder movement button handler
+document.getElementById('folder-selected').addEventListener('click', () => {
+    if (appState.grid.selected.length === 0) {
+        utils.showToast('Please select images to move to different folder', 'info', true);
+        return;
+    }
+    
+    folderMover.showMoveDialog();
+});
+
+const folderMover = {
+    showMoveDialog() {
+        const content = `
+            <div class="action-modal">
+                <h3 class="action-title">Move to Different Folder</h3>
+                <p style="color: #6b7280; margin-bottom: 16px;">
+                    This will move ${appState.grid.selected.length} image(s) to a different folder. 
+                    The images will be removed from this stack and their metadata will move with them.
+                </p>
+                <div style="margin-bottom: 16px;">
+                    <strong>Note:</strong> This action requires provider support and may not be available for all cloud storage providers.
+                </div>
+                <div class="action-buttons-row">
+                    <button id="cancel-folder-move" class="btn btn-secondary">Cancel</button>
+                    <button id="confirm-folder-move" class="btn btn-primary">Choose Destination Folder</button>
+                </div>
+            </div>
+        `;
+        utils.modal.show(content);
+        
+        document.getElementById('cancel-folder-move').addEventListener('click', () => {
+            utils.modal.hide();
+        });
+        
+        document.getElementById('confirm-folder-move').addEventListener('click', () => {
+            utils.modal.hide();
+            
+            // Set app into folder-move mode
+            appState.folderMoveMode = {
+                active: true,
+                selectedImages: [...appState.grid.selected],
+                sourceStack: appState.grid.stack
+            };
+            
+            // Return to folder selection for destination
+            masterController.returnToFolderSelection();
+            
+            // Show instruction message
+            utils.showToast('Select destination folder for the images', 'info', true);
+        });
+    },
+    
+    async executeFolderMove(targetFolderId) {
+        if (!appState.folderMoveMode.active) return;
+        
+        const imagesToMove = appState.folderMoveMode.selectedImages;
+        const sourceStack = appState.folderMoveMode.sourceStack;
+        
+        try {
+            // Provider-specific folder movement
+            for (const imageId of imagesToMove) {
+                await masterController.moveFileToFolder(imageId, targetFolderId);
+                
+                // Remove from current stacks
+                const fileIndex = appState.imageFiles.findIndex(f => f.id === imageId);
+                if (fileIndex !== -1) {
+                    appState.imageFiles.splice(fileIndex, 1);
+                }
+                
+                const stackIndex = appState.stacks[sourceStack].findIndex(f => f.id === imageId);
+                if (stackIndex !== -1) {
+                    appState.stacks[sourceStack].splice(stackIndex, 1);
+                }
+            }
+            
+            utils.showToast(`Moved ${imagesToMove.length} images to new folder`, 'success', true);
+            
+            // Update display
+            commonFunctions.updateStackCounts();
+            if (appState.stacks[appState.currentStack].length === 0) {
+                commonFunctions.showEmptyState();
+            }
+            
+        } catch (error) {
+            utils.showToast('Folder movement not supported by this provider', 'error', true);
+        }
+        
+        // Clear folder move mode
+        appState.folderMoveMode = { active: false };
+    }
+};
+```
+
+### STEP 13: Implement Corrected Keyboard Navigation (Requirement 6D)
+1. **Replace keyboard event handler with corrected version**:
+```javascript
+// CORRECTED keyboard navigation - arrows switch stacks, tab cycles proxtabs
+function setupKeyboardNavigation() {
+    document.addEventListener('keydown', (e) => {
+        // Skip if not in main app
+        if (utils.elements.appContainer.classList.contains('hidden')) return;
+        
+        // Skip if modal is open
+        if (!utils.elements.modalOverlay.classList.contains('hidden')) {
+            if (e.key === 'Escape') {
+                if (appState.grid.stack) {
+                    gridView.close();
+                } else {
+                    detailsModal.hide();
+                }
+            }
+            return;
+        }
+        
+        // Skip if user is typing in an input field
+        if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+        
+        switch (e.key) {
+            // Arrow keys switch between stacks (corrected from original spec)
+            case 'ArrowUp':
+                e.preventDefault();
+                switchToStack('priority');
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                switchToStack('trash');
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                switchToStack('in');
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                switchToStack('out');
+                break;
+                
+            // Tab key cycles through proxtabs (only keyboard functionality)
+            case 'Tab':
+                e.preventDefault();
+                cycleThroughProxTabs();
+                break;
+                
+            // Escape to return to folder selection
+            case 'Escape':
+                masterController.returnToFolderSelection();
+                break;
+        }
+    });
+}
+
+function switchToStack(stackName) {
+    appState.currentStack = stackName;
+    commonFunctions.updateActiveProxTab();
+    commonFunctions.displayTopImageFromStack(stackName);
+    acknowledgePillCounter(stackName);
+}
+
+function cycleThroughProxTabs() {
+    const stackOrder = ['in', 'out', 'priority', 'trash'];
+    const currentIndex = stackOrder.indexOf(appState.currentStack);
+    const nextIndex = (currentIndex + 1) % stackOrder.length;
+    const nextStack = stackOrder[nextIndex];
+    
+    switchToStack(nextStack);
+}
+
+function acknowledgePillCounter(stackName) {
+    const pill = document.getElementById(`pill-${stackName}`);
+    if (pill) {
+        pill.classList.remove('triple-ripple', 'glow-effect');
+        pill.offsetHeight; // Force reflow
+        pill.classList.add('triple-ripple');
+        
+        setTimeout(() => {
+            pill.classList.add('glow-effect');
+        }, 100);
+        
+        setTimeout(() => {
+            pill.classList.remove('triple-ripple', 'glow-effect');
+        }, 3000);
+    }
+}
+```
+
+### STEP 14: Fix Star Rating Visual Updates (Wishlist Item 4)
+1. **Replace detailsModal.setupStarRating with fixed version**:
+```javascript
+// FIXED star rating that updates visually immediately
+setupStarRating(container, currentRating, onRatingChange) {
+    if (!container) return;
+    
+    const stars = container.querySelectorAll('.star');
+    
+    // Set initial visual state
+    this.updateStarVisuals(stars, currentRating);
+    
+    stars.forEach((star, index) => {
+        // Remove existing event listeners
+        star.replaceWith(star.cloneNode(true));
+    });
+    
+    // Re-get stars after cloning
+    const newStars = container.querySelectorAll('.star');
+    
+    newStars.forEach((star, index) => {
+        star.addEventListener('click', () => {
+            const newRating = index + 1;
+            
+            // FIXED: Update visuals immediately on click
+            this.updateStarVisuals(newStars, newRating);
+            
+            // Save the rating
+            onRatingChange(newRating);
+        });
+        
+        star.addEventListener('mouseenter', () => {
+            // FIXED: Show hover state immediately
+            this.updateStarVisuals(newStars, index + 1);
+        });
+        
+        star.addEventListener('mouseleave', () => {
+            // FIXED: Restore actual rating on mouse leave
+            this.updateStarVisuals(newStars, currentRating);
+        });
+    });
+},
+
+// NEW: Dedicated method for immediate visual updates
+updateStarVisuals(stars, rating) {
+    stars.forEach((star, index) => {
+        if (index < rating) {
+            star.classList.add('active');
+            star.style.color = '#fbbf24'; // Yellow for active stars
+        } else {
+            star.classList.remove('active');
+            star.style.color = '#d1d5db'; // Gray for inactive stars
+        }
+    });
+},
+```
+
+### STEP 15: Fix Pre-Swipe Glow (Wishlist Item 5)
+1. **Add CSS fixes for bottom edge glow**:
+```css
+/* FIXED: Ensure bottom glow appears correctly on all screen sizes */
+.edge-glow.bottom { 
+    bottom: 0; 
+    left: 0; 
+    right: 0; 
+    height: 8px; 
+    background: linear-gradient(0deg, rgba(245, 158, 11, 0.4) 0%, transparent 100%);
+    z-index: 2; /* Ensure it's above content */
+    position: fixed; /* Ensure it's always positioned relative to viewport */
+}
+
+/* MOBILE VIEWPORT FIXES */
+@media screen and (max-width: 767px) {
+    .edge-glow.bottom {
+        /* Account for mobile safe areas and viewport issues */
+        bottom: env(safe-area-inset-bottom, 0px);
+    }
+    
+    .app-container {
+        height: 100vh;
+        height: 100dvh; /* Use dynamic viewport height on supported browsers */
+        overflow: hidden;
+    }
+    
+    /* Ensure proper viewport handling */
+    .image-viewport {
+        height: 100vh;
+        height: 100dvh;
+    }
+}
+
+/* Fix for devices with bottom navigation bars */
+@supports (height: 100dvh) {
+    .app-container {
+        height: 100dvh;
+    }
+    
+    .image-viewport {
+        height: 100dvh;
+    }
+}
+```
+
+### STEP 16: Implement Visual Cue Settings (Wishlist Item 8)
+1. **Add visual cue intensity options to provider selection screen**:
+```html
+<!-- Add to provider-screen -->
+<div class="settings-section" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
+    <div style="margin-bottom: 16px;">
+        <label style="color: rgba(255,255,255,0.9); font-size: 14px; font-weight: 500; display: block; margin-bottom: 8px;">Visual Cue Intensity:</label>
+        <div class="intensity-options" style="display: flex; gap: 8px; justify-content: center;">
+            <button class="intensity-btn" data-level="low" style="padding: 8px 16px; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; background: rgba(255,255,255,0.1); color: white; cursor: pointer; font-size: 12px;">Low</button>
+            <button class="intensity-btn active" data-level="medium" style="padding: 8px 16px; border: 1px solid var(--app-accent); border-radius: 8px; background: rgba(245,158,11,0.2); color: var(--app-accent); cursor: pointer; font-size: 12px;">Medium</button>
+            <button class="intensity-btn" data-level="high" style="padding: 8px 16px; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; background: rgba(255,255,255,0.1); color: white; cursor: pointer; font-size: 12px;">High</button>
+        </div>
+    </div>
+    
+    <div>
+        <label class="checkbox-label" style="color: rgba(255,255,255,0.9); font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" id="haptic-enabled" checked style="margin: 0;">
+            Enable Haptic Feedback (Mobile)
+        </label>
+    </div>
+</div>
+```
+
+2. **Add intensity and haptic managers**:
+```javascript
+class VisualCueManager {
+    constructor() {
+        this.currentIntensity = localStorage.getItem('orbital8_visual_intensity') || 'medium';
+        this.applyIntensity(this.currentIntensity);
+    }
+    
+    setIntensity(level) {
+        this.currentIntensity = level;
+        this.applyIntensity(level);
+        localStorage.setItem('orbital8_visual_intensity', level);
+        
+        // Update UI
+        document.querySelectorAll('.intensity-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.level === level);
+        });
+    }
+    
+    applyIntensity(level) {
+        const settings = {
+            low: { 
+                glowOpacity: 0.3, 
+                rippleDuration: 1000, 
+                extraEffects: false 
+            },
+            medium: { 
+                glowOpacity: 0.6, 
+                rippleDuration: 1500, 
+                extraEffects: false 
+            },
+            high: { 
+                glowOpacity: 1.0, 
+                rippleDuration: 2000, 
+                extraEffects: true 
+            }
+        };
+        
+        const config = settings[level];
+        
+        // Apply CSS custom properties
+        document.documentElement.style.setProperty('--glow-opacity', config.glowOpacity);
+        document.documentElement.style.setProperty('--ripple-duration', `${config.rippleDuration}ms`);
+        
+        // Apply high intensity class for extra effects
+        if (config.extraEffects) {
+            document.body.classList.add('high-intensity-mode');
+        } else {
+            document.body.classList.remove('high-intensity-mode');
+        }
+    }
+}
+
+class HapticFeedbackManager {
+    constructor() {
+        this.isEnabled = localStorage.getItem('orbital8_haptic_enabled') !== 'false';
+        this.isSupported = 'vibrate' in navigator;
+        
+        // Update UI
+        const checkbox = document.getElementById('haptic-enabled');
+        if (checkbox) checkbox.checked = this.isEnabled;
+    }
+    
+    setEnabled(enabled) {
+        this.isEnabled = enabled;
+        localStorage.setItem('orbital8_haptic_enabled', enabled);
+    }
+    
+    triggerFeedback(type) {
+        if (!this.isEnabled || !this.isSupported) return;
+        
+        const patterns = {
+            swipe: [50],
+            pillTap: [30],
+            buttonPress: [25],
+            error: [100, 50, 100]
+        };
+        
+        const pattern = patterns[type];
+        if (pattern && navigator.vibrate) {
+            navigator.vibrate(pattern);
+        }
+    }
+}
+
+// Setup event handlers for settings
+function setupSettingsHandlers() {
+    document.querySelectorAll('.intensity-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            appState.visualCueManager.setIntensity(btn.dataset.level);
+        });
+    });
+    
+    document.getElementById('haptic-enabled').addEventListener('change', (e) => {
+        appState.hapticManager.setEnabled(e.target.checked);
+    });
+}
+```
+
+### STEP 9: Implement Search Functionality with Wildcards
+1. **Add search logic to gridView**:
+```javascript
+// Add to gridView object
+searchImages(searchCriteria) {
+    const { tags, notes, meta } = searchCriteria;
+    
+    return appState.stacks[appState.grid.stack].filter(file => {
+        // Tags search with wildcard support
+        if (tags && !this.matchesWildcard(file.tags?.join(' ') || '', tags)) return false;
+        
+        // Notes search with wildcard support  
+        if (notes && !this.matchesWildcard(file.notes || '', notes)) return false;
+        
+        // Metadata search with wildcard support
+        if (meta) {
+            const metaText = JSON.stringify(file.extractedMetadata || {});
+            if (!this.matchesWildcard(metaText, meta)) return false;
+        }
+        
+        return true;
+    });
+},
+
+matchesWildcard(text, pattern) {
+    // Convert wildcard pattern to regex
+    const regexPattern = pattern
+        .replace(/\*/g, '.*')
+        .replace(/\?/g, '.');
+    
+    const regex = new RegExp(regexPattern, 'i');
+    return regex.test(text);
+},
+
+// Add search event handler
+setupSearchHandlers() {
+    document.getElementById('search-btn').addEventListener('click', () => {
+        const searchCriteria = {
+            tags: document.getElementById('search-tags').value.trim(),
+            notes: document.getElementById('search-notes').value.trim(),
+            meta: document.getElementById('search-meta').value.trim()
+        };
+        
+        const filteredImages = this.searchImages(searchCriteria);
+        this.displayFilteredImages(filteredImages);
+    });
+}
+```
+
+### STEP 10: Implement Export Functionality
+1. **Create new ExportSystem class**:
+```javascript
+class ExportSystem {
+    async exportSelectedImages(imageIds) {
+        const images = imageIds.map(id => appState.imageFiles.find(f => f.id === id));
+        const csvData = this.formatForCSV(images);
+        this.downloadCSV(csvData, 'orbital8-export.csv');
+    }
+    
+    formatForCSV(images) {
+        const headers = [
+            'Filename', 'URL', 'Size', 'Created', 'Modified', 
+            'Tags', 'Notes', 'Quality Rating', 'Content Rating', 'Metadata'
+        ];
+        
+        const rows = images.map(image => [
+            image.name || '',
+            this.getImageURL(image),
+            image.size || 0,
+            image.createdTime || '',
+            image.modifiedTime || '',
+            (image.tags || []).join('; '),
+            image.notes || '',
+            image.qualityRating || 0,
+            image.contentRating || 0,
+            JSON.stringify(image.extractedMetadata || {})
+        ]);
+        
+        return [headers, ...rows];
+    }
+    
+    getImageURL(image) {
+        // Provider-specific URL generation
+        if (providerManager.selectedProvider === 'googledrive') {
+            return `https://drive.google.com/file/d/${image.id}/view`;
+        } else {
+            return image.downloadUrl || `https://1drv.ms/i/s!${image.id}`;
+        }
+    }
+    
+    downloadCSV(data, filename) {
+        const csvContent = data.map(row => 
+            row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',')
+        ).join('\n');
+        
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        
+        URL.revokeObjectURL(url);
+    }
+}
+```
+
+2. **Add export button handler** to grid modal:
+```javascript
+document.getElementById('export-selected').addEventListener('click', () => {
+    if (appState.grid.selected.length === 0) {
+        utils.showToast('Please select images to export', 'info', true);
+        return;
+    }
+    
+    const exportSystem = new ExportSystem();
+    exportSystem.exportSelectedImages(appState.grid.selected);
+    utils.showToast(`Exported ${appState.grid.selected.length} images`, 'success', true);
+});
+```
+
+### STEP 11: Implement Folder Movement Feature
+1. **Add folder movement functionality**:
+```javascript
+// Add to grid modal handlers
+document.getElementById('folder-selected').addEventListener('click', () => {
+    if (appState.grid.selected.length === 0) {
+        utils.showToast('Please select images to move', 'info', true);
+        return;
+    }
+    
+    modalManager.showFolderMoveDialog();
+});
+
+// Add to modalManager
+showFolderMoveDialog() {
+    const content = `
+        <div class="action-modal">
+            <h3 class="action-title">Move to Different Folder</h3>
+            <p style="color: #6b7280; margin-bottom: 16px;">
+                This will move ${appState.grid.selected.length} image(s) to a different folder 
+                and remove them from all stacks.
+            </p>
+            <div class="action-buttons-row">
+                <button id="cancel-folder-move" class="btn btn-secondary">Cancel</button>
+                <button id="confirm-folder-move" class="btn btn-primary">Choose Destination</button>
+            </div>
+        </div>
+    `;
+    utils.modal.show(content);
+    
+    document.getElementById('confirm-folder-move').addEventListener('click', () => {
+        utils.modal.hide();
+        // Open folder selection in new mode
+        utils.showScreen('folder-screen');
+        folderManager.isMovingFiles = true;
+        folderManager.filesToMove = appState.grid.selected;
+    });
+}
+```
+
+### STEP 12: Fix Keyboard Navigation (Corrected Requirements)
+1. **Implement correct keyboard navigation**:
+```javascript
+// Replace existing keyboard handler with this corrected version
+document.addEventListener('keydown', (e) => {
+    if (utils.elements.appContainer.classList.contains('hidden')) return;
+    
+    // Modal handling
+    if (!utils.elements.modalOverlay.classList.contains('hidden')) {
+        if (e.key === 'Escape') {
+            if (appState.grid.stack) {
+                gridView.close();
+            } else {
+                detailsModal.hide();
+            }
+        }
+        return;
+    }
+    
+    switch (e.key) {
+        // Arrow keys switch between stacks (IN ADDITION TO swipes)
+        case 'ArrowUp':
+            appState.currentStack = 'priority';
+            updateActiveProxTab();
+            imageViewer.displayTopImageFromStack('priority');
+            acknowledgePillCounter('priority');
+            break;
+        case 'ArrowDown':
+            appState.currentStack = 'trash';
+            updateActiveProxTab(); 
+            imageViewer.displayTopImageFromStack('trash');
+            acknowledgePillCounter('trash');
+            break;
+        case 'ArrowLeft':
+            appState.currentStack = 'in';
+            updateActiveProxTab();
+            imageViewer.displayTopImageFromStack('in');
+            acknowledgePillCounter('in');
+            break;
+        case 'ArrowRight':
+            appState.currentStack = 'out';
+            updateActiveProxTab();
+            imageViewer.displayTopImageFromStack('out');
+            acknowledgePillCounter('out');
+            break;
+            
+        // Tab key cycles through proxtabs
+        case 'Tab':
+            e.preventDefault();
+            cycleThroughProxTabs();
+            break;
+            
+        // Escape to return to folder selection
+        case 'Escape':
+            utils.showScreen('folder-screen');
+            break;
+    }
+});
+
+// Add tab cycling function
+function cycleThroughProxTabs() {
+    const stackOrder = ['in', 'out', 'priority', 'trash'];
+    const currentIndex = stackOrder.indexOf(appState.currentStack);
+    const nextIndex = (currentIndex + 1) % stackOrder.length;
+    const nextStack = stackOrder[nextIndex];
+    
+    appState.currentStack = nextStack;
+    updateActiveProxTab();
+    imageViewer.displayTopImageFromStack(nextStack);
+    acknowledgePillCounter(nextStack);
+}
+```
+
+### STEP 13: Implement Visual Cue Settings
+1. **Add visual cue intensity settings to provider selection screen**:
+```html
+<!-- Add to provider selection screen -->
+<div class="settings-section">
+    <label>Visual Cue Intensity:</label>
+    <div class="intensity-options">
+        <button class="intensity-btn active" data-level="medium">Medium</button>
+        <button class="intensity-btn" data-level="low">Low</button>
+        <button class="intensity-btn" data-level="high">High</button>
+    </div>
+</div>
+```
+
+2. **Add intensity management**:
+```javascript
+class VisualCueManager {
+    constructor() {
+        this.currentIntensity = 'medium';
+        this.loadSavedIntensity();
+    }
+    
+    setIntensity(level) {
+        this.currentIntensity = level;
+        this.applyIntensitySettings(level);
+        localStorage.setItem('orbital8_visual_intensity', level);
+    }
+    
+    applyIntensitySettings(level) {
+        const settings = {
+            low: { glowOpacity: 0.3, rippleDuration: 1000 },
+            medium: { glowOpacity: 0.6, rippleDuration: 1500 },
+            high: { glowOpacity: 1.0, rippleDuration: 2000, extraGlow: true }
+        };
+        
+        const config = settings[level];
+        document.documentElement.style.setProperty('--glow-opacity', config.glowOpacity);
+        document.documentElement.style.setProperty('--ripple-duration', `${config.rippleDuration}ms`);
+        
+        if (config.extraGlow) {
+            document.body.classList.add('high-intensity-mode');
+        } else {
+            document.body.classList.remove('high-intensity-mode');
+        }
+    }
+    
+    loadSavedIntensity() {
+        const saved = localStorage.getItem('orbital8_visual_intensity');
+        if (saved) {
+            this.setIntensity(saved);
+        }
+    }
+}
+```
+
+### STEP 14: Implement Mobile Haptic Feedback
+1. **Add haptic feedback option to provider selection**:
+```html
+<!-- Add to provider selection screen -->
+<div class="settings-section">
+    <label class="checkbox-label">
+        <input type="checkbox" id="haptic-enabled" checked>
+        Enable Haptic Feedback (Mobile)
+    </label>
+</div>
+```
+
+2. **Add haptic feedback system**:
+```javascript
+class HapticFeedbackManager {
+    constructor() {
+        this.isEnabled = true;
+        this.isSupported = 'vibrate' in navigator;
+        this.loadSavedSetting();
+    }
+    
+    setEnabled(enabled) {
+        this.isEnabled = enabled;
+        localStorage.setItem('orbital8_haptic_enabled', enabled);
+    }
+    
+    triggerFeedback(type) {
+        if (!this.isEnabled || !this.isSupported) return;
+        
+        const patterns = {
+            swipe: [50],
+            pillTap: [30],
+            error: [100, 50, 100]
+        };
+        
+        const pattern = patterns[type];
+        if (pattern) {
+            navigator.vibrate(pattern);
+        }
+    }
+    
+    loadSavedSetting() {
+        const saved = localStorage.getItem('orbital8_haptic_enabled');
+        if (saved !== null) {
+            this.isEnabled = saved === 'true';
+        }
+    }
+}
+
+// Add haptic calls to existing gesture handlers
+// In executeFlick function, add:
+appState.hapticManager.triggerFeedback('swipe');
+
+// In pill counter click handlers, add:
+appState.hapticManager.triggerFeedback('pillTap');
+```
+
+### STEP 15: Fix Star Rating Visual Updates (Wishlist Item 4)
+1. **Fix the star rating update issue** in detailsModal.setupStarRating:
+```javascript
+setupStarRating(container, currentRating, onRatingChange) {
+    if (!container) return;
+    
+    const stars = container.querySelectorAll('.star');
+    
+    // FIXED: Immediately update visual state
+    this.updateStarVisuals(stars, currentRating);
+    
+    stars.forEach((star, index) => {
+        star.addEventListener('click', () => {
+            const newRating = index + 1;
+            
+            // FIXED: Update visuals immediately on click
+            this.updateStarVisuals(stars, newRating);
+            
+            onRatingChange(newRating);
+        });
+        
+        star.addEventListener('mouseenter', () => {
+            this.updateStarVisuals(stars, index + 1);
+        });
+        
+        star.addEventListener('mouseleave', () => {
+            this.updateStarVisuals(stars, currentRating);
+        });
+    });
+}
+
+// NEW: Dedicated method for visual updates
+updateStarVisuals(stars, rating) {
+    stars.forEach((star, index) => {
+        if (index < rating) {
+            star.classList.add('active');
+            star.style.color = '#fbbf24';
+        } else {
+            star.classList.remove('active');
+            star.style.color = '#d1d5db';
+        }
+    });
+}
+```
+
+### STEP 16: Fix Pre-Swipe Glow (Wishlist Item 5)
+1. **Fix bottom edge glow CSS**:
+```css
+/* FIXED: Ensure bottom glow shows correctly on all screen sizes */
+.edge-glow.bottom { 
+    bottom: 0; 
+    left: 0; 
+    right: 0; 
+    height: 8px; 
+    background: linear-gradient(0deg, rgba(245, 158, 11, 0.4) 0%, transparent 100%);
+    z-index: 2; /* Ensure it's above content */
+}
+
+/* MOBILE FIX: Account for mobile viewport issues */
+@media screen and (max-width: 767px) {
+    .edge-glow.bottom {
+        bottom: env(safe-area-inset-bottom, 0px); /* Handle mobile safe areas */
+    }
+    
+    .app-container {
+        height: 100vh;
+        height: 100dvh; /* Use dynamic viewport height */
+    }
+}
+```
+
+### STEP 17: Integration and Testing Points
+1. **Add comprehensive error handling** for provider switching
+2. **Ensure metadata persistence** works correctly for both providers
+3. **Test all wishlist features** work with both Google Drive and OneDrive
+4. **Verify performance** is not degraded from original versions
+5. **Test responsive design** on mobile and desktop
+6. **Validate accessibility** with keyboard navigation and screen readers
+
+### STEP 18: Final Integration
+1. **Initialize all systems** in the main initApp function:
+```javascript
+async function initApp() {
+    try {
+        utils.init();
+        
+        // Initialize all managers
+        appState.visualCueManager = new VisualCueManager();
+        appState.hapticManager = new HapticFeedbackManager();
+        appState.exportSystem = new ExportSystem();
+        
+        appState.fileCache = new EnhancedFileCache();
+        await appState.fileCache.init();
+        
+        appState.cloudStorage = new CloudStorageModule();
+        appState.metadataExtractor = new ProgressiveMetadataExtractor();
+        
+        // Show provider selection screen first
+        utils.showScreen('provider-screen');
+        
+        setupEventHandlers();
+        setupGestureSystem();
+        setupPinchZoom();
+        modalManager.setup();
+        
+        updateActiveProxTab();
+        
+    } catch (error) {
+        utils.showToast('Failed to initialize app', 'error', true);
+    }
+}
+```
+
+## Critical Success Requirements
+- ✅ Provider selection works and maintains separate authentication
+- ✅ Smart folder navigation from V14B works for both providers  
+- ✅ All existing functionality preserved exactly as-is
+- ✅ Grid mode has exact 4-row restructuring as specified
+- ✅ Search with wildcards works across tags, notes, and metadata
+- ✅ Export generates complete spreadsheets with all data fields
+- ✅ Keyboard navigation: arrows switch stacks, tab cycles proxtabs only
+- ✅ Visual cue settings provide 3 intensity levels
+- ✅ Haptic feedback works on mobile devices
+- ✅ Star ratings update visually immediately
+- ✅ Bottom edge glow displays correctly on all devices
+- ✅ Performance equals or exceeds original versions
+
+## Output Requirements
+- **Single HTML file** containing the complete unified application
+- **Self-contained** with all CSS and JavaScript inline
+- **Provider-agnostic UX** with identical experience regardless of chosen provider
+- **Complete wishlist implementation** with all features functional
+- **Zero regressions** - all existing functionality must work identically
