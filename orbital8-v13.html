@@ -236,6 +236,13 @@
         .pill-counter.bottom { bottom: 60px; left: 50%; transform: translateX(-50%); }
         .pill-counter.left { left: 10px; top: 50%; transform: translateY(-50%); }
         .pill-counter.right { right: 10px; top: 50%; transform: translateY(-50%); }
+        .pill-counter.subset-active { outline: 3px solid yellow; }
+
+        .pill-preview {
+            position: absolute; top: 110%; left: 50%; transform: translateX(-50%);
+            display: flex; background: rgba(0,0,0,0.8); padding: 4px; border-radius: 8px;
+        }
+        .pill-preview img { width: 60px; height: 60px; object-fit: cover; margin: 2px; border-radius: 4px; cursor: pointer; }
         
         /* ===== Enhanced Ripple Effects ===== */
         .pill-counter::before, .pill-counter::after {
@@ -806,6 +813,7 @@
             minScale: 0.3,
             panOffset: { x: 0, y: 0 },
             grid: { stack: null, selected: [], filtered: [] },
+            searchSubset: null,
             tags: new Set(),
             loadingProgress: { current: 0, total: 0 },
             folderMoveMode: { active: false }
@@ -2514,6 +2522,19 @@
             },
             
             async moveToNextImage() {
+                if (appState.searchSubset && appState.searchSubset.images && appState.searchSubset.images.length > 0) {
+                    const subset = appState.searchSubset.images;
+                    appState.searchSubset.index = (appState.searchSubset.index + 1) % subset.length;
+                    const nextImage = subset[appState.searchSubset.index];
+                    const nextGlobalIndex = appState.imageFiles.findIndex(img => img.id === nextImage.id);
+                    if (nextGlobalIndex !== -1) {
+                        appState.currentImageIndex = nextGlobalIndex;
+                        appState.currentStack = nextImage.stack || appState.searchSubset.stack;
+                    }
+                    await this.displayCurrentImage();
+                    return;
+                }
+
                 const activeStackImages = appState.stacks[appState.currentStack];
                 if (activeStackImages.length > 0) {
                     const nextImage = activeStackImages[0];
@@ -2546,6 +2567,7 @@
                 appState.grid.stack = stack;
                 appState.grid.selected = [];
                 appState.grid.filtered = [];
+                this.lastSortedFiles = [];
                 
                 this.updateSelectionUI();
                 this.populate(stack);
@@ -2562,23 +2584,33 @@
                     const selectedIndex = appState.imageFiles.findIndex(f => f.id === selectedFileId);
                     if (selectedIndex !== -1) {
                         appState.currentImageIndex = selectedIndex;
-                        
-                        const currentStackImages = appState.stacks[appState.currentStack];
-                        const selectedFile = appState.imageFiles[selectedIndex];
-                        const stackIndex = currentStackImages.findIndex(f => f.id === selectedFileId);
-                        
-                        if (stackIndex !== -1) {
-                            const reorderedStack = [
-                                ...currentStackImages.slice(stackIndex),
-                                ...currentStackImages.slice(0, stackIndex)
-                            ];
-                            appState.stacks[appState.currentStack] = reorderedStack;
+
+                        if (appState.grid.filtered.length > 0 && this.lastSortedFiles) {
+                            const subset = this.lastSortedFiles;
+                            const idx = subset.findIndex(f => f.id === selectedFileId);
+                            appState.searchSubset = { stack: appState.grid.stack, images: subset, index: idx };
+                            document.getElementById(`pill-${appState.grid.stack}`).classList.add('subset-active');
+                        } else {
+                            const currentStackImages = appState.stacks[appState.currentStack];
+                            const selectedFile = appState.imageFiles[selectedIndex];
+                            const stackIndex = currentStackImages.findIndex(f => f.id === selectedFileId);
+                            if (stackIndex !== -1) {
+                                const reorderedStack = [
+                                    ...currentStackImages.slice(stackIndex),
+                                    ...currentStackImages.slice(0, stackIndex)
+                                ];
+                                appState.stacks[appState.currentStack] = reorderedStack;
+                            }
+                            appState.searchSubset = null;
+                            document.querySelectorAll('.pill-counter').forEach(p=>p.classList.remove('subset-active'));
                         }
-                        
+
                         commonFunctions.displayCurrentImage();
                     }
                 } else {
                     commonFunctions.displayTopImageFromStack(appState.currentStack);
+                    appState.searchSubset = null;
+                    document.querySelectorAll('.pill-counter').forEach(p=>p.classList.remove('subset-active'));
                 }
                 
                 appState.grid.stack = null;
@@ -2593,6 +2625,7 @@
                 
                 const filesToShow = appState.grid.filtered.length > 0 ? appState.grid.filtered : appState.stacks[stack];
                 const sortedFiles = commonFunctions.sortFiles(filesToShow, 'date-desc');
+                this.lastSortedFiles = sortedFiles;
                 
                 sortedFiles.forEach((file) => {
                     const div = document.createElement('div');
@@ -2606,6 +2639,11 @@
                     img.src = imageUrl;
                     img.alt = file.name || 'Image';
                     
+                    img.onload = () => {
+                        if (img.naturalWidth && img.naturalHeight) {
+                            div.style.aspectRatio = `${img.naturalWidth}/${img.naturalHeight}`;
+                        }
+                    };
                     img.onerror = () => {
                         img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
                     };
@@ -3796,6 +3834,9 @@
                         commonFunctions.displayTopImageFromStack(stackName);
                         acknowledgePillCounter(stackName);
                     });
+
+                    pill.addEventListener('mouseenter', () => showPillPreview(pill, stackName));
+                    pill.addEventListener('mouseleave', hidePillPreview);
                 }
             });
             
@@ -3900,20 +3941,64 @@
             });
         }
         
-        function switchToStack(stackName) {
+       function switchToStack(stackName) {
             appState.currentStack = stackName;
+            if (appState.searchSubset && appState.searchSubset.stack !== stackName) {
+                appState.searchSubset = null;
+                document.querySelectorAll('.pill-counter').forEach(p=>p.classList.remove('subset-active'));
+            }
             commonFunctions.updateActiveProxTab();
             commonFunctions.displayTopImageFromStack(stackName);
             acknowledgePillCounter(stackName);
         }
         
-        function cycleThroughProxTabs() {
-            const stackOrder = ['in', 'out', 'priority', 'trash'];
-            const currentIndex = stackOrder.indexOf(appState.currentStack);
-            const nextIndex = (currentIndex + 1) % stackOrder.length;
-            const nextStack = stackOrder[nextIndex];
-            
-            switchToStack(nextStack);
+       function cycleThroughProxTabs() {
+           const stackOrder = ['in', 'out', 'priority', 'trash'];
+           const currentIndex = stackOrder.indexOf(appState.currentStack);
+           const nextIndex = (currentIndex + 1) % stackOrder.length;
+           const nextStack = stackOrder[nextIndex];
+
+           switchToStack(nextStack);
+       }
+
+        let currentPreview = null;
+        function showPillPreview(pill, stackName) {
+            hidePillPreview();
+            const images = appState.stacks[stackName];
+            if (!images || images.length === 0) return;
+            const currentFile = appState.imageFiles[appState.currentImageIndex];
+            let index = images.findIndex(f => f.id === (currentFile && currentFile.id));
+            if (index === -1) index = -1;
+            const container = document.createElement('div');
+            container.className = 'pill-preview';
+            for (let i = 1; i <= 3; i++) {
+                const imgFile = images[(index + i) % images.length];
+                if (!imgFile) break;
+                const thumb = document.createElement('img');
+                thumb.src = utils.generateImageUrl(imgFile);
+                thumb.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const gIndex = appState.imageFiles.findIndex(f => f.id === imgFile.id);
+                    if (gIndex !== -1) {
+                        appState.currentImageIndex = gIndex;
+                        appState.currentStack = stackName;
+                        commonFunctions.displayCurrentImage();
+                        commonFunctions.updateActiveProxTab();
+                    }
+                    hidePillPreview();
+                });
+                container.appendChild(thumb);
+            }
+            pill.style.position = 'relative';
+            pill.appendChild(container);
+            currentPreview = container;
+        }
+
+        function hidePillPreview() {
+            if (currentPreview && currentPreview.parentNode) {
+                currentPreview.parentNode.removeChild(currentPreview);
+            }
+            currentPreview = null;
         }
         
         // ===== Folder Loading Functions =====
