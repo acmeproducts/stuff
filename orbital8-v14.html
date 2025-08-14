@@ -8,12 +8,13 @@
     <title>Orbital8 V14 - Unified Cloud Storage</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V14 - PHASE 1 ===== */
+        /* ===== ORBITAL8 V14 - PHASE 3 ===== */
         /* Changes in this version:
-           - ID 8 (Auth): Fixed auth state loss on refresh by moving MSAL cache to localStorage and adding silent auth checks.
-           - ID 7 (UI): Removed provider switch button from main stage.
-           - ID 1 (Image Display): Fixed portrait image scaling on tablet landscape by removing negative top offset.
-           - ID 2 (Image Display): Fixed image loading race condition by tracking the current image load request.
+           - ID 40, 24 (Grid View): Improved bulk operation reliability and added progress feedback.
+           - ID 18, 23 (Grid View): Fixed inconsistent thumbnail sizing and selection state on scroll.
+           - ID 35 (Rating System): Overhauled star rating system for consistency.
+           - ID 32 (UI): Pill counters now show ':)' for counts > 999.
+           - ID 34 (UI): Added an opaque filename overlay on the main image view.
         */
         
         :root {
@@ -206,6 +207,31 @@
         .center-image.dragging { filter: brightness(0.9); cursor: grabbing; }
         .center-image.zoomable { pointer-events: auto; }
         
+        /* ID 34: Filename Overlay */
+        .filename-overlay {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            z-index: 5;
+            max-width: 80%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        .filename-overlay.visible {
+            opacity: 1;
+        }
+
         /* ===== Edge Effects ===== */
         .edge-glow { position: absolute; opacity: 0; transition: opacity 0.2s ease; z-index: 2; }
         .edge-glow.top { top: 0; left: 0; right: 0; height: 8px; background: linear-gradient(180deg, rgba(245, 158, 11, var(--glow-opacity)) 0%, transparent 100%); }
@@ -346,8 +372,31 @@
         
         .grid-content { flex: 1; overflow-y: auto; padding: 16px; }
         .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
-        .grid-item { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 8px; cursor: pointer; }
-        .grid-image { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* ID 18: Fix for inconsistent thumbnail sizing */
+        .grid-item {
+            position: relative;
+            background-color: #f3f4f6; /* Letterbox color */
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .grid-item::before {
+            content: "";
+            display: block;
+            padding-top: 100%; /* Maintain 1:1 aspect ratio for the container */
+        }
+        .grid-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* Ensures aspect ratio is maintained within the container */
+        }
         .grid-item.selected { box-shadow: 0 0 0 4px #3b82f6; }
         
         /* ===== Details Modal ===== */
@@ -409,8 +458,6 @@
         .hidden { display: none !important; }
         
         @media screen and (min-width: 768px) {
-            /* ID 1: Removed problematic top offset to fix image cutoff */
-            /* .image-viewport { top: -10vh; } */
             .pill-counter { font-size: 16px; padding: 8px 16px; min-width: 40px; }
             .nav-button { font-size: 14px; padding: 10px 16px; }
         }
@@ -418,6 +465,7 @@
         @media screen and (max-width: 767px) {
             .nav-button { font-size: 16px; padding: 12px 20px; border-radius: 25px; min-width: 80px; }
             .pill-counter.bottom { bottom: 80px; }
+            .filename-overlay { font-size: 11px; padding: 5px 12px; }
             .details-modal-content { max-width: 100vw; max-height: 100vh; height: 100vh; margin: 0; border-radius: 0; }
             .metadata-table .key-cell { width: 30%; min-width: 80px; font-size: 12px; }
             .metadata-table .value-cell { font-size: 12px; }
@@ -478,7 +526,7 @@
             
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">orbital8-v14.html</div>
+        <div class="app-footer">orbital8-v14-p3.html</div>
     </div>
     
     <!-- Google Drive Auth Screen -->
@@ -491,7 +539,7 @@
             <button class="button" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
-        <div class="app-footer">orbital8-v14.html</div>
+        <div class="app-footer">orbital8-v14-p3.html</div>
     </div>
     
     <!-- OneDrive Auth Screen -->
@@ -503,7 +551,7 @@
             <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
-        <div class="app-footer">orbital8-v14.html</div>
+        <div class="app-footer">orbital8-v14-p3.html</div>
     </div>
     
     <!-- Google Drive Folder Screen -->
@@ -518,7 +566,7 @@
                 <button class="folder-button danger" id="gdrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v14.html</div>
+        <div class="app-footer">orbital8-v14-p3.html</div>
     </div>
     
     <!-- OneDrive Folder Screen -->
@@ -533,7 +581,7 @@
                 <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v14.html</div>
+        <div class="app-footer">orbital8-v14-p3.html</div>
     </div>
     
     <!-- Loading Screen -->
@@ -547,13 +595,12 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">orbital8-v14.html</div>
+        <div class="app-footer">orbital8-v14-p3.html</div>
     </div>
     
     <!-- Main App Container -->
     <div class="app-container hidden" id="app-container">
         <div class="nav-button back" id="back-button">← Folders</div>
-        <!-- ID 7: Removed provider switch button from main stage -->
         <div class="nav-button details" id="details-button">Details →</div>
         
         <div class="image-viewport" id="image-viewport">
@@ -576,8 +623,11 @@
             <button class="new-images-button" id="select-another-folder-btn" style="margin-top: 12px;">Choose Different Folder</button>
         </div>
         
+        <!-- ID 34: Filename Overlay Element -->
+        <div id="filename-overlay" class="filename-overlay"></div>
+        
         <div id="toast" class="toast"></div>
-        <div class="app-footer">orbital8-v14.html</div>
+        <div class="app-footer">orbital8-v14-p3.html</div>
     </div>
     
     <!-- Enhanced Grid Modal with 4-Row Structure -->
@@ -760,13 +810,14 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V14 - PHASE 1 =====
-        /* * Version: V14 (orbital8-v14.html)
+        // ===== ORBITAL8 V14 - PHASE 3 =====
+        /* * Version: V14 P3 (orbital8-v14-p3.html)
          * * Changes in this phase:
-         * - ID 8 (Auth): Fixed auth state loss on refresh by moving MSAL cache to localStorage and adding silent auth checks.
-         * - ID 7 (UI): Removed provider switch button from main stage.
-         * - ID 1 (Image Display): Fixed portrait image scaling on tablet landscape by removing negative top offset.
-         * - ID 2 (Image Display): Fixed image loading race condition by tracking the current image load request.
+           - ID 40, 24 (Grid View): Improved bulk operation reliability and added progress feedback.
+           - ID 18, 23 (Grid View): Fixed inconsistent thumbnail sizing and selection state on scroll.
+           - ID 35 (Rating System): Overhauled star rating system for consistency.
+           - ID 32 (UI): Pill counters now show ':)' for counts > 999.
+           - ID 34 (UI): Added an opaque filename overlay on the main image view.
          */
         
         // ===== Core Constants & State =====
@@ -783,8 +834,8 @@
             exportSystem: null,
             currentFolder: { id: null, name: '' },
             imageFiles: [],
-            currentImageIndex: 0,
-            currentImageLoadId: null, // ID 2: For preventing image loading race conditions
+            currentImageIndex: -1,
+            currentImageLoadId: null, 
             currentStack: 'in',
             stacks: { in: [], out: [], priority: [], trash: [] },
             isDragging: false,
@@ -849,6 +900,7 @@
                     selectAnotherStackBtn: document.getElementById('select-another-stack-btn'),
                     selectAnotherFolderBtn: document.getElementById('select-another-folder-btn'),
                     toast: document.getElementById('toast'),
+                    filenameOverlay: document.getElementById('filename-overlay'),
                     
                     // Loading elements
                     loadingCounter: document.getElementById('loading-counter'),
@@ -932,7 +984,6 @@
                 toast.className = `toast ${type} show`;
                 setTimeout(() => toast.classList.remove('show'), 3000);
                 
-                // Trigger haptic feedback for important messages
                 if (important && appState.hapticManager) {
                     const hapticType = type === 'error' ? 'error' : 'buttonPress';
                     appState.hapticManager.triggerFeedback(hapticType);
@@ -949,7 +1000,6 @@
             },
             
             async setImageSrc(img, file) {
-                // ID 2: Race condition fix
                 const loadId = file.id + '_' + Date.now();
                 appState.currentImageLoadId = loadId;
 
@@ -957,11 +1007,11 @@
                 
                 return new Promise((resolve) => {
                     img.onload = () => {
-                        if (appState.currentImageLoadId !== loadId) return; // Check if still the current image
+                        if (appState.currentImageLoadId !== loadId) return;
                         resolve();
                     };
                     img.onerror = () => {
-                        if (appState.currentImageLoadId !== loadId) return; // Check if still the current image
+                        if (appState.currentImageLoadId !== loadId) return;
 
                         let fallbackUrl;
                         if (appState.currentProviderType === 'googledrive') {
@@ -1636,7 +1686,6 @@
                         authority: 'https://login.microsoftonline.com/common',
                         redirectUri: window.location.origin + window.location.pathname
                     },
-                    // ID 8: Use localStorage to persist auth state across page reloads
                     cache: { cacheLocation: 'localStorage' }
                 };
                 this.msalInstance = new msal.PublicClientApplication(msalConfig);
@@ -1644,7 +1693,6 @@
             
             async authenticate() {
                 try {
-                    // ID 8: Attempt to sign in silently first
                     const accounts = this.msalInstance.getAllAccounts();
                     if (accounts.length > 0) {
                         this.msalInstance.setActiveAccount(accounts[0]);
@@ -1658,7 +1706,6 @@
                     }
 
                     this.isAuthenticated = true;
-                    // Initialize metadata manager
                     this.metadataManager = new OneDriveMetadataManager(this);
                     
                     return true;
@@ -2000,7 +2047,8 @@
             formatForCSV(images) {
                 const headers = [
                     'Filename',
-                    'Direct Image URL', 
+                    'Direct Image URL',
+                    'Prompt',
                     'Size',
                     'Created Date',
                     'Modified Date',
@@ -2015,6 +2063,7 @@
                 const rows = images.map(image => [
                     image.name || '',
                     this.getDirectImageURL(image),
+                    this.extractPrompt(image.extractedMetadata || {}),
                     this.formatFileSize(image.size || 0),
                     image.createdTime ? new Date(image.createdTime).toISOString() : '',
                     image.modifiedTime ? new Date(image.modifiedTime).toISOString() : '',
@@ -2027,6 +2076,22 @@
                 ]);
                 
                 return [headers, ...rows];
+            }
+
+            extractPrompt(metadata) {
+                const promptKeys = ['prompt', 'Prompt', 'parameters', 'sd-prompt'];
+                for (const key of promptKeys) {
+                    if (metadata[key]) {
+                        if (key === 'parameters') {
+                            const match = metadata[key].match(/^(.*?)(Negative prompt:|$)/);
+                            if (match && match[1]) {
+                                return match[1].trim();
+                            }
+                        }
+                        return metadata[key];
+                    }
+                }
+                return '';
             }
             
             getDirectImageURL(image) {
@@ -2100,7 +2165,6 @@
                 utils.showScreen('onedrive-auth-screen');
                 const provider = new OneDriveProvider();
                 try {
-                    // Attempt to authenticate silently
                     const success = await provider.authenticate();
                     if (success) {
                         appState.currentProvider = provider;
@@ -2108,7 +2172,6 @@
                         loadOneDriveFolders();
                     }
                 } catch (error) {
-                    // Silent auth failed, user will need to click the button
                     utils.elements.onedriveAuthStatus.textContent = 'Click to sign in with your Microsoft account';
                 }
             },
@@ -2141,7 +2204,6 @@
                 };
                 
                 try {
-                    // Check cache first
                     const cachedFiles = await appState.fileCache.getCachedFiles(appState.currentFolder.id);
                     
                     if (cachedFiles) {
@@ -2162,7 +2224,6 @@
                     } else {
                         utils.elements.loadingMessage.textContent = `Loading images from ${appState.currentProviderType}...`;
                         
-                        // Load user metadata if OneDrive
                         if (appState.currentProviderType === 'onedrive' && appState.currentProvider.metadataManager) {
                             await appState.currentProvider.metadataManager.loadMetadata();
                         }
@@ -2190,7 +2251,6 @@
                         }
                     }
                     
-                    // Initialize stacks and display
                     commonFunctions.initializeStacks();
                     commonFunctions.initializeImageDisplay();
                     
@@ -2234,7 +2294,6 @@
                     downloadUrl: file.downloadUrl,
                     extractedMetadata: file.extractedMetadata || {},
                     
-                    // User metadata
                     stack: userMetadata.stack || 'in',
                     tags: userMetadata.tags || [],
                     qualityRating: userMetadata.qualityRating || 0,
@@ -2252,7 +2311,6 @@
                 utils.elements.backButton.textContent = '← Folders';
                 utils.elements.backButton.onclick = () => this.returnToFolderSelection();
                 
-                // Add folder tooltip
                 this.setupFolderTooltips();
             },
             
@@ -2306,7 +2364,6 @@
                 
                 file.stack = targetStack;
                 
-                // Provider-specific persistence
                 if (appState.currentProviderType === 'googledrive') {
                     await appState.currentProvider.moveFileToStack(fileId, targetStack);
                 } else {
@@ -2322,7 +2379,6 @@
                 
                 Object.assign(file, updates);
                 
-                // Provider-specific persistence
                 if (appState.currentProviderType === 'googledrive') {
                     const properties = {};
                     if (updates.stack) properties.slideboxStack = updates.stack;
@@ -2343,26 +2399,17 @@
             
             async extractMetadataInBackground(pngFiles) {
                 const BATCH_SIZE = 5;
-                let extractedCount = 0;
-                let cachedCount = 0;
                 
                 for (let i = 0; i < pngFiles.length; i += BATCH_SIZE) {
                     const batch = pngFiles.slice(i, i + BATCH_SIZE);
                     const batchPromises = batch.map(file => this.processFileMetadata(file));
                     
                     try {
-                        const results = await Promise.allSettled(batchPromises);
-                        results.forEach((result) => {
-                            if (result.status === 'fulfilled') {
-                                if (result.value.extracted) extractedCount++;
-                                if (result.value.cached) cachedCount++;
-                            }
-                        });
-                        
+                        await Promise.allSettled(batchPromises);
                         await appState.fileCache.setCachedFiles(appState.currentFolder.id, appState.imageFiles);
                         
                         if (i + BATCH_SIZE < pngFiles.length) {
-                            await new Promise(resolve => setTimeout(resolve, 200));
+                            await new Promise(resolve => setTimeout(resolve, 50));
                         }
                         
                     } catch (error) {
@@ -2446,7 +2493,8 @@
                     const count = appState.stacks[stack].length;
                     const pill = document.getElementById(`pill-${stack}`);
                     if (pill) {
-                        pill.textContent = count > 999 ? '999+' : count;
+                        // ID 32: Update pill counter for overflow
+                        pill.textContent = count > 999 ? ':)' : count;
                         pill.classList.toggle('visible', count > 0);
                     }
                 });
@@ -2463,14 +2511,7 @@
             
             async displayTopImageFromStack(stackName) {
                 if (appState.stacks[stackName].length === 0) {
-                    utils.elements.centerImage.style.opacity = '0';
-                    
-                    setTimeout(() => {
-                        utils.elements.centerImage.src = '';
-                        utils.elements.centerImage.alt = 'No images in this stack';
-                        utils.elements.emptyState.classList.remove('hidden');
-                        utils.elements.centerImage.style.opacity = '1';
-                    }, 200);
+                    this.showEmptyState();
                     return;
                 }
                 
@@ -2483,17 +2524,29 @@
                     appState.currentStack = stackName;
                     await this.displayCurrentImage();
                     this.updateActiveProxTab();
+                } else {
+                    this.showEmptyState();
                 }
             },
             
             async displayCurrentImage() {
-                if (appState.imageFiles.length === 0) return;
+                if (appState.imageFiles.length === 0 || appState.currentImageIndex === -1) {
+                    this.showEmptyState();
+                    return;
+                }
                 
                 const currentFile = appState.imageFiles[appState.currentImageIndex];
-                if (!currentFile) return;
+                if (!currentFile) {
+                    this.showEmptyState();
+                    return;
+                }
                 
                 await utils.setImageSrc(utils.elements.centerImage, currentFile);
                 
+                // ID 34: Update and show filename overlay
+                utils.elements.filenameOverlay.textContent = currentFile.name;
+                utils.elements.filenameOverlay.classList.add('visible');
+
                 appState.currentScale = 1;
                 appState.panOffset = { x: 0, y: 0 };
                 this.applyTransform();
@@ -2516,6 +2569,7 @@
             
             async moveToStack(targetStack) {
                 const currentImage = appState.imageFiles[appState.currentImageIndex];
+                if (!currentImage) return;
                 const currentStack = currentImage.stack;
                 
                 if (currentStack === targetStack) {
@@ -2537,10 +2591,10 @@
                 
                 this.updateStackCounts();
                 
-                if (appState.stacks[appState.currentStack].length === 0) {
-                    this.showEmptyState();
-                } else {
+                if (appState.stacks[appState.currentStack].length > 0) {
                     this.moveToNextImage();
+                } else {
+                    this.showEmptyState();
                 }
             },
             
@@ -2551,18 +2605,26 @@
                     const nextGlobalIndex = appState.imageFiles.findIndex(img => img.id === nextImage.id);
                     if (nextGlobalIndex !== -1) {
                         appState.currentImageIndex = nextGlobalIndex;
+                        await this.displayCurrentImage();
+                    } else {
+                        this.showEmptyState();
                     }
-                    await this.displayCurrentImage();
+                } else {
+                    this.showEmptyState();
                 }
             },
             
             showEmptyState() {
+                appState.currentImageIndex = -1;
+                appState.currentImageLoadId = null;
                 utils.elements.centerImage.style.opacity = '0';
+                utils.elements.filenameOverlay.classList.remove('visible');
                 setTimeout(() => {
                     utils.elements.centerImage.src = '';
                     utils.elements.centerImage.alt = 'No images in this stack';
                     utils.elements.emptyState.classList.remove('hidden');
                     utils.elements.centerImage.style.opacity = '1';
+                    updateEmptyStateButtons();
                 }, 200);
             }
         };
@@ -2629,6 +2691,11 @@
                     const div = document.createElement('div');
                     div.className = 'grid-item';
                     div.dataset.fileId = file.id;
+                    
+                    // ID 23: Ensure selection state is applied on render
+                    if (appState.grid.selected.includes(file.id)) {
+                        div.classList.add('selected');
+                    }
                     
                     const img = document.createElement('img');
                     img.className = 'grid-image';
@@ -2921,70 +2988,69 @@
                 utils.elements.detailNotes = newNotesTextarea;
                 
                 utils.elements.detailNotes.addEventListener('blur', async () => {
-                    try {
-                        await masterController.updateUserMetadata(file.id, { notes: utils.elements.detailNotes.value });
-                    } catch (error) {
-                        utils.showToast('Failed to save notes', 'error', true);
+                    const currentFile = appState.imageFiles[appState.currentImageIndex];
+                    if (currentFile.notes !== utils.elements.detailNotes.value) {
+                        try {
+                            await masterController.updateUserMetadata(currentFile.id, { notes: utils.elements.detailNotes.value });
+                        } catch (error) {
+                            utils.showToast('Failed to save notes', 'error', true);
+                        }
                     }
                 });
                 
-                this.setupStarRating(utils.elements.qualityRating, file.qualityRating || 0, async (rating) => {
-                    try {
-                        await masterController.updateUserMetadata(file.id, { qualityRating: rating });
-                    } catch (error) {
-                        utils.showToast('Failed to save rating', 'error', true);
-                    }
-                });
-                
-                this.setupStarRating(utils.elements.contentRating, file.contentRating || 0, async (rating) => {
-                    try {
-                        await masterController.updateUserMetadata(file.id, { contentRating: rating });
-                    } catch (error) {
-                        utils.showToast('Failed to save rating', 'error', true);
-                    }
-                });
+                this.setupStarRating('quality', file.qualityRating || 0);
+                this.setupStarRating('content', file.contentRating || 0);
             },
             
-            setupStarRating(container, currentRating, onRatingChange) {
+            // ID 35: Overhauled star rating system for consistency
+            setupStarRating(type, currentRating) {
+                const container = utils.elements[`${type}Rating`];
                 if (!container) return;
-                
-                const stars = container.querySelectorAll('.star');
-                
-                this.updateStarVisuals(stars, currentRating);
-                
-                stars.forEach((star, index) => {
-                    star.replaceWith(star.cloneNode(true));
-                });
-                
-                const newStars = container.querySelectorAll('.star');
-                
-                newStars.forEach((star, index) => {
-                    star.addEventListener('click', () => {
-                        const newRating = index + 1;
-                        this.updateStarVisuals(newStars, newRating);
-                        onRatingChange(newRating);
-                    });
-                    
-                    star.addEventListener('mouseenter', () => {
-                        this.updateStarVisuals(newStars, index + 1);
-                    });
-                    
-                    star.addEventListener('mouseleave', () => {
-                        this.updateStarVisuals(newStars, currentRating);
-                    });
-                });
-            },
             
-            updateStarVisuals(stars, rating) {
+                let rating = currentRating;
+                const stars = container.querySelectorAll('.star');
+            
+                const updateVisuals = (r) => {
+                    stars.forEach((star, index) => {
+                        star.classList.toggle('active', index < r);
+                    });
+                };
+            
+                container.onmouseleave = () => updateVisuals(rating);
+            
                 stars.forEach((star, index) => {
-                    if (index < rating) {
-                        star.classList.add('active');
-                        star.style.color = '#fbbf24';
-                    } else {
-                        star.classList.remove('active');
-                        star.style.color = '#d1d5db';
-                    }
+                    star.onmouseenter = () => updateVisuals(index + 1);
+                    star.onclick = async () => {
+                        const newRating = index + 1;
+                        if (newRating === rating) {
+                            rating = 0; // Allow deselecting by clicking the same star
+                        } else {
+                            rating = newRating;
+                        }
+                        updateVisuals(rating);
+            
+                        const currentFile = appState.imageFiles[appState.currentImageIndex];
+                        if (!currentFile) return;
+            
+                        const updatePayload = {};
+                        if (type === 'quality') {
+                            updatePayload.qualityRating = rating;
+                        } else {
+                            updatePayload.contentRating = rating;
+                        }
+            
+                        try {
+                            await masterController.updateUserMetadata(currentFile.id, updatePayload);
+                        } catch (error) {
+                            utils.showToast(`Failed to save ${type} rating`, 'error', true);
+                            // Revert UI on failure if needed
+                            rating = currentRating;
+                            updateVisuals(rating);
+                        }
+                    };
                 });
+            
+                updateVisuals(rating);
             },
             
             populateMetadataTab(file) {
@@ -3208,11 +3274,11 @@
                             <strong>Exported data includes:</strong>
                             <ul style="margin: 8px 0; padding-left: 20px; color: #6b7280;">
                                 <li>Filename and direct image URL</li>
+                                <li>AI Generation Prompt</li>
                                 <li>File size and dates</li>
                                 <li>Tags and notes</li>
                                 <li>Quality and content ratings</li>
                                 <li>Embedded metadata (JSON)</li>
-                                <li>Cloud provider information</li>
                             </ul>
                         </div>
                     `,
@@ -3236,117 +3302,74 @@
                 });
             },
             
-            async executeMove(targetStack) {
+            // ID 24 & 40: Added progress feedback and robustness to bulk actions
+            async executeBulkAction(actionFn, successMessage) {
+                const confirmBtn = utils.elements.actionConfirm;
+                const originalText = confirmBtn.textContent;
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Processing...';
+
                 try {
-                    const promises = appState.grid.selected.map(fileId => 
-                        masterController.moveFileToStack(fileId, targetStack)
-                    );
+                    const promises = appState.grid.selected.map(fileId => actionFn(fileId));
                     await Promise.all(promises);
-                    
-                    // Update stacks
-                    appState.grid.selected.forEach(fileId => {
-                        const file = appState.imageFiles.find(f => f.id === fileId);
-                        if (file) {
-                            // Remove from current stack
-                            const currentStackIndex = appState.stacks[file.stack].findIndex(f => f.id === fileId);
-                            if (currentStackIndex !== -1) {
-                                appState.stacks[file.stack].splice(currentStackIndex, 1);
-                            }
-                            // Add to target stack
-                            appState.stacks[targetStack].unshift(file);
-                        }
-                    });
-                    
-                    utils.showToast(`Moved ${promises.length} images to ${targetStack}`, 'success', true);
+
+                    utils.showToast(successMessage.replace('{count}', promises.length), 'success', true);
                     this.hide();
                     gridView.populate(appState.grid.stack);
                     appState.grid.selected = [];
                     gridView.updateSelectionUI();
                     commonFunctions.updateStackCounts();
                 } catch (error) {
-                    utils.showToast('Failed to move some images', 'error', true);
-                    this.hide();
+                    utils.showToast('Failed to process some images', 'error', true);
+                } finally {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = originalText;
                 }
             },
-            
+
+            async executeMove(targetStack) {
+                await this.executeBulkAction(async (fileId) => {
+                    const file = appState.imageFiles.find(f => f.id === fileId);
+                    if (file) {
+                        const currentStack = file.stack;
+                        await masterController.moveFileToStack(fileId, targetStack);
+                        const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
+                        if (currentStackIndex !== -1) {
+                            appState.stacks[currentStack].splice(currentStackIndex, 1);
+                        }
+                        appState.stacks[targetStack].unshift(file);
+                    }
+                }, `Moved {count} images to ${targetStack}`);
+            },
+
             async executeTag() {
                 const tagInput = document.getElementById('modal-tag-input');
                 if (!tagInput.value.trim()) return;
-                
-                const tags = tagInput.value.split(',').map(tag => tag.trim()).filter(tag => tag);
-                
-                try {
-                    for (const fileId of appState.grid.selected) {
-                        const file = appState.imageFiles.find(f => f.id === fileId);
-                        if (file) {
-                            const currentTags = file.tags || [];
-                            const newTags = [...new Set([...currentTags, ...tags])];
-                            
-                            await masterController.updateUserMetadata(fileId, { tags: newTags });
-                            tags.forEach(tag => appState.tags.add(tag));
-                        }
+                const tagsToAdd = tagInput.value.split(',').map(tag => tag.trim()).filter(tag => tag);
+
+                await this.executeBulkAction(async (fileId) => {
+                    const file = appState.imageFiles.find(f => f.id === fileId);
+                    if (file) {
+                        const currentTags = file.tags || [];
+                        const newTags = [...new Set([...currentTags, ...tagsToAdd])];
+                        await masterController.updateUserMetadata(fileId, { tags: newTags });
+                        tagsToAdd.forEach(tag => appState.tags.add(tag));
                     }
-                    utils.showToast(`Tags added to ${appState.grid.selected.length} images`, 'success', true);
-                    this.hide();
-                    gridView.populate(appState.grid.stack);
-                } catch (error) {
-                    utils.showToast('Failed to add tags', 'error', true);
-                }
+                }, `Tags added to {count} images`);
             },
-            
+
             async executeDelete() {
                 const currentStack = appState.grid.stack;
-                utils.elements.actionConfirm.disabled = true;
-                utils.elements.actionConfirm.textContent = 'Processing...';
-                
-                try {
-                    if (currentStack === 'trash') {
-                        const promises = appState.grid.selected.map(fileId => 
-                            masterController.deleteFile(fileId)
-                        );
-                        await Promise.all(promises);
-                        
-                        const providerName = appState.currentProviderType === 'googledrive' ? 'Google Drive' : 'OneDrive';
-                        utils.showToast(`Moved ${promises.length} images to ${providerName} trash`, 'success', true);
-                        
-                        appState.grid.selected.forEach(fileId => {
-                            const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
-                            if (fileIndex !== -1) appState.imageFiles.splice(fileIndex, 1);
-                            const trashIndex = appState.stacks.trash.findIndex(f => f.id === fileId);
-                            if (trashIndex !== -1) appState.stacks.trash.splice(trashIndex, 1);
-                        });
-                    } else {
-                        const promises = appState.grid.selected.map(fileId => 
-                            masterController.moveFileToStack(fileId, 'trash')
-                        );
-                        await Promise.all(promises);
-                        
-                        // Update stacks
-                        appState.grid.selected.forEach(fileId => {
-                            const file = appState.imageFiles.find(f => f.id === fileId);
-                            if (file) {
-                                const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
-                                if (currentStackIndex !== -1) {
-                                    appState.stacks[currentStack].splice(currentStackIndex, 1);
-                                }
-                                appState.stacks.trash.unshift(file);
-                            }
-                        });
-                        
-                        utils.showToast(`Moved ${promises.length} images to trash`, 'success', true);
-                    }
-                    
-                    this.hide();
-                    gridView.populate(appState.grid.stack);
-                    appState.grid.selected = [];
-                    gridView.updateSelectionUI();
-                    commonFunctions.updateStackCounts();
-                } catch (error) {
-                    utils.showToast('Failed to delete some images', 'error', true);
-                    this.hide();
-                } finally {
-                    utils.elements.actionConfirm.disabled = false;
-                    utils.elements.actionConfirm.textContent = 'Confirm';
+                if (currentStack === 'trash') {
+                    await this.executeBulkAction(async (fileId) => {
+                        await masterController.deleteFile(fileId);
+                        const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
+                        if (fileIndex !== -1) appState.imageFiles.splice(fileIndex, 1);
+                        const trashIndex = appState.stacks.trash.findIndex(f => f.id === fileId);
+                        if (trashIndex !== -1) appState.stacks.trash.splice(trashIndex, 1);
+                    }, `Moved {count} images to provider trash`);
+                } else {
+                    await this.executeMove('trash');
                 }
             },
             
@@ -3374,7 +3397,7 @@
             const hasOtherStacks = stacksWithImages.some(stack => stack !== appState.currentStack);
             
             utils.elements.selectAnotherStackBtn.style.display = hasOtherStacks ? 'block' : 'none';
-            utils.elements.selectAnotherFolderBtn.style.display = hasOtherStacks ? 'none' : 'block';
+            utils.elements.selectAnotherFolderBtn.style.display = 'block';
         }
         
         function acknowledgePillCounter(stackName) {
@@ -3432,33 +3455,14 @@
             }
             
             async function executeFlick(targetStack) {
+                if (appState.currentImageIndex === -1) return;
                 const currentImage = appState.imageFiles[appState.currentImageIndex];
-                const currentStack = currentImage.stack;
-                
+                if (!currentImage) return;
+
                 acknowledgePillCounter(targetStack);
                 
-                // Trigger haptic feedback
                 if (appState.hapticManager) {
                     appState.hapticManager.triggerFeedback('swipe');
-                }
-                
-                if (currentStack === targetStack) {
-                    const currentStackArray = appState.stacks[currentStack];
-                    const index = currentStackArray.findIndex(img => img.id === currentImage.id);
-                    if (index > -1) {
-                        currentStackArray.splice(index, 1);
-                        currentStackArray.push(currentImage);
-                    }
-                    
-                    if (appState.stacks[appState.currentStack].length === 0) {
-                        commonFunctions.showEmptyState();
-                    } else {
-                        commonFunctions.moveToNextImage();
-                    }
-                    
-                    commonFunctions.updateStackCounts();
-                    hideAllEdgeGlows();
-                    return;
                 }
                 
                 try {
@@ -3479,7 +3483,7 @@
             document.addEventListener('touchend', handleEnd, { passive: false });
             
             function handleStart(e) {
-                if (appState.imageFiles.length === 0) return;
+                if (appState.imageFiles.length === 0 || appState.currentImageIndex === -1) return;
                 if (e.touches && (e.touches.length > 1 || appState.isPinching)) return;
                 if (appState.currentScale > 1.1) return;
                 
@@ -3759,7 +3763,11 @@
             });
             
             // Details modal
-            utils.elements.detailsButton.addEventListener('click', () => detailsModal.show());
+            utils.elements.detailsButton.addEventListener('click', () => {
+                if (appState.currentImageIndex !== -1) {
+                    detailsModal.show();
+                }
+            });
             utils.elements.detailsClose.addEventListener('click', () => detailsModal.hide());
             
             // Tabs
@@ -3811,7 +3819,6 @@
                     pill.addEventListener('click', (e) => {
                         e.stopPropagation();
                         
-                        // Trigger haptic feedback
                         if (appState.hapticManager) {
                             appState.hapticManager.triggerFeedback('pillTap');
                         }
@@ -3878,52 +3885,44 @@
                 }
             });
             
-            // Corrected keyboard navigation
+            // Keyboard navigation
             document.addEventListener('keydown', (e) => {
                 if (utils.elements.appContainer.classList.contains('hidden')) return;
                 
                 if (!utils.elements.detailsModal.classList.contains('hidden')) {
-                    if (e.key === 'Escape') {
-                        detailsModal.hide();
-                    }
+                    if (e.key === 'Escape') detailsModal.hide();
                     return;
                 }
                 
                 if (!utils.elements.gridModal.classList.contains('hidden')) {
-                    if (e.key === 'Escape') {
-                        gridView.close();
-                    }
+                    if (e.key === 'Escape') gridView.close();
                     return;
                 }
                 
                 if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
                 
+                const keyMap = {
+                    'ArrowUp': 'priority',
+                    'ArrowDown': 'trash',
+                    'ArrowLeft': 'in',
+                    'ArrowRight': 'out'
+                };
+                
+                if (keyMap[e.key]) {
+                    e.preventDefault();
+                    const targetStack = keyMap[e.key];
+                    if (appState.currentImageIndex !== -1) {
+                        acknowledgePillCounter(targetStack);
+                        commonFunctions.moveToStack(targetStack);
+                    }
+                    return;
+                }
+                
                 switch (e.key) {
-                    // Arrow keys switch between stacks
-                    case 'ArrowUp':
-                        e.preventDefault();
-                        switchToStack('priority');
-                        break;
-                    case 'ArrowDown':
-                        e.preventDefault();
-                        switchToStack('trash');
-                        break;
-                    case 'ArrowLeft':
-                        e.preventDefault();
-                        switchToStack('in');
-                        break;
-                    case 'ArrowRight':
-                        e.preventDefault();
-                        switchToStack('out');
-                        break;
-                        
-                    // Tab key cycles through proxtabs
                     case 'Tab':
                         e.preventDefault();
                         cycleThroughProxTabs();
                         break;
-                        
-                    // Escape to return to folder selection
                     case 'Escape':
                         masterController.returnToFolderSelection();
                         break;
@@ -4050,7 +4049,6 @@
                 utils.elements.onedriveFolderList.appendChild(div);
             });
             
-            // Add event listeners for action buttons
             document.querySelectorAll('.drill-btn').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
@@ -4109,7 +4107,6 @@
             try {
                 utils.init();
                 
-                // Initialize all managers
                 appState.visualCueManager = new VisualCueManager();
                 appState.hapticManager = new HapticFeedbackManager();
                 appState.exportSystem = new ExportSystem();
@@ -4119,7 +4116,6 @@
                 
                 appState.metadataExtractor = new ProgressiveMetadataExtractor();
                 
-                // Show provider selection screen first
                 utils.showScreen('provider-screen');
                 
                 setupEventHandlers();
