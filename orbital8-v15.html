@@ -8,12 +8,13 @@
     <title>Orbital8 V14 - Unified Cloud Storage</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V14 - PHASE 4 (FIXED) ===== */
+        /* ===== ORBITAL8 V14 - PHASE 4 (REVISED) ===== */
         /* Changes in this version:
-           - Stack Logic: Fixed stack switching, pill counter updates, and swipe-to-active-stack behavior.
-           - UI Polish: Removed image position/percentage counters. Filename overlay is now selectable, raised, width-constrained (90%), and extension-free.
-           - Grid Layout: Removed "Grid Size" text. Bulk action buttons are now in a reserved row to prevent layout shifts. Search fields are now 2 rows.
-           - Search Redesign: Search is now automatic on blur. The main pill counter updates with results. Exiting a search reorders the main stack.
+           - Swipe Logic: Fixed swipe-to-same-stack behavior to correctly advance the image.
+           - Grid Layout: Implemented a single Omni search bar to save space. Bulk action buttons are now shorter, left-aligned, and in a reserved row.
+           - Search UX: Search results are now selected by default. The 'X' on the selection pill deselects all.
+           - Thumbnail Sizing: Portrait thumbnails are larger to reduce whitespace (object-fit: cover).
+           - UI Polish: Removed main stage counters. Filename overlay is selectable, 90% width, raised, and extension-free.
         */
         
         :root {
@@ -356,14 +357,12 @@
         .grid-row-3 {
             padding: 8px 16px;
             border-bottom: 1px solid #e5e7eb;
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        .search-group { display: flex; flex-direction: column; align-items: flex-start; }
-        .search-group label { font-size: 12px; color: #4b5563; margin-bottom: 4px; }
-        .search-group input {
-            width: 100%; padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;
+        #omni-search {
+            flex-grow: 1; padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;
         }
         
         .grid-row-4 {
@@ -371,9 +370,10 @@
             border-bottom: 1px solid #e5e7eb;
             min-height: 41px;
             display: flex;
-            justify-content: flex-start; /* Align buttons to the left */
+            justify-content: flex-start;
         }
         .bulk-actions { display: flex; align-items: center; gap: 8px; }
+        .bulk-actions .btn { padding: 4px 10px; font-size: 13px; }
         
         .grid-content { flex: 1; overflow-y: auto; padding: 16px; }
         .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
@@ -399,7 +399,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: contain;
+            object-fit: cover; /* Changed from contain */
         }
         .grid-item.selected { box-shadow: 0 0 0 4px #3b82f6; }
         
@@ -474,9 +474,6 @@
             .metadata-table .key-cell { width: 30%; min-width: 80px; font-size: 12px; }
             .metadata-table .value-cell { font-size: 12px; }
             .copy-button { font-size: 10px; padding: 3px 6px; }
-            
-            .grid-row-3 { grid-template-columns: 1fr; }
-            .search-group input { width: 100%; }
             
             .app-container { height: 100vh; height: 100dvh; }
             .image-viewport { height: 100vh; height: 100dvh; }
@@ -665,20 +662,10 @@
                     </div>
                 </div>
                 
-                <!-- Row 3: Search Fields -->
+                <!-- Row 3: Omni Search -->
                 <div class="grid-row-3">
-                    <div class="search-group">
-                        <label>Tags:</label>
-                        <input type="text" id="search-tags" placeholder="nature*">
-                    </div>
-                    <div class="search-group">
-                        <label>Notes:</label>
-                        <input type="text" id="search-notes" placeholder="vacation*">
-                    </div>
-                    <div class="search-group">
-                        <label>Meta:</label>
-                        <input type="text" id="search-meta" placeholder="camera*">
-                    </div>
+                    <input type="text" id="omni-search" class="input" placeholder="Search tags, notes, and metadata..." style="margin-bottom: 0; flex-grow: 1;">
+                    <button id="omni-search-btn" class="btn btn-primary">Go</button>
                 </div>
                 
                 <!-- Row 4: Reserved for Bulk Actions -->
@@ -812,13 +799,14 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V14 - PHASE 4 (FIXED) =====
+        // ===== ORBITAL8 V14 - PHASE 4 (REVISED) =====
         /* * Version: V14 P4 (orbital8-v14-p4.html)
          * * Changes in this version:
-           - Stack Logic: Fixed stack switching, pill counter updates, and swipe-to-active-stack behavior.
-           - UI Polish: Removed image position/percentage counters. Filename overlay is now selectable, raised, width-constrained (90%), and extension-free.
-           - Grid Layout: Removed "Grid Size" text. Bulk action buttons are now in a reserved row to prevent layout shifts. Search fields are now 2 rows.
-           - Search Redesign: Search is now automatic on blur. The main pill counter updates with results. Exiting a search reorders the main stack.
+           - Swipe Logic: Fixed swipe-to-same-stack behavior to correctly advance the image.
+           - Grid Layout: Implemented a single Omni search bar to save space. Bulk action buttons are now shorter, left-aligned, and in a reserved row.
+           - Search UX: Search results are now selected by default. The 'X' on the selection pill deselects all.
+           - Thumbnail Sizing: Portrait thumbnails are larger to reduce whitespace (object-fit: cover).
+           - UI Polish: Removed main stage counters. Filename overlay is selectable, 90% width, raised, and extension-free.
          */
         
         // ===== Core Constants & State =====
@@ -933,9 +921,8 @@
                     gridSizeValue: document.getElementById('grid-size-value'),
                     
                     // Search elements
-                    searchTags: document.getElementById('search-tags'),
-                    searchNotes: document.getElementById('search-notes'),
-                    searchMeta: document.getElementById('search-meta'),
+                    omniSearch: document.getElementById('omni-search'),
+                    omniSearchBtn: document.getElementById('omni-search-btn'),
                     
                     // Action buttons
                     tagSelected: document.getElementById('tag-selected'),
@@ -2575,7 +2562,7 @@
                     const index = currentStackArray.findIndex(img => img.id === currentImage.id);
                     if (index > -1) {
                         const [item] = currentStackArray.splice(index, 1);
-                        currentStackArray.push(item); // Move to end
+                        currentStackArray.push(item);
                     }
                 } else {
                     const oldStack = appState.stacks[currentStackName];
@@ -2647,7 +2634,7 @@
                 
                 this.updateSelectionUI();
                 this.populate(stack);
-                commonFunctions.updateStackCounts(); // Reset pill count on open
+                commonFunctions.updateStackCounts();
             },
             
             close() {
@@ -2799,65 +2786,48 @@
             },
             
             performSearch() {
-                const searchCriteria = {
-                    tags: utils.elements.searchTags.value.trim(),
-                    notes: utils.elements.searchNotes.value.trim(),
-                    meta: utils.elements.searchMeta.value.trim()
-                };
+                const query = utils.elements.omniSearch.value.trim();
                 
-                if (!searchCriteria.tags && !searchCriteria.notes && !searchCriteria.meta) {
+                if (!query) {
                     this.resetSearch();
                     return;
                 }
                 
-                const filteredImages = this.searchImages(searchCriteria);
+                const filteredImages = this.searchImages(query);
                 appState.grid.filtered = filteredImages;
+                
+                // Auto-select all search results
+                appState.grid.selected = filteredImages.map(f => f.id);
                 
                 utils.elements.selectAllBtn.textContent = filteredImages.length;
                 
                 this.populate(appState.grid.stack);
+                this.updateSelectionUI();
             },
 
             resetSearch() {
-                utils.elements.searchTags.value = '';
-                utils.elements.searchNotes.value = '';
-                utils.elements.searchMeta.value = '';
+                utils.elements.omniSearch.value = '';
                 appState.grid.filtered = [];
                 this.populate(appState.grid.stack);
                 commonFunctions.updateStackCounts();
             },
             
-            searchImages(searchCriteria) {
-                const { tags, notes, meta } = searchCriteria;
-                
-                return appState.stacks[appState.grid.stack].filter(file => {
-                    if (tags && !this.matchesWildcard(file.tags?.join(' ') || '', tags)) {
-                        return false;
-                    }
-                    
-                    if (notes && !this.matchesWildcard(file.notes || '', notes)) {
-                        return false;
-                    }
-                    
-                    if (meta) {
-                        const metaText = JSON.stringify(file.extractedMetadata || {});
-                        if (!this.matchesWildcard(metaText, meta)) {
-                            return false;
-                        }
-                    }
-                    
-                    return true;
-                });
-            },
-            
-            matchesWildcard(text, pattern) {
-                const regexPattern = pattern
+            searchImages(query) {
+                const pattern = query
                     .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
                     .replace(/\\\*/g, '.*')
                     .replace(/\\\?/g, '.');
-                
-                const regex = new RegExp(regexPattern, 'i');
-                return regex.test(text);
+                const regex = new RegExp(pattern, 'i');
+
+                return appState.stacks[appState.grid.stack].filter(file => {
+                    const searchableText = [
+                        file.tags?.join(' ') || '',
+                        file.notes || '',
+                        JSON.stringify(file.extractedMetadata || {})
+                    ].join(' ');
+                    
+                    return regex.test(searchableText);
+                });
             }
         };
 
@@ -3860,8 +3830,9 @@
             });
             
             // Search functionality
-            ['search-tags', 'search-notes', 'search-meta'].forEach(id => {
-                document.getElementById(id).addEventListener('blur', () => gridView.performSearch());
+            utils.elements.omniSearchBtn.addEventListener('click', () => gridView.performSearch());
+            utils.elements.omniSearch.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') gridView.performSearch();
             });
             
             // Action buttons
