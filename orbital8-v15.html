@@ -8,12 +8,15 @@
     <title>Orbital8 V14 - Unified Cloud Storage</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V14 - PHASE 2 ===== */
+        /* ===== ORBITAL8 V14 - PHASE 4 ===== */
         /* Changes in this version:
-           - ID 3 & 29 (Export): Added a dedicated 'Prompt' column to the CSV export.
-           - ID 22 (UI/Nav): Fixed empty state display; now correctly shows when a stack is empty.
-           - ID 16 (Accessibility): Implemented arrow key controls for moving images between stacks.
-           - ID 10 (Performance): Added a small delay in the metadata extraction loop to prevent UI stalls.
+           - Stack/Grid Logic: Grid order now perfectly syncs with the dynamic stack order. Moving images or exiting search correctly places items at the top of the stack.
+           - Active Image Focus: Clicking the active stack's pill counter opens the grid with the current image at the top and selected.
+           - UI Polish: Tag/note input text is now black. Mobile filename overlay is raised and width-constrained.
+           - Main Stage UI: Added counters for image position (bottom-right) and stack percentage (bottom-left).
+           - Search Redesign: Search bar is now [Search] [Results] [Reset]. Exiting a search reorders the main stack.
+           - (ID 33) Haptics: Haptic feedback patterns have been refined for better timing.
+           - (ID 38) Move Confirmation: Added a toaster message for the "Move to Folder" action.
         */
         
         :root {
@@ -51,15 +54,22 @@
         .subtitle { color: rgba(255, 255, 255, 0.7); font-size: 16px; margin-bottom: 24px; }
         
         /* ===== Form Elements ===== */
-        .input, .tag-input, .notes-textarea {
+        .input, .notes-textarea {
             width: 100%; padding: 12px 16px; border: 1px solid var(--glass-border); border-radius: 12px;
             background: var(--glass-bg); color: white; font-size: 14px; margin-bottom: 16px; backdrop-filter: blur(10px);
         }
-        .input::placeholder, .tag-input::placeholder { color: rgba(255, 255, 255, 0.5); }
-        .input:focus, .tag-input:focus, .notes-textarea:focus {
+        .input::placeholder { color: rgba(255, 255, 255, 0.5); }
+        .input:focus, .notes-textarea:focus {
             outline: none; border-color: var(--app-accent); box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
         }
         .notes-textarea { min-height: 120px; font-family: inherit; resize: vertical; }
+
+        /* Phase 4: Fix tag/note input color in modal */
+        #action-modal .tag-input, #action-modal .notes-textarea {
+            color: #1f2937; /* Black text for readability on white background */
+            background: #f3f4f6;
+            border-color: #d1d5db;
+        }
         
         /* ===== Buttons ===== */
         .button, .folder-button, .btn {
@@ -206,6 +216,46 @@
         .center-image.dragging { filter: brightness(0.9); cursor: grabbing; }
         .center-image.zoomable { pointer-events: auto; }
         
+        .filename-overlay {
+            position: absolute;
+            bottom: 25px; /* Raised slightly */
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            z-index: 5;
+            max-width: 70%; /* Fixed length */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        .filename-overlay.visible { opacity: 1; }
+
+        .image-counter {
+            position: absolute;
+            bottom: 25px;
+            font-size: 12px;
+            font-weight: 500;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 6px 12px;
+            border-radius: 12px;
+            z-index: 5;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .image-counter.visible { opacity: 1; }
+        #image-pos-counter { right: 20px; }
+        #image-perc-counter { left: 20px; }
+
         /* ===== Edge Effects ===== */
         .edge-glow { position: absolute; opacity: 0; transition: opacity 0.2s ease; z-index: 2; }
         .edge-glow.top { top: 0; left: 0; right: 0; height: 8px; background: linear-gradient(180deg, rgba(245, 158, 11, var(--glow-opacity)) 0%, transparent 100%); }
@@ -338,16 +388,41 @@
             width: 120px; padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;
         }
         
-        /* Row 4: Action Buttons */
+        /* Row 4: Search Actions & Bulk Actions */
         .grid-row-4 {
             padding: 8px 16px; border-bottom: 1px solid #e5e7eb; display: flex;
-            align-items: center; justify-content: flex-end; gap: 8px;
+            align-items: center; justify-content: space-between; gap: 8px;
         }
+        .search-actions { display: flex; align-items: center; gap: 8px; }
+        #search-results-count { font-size: 14px; color: #4b5563; }
+        .bulk-actions { display: flex; align-items: center; gap: 8px; }
         
         .grid-content { flex: 1; overflow-y: auto; padding: 16px; }
         .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
-        .grid-item { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 8px; cursor: pointer; }
-        .grid-image { width: 100%; height: 100%; object-fit: cover; }
+        
+        .grid-item {
+            position: relative;
+            background-color: #f3f4f6;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .grid-item::before {
+            content: "";
+            display: block;
+            padding-top: 100%;
+        }
+        .grid-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
         .grid-item.selected { box-shadow: 0 0 0 4px #3b82f6; }
         
         /* ===== Details Modal ===== */
@@ -416,6 +491,8 @@
         @media screen and (max-width: 767px) {
             .nav-button { font-size: 16px; padding: 12px 20px; border-radius: 25px; min-width: 80px; }
             .pill-counter.bottom { bottom: 80px; }
+            .filename-overlay { font-size: 11px; padding: 5px 12px; }
+            .image-counter { font-size: 11px; padding: 5px 10px; bottom: 20px; }
             .details-modal-content { max-width: 100vw; max-height: 100vh; height: 100vh; margin: 0; border-radius: 0; }
             .metadata-table .key-cell { width: 30%; min-width: 80px; font-size: 12px; }
             .metadata-table .value-cell { font-size: 12px; }
@@ -476,7 +553,7 @@
             
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">orbital8-v14-p2.html</div>
+        <div class="app-footer">orbital8-v14-p4.html</div>
     </div>
     
     <!-- Google Drive Auth Screen -->
@@ -489,7 +566,7 @@
             <button class="button" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
-        <div class="app-footer">orbital8-v14-p2.html</div>
+        <div class="app-footer">orbital8-v14-p4.html</div>
     </div>
     
     <!-- OneDrive Auth Screen -->
@@ -501,7 +578,7 @@
             <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
-        <div class="app-footer">orbital8-v14-p2.html</div>
+        <div class="app-footer">orbital8-v14-p4.html</div>
     </div>
     
     <!-- Google Drive Folder Screen -->
@@ -516,7 +593,7 @@
                 <button class="folder-button danger" id="gdrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v14-p2.html</div>
+        <div class="app-footer">orbital8-v14-p4.html</div>
     </div>
     
     <!-- OneDrive Folder Screen -->
@@ -531,7 +608,7 @@
                 <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v14-p2.html</div>
+        <div class="app-footer">orbital8-v14-p4.html</div>
     </div>
     
     <!-- Loading Screen -->
@@ -545,7 +622,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">orbital8-v14-p2.html</div>
+        <div class="app-footer">orbital8-v14-p4.html</div>
     </div>
     
     <!-- Main App Container -->
@@ -573,8 +650,12 @@
             <button class="new-images-button" id="select-another-folder-btn" style="margin-top: 12px;">Choose Different Folder</button>
         </div>
         
+        <div id="filename-overlay" class="filename-overlay"></div>
+        <div id="image-perc-counter" class="image-counter"></div>
+        <div id="image-pos-counter" class="image-counter"></div>
+        
         <div id="toast" class="toast"></div>
-        <div class="app-footer">orbital8-v14-p2.html</div>
+        <div class="app-footer">orbital8-v14-p4.html</div>
     </div>
     
     <!-- Enhanced Grid Modal with 4-Row Structure -->
@@ -625,16 +706,22 @@
                         <label>Meta:</label>
                         <input type="text" id="search-meta" placeholder="camera*">
                     </div>
-                    <button id="search-btn" class="btn btn-primary">Search</button>
                 </div>
                 
-                <!-- Row 4: Action Buttons -->
+                <!-- Row 4: Search Actions & Bulk Actions -->
                 <div class="grid-row-4">
-                    <button id="tag-selected" class="btn btn-primary hidden">Tag</button>
-                    <button id="move-selected" class="btn btn-primary hidden">Move</button>
-                    <button id="delete-selected" class="btn btn-danger hidden">Delete</button>
-                    <button id="export-selected" class="btn btn-primary hidden">Export</button>
-                    <button id="folder-selected" class="btn btn-primary hidden">Folder</button>
+                    <div class="search-actions">
+                        <button id="search-btn" class="btn btn-primary">Search</button>
+                        <span id="search-results-count"></span>
+                        <button id="search-reset-btn" class="btn btn-secondary hidden">Reset</button>
+                    </div>
+                    <div class="bulk-actions">
+                        <button id="tag-selected" class="btn btn-primary hidden">Tag</button>
+                        <button id="move-selected" class="btn btn-primary hidden">Move</button>
+                        <button id="delete-selected" class="btn btn-danger hidden">Delete</button>
+                        <button id="export-selected" class="btn btn-primary hidden">Export</button>
+                        <button id="folder-selected" class="btn btn-primary hidden">Folder</button>
+                    </div>
                 </div>
             </div>
             <div class="grid-content">
@@ -757,13 +844,16 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V14 - PHASE 2 =====
-        /* * Version: V14 P2 (orbital8-v14-p2.html)
+        // ===== ORBITAL8 V14 - PHASE 4 =====
+        /* * Version: V14 P4 (orbital8-v14-p4.html)
          * * Changes in this phase:
-         * - ID 3 & 29 (Export): Added a dedicated 'Prompt' column to the CSV export.
-         * - ID 22 (UI/Nav): Fixed empty state display; now correctly shows when a stack is empty.
-         * - ID 16 (Accessibility): Implemented arrow key controls for moving images between stacks.
-         * - ID 10 (Performance): Added a small delay in the metadata extraction loop to prevent UI stalls.
+           - Stack/Grid Logic: Grid order now perfectly syncs with the dynamic stack order. Moving images or exiting search correctly places items at the top of the stack.
+           - Active Image Focus: Clicking the active stack's pill counter opens the grid with the current image at the top and selected.
+           - UI Polish: Tag/note input text is now black. Mobile filename overlay is raised and width-constrained.
+           - Main Stage UI: Added counters for image position (bottom-right) and stack percentage (bottom-left).
+           - Search Redesign: Search bar is now [Search] [Results] [Reset]. Exiting a search reorders the main stack.
+           - (ID 33) Haptics: Haptic feedback patterns have been refined for better timing.
+           - (ID 38) Move Confirmation: Added a toaster message for the "Move to Folder" action.
          */
         
         // ===== Core Constants & State =====
@@ -780,7 +870,7 @@
             exportSystem: null,
             currentFolder: { id: null, name: '' },
             imageFiles: [],
-            currentImageIndex: 0,
+            currentImageIndex: -1,
             currentImageLoadId: null, 
             currentStack: 'in',
             stacks: { in: [], out: [], priority: [], trash: [] },
@@ -846,6 +936,9 @@
                     selectAnotherStackBtn: document.getElementById('select-another-stack-btn'),
                     selectAnotherFolderBtn: document.getElementById('select-another-folder-btn'),
                     toast: document.getElementById('toast'),
+                    filenameOverlay: document.getElementById('filename-overlay'),
+                    imagePosCounter: document.getElementById('image-pos-counter'),
+                    imagePercCounter: document.getElementById('image-perc-counter'),
                     
                     // Loading elements
                     loadingCounter: document.getElementById('loading-counter'),
@@ -881,6 +974,8 @@
                     searchNotes: document.getElementById('search-notes'),
                     searchMeta: document.getElementById('search-meta'),
                     searchBtn: document.getElementById('search-btn'),
+                    searchResultsCount: document.getElementById('search-results-count'),
+                    searchResetBtn: document.getElementById('search-reset-btn'),
                     
                     // Action buttons
                     tagSelected: document.getElementById('tag-selected'),
@@ -1070,9 +1165,10 @@
             triggerFeedback(type) {
                 if (!this.isEnabled || !this.isSupported) return;
                 
+                // ID 33: Refined haptic patterns
                 const patterns = {
-                    swipe: [50],
-                    pillTap: [30],
+                    swipe: [20, 40],
+                    pillTap: [35],
                     buttonPress: [25],
                     error: [100, 50, 100]
                 };
@@ -1990,7 +2086,6 @@
             }
             
             formatForCSV(images) {
-                // ID 3 & 29: Added 'Prompt' to headers
                 const headers = [
                     'Filename',
                     'Direct Image URL',
@@ -2009,7 +2104,7 @@
                 const rows = images.map(image => [
                     image.name || '',
                     this.getDirectImageURL(image),
-                    this.extractPrompt(image.extractedMetadata || {}), // Extract prompt
+                    this.extractPrompt(image.extractedMetadata || {}),
                     this.formatFileSize(image.size || 0),
                     image.createdTime ? new Date(image.createdTime).toISOString() : '',
                     image.modifiedTime ? new Date(image.modifiedTime).toISOString() : '',
@@ -2024,12 +2119,10 @@
                 return [headers, ...rows];
             }
 
-            // ID 3 & 29: New function to extract prompt from various possible keys
             extractPrompt(metadata) {
                 const promptKeys = ['prompt', 'Prompt', 'parameters', 'sd-prompt'];
                 for (const key of promptKeys) {
                     if (metadata[key]) {
-                        // Special handling for A1111 style 'parameters'
                         if (key === 'parameters') {
                             const match = metadata[key].match(/^(.*?)(Negative prompt:|$)/);
                             if (match && match[1]) {
@@ -2039,7 +2132,7 @@
                         return metadata[key];
                     }
                 }
-                return ''; // Return empty string if no prompt key is found
+                return '';
             }
             
             getDirectImageURL(image) {
@@ -2356,7 +2449,6 @@
                         await Promise.allSettled(batchPromises);
                         await appState.fileCache.setCachedFiles(appState.currentFolder.id, appState.imageFiles);
                         
-                        // ID 10: Yield to main thread to keep UI responsive
                         if (i + BATCH_SIZE < pngFiles.length) {
                             await new Promise(resolve => setTimeout(resolve, 50));
                         }
@@ -2442,7 +2534,7 @@
                     const count = appState.stacks[stack].length;
                     const pill = document.getElementById(`pill-${stack}`);
                     if (pill) {
-                        pill.textContent = count > 999 ? '999+' : count;
+                        pill.textContent = count > 999 ? ':)' : count;
                         pill.classList.toggle('visible', count > 0);
                     }
                 });
@@ -2478,16 +2570,52 @@
             },
             
             async displayCurrentImage() {
-                if (appState.imageFiles.length === 0) return;
+                if (appState.imageFiles.length === 0 || appState.currentImageIndex === -1) {
+                    this.showEmptyState();
+                    return;
+                }
                 
                 const currentFile = appState.imageFiles[appState.currentImageIndex];
-                if (!currentFile) return;
+                if (!currentFile) {
+                    this.showEmptyState();
+                    return;
+                }
                 
                 await utils.setImageSrc(utils.elements.centerImage, currentFile);
                 
+                utils.elements.filenameOverlay.textContent = currentFile.name;
+                utils.elements.filenameOverlay.classList.add('visible');
+                this.updateImageCounters();
+
                 appState.currentScale = 1;
                 appState.panOffset = { x: 0, y: 0 };
                 this.applyTransform();
+            },
+
+            updateImageCounters() {
+                const posCounter = utils.elements.imagePosCounter;
+                const percCounter = utils.elements.imagePercCounter;
+                const activeStack = appState.stacks[appState.currentStack];
+                const total = activeStack.length;
+
+                if (appState.currentImageIndex === -1 || total === 0) {
+                    posCounter.classList.remove('visible');
+                    percCounter.classList.remove('visible');
+                    return;
+                }
+                
+                const currentFile = appState.imageFiles[appState.currentImageIndex];
+                const position = activeStack.findIndex(f => f.id === currentFile.id) + 1;
+
+                if (position > 0) {
+                    posCounter.textContent = `${position}`;
+                    percCounter.textContent = `${Math.round((position / total) * 100)}%`;
+                    posCounter.classList.add('visible');
+                    percCounter.classList.add('visible');
+                } else {
+                    posCounter.classList.remove('visible');
+                    percCounter.classList.remove('visible');
+                }
             },
             
             applyTransform() {
@@ -2508,24 +2636,20 @@
             async moveToStack(targetStack) {
                 const currentImage = appState.imageFiles[appState.currentImageIndex];
                 if (!currentImage) return;
-                const currentStack = currentImage.stack;
+                const currentStackName = currentImage.stack;
                 
-                if (currentStack === targetStack) {
-                    const currentStackArray = appState.stacks[currentStack];
-                    const index = currentStackArray.findIndex(img => img.id === currentImage.id);
-                    if (index > -1) {
-                        currentStackArray.splice(index, 1);
-                        currentStackArray.push(currentImage);
-                    }
-                } else {
-                    await masterController.moveFileToStack(currentImage.id, targetStack);
-                    
-                    const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === currentImage.id);
-                    if (currentStackIndex !== -1) {
-                        appState.stacks[currentStack].splice(currentStackIndex, 1);
-                    }
-                    appState.stacks[targetStack].unshift(currentImage);
+                // Remove from old stack
+                const oldStack = appState.stacks[currentStackName];
+                const oldIndex = oldStack.findIndex(img => img.id === currentImage.id);
+                if (oldIndex > -1) {
+                    oldStack.splice(oldIndex, 1);
                 }
+
+                // Add to top of new stack
+                appState.stacks[targetStack].unshift(currentImage);
+                
+                // Persist change
+                await masterController.moveFileToStack(currentImage.id, targetStack);
                 
                 this.updateStackCounts();
                 
@@ -2553,10 +2677,11 @@
             },
             
             showEmptyState() {
-                // ID 22: Fix for empty state navigation
                 appState.currentImageIndex = -1;
                 appState.currentImageLoadId = null;
                 utils.elements.centerImage.style.opacity = '0';
+                utils.elements.filenameOverlay.classList.remove('visible');
+                this.updateImageCounters();
                 setTimeout(() => {
                     utils.elements.centerImage.src = '';
                     utils.elements.centerImage.alt = 'No images in this stack';
@@ -2583,10 +2708,19 @@
             },
             
             close() {
+                // Search Exit Logic
+                if (appState.grid.filtered.length > 0) {
+                    const currentStack = appState.stacks[appState.currentStack];
+                    const filteredIds = new Set(appState.grid.filtered.map(f => f.id));
+                    const otherImages = currentStack.filter(f => !filteredIds.has(f.id));
+                    appState.stacks[appState.currentStack] = [...appState.grid.filtered, ...otherImages];
+                }
+
+                utils.hideModal('grid-modal');
+                this.resetSearch();
+                
                 const selectedImages = appState.grid.selected;
                 const hasSelection = selectedImages.length === 1;
-                
-                utils.hideModal('grid-modal');
                 
                 if (hasSelection) {
                     const selectedFileId = selectedImages[0];
@@ -2595,15 +2729,11 @@
                         appState.currentImageIndex = selectedIndex;
                         
                         const currentStackImages = appState.stacks[appState.currentStack];
-                        const selectedFile = appState.imageFiles[selectedIndex];
                         const stackIndex = currentStackImages.findIndex(f => f.id === selectedFileId);
                         
-                        if (stackIndex !== -1) {
-                            const reorderedStack = [
-                                ...currentStackImages.slice(stackIndex),
-                                ...currentStackImages.slice(0, stackIndex)
-                            ];
-                            appState.stacks[appState.currentStack] = reorderedStack;
+                        if (stackIndex > 0) {
+                            const [item] = currentStackImages.splice(stackIndex, 1);
+                            currentStackImages.unshift(item);
                         }
                         
                         commonFunctions.displayCurrentImage();
@@ -2623,12 +2753,15 @@
                 container.style.gridTemplateColumns = `repeat(${utils.elements.gridSize.value}, 1fr)`;
                 
                 const filesToShow = appState.grid.filtered.length > 0 ? appState.grid.filtered : appState.stacks[stack];
-                const sortedFiles = commonFunctions.sortFiles(filesToShow, 'date-desc');
                 
-                sortedFiles.forEach((file) => {
+                filesToShow.forEach((file) => {
                     const div = document.createElement('div');
                     div.className = 'grid-item';
                     div.dataset.fileId = file.id;
+                    
+                    if (appState.grid.selected.includes(file.id)) {
+                        div.classList.add('selected');
+                    }
                     
                     const img = document.createElement('img');
                     img.className = 'grid-image';
@@ -2704,15 +2837,11 @@
             },
             
             selectAll() {
-                const gridItems = document.querySelectorAll('#grid-container .grid-item');
-                appState.grid.selected = [];
+                const filesToSelect = appState.grid.filtered.length > 0 ? appState.grid.filtered : appState.stacks[appState.grid.stack];
+                appState.grid.selected = filesToSelect.map(f => f.id);
                 
-                gridItems.forEach(item => {
-                    const fileId = item.dataset.fileId;
-                    if (fileId) {
-                        appState.grid.selected.push(fileId);
-                        item.classList.add('selected');
-                    }
+                document.querySelectorAll('#grid-container .grid-item').forEach(item => {
+                    item.classList.add('selected');
                 });
                 
                 this.updateSelectionUI();
@@ -2734,13 +2863,27 @@
                 };
                 
                 if (!searchCriteria.tags && !searchCriteria.notes && !searchCriteria.meta) {
-                    appState.grid.filtered = [];
-                    this.populate(appState.grid.stack);
+                    this.resetSearch();
                     return;
                 }
                 
                 const filteredImages = this.searchImages(searchCriteria);
                 appState.grid.filtered = filteredImages;
+                
+                // Update UI
+                utils.elements.searchResultsCount.textContent = `${filteredImages.length} results`;
+                utils.elements.searchResetBtn.classList.remove('hidden');
+
+                this.populate(appState.grid.stack);
+            },
+
+            resetSearch() {
+                utils.elements.searchTags.value = '';
+                utils.elements.searchNotes.value = '';
+                utils.elements.searchMeta.value = '';
+                appState.grid.filtered = [];
+                utils.elements.searchResultsCount.textContent = '';
+                utils.elements.searchResetBtn.classList.add('hidden');
                 this.populate(appState.grid.stack);
             },
             
@@ -2921,70 +3064,67 @@
                 utils.elements.detailNotes = newNotesTextarea;
                 
                 utils.elements.detailNotes.addEventListener('blur', async () => {
-                    try {
-                        await masterController.updateUserMetadata(file.id, { notes: utils.elements.detailNotes.value });
-                    } catch (error) {
-                        utils.showToast('Failed to save notes', 'error', true);
+                    const currentFile = appState.imageFiles[appState.currentImageIndex];
+                    if (currentFile.notes !== utils.elements.detailNotes.value) {
+                        try {
+                            await masterController.updateUserMetadata(currentFile.id, { notes: utils.elements.detailNotes.value });
+                        } catch (error) {
+                            utils.showToast('Failed to save notes', 'error', true);
+                        }
                     }
                 });
                 
-                this.setupStarRating(utils.elements.qualityRating, file.qualityRating || 0, async (rating) => {
-                    try {
-                        await masterController.updateUserMetadata(file.id, { qualityRating: rating });
-                    } catch (error) {
-                        utils.showToast('Failed to save rating', 'error', true);
-                    }
-                });
-                
-                this.setupStarRating(utils.elements.contentRating, file.contentRating || 0, async (rating) => {
-                    try {
-                        await masterController.updateUserMetadata(file.id, { contentRating: rating });
-                    } catch (error) {
-                        utils.showToast('Failed to save rating', 'error', true);
-                    }
-                });
+                this.setupStarRating('quality', file.qualityRating || 0);
+                this.setupStarRating('content', file.contentRating || 0);
             },
             
-            setupStarRating(container, currentRating, onRatingChange) {
+            setupStarRating(type, currentRating) {
+                const container = utils.elements[`${type}Rating`];
                 if (!container) return;
-                
-                const stars = container.querySelectorAll('.star');
-                
-                this.updateStarVisuals(stars, currentRating);
-                
-                stars.forEach((star, index) => {
-                    star.replaceWith(star.cloneNode(true));
-                });
-                
-                const newStars = container.querySelectorAll('.star');
-                
-                newStars.forEach((star, index) => {
-                    star.addEventListener('click', () => {
-                        const newRating = index + 1;
-                        this.updateStarVisuals(newStars, newRating);
-                        onRatingChange(newRating);
-                    });
-                    
-                    star.addEventListener('mouseenter', () => {
-                        this.updateStarVisuals(newStars, index + 1);
-                    });
-                    
-                    star.addEventListener('mouseleave', () => {
-                        this.updateStarVisuals(newStars, currentRating);
-                    });
-                });
-            },
             
-            updateStarVisuals(stars, rating) {
+                let rating = currentRating;
+                const stars = container.querySelectorAll('.star');
+            
+                const updateVisuals = (r) => {
+                    stars.forEach((star, index) => {
+                        star.classList.toggle('active', index < r);
+                    });
+                };
+            
+                container.onmouseleave = () => updateVisuals(rating);
+            
                 stars.forEach((star, index) => {
-                    if (index < rating) {
-                        star.classList.add('active');
-                        star.style.color = '#fbbf24';
-                    } else {
-                        star.classList.remove('active');
-                        star.style.color = '#d1d5db';
-                    }
+                    star.onmouseenter = () => updateVisuals(index + 1);
+                    star.onclick = async () => {
+                        const newRating = index + 1;
+                        if (newRating === rating) {
+                            rating = 0;
+                        } else {
+                            rating = newRating;
+                        }
+                        updateVisuals(rating);
+            
+                        const currentFile = appState.imageFiles[appState.currentImageIndex];
+                        if (!currentFile) return;
+            
+                        const updatePayload = {};
+                        if (type === 'quality') {
+                            updatePayload.qualityRating = rating;
+                        } else {
+                            updatePayload.contentRating = rating;
+                        }
+            
+                        try {
+                            await masterController.updateUserMetadata(currentFile.id, updatePayload);
+                        } catch (error) {
+                            utils.showToast(`Failed to save ${type} rating`, 'error', true);
+                            rating = currentRating;
+                            updateVisuals(rating);
+                        }
+                    };
                 });
+            
+                updateVisuals(rating);
             },
             
             populateMetadataTab(file) {
@@ -3236,113 +3376,73 @@
                 });
             },
             
-            async executeMove(targetStack) {
+            async executeBulkAction(actionFn, successMessage) {
+                const confirmBtn = utils.elements.actionConfirm;
+                const originalText = confirmBtn.textContent;
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Processing...';
+
                 try {
-                    const promises = appState.grid.selected.map(fileId => 
-                        masterController.moveFileToStack(fileId, targetStack)
-                    );
+                    const promises = appState.grid.selected.map(fileId => actionFn(fileId));
                     await Promise.all(promises);
-                    
-                    appState.grid.selected.forEach(fileId => {
-                        const file = appState.imageFiles.find(f => f.id === fileId);
-                        if (file) {
-                            const currentStackIndex = appState.stacks[file.stack].findIndex(f => f.id === fileId);
-                            if (currentStackIndex !== -1) {
-                                appState.stacks[file.stack].splice(currentStackIndex, 1);
-                            }
-                            appState.stacks[targetStack].unshift(file);
-                        }
-                    });
-                    
-                    utils.showToast(`Moved ${promises.length} images to ${targetStack}`, 'success', true);
+
+                    utils.showToast(successMessage.replace('{count}', promises.length), 'success', true);
                     this.hide();
                     gridView.populate(appState.grid.stack);
                     appState.grid.selected = [];
                     gridView.updateSelectionUI();
                     commonFunctions.updateStackCounts();
                 } catch (error) {
-                    utils.showToast('Failed to move some images', 'error', true);
-                    this.hide();
+                    utils.showToast('Failed to process some images', 'error', true);
+                } finally {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = originalText;
                 }
             },
-            
+
+            async executeMove(targetStack) {
+                await this.executeBulkAction(async (fileId) => {
+                    const file = appState.imageFiles.find(f => f.id === fileId);
+                    if (file) {
+                        const currentStack = file.stack;
+                        await masterController.moveFileToStack(fileId, targetStack);
+                        const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
+                        if (currentStackIndex !== -1) {
+                            appState.stacks[currentStack].splice(currentStackIndex, 1);
+                        }
+                        appState.stacks[targetStack].unshift(file);
+                    }
+                }, `Moved {count} images to ${targetStack}`);
+            },
+
             async executeTag() {
                 const tagInput = document.getElementById('modal-tag-input');
                 if (!tagInput.value.trim()) return;
-                
-                const tags = tagInput.value.split(',').map(tag => tag.trim()).filter(tag => tag);
-                
-                try {
-                    for (const fileId of appState.grid.selected) {
-                        const file = appState.imageFiles.find(f => f.id === fileId);
-                        if (file) {
-                            const currentTags = file.tags || [];
-                            const newTags = [...new Set([...currentTags, ...tags])];
-                            
-                            await masterController.updateUserMetadata(fileId, { tags: newTags });
-                            tags.forEach(tag => appState.tags.add(tag));
-                        }
+                const tagsToAdd = tagInput.value.split(',').map(tag => tag.trim()).filter(tag => tag);
+
+                await this.executeBulkAction(async (fileId) => {
+                    const file = appState.imageFiles.find(f => f.id === fileId);
+                    if (file) {
+                        const currentTags = file.tags || [];
+                        const newTags = [...new Set([...currentTags, ...tagsToAdd])];
+                        await masterController.updateUserMetadata(fileId, { tags: newTags });
+                        tagsToAdd.forEach(tag => appState.tags.add(tag));
                     }
-                    utils.showToast(`Tags added to ${appState.grid.selected.length} images`, 'success', true);
-                    this.hide();
-                    gridView.populate(appState.grid.stack);
-                } catch (error) {
-                    utils.showToast('Failed to add tags', 'error', true);
-                }
+                }, `Tags added to {count} images`);
             },
-            
+
             async executeDelete() {
                 const currentStack = appState.grid.stack;
-                utils.elements.actionConfirm.disabled = true;
-                utils.elements.actionConfirm.textContent = 'Processing...';
-                
-                try {
-                    if (currentStack === 'trash') {
-                        const promises = appState.grid.selected.map(fileId => 
-                            masterController.deleteFile(fileId)
-                        );
-                        await Promise.all(promises);
-                        
-                        const providerName = appState.currentProviderType === 'googledrive' ? 'Google Drive' : 'OneDrive';
-                        utils.showToast(`Moved ${promises.length} images to ${providerName} trash`, 'success', true);
-                        
-                        appState.grid.selected.forEach(fileId => {
-                            const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
-                            if (fileIndex !== -1) appState.imageFiles.splice(fileIndex, 1);
-                            const trashIndex = appState.stacks.trash.findIndex(f => f.id === fileId);
-                            if (trashIndex !== -1) appState.stacks.trash.splice(trashIndex, 1);
-                        });
-                    } else {
-                        const promises = appState.grid.selected.map(fileId => 
-                            masterController.moveFileToStack(fileId, 'trash')
-                        );
-                        await Promise.all(promises);
-                        
-                        appState.grid.selected.forEach(fileId => {
-                            const file = appState.imageFiles.find(f => f.id === fileId);
-                            if (file) {
-                                const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
-                                if (currentStackIndex !== -1) {
-                                    appState.stacks[currentStack].splice(currentStackIndex, 1);
-                                }
-                                appState.stacks.trash.unshift(file);
-                            }
-                        });
-                        
-                        utils.showToast(`Moved ${promises.length} images to trash`, 'success', true);
-                    }
-                    
-                    this.hide();
-                    gridView.populate(appState.grid.stack);
-                    appState.grid.selected = [];
-                    gridView.updateSelectionUI();
-                    commonFunctions.updateStackCounts();
-                } catch (error) {
-                    utils.showToast('Failed to delete some images', 'error', true);
-                    this.hide();
-                } finally {
-                    utils.elements.actionConfirm.disabled = false;
-                    utils.elements.actionConfirm.textContent = 'Confirm';
+                if (currentStack === 'trash') {
+                    await this.executeBulkAction(async (fileId) => {
+                        await masterController.deleteFile(fileId);
+                        const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
+                        if (fileIndex !== -1) appState.imageFiles.splice(fileIndex, 1);
+                        const trashIndex = appState.stacks.trash.findIndex(f => f.id === fileId);
+                        if (trashIndex !== -1) appState.stacks.trash.splice(trashIndex, 1);
+                    }, `Moved {count} images to provider trash`);
+                } else {
+                    await this.executeMove('trash');
                 }
             },
             
@@ -3360,7 +3460,8 @@
                 
                 this.hide();
                 masterController.returnToFolderSelection();
-                utils.showToast('Select destination folder for the images', 'info', true);
+                // ID 38: Add toaster message
+                utils.showToast(`Select destination folder for ${appState.folderMoveMode.selectedImages.length} images`, 'info', true);
             }
         };
 
@@ -3428,7 +3529,7 @@
             }
             
             async function executeFlick(targetStack) {
-                if (appState.currentImageIndex === -1) return; // Don't do anything if in empty state
+                if (appState.currentImageIndex === -1) return;
                 const currentImage = appState.imageFiles[appState.currentImageIndex];
                 if (!currentImage) return;
 
@@ -3796,15 +3897,18 @@
                             appState.hapticManager.triggerFeedback('pillTap');
                         }
                         
-                        if (appState.currentStack === stackName) {
-                            gridView.open(stackName);
-                            acknowledgePillCounter(stackName);
-                            return;
+                        if (appState.currentStack === stackName && appState.currentImageIndex !== -1) {
+                            const currentFile = appState.imageFiles[appState.currentImageIndex];
+                            const stack = appState.stacks[stackName];
+                            const index = stack.findIndex(f => f.id === currentFile.id);
+                            if (index > 0) {
+                                const [item] = stack.splice(index, 1);
+                                stack.unshift(item);
+                            }
+                            appState.grid.selected = [currentFile.id];
                         }
                         
-                        appState.currentStack = stackName;
-                        commonFunctions.updateActiveProxTab();
-                        commonFunctions.displayTopImageFromStack(stackName);
+                        gridView.open(stackName);
                         acknowledgePillCounter(stackName);
                     });
                 }
@@ -3827,6 +3931,7 @@
             
             // Search functionality
             utils.elements.searchBtn.addEventListener('click', () => gridView.performSearch());
+            utils.elements.searchResetBtn.addEventListener('click', () => gridView.resetSearch());
             
             ['search-tags', 'search-notes', 'search-meta'].forEach(id => {
                 document.getElementById(id).addEventListener('keydown', (e) => {
@@ -3874,7 +3979,6 @@
                 
                 if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
                 
-                // ID 16: Arrow keys now move images between stacks
                 const keyMap = {
                     'ArrowUp': 'priority',
                     'ArrowDown': 'trash',
