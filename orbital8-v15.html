@@ -8,15 +8,13 @@
     <title>Orbital8 V14 - Unified Cloud Storage</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V14 - PHASE 4 ===== */
+        /* ===== ORBITAL8 V14 - PHASE 4 (FIXED) ===== */
         /* Changes in this version:
-           - Stack/Grid Logic: Grid order now perfectly syncs with the dynamic stack order. Moving images or exiting search correctly places items at the top of the stack.
-           - Active Image Focus: Clicking the active stack's pill counter opens the grid with the current image at the top and selected.
-           - UI Polish: Tag/note input text is now black. Mobile filename overlay is raised and width-constrained.
-           - Main Stage UI: Added counters for image position (bottom-right) and stack percentage (bottom-left).
-           - Search Redesign: Search bar is now [Search] [Results] [Reset]. Exiting a search reorders the main stack.
-           - (ID 33) Haptics: Haptic feedback patterns have been refined for better timing.
-           - (ID 38) Move Confirmation: Added a toaster message for the "Move to Folder" action.
+           - Stack Logic: Fixed stack switching, pill counter updates, and swipe-to-active-stack behavior.
+           - UI Polish: Removed image position/percentage counters. Filename overlay is now selectable, raised, width-constrained (90%), and extension-free.
+           - Grid Layout: Removed "Grid Size" text. Bulk action buttons are now in a reserved row to prevent layout shifts.
+           - Search Redesign: Search is now automatic on blur. The main pill counter updates with results. Exiting a search reorders the main stack.
+           - Haptics & Move Confirmation: Refined haptic feedback timing and added toaster message for "Move to Folder".
         */
         
         :root {
@@ -54,19 +52,18 @@
         .subtitle { color: rgba(255, 255, 255, 0.7); font-size: 16px; margin-bottom: 24px; }
         
         /* ===== Form Elements ===== */
-        .input, .notes-textarea {
+        .input, .notes-textarea, .tag-input {
             width: 100%; padding: 12px 16px; border: 1px solid var(--glass-border); border-radius: 12px;
             background: var(--glass-bg); color: white; font-size: 14px; margin-bottom: 16px; backdrop-filter: blur(10px);
         }
-        .input::placeholder { color: rgba(255, 255, 255, 0.5); }
-        .input:focus, .notes-textarea:focus {
+        .input::placeholder, .tag-input::placeholder { color: rgba(255, 255, 255, 0.5); }
+        .input:focus, .notes-textarea:focus, .tag-input:focus {
             outline: none; border-color: var(--app-accent); box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
         }
         .notes-textarea { min-height: 120px; font-family: inherit; resize: vertical; }
 
-        /* Phase 4: Fix tag/note input color in modal */
         #action-modal .tag-input, #action-modal .notes-textarea {
-            color: #1f2937; /* Black text for readability on white background */
+            color: #1f2937;
             background: #f3f4f6;
             border-color: #d1d5db;
         }
@@ -218,7 +215,7 @@
         
         .filename-overlay {
             position: absolute;
-            bottom: 25px; /* Raised slightly */
+            bottom: 25px;
             left: 50%;
             transform: translateX(-50%);
             background-color: rgba(0, 0, 0, 0.6);
@@ -228,33 +225,15 @@
             font-size: 12px;
             font-weight: 500;
             z-index: 5;
-            max-width: 70%; /* Fixed length */
+            max-width: 90%;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             opacity: 0;
             transition: opacity 0.3s ease;
-            pointer-events: none;
+            pointer-events: auto; /* Make selectable */
         }
         .filename-overlay.visible { opacity: 1; }
-
-        .image-counter {
-            position: absolute;
-            bottom: 25px;
-            font-size: 12px;
-            font-weight: 500;
-            color: white;
-            background-color: rgba(0, 0, 0, 0.6);
-            padding: 6px 12px;
-            border-radius: 12px;
-            z-index: 5;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        .image-counter.visible { opacity: 1; }
-        #image-pos-counter { right: 20px; }
-        #image-perc-counter { left: 20px; }
 
         /* ===== Edge Effects ===== */
         .edge-glow { position: absolute; opacity: 0; transition: opacity 0.2s ease; z-index: 2; }
@@ -339,7 +318,7 @@
         }
         .action-modal { max-width: 448px; padding: 24px; }
         
-        /* ===== Enhanced Grid System (4-Row Structure) ===== */
+        /* ===== Enhanced Grid System (5-Row Structure) ===== */
         .modal-header { position: sticky; top: 0; background: white; z-index: 10; border-bottom: 1px solid #e5e7eb; }
         .modal-header-main { padding: 16px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; justify-content: space-between; }
         .modal-header-left { display: flex; align-items: center; gap: 12px; }
@@ -356,7 +335,6 @@
         .close-btn:hover { color: #374151; background: rgba(0, 0, 0, 0.05); }
         .close-btn svg { width: 24px; height: 24px; }
         
-        /* Row 2: Selected Count + Zoom Slider */
         .grid-row-2 {
             padding: 8px 16px; border-bottom: 1px solid #e5e7eb; display: flex;
             align-items: center; justify-content: space-between;
@@ -373,11 +351,9 @@
         .deselect-all-btn svg { width: 16px; height: 16px; }
         
         .zoom-control { display: flex; align-items: center; gap: 8px; }
-        .zoom-control label { font-size: 14px; color: #4b5563; }
         #grid-size { width: 80px; }
         #grid-size-value { font-size: 14px; color: #4b5563; min-width: 20px; }
         
-        /* Row 3: Search Fields */
         .grid-row-3 {
             padding: 8px 16px; border-bottom: 1px solid #e5e7eb; display: flex;
             align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
@@ -388,14 +364,13 @@
             width: 120px; padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;
         }
         
-        /* Row 4: Search Actions & Bulk Actions */
         .grid-row-4 {
-            padding: 8px 16px; border-bottom: 1px solid #e5e7eb; display: flex;
-            align-items: center; justify-content: space-between; gap: 8px;
+            padding: 8px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            min-height: 41px; /* Reserved space for buttons */
+            display: flex;
+            justify-content: flex-end;
         }
-        .search-actions { display: flex; align-items: center; gap: 8px; }
-        #search-results-count { font-size: 14px; color: #4b5563; }
-        .bulk-actions { display: flex; align-items: center; gap: 8px; }
         
         .grid-content { flex: 1; overflow-y: auto; padding: 16px; }
         .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
@@ -491,8 +466,7 @@
         @media screen and (max-width: 767px) {
             .nav-button { font-size: 16px; padding: 12px 20px; border-radius: 25px; min-width: 80px; }
             .pill-counter.bottom { bottom: 80px; }
-            .filename-overlay { font-size: 11px; padding: 5px 12px; }
-            .image-counter { font-size: 11px; padding: 5px 10px; bottom: 20px; }
+            .filename-overlay { font-size: 11px; padding: 5px 12px; bottom: 35px; }
             .details-modal-content { max-width: 100vw; max-height: 100vh; height: 100vh; margin: 0; border-radius: 0; }
             .metadata-table .key-cell { width: 30%; min-width: 80px; font-size: 12px; }
             .metadata-table .value-cell { font-size: 12px; }
@@ -651,18 +625,16 @@
         </div>
         
         <div id="filename-overlay" class="filename-overlay"></div>
-        <div id="image-perc-counter" class="image-counter"></div>
-        <div id="image-pos-counter" class="image-counter"></div>
         
         <div id="toast" class="toast"></div>
         <div class="app-footer">orbital8-v14-p4.html</div>
     </div>
     
-    <!-- Enhanced Grid Modal with 4-Row Structure -->
+    <!-- Enhanced Grid Modal with 5-Row Structure -->
     <div id="grid-modal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <!-- Row 1: Stack Name + Image Count Pill -->
+                <!-- Row 1: Title -->
                 <div class="modal-header-main">
                     <div class="modal-header-left">
                         <h2 id="grid-title" class="modal-title">Grid View</h2>
@@ -675,7 +647,7 @@
                     </button>
                 </div>
                 
-                <!-- Row 2: Selected Count + Zoom Slider -->
+                <!-- Row 2: Selection & Zoom -->
                 <div class="grid-row-2">
                     <span class="selection-count">
                         <span id="selection-text">0 selected</span>
@@ -686,7 +658,6 @@
                         </button>
                     </span>
                     <div class="zoom-control">
-                        <label>Grid Size:</label>
                         <input type="range" id="grid-size" min="1" max="10" value="4">
                         <span id="grid-size-value">4</span>
                     </div>
@@ -708,13 +679,8 @@
                     </div>
                 </div>
                 
-                <!-- Row 4: Search Actions & Bulk Actions -->
+                <!-- Row 4: Reserved for Bulk Actions -->
                 <div class="grid-row-4">
-                    <div class="search-actions">
-                        <button id="search-btn" class="btn btn-primary">Search</button>
-                        <span id="search-results-count"></span>
-                        <button id="search-reset-btn" class="btn btn-secondary hidden">Reset</button>
-                    </div>
                     <div class="bulk-actions">
                         <button id="tag-selected" class="btn btn-primary hidden">Tag</button>
                         <button id="move-selected" class="btn btn-primary hidden">Move</button>
@@ -844,16 +810,14 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V14 - PHASE 4 =====
+        // ===== ORBITAL8 V14 - PHASE 4 (FIXED) =====
         /* * Version: V14 P4 (orbital8-v14-p4.html)
-         * * Changes in this phase:
-           - Stack/Grid Logic: Grid order now perfectly syncs with the dynamic stack order. Moving images or exiting search correctly places items at the top of the stack.
-           - Active Image Focus: Clicking the active stack's pill counter opens the grid with the current image at the top and selected.
-           - UI Polish: Tag/note input text is now black. Mobile filename overlay is raised and width-constrained.
-           - Main Stage UI: Added counters for image position (bottom-right) and stack percentage (bottom-left).
-           - Search Redesign: Search bar is now [Search] [Results] [Reset]. Exiting a search reorders the main stack.
-           - (ID 33) Haptics: Haptic feedback patterns have been refined for better timing.
-           - (ID 38) Move Confirmation: Added a toaster message for the "Move to Folder" action.
+         * * Changes in this version:
+           - Stack Logic: Fixed stack switching, pill counter updates, and swipe-to-active-stack behavior.
+           - UI Polish: Removed image position/percentage counters. Filename overlay is now selectable, raised, width-constrained (90%), and extension-free.
+           - Grid Layout: Removed "Grid Size" text. Bulk action buttons are now in a reserved row to prevent layout shifts.
+           - Search Redesign: Search is now automatic on blur. The main pill counter updates with results. Exiting a search reorders the main stack.
+           - Haptics & Move Confirmation: Refined haptic feedback timing and added toaster message for "Move to Folder".
          */
         
         // ===== Core Constants & State =====
@@ -937,8 +901,6 @@
                     selectAnotherFolderBtn: document.getElementById('select-another-folder-btn'),
                     toast: document.getElementById('toast'),
                     filenameOverlay: document.getElementById('filename-overlay'),
-                    imagePosCounter: document.getElementById('image-pos-counter'),
-                    imagePercCounter: document.getElementById('image-perc-counter'),
                     
                     // Loading elements
                     loadingCounter: document.getElementById('loading-counter'),
@@ -973,9 +935,6 @@
                     searchTags: document.getElementById('search-tags'),
                     searchNotes: document.getElementById('search-notes'),
                     searchMeta: document.getElementById('search-meta'),
-                    searchBtn: document.getElementById('search-btn'),
-                    searchResultsCount: document.getElementById('search-results-count'),
-                    searchResetBtn: document.getElementById('search-reset-btn'),
                     
                     // Action buttons
                     tagSelected: document.getElementById('tag-selected'),
@@ -1165,7 +1124,6 @@
             triggerFeedback(type) {
                 if (!this.isEnabled || !this.isSupported) return;
                 
-                // ID 33: Refined haptic patterns
                 const patterns = {
                     swipe: [20, 40],
                     pillTap: [35],
@@ -2583,39 +2541,12 @@
                 
                 await utils.setImageSrc(utils.elements.centerImage, currentFile);
                 
-                utils.elements.filenameOverlay.textContent = currentFile.name;
+                utils.elements.filenameOverlay.textContent = currentFile.name.replace(/\.[^/.]+$/, "");
                 utils.elements.filenameOverlay.classList.add('visible');
-                this.updateImageCounters();
 
                 appState.currentScale = 1;
                 appState.panOffset = { x: 0, y: 0 };
                 this.applyTransform();
-            },
-
-            updateImageCounters() {
-                const posCounter = utils.elements.imagePosCounter;
-                const percCounter = utils.elements.imagePercCounter;
-                const activeStack = appState.stacks[appState.currentStack];
-                const total = activeStack.length;
-
-                if (appState.currentImageIndex === -1 || total === 0) {
-                    posCounter.classList.remove('visible');
-                    percCounter.classList.remove('visible');
-                    return;
-                }
-                
-                const currentFile = appState.imageFiles[appState.currentImageIndex];
-                const position = activeStack.findIndex(f => f.id === currentFile.id) + 1;
-
-                if (position > 0) {
-                    posCounter.textContent = `${position}`;
-                    percCounter.textContent = `${Math.round((position / total) * 100)}%`;
-                    posCounter.classList.add('visible');
-                    percCounter.classList.add('visible');
-                } else {
-                    posCounter.classList.remove('visible');
-                    percCounter.classList.remove('visible');
-                }
             },
             
             applyTransform() {
@@ -2681,7 +2612,6 @@
                 appState.currentImageLoadId = null;
                 utils.elements.centerImage.style.opacity = '0';
                 utils.elements.filenameOverlay.classList.remove('visible');
-                this.updateImageCounters();
                 setTimeout(() => {
                     utils.elements.centerImage.src = '';
                     utils.elements.centerImage.alt = 'No images in this stack';
@@ -2700,7 +2630,15 @@
                 utils.elements.selectAllBtn.textContent = appState.stacks[stack].length;
                 
                 appState.grid.stack = stack;
-                appState.grid.selected = [];
+                
+                // Active Image Focus Logic
+                if (appState.currentStack === stack && appState.currentImageIndex !== -1) {
+                    const currentFile = appState.imageFiles[appState.currentImageIndex];
+                    appState.grid.selected = [currentFile.id];
+                } else {
+                    appState.grid.selected = [];
+                }
+                
                 appState.grid.filtered = [];
                 
                 this.updateSelectionUI();
@@ -2708,7 +2646,6 @@
             },
             
             close() {
-                // Search Exit Logic
                 if (appState.grid.filtered.length > 0) {
                     const currentStack = appState.stacks[appState.currentStack];
                     const filteredIds = new Set(appState.grid.filtered.map(f => f.id));
@@ -2870,10 +2807,9 @@
                 const filteredImages = this.searchImages(searchCriteria);
                 appState.grid.filtered = filteredImages;
                 
-                // Update UI
-                utils.elements.searchResultsCount.textContent = `${filteredImages.length} results`;
-                utils.elements.searchResetBtn.classList.remove('hidden');
-
+                const pill = document.getElementById(`pill-${appState.grid.stack}`);
+                if(pill) pill.textContent = filteredImages.length;
+                
                 this.populate(appState.grid.stack);
             },
 
@@ -2882,9 +2818,8 @@
                 utils.elements.searchNotes.value = '';
                 utils.elements.searchMeta.value = '';
                 appState.grid.filtered = [];
-                utils.elements.searchResultsCount.textContent = '';
-                utils.elements.searchResetBtn.classList.add('hidden');
                 this.populate(appState.grid.stack);
+                commonFunctions.updateStackCounts();
             },
             
             searchImages(searchCriteria) {
@@ -3460,7 +3395,6 @@
                 
                 this.hide();
                 masterController.returnToFolderSelection();
-                // ID 38: Add toaster message
                 utils.showToast(`Select destination folder for ${appState.folderMoveMode.selectedImages.length} images`, 'info', true);
             }
         };
@@ -3873,9 +3807,7 @@
                 const stacksWithImages = STACK_TYPES.filter(stack => appState.stacks[stack].length > 0);
                 if (stacksWithImages.length > 0) {
                     const nextStack = stacksWithImages.find(stack => stack !== appState.currentStack) || stacksWithImages[0];
-                    appState.currentStack = nextStack;
-                    commonFunctions.displayTopImageFromStack(nextStack);
-                    utils.elements.emptyState.classList.add('hidden');
+                    switchToStack(nextStack);
                 } else {
                     utils.elements.selectAnotherStackBtn.style.display = 'none';
                     utils.elements.selectAnotherFolderBtn.style.display = 'block';
@@ -3897,18 +3829,11 @@
                             appState.hapticManager.triggerFeedback('pillTap');
                         }
                         
-                        if (appState.currentStack === stackName && appState.currentImageIndex !== -1) {
-                            const currentFile = appState.imageFiles[appState.currentImageIndex];
-                            const stack = appState.stacks[stackName];
-                            const index = stack.findIndex(f => f.id === currentFile.id);
-                            if (index > 0) {
-                                const [item] = stack.splice(index, 1);
-                                stack.unshift(item);
-                            }
-                            appState.grid.selected = [currentFile.id];
+                        if (appState.currentStack === stackName) {
+                            gridView.open(stackName);
+                        } else {
+                            switchToStack(stackName);
                         }
-                        
-                        gridView.open(stackName);
                         acknowledgePillCounter(stackName);
                     });
                 }
@@ -3930,15 +3855,8 @@
             });
             
             // Search functionality
-            utils.elements.searchBtn.addEventListener('click', () => gridView.performSearch());
-            utils.elements.searchResetBtn.addEventListener('click', () => gridView.resetSearch());
-            
             ['search-tags', 'search-notes', 'search-meta'].forEach(id => {
-                document.getElementById(id).addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') {
-                        gridView.performSearch();
-                    }
-                });
+                document.getElementById(id).addEventListener('blur', () => gridView.performSearch());
             });
             
             // Action buttons
