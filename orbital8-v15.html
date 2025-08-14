@@ -12,9 +12,8 @@
         /* Changes in this version:
            - Stack Logic: Fixed stack switching, pill counter updates, and swipe-to-active-stack behavior.
            - UI Polish: Removed image position/percentage counters. Filename overlay is now selectable, raised, width-constrained (90%), and extension-free.
-           - Grid Layout: Removed "Grid Size" text. Bulk action buttons are now in a reserved row to prevent layout shifts.
+           - Grid Layout: Removed "Grid Size" text. Bulk action buttons are now in a reserved row to prevent layout shifts. Search fields are now 2 rows.
            - Search Redesign: Search is now automatic on blur. The main pill counter updates with results. Exiting a search reorders the main stack.
-           - Haptics & Move Confirmation: Refined haptic feedback timing and added toaster message for "Move to Folder".
         */
         
         :root {
@@ -62,7 +61,7 @@
         }
         .notes-textarea { min-height: 120px; font-family: inherit; resize: vertical; }
 
-        #action-modal .tag-input, #action-modal .notes-textarea {
+        #action-modal .tag-input {
             color: #1f2937;
             background: #f3f4f6;
             border-color: #d1d5db;
@@ -231,7 +230,7 @@
             text-overflow: ellipsis;
             opacity: 0;
             transition: opacity 0.3s ease;
-            pointer-events: auto; /* Make selectable */
+            pointer-events: auto;
         }
         .filename-overlay.visible { opacity: 1; }
 
@@ -355,22 +354,26 @@
         #grid-size-value { font-size: 14px; color: #4b5563; min-width: 20px; }
         
         .grid-row-3 {
-            padding: 8px 16px; border-bottom: 1px solid #e5e7eb; display: flex;
-            align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+            padding: 8px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
         }
-        .search-group { display: flex; align-items: center; gap: 8px; }
-        .search-group label { font-size: 14px; color: #4b5563; min-width: 50px; }
+        .search-group { display: flex; flex-direction: column; align-items: flex-start; }
+        .search-group label { font-size: 12px; color: #4b5563; margin-bottom: 4px; }
         .search-group input {
-            width: 120px; padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;
+            width: 100%; padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;
         }
         
         .grid-row-4 {
             padding: 8px 16px;
             border-bottom: 1px solid #e5e7eb;
-            min-height: 41px; /* Reserved space for buttons */
+            min-height: 41px;
             display: flex;
-            justify-content: flex-end;
+            justify-content: flex-start; /* Align buttons to the left */
         }
+        .bulk-actions { display: flex; align-items: center; gap: 8px; }
         
         .grid-content { flex: 1; overflow-y: auto; padding: 16px; }
         .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
@@ -472,9 +475,8 @@
             .metadata-table .value-cell { font-size: 12px; }
             .copy-button { font-size: 10px; padding: 3px 6px; }
             
-            .grid-row-3 { flex-direction: column; align-items: stretch; }
-            .search-group { justify-content: space-between; }
-            .search-group input { width: 100px; }
+            .grid-row-3 { grid-template-columns: 1fr; }
+            .search-group input { width: 100%; }
             
             .app-container { height: 100vh; height: 100dvh; }
             .image-viewport { height: 100vh; height: 100dvh; }
@@ -630,7 +632,7 @@
         <div class="app-footer">orbital8-v14-p4.html</div>
     </div>
     
-    <!-- Enhanced Grid Modal with 5-Row Structure -->
+    <!-- Enhanced Grid Modal -->
     <div id="grid-modal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -815,9 +817,8 @@
          * * Changes in this version:
            - Stack Logic: Fixed stack switching, pill counter updates, and swipe-to-active-stack behavior.
            - UI Polish: Removed image position/percentage counters. Filename overlay is now selectable, raised, width-constrained (90%), and extension-free.
-           - Grid Layout: Removed "Grid Size" text. Bulk action buttons are now in a reserved row to prevent layout shifts.
+           - Grid Layout: Removed "Grid Size" text. Bulk action buttons are now in a reserved row to prevent layout shifts. Search fields are now 2 rows.
            - Search Redesign: Search is now automatic on blur. The main pill counter updates with results. Exiting a search reorders the main stack.
-           - Haptics & Move Confirmation: Refined haptic feedback timing and added toaster message for "Move to Folder".
          */
         
         // ===== Core Constants & State =====
@@ -2569,20 +2570,25 @@
                 if (!currentImage) return;
                 const currentStackName = currentImage.stack;
                 
-                // Remove from old stack
-                const oldStack = appState.stacks[currentStackName];
-                const oldIndex = oldStack.findIndex(img => img.id === currentImage.id);
-                if (oldIndex > -1) {
-                    oldStack.splice(oldIndex, 1);
+                if (currentStackName === targetStack) {
+                    const currentStackArray = appState.stacks[currentStackName];
+                    const index = currentStackArray.findIndex(img => img.id === currentImage.id);
+                    if (index > -1) {
+                        const [item] = currentStackArray.splice(index, 1);
+                        currentStackArray.push(item); // Move to end
+                    }
+                } else {
+                    const oldStack = appState.stacks[currentStackName];
+                    const oldIndex = oldStack.findIndex(img => img.id === currentImage.id);
+                    if (oldIndex > -1) {
+                        oldStack.splice(oldIndex, 1);
+                    }
+                    appState.stacks[targetStack].unshift(currentImage);
+                    await masterController.moveFileToStack(currentImage.id, targetStack);
                 }
-
-                // Add to top of new stack
-                appState.stacks[targetStack].unshift(currentImage);
-                
-                // Persist change
-                await masterController.moveFileToStack(currentImage.id, targetStack);
                 
                 this.updateStackCounts();
+                this.updateActiveProxTab();
                 
                 if (appState.stacks[appState.currentStack].length > 0) {
                     this.moveToNextImage();
@@ -2627,11 +2633,9 @@
             open(stack) {
                 utils.showModal('grid-modal');
                 utils.elements.gridTitle.textContent = STACK_NAMES[stack] || stack;
-                utils.elements.selectAllBtn.textContent = appState.stacks[stack].length;
                 
                 appState.grid.stack = stack;
                 
-                // Active Image Focus Logic
                 if (appState.currentStack === stack && appState.currentImageIndex !== -1) {
                     const currentFile = appState.imageFiles[appState.currentImageIndex];
                     appState.grid.selected = [currentFile.id];
@@ -2643,6 +2647,7 @@
                 
                 this.updateSelectionUI();
                 this.populate(stack);
+                commonFunctions.updateStackCounts(); // Reset pill count on open
             },
             
             close() {
@@ -2690,6 +2695,7 @@
                 container.style.gridTemplateColumns = `repeat(${utils.elements.gridSize.value}, 1fr)`;
                 
                 const filesToShow = appState.grid.filtered.length > 0 ? appState.grid.filtered : appState.stacks[stack];
+                utils.elements.selectAllBtn.textContent = filesToShow.length;
                 
                 filesToShow.forEach((file) => {
                     const div = document.createElement('div');
@@ -2807,8 +2813,7 @@
                 const filteredImages = this.searchImages(searchCriteria);
                 appState.grid.filtered = filteredImages;
                 
-                const pill = document.getElementById(`pill-${appState.grid.stack}`);
-                if(pill) pill.textContent = filteredImages.length;
+                utils.elements.selectAllBtn.textContent = filteredImages.length;
                 
                 this.populate(appState.grid.stack);
             },
@@ -3930,7 +3935,6 @@
             appState.currentStack = stackName;
             commonFunctions.updateActiveProxTab();
             commonFunctions.displayTopImageFromStack(stackName);
-            acknowledgePillCounter(stackName);
         }
         
         function cycleThroughProxTabs() {
