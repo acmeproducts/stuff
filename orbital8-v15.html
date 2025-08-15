@@ -8,15 +8,15 @@
     <title>Orbital8 V14 - Unified Cloud Storage</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V14 - PHASE 7 ===== */
+        /* ===== ORBITAL8 V14 - PHASE 8 ===== */
         /* Changes in this version:
-           - State Management: Implemented robust "Cloud-First" state management. The app now treats the cloud provider's metadata as the single source of truth, eliminating state loss and corruption between folder loads.
-           - Bug Fix (Move/Delete): All move and delete operations (stack-to-stack, move to folder, delete) now correctly remove files from the source stack/folder both logically and physically.
-           - Feature (Move to Folder): Full implementation of moving selected files to a different folder.
-           - Bug Fix (State Loss): Added a stack rebuilding function to prevent session state corruption.
+           - State Management: Implemented robust "Cloud-First" state management with a `stackSequence` timestamp to preserve user-defined order.
+           - Bug Fix (Move/Delete): All move and delete operations now correctly remove files from the source stack/folder both logically and physically.
+           - Feature (Move to Folder): Moved files now correctly appear at the top of the target folder's "In" stack.
+           - Bug Fix (State Loss): The app now correctly re-fetches data, preventing stack corruption when switching folders.
            - Search UX: Default selection is cleared before a new search. Search results are auto-selected.
            - Feature (Export): Added 7 new specific metadata columns to the CSV export.
-           - UI Fix: Updated footer version number to ph7. Portrait thumbnails are no longer cropped.
+           - UI Fix: Updated footer version number to ph8. Portrait thumbnails are no longer cropped. Grid buttons are disabled, not hidden.
         */
         
         :root {
@@ -805,13 +805,13 @@
         // ===== ORBITAL8 V14 - PHASE 7 =====
         /* * Version: V14 P7 (orbital8-v14-p7.html)
          * * Changes in this version:
-           - State Management: Implemented robust "Cloud-First" state management. The app now treats the cloud provider's metadata as the single source of truth, eliminating state loss and corruption between folder loads.
-           - Bug Fix (Move/Delete): All move and delete operations (stack-to-stack, move to folder, delete) now correctly remove files from the source stack/folder both logically and physically.
+           - State Management: Implemented robust "Cloud-First" state management with a `stackSequence` timestamp to preserve user-defined order.
+           - Bug Fix (Move/Delete): All move and delete operations now correctly remove files from the source stack/folder both logically and physically.
            - Feature (Move to Folder): Full implementation of moving selected files to a different folder.
-           - Bug Fix (State Loss): Added a stack rebuilding function to prevent session state corruption.
+           - Bug Fix (State Loss): App now correctly re-fetches data, preventing stack corruption when switching folders.
            - Search UX: Default selection is cleared before a new search. Search results are auto-selected.
            - Feature (Export): Added 7 new specific metadata columns to the CSV export.
-           - Bug Fix (Metadata Race Condition): Implemented prioritized fetching for visible image metadata.
+           - UI Fix: Updated footer version number to ph7. Portrait thumbnails are no longer cropped. Grid buttons are disabled, not hidden.
          */
         
         // ===== Core Constants & State =====
@@ -1626,11 +1626,14 @@
                 return { folders: [], files: allFiles };
             }
             
-            async moveFileToStack(fileId, targetStack) {
+            async moveFileToStack(fileId, targetStack, sequence) {
                 await this.makeApiCall(`/files/${fileId}`, {
                     method: 'PATCH',
                     body: JSON.stringify({
-                        appProperties: { slideboxStack: targetStack }
+                        appProperties: { 
+                            slideboxStack: targetStack,
+                            stackSequence: sequence.toString()
+                        }
                     })
                 });
                 return true;
@@ -1642,8 +1645,10 @@
                 await this.makeApiCall(`/files/${fileId}?addParents=${targetFolderId}&removeParents=${previousParents}&fields=id,parents`, {
                     method: 'PATCH'
                 });
-                // After moving, reset the stack to 'in'
-                await this.updateFileProperties(fileId, { slideboxStack: 'in' });
+                await this.updateFileProperties(fileId, { 
+                    slideboxStack: 'in',
+                    stackSequence: Date.now().toString()
+                });
                 return true;
             }
             
@@ -1937,8 +1942,10 @@
                         parentReference: { id: targetFolderId }
                     })
                 });
-                // After moving, reset the stack to 'in'
-                await this.metadataManager.updateUserMetadata(fileId, { stack: 'in' });
+                await this.metadataManager.updateUserMetadata(fileId, { 
+                    stack: 'in',
+                    stackSequence: Date.now()
+                });
                 return true;
             }
             
@@ -2029,7 +2036,8 @@
                     tags: [],
                     qualityRating: 0,
                     contentRating: 0,
-                    notes: ''
+                    notes: '',
+                    stackSequence: 0
                 };
             }
             
@@ -2275,12 +2283,13 @@
                         tags: file.appProperties?.slideboxTags ? file.appProperties.slideboxTags.split(',').map(t => t.trim()) : [],
                         qualityRating: parseInt(file.appProperties?.qualityRating) || 0,
                         contentRating: parseInt(file.appProperties?.contentRating) || 0,
-                        notes: file.appProperties?.notes || ''
+                        notes: file.appProperties?.notes || '',
+                        stackSequence: parseInt(file.appProperties?.stackSequence) || 0
                     };
                 } else {
                     userMetadata = appState.currentProvider.metadataManager ? 
                         appState.currentProvider.metadataManager.getUserMetadata(file.id) :
-                        { stack: 'in', tags: [], qualityRating: 0, contentRating: 0, notes: '' };
+                        { stack: 'in', tags: [], qualityRating: 0, contentRating: 0, notes: '', stackSequence: 0 };
                 }
                 
                 return {
@@ -2301,7 +2310,8 @@
                     tags: userMetadata.tags || [],
                     qualityRating: userMetadata.qualityRating || 0,
                     contentRating: userMetadata.contentRating || 0,
-                    notes: userMetadata.notes || ''
+                    notes: userMetadata.notes || '',
+                    stackSequence: userMetadata.stackSequence || 0
                 };
             },
             
@@ -2361,16 +2371,17 @@
                 }
             },
             
-            async moveFileToStack(fileId, targetStack) {
+            async moveFileToStack(fileId, targetStack, sequence) {
                 const file = appState.imageFiles.find(f => f.id === fileId);
                 if (!file) throw new Error('File not found');
                 
                 file.stack = targetStack;
+                file.stackSequence = sequence;
                 
                 if (appState.currentProviderType === 'googledrive') {
-                    await appState.currentProvider.moveFileToStack(fileId, targetStack);
+                    await appState.currentProvider.moveFileToStack(fileId, targetStack, sequence);
                 } else {
-                    await appState.currentProvider.metadataManager.updateUserMetadata(fileId, { stack: targetStack });
+                    await appState.currentProvider.metadataManager.updateUserMetadata(fileId, { stack: targetStack, stackSequence: sequence });
                 }
                 
                 return file;
@@ -2389,6 +2400,7 @@
                     if (updates.qualityRating !== undefined) properties.qualityRating = updates.qualityRating.toString();
                     if (updates.contentRating !== undefined) properties.contentRating = updates.contentRating.toString();
                     if (updates.notes !== undefined) properties.notes = updates.notes;
+                    if (updates.stackSequence !== undefined) properties.stackSequence = updates.stackSequence.toString();
                     
                     await appState.currentProvider.updateFileProperties(fileId, properties);
                 } else {
@@ -2474,7 +2486,7 @@
                 });
                 
                 STACK_TYPES.forEach(stack => {
-                    appState.stacks[stack] = this.sortFiles(appState.stacks[stack], 'name-asc');
+                    appState.stacks[stack] = this.sortFiles(appState.stacks[stack]);
                 });
                 
                 this.updateStackCounts();
@@ -2497,32 +2509,19 @@
                 });
 
                 STACK_TYPES.forEach(s => {
-                    appState.stacks[s].sort((a,b) => {
-                        const aIndex = currentOrder[s].indexOf(a.id);
-                        const bIndex = currentOrder[s].indexOf(b.id);
-                        if (aIndex === -1 && bIndex === -1) return 0;
-                        if (aIndex === -1) return 1;
-                        if (bIndex === -1) return -1;
-                        return aIndex - bIndex;
-                    });
+                    appState.stacks[s] = this.sortFiles(appState.stacks[s]);
                 });
             },
             
-            sortFiles(files, sortOrder) {
-                const sorted = [...files];
-                
-                switch (sortOrder) {
-                    case 'name-asc':
-                        return sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-                    case 'name-desc':
-                        return sorted.sort((a, b) => (b.name || '').localeCompare(a.name || ''));
-                    case 'date-desc':
-                        return sorted.sort((a, b) => new Date(b.modifiedTime || b.createdTime) - new Date(a.modifiedTime || a.createdTime));
-                    case 'date-asc':
-                        return sorted.sort((a, b) => new Date(a.modifiedTime || a.createdTime) - new Date(b.modifiedTime || b.createdTime));
-                    default:
-                        return sorted;
-                }
+            sortFiles(files) {
+                return [...files].sort((a, b) => {
+                    const seqA = a.stackSequence || 0;
+                    const seqB = b.stackSequence || 0;
+                    if (seqB !== seqA) {
+                        return seqB - seqA;
+                    }
+                    return (a.name || '').localeCompare(b.name || '');
+                });
             },
             
             updateStackCounts() {
@@ -2611,12 +2610,16 @@
                 if (!currentImage) return;
                 const currentStackName = currentImage.stack;
                 
+                const newSequence = Date.now();
+
                 if (currentStackName === targetStack) {
                     const currentStackArray = appState.stacks[currentStackName];
                     const index = currentStackArray.findIndex(img => img.id === currentImage.id);
                     if (index > -1) {
                         const [item] = currentStackArray.splice(index, 1);
+                        item.stackSequence = newSequence;
                         currentStackArray.push(item);
+                        await masterController.updateUserMetadata(item.id, { stackSequence: newSequence });
                     }
                 } else {
                     const oldStack = appState.stacks[currentStackName];
@@ -2625,9 +2628,11 @@
                         oldStack.splice(oldIndex, 1);
                     }
                     appState.stacks[targetStack].unshift(currentImage);
-                    await masterController.moveFileToStack(currentImage.id, targetStack);
+                    await masterController.moveFileToStack(currentImage.id, targetStack, newSequence);
                 }
                 
+                appState.stacks[targetStack] = this.sortFiles(appState.stacks[targetStack]);
+
                 this.updateStackCounts();
                 this.updateActiveProxTab();
                 
@@ -3386,12 +3391,17 @@
                     const file = appState.imageFiles.find(f => f.id === fileId);
                     if (file) {
                         const currentStack = file.stack;
-                        await masterController.moveFileToStack(fileId, targetStack);
+                        const newSequence = Date.now();
+                        await masterController.moveFileToStack(fileId, targetStack, newSequence);
+                        
                         const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
                         if (currentStackIndex !== -1) {
                             appState.stacks[currentStack].splice(currentStackIndex, 1);
                         }
+                        
+                        file.stackSequence = newSequence;
                         appState.stacks[targetStack].unshift(file);
+                        appState.stacks[targetStack] = commonFunctions.sortFiles(appState.stacks[targetStack]);
                     }
                 }, `Moved {count} images to ${targetStack}`);
             },
