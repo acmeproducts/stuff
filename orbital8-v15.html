@@ -16,7 +16,8 @@
            - Bug Fix (State Loss): Added a stack rebuilding function to prevent session state corruption.
            - Search UX: Default selection is cleared before a new search. Search results are auto-selected.
            - Feature (Export): Added 7 new specific metadata columns to the CSV export.
-           - UI Fix: Updated footer version number to ph6.
+           - Bug Fix (Metadata Race Condition): Implemented prioritized fetching for visible image metadata.
+           - UI Fix: Updated footer version number to ph6. Portrait thumbnails are no longer cropped.
         */
         
         :root {
@@ -402,7 +403,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
         }
         .grid-item.selected { box-shadow: 0 0 0 4px #3b82f6; }
         
@@ -811,6 +812,7 @@
            - Bug Fix (State Loss): Added a stack rebuilding function to prevent session state corruption.
            - Search UX: Default selection is cleared before a new search. Search results are auto-selected.
            - Feature (Export): Added 7 new specific metadata columns to the CSV export.
+           - UI Fix: Updated footer version number to ph6. Portrait thumbnails are no longer cropped.
          */
         
         // ===== Core Constants & State =====
@@ -1334,6 +1336,7 @@
             
             async fetchMetadata(file) {
                 if (file.mimeType !== 'image/png') {
+                    file.metadataStatus = 'loaded'; // Mark as loaded since there's nothing to extract
                     return { error: 'Not a PNG file' };
                 }
                 
@@ -2309,6 +2312,7 @@
                     thumbnails: file.thumbnails,
                     downloadUrl: file.downloadUrl,
                     extractedMetadata: file.extractedMetadata || {},
+                    metadataStatus: 'pending',
                     
                     stack: userMetadata.stack || 'in',
                     tags: userMetadata.tags || [],
@@ -2435,13 +2439,19 @@
             },
             
             async processFileMetadata(file) {
+                if (file.metadataStatus === 'loaded' || file.metadataStatus === 'loading') return;
+                
+                file.metadataStatus = 'loading';
+                
                 if (file.mimeType !== 'image/png') {
+                    file.metadataStatus = 'loaded';
                     return { extracted: false, cached: false };
                 }
                 
                 const cachedMetadata = await appState.fileCache.getMetadata(file.id, file.modifiedTime);
                 if (cachedMetadata) {
                     file.extractedMetadata = cachedMetadata;
+                    file.metadataStatus = 'loaded';
                     return { extracted: false, cached: true };
                 }
                 
@@ -2455,12 +2465,12 @@
                     if (Object.keys(metadata).length > 0) {
                         file.extractedMetadata = metadata;
                         await appState.fileCache.setMetadata(file.id, file.modifiedTime, metadata);
-                        return { extracted: true, cached: false };
-                    } else {
-                        return { extracted: false, cached: false };
                     }
+                    file.metadataStatus = 'loaded';
+                    return { extracted: true, cached: false };
                     
                 } catch (error) {
+                    file.metadataStatus = 'error';
                     return { extracted: false, cached: false };
                 }
             }
@@ -2592,6 +2602,10 @@
                 appState.currentScale = 1;
                 appState.panOffset = { x: 0, y: 0 };
                 this.applyTransform();
+
+                if (currentFile.metadataStatus === 'pending') {
+                    masterController.processFileMetadata(currentFile);
+                }
             },
             
             applyTransform() {
@@ -2899,9 +2913,14 @@
         const detailsModal = {
             currentTab: 'info',
             
-            show() {
+            async show() {
                 const currentFile = appState.imageFiles[appState.currentImageIndex];
                 if (!currentFile) return;
+
+                if (currentFile.metadataStatus === 'pending') {
+                    this.populateMetadataTab(currentFile); // Show spinner
+                    await masterController.processFileMetadata(currentFile);
+                }
                 
                 this.populateAllTabs(currentFile);
                 utils.showModal('details-modal');
@@ -3104,6 +3123,11 @@
             populateMetadataTab(file) {
                 utils.elements.metadataTable.innerHTML = '';
                 
+                if (file.metadataStatus === 'pending' || file.metadataStatus === 'loading') {
+                    utils.elements.metadataTable.innerHTML = `<tr><td colspan="2" style="text-align:center; padding: 20px;"><div class="spinner" style="margin: 0 auto;"></div></td></tr>`;
+                    return;
+                }
+
                 const metadata = file.extractedMetadata || {};
                 
                 if (Object.keys(metadata).length === 0) {
@@ -4144,6 +4168,7 @@
 
                 utils.showToast(`Moved ${filesToMove.length} images to ${folderName}`, 'success', true);
                 
+                await appState.fileCache.clearCacheForFolder(appState.currentFolder.id);
                 appState.folderMoveMode = { active: false, files: [] };
                 commonFunctions.rebuildStacks();
                 commonFunctions.updateStackCounts();
