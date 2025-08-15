@@ -8,16 +8,14 @@
     <title>Orbital8 V14 - Unified Cloud Storage</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V14 - PHASE 6 ===== */
+        /* ===== ORBITAL8 V14 - PHASE 7 ===== */
         /* Changes in this version:
-           - Bug Fix (Move after Search): Moving searched images now correctly removes them from the source stack.
-           - Grid UX: Bulk action buttons are now disabled instead of hidden when no items are selected.
-           - Feature (Move to Folder): Full implementation of moving selected files to a different folder.
-           - Bug Fix (State Loss): Added a stack rebuilding function to prevent session state corruption.
+           - State Management: Implemented robust "Cloud-First" state management. The app now treats the cloud provider's metadata as the single source of truth, eliminating state loss and corruption between folder loads.
+           - Bug Fix (Move/Delete): All move and delete operations (stack-to-stack, move to folder, delete) now correctly remove files from the source stack/folder both logically and physically.
+           - Feature (Move to Folder): Fully functional "Move to Folder" now correctly places moved files in the target folder's "In" stack.
            - Search UX: Default selection is cleared before a new search. Search results are auto-selected.
            - Feature (Export): Added 7 new specific metadata columns to the CSV export.
-           - Bug Fix (Metadata Race Condition): Implemented prioritized fetching for visible image metadata.
-           - UI Fix: Updated footer version number to ph6. Portrait thumbnails are no longer cropped.
+           - UI Fixes: Grid buttons are now disabled instead of hidden. Portrait thumbnails are no longer cropped. Footer updated.
         */
         
         :root {
@@ -812,7 +810,7 @@
            - Bug Fix (State Loss): Added a stack rebuilding function to prevent session state corruption.
            - Search UX: Default selection is cleared before a new search. Search results are auto-selected.
            - Feature (Export): Added 7 new specific metadata columns to the CSV export.
-           - UI Fix: Updated footer version number to ph6. Portrait thumbnails are no longer cropped.
+           - Bug Fix (Metadata Race Condition): Implemented prioritized fetching for visible image metadata.
          */
         
         // ===== Core Constants & State =====
@@ -2223,51 +2221,31 @@
                 };
                 
                 try {
-                    const cachedFiles = await appState.fileCache.getCachedFiles(appState.currentFolder.id);
+                    // Cloud-First: Always fetch, never trust cache for file list
+                    utils.elements.loadingMessage.textContent = `Loading images from ${appState.currentProviderType}...`;
                     
-                    if (cachedFiles) {
-                        utils.elements.loadingMessage.textContent = 'Loading from cache...';
-                        
-                        const files = cachedFiles;
-                        if (files.length === 0) {
-                            utils.showToast('No images found in this folder', 'info', true);
-                            this.returnToFolderSelection();
-                            return;
-                        }
-                        
-                        utils.updateLoadingProgress(files.length, files.length);
-                        utils.elements.loadingMessage.textContent = 'Processing cached images...';
-                        
-                        appState.imageFiles = files.map(file => this.processFileWithProviderMetadata(file));
-                        
-                    } else {
-                        utils.elements.loadingMessage.textContent = `Loading images from ${appState.currentProviderType}...`;
-                        
-                        if (appState.currentProviderType === 'onedrive' && appState.currentProvider.metadataManager) {
-                            await appState.currentProvider.metadataManager.loadMetadata();
-                        }
-                        
-                        const result = await appState.currentProvider.getFiles(appState.currentFolder.id);
-                        const files = result.files || [];
-                        
-                        if (files.length === 0) {
-                            utils.showToast('No images found in this folder', 'info', true);
-                            this.returnToFolderSelection();
-                            return;
-                        }
-                        
-                        utils.updateLoadingProgress(files.length, files.length);
-                        utils.elements.loadingMessage.textContent = 'Processing files...';
-                        
-                        appState.imageFiles = files.map(file => this.processFileWithProviderMetadata(file));
-                        
-                        await appState.fileCache.setCachedFiles(appState.currentFolder.id, appState.imageFiles);
-                        
-                        const pngCount = files.filter(f => f.mimeType === 'image/png').length;
-                        
-                        if (pngCount > 0) {
-                            this.extractMetadataInBackground(appState.imageFiles.filter(f => f.mimeType === 'image/png'));
-                        }
+                    if (appState.currentProviderType === 'onedrive' && appState.currentProvider.metadataManager) {
+                        await appState.currentProvider.metadataManager.loadMetadata();
+                    }
+                    
+                    const result = await appState.currentProvider.getFiles(appState.currentFolder.id);
+                    const files = result.files || [];
+                    
+                    if (files.length === 0) {
+                        utils.showToast('No images found in this folder', 'info', true);
+                        this.returnToFolderSelection();
+                        return;
+                    }
+                    
+                    utils.updateLoadingProgress(files.length, files.length);
+                    utils.elements.loadingMessage.textContent = 'Processing files...';
+                    
+                    appState.imageFiles = files.map(file => this.processFileWithProviderMetadata(file));
+                    
+                    const pngCount = files.filter(f => f.mimeType === 'image/png').length;
+                    
+                    if (pngCount > 0) {
+                        this.extractMetadataInBackground(appState.imageFiles.filter(f => f.mimeType === 'image/png'));
                     }
                     
                     commonFunctions.initializeStacks();
@@ -2918,7 +2896,7 @@
                 if (!currentFile) return;
 
                 if (currentFile.metadataStatus === 'pending') {
-                    this.populateMetadataTab(currentFile); // Show spinner
+                    this.populateMetadataTab(currentFile);
                     await masterController.processFileMetadata(currentFile);
                 }
                 
