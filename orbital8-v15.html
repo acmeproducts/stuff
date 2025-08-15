@@ -8,14 +8,14 @@
     <title>Orbital8 V14 - Unified Cloud Storage</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V14 - PHASE 4 (REVISED) ===== */
+        /* ===== ORBITAL8 V14 - PHASE 5 ===== */
         /* Changes in this version:
-           - Swipe Logic: Fixed swipe-to-same-stack behavior to correctly advance the image.
-           - Grid Layout: Implemented a single Omni search bar to save space. Bulk action buttons are now shorter, left-aligned, and in a reserved row.
-           - Search UX: Search results are now selected by default. The 'X' on the selection pill deselects all. Search input text is now black.
-           - Thumbnail Sizing: Portrait thumbnails are larger to reduce whitespace (object-fit: cover).
-           - UI Polish: Removed main stage counters. Filename overlay is selectable, 90% width, raised, and extension-free.
-           - Bug Fix: Moving images after a search now correctly removes them from the source stack.
+           - Bug Fix (Move after Search): Moving searched images now correctly removes them from the source stack.
+           - Grid UX: Bulk action buttons are now disabled instead of hidden when no items are selected.
+           - Feature (Move to Folder): Full implementation of moving selected files to a different folder.
+           - Bug Fix (State Loss): Added a stack rebuilding function to prevent session state corruption.
+           - Search UX: Default selection is cleared before a new search.
+           - Feature (Export): Added 7 new specific metadata columns to the CSV export.
         */
         
         :root {
@@ -75,10 +75,10 @@
             color: white; font-size: 18px; font-weight: 600; padding: 16px 32px; cursor: pointer;
             transition: all 0.3s ease; box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4); width: 100%; margin-bottom: 16px;
         }
-        .button:hover:not(:disabled), .folder-button:hover, .btn:hover {
+        .button:hover:not(:disabled), .folder-button:hover, .btn:hover:not(:disabled) {
             transform: translateY(-2px); box-shadow: 0 6px 25px rgba(245, 158, 11, 0.6);
         }
-        .button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .button:disabled, .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
         
         .folder-button {
             flex: 1; padding: 12px 24px; border: 1px solid var(--glass-border); background: var(--glass-bg);
@@ -89,11 +89,11 @@
         
         .btn { padding: 4px 12px; border-radius: 6px; font-size: 14px; font-weight: 500; margin-bottom: 0; width: auto; }
         .btn-primary { background-color: #3b82f6; }
-        .btn-primary:hover { background-color: #2563eb; }
+        .btn-primary:hover:not(:disabled) { background-color: #2563eb; }
         .btn-danger { background-color: #ef4444; }
-        .btn-danger:hover { background-color: #dc2626; }
+        .btn-danger:hover:not(:disabled) { background-color: #dc2626; }
         .btn-secondary { background-color: #e5e7eb; color: #4b5563; }
-        .btn-secondary:hover { background-color: #d1d5db; }
+        .btn-secondary:hover:not(:disabled) { background-color: #d1d5db; }
         
         /* ===== Provider Selection Specific ===== */
         .provider-button {
@@ -528,7 +528,7 @@
             
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">orbital8-v14-p4.html</div>
+        <div class="app-footer">orbital8-v14-p5.html</div>
     </div>
     
     <!-- Google Drive Auth Screen -->
@@ -541,7 +541,7 @@
             <button class="button" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
-        <div class="app-footer">orbital8-v14-p4.html</div>
+        <div class="app-footer">orbital8-v14-p5.html</div>
     </div>
     
     <!-- OneDrive Auth Screen -->
@@ -553,7 +553,7 @@
             <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
-        <div class="app-footer">orbital8-v14-p4.html</div>
+        <div class="app-footer">orbital8-v14-p5.html</div>
     </div>
     
     <!-- Google Drive Folder Screen -->
@@ -568,7 +568,7 @@
                 <button class="folder-button danger" id="gdrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v14-p4.html</div>
+        <div class="app-footer">orbital8-v14-p5.html</div>
     </div>
     
     <!-- OneDrive Folder Screen -->
@@ -583,7 +583,7 @@
                 <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v14-p4.html</div>
+        <div class="app-footer">orbital8-v14-p5.html</div>
     </div>
     
     <!-- Loading Screen -->
@@ -597,7 +597,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">orbital8-v14-p4.html</div>
+        <div class="app-footer">orbital8-v14-p5.html</div>
     </div>
     
     <!-- Main App Container -->
@@ -628,7 +628,7 @@
         <div id="filename-overlay" class="filename-overlay"></div>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">orbital8-v14-p4.html</div>
+        <div class="app-footer">orbital8-v14-p5.html</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -673,11 +673,11 @@
                 <!-- Row 4: Reserved for Bulk Actions -->
                 <div class="grid-row-4">
                     <div class="bulk-actions">
-                        <button id="tag-selected" class="btn btn-primary hidden">Tag</button>
-                        <button id="move-selected" class="btn btn-primary hidden">Move</button>
-                        <button id="delete-selected" class="btn btn-danger hidden">Delete</button>
-                        <button id="export-selected" class="btn btn-primary hidden">Export</button>
-                        <button id="folder-selected" class="btn btn-primary hidden">Folder</button>
+                        <button id="tag-selected" class="btn btn-primary">Tag</button>
+                        <button id="move-selected" class="btn btn-primary">Move</button>
+                        <button id="delete-selected" class="btn btn-danger">Delete</button>
+                        <button id="export-selected" class="btn btn-primary">Export</button>
+                        <button id="folder-selected" class="btn btn-primary">Folder</button>
                     </div>
                 </div>
             </div>
@@ -801,15 +801,15 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V14 - PHASE 4 (REVISED) =====
-        /* * Version: V14 P4 (orbital8-v14-p4.html)
+        // ===== ORBITAL8 V14 - PHASE 5 =====
+        /* * Version: V14 P5 (orbital8-v14-p5.html)
          * * Changes in this version:
-           - Swipe Logic: Fixed swipe-to-same-stack behavior to correctly advance the image.
-           - Grid Layout: Implemented a single Omni search bar to save space. Bulk action buttons are now shorter, left-aligned, and in a reserved row.
-           - Search UX: Search results are now selected by default. The 'X' on the selection pill deselects all. Search input text is now black.
-           - Thumbnail Sizing: Portrait thumbnails are larger to reduce whitespace (object-fit: cover).
-           - UI Polish: Removed main stage counters. Filename overlay is selectable, 90% width, raised, and extension-free.
-           - Bug Fix: Moving images after a search now correctly removes them from the source stack.
+           - Bug Fix (Move after Search): Moving searched images now correctly removes them from the source stack.
+           - Grid UX: Bulk action buttons are now disabled instead of hidden when no items are selected.
+           - Feature (Move to Folder): Full implementation of moving selected files to a different folder.
+           - Bug Fix (State Loss): Added a stack rebuilding function to prevent session state corruption.
+           - Search UX: Default selection is cleared before a new search. Search results are auto-selected.
+           - Feature (Export): Added 7 new specific metadata columns to the CSV export.
          */
         
         // ===== Core Constants & State =====
@@ -840,7 +840,7 @@
             grid: { stack: null, selected: [], filtered: [] },
             tags: new Set(),
             loadingProgress: { current: 0, total: 0 },
-            folderMoveMode: { active: false }
+            folderMoveMode: { active: false, files: [] }
         };
 
         // ===== Unified Utilities =====
@@ -1532,17 +1532,19 @@
                 return this.accessToken;
             }
             
-            async makeApiCall(endpoint, options = {}) {
+            async makeApiCall(endpoint, options = {}, isJson = true) {
                 if (!this.accessToken) {
                     throw new Error('Not authenticated');
                 }
                 
-                const url = `${this.apiBase}${endpoint}`;
+                const url = endpoint.startsWith('https://') ? endpoint : `${this.apiBase}${endpoint}`;
                 const headers = {
                     'Authorization': `Bearer ${this.accessToken}`,
-                    'Content-Type': 'application/json',
                     ...options.headers
                 };
+                if(isJson) {
+                    headers['Content-Type'] = 'application/json';
+                }
                 
                 let response = await fetch(url, { ...options, headers });
                 
@@ -1562,7 +1564,10 @@
                     throw new Error(`API call failed: ${response.statusText}`);
                 }
                 
-                return await response.json();
+                if (isJson) {
+                    return await response.json();
+                }
+                return response;
             }
             
             async getFolders() {
@@ -1582,7 +1587,7 @@
                 
                 do {
                     const query = `'${folderId}' in parents and trashed=false and (mimeType contains 'image/')`;
-                    let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,appProperties),nextPageToken&pageSize=100`;
+                    let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,appProperties,parents),nextPageToken&pageSize=100`;
                     
                     if (nextPageToken) {
                         url += `&pageToken=${nextPageToken}`;
@@ -1602,7 +1607,8 @@
                             modifiedTime: file.modifiedTime,
                             thumbnailLink: file.thumbnailLink,
                             downloadUrl: file.webContentLink,
-                            appProperties: file.appProperties || {}
+                            appProperties: file.appProperties || {},
+                            parents: file.parents
                         }));
                     
                     allFiles.push(...files);
@@ -1623,6 +1629,15 @@
                     body: JSON.stringify({
                         appProperties: { slideboxStack: targetStack }
                     })
+                });
+                return true;
+            }
+
+            async moveFileToFolder(fileId, targetFolderId) {
+                const file = await this.makeApiCall(`/files/${fileId}?fields=parents`);
+                const previousParents = file.parents.join(',');
+                await this.makeApiCall(`/files/${fileId}?addParents=${targetFolderId}&removeParents=${previousParents}&fields=id,parents`, {
+                    method: 'PATCH'
                 });
                 return true;
             }
@@ -1909,6 +1924,16 @@
                 
                 return { folders: [], files: allFiles };
             }
+
+            async moveFileToFolder(fileId, targetFolderId) {
+                await this.makeApiCall(`/me/drive/items/${fileId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        parentReference: { id: targetFolderId }
+                    })
+                });
+                return true;
+            }
             
             async deleteFile(fileId) {
                 await this.makeApiCall(`/me/drive/items/${fileId}`, {
@@ -2036,47 +2061,48 @@
             
             formatForCSV(images) {
                 const headers = [
-                    'Filename',
-                    'Direct Image URL',
-                    'Prompt',
-                    'Size',
-                    'Created Date',
-                    'Modified Date',
-                    'Tags',
-                    'Notes',
-                    'Quality Rating',
-                    'Content Rating',
-                    'Provider',
-                    'Metadata (JSON)'
+                    'Filename', 'Direct Image URL', 'Prompt', 'Negative Prompt', 'Model', 
+                    'Width', 'Height', 'Steps', 'Seed', 'CFG Scale', 'Size', 
+                    'Created Date', 'Modified Date', 'Tags', 'Notes', 
+                    'Quality Rating', 'Content Rating', 'Provider', 'Metadata (JSON)'
                 ];
                 
-                const rows = images.map(image => [
-                    image.name || '',
-                    this.getDirectImageURL(image),
-                    this.extractPrompt(image.extractedMetadata || {}),
-                    this.formatFileSize(image.size || 0),
-                    image.createdTime ? new Date(image.createdTime).toISOString() : '',
-                    image.modifiedTime ? new Date(image.modifiedTime).toISOString() : '',
-                    (image.tags || []).join('; '),
-                    image.notes || '',
-                    image.qualityRating || 0,
-                    image.contentRating || 0,
-                    appState.currentProviderType || 'unknown',
-                    JSON.stringify(image.extractedMetadata || {})
-                ]);
+                const rows = images.map(image => {
+                    const meta = image.extractedMetadata || {};
+                    const dims = meta._dimensions || {};
+                    return [
+                        image.name || '',
+                        this.getDirectImageURL(image),
+                        this.extractMetadataValue(meta, ['prompt', 'Prompt', 'parameters']),
+                        this.extractMetadataValue(meta, ['negative_prompt', 'Negative Prompt']),
+                        this.extractMetadataValue(meta, ['model', 'Model']),
+                        dims.width || '',
+                        dims.height || '',
+                        this.extractMetadataValue(meta, ['steps', 'Steps']),
+                        this.extractMetadataValue(meta, ['seed', 'Seed']),
+                        this.extractMetadataValue(meta, ['cfg_scale', 'CFG Scale']),
+                        this.formatFileSize(image.size || 0),
+                        image.createdTime ? new Date(image.createdTime).toISOString() : '',
+                        image.modifiedTime ? new Date(image.modifiedTime).toISOString() : '',
+                        (image.tags || []).join('; '),
+                        image.notes || '',
+                        image.qualityRating || 0,
+                        image.contentRating || 0,
+                        appState.currentProviderType || 'unknown',
+                        JSON.stringify(meta)
+                    ];
+                });
                 
                 return [headers, ...rows];
             }
 
-            extractPrompt(metadata) {
-                const promptKeys = ['prompt', 'Prompt', 'parameters', 'sd-prompt'];
-                for (const key of promptKeys) {
+            extractMetadataValue(metadata, keys) {
+                for (const key of keys) {
                     if (metadata[key]) {
+                        // Special handling for A1111 style 'parameters'
                         if (key === 'parameters') {
-                            const match = metadata[key].match(/^(.*?)(Negative prompt:|$)/);
-                            if (match && match[1]) {
-                                return match[1].trim();
-                            }
+                            const promptMatch = metadata[key].match(/^(.*?)(Negative prompt:|$)/);
+                            if (promptMatch && promptMatch[1]) return promptMatch[1].trim();
                         }
                         return metadata[key];
                     }
@@ -2460,6 +2486,17 @@
                 
                 this.updateStackCounts();
             },
+
+            rebuildStacks() {
+                STACK_TYPES.forEach(stack => { appState.stacks[stack] = []; });
+                appState.imageFiles.forEach(file => {
+                    if (appState.stacks[file.stack]) {
+                        appState.stacks[file.stack].push(file);
+                    } else {
+                        appState.stacks.in.push(file);
+                    }
+                });
+            },
             
             sortFiles(files, sortOrder) {
                 const sorted = [...files];
@@ -2771,7 +2808,7 @@
                 utils.elements.selectionText.textContent = `${count} selected`;
                 
                 buttons.forEach(btn => {
-                    if (btn) btn.classList.toggle('hidden', count === 0);
+                    if (btn) btn.disabled = (count === 0);
                 });
             },
             
@@ -2796,6 +2833,7 @@
             
             performSearch() {
                 const query = utils.elements.omniSearch.value.trim();
+                appState.grid.selected = []; // Clear previous selections
                 
                 if (!query) {
                     this.resetSearch();
@@ -2829,6 +2867,7 @@
 
                 return appState.stacks[appState.grid.stack].filter(file => {
                     const searchableText = [
+                        file.name || '',
                         file.tags?.join(' ') || '',
                         file.notes || '',
                         JSON.stringify(file.extractedMetadata || {})
@@ -3322,7 +3361,7 @@
                 await this.executeBulkAction(async (fileId) => {
                     const file = appState.imageFiles.find(f => f.id === fileId);
                     if (file) {
-                        const currentStack = file.stack; // Get the true source stack
+                        const currentStack = file.stack;
                         await masterController.moveFileToStack(fileId, targetStack);
                         const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
                         if (currentStackIndex !== -1) {
@@ -3372,13 +3411,13 @@
             executeFolderMove() {
                 appState.folderMoveMode = {
                     active: true,
-                    selectedImages: [...appState.grid.selected],
-                    sourceStack: appState.grid.stack
+                    files: [...appState.grid.selected],
                 };
                 
                 this.hide();
+                gridView.close();
                 masterController.returnToFolderSelection();
-                utils.showToast(`Select destination folder for ${appState.folderMoveMode.selectedImages.length} images`, 'info', true);
+                utils.showToast(`Select destination folder for ${appState.folderMoveMode.files.length} images`, 'info', true);
             }
         };
 
@@ -3962,7 +4001,11 @@
                     `;
                     
                     div.addEventListener('click', () => {
-                        masterController.initializeWithProvider('googledrive', folder.id, folder.name, appState.currentProvider);
+                        if (appState.folderMoveMode.active) {
+                            handleFolderMoveSelection(folder.id, folder.name);
+                        } else {
+                            masterController.initializeWithProvider('googledrive', folder.id, folder.name, appState.currentProvider);
+                        }
                     });
                     utils.elements.gdriveFolderList.appendChild(div);
                 });
@@ -4052,9 +4095,49 @@
                     const folderElement = btn.closest('.folder-item');
                     const folderName = folderElement.querySelector('.folder-name').textContent;
                     
-                    masterController.initializeWithProvider('onedrive', folderId, folderName, appState.currentProvider);
+                    if (appState.folderMoveMode.active) {
+                        handleFolderMoveSelection(folder.id, folder.name);
+                    } else {
+                        masterController.initializeWithProvider('onedrive', folderId, folderName, appState.currentProvider);
+                    }
                 });
             });
+        }
+
+        async function handleFolderMoveSelection(folderId, folderName) {
+            const filesToMove = appState.folderMoveMode.files;
+            utils.showScreen('loading-screen');
+            utils.updateLoadingProgress(0, filesToMove.length);
+
+            try {
+                for(let i = 0; i < filesToMove.length; i++) {
+                    const fileId = filesToMove[i];
+                    await appState.currentProvider.moveFileToFolder(fileId, folderId);
+                    
+                    // Remove from local state
+                    const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
+                    if (fileIndex > -1) {
+                        const [file] = appState.imageFiles.splice(fileIndex, 1);
+                        const stackIndex = appState.stacks[file.stack].findIndex(f => f.id === fileId);
+                        if (stackIndex > -1) {
+                            appState.stacks[file.stack].splice(stackIndex, 1);
+                        }
+                    }
+                    utils.updateLoadingProgress(i + 1, filesToMove.length);
+                }
+
+                utils.showToast(`Moved ${filesToMove.length} images to ${folderName}`, 'success', true);
+                
+                // Reset and reload current folder
+                appState.folderMoveMode = { active: false, files: [] };
+                commonFunctions.rebuildStacks();
+                commonFunctions.updateStackCounts();
+                masterController.returnToFolderSelection();
+                
+            } catch (error) {
+                utils.showToast('Error moving files', 'error', true);
+                masterController.returnToFolderSelection();
+            }
         }
         
         function updateOneDriveNavigation() {
