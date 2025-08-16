@@ -2608,19 +2608,30 @@
                 const currentImage = appState.imageFiles[appState.currentImageIndex];
                 if (!currentImage) return;
                 const currentStackName = currentImage.stack;
-                
-                const newSequence = Date.now();
-
+            
+                let newSequence;
+            
                 if (currentStackName === targetStack) {
+                    // FIX: When moving to the same stack, send to back by giving it the OLDEST timestamp.
                     const currentStackArray = appState.stacks[currentStackName];
+                    const otherImages = currentStackArray.filter(img => img.id !== currentImage.id);
+                    if (otherImages.length > 0) {
+                        const minSequence = Math.min(...otherImages.map(img => img.stackSequence || 0));
+                        newSequence = minSequence - 1;
+                    } else {
+                        newSequence = Date.now(); // Only image in stack, timestamp doesn't matter as much.
+                    }
+            
                     const index = currentStackArray.findIndex(img => img.id === currentImage.id);
                     if (index > -1) {
                         const [item] = currentStackArray.splice(index, 1);
                         item.stackSequence = newSequence;
-                        currentStackArray.push(item);
+                        currentStackArray.push(item); // Manually move to end of array for immediate visual feedback
                         await masterController.updateUserMetadata(item.id, { stackSequence: newSequence });
                     }
                 } else {
+                    // Original logic: When moving to a NEW stack, give it the NEWEST timestamp to appear first.
+                    newSequence = Date.now();
                     const oldStack = appState.stacks[currentStackName];
                     const oldIndex = oldStack.findIndex(img => img.id === currentImage.id);
                     if (oldIndex > -1) {
@@ -2630,8 +2641,12 @@
                     await masterController.moveFileToStack(currentImage.id, targetStack, newSequence);
                 }
                 
+                // The sort will now work correctly for both cases.
                 appState.stacks[targetStack] = this.sortFiles(appState.stacks[targetStack]);
-
+                if (currentStackName !== targetStack) {
+                     appState.stacks[currentStackName] = this.sortFiles(appState.stacks[currentStackName]);
+                }
+            
                 this.updateStackCounts();
                 this.updateActiveProxTab();
                 
@@ -4227,4 +4242,3 @@
     </script>
 </body>
 </html>
-
