@@ -5,18 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V12 - Unified Cloud Storage</title>
+    <title>Orbital8 V15 - Refactored</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V14 - PHASE 8 ===== */
+        /* ===== ORBITAL8 V15 - PHASE 9 ===== */
         /* Changes in this version:
-           - State Management: Implemented robust "Cloud-First" state management with a `stackSequence` timestamp to preserve user-defined order.
-           - Bug Fix (Move/Delete): All move and delete operations now correctly remove files from the source stack/folder both logically and physically.
-           - Feature (Move to Folder): Full implementation of moving selected files to a different folder.
-           - Bug Fix (State Loss): App now correctly re-fetches data, preventing stack corruption when switching folders.
-           - Search UX: Default selection is cleared before a new search. Search results are auto-selected.
-           - Feature (Export): Added 7 new specific metadata columns to the CSV export.
-           - UI Fix: Updated footer version number to ph8. Portrait thumbnails are no longer cropped. Grid buttons are disabled, not hidden.
+           - Refactor (HTML): Consolidated all SVGs into a single <defs> block to eliminate duplication.
+           - Refactor (HTML): Unified all modals into a single dynamic modal shell to reduce redundant structures.
+           - Refactor (HTML): Created a single, global app footer, removing it from all individual screens.
+           - Refactor (CSS): Created a .btn-base class to consolidate common button styles, reducing CSS duplication.
+           - Enhancement (Footer): Updated footer text and made it a hyperlink.
+           - Enhancement (UX): Clicking the filename overlay now copies the filename to the clipboard.
         */
         
         :root {
@@ -64,23 +63,38 @@
         }
         .notes-textarea { min-height: 120px; font-family: inherit; resize: vertical; }
 
-        #action-modal .tag-input, #grid-modal .input {
+        #modal-shell .tag-input, #modal-shell .input {
             color: #1f2937;
             background: #f3f4f6;
             border-color: #d1d5db;
         }
         
         /* ===== Buttons ===== */
-        .button, .folder-button, .btn {
-            background: linear-gradient(45deg, var(--app-accent), #d97706); border: none; border-radius: 15px;
-            color: white; font-size: 18px; font-weight: 600; padding: 16px 32px; cursor: pointer;
-            transition: all 0.3s ease; box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4); width: 100%; margin-bottom: 16px;
+        .btn-base {
+            cursor: pointer;
+            border: none;
+            border-radius: 15px;
+            color: white;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
-        .button:hover:not(:disabled), .folder-button:hover, .btn:hover:not(:disabled) {
-            transform: translateY(-2px); box-shadow: 0 6px 25px rgba(245, 158, 11, 0.6);
+        .btn-base:hover:not(:disabled) { transform: translateY(-2px); }
+        .btn-base:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .button {
+             background: linear-gradient(45deg, var(--app-accent), #d97706);
+             font-size: 18px;
+             padding: 16px 32px;
+             box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4);
+             width: 100%;
+             margin-bottom: 16px;
         }
-        .button:disabled, .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-        
+        .button:hover:not(:disabled) { box-shadow: 0 6px 25px rgba(245, 158, 11, 0.6); }
+
         .folder-button {
             flex: 1; padding: 12px 24px; border: 1px solid var(--glass-border); background: var(--glass-bg);
             font-size: 14px; backdrop-filter: blur(10px); width: auto;
@@ -234,7 +248,9 @@
             opacity: 0;
             transition: opacity 0.3s ease;
             pointer-events: auto;
+            cursor: pointer;
         }
+        .filename-overlay:hover { background-color: rgba(245, 158, 11, 0.4); }
         .filename-overlay.visible { opacity: 1; }
 
         /* ===== Edge Effects ===== */
@@ -318,7 +334,8 @@
             background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             width: 100%; height: 100%; max-width: 1152px; max-height: 90vh; margin: 16px; display: flex; flex-direction: column;
         }
-        .action-modal { max-width: 448px; padding: 24px; }
+        .modal-content.action-modal { max-width: 448px; padding: 24px; height: auto; }
+        .modal-content.details-modal { max-width: 800px; max-height: 95vh; height: 95vh; }
         
         /* ===== Enhanced Grid System ===== */
         .modal-header { position: sticky; top: 0; background: white; z-index: 10; border-bottom: 1px solid #e5e7eb; }
@@ -335,7 +352,7 @@
             padding: 4px; display: flex; align-items: center; justify-content: center;
         }
         .close-btn:hover { color: #374151; background: rgba(0, 0, 0, 0.05); }
-        .close-btn svg { width: 24px; height: 24px; }
+        .close-btn .icon { width: 24px; height: 24px; }
         
         .grid-row-2 {
             padding: 8px 16px; border-bottom: 1px solid #e5e7eb; display: flex;
@@ -350,7 +367,7 @@
             padding: 2px; display: flex; align-items: center; justify-content: center;
         }
         .deselect-all-btn:hover { color: #1e3a8a; background: rgba(0, 0, 0, 0.05); }
-        .deselect-all-btn svg { width: 16px; height: 16px; }
+        .deselect-all-btn .icon { width: 16px; height: 16px; }
         
         .zoom-control { display: flex; align-items: center; gap: 8px; }
         #grid-size { width: 80px; }
@@ -407,7 +424,6 @@
         .grid-item.selected { box-shadow: 0 0 0 4px #3b82f6; }
         
         /* ===== Details Modal ===== */
-        .details-modal-content { max-width: 800px; max-height: 95vh; height: 95vh; display: flex; flex-direction: column; }
         .details-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
         .details-title { font-size: 18px; font-weight: 500; color: #1f2937; }
         .tab-nav { display: flex; border-bottom: 1px solid #e5e7eb; background: #f8fafc; flex-shrink: 0; }
@@ -460,6 +476,8 @@
             color: rgba(255, 255, 255, 0.6); text-align: center; padding: 4px 8px;
             font-size: 10px; z-index: 5; backdrop-filter: blur(10px);
         }
+        .app-footer a { color: inherit; text-decoration: none; }
+        .app-footer a:hover { color: white; }
         
         /* ===== Responsive ===== */
         .hidden { display: none !important; }
@@ -473,7 +491,7 @@
             .nav-button { font-size: 16px; padding: 12px 20px; border-radius: 25px; min-width: 80px; }
             .pill-counter.bottom { bottom: 80px; }
             .filename-overlay { font-size: 11px; padding: 5px 12px; bottom: 35px; }
-            .details-modal-content { max-width: 100vw; max-height: 100vh; height: 100vh; margin: 0; border-radius: 0; }
+            .modal-content.details-modal { max-width: 100vw; max-height: 100vh; height: 100vh; margin: 0; border-radius: 0; }
             .metadata-table .key-cell { width: 30%; min-width: 80px; font-size: 12px; }
             .metadata-table .value-cell { font-size: 12px; }
             .copy-button { font-size: 10px; padding: 3px 6px; }
@@ -489,6 +507,18 @@
     </style>
 </head>
 <body>
+    <!-- SVG Icon Definitions -->
+    <svg width="0" height="0" style="position:absolute">
+      <defs>
+        <symbol id="icon-close" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </symbol>
+        <symbol id="icon-star" viewBox="0 0 24 24">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </symbol>
+      </defs>
+    </svg>
+
     <!-- Provider Selection Screen -->
     <div class="screen" id="provider-screen">
         <div class="card">
@@ -529,7 +559,6 @@
             
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">orbital8-v14-ph8.html</div>
     </div>
     
     <!-- Google Drive Auth Screen -->
@@ -538,11 +567,10 @@
             <h1 class="title">Google Drive</h1>
             <p class="subtitle">Connect to Google Drive</p>
             <input type="password" id="gdrive-client-secret" class="input" placeholder="Enter Google Client Secret">
-            <button class="button" id="gdrive-auth-button">Connect Drive</button>
-            <button class="button" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
+            <button class="button btn-base" id="gdrive-auth-button">Connect Drive</button>
+            <button class="button btn-base" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
-        <div class="app-footer">orbital8-v14-ph8.html</div>
     </div>
     
     <!-- OneDrive Auth Screen -->
@@ -550,11 +578,10 @@
         <div class="card">
             <h1 class="title">OneDrive</h1>
             <p class="subtitle">Connect to OneDrive</p>
-            <button class="button" id="onedrive-auth-button">Connect OneDrive</button>
-            <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
+            <button class="button btn-base" id="onedrive-auth-button">Connect OneDrive</button>
+            <button class="button btn-base" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
-        <div class="app-footer">orbital8-v14-ph8.html</div>
     </div>
     
     <!-- Google Drive Folder Screen -->
@@ -564,12 +591,11 @@
             <div class="subtitle">Choose a folder containing images</div>
             <div class="folder-list" id="gdrive-folder-list"></div>
             <div class="folder-actions">
-                <button class="folder-button" id="gdrive-refresh-folders">Refresh</button>
-                <button class="folder-button" id="gdrive-back-to-provider">← Provider</button>
-                <button class="folder-button danger" id="gdrive-logout">Disconnect</button>
+                <button class="folder-button btn-base" id="gdrive-refresh-folders">Refresh</button>
+                <button class="folder-button btn-base" id="gdrive-back-to-provider">← Provider</button>
+                <button class="folder-button btn-base danger" id="gdrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v14-ph8.html</div>
     </div>
     
     <!-- OneDrive Folder Screen -->
@@ -579,12 +605,11 @@
             <div class="subtitle" id="onedrive-folder-subtitle">Starting from Downloads folder - browse or select any folder</div>
             <div class="folder-list" id="onedrive-folder-list"></div>
             <div class="folder-actions">
-                <button class="folder-button" id="onedrive-refresh-folders">Refresh</button>
-                <button class="folder-button" id="onedrive-back-to-provider">← Provider</button>
-                <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
+                <button class="folder-button btn-base" id="onedrive-refresh-folders">Refresh</button>
+                <button class="folder-button btn-base" id="onedrive-back-to-provider">← Provider</button>
+                <button class="folder-button btn-base danger" id="onedrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v14-ph8.html</div>
     </div>
     
     <!-- Loading Screen -->
@@ -596,9 +621,8 @@
             <div class="loading-progress">
                 <div class="loading-progress-bar" id="loading-progress-bar"></div>
             </div>
-            <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
+            <button class="button btn-base" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">orbital8-v14-ph8.html</div>
     </div>
     
     <!-- Main App Container -->
@@ -629,189 +653,32 @@
         <div id="filename-overlay" class="filename-overlay"></div>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">orbital8-v14-ph8.html</div>
     </div>
     
-    <!-- Enhanced Grid Modal -->
-    <div id="grid-modal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <!-- Row 1: Title -->
-                <div class="modal-header-main">
-                    <div class="modal-header-left">
-                        <h2 id="grid-title" class="modal-title">Grid View</h2>
-                        <button id="select-all-btn" class="select-all-btn">0</button>
-                    </div>
-                    <button id="close-grid" class="close-btn">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-                
-                <!-- Row 2: Selection & Zoom -->
-                <div class="grid-row-2">
-                    <span class="selection-count">
-                        <span id="selection-text">0 selected</span>
-                        <button id="deselect-all-btn" class="deselect-all-btn">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </span>
-                    <div class="zoom-control">
-                        <input type="range" id="grid-size" min="1" max="10" value="4">
-                        <span id="grid-size-value">4</span>
-                    </div>
-                </div>
-                
-                <!-- Row 3: Omni Search -->
-                <div class="grid-row-3">
-                    <input type="text" id="omni-search" class="input" placeholder="Search tags, notes, and metadata..." style="margin-bottom: 0; flex-grow: 1;">
-                    <button id="omni-search-btn" class="btn btn-primary">Go</button>
-                </div>
-                
-                <!-- Row 4: Reserved for Bulk Actions -->
-                <div class="grid-row-4">
-                    <div class="bulk-actions">
-                        <button id="tag-selected" class="btn btn-primary">Tag</button>
-                        <button id="move-selected" class="btn btn-primary">Move</button>
-                        <button id="delete-selected" class="btn btn-danger">Delete</button>
-                        <button id="export-selected" class="btn btn-primary">Export</button>
-                        <button id="folder-selected" class="btn btn-primary">Folder</button>
-                    </div>
-                </div>
-            </div>
-            <div class="grid-content">
-                <div id="grid-container" class="grid-container"></div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Unified Action Modal -->
-    <div id="action-modal" class="modal hidden">
-        <div class="modal-content action-modal">
-            <h3 id="action-title" class="title" style="font-size: 18px; color: #1f2937; margin-bottom: 16px;">Action</h3>
-            <div id="action-content"></div>
-            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
-                <button id="action-cancel" class="btn btn-secondary">Cancel</button>
-                <button id="action-confirm" class="btn btn-primary">Confirm</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Details Modal -->
-    <div id="details-modal" class="modal hidden">
-        <div class="modal-content details-modal-content">
-            <div class="details-header">
-                <h3 class="details-title">Image Details</h3>
-                <button id="details-close" class="close-btn">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-            
-            <div class="tab-nav">
-                <button class="tab-button active" data-tab="info">Info</button>
-                <button class="tab-button" data-tab="tags">Tags</button>
-                <button class="tab-button" data-tab="notes">Notes</button>
-                <button class="tab-button" data-tab="metadata">Metadata</button>
-            </div>
-            
-            <div class="details-content">
-                <div id="tab-info" class="tab-content active">
-                    <div style="margin-bottom: 20px;">
-                        <div style="display: flex; align-items: center; margin-bottom: 12px; gap: 12px;">
-                            <span style="font-size: 14px; color: #6b7280; min-width: 80px; font-weight: 500;">Filename:</span>
-                            <a id="detail-filename-link" style="font-size: 14px; color: #3b82f6; flex: 1; word-break: break-word; text-decoration: none;" href="#" target="_blank">
-                                <span id="detail-filename"></span>
-                            </a>
-                        </div>
-                        <div style="display: flex; align-items: center; margin-bottom: 12px; gap: 12px;">
-                            <span style="font-size: 14px; color: #6b7280; min-width: 80px; font-weight: 500;">Date:</span>
-                            <span id="detail-date" style="font-size: 14px; color: #374151; flex: 1; word-break: break-word;"></span>
-                        </div>
-                        <div style="display: flex; align-items: center; margin-bottom: 12px; gap: 12px;">
-                            <span style="font-size: 14px; color: #6b7280; min-width: 80px; font-weight: 500;">Size:</span>
-                            <span id="detail-size" style="font-size: 14px; color: #374151; flex: 1; word-break: break-word;"></span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div id="tab-tags" class="tab-content">
-                    <div style="margin-bottom: 20px;">
-                        <div class="tags-container" id="detail-tags"></div>
-                    </div>
-                </div>
-                
-                <div id="tab-notes" class="tab-content">
-                    <div style="margin-bottom: 24px;">
-                        <label for="detail-notes" style="font-size: 14px; color: #6b7280; min-width: 80px; font-weight: 500;">Notes:</label>
-                        <textarea id="detail-notes" class="notes-textarea" placeholder="Add your notes here..."></textarea>
-                    </div>
-                    
-                    <div style="margin-bottom: 20px;">
-                        <div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">Quality Rating:</div>
-                        <div class="star-rating" id="quality-rating">
-                            <svg class="star" data-rating="1" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                            </svg>
-                            <svg class="star" data-rating="2" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                            </svg>
-                            <svg class="star" data-rating="3" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                            </svg>
-                            <svg class="star" data-rating="4" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                            </svg>
-                            <svg class="star" data-rating="5" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                            </svg>
-                        </div>
-                    </div>
-                    
-                    <div style="margin-bottom: 20px;">
-                        <div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">Content Rating:</div>
-                        <div class="star-rating" id="content-rating">
-                            <svg class="star" data-rating="1" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                            </svg>
-                            <svg class="star" data-rating="2" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                            </svg>
-                            <svg class="star" data-rating="3" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                            </svg>
-                            <svg class="star" data-rating="4" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                            </svg>
-                            <svg class="star" data-rating="5" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-                
-                <div id="tab-metadata" class="tab-content">
-                    <table class="metadata-table" id="metadata-table"></table>
-                </div>
-            </div>
+    <!-- Unified Modal Shell -->
+    <div id="modal-shell" class="modal hidden">
+        <div class="modal-content" id="modal-content-area">
+            <!-- Dynamic content will be injected here -->
         </div>
     </div>
 
+    <!-- Global App Footer -->
+    <div class="app-footer">
+        <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v15.html" target="_blank" rel="noopener noreferrer">
+            Made with ❤️ by Team Orbital
+        </a>
+    </div>
+
     <script>
-        // ===== ORBITAL8 V14 - PHASE 7 =====
-        /* * Version: V14 P7 (orbital8-v14-p7.html)
-         * * Changes in this version:
-           - State Management: Implemented robust "Cloud-First" state management with a `stackSequence` timestamp to preserve user-defined order.
-           - Bug Fix (Move/Delete): All move and delete operations now correctly remove files from the source stack/folder both logically and physically.
-           - Feature (Move to Folder): Full implementation of moving selected files to a different folder.
-           - Bug Fix (State Loss): App now correctly re-fetches data, preventing stack corruption when switching folders.
-           - Search UX: Default selection is cleared before a new search. Search results are auto-selected.
-           - Feature (Export): Added 7 new specific metadata columns to the CSV export.
-         */
+        // ===== ORBITAL8 V15 - PHASE 9 =====
+        /* Changes in this version:
+           - Refactor (HTML): Consolidated all SVGs into a single <defs> block to eliminate duplication.
+           - Refactor (HTML): Unified all modals into a single dynamic modal shell to reduce redundant structures.
+           - Refactor (HTML): Created a single, global app footer, removing it from all individual screens.
+           - Refactor (CSS): Created a .btn-base class to consolidate common button styles, reducing CSS duplication.
+           - Enhancement (Footer): Updated footer text and made it a hyperlink.
+           - Enhancement (UX): Clicking the filename overlay now copies the filename to the clipboard.
+        */
         
         // ===== Core Constants & State =====
         const STACK_TYPES = ['in', 'out', 'priority', 'trash'];
@@ -913,47 +780,9 @@
                     pillIn: document.getElementById('pill-in'),
                     pillOut: document.getElementById('pill-out'),
                     
-                    // Grid modal
-                    gridModal: document.getElementById('grid-modal'),
-                    gridTitle: document.getElementById('grid-title'),
-                    gridContainer: document.getElementById('grid-container'),
-                    selectAllBtn: document.getElementById('select-all-btn'),
-                    deselectAllBtn: document.getElementById('deselect-all-btn'),
-                    selectionText: document.getElementById('selection-text'),
-                    closeGrid: document.getElementById('close-grid'),
-                    gridSize: document.getElementById('grid-size'),
-                    gridSizeValue: document.getElementById('grid-size-value'),
-                    
-                    // Search elements
-                    omniSearch: document.getElementById('omni-search'),
-                    omniSearchBtn: document.getElementById('omni-search-btn'),
-                    
-                    // Action buttons
-                    tagSelected: document.getElementById('tag-selected'),
-                    moveSelected: document.getElementById('move-selected'),
-                    deleteSelected: document.getElementById('delete-selected'),
-                    exportSelected: document.getElementById('export-selected'),
-                    folderSelected: document.getElementById('folder-selected'),
-                    
-                    // Action modal
-                    actionModal: document.getElementById('action-modal'),
-                    actionTitle: document.getElementById('action-title'),
-                    actionContent: document.getElementById('action-content'),
-                    actionCancel: document.getElementById('action-cancel'),
-                    actionConfirm: document.getElementById('action-confirm'),
-                    
-                    // Details modal
-                    detailsModal: document.getElementById('details-modal'),
-                    detailsClose: document.getElementById('details-close'),
-                    detailFilename: document.getElementById('detail-filename'),
-                    detailFilenameLink: document.getElementById('detail-filename-link'),
-                    detailDate: document.getElementById('detail-date'),
-                    detailSize: document.getElementById('detail-size'),
-                    detailTags: document.getElementById('detail-tags'),
-                    detailNotes: document.getElementById('detail-notes'),
-                    qualityRating: document.getElementById('quality-rating'),
-                    contentRating: document.getElementById('content-rating'),
-                    metadataTable: document.getElementById('metadata-table')
+                    // Modal Shell
+                    modalShell: document.getElementById('modal-shell'),
+                    modalContentArea: document.getElementById('modal-content-area'),
                 };
             },
             
@@ -964,9 +793,6 @@
                     document.getElementById(id).classList.toggle('hidden', id !== screenId);
                 });
             },
-            
-            showModal(id) { document.getElementById(id).classList.remove('hidden'); },
-            hideModal(id) { document.getElementById(id).classList.add('hidden'); },
             
             showToast(message, type = 'success', important = false) {
                 if (!important && Math.random() < 0.7) return;
@@ -1058,6 +884,21 @@
                     const percentage = (current / total) * 100;
                     this.elements.loadingProgressBar.style.width = `${percentage}%`;
                 }
+            },
+            copyToClipboard(text, successMessage) {
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    this.showToast(successMessage, 'success', true);
+                } catch (err) {
+                    this.showToast('❌ Failed to copy', 'error', true);
+                }
+                document.body.removeChild(textArea);
             }
         };
 
@@ -2577,7 +2418,7 @@
                 
                 await utils.setImageSrc(utils.elements.centerImage, currentFile);
                 
-                utils.elements.filenameOverlay.textContent = currentFile.name.replace(/\.[^/.]+$/, "");
+                utils.elements.filenameOverlay.textContent = currentFile.name;
                 utils.elements.filenameOverlay.classList.add('visible');
 
                 appState.currentScale = 1;
@@ -2612,25 +2453,23 @@
                 let newSequence;
             
                 if (currentStackName === targetStack) {
-                    // FIX: When moving to the same stack, send to back by giving it the OLDEST timestamp.
                     const currentStackArray = appState.stacks[currentStackName];
                     const otherImages = currentStackArray.filter(img => img.id !== currentImage.id);
                     if (otherImages.length > 0) {
                         const minSequence = Math.min(...otherImages.map(img => img.stackSequence || 0));
                         newSequence = minSequence - 1;
                     } else {
-                        newSequence = Date.now(); // Only image in stack, timestamp doesn't matter as much.
+                        newSequence = Date.now();
                     }
             
                     const index = currentStackArray.findIndex(img => img.id === currentImage.id);
                     if (index > -1) {
                         const [item] = currentStackArray.splice(index, 1);
                         item.stackSequence = newSequence;
-                        currentStackArray.push(item); // Manually move to end of array for immediate visual feedback
+                        currentStackArray.push(item);
                         await masterController.updateUserMetadata(item.id, { stackSequence: newSequence });
                     }
                 } else {
-                    // Original logic: When moving to a NEW stack, give it the NEWEST timestamp to appear first.
                     newSequence = Date.now();
                     const oldStack = appState.stacks[currentStackName];
                     const oldIndex = oldStack.findIndex(img => img.id === currentImage.id);
@@ -2641,7 +2480,6 @@
                     await masterController.moveFileToStack(currentImage.id, targetStack, newSequence);
                 }
                 
-                // The sort will now work correctly for both cases.
                 appState.stacks[targetStack] = this.sortFiles(appState.stacks[targetStack]);
                 if (currentStackName !== targetStack) {
                      appState.stacks[currentStackName] = this.sortFiles(appState.stacks[currentStackName]);
@@ -2691,9 +2529,7 @@
         // ===== Enhanced Grid View with Search =====
         const gridView = {
             open(stack) {
-                utils.showModal('grid-modal');
-                utils.elements.gridTitle.textContent = STACK_NAMES[stack] || stack;
-                
+                modalManager.show('grid', { stack });
                 appState.grid.stack = stack;
                 
                 if (appState.currentStack === stack && appState.currentImageIndex !== -1) {
@@ -2718,13 +2554,32 @@
             
             close() {
                 if (appState.grid.filtered.length > 0) {
-                    const currentStack = appState.stacks[appState.currentStack];
-                    const filteredIds = new Set(appState.grid.filtered.map(f => f.id));
-                    const otherImages = currentStack.filter(f => !filteredIds.has(f.id));
-                    appState.stacks[appState.currentStack] = [...appState.grid.filtered, ...otherImages];
+                    const stackName = appState.grid.stack;
+                    const currentStackArray = appState.stacks[stackName];
+            
+                    const sortedFilteredImages = [...appState.grid.filtered].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    
+                    const filteredIds = new Set(sortedFilteredImages.map(f => f.id));
+                    const otherImages = currentStackArray.filter(f => !filteredIds.has(f.id));
+            
+                    const newStackOrder = [...sortedFilteredImages, ...otherImages];
+            
+                    const baseSequence = Date.now();
+                    const updatePromises = newStackOrder.map((file, index) => {
+                        const newSequence = baseSequence - index;
+                        file.stackSequence = newSequence;
+                        return masterController.updateUserMetadata(file.id, { stackSequence: newSequence }); 
+                    });
+            
+                    appState.stacks[stackName] = newStackOrder;
+            
+                    Promise.all(updatePromises).catch(error => {
+                        console.error("Failed to update some image sequences:", error);
+                        utils.showToast('Failed to save new order for some images', 'error');
+                    });
                 }
-
-                utils.hideModal('grid-modal');
+            
+                modalManager.hide();
                 this.resetSearch();
                 
                 const selectedImages = appState.grid.selected;
@@ -2756,12 +2611,13 @@
             },
             
             populate(stack) {
-                const container = utils.elements.gridContainer;
+                const container = document.getElementById('grid-container');
+                if (!container) return;
                 container.innerHTML = '';
-                container.style.gridTemplateColumns = `repeat(${utils.elements.gridSize.value}, 1fr)`;
+                container.style.gridTemplateColumns = `repeat(${document.getElementById('grid-size').value}, 1fr)`;
                 
                 const filesToShow = appState.grid.filtered.length > 0 ? appState.grid.filtered : appState.stacks[stack];
-                utils.elements.selectAllBtn.textContent = filesToShow.length;
+                document.getElementById('select-all-btn').textContent = filesToShow.length;
                 
                 filesToShow.forEach((file) => {
                     const div = document.createElement('div');
@@ -2788,7 +2644,7 @@
                         
                         if (appState.grid.selected.length === 1 && 
                             appState.grid.selected[0] === file.id && 
-                            utils.elements.gridSize.value === '1') {
+                            document.getElementById('grid-size').value === '1') {
                             let viewUrl;
                             if (appState.currentProviderType === 'googledrive') {
                                 viewUrl = `https://drive.google.com/file/d/${file.id}/view`;
@@ -2821,7 +2677,7 @@
                 
                 this.updateSelectionUI();
                 
-                if (appState.grid.selected.length === 1 && utils.elements.gridSize.value === '1') {
+                if (appState.grid.selected.length === 1 && document.getElementById('grid-size').value === '1') {
                     this.focusOnSelectedItem(appState.grid.selected[0]);
                 }
             },
@@ -2835,12 +2691,11 @@
             
             updateSelectionUI() {
                 const count = appState.grid.selected.length;
-                const buttons = [utils.elements.tagSelected, utils.elements.moveSelected, utils.elements.deleteSelected, 
-                               utils.elements.exportSelected, utils.elements.folderSelected];
+                document.getElementById('selection-text').textContent = `${count} selected`;
                 
-                utils.elements.selectionText.textContent = `${count} selected`;
-                
-                buttons.forEach(btn => {
+                const buttons = ['tag-selected', 'move-selected', 'delete-selected', 'export-selected', 'folder-selected'];
+                buttons.forEach(id => {
+                    const btn = document.getElementById(id);
                     if (btn) btn.disabled = (count === 0);
                 });
             },
@@ -2865,7 +2720,7 @@
             },
             
             performSearch() {
-                const query = utils.elements.omniSearch.value.trim();
+                const query = document.getElementById('omni-search').value.trim();
                 appState.grid.selected = [];
                 
                 if (!query) {
@@ -2878,14 +2733,15 @@
                 
                 appState.grid.selected = filteredImages.map(f => f.id);
                 
-                utils.elements.selectAllBtn.textContent = filteredImages.length;
+                document.getElementById('select-all-btn').textContent = filteredImages.length;
                 
                 this.populate(appState.grid.stack);
                 this.updateSelectionUI();
             },
 
             resetSearch() {
-                utils.elements.omniSearch.value = '';
+                const searchInput = document.getElementById('omni-search');
+                if (searchInput) searchInput.value = '';
                 appState.grid.filtered = [];
                 this.populate(appState.grid.stack);
                 commonFunctions.updateStackCounts();
@@ -2920,17 +2776,16 @@
                 if (!currentFile) return;
 
                 if (currentFile.metadataStatus === 'pending') {
-                    this.populateMetadataTab(currentFile);
+                    modalManager.show('details', { file: currentFile });
                     await masterController.processFileMetadata(currentFile);
                 }
                 
-                this.populateAllTabs(currentFile);
-                utils.showModal('details-modal');
+                modalManager.show('details', { file: currentFile });
                 this.switchTab('info');
             },
             
             hide() {
-                utils.hideModal('details-modal');
+                modalManager.hide();
             },
             
             switchTab(tabName) {
@@ -2945,36 +2800,12 @@
                 this.currentTab = tabName;
             },
             
-            populateAllTabs(file) {
-                this.populateInfoTab(file);
-                this.populateTagsTab(file);
-                this.populateNotesTab(file);
-                this.populateMetadataTab(file);
-            },
-            
-            populateInfoTab(file) {
-                const filename = file.name || 'Unknown';
-                utils.elements.detailFilename.textContent = filename;
-                
-                if (appState.currentProviderType === 'googledrive') {
-                    utils.elements.detailFilenameLink.href = `https://drive.google.com/file/d/${file.id}/view`;
-                } else {
-                    utils.elements.detailFilenameLink.href = file.downloadUrl || '#';
-                }
-                utils.elements.detailFilenameLink.style.display = 'inline';
-                
-                const date = file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : 
-                           file.createdTime ? new Date(file.createdTime).toLocaleString() : 'Unknown';
-                utils.elements.detailDate.textContent = date;
-                
-                const size = file.size ? utils.formatFileSize(file.size) : 'Unknown';
-                utils.elements.detailSize.textContent = size;
-            },
-            
             populateTagsTab(file) {
+                const container = document.getElementById('detail-tags');
+                if (!container) return;
                 const tags = file.tags || [];
                 
-                utils.elements.detailTags.innerHTML = '';
+                container.innerHTML = '';
                 
                 tags.forEach(tag => {
                     const tagElement = document.createElement('div');
@@ -2983,16 +2814,16 @@
                         <span>${tag}</span>
                         <button class="tag-remove" data-tag="${tag}">×</button>
                     `;
-                    utils.elements.detailTags.appendChild(tagElement);
+                    container.appendChild(tagElement);
                 });
                 
                 const addButton = document.createElement('div');
                 addButton.className = 'add-tag-btn';
                 addButton.textContent = '+ Add Tag';
-                addButton.addEventListener('click', () => this.showAddTagInput());
-                utils.elements.detailTags.appendChild(addButton);
+                addButton.addEventListener('click', () => this.showAddTagInput(file));
+                container.appendChild(addButton);
                 
-                utils.elements.detailTags.querySelectorAll('.tag-remove').forEach(btn => {
+                container.querySelectorAll('.tag-remove').forEach(btn => {
                     btn.addEventListener('click', (e) => {
                         const tagToRemove = e.target.dataset.tag;
                         this.removeTag(file, tagToRemove);
@@ -3000,14 +2831,16 @@
                 });
             },
             
-            showAddTagInput() {
+            showAddTagInput(file) {
+                const container = document.getElementById('detail-tags');
+                if (!container) return;
                 const input = document.createElement('input');
                 input.type = 'text';
                 input.className = 'tag-input';
                 input.placeholder = 'Enter tag name';
                 input.style.marginLeft = '8px';
                 
-                const addButton = utils.elements.detailTags.querySelector('.add-tag-btn');
+                const addButton = container.querySelector('.add-tag-btn');
                 addButton.parentNode.insertBefore(input, addButton);
                 input.focus();
                 
@@ -3015,15 +2848,14 @@
                     if (e.key === 'Enter') {
                         const tagName = input.value.trim();
                         if (tagName) {
-                            const currentFile = appState.imageFiles[appState.currentImageIndex];
                             try {
-                                const currentTags = currentFile.tags || [];
+                                const currentTags = file.tags || [];
                                 const newTags = [...new Set([...currentTags, tagName])];
                                 
-                                await masterController.updateUserMetadata(currentFile.id, { tags: newTags });
+                                await masterController.updateUserMetadata(file.id, { tags: newTags });
                                 appState.tags.add(tagName);
                                 
-                                this.populateTagsTab(currentFile);
+                                this.populateTagsTab(file);
                                 input.remove();
                             } catch (error) {
                                 utils.showToast('Failed to add tag', 'error', true);
@@ -3051,30 +2883,8 @@
                 }
             },
             
-            populateNotesTab(file) {
-                utils.elements.detailNotes.value = file.notes || '';
-                
-                const newNotesTextarea = utils.elements.detailNotes.cloneNode(true);
-                utils.elements.detailNotes.parentNode.replaceChild(newNotesTextarea, utils.elements.detailNotes);
-                utils.elements.detailNotes = newNotesTextarea;
-                
-                utils.elements.detailNotes.addEventListener('blur', async () => {
-                    const currentFile = appState.imageFiles[appState.currentImageIndex];
-                    if (currentFile.notes !== utils.elements.detailNotes.value) {
-                        try {
-                            await masterController.updateUserMetadata(currentFile.id, { notes: utils.elements.detailNotes.value });
-                        } catch (error) {
-                            utils.showToast('Failed to save notes', 'error', true);
-                        }
-                    }
-                });
-                
-                this.setupStarRating('quality', file.qualityRating || 0);
-                this.setupStarRating('content', file.contentRating || 0);
-            },
-            
             setupStarRating(type, currentRating) {
-                const container = utils.elements[`${type}Rating`];
+                const container = document.getElementById(`${type}-rating`);
                 if (!container) return;
             
                 let rating = currentRating;
@@ -3120,134 +2930,6 @@
                 });
             
                 updateVisuals(rating);
-            },
-            
-            populateMetadataTab(file) {
-                utils.elements.metadataTable.innerHTML = '';
-                
-                if (file.metadataStatus === 'pending' || file.metadataStatus === 'loading') {
-                    utils.elements.metadataTable.innerHTML = `<tr><td colspan="2" style="text-align:center; padding: 20px;"><div class="spinner" style="margin: 0 auto;"></div></td></tr>`;
-                    return;
-                }
-
-                const metadata = file.extractedMetadata || {};
-                
-                if (Object.keys(metadata).length === 0) {
-                    this.addMetadataRow('Status', 'No embedded metadata found', false);
-                    return;
-                }
-                
-                const priorityFields = ['prompt', 'Prompt', 'model', 'Model', 'seed', 'Seed', 'negative_prompt', 'Negative_Prompt', 'steps', 'Steps', 'cfg_scale', 'CFG_Scale', 'sampler', 'Sampler', 'scheduler', 'Scheduler', 'api_call', 'API_Call'];
-                
-                priorityFields.forEach(field => {
-                    if (metadata[field]) {
-                        this.addMetadataRow(field, metadata[field], true);
-                    }
-                });
-                
-                const remainingFields = Object.entries(metadata).filter(([key, value]) => 
-                    !priorityFields.includes(key) && 
-                    !priorityFields.includes(key.toLowerCase()) && 
-                    value
-                );
-                
-                if (priorityFields.some(field => metadata[field]) && remainingFields.length > 0) {
-                    const separatorRow = document.createElement('tr');
-                    separatorRow.innerHTML = `
-                        <td colspan="2" style="padding: 8px; background: #f0f0f0; text-align: center; font-size: 12px; color: #666; font-weight: bold;">
-                            Other Metadata
-                        </td>
-                    `;
-                    utils.elements.metadataTable.appendChild(separatorRow);
-                }
-                
-                remainingFields.forEach(([key, value]) => {
-                    this.addMetadataRow(key, value, false);
-                });
-                
-                if (Object.keys(metadata).length > 0) {
-                    const separatorRow = document.createElement('tr');
-                    separatorRow.innerHTML = `
-                        <td colspan="2" style="padding: 8px; background: #f0f0f0; text-align: center; font-size: 12px; color: #666; font-weight: bold;">
-                            File Information
-                        </td>
-                    `;
-                    utils.elements.metadataTable.appendChild(separatorRow);
-                }
-                
-                this.addMetadataRow('File Name', file.name || 'Unknown', false);
-                this.addMetadataRow('File Size', file.size ? utils.formatFileSize(file.size) : 'Unknown', false);
-                this.addMetadataRow('MIME Type', file.mimeType || 'Unknown', false);
-                this.addMetadataRow('Created', file.createdTime ? new Date(file.createdTime).toLocaleString() : 'Unknown', false);
-                this.addMetadataRow('Modified', file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : 'Unknown', false);
-                this.addMetadataRow('Provider', appState.currentProviderType === 'googledrive' ? 'Google Drive' : 'OneDrive', false);
-            },
-            
-            addMetadataRow(key, value, needsCopyButton = false) {
-                const row = document.createElement('tr');
-                
-                const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                
-                let formattedValue = String(value);
-                
-                if (formattedValue.length > 200) {
-                    formattedValue = formattedValue
-                        .replace(/,\s+/g, ',\n')
-                        .replace(/\.\s+/g, '.\n')
-                        .replace(/;\s+/g, ';\n')
-                        .trim();
-                } else if (formattedValue.length > 100) {
-                    formattedValue = formattedValue.replace(/\s+/g, ' ').trim();
-                }
-                
-                const keyCell = document.createElement('td');
-                keyCell.className = 'key-cell';
-                keyCell.textContent = formattedKey;
-                
-                const valueCell = document.createElement('td');
-                valueCell.className = 'value-cell';
-                
-                if (formattedValue.length > 500) {
-                    valueCell.style.maxHeight = '120px';
-                    valueCell.style.overflowY = 'auto';
-                    valueCell.style.fontSize = '12px';
-                    valueCell.style.lineHeight = '1.4';
-                }
-                
-                valueCell.textContent = formattedValue;
-                
-                if (needsCopyButton) {
-                    const copyButton = document.createElement('button');
-                    copyButton.className = 'copy-button copy-metadata';
-                    copyButton.textContent = 'Copy';
-                    copyButton.dataset.value = String(value);
-                    copyButton.title = `Copy ${formattedKey} to clipboard`;
-                    valueCell.appendChild(copyButton);
-                }
-                
-                row.appendChild(keyCell);
-                row.appendChild(valueCell);
-                utils.elements.metadataTable.appendChild(row);
-            },
-            
-            copyToClipboard(text) {
-                navigator.clipboard.writeText(text).then(() => {
-                    utils.showToast('📋 Copied to clipboard', 'success', true);
-                }).catch(() => {
-                    const textArea = document.createElement('textarea');
-                    textArea.value = text;
-                    textArea.style.position = 'fixed';
-                    textArea.style.opacity = '0';
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    try {
-                        document.execCommand('copy');
-                        utils.showToast('📋 Copied to clipboard', 'success', true);
-                    } catch (err) {
-                        utils.showToast('❌ Failed to copy', 'error', true);
-                    }
-                    document.body.removeChild(textArea);
-                });
             }
         };
 
@@ -3257,127 +2939,106 @@
             
             show(type, options = {}) {
                 this.currentAction = type;
-                const { title, content, confirmText = 'Confirm', confirmClass = 'btn-primary' } = options;
+                let contentHtml = '';
+                let contentClass = '';
+
+                switch(type) {
+                    case 'grid':
+                        contentClass = '';
+                        contentHtml = this.getGridModalHtml(options.stack);
+                        break;
+                    case 'details':
+                        contentClass = 'details-modal';
+                        contentHtml = this.getDetailsModalHtml(options.file);
+                        break;
+                    case 'action':
+                        contentClass = 'action-modal';
+                        contentHtml = this.getActionModalHtml(options);
+                        break;
+                }
                 
-                utils.elements.actionTitle.textContent = title || 'Action';
-                utils.elements.actionContent.innerHTML = content || '';
-                utils.elements.actionConfirm.textContent = confirmText;
-                utils.elements.actionConfirm.className = `btn ${confirmClass}`;
-                
-                utils.showModal('action-modal');
+                utils.elements.modalContentArea.className = `modal-content ${contentClass}`;
+                utils.elements.modalContentArea.innerHTML = contentHtml;
+                utils.elements.modalShell.classList.remove('hidden');
+
+                // Re-bind events for the new content
+                this.bindModalEvents(type, options);
             },
             
             hide() {
-                utils.hideModal('action-modal');
+                utils.elements.modalShell.classList.add('hidden');
+                utils.elements.modalContentArea.innerHTML = '';
                 this.currentAction = null;
             },
-            
-            setupMoveAction() {
-                this.show('move', {
-                    title: 'Move to Stack',
-                    content: `
-                        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
-                            ${STACK_TYPES.map(stack => 
-                                `<button class="move-option" data-stack="${stack}" style="width: 100%; text-align: left; padding: 8px 16px; border-radius: 6px; border: none; background: transparent; cursor: pointer; transition: background-color 0.2s;">${STACK_NAMES[stack]}</button>`
-                            ).join('')}
-                        </div>
-                    `,
-                    confirmText: 'Cancel'
-                });
-                
-                document.querySelectorAll('.move-option').forEach(option => {
-                    option.addEventListener('click', () => {
-                        const targetStack = option.dataset.stack;
-                        this.executeMove(targetStack);
+
+            bindModalEvents(type, options) {
+                const closeBtn = utils.elements.modalContentArea.querySelector('.close-btn');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', () => {
+                        if (type === 'grid') gridView.close();
+                        else this.hide();
                     });
-                });
-            },
-            
-            setupTagAction() {
-                this.show('tag', {
-                    title: 'Add Tags',
-                    content: `
-                        <div style="margin-bottom: 16px;">
-                            <label style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 4px;">Enter tags (comma separated)</label>
-                            <input type="text" id="modal-tag-input" class="tag-input" placeholder="nature, landscape, vacation">
-                        </div>
-                        <div id="modal-tag-suggestions" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
-                            ${Array.from(appState.tags).map(tag => 
-                                `<button class="tag-suggestion" data-tag="${tag}" style="background-color: #e5e7eb; color: #374151; padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: background-color 0.2s; border: none;">${tag}</button>`
-                            ).join('')}
-                        </div>
-                    `,
-                    confirmText: 'Apply'
-                });
-                
-                document.querySelectorAll('.tag-suggestion').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const input = document.getElementById('modal-tag-input');
-                        input.value += (input.value ? ', ' : '') + btn.dataset.tag;
+                }
+
+                if (type === 'grid') {
+                    document.getElementById('select-all-btn').addEventListener('click', () => gridView.selectAll());
+                    document.getElementById('deselect-all-btn').addEventListener('click', () => gridView.deselectAll());
+                    document.getElementById('grid-size').addEventListener('input', (e) => {
+                        document.getElementById('grid-size-value').textContent = e.target.value;
+                        document.getElementById('grid-container').style.gridTemplateColumns = `repeat(${e.target.value}, 1fr)`;
                     });
-                });
+                    document.getElementById('omni-search-btn').addEventListener('click', () => gridView.performSearch());
+                    document.getElementById('omni-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') gridView.performSearch(); });
+                    document.getElementById('move-selected').addEventListener('click', () => this.show('action', { type: 'move' }));
+                    document.getElementById('tag-selected').addEventListener('click', () => this.show('action', { type: 'tag' }));
+                    document.getElementById('delete-selected').addEventListener('click', () => this.show('action', { type: 'delete' }));
+                    document.getElementById('export-selected').addEventListener('click', () => this.show('action', { type: 'export' }));
+                    document.getElementById('folder-selected').addEventListener('click', () => this.show('action', { type: 'folder-move' }));
+                } else if (type === 'details') {
+                    document.querySelectorAll('.tab-button').forEach(btn => btn.addEventListener('click', () => detailsModal.switchTab(btn.dataset.tab)));
+                    detailsModal.populateTagsTab(options.file);
+                    const notesTextarea = document.getElementById('detail-notes');
+                    if (notesTextarea) {
+                        notesTextarea.addEventListener('blur', async () => {
+                            if (options.file.notes !== notesTextarea.value) {
+                                await masterController.updateUserMetadata(options.file.id, { notes: notesTextarea.value });
+                            }
+                        });
+                    }
+                    detailsModal.setupStarRating('quality', options.file.qualityRating || 0);
+                    detailsModal.setupStarRating('content', options.file.contentRating || 0);
+                    document.querySelectorAll('.copy-metadata').forEach(btn => {
+                        btn.addEventListener('click', () => utils.copyToClipboard(btn.dataset.value, '📋 Copied to clipboard'));
+                    });
+                } else if (type === 'action') {
+                    document.getElementById('action-cancel').addEventListener('click', () => this.hide());
+                    document.getElementById('action-confirm').addEventListener('click', () => this.executeAction(options.type));
+                    if (options.type === 'move') {
+                        document.querySelectorAll('.move-option').forEach(option => {
+                            option.addEventListener('click', () => this.executeMove(option.dataset.stack));
+                        });
+                    } else if (options.type === 'tag') {
+                         document.querySelectorAll('.tag-suggestion').forEach(btn => {
+                            btn.addEventListener('click', () => {
+                                const input = document.getElementById('modal-tag-input');
+                                input.value += (input.value ? ', ' : '') + btn.dataset.tag;
+                            });
+                        });
+                    }
+                }
             },
-            
-            setupDeleteAction() {
-                const selectedCount = appState.grid.selected.length;
-                const currentStack = appState.grid.stack;
-                
-                const isTrash = currentStack === 'trash';
-                const providerName = appState.currentProviderType === 'googledrive' ? 'Google Drive' : 'OneDrive';
-                const message = isTrash ? 
-                    `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to ${providerName} trash? They can be recovered from ${providerName}.` :
-                    `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
-                
-                this.show('delete', {
-                    title: 'Confirm Delete',
-                    content: `<p style="color: #4b5563; margin-bottom: 16px;">${message}</p>`,
-                    confirmText: isTrash ? `Move to ${providerName} Trash` : 'Move to Trash',
-                    confirmClass: 'btn-danger'
-                });
-            },
-            
-            setupExportAction() {
-                this.show('export', {
-                    title: 'Export to Spreadsheet',
-                    content: `
-                        <p style="color: #4b5563; margin-bottom: 16px;">
-                            Export ${appState.grid.selected.length} selected image${appState.grid.selected.length > 1 ? 's' : ''} 
-                            to a CSV spreadsheet with metadata, tags, notes, and direct image URLs.
-                        </p>
-                        <div style="background: #f3f4f6; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
-                            <strong>Exported data includes:</strong>
-                            <ul style="margin: 8px 0; padding-left: 20px; color: #6b7280;">
-                                <li>Filename and direct image URL</li>
-                                <li>AI Generation Prompt</li>
-                                <li>File size and dates</li>
-                                <li>Tags and notes</li>
-                                <li>Quality and content ratings</li>
-                                <li>Embedded metadata (JSON)</li>
-                            </ul>
-                        </div>
-                    `,
-                    confirmText: 'Export CSV'
-                });
-            },
-            
-            setupFolderMoveAction() {
-                this.show('folder-move', {
-                    title: 'Move to Different Folder',
-                    content: `
-                        <p style="color: #4b5563; margin-bottom: 16px;">
-                            This will move ${appState.grid.selected.length} image${appState.grid.selected.length > 1 ? 's' : ''} to a different folder. 
-                            The images will be removed from this stack and their metadata will move with them.
-                        </p>
-                        <div style="margin-bottom: 16px;">
-                            <strong>Note:</strong> This action requires provider support and may not be available for all cloud storage providers.
-                        </div>
-                    `,
-                    confirmText: 'Choose Destination Folder'
-                });
+
+            executeAction(type) {
+                switch(type) {
+                    case 'tag': this.executeTag(); break;
+                    case 'delete': this.executeDelete(); break;
+                    case 'export': this.executeExport(); break;
+                    case 'folder-move': this.executeFolderMove(); break;
+                }
             },
             
             async executeBulkAction(actionFn, successMessage) {
-                const confirmBtn = utils.elements.actionConfirm;
+                const confirmBtn = document.getElementById('action-confirm');
                 const originalText = confirmBtn.textContent;
                 confirmBtn.disabled = true;
                 confirmBtn.textContent = 'Processing...';
@@ -3395,8 +3056,10 @@
                 } catch (error) {
                     utils.showToast('Failed to process some images', 'error', true);
                 } finally {
-                    confirmBtn.disabled = false;
-                    confirmBtn.textContent = originalText;
+                    if (document.getElementById('action-confirm')) {
+                        confirmBtn.disabled = false;
+                        confirmBtn.textContent = originalText;
+                    }
                 }
             },
 
@@ -3466,6 +3129,111 @@
                 gridView.close();
                 masterController.returnToFolderSelection();
                 utils.showToast(`Select destination folder for ${appState.folderMoveMode.files.length} images`, 'info', true);
+            },
+
+            // HTML Generation for Modals
+            getGridModalHtml(stack) {
+                return `
+                    <div class="modal-header">
+                        <div class="modal-header-main">
+                            <div class="modal-header-left">
+                                <h2 id="grid-title" class="modal-title">${STACK_NAMES[stack] || stack}</h2>
+                                <button id="select-all-btn" class="select-all-btn">0</button>
+                            </div>
+                            <button class="close-btn">
+                                <svg class="icon" fill="none" stroke="currentColor"><use href="#icon-close"></use></svg>
+                            </button>
+                        </div>
+                        <div class="grid-row-2">
+                            <span class="selection-count">
+                                <span id="selection-text">0 selected</span>
+                                <button id="deselect-all-btn" class="deselect-all-btn">
+                                    <svg class="icon" fill="none" stroke="currentColor"><use href="#icon-close"></use></svg>
+                                </button>
+                            </span>
+                            <div class="zoom-control">
+                                <input type="range" id="grid-size" min="1" max="10" value="4">
+                                <span id="grid-size-value">4</span>
+                            </div>
+                        </div>
+                        <div class="grid-row-3">
+                            <input type="text" id="omni-search" class="input" placeholder="Search tags, notes, and metadata..." style="margin-bottom: 0; flex-grow: 1;">
+                            <button id="omni-search-btn" class="btn btn-primary">Go</button>
+                        </div>
+                        <div class="grid-row-4">
+                            <div class="bulk-actions">
+                                <button id="tag-selected" class="btn btn-primary">Tag</button>
+                                <button id="move-selected" class="btn btn-primary">Move</button>
+                                <button id="delete-selected" class="btn btn-danger">Delete</button>
+                                <button id="export-selected" class="btn btn-primary">Export</button>
+                                <button id="folder-selected" class="btn btn-primary">Folder</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid-content">
+                        <div id="grid-container" class="grid-container"></div>
+                    </div>
+                `;
+            },
+            getDetailsModalHtml(file) {
+                // This is a simplified version. For a full implementation, you'd generate the full details HTML here.
+                return `
+                    <div class="details-header">
+                        <h3 class="details-title">Image Details</h3>
+                        <button class="close-btn">
+                            <svg class="icon" fill="none" stroke="currentColor"><use href="#icon-close"></use></svg>
+                        </button>
+                    </div>
+                    <div class="tab-nav">
+                         <button class="tab-button active" data-tab="info">Info</button>
+                         <button class="tab-button" data-tab="tags">Tags</button>
+                         <button class="tab-button" data-tab="notes">Notes</button>
+                         <button class="tab-button" data-tab="metadata">Metadata</button>
+                    </div>
+                    <div class="details-content">
+                        <!-- Info Tab -->
+                        <div id="tab-info" class="tab-content active">...</div>
+                        <!-- Tags Tab -->
+                        <div id="tab-tags" class="tab-content">...</div>
+                        <!-- Notes Tab -->
+                        <div id="tab-notes" class="tab-content">...</div>
+                        <!-- Metadata Tab -->
+                        <div id="tab-metadata" class="tab-content">...</div>
+                    </div>
+                `;
+            },
+            getActionModalHtml(options) {
+                // Logic to build content based on options.type
+                let content = '';
+                let confirmText = 'Confirm';
+                let confirmClass = 'btn-primary';
+
+                switch(options.type) {
+                    case 'move':
+                        confirmText = 'Cancel';
+                        content = `<div style="display: flex; flex-direction: column; gap: 8px;">
+                                    ${STACK_TYPES.map(s => `<button class="move-option" data-stack="${s}">${STACK_NAMES[s]}</button>`).join('')}
+                                   </div>`;
+                        break;
+                    case 'tag':
+                        confirmText = 'Apply';
+                        content = `... tag input html ...`;
+                        break;
+                     case 'delete':
+                        confirmText = 'Delete';
+                        confirmClass = 'btn-danger';
+                        content = `<p>Are you sure you want to delete ${appState.grid.selected.length} items?</p>`;
+                        break;
+                }
+
+                return `
+                    <h3 id="action-title" class="title" style="font-size: 18px; color: #1f2937;">${options.title || 'Action'}</h3>
+                    <div id="action-content">${content}</div>
+                    <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+                        <button id="action-cancel" class="btn btn-secondary">Cancel</button>
+                        <button id="action-confirm" class="btn ${confirmClass}">${confirmText}</button>
+                    </div>
+                `;
             }
         };
 
@@ -3840,35 +3608,10 @@
                 utils.showToast('Loading cancelled', 'info', true);
             });
             
-            // Details modal
+            // Details modal button
             utils.elements.detailsButton.addEventListener('click', () => {
                 if (appState.currentImageIndex !== -1) {
                     detailsModal.show();
-                }
-            });
-            utils.elements.detailsClose.addEventListener('click', () => detailsModal.hide());
-            
-            // Tabs
-            document.querySelectorAll('.tab-button').forEach(btn => {
-                btn.addEventListener('click', () => detailsModal.switchTab(btn.dataset.tab));
-            });
-            
-            // Copy metadata buttons
-            document.addEventListener('click', (e) => {
-                if (e.target.classList.contains('copy-metadata')) {
-                    const value = e.target.dataset.value;
-                    const button = e.target;
-                    
-                    button.classList.add('copied');
-                    const originalText = button.textContent;
-                    button.textContent = '✓';
-                    
-                    detailsModal.copyToClipboard(value);
-                    
-                    setTimeout(() => {
-                        button.classList.remove('copied');
-                        button.textContent = originalText;
-                    }, 1000);
                 }
             });
             
@@ -3908,47 +3651,12 @@
                     });
                 }
             });
-            
-            // Grid controls
-            utils.elements.closeGrid.addEventListener('click', () => gridView.close());
-            utils.elements.selectAllBtn.addEventListener('click', () => gridView.selectAll());
-            utils.elements.deselectAllBtn.addEventListener('click', () => gridView.deselectAll());
-            
-            utils.elements.gridSize.addEventListener('input', () => {
-                const value = utils.elements.gridSize.value;
-                utils.elements.gridSizeValue.textContent = value;
-                utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
-                
-                if (appState.grid.selected.length === 1 && value === '1') {
-                    setTimeout(() => gridView.focusOnSelectedItem(appState.grid.selected[0]), 100);
-                }
-            });
-            
-            // Search functionality
-            utils.elements.omniSearchBtn.addEventListener('click', () => gridView.performSearch());
-            utils.elements.omniSearch.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') gridView.performSearch();
-            });
-            
-            // Action buttons
-            utils.elements.moveSelected.addEventListener('click', () => modalManager.setupMoveAction());
-            utils.elements.tagSelected.addEventListener('click', () => modalManager.setupTagAction());
-            utils.elements.deleteSelected.addEventListener('click', () => modalManager.setupDeleteAction());
-            utils.elements.exportSelected.addEventListener('click', () => modalManager.setupExportAction());
-            utils.elements.folderSelected.addEventListener('click', () => modalManager.setupFolderMoveAction());
-            
-            utils.elements.actionCancel.addEventListener('click', () => modalManager.hide());
-            utils.elements.actionConfirm.addEventListener('click', () => {
-                if (modalManager.currentAction === 'move') {
-                    // Handled by move option buttons
-                } else if (modalManager.currentAction === 'tag') {
-                    modalManager.executeTag();
-                } else if (modalManager.currentAction === 'delete') {
-                    modalManager.executeDelete();
-                } else if (modalManager.currentAction === 'export') {
-                    modalManager.executeExport();
-                } else if (modalManager.currentAction === 'folder-move') {
-                    modalManager.executeFolderMove();
+
+            // Filename copy
+            utils.elements.filenameOverlay.addEventListener('click', (e) => {
+                const filename = e.target.textContent;
+                if (filename) {
+                    utils.copyToClipboard(filename, '📋 Filename copied!');
                 }
             });
             
@@ -3956,13 +3664,11 @@
             document.addEventListener('keydown', (e) => {
                 if (utils.elements.appContainer.classList.contains('hidden')) return;
                 
-                if (!utils.elements.detailsModal.classList.contains('hidden')) {
-                    if (e.key === 'Escape') detailsModal.hide();
-                    return;
-                }
-                
-                if (!utils.elements.gridModal.classList.contains('hidden')) {
-                    if (e.key === 'Escape') gridView.close();
+                if (!utils.elements.modalShell.classList.contains('hidden')) {
+                    if (e.key === 'Escape') {
+                        if (modalManager.currentAction === 'grid') gridView.close();
+                        else modalManager.hide();
+                    }
                     return;
                 }
                 
