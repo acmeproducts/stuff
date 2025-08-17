@@ -11,16 +11,19 @@
         /* ===== ORBITAL8 V14 - PHASE 12 ===== */
         /* Changes in this version:
            - Bug Fix (Focus Mode Activation): Replaced the faulty tap detection with a robust manual double-tap
-             system that no longer conflicts with single-tap gestures. Double-tap now correctly activates Focus Mode.
+             system that no longer conflicts with single-tap gestures. Double-tap now correctly activates and
+             deactivates Focus Mode.
            - UI (Focus Mode):
-             - Removed the redundant top-center Details button and the top-right Close button.
-             - Double-tapping the image now exits Focus Mode.
-             - The Delete button is now reliable and has been moved to the bottom-right corner.
-             - Added a new label in the top-left corner to display the name of the current stack.
-           - UI (Folder Button): The "Folders" button now displays the truncated name of the current folder
-             for better context awareness.
-           - Bug Fix (Lazy Loading): Repaired the IntersectionObserver logic in the grid view.
-           - Feature (Export): Implemented the "Live Export Process" for robust, accurate exports.
+             - Removed redundant buttons. The original "Details" button is retained.
+             - The Delete button is now reliable and moved to the bottom-right corner.
+             - Added a new label in the top-left corner to display the current stack name.
+             - Added an image counter in the bottom-left corner (e.g., 6/190).
+           - Feature (Focus Mode Stack Switching): The stack name in Focus Mode is clickable, opening a modal
+             to switch to another stack.
+           - Feature (Focus Mode State): The last image viewed in Focus Mode becomes the new top image of the
+             stack upon exiting.
+           - UI (Folder Button): The "Folders" button text is now static for consistency.
+           - UI (Filename Display): The filename overlay is now prepended with the truncated folder name.
         */
         
         :root {
@@ -499,15 +502,17 @@
             justify-content: center;
             backdrop-filter: blur(10px);
             transition: all 0.2s ease;
-            font-size: 14px;
-            padding: 8px 16px;
+            font-size: 11px;
+            padding: 8px 12px;
+            cursor: pointer;
         }
         .focus-mode-ui:hover {
             background: rgba(0, 0, 0, 0.6);
             border-color: white;
         }
         #focus-stack-name { top: 20px; left: 20px; }
-        #focus-delete-btn { bottom: 20px; right: 20px; width: 44px; height: 44px; padding: 0; }
+        #focus-image-count { bottom: 20px; left: 20px; }
+        #focus-delete-btn { bottom: 20px; right: 20px; width: 44px; height: 44px; padding: 0; border-radius: 50%; }
         
         .app-container.focus-mode .pill-counter,
         .app-container.focus-mode .nav-button.back,
@@ -527,6 +532,7 @@
         @media screen and (min-width: 768px) {
             .pill-counter { font-size: 16px; padding: 8px 16px; min-width: 40px; }
             .nav-button { font-size: 14px; padding: 10px 16px; }
+            .focus-mode-ui { font-size: 14px; padding: 10px 16px; }
         }
         
         @media screen and (max-width: 767px) {
@@ -702,6 +708,7 @@
 
         <!-- Focus Mode UI -->
         <div id="focus-stack-name" class="focus-mode-ui"></div>
+        <div id="focus-image-count" class="focus-mode-ui"></div>
         <button id="focus-delete-btn" class="focus-mode-ui">
             <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -888,16 +895,19 @@
         /* * Version: V14 P12 (orbital8-v14-ph12.html)
          * * Changes in this version:
            - Bug Fix (Focus Mode Activation): Replaced the faulty tap detection with a robust manual double-tap
-             system that no longer conflicts with single-tap gestures. Double-tap now correctly activates Focus Mode.
+             system that no longer conflicts with single-tap gestures. Double-tap now correctly activates and
+             deactivates Focus Mode.
            - UI (Focus Mode):
              - Removed the redundant top-center Details button and the top-right Close button.
-             - Double-tapping the image now exits Focus Mode.
              - The Delete button is now reliable and has been moved to the bottom-right corner.
-             - Added a new label in the top-left corner to display the name of the current stack.
-           - UI (Folder Button): The "Folders" button now displays the truncated name of the current folder
-             for better context awareness.
-           - Bug Fix (Lazy Loading): Repaired the IntersectionObserver logic in the grid view.
-           - Feature (Export): Implemented the "Live Export Process" for robust, accurate exports.
+             - Added a new label in the top-left corner to display the current stack name.
+             - Added an image counter in the bottom-left corner (e.g., 6/190).
+           - Feature (Focus Mode Stack Switching): The stack name in Focus Mode is clickable, opening a modal
+             to switch to another stack.
+           - Feature (Focus Mode State): The last image viewed in Focus Mode becomes the new top image of the
+             stack upon exiting.
+           - UI (Folder Button): The "Folders" button text is now static for consistency.
+           - UI (Filename Display): The filename overlay is now prepended with the truncated folder name.
         */
         
         // ===== Core Constants & State =====
@@ -995,6 +1005,7 @@
                     
                     // Focus Mode elements
                     focusStackName: document.getElementById('focus-stack-name'),
+                    focusImageCount: document.getElementById('focus-image-count'),
                     focusDeleteBtn: document.getElementById('focus-delete-btn'),
 
                     // Loading elements
@@ -2430,9 +2441,8 @@
             },
             
             setupProviderAwareNavigation() {
-                const folderName = appState.currentFolder.name;
-                const truncatedName = folderName.length > 10 ? folderName.substring(0, 10) + '...' : folderName;
-                utils.elements.backButton.textContent = '← ' + truncatedName;
+                utils.elements.backButton.textContent = '← Folders';
+                utils.elements.backButton.onclick = () => this.returnToFolderSelection();
                 
                 this.setupFolderTooltips();
             },
@@ -2686,7 +2696,9 @@
                 
                 await utils.setImageSrc(utils.elements.centerImage, currentFile);
                 
-                utils.elements.filenameOverlay.textContent = currentFile.name.replace(/\.[^/.]+$/, "");
+                const folderName = appState.currentFolder.name;
+                const truncatedFolder = folderName.length > 12 ? folderName.substring(0, 12) + '...' : folderName;
+                utils.elements.filenameOverlay.textContent = `${truncatedFolder} / ${currentFile.name.replace(/\.[^/.]+$/, "")}`;
                 utils.elements.filenameOverlay.href = appState.exportSystem.getDirectImageURL(currentFile);
                 utils.elements.filenameOverlay.classList.add('visible');
 
@@ -2696,6 +2708,10 @@
 
                 if (currentFile.metadataStatus === 'pending') {
                     masterController.processFileMetadata(currentFile);
+                }
+                
+                if (appState.isFocusMode) {
+                    focusMode.updateUI();
                 }
             },
             
@@ -3458,6 +3474,34 @@
                     confirmText: 'Begin Export'
                 });
             },
+
+            setupFocusStackSwitch() {
+                const availableStacks = STACK_TYPES.filter(s => s !== appState.currentStack && appState.stacks[s].length > 0);
+                let content = `<div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">`;
+                if (availableStacks.length > 0) {
+                    content += availableStacks.map(stack => 
+                        `<button class="move-option" data-stack="${stack}" style="width: 100%; text-align: left; padding: 8px 16px; border-radius: 6px; border: none; background: transparent; cursor: pointer; transition: background-color 0.2s;">${STACK_NAMES[stack]} (${appState.stacks[stack].length})</button>`
+                    ).join('');
+                } else {
+                    content += `<p style="color: #4b5563; text-align: center;">No other stacks have images.</p>`;
+                }
+                content += `</div>`;
+
+                this.show('focus-stack-switch', {
+                    title: 'Switch Stack',
+                    content: content,
+                    confirmText: 'Cancel'
+                });
+
+                document.querySelectorAll('.move-option').forEach(option => {
+                    option.addEventListener('click', () => {
+                        const targetStack = option.dataset.stack;
+                        switchToStack(targetStack);
+                        focusMode.updateUI();
+                        this.hide();
+                    });
+                });
+            },
             
             setupFolderMoveAction() {
                 this.show('folder-move', {
@@ -3923,8 +3967,29 @@
                 appState.isFocusMode = !appState.isFocusMode;
                 utils.elements.appContainer.classList.toggle('focus-mode', appState.isFocusMode);
                 if (appState.isFocusMode) {
-                    utils.elements.focusStackName.textContent = STACK_NAMES[appState.currentStack];
+                    this.updateUI();
+                } else {
+                    // On exit, re-order the stack
+                    const lastViewedFile = appState.imageFiles[appState.currentImageIndex];
+                    if (lastViewedFile) {
+                        const stackArray = appState.stacks[appState.currentStack];
+                        const index = stackArray.findIndex(f => f.id === lastViewedFile.id);
+                        if (index > 0) {
+                            const [item] = stackArray.splice(index, 1);
+                            stackArray.unshift(item);
+                        }
+                    }
+                    commonFunctions.displayCurrentImage();
                 }
+            },
+            updateUI() {
+                if (!appState.isFocusMode) return;
+                const stack = appState.stacks[appState.currentStack];
+                const currentFile = appState.imageFiles[appState.currentImageIndex];
+                const currentIndexInStack = stack.findIndex(f => f.id === currentFile.id);
+
+                utils.elements.focusStackName.textContent = STACK_NAMES[appState.currentStack];
+                utils.elements.focusImageCount.textContent = `${currentIndexInStack + 1} / ${stack.length}`;
             },
             async nextImage() {
                 const stack = appState.stacks[appState.currentStack];
@@ -3968,8 +4033,7 @@
                     if (stackIndex > -1) currentStackArray.splice(stackIndex, 1);
                     
                     commonFunctions.updateStackCounts();
-                    utils.showToast(`${fileToDelete.name} moved to trash`, 'success');
-
+                    
                     // Navigate to the next image or show empty state
                     if (currentStackArray.length === 0) {
                         this.toggle(); // Exit focus mode if stack is empty
@@ -4139,7 +4203,8 @@
             });
             utils.elements.detailsClose.addEventListener('click', () => detailsModal.hide());
             
-            // Focus Mode Activation
+            // Focus Mode
+            utils.elements.focusStackName.addEventListener('click', () => modalManager.setupFocusStackSwitch());
             utils.elements.focusDeleteBtn.addEventListener('click', () => focusMode.deleteCurrentImage());
 
             // Tabs
