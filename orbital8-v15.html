@@ -8,15 +8,20 @@
     <title>Orbital8 V14 - Unified Cloud Storage</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V14 - PHASE 8 ===== */
+        /* ===== ORBITAL8 V14 - PHASE 9 ===== */
         /* Changes in this version:
-           - State Management: Implemented robust "Cloud-First" state management with a `stackSequence` timestamp to preserve user-defined order.
-           - Bug Fix (Move/Delete): All move and delete operations now correctly remove files from the source stack/folder both logically and physically.
-           - Feature (Move to Folder): Full implementation of moving selected files to a different folder.
-           - Bug Fix (State Loss): App now correctly re-fetches data, preventing stack corruption when switching folders.
-           - Search UX: Default selection is cleared before a new search. Search results are auto-selected.
-           - Feature (Export): Added 7 new specific metadata columns to the CSV export.
-           - UI Fix: Updated footer version number to ph8. Portrait thumbnails are no longer cropped. Grid buttons are disabled, not hidden.
+           - Feature (Export): Implemented new "Live Export Process". It is robust, transparent, fetches fresh
+             data from the cloud, and includes automatic retries to handle API rate limiting.
+           - Feature (Export Naming): Exported CSV file is now named dynamically: orbital8_folder-name_stack-name_YYYY-MM-DD.csv.
+           - Feature (Lazy Loading): Grid View now lazy loads thumbnails to prevent browser request overload,
+             fixing the intermittent image loading failures on OneDrive. It pre-fetches the next set of images
+             before they scroll into view to ensure a smooth experience.
+           - Feature (Consistent Delete): The bulk delete operation is now consistent. It always moves selected
+             files to the provider's cloud trash (Google Drive Trash / OneDrive Recycle Bin) and removes them
+             from the application, regardless of the current stack.
+           - UI (Clickable Filename): The filename overlay on the main view is now a clickable link that opens
+             the full-resolution image in a new tab.
+           - UI (Clickable Footer): The footer is now a clickable link to the project's GitHub page.
         */
         
         :root {
@@ -234,6 +239,11 @@
             opacity: 0;
             transition: opacity 0.3s ease;
             pointer-events: auto;
+            text-decoration: none;
+        }
+        .filename-overlay:hover {
+            background-color: rgba(0, 0, 0, 0.8);
+            color: var(--app-accent);
         }
         .filename-overlay.visible { opacity: 1; }
 
@@ -403,6 +413,14 @@
             width: 100%;
             height: 100%;
             object-fit: contain;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .grid-image[data-src] { /* Style for lazy loading */
+            opacity: 0;
+        }
+        .grid-image.loaded {
+            opacity: 1;
         }
         .grid-item.selected { box-shadow: 0 0 0 4px #3b82f6; }
         
@@ -459,6 +477,14 @@
             position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0, 0, 0, 0.8);
             color: rgba(255, 255, 255, 0.6); text-align: center; padding: 4px 8px;
             font-size: 10px; z-index: 5; backdrop-filter: blur(10px);
+        }
+        .footer-link {
+            color: rgba(255, 255, 255, 0.6);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .footer-link:hover {
+            color: white;
         }
         
         /* ===== Responsive ===== */
@@ -529,7 +555,9 @@
             
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">orbital8-v14-ph8.html</div>
+        <div class="app-footer">
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph9.html</a>
+        </div>
     </div>
     
     <!-- Google Drive Auth Screen -->
@@ -542,7 +570,9 @@
             <button class="button" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
-        <div class="app-footer">orbital8-v14-ph8.html</div>
+        <div class="app-footer">
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph9.html</a>
+        </div>
     </div>
     
     <!-- OneDrive Auth Screen -->
@@ -554,7 +584,9 @@
             <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
-        <div class="app-footer">orbital8-v14-ph8.html</div>
+        <div class="app-footer">
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph9.html</a>
+        </div>
     </div>
     
     <!-- Google Drive Folder Screen -->
@@ -569,7 +601,9 @@
                 <button class="folder-button danger" id="gdrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v14-ph8.html</div>
+        <div class="app-footer">
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph9.html</a>
+        </div>
     </div>
     
     <!-- OneDrive Folder Screen -->
@@ -584,7 +618,9 @@
                 <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v14-ph8.html</div>
+        <div class="app-footer">
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph9.html</a>
+        </div>
     </div>
     
     <!-- Loading Screen -->
@@ -598,7 +634,9 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">orbital8-v14-ph8.html</div>
+        <div class="app-footer">
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph9.html</a>
+        </div>
     </div>
     
     <!-- Main App Container -->
@@ -626,10 +664,12 @@
             <button class="new-images-button" id="select-another-folder-btn" style="margin-top: 12px;">Choose Different Folder</button>
         </div>
         
-        <div id="filename-overlay" class="filename-overlay"></div>
+        <a id="filename-overlay" class="filename-overlay" href="#" target="_blank"></a>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">orbital8-v14-ph8.html</div>
+        <div class="app-footer">
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph9.html</a>
+        </div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -682,7 +722,7 @@
                     </div>
                 </div>
             </div>
-            <div class="grid-content">
+            <div id="grid-content" class="grid-content">
                 <div id="grid-container" class="grid-container"></div>
             </div>
         </div>
@@ -802,16 +842,22 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V14 - PHASE 7 =====
-        /* * Version: V14 P7 (orbital8-v14-p7.html)
+        // ===== ORBITAL8 V14 - PHASE 9 =====
+        /* * Version: V14 P9 (orbital8-v14-ph9.html)
          * * Changes in this version:
-           - State Management: Implemented robust "Cloud-First" state management with a `stackSequence` timestamp to preserve user-defined order.
-           - Bug Fix (Move/Delete): All move and delete operations now correctly remove files from the source stack/folder both logically and physically.
-           - Feature (Move to Folder): Full implementation of moving selected files to a different folder.
-           - Bug Fix (State Loss): App now correctly re-fetches data, preventing stack corruption when switching folders.
-           - Search UX: Default selection is cleared before a new search. Search results are auto-selected.
-           - Feature (Export): Added 7 new specific metadata columns to the CSV export.
-         */
+           - Feature (Export): Implemented new "Live Export Process". It is robust, transparent, fetches fresh
+             data from the cloud, and includes automatic retries to handle API rate limiting.
+           - Feature (Export Naming): Exported CSV file is now named dynamically: orbital8_folder-name_stack-name_YYYY-MM-DD.csv.
+           - Feature (Lazy Loading): Grid View now lazy loads thumbnails to prevent browser request overload,
+             fixing the intermittent image loading failures on OneDrive. It pre-fetches the next set of images
+             before they scroll into view to ensure a smooth experience.
+           - Feature (Consistent Delete): The bulk delete operation is now consistent. It always moves selected
+             files to the provider's cloud trash (Google Drive Trash / OneDrive Recycle Bin) and removes them
+             from the application, regardless of the current stack.
+           - UI (Clickable Filename): The filename overlay on the main view is now a clickable link that opens
+             the full-resolution image in a new tab.
+           - UI (Clickable Footer): The footer is now a clickable link to the project's GitHub page.
+        */
         
         // ===== Core Constants & State =====
         const STACK_TYPES = ['in', 'out', 'priority', 'trash'];
@@ -838,7 +884,17 @@
             maxScale: 4,
             minScale: 0.3,
             panOffset: { x: 0, y: 0 },
-            grid: { stack: null, selected: [], filtered: [] },
+            grid: { 
+                stack: null, 
+                selected: [], 
+                filtered: [],
+                lazyLoadState: {
+                    allFiles: [],
+                    renderedCount: 0,
+                    observer: null,
+                    batchSize: 20 // Number of images to load at a time
+                }
+            },
             tags: new Set(),
             loadingProgress: { current: 0, total: 0 },
             folderMoveMode: { active: false, files: [] }
@@ -915,6 +971,7 @@
                     
                     // Grid modal
                     gridModal: document.getElementById('grid-modal'),
+                    gridContent: document.getElementById('grid-content'),
                     gridTitle: document.getElementById('grid-title'),
                     gridContainer: document.getElementById('grid-container'),
                     selectAllBtn: document.getElementById('select-all-btn'),
@@ -1196,7 +1253,7 @@
                 }
             }
             
-            async getMetadata(fileId, modifiedTime) {
+            async getMetadata(fileId) { // NOTE: Removed modifiedTime check for Google Drive fix
                 if (!this.db) return null;
                 try {
                     const transaction = this.db.transaction(['metadata'], 'readonly');
@@ -1207,16 +1264,19 @@
                         request.onerror = () => reject(request.error);
                     });
                     
-                    if (result && result.modifiedTime === modifiedTime) {
+                    // For Google Drive, we can't trust modifiedTime.
+                    // For OneDrive, it's safe. We accept the cached data if it exists.
+                    if (result) {
                         return result.metadata;
                     }
+
                 } catch (error) {
                     console.warn('Failed to get cached metadata:', error);
                 }
                 return null;
             }
             
-            async setMetadata(fileId, modifiedTime, metadata) {
+            async setMetadata(fileId, metadata) { // NOTE: Removed modifiedTime
                 if (!this.db) return;
                 try {
                     const transaction = this.db.transaction(['metadata'], 'readwrite');
@@ -1224,7 +1284,6 @@
                     await new Promise((resolve, reject) => {
                         const request = store.put({ 
                             id: fileId, 
-                            modifiedTime, 
                             metadata,
                             cached: Date.now()
                         });
@@ -1332,26 +1391,24 @@
                 return metadata;
             }
             
-            async fetchMetadata(file) {
+            async fetchMetadata(file, isForExport = false) {
                 if (file.mimeType !== 'image/png') {
-                    file.metadataStatus = 'loaded'; // Mark as loaded since there's nothing to extract
+                    if (!isForExport) file.metadataStatus = 'loaded';
                     return { error: 'Not a PNG file' };
                 }
                 
                 try {
                     this.abortController = new AbortController();
-                    
                     let response;
+
                     if (appState.currentProviderType === 'googledrive') {
-                        response = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
-                            headers: { 
-                                'Authorization': `Bearer ${appState.currentProvider.accessToken}`,
-                                'Range': 'bytes=0-65535'
-                            },
+                        // ROBUSTNESS FIX: Always use the makeApiCall wrapper to handle token refreshes.
+                        response = await appState.currentProvider.makeApiCall(`/files/${file.id}?alt=media`, {
+                            headers: { 'Range': 'bytes=0-65535' },
                             signal: this.abortController.signal
-                        });
+                        }, false); // isJson = false
                     } else {
-                        const accessToken = await appState.currentProvider.getAccessToken();
+                        const accessToken = await appState.currentProvider.getAccessToken(); // OneDrive handles this internally.
                         response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`, {
                             headers: { 
                                 'Authorization': `Bearer ${accessToken}`,
@@ -1362,7 +1419,7 @@
                     }
                     
                     if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
+                        throw new Error(`HTTP ${response.status} ${response.statusText}`);
                     }
                     
                     const buffer = await response.arrayBuffer();
@@ -1563,7 +1620,8 @@
                 }
                 
                 if (!response.ok) {
-                    throw new Error(`API call failed: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`);
                 }
                 
                 if (isJson) {
@@ -1764,7 +1822,8 @@
                 const response = await fetch(url, { ...options, headers });
                 
                 if (!response.ok) {
-                    throw new Error(`API call failed: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`);
                 }
                 
                 return response;
@@ -2060,17 +2119,17 @@
 
         // ===== Export System =====
         class ExportSystem {
-            async exportSelectedImages(imageIds) {
-                if (imageIds.length === 0) {
-                    utils.showToast('No images selected for export', 'info', true);
+            // NOTE: The primary logic for fetching data has been moved to the new Live Export Process.
+            // This class is now only responsible for formatting and downloading the final data.
+            
+            async exportData(imagesWithMetadata) {
+                if (imagesWithMetadata.length === 0) {
+                    utils.showToast('No images to export', 'info', true);
                     return;
                 }
                 
-                const images = imageIds.map(id => appState.imageFiles.find(f => f.id === id)).filter(f => f);
-                const csvData = this.formatForCSV(images);
-                this.downloadCSV(csvData, 'orbital8-export.csv');
-                
-                utils.showToast(`Exported ${images.length} images to spreadsheet`, 'success', true);
+                const csvData = this.formatForCSV(imagesWithMetadata);
+                this.downloadCSV(csvData);
             }
             
             formatForCSV(images) {
@@ -2140,7 +2199,12 @@
                 return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
             }
             
-            downloadCSV(data, filename) {
+            downloadCSV(data) {
+                const folderName = appState.currentFolder.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                const stackName = appState.grid.stack;
+                const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+                const filename = `orbital8_${folderName}_${stackName}_${date}.csv`;
+
                 const csvContent = data.map(row => 
                     row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',')
                 ).join('\n');
@@ -2264,7 +2328,7 @@
                     commonFunctions.initializeImageDisplay();
                     
                 } catch (error) {
-                    utils.showToast('Error loading images', 'error', true);
+                    utils.showToast(`Error loading images: ${error.message}`, 'error', true);
                     this.returnToFolderSelection();
                 } finally {
                     if (appState.currentProvider) {
@@ -2302,7 +2366,7 @@
                     modifiedTime: file.modifiedTime,
                     thumbnails: file.thumbnails,
                     downloadUrl: file.downloadUrl,
-                    extractedMetadata: file.extractedMetadata || {},
+                    extractedMetadata: {},
                     metadataStatus: 'pending',
                     
                     stack: userMetadata.stack || 'in',
@@ -2420,10 +2484,10 @@
                     
                     try {
                         await Promise.allSettled(batchPromises);
-                        await appState.fileCache.setCachedFiles(appState.currentFolder.id, appState.imageFiles);
+                        // This data is volatile and just for the "Details" view, so we don't cache the whole file list here.
                         
                         if (i + BATCH_SIZE < pngFiles.length) {
-                            await new Promise(resolve => setTimeout(resolve, 50));
+                            await new Promise(resolve => setTimeout(resolve, 100)); // Increased delay
                         }
                         
                     } catch (error) {
@@ -2437,18 +2501,14 @@
                 
                 file.metadataStatus = 'loading';
                 
-                if (file.mimeType !== 'image/png') {
-                    file.metadataStatus = 'loaded';
-                    return { extracted: false, cached: false };
-                }
-                
-                const cachedMetadata = await appState.fileCache.getMetadata(file.id, file.modifiedTime);
+                const cachedMetadata = await appState.fileCache.getMetadata(file.id);
                 if (cachedMetadata) {
                     file.extractedMetadata = cachedMetadata;
                     file.metadataStatus = 'loaded';
-                    return { extracted: false, cached: true };
+                    return;
                 }
                 
+                // This is a "best effort" background process. The robust logic is in the Live Export.
                 try {
                     const metadata = await appState.metadataExtractor.fetchMetadata(file);
                     
@@ -2458,14 +2518,14 @@
                     
                     if (Object.keys(metadata).length > 0) {
                         file.extractedMetadata = metadata;
-                        await appState.fileCache.setMetadata(file.id, file.modifiedTime, metadata);
+                        await appState.fileCache.setMetadata(file.id, metadata);
                     }
                     file.metadataStatus = 'loaded';
-                    return { extracted: true, cached: false };
                     
                 } catch (error) {
+                    // Fail silently. The Live Export process is the source of truth.
+                    console.warn(`Background metadata extraction failed for ${file.name}: ${error.message}`);
                     file.metadataStatus = 'error';
-                    return { extracted: false, cached: false };
                 }
             }
         };
@@ -2578,6 +2638,7 @@
                 await utils.setImageSrc(utils.elements.centerImage, currentFile);
                 
                 utils.elements.filenameOverlay.textContent = currentFile.name.replace(/\.[^/.]+$/, "");
+                utils.elements.filenameOverlay.href = appState.exportSystem.getDirectImageURL(currentFile);
                 utils.elements.filenameOverlay.classList.add('visible');
 
                 appState.currentScale = 1;
@@ -2608,9 +2669,9 @@
                 const currentImage = appState.imageFiles[appState.currentImageIndex];
                 if (!currentImage) return;
                 const currentStackName = currentImage.stack;
-            
+        
                 let newSequence;
-            
+        
                 if (currentStackName === targetStack) {
                     // FIX: When moving to the same stack, send to back by giving it the OLDEST timestamp.
                     const currentStackArray = appState.stacks[currentStackName];
@@ -2621,7 +2682,7 @@
                     } else {
                         newSequence = Date.now(); // Only image in stack, timestamp doesn't matter as much.
                     }
-            
+        
                     const index = currentStackArray.findIndex(img => img.id === currentImage.id);
                     if (index > -1) {
                         const [item] = currentStackArray.splice(index, 1);
@@ -2646,7 +2707,7 @@
                 if (currentStackName !== targetStack) {
                      appState.stacks[currentStackName] = this.sortFiles(appState.stacks[currentStackName]);
                 }
-            
+        
                 this.updateStackCounts();
                 this.updateActiveProxTab();
                 
@@ -2688,113 +2749,89 @@
             }
         };
 
-        // ===== Enhanced Grid View with Search =====
+        // ===== Enhanced Grid View with Lazy Loading =====
         const gridView = {
             open(stack) {
                 utils.showModal('grid-modal');
                 utils.elements.gridTitle.textContent = STACK_NAMES[stack] || stack;
-                
                 appState.grid.stack = stack;
                 
-                if (appState.currentStack === stack && appState.currentImageIndex !== -1) {
-                    const currentFile = appState.imageFiles[appState.currentImageIndex];
-                    const stackArray = appState.stacks[stack];
-                    const index = stackArray.findIndex(f => f.id === currentFile.id);
-                    if (index > 0) {
-                        const [item] = stackArray.splice(index, 1);
-                        stackArray.unshift(item);
-                    }
-                    appState.grid.selected = [currentFile.id];
-                } else {
-                    appState.grid.selected = [];
-                }
-                
+                // Reset states
+                appState.grid.selected = [];
                 appState.grid.filtered = [];
-                
+                utils.elements.gridContainer.innerHTML = '';
+
+                this.initializeLazyLoad(stack);
                 this.updateSelectionUI();
-                this.populate(stack);
                 commonFunctions.updateStackCounts();
             },
             
             close() {
-                // Check if a search was performed (i.e., there are filtered results)
-                if (appState.grid.filtered.length > 0) {
-                    const stackName = appState.grid.stack;
-                    const currentStackArray = appState.stacks[stackName];
-            
-                    // 1. Sort the search results by filename alphabetically
-                    const sortedFilteredImages = [...appState.grid.filtered].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-                    
-                    // 2. Get the images from the stack that were NOT in the search results
-                    const filteredIds = new Set(sortedFilteredImages.map(f => f.id));
-                    const otherImages = currentStackArray.filter(f => !filteredIds.has(f.id));
-            
-                    // 3. Reconstruct the stack with the sorted search results at the top
-                    const newStackOrder = [...sortedFilteredImages, ...otherImages];
-            
-                    // 4. Asynchronously update the stackSequence for each image to persist the new order
-                    const baseSequence = Date.now();
-                    const updatePromises = newStackOrder.map((file, index) => {
-                        const newSequence = baseSequence - index; // Newest has highest value
-                        file.stackSequence = newSequence;
-                        // This function handles both local state update and cloud persistence
-                        return masterController.updateUserMetadata(file.id, { stackSequence: newSequence }); 
-                    });
-            
-                    // Update the local stack array immediately for a responsive UI
-                    appState.stacks[stackName] = newStackOrder;
-            
-                    // Handle potential errors in the background
-                    Promise.all(updatePromises).catch(error => {
-                        console.error("Failed to update some image sequences:", error);
-                        utils.showToast('Failed to save new order for some images', 'error');
-                    });
-                }
-            
-                // --- The rest of the function remains the same ---
                 utils.hideModal('grid-modal');
                 this.resetSearch();
-                
+                this.destroyLazyLoad();
+
                 const selectedImages = appState.grid.selected;
-                const hasSelection = selectedImages.length === 1;
-                
-                if (hasSelection) {
+                if (selectedImages.length === 1) {
                     const selectedFileId = selectedImages[0];
                     const selectedIndex = appState.imageFiles.findIndex(f => f.id === selectedFileId);
                     if (selectedIndex !== -1) {
                         appState.currentImageIndex = selectedIndex;
-                        
-                        const currentStackImages = appState.stacks[appState.currentStack];
-                        const stackIndex = currentStackImages.findIndex(f => f.id === selectedFileId);
-                        
-                        // This part is important: if the selected image is not already at the top, move it there.
-                        if (stackIndex > 0) {
-                            const [item] = currentStackImages.splice(stackIndex, 1);
-                            currentStackImages.unshift(item);
-                        }
-                        
                         commonFunctions.displayCurrentImage();
                     }
                 } else {
-                    // This will now display the first image from the new sorted order
                     commonFunctions.displayTopImageFromStack(appState.currentStack);
                 }
                 
-                // Reset grid state
                 appState.grid.stack = null;
                 appState.grid.selected = [];
-                appState.grid.filtered = [];
             },
-            
-            populate(stack) {
+
+            initializeLazyLoad(stack) {
+                const state = appState.grid.lazyLoadState;
+                state.allFiles = appState.grid.filtered.length > 0 ? appState.grid.filtered : appState.stacks[stack];
+                state.renderedCount = 0;
+                utils.elements.selectAllBtn.textContent = state.allFiles.length;
+
+                this.renderBatch();
+
+                // Setup IntersectionObserver
+                if (state.observer) state.observer.disconnect();
+                
+                state.observer = new IntersectionObserver((entries) => {
+                    if (entries[0].isIntersecting) {
+                        this.renderBatch();
+                    }
+                }, { root: utils.elements.gridContent, rootMargin: "400px" }); // Pre-fetch images 400px before they are visible
+
+                if (state.renderedCount < state.allFiles.length) {
+                    const sentinel = document.createElement('div');
+                    sentinel.id = 'grid-sentinel';
+                    utils.elements.gridContainer.appendChild(sentinel);
+                    state.observer.observe(sentinel);
+                }
+            },
+
+            destroyLazyLoad() {
+                const state = appState.grid.lazyLoadState;
+                if (state.observer) {
+                    state.observer.disconnect();
+                    state.observer = null;
+                }
+                state.allFiles = [];
+                state.renderedCount = 0;
+            },
+
+            renderBatch() {
+                const state = appState.grid.lazyLoadState;
                 const container = utils.elements.gridContainer;
-                container.innerHTML = '';
-                container.style.gridTemplateColumns = `repeat(${utils.elements.gridSize.value}, 1fr)`;
-                
-                const filesToShow = appState.grid.filtered.length > 0 ? appState.grid.filtered : appState.stacks[stack];
-                utils.elements.selectAllBtn.textContent = filesToShow.length;
-                
-                filesToShow.forEach((file) => {
+                const filesToRender = state.allFiles.slice(state.renderedCount, state.renderedCount + state.batchSize);
+
+                // Remove old sentinel if it exists
+                const oldSentinel = document.getElementById('grid-sentinel');
+                if (oldSentinel) oldSentinel.remove();
+
+                filesToRender.forEach(file => {
                     const div = document.createElement('div');
                     div.className = 'grid-item';
                     div.dataset.fileId = file.id;
@@ -2805,37 +2842,35 @@
                     
                     const img = document.createElement('img');
                     img.className = 'grid-image';
-                    
-                    const imageUrl = utils.generateImageUrl(file);
-                    img.src = imageUrl;
                     img.alt = file.name || 'Image';
-                    
+                    img.dataset.src = utils.generateImageUrl(file); // Store URL in data-src
+
+                    img.onload = () => img.classList.add('loaded');
                     img.onerror = () => {
                         img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
+                        img.classList.add('loaded');
                     };
                     
-                    div.addEventListener('click', e => {
-                        e.stopPropagation();
-                        
-                        if (appState.grid.selected.length === 1 && 
-                            appState.grid.selected[0] === file.id && 
-                            utils.elements.gridSize.value === '1') {
-                            let viewUrl;
-                            if (appState.currentProviderType === 'googledrive') {
-                                viewUrl = `https://drive.google.com/file/d/${file.id}/view`;
-                            } else {
-                                viewUrl = file.downloadUrl || `https://1drv.ms/i/s!${file.id}`;
-                            }
-                            window.open(viewUrl, '_blank');
-                            return;
-                        }
-                        
-                        this.toggleSelection(e, file.id);
-                    });
+                    div.addEventListener('click', e => this.toggleSelection(e, file.id));
                     
                     div.appendChild(img);
                     container.appendChild(div);
                 });
+
+                // Trigger loading for the new batch
+                container.querySelectorAll('.grid-image:not([src])').forEach(img => {
+                    img.src = img.dataset.src;
+                });
+
+                state.renderedCount += filesToRender.length;
+
+                // Add a new sentinel if there are more files to load
+                if (state.renderedCount < state.allFiles.length) {
+                    const sentinel = document.createElement('div');
+                    sentinel.id = 'grid-sentinel';
+                    container.appendChild(sentinel);
+                    state.observer.observe(sentinel);
+                }
             },
             
             toggleSelection(e, fileId) {
@@ -2851,17 +2886,6 @@
                 }
                 
                 this.updateSelectionUI();
-                
-                if (appState.grid.selected.length === 1 && utils.elements.gridSize.value === '1') {
-                    this.focusOnSelectedItem(appState.grid.selected[0]);
-                }
-            },
-            
-            focusOnSelectedItem(fileId) {
-                const selectedItem = document.querySelector(`.grid-item[data-file-id="${fileId}"]`);
-                if (selectedItem) {
-                    selectedItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
             },
             
             updateSelectionUI() {
@@ -2877,7 +2901,7 @@
             },
             
             selectAll() {
-                const filesToSelect = appState.grid.filtered.length > 0 ? appState.grid.filtered : appState.stacks[appState.grid.stack];
+                const filesToSelect = appState.grid.lazyLoadState.allFiles;
                 appState.grid.selected = filesToSelect.map(f => f.id);
                 
                 document.querySelectorAll('#grid-container .grid-item').forEach(item => {
@@ -2904,21 +2928,19 @@
                     return;
                 }
                 
-                const filteredImages = this.searchImages(query);
-                appState.grid.filtered = filteredImages;
+                appState.grid.filtered = this.searchImages(query);
+                appState.grid.selected = appState.grid.filtered.map(f => f.id);
                 
-                appState.grid.selected = filteredImages.map(f => f.id);
-                
-                utils.elements.selectAllBtn.textContent = filteredImages.length;
-                
-                this.populate(appState.grid.stack);
+                utils.elements.gridContainer.innerHTML = '';
+                this.initializeLazyLoad(appState.grid.stack);
                 this.updateSelectionUI();
             },
 
             resetSearch() {
                 utils.elements.omniSearch.value = '';
                 appState.grid.filtered = [];
-                this.populate(appState.grid.stack);
+                utils.elements.gridContainer.innerHTML = '';
+                this.initializeLazyLoad(appState.grid.stack);
                 commonFunctions.updateStackCounts();
             },
             
@@ -2950,7 +2972,7 @@
                 const currentFile = appState.imageFiles[appState.currentImageIndex];
                 if (!currentFile) return;
 
-                if (currentFile.metadataStatus === 'pending') {
+                if (currentFile.metadataStatus !== 'loaded') {
                     this.populateMetadataTab(currentFile);
                     await masterController.processFileMetadata(currentFile);
                 }
@@ -3107,18 +3129,18 @@
             setupStarRating(type, currentRating) {
                 const container = utils.elements[`${type}Rating`];
                 if (!container) return;
-            
+        
                 let rating = currentRating;
                 const stars = container.querySelectorAll('.star');
-            
+        
                 const updateVisuals = (r) => {
                     stars.forEach((star, index) => {
                         star.classList.toggle('active', index < r);
                     });
                 };
-            
+        
                 container.onmouseleave = () => updateVisuals(rating);
-            
+        
                 stars.forEach((star, index) => {
                     star.onmouseenter = () => updateVisuals(index + 1);
                     star.onclick = async () => {
@@ -3129,17 +3151,17 @@
                             rating = newRating;
                         }
                         updateVisuals(rating);
-            
+        
                         const currentFile = appState.imageFiles[appState.currentImageIndex];
                         if (!currentFile) return;
-            
+        
                         const updatePayload = {};
                         if (type === 'quality') {
                             updatePayload.qualityRating = rating;
                         } else {
                             updatePayload.contentRating = rating;
                         }
-            
+        
                         try {
                             await masterController.updateUserMetadata(currentFile.id, updatePayload);
                         } catch (error) {
@@ -3149,14 +3171,14 @@
                         }
                     };
                 });
-            
+        
                 updateVisuals(rating);
             },
             
             populateMetadataTab(file) {
                 utils.elements.metadataTable.innerHTML = '';
                 
-                if (file.metadataStatus === 'pending' || file.metadataStatus === 'loading') {
+                if (file.metadataStatus !== 'loaded') {
                     utils.elements.metadataTable.innerHTML = `<tr><td colspan="2" style="text-align:center; padding: 20px;"><div class="spinner" style="margin: 0 auto;"></div></td></tr>`;
                     return;
                 }
@@ -3294,7 +3316,9 @@
                 utils.elements.actionContent.innerHTML = content || '';
                 utils.elements.actionConfirm.textContent = confirmText;
                 utils.elements.actionConfirm.className = `btn ${confirmClass}`;
-                
+                utils.elements.actionConfirm.disabled = false;
+                utils.elements.actionCancel.textContent = "Cancel";
+
                 utils.showModal('action-modal');
             },
             
@@ -3351,18 +3375,13 @@
             
             setupDeleteAction() {
                 const selectedCount = appState.grid.selected.length;
-                const currentStack = appState.grid.stack;
-                
-                const isTrash = currentStack === 'trash';
                 const providerName = appState.currentProviderType === 'googledrive' ? 'Google Drive' : 'OneDrive';
-                const message = isTrash ? 
-                    `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to ${providerName} trash? They can be recovered from ${providerName}.` :
-                    `Are you sure you want to move ${selectedCount} image${selectedCount > 1 ? 's' : ''} to Trash?`;
+                const message = `Are you sure you want to move ${selectedCount} image(s) to your ${providerName} trash? This can be recovered from the provider's website.`;
                 
                 this.show('delete', {
                     title: 'Confirm Delete',
                     content: `<p style="color: #4b5563; margin-bottom: 16px;">${message}</p>`,
-                    confirmText: isTrash ? `Move to ${providerName} Trash` : 'Move to Trash',
+                    confirmText: `Move to ${providerName} Trash`,
                     confirmClass: 'btn-danger'
                 });
             },
@@ -3372,22 +3391,13 @@
                     title: 'Export to Spreadsheet',
                     content: `
                         <p style="color: #4b5563; margin-bottom: 16px;">
-                            Export ${appState.grid.selected.length} selected image${appState.grid.selected.length > 1 ? 's' : ''} 
-                            to a CSV spreadsheet with metadata, tags, notes, and direct image URLs.
+                            This will start the new Live Export process for ${appState.grid.selected.length} selected image(s).
                         </p>
-                        <div style="background: #f3f4f6; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
-                            <strong>Exported data includes:</strong>
-                            <ul style="margin: 8px 0; padding-left: 20px; color: #6b7280;">
-                                <li>Filename and direct image URL</li>
-                                <li>AI Generation Prompt</li>
-                                <li>File size and dates</li>
-                                <li>Tags and notes</li>
-                                <li>Quality and content ratings</li>
-                                <li>Embedded metadata (JSON)</li>
-                            </ul>
-                        </div>
+                        <p style="color: #4b5563; margin-bottom: 16px;">
+                            It will fetch fresh data directly from the cloud to ensure 100% accuracy.
+                        </p>
                     `,
-                    confirmText: 'Export CSV'
+                    confirmText: 'Begin Export'
                 });
             },
             
@@ -3419,12 +3429,16 @@
 
                     utils.showToast(successMessage.replace('{count}', promises.length), 'success', true);
                     this.hide();
-                    gridView.populate(appState.grid.stack);
+                    
+                    // Refresh grid view
+                    gridView.destroyLazyLoad();
+                    gridView.initializeLazyLoad(appState.grid.stack);
                     appState.grid.selected = [];
                     gridView.updateSelectionUI();
+                    
                     commonFunctions.updateStackCounts();
                 } catch (error) {
-                    utils.showToast('Failed to process some images', 'error', true);
+                    utils.showToast(`Failed to process some images: ${error.message}`, 'error', true);
                 } finally {
                     confirmBtn.disabled = false;
                     confirmBtn.textContent = originalText;
@@ -3468,23 +3482,99 @@
             },
 
             async executeDelete() {
-                const currentStack = appState.grid.stack;
-                if (currentStack === 'trash') {
-                    await this.executeBulkAction(async (fileId) => {
-                        await masterController.deleteFile(fileId);
-                        const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
-                        if (fileIndex !== -1) appState.imageFiles.splice(fileIndex, 1);
-                        const trashIndex = appState.stacks.trash.findIndex(f => f.id === fileId);
-                        if (trashIndex !== -1) appState.stacks.trash.splice(trashIndex, 1);
-                    }, `Moved {count} images to provider trash`);
-                } else {
-                    await this.executeMove('trash');
-                }
+                await this.executeBulkAction(async (fileId) => {
+                    await masterController.deleteFile(fileId);
+                    
+                    // Remove from local state
+                    const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
+                    if (fileIndex > -1) {
+                        const [file] = appState.imageFiles.splice(fileIndex, 1);
+                        const stackIndex = appState.stacks[file.stack].findIndex(f => f.id === fileId);
+                        if (stackIndex > -1) {
+                            appState.stacks[file.stack].splice(stackIndex, 1);
+                        }
+                    }
+                }, `Moved {count} images to provider trash`);
             },
             
-            executeExport() {
-                appState.exportSystem.exportSelectedImages(appState.grid.selected);
-                this.hide();
+            // ===== NEW: LIVE EXPORT PROCESS =====
+            async executeExport() {
+                const fileIds = [...appState.grid.selected];
+                const filesToExport = fileIds.map(id => appState.imageFiles.find(f => f.id === id)).filter(f => f);
+                const total = filesToExport.length;
+                const results = [];
+                let failures = 0;
+                
+                // 1. Setup the new UI in the modal
+                utils.elements.actionTitle.textContent = `Live Export: 0 of ${total}`;
+                utils.elements.actionContent.innerHTML = `
+                    <div style="background: #111; border: 1px solid #333; color: #eee; font-family: monospace; font-size: 12px; height: 250px; overflow-y: scroll; padding: 8px; white-space: pre-wrap;" id="export-log"></div>
+                `;
+                const logEl = document.getElementById('export-log');
+                utils.elements.actionConfirm.disabled = true;
+                utils.elements.actionCancel.textContent = "Close";
+                
+                const log = (message) => {
+                    logEl.textContent += message + '\n';
+                    logEl.scrollTop = logEl.scrollHeight;
+                };
+                
+                log(`Starting export for ${total} images...`);
+                
+                // 2. Process each file sequentially with retries
+                for (let i = 0; i < filesToExport.length; i++) {
+                    const file = filesToExport[i];
+                    utils.elements.actionTitle.textContent = `Live Export: ${i + 1} of ${total}`;
+                    log(`\n[${i+1}/${total}] Processing: ${file.name}`);
+                    
+                    let extractedMetadata = {};
+                    let success = false;
+                    
+                    for (let attempt = 1; attempt <= 3; attempt++) {
+                        try {
+                            // This is a fresh, live fetch direct from the cloud
+                            const metadata = await appState.metadataExtractor.fetchMetadata(file, true);
+                            if (metadata.error) throw new Error(metadata.error);
+                            
+                            extractedMetadata = metadata;
+                            log(`  ✅ Success`);
+                            success = true;
+                            break; // Exit retry loop on success
+                        } catch (error) {
+                            log(`  ⚠️ Attempt ${attempt} failed: ${error.message}`);
+                            if (attempt < 3) {
+                                const delay = 1000 * attempt;
+                                log(`     Retrying in ${delay / 1000}s...`);
+                                await new Promise(res => setTimeout(res, delay));
+                            } else {
+                                log(`  ❌ FAILED permanently after 3 attempts.`);
+                                failures++;
+                            }
+                        }
+                    }
+                    
+                    results.push({
+                        ...file,
+                        extractedMetadata: extractedMetadata
+                    });
+                }
+                
+                // 3. Finalize and download
+                log('\n-------------------------------------');
+                log('Export process complete.');
+                log(`Successfully processed: ${total - failures} files.`);
+                log(`Failed: ${failures} files.`);
+                
+                if (results.length > 0) {
+                    appState.exportSystem.exportData(results);
+                    log('CSV file has been generated and downloaded.');
+                } else {
+                    log('No data to export.');
+                }
+                
+                utils.elements.actionTitle.textContent = `Export Complete`;
+                utils.elements.actionConfirm.disabled = true;
+                utils.elements.actionCancel.textContent = "Close";
             },
             
             executeFolderMove() {
@@ -3949,10 +4039,6 @@
                 const value = utils.elements.gridSize.value;
                 utils.elements.gridSizeValue.textContent = value;
                 utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
-                
-                if (appState.grid.selected.length === 1 && value === '1') {
-                    setTimeout(() => gridView.focusOnSelectedItem(appState.grid.selected[0]), 100);
-                }
             });
             
             // Search functionality
@@ -4090,7 +4176,7 @@
                 });
                 
             } catch (error) {
-                utils.showToast('Error loading folders', 'error', true);
+                utils.showToast(`Error loading folders: ${error.message}`, 'error', true);
             }
         }
         
