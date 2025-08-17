@@ -5,21 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V15 - Interactive Stacks</title>
+    <title>Orbital8 V16 - New Interactions</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V15 - PHASE 13 ===== */
+        /* ===== ORBITAL8 V16 - PHASE 14 ===== */
         /* Changes in this version:
-           - Bug Fix (Focus Mode Double-Tap): Corrected the gesture handling logic to reliably distinguish
-             between single taps (for panning when zoomed) and double-taps (for entering/exiting Focus Mode).
-             The single-tap activation issue has been resolved.
-           - UI (Grid Modal Close Button): Adjusted the positioning of the 'X' close button on the Grid Modal
-             to be flush with the top edge for a cleaner look.
-           - Feature (Drag & Drop Reordering): Implemented drag-and-drop functionality in the Grid View to
-             reorder images within a stack. This feature is automatically enabled when the grid size is set
-             to 5 or less to ensure usability. The new order is persisted to the cloud provider.
-           - Logic (Focus Mode Exit): Confirmed and retained the logic where exiting Focus Mode makes the
-             last viewed image the new top image of the stack, carrying the viewing order over to the main UI.
+           - Feature (Focus Mode Rework):
+             - Replaced double-tap with a more reliable activation method.
+             - To Enter: Click/tap the filename overlay at the bottom of the main view.
+             - To Exit: A single tap anywhere on the image while in Focus Mode.
+           - Feature (Group Drag & Drop):
+             - Reworked grid reordering to be more intuitive and powerful.
+             - Users can now select multiple images (they will be outlined).
+             - Drag any of the selected images to move the entire group.
+             - When hovering over an unselected image, it gets a distinct outline.
+             - Dropping the group inserts all selected images *before* the target image.
+           - Bug Fix (Grid Modal Close Button): Corrected the CSS for the 'X' button in the grid view to ensure
+             it is always visible and correctly positioned in the top-right corner, even on narrow mobile screens.
         */
         
         :root {
@@ -235,13 +237,13 @@
             overflow: hidden;
             text-overflow: ellipsis;
             opacity: 0;
-            transition: opacity 0.3s ease;
+            transition: opacity 0.3s ease, background-color 0.2s ease, color 0.2s ease;
             pointer-events: auto;
-            text-decoration: none;
+            cursor: pointer;
         }
         .filename-overlay:hover {
-            background-color: rgba(0, 0, 0, 0.8);
-            color: var(--app-accent);
+            background-color: rgba(245, 158, 11, 0.8);
+            color: white;
         }
         .filename-overlay.visible { opacity: 1; }
 
@@ -332,16 +334,16 @@
         .modal-header { position: sticky; top: 0; background: white; z-index: 10; border-bottom: 1px solid #e5e7eb; }
         .modal-header-main { padding: 12px 16px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; justify-content: space-between; position: relative; }
         .modal-header-left { display: flex; align-items: center; gap: 12px; }
-        .modal-title { font-size: 20px; font-weight: 500; color: #1f2937; line-height: 1.5; }
+        .modal-title { font-size: 20px; font-weight: 500; color: #1f2937; line-height: 1.5; padding-right: 40px; }
         .select-all-btn {
             background-color: #e5e7eb; color: #4b5563; padding: 2px 8px; border-radius: 9999px; font-size: 14px; font-weight: 500;
             display: inline-block; min-width: 36px; text-align: center; cursor: pointer; transition: background-color 0.2s;
         }
         .select-all-btn:hover { background-color: #d1d5db; }
         .close-btn {
-            position: absolute; /* Changed for positioning */
-            top: 4px;          /* Changed for positioning */
-            right: 4px;         /* Changed for positioning */
+            position: absolute;
+            top: 8px;
+            right: 8px;
             color: #6b7280; transition: all 0.2s; cursor: pointer; background: transparent; border: none; border-radius: 6px;
             padding: 4px; display: flex; align-items: center; justify-content: center; z-index: 1;
         }
@@ -402,6 +404,7 @@
             justify-content: center;
             overflow: hidden;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border: 2px solid transparent;
         }
         .grid-item::before {
             content: "";
@@ -420,9 +423,9 @@
         }
         .grid-image[data-src] { opacity: 0; }
         .grid-image.loaded { opacity: 1; }
-        .grid-item.selected { box-shadow: 0 0 0 4px #3b82f6; }
-        .grid-item.dragging { opacity: 0.5; transform: scale(0.95); }
-        .grid-item.drag-over { border: 2px dashed #3b82f6; }
+        .grid-item.selected { border-color: #3b82f6; box-shadow: 0 0 0 2px #3b82f6; }
+        .grid-item.dragging { opacity: 0.4; transform: scale(0.95); }
+        .grid-item.drop-target { border-color: #f59e0b; box-shadow: 0 0 0 2px #f59e0b; }
 
         /* ===== Details Modal ===== */
         .details-modal-content { max-width: 800px; max-height: 95vh; height: 95vh; display: flex; flex-direction: column; }
@@ -594,7 +597,7 @@
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
         <div class="app-footer">
-            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v15.html" target="_blank" class="footer-link">orbital8-v15-ph13.html</a>
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v16.html" target="_blank" class="footer-link">orbital8-v16-ph14.html</a>
         </div>
     </div>
     
@@ -609,7 +612,7 @@
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
         <div class="app-footer">
-            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v15.html" target="_blank" class="footer-link">orbital8-v15-ph13.html</a>
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v16.html" target="_blank" class="footer-link">orbital8-v16-ph14.html</a>
         </div>
     </div>
     
@@ -623,7 +626,7 @@
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
         <div class="app-footer">
-            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v15.html" target="_blank" class="footer-link">orbital8-v15-ph13.html</a>
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v16.html" target="_blank" class="footer-link">orbital8-v16-ph14.html</a>
         </div>
     </div>
     
@@ -640,7 +643,7 @@
             </div>
         </div>
         <div class="app-footer">
-            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v15.html" target="_blank" class="footer-link">orbital8-v15-ph13.html</a>
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v16.html" target="_blank" class="footer-link">orbital8-v16-ph14.html</a>
         </div>
     </div>
     
@@ -657,7 +660,7 @@
             </div>
         </div>
         <div class="app-footer">
-            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v15.html" target="_blank" class="footer-link">orbital8-v15-ph13.html</a>
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v16.html" target="_blank" class="footer-link">orbital8-v16-ph14.html</a>
         </div>
     </div>
     
@@ -673,7 +676,7 @@
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
         <div class="app-footer">
-            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v15.html" target="_blank" class="footer-link">orbital8-v15-ph13.html</a>
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v16.html" target="_blank" class="footer-link">orbital8-v16-ph14.html</a>
         </div>
     </div>
     
@@ -702,7 +705,7 @@
             <button class="new-images-button" id="select-another-folder-btn" style="margin-top: 12px;">Choose Different Folder</button>
         </div>
         
-        <a id="filename-overlay" class="filename-overlay" href="#" target="_blank"></a>
+        <div id="filename-overlay" class="filename-overlay"></div>
 
         <!-- Focus Mode UI -->
         <div id="focus-stack-name" class="focus-mode-ui"></div>
@@ -715,7 +718,7 @@
         
         <div id="toast" class="toast"></div>
         <div class="app-footer">
-            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v15.html" target="_blank" class="footer-link">orbital8-v15-ph13.html</a>
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v16.html" target="_blank" class="footer-link">orbital8-v16-ph14.html</a>
         </div>
     </div>
     
@@ -889,19 +892,21 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V15 - PHASE 13 =====
-        /* * Version: V15 P13 (orbital8-v15-ph13.html)
+        // ===== ORBITAL8 V16 - PHASE 14 =====
+        /* * Version: V16 P14 (orbital8-v16-ph14.html)
          * * Changes in this version:
-           - Bug Fix (Focus Mode Double-Tap): Corrected the gesture handling logic to reliably distinguish
-             between single taps (for panning when zoomed) and double-taps (for entering/exiting Focus Mode).
-             The single-tap activation issue has been resolved.
-           - UI (Grid Modal Close Button): Adjusted the positioning of the 'X' close button on the Grid Modal
-             to be flush with the top edge for a cleaner look.
-           - Feature (Drag & Drop Reordering): Implemented drag-and-drop functionality in the Grid View to
-             reorder images within a stack. This feature is automatically enabled when the grid size is set
-             to 5 or less to ensure usability. The new order is persisted to the cloud provider.
-           - Logic (Focus Mode Exit): Confirmed and retained the logic where exiting Focus Mode makes the
-             last viewed image the new top image of the stack, carrying the viewing order over to the main UI.
+           - Feature (Focus Mode Rework):
+             - Replaced double-tap with a more reliable activation method.
+             - To Enter: Click/tap the filename overlay at the bottom of the main view.
+             - To Exit: A single tap anywhere on the image while in Focus Mode.
+           - Feature (Group Drag & Drop):
+             - Reworked grid reordering to be more intuitive and powerful.
+             - Users can now select multiple images (they will be outlined).
+             - Drag any of the selected images to move the entire group.
+             - When hovering over an unselected image, it gets a distinct outline.
+             - Dropping the group inserts all selected images *before* the target image.
+           - Bug Fix (Grid Modal Close Button): Corrected the CSS for the 'X' button in the grid view to ensure
+             it is always visible and correctly positioned in the top-right corner, even on narrow mobile screens.
         */
         
         // ===== Core Constants & State =====
@@ -2682,7 +2687,6 @@
                 const folderName = appState.currentFolder.name;
                 const truncatedFolder = folderName.length > 12 ? folderName.substring(0, 12) + '...' : folderName;
                 utils.elements.filenameOverlay.textContent = `${truncatedFolder} / ${currentFile.name.replace(/\.[^/.]+$/, "")}`;
-                utils.elements.filenameOverlay.href = appState.exportSystem.getDirectImageURL(currentFile);
                 utils.elements.filenameOverlay.classList.add('visible');
 
                 appState.currentScale = 1;
@@ -2809,7 +2813,7 @@
                 this.initializeLazyLoad(stack);
                 this.updateSelectionUI();
                 commonFunctions.updateStackCounts();
-                this.toggleDragDrop(parseInt(utils.elements.gridSize.value));
+                this.toggleDragDrop(true); // Enable drag/drop by default
             },
             
             close() {
@@ -2922,7 +2926,7 @@
                     }
                 }
                 
-                this.toggleDragDrop(parseInt(utils.elements.gridSize.value));
+                this.toggleDragDrop(true);
             },
             
             toggleSelection(e, fileId) {
@@ -3015,106 +3019,127 @@
                 });
             },
 
-            toggleDragDrop(gridSize) {
+            toggleDragDrop(enable) {
                 const items = utils.elements.gridContainer.querySelectorAll('.grid-item');
-                if (gridSize <= 5) {
-                    items.forEach(item => {
+                items.forEach(item => {
+                    if (enable) {
                         item.draggable = true;
                         item.addEventListener('dragstart', this.handleDragStart);
                         item.addEventListener('dragover', this.handleDragOver);
                         item.addEventListener('dragleave', this.handleDragLeave);
                         item.addEventListener('drop', this.handleDrop);
                         item.addEventListener('dragend', this.handleDragEnd);
-                    });
-                } else {
-                    items.forEach(item => {
+                    } else {
                         item.draggable = false;
                         item.removeEventListener('dragstart', this.handleDragStart);
                         item.removeEventListener('dragover', this.handleDragOver);
                         item.removeEventListener('dragleave', this.handleDragLeave);
                         item.removeEventListener('drop', this.handleDrop);
                         item.removeEventListener('dragend', this.handleDragEnd);
-                    });
-                }
+                    }
+                });
             },
 
             handleDragStart(e) {
-                appState.grid.dragState.draggedElement = e.target;
-                appState.grid.dragState.draggedFileId = e.target.dataset.fileId;
+                const target = e.target.closest('.grid-item');
+                // If the dragged item isn't selected, select ONLY it.
+                if (!target.classList.contains('selected')) {
+                    gridView.deselectAll();
+                    gridView.toggleSelection({ currentTarget: target }, target.dataset.fileId);
+                }
+
+                appState.grid.dragState.draggedElement = target;
                 e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/plain', e.target.dataset.fileId);
-                setTimeout(() => e.target.classList.add('dragging'), 0);
+                // We don't need to transfer data, the appState.grid.selected is the source of truth
             },
 
             handleDragOver(e) {
                 e.preventDefault();
-                const target = e.target.closest('.grid-item');
-                if (target && target !== appState.grid.dragState.draggedElement) {
-                    target.classList.add('drag-over');
+                const dropTarget = e.target.closest('.grid-item');
+                if (dropTarget && !appState.grid.selected.includes(dropTarget.dataset.fileId)) {
+                    document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+                    dropTarget.classList.add('drop-target');
                 }
             },
 
             handleDragLeave(e) {
-                e.target.closest('.grid-item')?.classList.remove('drag-over');
+                e.target.closest('.grid-item')?.classList.remove('drop-target');
             },
 
             handleDrop(e) {
                 e.preventDefault();
                 const dropTarget = e.target.closest('.grid-item');
-                dropTarget?.classList.remove('drag-over');
+                if (!dropTarget || appState.grid.selected.includes(dropTarget.dataset.fileId)) return;
                 
-                const dragged = appState.grid.dragState.draggedElement;
-                if (!dragged || !dropTarget || dragged === dropTarget) return;
-
-                const container = utils.elements.gridContainer;
-                const dropTargetRect = dropTarget.getBoundingClientRect();
-                const shouldInsertAfter = e.clientY > dropTargetRect.top + dropTargetRect.height / 2;
-                
-                if (shouldInsertAfter) {
-                    container.insertBefore(dragged, dropTarget.nextSibling);
-                } else {
-                    container.insertBefore(dragged, dropTarget);
-                }
-                
-                this.persistNewOrder();
+                dropTarget.classList.remove('drop-target');
+                this.persistGroupDropOrder(appState.grid.selected, dropTarget.dataset.fileId);
             },
 
             handleDragEnd(e) {
-                e.target.classList.remove('dragging');
-                appState.grid.dragState.draggedElement = null;
-                appState.grid.dragState.draggedFileId = null;
+                document.querySelectorAll('.grid-item.dragging, .grid-item.drop-target').forEach(el => {
+                    el.classList.remove('dragging', 'drop-target');
+                });
             },
             
-            async persistNewOrder() {
-                const orderedIds = Array.from(utils.elements.gridContainer.querySelectorAll('.grid-item')).map(item => item.dataset.fileId);
+            async persistGroupDropOrder(draggedIds, targetId) {
                 const stack = appState.stacks[appState.grid.stack];
-                const newTimestamp = Date.now();
-                const updates = [];
+                
+                // Create a new array representing the new order
+                let newOrder = [];
+                const draggedFiles = [];
+                const remainingFiles = [];
 
-                orderedIds.forEach((id, index) => {
-                    const file = stack.find(f => f.id === id);
-                    if (file) {
-                        const newSequence = newTimestamp - index;
-                        if (file.stackSequence !== newSequence) {
-                            file.stackSequence = newSequence;
-                            updates.push({ id, sequence: newSequence });
-                        }
+                // Separate dragged files from the rest
+                stack.forEach(file => {
+                    if (draggedIds.includes(file.id)) {
+                        draggedFiles.push(file);
+                    } else {
+                        remainingFiles.push(file);
                     }
                 });
 
-                appState.stacks[appState.grid.stack] = commonFunctions.sortFiles(stack);
+                // Find the index of the target in the remaining files
+                const targetIndex = remainingFiles.findIndex(f => f.id === targetId);
 
-                if (updates.length > 0) {
-                    utils.showToast(`Saving new order for ${updates.length} image(s)...`, 'info');
-                    try {
-                        const updatePromises = updates.map(u => 
-                            masterController.updateUserMetadata(u.id, { stackSequence: u.sequence })
-                        );
-                        await Promise.all(updatePromises);
-                        utils.showToast('New order saved!', 'success');
-                    } catch (error) {
-                        utils.showToast('Error saving new order', 'error', true);
-                    }
+                if (targetIndex !== -1) {
+                    // Reconstruct the array: part before target, dragged files, part after target
+                    newOrder = [
+                        ...remainingFiles.slice(0, targetIndex),
+                        ...draggedFiles,
+                        ...remainingFiles.slice(targetIndex)
+                    ];
+                } else {
+                    // Should not happen, but as a fallback, add to end
+                    newOrder = [...remainingFiles, ...draggedFiles];
+                }
+
+                // Update the main stack in appState
+                appState.stacks[appState.grid.stack] = newOrder;
+                
+                // Visually re-render the grid in the new order
+                const container = utils.elements.gridContainer;
+                container.innerHTML = ''; // Clear current grid
+                this.initializeLazyLoad(appState.grid.stack);
+
+                // Persist the changes to the backend
+                const newTimestamp = Date.now();
+                const updates = newOrder.map((file, index) => ({
+                    id: file.id,
+                    sequence: newTimestamp - index,
+                }));
+
+                utils.showToast(`Saving new order...`, 'info');
+                try {
+                    const updatePromises = updates.map(u => {
+                        const file = appState.imageFiles.find(f => f.id === u.id);
+                        file.stackSequence = u.sequence;
+                        return masterController.updateUserMetadata(u.id, { stackSequence: u.sequence });
+                    });
+                    await Promise.all(updatePromises);
+                    utils.showToast('New order saved!', 'success');
+                } catch (error) {
+                    utils.showToast('Error saving new order', 'error', true);
+                    // NOTE: In a real app, you might want to revert the visual change here
                 }
             }
         };
@@ -3797,8 +3822,6 @@
             let startPos = { x: 0, y: 0 };
             let currentPos = { x: 0, y: 0 };
             let gestureStarted = false;
-            let tapTimeout = null;
-            let tapCount = 0;
 
             const edgeElements = [utils.elements.edgeTop, utils.elements.edgeBottom, utils.elements.edgeLeft, utils.elements.edgeRight];
             
@@ -3860,23 +3883,8 @@
             document.addEventListener('touchend', handleEnd, { passive: false });
             
             function handleStart(e) {
-                if (e.touches && e.touches.length > 1) return; // Ignore multi-touch for swipe/tap
-
-                tapCount++;
-                clearTimeout(tapTimeout);
-                tapTimeout = setTimeout(() => {
-                    tapCount = 0; // Reset after timeout
-                }, 300);
-
-                if (tapCount === 2) {
-                    clearTimeout(tapTimeout);
-                    tapCount = 0;
-                    focusMode.toggle();
-                    e.preventDefault();
-                    return;
-                }
-
                 if (appState.isFocusMode) return;
+                if (e.touches && e.touches.length > 1) return;
                 if (appState.imageFiles.length === 0 || appState.currentImageIndex === -1) return;
                 if (appState.currentScale > 1.1) return;
                 
@@ -3893,7 +3901,6 @@
             function handleMove(e) {
                 if (!appState.isDragging || appState.isFocusMode) return;
                 if (appState.imageFiles.length === 0) return;
-                
                 if (e.touches && e.touches.length > 1) {
                     appState.isDragging = false;
                     utils.elements.centerImage.classList.remove('dragging');
@@ -3912,8 +3919,6 @@
                 
                 if (distance > 30) {
                     gestureStarted = true;
-                    tapCount = 0; // It's a drag, not a tap
-                    clearTimeout(tapTimeout);
                     const direction = determineSwipeDirection(deltaX, deltaY);
                     if (direction) {
                         hideAllEdgeGlows();
@@ -4129,26 +4134,47 @@
 
         function setupFocusModeGestures() {
             let startX = 0;
+            let startY = 0;
             let isSwiping = false;
 
             utils.elements.imageViewport.addEventListener('touchstart', (e) => {
                 if (!appState.isFocusMode || e.touches.length > 1) return;
                 startX = e.touches[0].clientX;
-                isSwiping = true;
+                startY = e.touches[0].clientY;
+                isSwiping = false; // Reset on new touch
+            });
+            
+            utils.elements.imageViewport.addEventListener('touchmove', (e) => {
+                if (!appState.isFocusMode || e.touches.length > 1) return;
+                const deltaX = Math.abs(e.touches[0].clientX - startX);
+                const deltaY = Math.abs(e.touches[0].clientY - startY);
+                if (deltaX > 10 || deltaY > 10) { // If moved more than 10px, it's a swipe
+                    isSwiping = true;
+                }
             });
 
             utils.elements.imageViewport.addEventListener('touchend', (e) => {
-                if (!isSwiping || !appState.isFocusMode) return;
-                isSwiping = false;
-                const endX = e.changedTouches[0].clientX;
-                const deltaX = endX - startX;
-
-                if (Math.abs(deltaX) > 50) {
-                    if (deltaX < 0) {
-                        focusMode.nextImage();
-                    } else {
-                        focusMode.prevImage();
+                if (!appState.isFocusMode) return;
+                if (isSwiping) { // If it was a swipe, handle navigation
+                    const endX = e.changedTouches[0].clientX;
+                    const deltaX = endX - startX;
+                    if (Math.abs(deltaX) > 50) {
+                        if (deltaX < 0) {
+                            focusMode.nextImage();
+                        } else {
+                            focusMode.prevImage();
+                        }
                     }
+                } else { // Otherwise, it was a tap, so exit
+                    focusMode.toggle();
+                }
+                isSwiping = false;
+            });
+
+            // Add mouse click listener for desktop
+            utils.elements.imageViewport.addEventListener('click', (e) => {
+                if (appState.isFocusMode) {
+                    focusMode.toggle();
                 }
             });
         }
@@ -4170,6 +4196,12 @@
                 appState.hapticManager.setEnabled(e.target.checked);
             });
             
+            // NEW: Focus Mode activation via filename
+            utils.elements.filenameOverlay.addEventListener('click', (e) => {
+                e.preventDefault();
+                focusMode.toggle();
+            });
+
             // Google Drive auth
             utils.elements.gdriveAuthButton.addEventListener('click', async () => {
                 const clientSecret = utils.elements.gdriveClientSecret.value.trim();
@@ -4275,7 +4307,7 @@
             });
             utils.elements.detailsClose.addEventListener('click', () => detailsModal.hide());
             
-            // Focus Mode
+            // Focus Mode UI
             utils.elements.focusStackName.addEventListener('click', () => modalManager.setupFocusStackSwitch());
             utils.elements.focusDeleteBtn.addEventListener('click', () => focusMode.deleteCurrentImage());
 
@@ -4349,7 +4381,6 @@
                 const value = utils.elements.gridSize.value;
                 utils.elements.gridSizeValue.textContent = value;
                 utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
-                gridView.toggleDragDrop(parseInt(value));
             });
             
             // Search functionality
