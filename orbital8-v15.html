@@ -327,10 +327,10 @@
             </div>
         </div>
     </div>
-    <div class="app-footer">refactored V1</div>
+    <div class="app-footer">refactored V2</div>
 
     <script>
-        // ===== ORBITAL8 V16 - REFACTORED =====
+        // ===== ORBITAL8 V16 - REFACTORED V2 =====
         const STACK_TYPES = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
         
@@ -824,16 +824,39 @@
             async moveToStack(targetStack) {
                 const currentImage = appState.imageFiles[appState.currentImageIndex]; if (!currentImage) return;
                 const currentStackName = currentImage.stack;
-                const oldStack = appState.stacks[currentStackName];
-                const oldIndex = oldStack.findIndex(img => img.id === currentImage.id);
-                if (oldIndex > -1) oldStack.splice(oldIndex, 1);
-                const newSequence = Date.now();
-                currentImage.stack = targetStack; currentImage.stackSequence = newSequence;
-                appState.stacks[targetStack].unshift(currentImage);
-                await masterController.updateUserMetadata(currentImage.id, { stack: targetStack, stackSequence: newSequence });
+                let newSequence;
+
+                if (currentStackName === targetStack) {
+                    const currentStackArray = appState.stacks[currentStackName];
+                    if (currentStackArray.length > 1) {
+                        const otherImages = currentStackArray.filter(img => img.id !== currentImage.id);
+                        const minSequence = Math.min(...otherImages.map(img => img.stackSequence || 0));
+                        newSequence = minSequence - 1;
+                    } else {
+                        newSequence = Date.now();
+                    }
+                    const index = currentStackArray.findIndex(img => img.id === currentImage.id);
+                    if (index > -1) {
+                        const [item] = currentStackArray.splice(index, 1);
+                        item.stackSequence = newSequence;
+                        currentStackArray.push(item); // Move to end for visual feedback
+                        await masterController.updateUserMetadata(item.id, { stackSequence: newSequence });
+                    }
+                } else {
+                    newSequence = Date.now();
+                    const oldStack = appState.stacks[currentStackName];
+                    const oldIndex = oldStack.findIndex(img => img.id === currentImage.id);
+                    if (oldIndex > -1) oldStack.splice(oldIndex, 1);
+                    currentImage.stack = targetStack;
+                    appState.stacks[targetStack].unshift(currentImage);
+                    await masterController.updateUserMetadata(currentImage.id, { stack: targetStack, stackSequence: newSequence });
+                }
+
                 appState.stacks[targetStack] = this.sortFiles(appState.stacks[targetStack]);
                 if (currentStackName !== targetStack) appState.stacks[currentStackName] = this.sortFiles(appState.stacks[currentStackName]);
-                this.updateStackCounts(); this.updateActiveProxTab();
+                
+                this.updateStackCounts();
+                this.updateActiveProxTab();
                 if (appState.stacks[appState.currentStack].length > 0) this.moveToNextImage(); else this.showEmptyState();
             },
             async moveToNextImage() {
@@ -854,7 +877,20 @@
         };
 
         const gridView = {
-            open(stack) { utils.showModal('gridModal'); utils.elements.gridTitle.textContent = STACK_NAMES[stack] || stack; appState.grid.stack = stack; appState.grid.selected = []; appState.grid.filtered = []; utils.elements.gridContainer.innerHTML = ''; this.initializeLazyLoad(stack); this.updateSelectionUI(); commonFunctions.updateStackCounts(); this.enableTouchDragDrop(); const value = utils.elements.gridSize.value; utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`; },
+            open(stack) { 
+                utils.showModal('gridModal'); 
+                utils.elements.gridTitle.textContent = STACK_NAMES[stack] || stack; 
+                appState.grid.stack = stack; 
+                appState.grid.selected = []; 
+                appState.grid.filtered = []; 
+                utils.elements.gridContainer.innerHTML = ''; 
+                this.initializeLazyLoad(stack); 
+                this.updateSelectionUI(); 
+                commonFunctions.updateStackCounts(); 
+                this.enableTouchDragDrop(); 
+                const value = utils.elements.gridSize.value; 
+                utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`; 
+            },
             close() {
                 utils.hideModal('gridModal'); this.resetSearch(); this.destroyLazyLoad();
                 if (appState.grid.selected.length === 1) { const selectedIndex = appState.imageFiles.findIndex(f => f.id === appState.grid.selected[0]); if (selectedIndex !== -1) { appState.currentImageIndex = selectedIndex; commonFunctions.displayCurrentImage(); } } else { commonFunctions.displayTopImageFromStack(appState.currentStack); }
@@ -938,17 +974,19 @@
                 const newOrder = (targetIndex !== -1) ? [...remainingFiles.slice(0, targetIndex), ...draggedFiles, ...remainingFiles.slice(targetIndex)] : [...remainingFiles, ...draggedFiles];
                 appState.stacks[appState.grid.stack] = newOrder;
                 const container = utils.elements.gridContainer; const dropTargetElement = container.querySelector(`[data-file-id="${targetId}"]`);
-                draggedIds.forEach(id => { const draggedElement = container.querySelector(`[data-file-id="${id}"]`); if (draggedElement) { container.insertBefore(draggedElement, dropTargetElement); } });
+                draggedIds.reverse().forEach(id => { const draggedElement = container.querySelector(`[data-file-id="${id}"]`); if (draggedElement) { container.insertBefore(draggedElement, dropTargetElement); } });
                 const newTimestamp = Date.now();
-                const updates = draggedIds.map(id => {
-                    const file = appState.imageFiles.find(f => f.id === id);
-                    const newIndex = newOrder.findIndex(f => f.id === id);
-                    const newSequence = newTimestamp - newIndex;
-                    file.stackSequence = newSequence;
-                    return { id, sequence: newSequence };
-                });
+                const updates = newOrder.map((file, index) => ({ id: file.id, sequence: newTimestamp - index, }));
                 utils.showToast(`Saving new order...`, 'info');
-                try { const updatePromises = updates.map(u => masterController.updateUserMetadata(u.id, { stackSequence: u.sequence })); await Promise.all(updatePromises); utils.showToast('New order saved!', 'success'); } catch (error) { utils.showToast('Error saving new order', 'error', true); }
+                try {
+                    const updatePromises = updates.map(u => {
+                        const file = appState.imageFiles.find(f => f.id === u.id);
+                        if (file.stackSequence !== u.sequence) { file.stackSequence = u.sequence; return masterController.updateUserMetadata(u.id, { stackSequence: u.sequence }); }
+                        return Promise.resolve();
+                    });
+                    await Promise.all(updatePromises);
+                    utils.showToast('New order saved!', 'success');
+                } catch (error) { utils.showToast('Error saving new order', 'error', true); }
             }
         };
 
@@ -1038,7 +1076,26 @@
         };
 
         const focusMode = {
-            toggle() { appState.isFocusMode = !appState.isFocusMode; utils.elements.appContainer.classList.toggle('focus-mode', appState.isFocusMode); if (appState.isFocusMode) this.updateUI(); else { const lastFile = appState.imageFiles[appState.currentImageIndex]; if (lastFile) { const stack = appState.stacks[appState.currentStack]; const index = stack.findIndex(f => f.id === lastFile.id); if (index > 0) stack.unshift(stack.splice(index, 1)[0]); } commonFunctions.displayCurrentImage(); } },
+            toggle() {
+                appState.isFocusMode = !appState.isFocusMode;
+                utils.elements.appContainer.classList.toggle('focus-mode', appState.isFocusMode);
+                if (appState.isFocusMode) {
+                    this.updateUI();
+                } else {
+                    const lastViewedFile = appState.imageFiles[appState.currentImageIndex];
+                    if (lastViewedFile) {
+                        const stackArray = appState.stacks[lastViewedFile.stack];
+                        const index = stackArray.findIndex(f => f.id === lastViewedFile.id);
+                        if (index > 0) {
+                            stackArray.unshift(stackArray.splice(index, 1)[0]);
+                        }
+                        // BUG FIX #3: Set the current stack to the one we were just viewing in focus mode.
+                        appState.currentStack = lastViewedFile.stack;
+                        commonFunctions.updateActiveProxTab();
+                    }
+                    commonFunctions.displayCurrentImage();
+                }
+            },
             updateUI() { if (!appState.isFocusMode) return; const stack = appState.stacks[appState.currentStack]; const file = appState.imageFiles[appState.currentImageIndex]; const index = stack.findIndex(f => f.id === file.id); utils.elements.focusStackName.textContent = STACK_NAMES[appState.currentStack]; utils.elements.focusImageCount.textContent = `${index + 1} / ${stack.length}`; },
             async navigate(direction) { const stack = appState.stacks[appState.currentStack]; if (stack.length === 0) return; const file = appState.imageFiles[appState.currentImageIndex]; const currentIndex = stack.findIndex(f => f.id === file.id); const nextIndex = (currentIndex + direction + stack.length) % stack.length; appState.currentImageIndex = appState.imageFiles.findIndex(f => f.id === stack[nextIndex].id); await commonFunctions.displayCurrentImage(); },
             async deleteCurrentImage() {
