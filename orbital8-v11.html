@@ -5,25 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V16 - Final Interactions</title>
+    <title>Orbital8 V16.3 - Final Patches</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V16 - PHASE 16 ===== */
+        /* ===== ORBITAL8 V16.3 - FINAL PATCHES ===== */
         /* Changes in this version:
-           - Feature (Focus Mode Rework):
-             - To Enter: A single tap on the main image. This is more intuitive than the filename.
-             - To Exit: A single tap anywhere on the image while in Focus Mode.
-             - The filename overlay is now a standard link that opens the image in a new tab.
-           - Feature (Drag Handle for Reordering):
-             - Replaced "touch-and-hold" with a dedicated drag handle (⠿) that appears on selected items in the grid.
-             - This resolves the conflict with the browser's context menu on mobile devices.
-             - A semi-transparent "ghost" image of the selected items now follows the cursor during a drag.
-             - The "select, then drag the handle" workflow is now fully implemented and functional.
-           - Bug Fix (Stack Order): Corrected the logic for moving images between stacks. The original stack now
-             correctly advances to the next image in its original order without reversing.
-           - Bug Fix (Grid Modal Close Button): Reverted the CSS for the 'X' button to a more robust flexbox
-             -based layout, ensuring it is always visible and correctly positioned in the top-right corner,
-             even on narrow mobile screens.
+           - Bug Fix (Focus Mode Rework): Replaced intermittent tap detection with a robust, predictable system based on
+             gesture duration and distance. A single, distinct tap now reliably enters and exits Focus Mode.
+             All gesture logic (tap, swipe, focus-swipe) is now centralized in a single handler.
+           - Bug Fix (Drag & Drop): Resolved an issue where the drop action would fail by correctly setting the
+             `dropEffect` property during the dragover event, ensuring cross-browser compatibility for the drop action.
         */
         
         :root {
@@ -910,23 +901,14 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V16 - PHASE 16 =====
-        /* * Version: V16 P16 (orbital8-v16-ph16.html)
+        // ===== ORBITAL8 V16.3 - FINAL PATCHES =====
+        /* * Version: V16.3 P (orbital8-v16.3-p.html)
          * * Changes in this version:
-           - Feature (Focus Mode Rework):
-             - To Enter: A single tap on the main image. This is more intuitive than the filename.
-             - To Exit: A single tap anywhere on the image while in Focus Mode.
-             - The filename overlay is now a standard link that opens the image in a new tab.
-           - Feature (Drag Handle for Reordering):
-             - Replaced "touch-and-hold" with a dedicated drag handle (⠿) that appears on selected items in the grid.
-             - This resolves the conflict with the browser's context menu on mobile devices.
-             - A semi-transparent "ghost" image of the selected items now follows the cursor during a drag.
-             - The "select, then drag the handle" workflow is now fully implemented and functional.
-           - Bug Fix (Stack Order): Corrected the logic for moving images between stacks. The original stack now
-             correctly advances to the next image in its original order without reversing.
-           - Bug Fix (Grid Modal Close Button): Reverted the CSS for the 'X' button to a more robust flexbox
-             -based layout, ensuring it is always visible and correctly positioned in the top-right corner,
-             even on narrow mobile screens.
+           - Bug Fix (Focus Mode Rework): Replaced intermittent tap detection with a robust, predictable system based on
+             gesture duration and distance. A single, distinct tap now reliably enters and exits Focus Mode.
+             All gesture logic (tap, swipe, focus-swipe) is now centralized in a single handler.
+           - Bug Fix (Drag & Drop): Resolved an issue where the drop action would fail by correctly setting the
+             `dropEffect` property during the dragover event, ensuring cross-browser compatibility for the drop action.
         */
         
         // ===== Core Constants & State =====
@@ -2833,7 +2815,6 @@
                 commonFunctions.updateStackCounts();
                 this.toggleDragDrop(true);
                 
-                // Set initial grid size
                 const value = utils.elements.gridSize.value;
                 utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
             },
@@ -2925,7 +2906,6 @@
                     handle.className = 'drag-handle';
                     handle.innerHTML = '⠿';
                     handle.draggable = true;
-                    // *** MODIFICATION: Prevent context menu on drag handle ***
                     handle.addEventListener('contextmenu', e => e.preventDefault());
 
                     img.onload = () => img.classList.add('loaded');
@@ -3082,6 +3062,7 @@
                 }
                 appState.grid.dragState.draggedElement = target;
                 e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', appState.grid.selected.join(','));
                 
                 const ghost = gridView.createDragGhost(appState.grid.selected);
                 document.body.appendChild(ghost);
@@ -3112,6 +3093,8 @@
 
             handleDragOver(e) {
                 e.preventDefault();
+                // *** MODIFICATION: Set dropEffect to signal a valid 'move' operation ***
+                e.dataTransfer.dropEffect = 'move';
                 const dropTarget = e.target.closest('.grid-item');
                 if (dropTarget && !appState.grid.selected.includes(dropTarget.dataset.fileId)) {
                     document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
@@ -3140,31 +3123,18 @@
             },
             
             async persistGroupDropOrder(draggedIds, targetId) {
-                const stack = appState.stacks[appState.grid.stack];
+                const stack = [...appState.stacks[appState.grid.stack]];
                 
-                let newOrder = [];
-                const draggedFiles = [];
-                const remainingFiles = [];
+                const draggedItems = stack.filter(file => draggedIds.includes(file.id));
+                const remainingItems = stack.filter(file => !draggedIds.includes(file.id));
 
-                stack.forEach(file => {
-                    if (draggedIds.includes(file.id)) {
-                        draggedFiles.push(file);
-                    } else {
-                        remainingFiles.push(file);
-                    }
-                });
-
-                const targetIndex = remainingFiles.findIndex(f => f.id === targetId);
-
-                if (targetIndex !== -1) {
-                    newOrder = [
-                        ...remainingFiles.slice(0, targetIndex),
-                        ...draggedFiles,
-                        ...remainingFiles.slice(targetIndex)
-                    ];
-                } else {
-                    newOrder = [...remainingFiles, ...draggedFiles];
+                let targetIndex = remainingItems.findIndex(file => file.id === targetId);
+                if (targetIndex === -1) {
+                    targetIndex = remainingItems.length;
                 }
+
+                remainingItems.splice(targetIndex, 0, ...draggedItems);
+                const newOrder = remainingItems;
 
                 appState.stacks[appState.grid.stack] = newOrder;
                 
@@ -3871,6 +3841,7 @@
             let startPos = { x: 0, y: 0 };
             let currentPos = { x: 0, y: 0 };
             let gestureStarted = false;
+            let gestureStartTime = 0;
 
             const edgeElements = [utils.elements.edgeTop, utils.elements.edgeBottom, utils.elements.edgeLeft, utils.elements.edgeRight];
             
@@ -3932,23 +3903,22 @@
             document.addEventListener('touchend', handleEnd, { passive: false });
             
             function handleStart(e) {
-                if (appState.isFocusMode) return;
                 if (e.touches && e.touches.length > 1) return;
                 if (appState.imageFiles.length === 0 || appState.currentImageIndex === -1) return;
                 if (appState.currentScale > 1.1) return;
                 
                 const point = e.touches ? e.touches[0] : e;
                 
+                gestureStartTime = Date.now();
                 startPos = { x: point.clientX, y: point.clientY };
                 currentPos = { x: point.clientX, y: point.clientY };
                 gestureStarted = false;
                 
                 appState.isDragging = true;
-                utils.elements.centerImage.classList.add('dragging');
             }
             
             function handleMove(e) {
-                if (!appState.isDragging || appState.isFocusMode) return;
+                if (!appState.isDragging) return;
                 if (appState.imageFiles.length === 0) return;
                 if (e.touches && e.touches.length > 1) {
                     appState.isDragging = false;
@@ -3966,45 +3936,52 @@
                 const deltaY = currentPos.y - startPos.y;
                 const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
                 
-                if (distance > 30) {
+                if (distance > 10) {
                     gestureStarted = true;
-                    const direction = determineSwipeDirection(deltaX, deltaY);
-                    if (direction) {
-                        hideAllEdgeGlows();
+                    if (!appState.isFocusMode) {
+                        utils.elements.centerImage.classList.add('dragging');
+                        const direction = determineSwipeDirection(deltaX, deltaY);
                         showEdgeGlow(direction);
                     }
-                } else {
-                    hideAllEdgeGlows();
                 }
             }
             
             function handleEnd(e) {
-                if (!appState.isDragging || appState.isFocusMode) return;
+                if (!appState.isDragging) return;
+
+                const point = e.changedTouches ? e.changedTouches[0] : e;
+                currentPos = { x: point.clientX, y: point.clientY };
                 
-                appState.isDragging = false;
-                utils.elements.centerImage.classList.remove('dragging');
-                
-                if (!gestureStarted) {
-                    hideAllEdgeGlows();
-                    // This is a tap, so enter focus mode
-                    focusMode.toggle();
-                    return;
-                }
-                
+                const gestureDuration = Date.now() - gestureStartTime;
                 const deltaX = currentPos.x - startPos.x;
                 const deltaY = currentPos.y - startPos.y;
                 const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-                
-                if (distance > 80) {
-                    const direction = determineSwipeDirection(deltaX, deltaY);
-                    const targetStack = directionToStack(direction);
-                    if (targetStack && direction) {
-                        executeFlick(targetStack);
-                        return;
+
+                appState.isDragging = false;
+                utils.elements.centerImage.classList.remove('dragging');
+                hideAllEdgeGlows();
+
+                if (gestureDuration < 250 && distance < 10) {
+                    focusMode.toggle();
+                    return;
+                }
+
+                if (!gestureStarted) return;
+
+                if (appState.isFocusMode) {
+                    if (Math.abs(deltaX) > 50) {
+                        if (deltaX < 0) { focusMode.nextImage(); } 
+                        else { focusMode.prevImage(); }
+                    }
+                } else {
+                    if (distance > 80) {
+                        const direction = determineSwipeDirection(deltaX, deltaY);
+                        const targetStack = directionToStack(direction);
+                        if (targetStack) {
+                            executeFlick(targetStack);
+                        }
                     }
                 }
-                
-                hideAllEdgeGlows();
             }
         }
         
@@ -4182,54 +4159,9 @@
                 }
             }
         };
-
-        function setupFocusModeGestures() {
-            let startX = 0;
-            let startY = 0;
-            let isSwiping = false;
-
-            utils.elements.imageViewport.addEventListener('touchstart', (e) => {
-                if (!appState.isFocusMode || e.touches.length > 1) return;
-                startX = e.touches[0].clientX;
-                startY = e.touches[0].clientY;
-                isSwiping = false;
-            });
-            
-            utils.elements.imageViewport.addEventListener('touchmove', (e) => {
-                if (!appState.isFocusMode || e.touches.length > 1) return;
-                const deltaX = Math.abs(e.touches[0].clientX - startX);
-                const deltaY = Math.abs(e.touches[0].clientY - startY);
-                if (deltaX > 10 || deltaY > 10) {
-                    isSwiping = true;
-                }
-            });
-
-            utils.elements.imageViewport.addEventListener('touchend', (e) => {
-                if (!appState.isFocusMode) return;
-                if (isSwiping) {
-                    const endX = e.changedTouches[0].clientX;
-                    const deltaX = endX - startX;
-                    if (Math.abs(deltaX) > 50) {
-                        if (deltaX < 0) {
-                            focusMode.nextImage();
-                        } else {
-                            focusMode.prevImage();
-                        }
-                    }
-                }
-                isSwiping = false;
-            });
-        }
         
         // ===== Event Handlers =====
         function setupEventHandlers() {
-            // *** MODIFICATION: Exit focus mode on click ***
-            utils.elements.imageViewport.addEventListener('click', () => {
-                if (appState.isFocusMode) {
-                    focusMode.toggle();
-                }
-            });
-            
             // Provider selection
             utils.elements.googleDriveBtn.addEventListener('click', () => appController.selectGoogleDrive());
             utils.elements.onedriveBtn.addEventListener('click', () => appController.selectOneDrive());
@@ -4736,7 +4668,6 @@
                 
                 setupEventHandlers();
                 setupGestureSystem();
-                setupFocusModeGestures();
                 setupPinchZoom();
                 
                 commonFunctions.updateActiveProxTab();
