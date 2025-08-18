@@ -5,16 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V16.3 - Final Patches</title>
+    <title>Orbital8 V16 - Final Interactions</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V16.3 - FINAL PATCHES ===== */
+        /* ===== ORBITAL8 V16 - PHASE 16 ===== */
         /* Changes in this version:
-           - Bug Fix (Focus Mode Rework): Replaced intermittent tap detection with a robust, predictable system based on
-             gesture duration and distance. A single, distinct tap now reliably enters and exits Focus Mode.
-             All gesture logic (tap, swipe, focus-swipe) is now centralized in a single handler.
-           - Bug Fix (Drag & Drop): Resolved an issue where the drop action would fail by correctly setting the
-             `dropEffect` property during the dragover event, ensuring cross-browser compatibility for the drop action.
+           - Feature (Focus Mode Rework):
+             - To Enter: A single tap on the main image. This is more intuitive than the filename.
+             - To Exit: A single tap anywhere on the image while in Focus Mode.
+             - The filename overlay is now a standard link that opens the image in a new tab.
+           - Feature (Drag Handle for Reordering):
+             - Replaced "touch-and-hold" with a dedicated drag handle (⠿) that appears on selected items in the grid.
+             - This resolves the conflict with the browser's context menu on mobile devices.
+             - A semi-transparent "ghost" image of the selected items now follows the cursor during a drag.
+             - The "select, then drag the handle" workflow is now fully implemented and functional.
+           - Bug Fix (Stack Order): Corrected the logic for moving images between stacks. The original stack now
+             correctly advances to the next image in its original order without reversing.
+           - Bug Fix (Grid Modal Close Button): Reverted the CSS for the 'X' button to a more robust flexbox
+             -based layout, ensuring it is always visible and correctly positioned in the top-right corner,
+             even on narrow mobile screens.
         */
         
         :root {
@@ -620,7 +629,7 @@
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
         <div class="app-footer">
-            - Made with ❤️ by Team Dojo - ;)
+            - Made with :( by Team Dojo -
         </div>
     </div>
     
@@ -634,7 +643,7 @@
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
         <div class="app-footer">
-            - Made with ❤️ by Team Dojo - ;)
+            - Made with :( by Team Dojo -
         </div>
     </div>
     
@@ -647,7 +656,7 @@
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
         <div class="app-footer">
-            - Made with ❤️ by Team Dojo - ;)
+            - Made with :( by Team Dojo -
         </div>
     </div>
     
@@ -663,7 +672,7 @@
             </div>
         </div>
         <div class="app-footer">
-            - Made with ❤️ by Team Dojo - ;)
+            - Made with :( by Team Dojo -
         </div>
     </div>
     
@@ -679,7 +688,7 @@
             </div>
         </div>
         <div class="app-footer">
-            - Made with ❤️ by Team Dojo - ;)
+            - Made with :( by Team Dojo -
         </div>
     </div>
     
@@ -694,7 +703,7 @@
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
         <div class="app-footer">
-            - Made with ❤️ by Team Dojo - ;)
+            - Made with :( by Team Dojo -
         </div>
     </div>
     
@@ -734,7 +743,7 @@
         
         <div id="toast" class="toast"></div>
         <div class="app-footer">
-            - Made with ❤️ by Team Dojo - ;)
+            - Made with :( by Team Dojo -
         </div>
     </div>
     
@@ -901,14 +910,23 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V16.3 - FINAL PATCHES =====
-        /* * Version: V16.3 P (orbital8-v16.3-p.html)
+        // ===== ORBITAL8 V16 - PHASE 16 =====
+        /* * Version: V16 P16 (orbital8-v16-ph16.html)
          * * Changes in this version:
-           - Bug Fix (Focus Mode Rework): Replaced intermittent tap detection with a robust, predictable system based on
-             gesture duration and distance. A single, distinct tap now reliably enters and exits Focus Mode.
-             All gesture logic (tap, swipe, focus-swipe) is now centralized in a single handler.
-           - Bug Fix (Drag & Drop): Resolved an issue where the drop action would fail by correctly setting the
-             `dropEffect` property during the dragover event, ensuring cross-browser compatibility for the drop action.
+           - Feature (Focus Mode Rework):
+             - To Enter: A single tap on the main image. This is more intuitive than the filename.
+             - To Exit: A single tap anywhere on the image while in Focus Mode.
+             - The filename overlay is now a standard link that opens the image in a new tab.
+           - Feature (Drag Handle for Reordering):
+             - Replaced "touch-and-hold" with a dedicated drag handle (⠿) that appears on selected items in the grid.
+             - This resolves the conflict with the browser's context menu on mobile devices.
+             - A semi-transparent "ghost" image of the selected items now follows the cursor during a drag.
+             - The "select, then drag the handle" workflow is now fully implemented and functional.
+           - Bug Fix (Stack Order): Corrected the logic for moving images between stacks. The original stack now
+             correctly advances to the next image in its original order without reversing.
+           - Bug Fix (Grid Modal Close Button): Reverted the CSS for the 'X' button to a more robust flexbox
+             -based layout, ensuring it is always visible and correctly positioned in the top-right corner,
+             even on narrow mobile screens.
         */
         
         // ===== Core Constants & State =====
@@ -948,8 +966,10 @@
                     batchSize: 20
                 },
                 dragState: {
-                    draggedElement: null,
-                    draggedFileId: null,
+                    isTouchDragging: false,
+                    ghostElement: null,
+                    draggedIds: [],
+                    lastDropTarget: null
                 }
             },
             tags: new Set(),
@@ -2813,8 +2833,9 @@
                 this.initializeLazyLoad(stack);
                 this.updateSelectionUI();
                 commonFunctions.updateStackCounts();
-                this.toggleDragDrop(true);
+                this.enableTouchDragDrop();
                 
+                // Set initial grid size
                 const value = utils.elements.gridSize.value;
                 utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
             },
@@ -2905,9 +2926,7 @@
                     const handle = document.createElement('div');
                     handle.className = 'drag-handle';
                     handle.innerHTML = '⠿';
-                    handle.draggable = true;
-                    handle.addEventListener('contextmenu', e => e.preventDefault());
-
+                    
                     img.onload = () => img.classList.add('loaded');
                     img.onerror = () => {
                         img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
@@ -2939,8 +2958,6 @@
                         state.observer.observe(sentinel);
                     }
                 }
-                
-                this.toggleDragDrop(true);
             },
             
             toggleSelection(e, fileId) {
@@ -3033,48 +3050,16 @@
                 });
             },
 
-            toggleDragDrop(enable) {
-                const items = utils.elements.gridContainer.querySelectorAll('.grid-item');
-                items.forEach(item => {
-                    const handle = item.querySelector('.drag-handle');
-                    if (enable && handle) {
-                        handle.addEventListener('dragstart', this.handleDragStart);
-                        item.addEventListener('dragover', this.handleDragOver);
-                        item.addEventListener('dragleave', this.handleDragLeave);
-                        item.addEventListener('drop', this.handleDrop);
-                        handle.addEventListener('dragend', this.handleDragEnd);
-                    } else if (handle) {
-                        handle.removeEventListener('dragstart', this.handleDragStart);
-                        item.removeEventListener('dragover', this.handleDragOver);
-                        item.removeEventListener('dragleave', this.handleDragLeave);
-                        item.removeEventListener('drop', this.handleDrop);
-                        handle.removeEventListener('dragend', this.handleDragEnd);
-                    }
-                });
+            // --- START: DRAG-AND-DROP REWORK ---
+            enableTouchDragDrop() {
+                utils.elements.gridContainer.removeEventListener('touchstart', this.handleTouchDragStart);
+                utils.elements.gridContainer.addEventListener('touchstart', this.handleTouchDragStart.bind(this));
             },
 
-            handleDragStart(e) {
-                e.stopPropagation();
-                const target = e.target.closest('.grid-item');
-                if (!target.classList.contains('selected')) {
-                    gridView.deselectAll();
-                    gridView.toggleSelection({ currentTarget: target }, target.dataset.fileId);
-                }
-                appState.grid.dragState.draggedElement = target;
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/plain', appState.grid.selected.join(','));
-                
-                const ghost = gridView.createDragGhost(appState.grid.selected);
-                document.body.appendChild(ghost);
-                e.dataTransfer.setDragImage(ghost, 0, 0);
-                
-                setTimeout(() => ghost.remove(), 0);
-            },
-
-            createDragGhost(selectedIds) {
+            createDragGhost(sourceElement, selectedIds) {
                 const ghost = document.createElement('div');
                 ghost.id = 'drag-ghost';
-                const img = appState.grid.dragState.draggedElement.querySelector('.grid-image');
+                const img = sourceElement.querySelector('.grid-image');
                 if (img) {
                     const clone = img.cloneNode(true);
                     clone.style.width = '80px';
@@ -3091,50 +3076,115 @@
                 return ghost;
             },
 
-            handleDragOver(e) {
-                e.preventDefault();
-                // *** MODIFICATION: Set dropEffect to signal a valid 'move' operation ***
-                e.dataTransfer.dropEffect = 'move';
-                const dropTarget = e.target.closest('.grid-item');
-                if (dropTarget && !appState.grid.selected.includes(dropTarget.dataset.fileId)) {
-                    document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
-                    dropTarget.classList.add('drop-target');
-                }
-            },
-
-            handleDragLeave(e) {
-                e.target.closest('.grid-item')?.classList.remove('drop-target');
-            },
-
-            handleDrop(e) {
+            handleTouchDragStart(e) {
+                const handle = e.target.closest('.drag-handle');
+                if (!handle) return;
+                
                 e.preventDefault();
                 e.stopPropagation();
-                const dropTarget = e.target.closest('.grid-item');
-                if (!dropTarget || appState.grid.selected.includes(dropTarget.dataset.fileId)) return;
-                
-                document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
-                this.persistGroupDropOrder(appState.grid.selected, dropTarget.dataset.fileId);
-            },
 
-            handleDragEnd(e) {
-                document.querySelectorAll('.grid-item.dragging, .grid-item.drop-target').forEach(el => {
-                    el.classList.remove('dragging', 'drop-target');
-                });
-            },
-            
-            async persistGroupDropOrder(draggedIds, targetId) {
-                const stack = [...appState.stacks[appState.grid.stack]];
-                
-                const draggedItems = stack.filter(file => draggedIds.includes(file.id));
-                const remainingItems = stack.filter(file => !draggedIds.includes(file.id));
+                const targetItem = handle.closest('.grid-item');
+                const fileId = targetItem.dataset.fileId;
 
-                let targetIndex = remainingItems.findIndex(file => file.id === targetId);
-                if (targetIndex === -1) {
-                    targetIndex = remainingItems.length;
+                if (!appState.grid.selected.includes(fileId)) {
+                    this.deselectAll();
+                    this.toggleSelection({ currentTarget: targetItem }, fileId);
                 }
 
-                remainingItems.splice(targetIndex, 0, ...draggedItems);
-                const newOrder = remainingItems;
+                const dragState = appState.grid.dragState;
+                dragState.isTouchDragging = true;
+                dragState.draggedIds = [...appState.grid.selected];
+                dragState.ghostElement = this.createDragGhost(targetItem, dragState.draggedIds);
+                document.body.appendChild(dragState.ghostElement);
+
+                const touch = e.touches[0];
+                dragState.ghostElement.style.transform = `translate(${touch.clientX - 40}px, ${touch.clientY - 40}px)`;
+
+                // Bind move and end listeners to the document to capture movement anywhere on the screen
+                this._handleTouchDragMove = this.handleTouchDragMove.bind(this);
+                this._handleTouchDragEnd = this.handleTouchDragEnd.bind(this);
+                document.addEventListener('touchmove', this._handleTouchDragMove, { passive: false });
+                document.addEventListener('touchend', this._handleTouchDragEnd);
+                document.addEventListener('touchcancel', this._handleTouchDragEnd);
+            },
+
+            handleTouchDragMove(e) {
+                const dragState = appState.grid.dragState;
+                if (!dragState.isTouchDragging) return;
+                
+                e.preventDefault();
+
+                const touch = e.touches[0];
+                dragState.ghostElement.style.transform = `translate(${touch.clientX - 40}px, ${touch.clientY - 40}px)`;
+
+                const elementUnder = document.elementFromPoint(touch.clientX, touch.clientY);
+                const dropTarget = elementUnder ? elementUnder.closest('.grid-item') : null;
+
+                if (dragState.lastDropTarget && dragState.lastDropTarget !== dropTarget) {
+                    dragState.lastDropTarget.classList.remove('drop-target');
+                }
+
+                if (dropTarget && !dragState.draggedIds.includes(dropTarget.dataset.fileId)) {
+                    dropTarget.classList.add('drop-target');
+                    dragState.lastDropTarget = dropTarget;
+                } else {
+                    dragState.lastDropTarget = null;
+                }
+            },
+
+            handleTouchDragEnd(e) {
+                const dragState = appState.grid.dragState;
+                if (!dragState.isTouchDragging) return;
+
+                // Cleanup listeners immediately
+                document.removeEventListener('touchmove', this._handleTouchDragMove);
+                document.removeEventListener('touchend', this._handleTouchDragEnd);
+                document.removeEventListener('touchcancel', this._handleTouchDragEnd);
+
+                if (dragState.lastDropTarget) {
+                    const targetFileId = dragState.lastDropTarget.dataset.fileId;
+                    this.persistGroupDropOrder(dragState.draggedIds, targetFileId);
+                    dragState.lastDropTarget.classList.remove('drop-target');
+                }
+                
+                // Cleanup ghost and state
+                if (dragState.ghostElement) {
+                    dragState.ghostElement.remove();
+                }
+                
+                dragState.isTouchDragging = false;
+                dragState.ghostElement = null;
+                dragState.draggedIds = [];
+                dragState.lastDropTarget = null;
+            },
+            // --- END: DRAG-AND-DROP REWORK ---
+            
+            async persistGroupDropOrder(draggedIds, targetId) {
+                const stack = appState.stacks[appState.grid.stack];
+                
+                let newOrder = [];
+                const draggedFiles = [];
+                const remainingFiles = [];
+
+                stack.forEach(file => {
+                    if (draggedIds.includes(file.id)) {
+                        draggedFiles.push(file);
+                    } else {
+                        remainingFiles.push(file);
+                    }
+                });
+
+                const targetIndex = remainingFiles.findIndex(f => f.id === targetId);
+
+                if (targetIndex !== -1) {
+                    newOrder = [
+                        ...remainingFiles.slice(0, targetIndex),
+                        ...draggedFiles,
+                        ...remainingFiles.slice(targetIndex)
+                    ];
+                } else {
+                    newOrder = [...remainingFiles, ...draggedFiles];
+                }
 
                 appState.stacks[appState.grid.stack] = newOrder;
                 
@@ -3836,12 +3886,12 @@
             }
         }
         
-        // ===== Gesture System =====
+        // ===== Gesture System (REWORKED FOR FOCUS MODE) =====
         function setupGestureSystem() {
             let startPos = { x: 0, y: 0 };
             let currentPos = { x: 0, y: 0 };
+            let startTime = 0;
             let gestureStarted = false;
-            let gestureStartTime = 0;
 
             const edgeElements = [utils.elements.edgeTop, utils.elements.edgeBottom, utils.elements.edgeLeft, utils.elements.edgeRight];
             
@@ -3905,21 +3955,23 @@
             function handleStart(e) {
                 if (e.touches && e.touches.length > 1) return;
                 if (appState.imageFiles.length === 0 || appState.currentImageIndex === -1) return;
-                if (appState.currentScale > 1.1) return;
+                if (appState.currentScale > 1.1 && !appState.isFocusMode) return;
                 
                 const point = e.touches ? e.touches[0] : e;
                 
-                gestureStartTime = Date.now();
                 startPos = { x: point.clientX, y: point.clientY };
                 currentPos = { x: point.clientX, y: point.clientY };
+                startTime = Date.now();
                 gestureStarted = false;
                 
                 appState.isDragging = true;
+                if (!appState.isFocusMode) {
+                    utils.elements.centerImage.classList.add('dragging');
+                }
             }
             
             function handleMove(e) {
                 if (!appState.isDragging) return;
-                if (appState.imageFiles.length === 0) return;
                 if (e.touches && e.touches.length > 1) {
                     appState.isDragging = false;
                     utils.elements.centerImage.classList.remove('dragging');
@@ -3936,52 +3988,65 @@
                 const deltaY = currentPos.y - startPos.y;
                 const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
                 
-                if (distance > 10) {
+                if (distance > 10) { // Threshold to begin gesture
                     gestureStarted = true;
                     if (!appState.isFocusMode) {
-                        utils.elements.centerImage.classList.add('dragging');
                         const direction = determineSwipeDirection(deltaX, deltaY);
-                        showEdgeGlow(direction);
+                        if (direction) {
+                            hideAllEdgeGlows();
+                            showEdgeGlow(direction);
+                        }
                     }
+                } else if (!appState.isFocusMode) {
+                    hideAllEdgeGlows();
                 }
             }
             
             function handleEnd(e) {
                 if (!appState.isDragging) return;
-
-                const point = e.changedTouches ? e.changedTouches[0] : e;
-                currentPos = { x: point.clientX, y: point.clientY };
                 
-                const gestureDuration = Date.now() - gestureStartTime;
+                appState.isDragging = false;
+                utils.elements.centerImage.classList.remove('dragging');
+                
+                const endTime = Date.now();
+                const duration = endTime - startTime;
                 const deltaX = currentPos.x - startPos.x;
                 const deltaY = currentPos.y - startPos.y;
                 const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-                appState.isDragging = false;
-                utils.elements.centerImage.classList.remove('dragging');
-                hideAllEdgeGlows();
-
-                if (gestureDuration < 250 && distance < 10) {
+                // --- DETERMINISTIC TAP LOGIC ---
+                // A tap is a short press (<250ms) with minimal movement (<10px).
+                if (duration < 250 && distance < 10) {
                     focusMode.toggle();
-                    return;
+                    hideAllEdgeGlows();
+                    return; // Stop processing, it was a tap.
                 }
 
-                if (!gestureStarted) return;
-
-                if (appState.isFocusMode) {
-                    if (Math.abs(deltaX) > 50) {
-                        if (deltaX < 0) { focusMode.nextImage(); } 
-                        else { focusMode.prevImage(); }
-                    }
-                } else {
-                    if (distance > 80) {
-                        const direction = determineSwipeDirection(deltaX, deltaY);
-                        const targetStack = directionToStack(direction);
-                        if (targetStack) {
-                            executeFlick(targetStack);
+                // --- SWIPE LOGIC (only if not a tap) ---
+                if (gestureStarted) {
+                    if (appState.isFocusMode) {
+                        // Focus Mode: Horizontal swipe navigates images.
+                        if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+                            if (deltaX < 0) {
+                                focusMode.nextImage();
+                            } else {
+                                focusMode.prevImage();
+                            }
+                        }
+                    } else {
+                        // Normal Mode: Flick to stacks.
+                        if (distance > 80) { // Only flick if swipe is significant
+                            const direction = determineSwipeDirection(deltaX, deltaY);
+                            const targetStack = directionToStack(direction);
+                            if (targetStack && direction) {
+                                executeFlick(targetStack);
+                                return;
+                            }
                         }
                     }
                 }
+                
+                hideAllEdgeGlows();
             }
         }
         
@@ -4099,6 +4164,7 @@
                 if (!appState.isFocusMode) return;
                 const stack = appState.stacks[appState.currentStack];
                 const currentFile = appState.imageFiles[appState.currentImageIndex];
+                if (!currentFile || !stack) return;
                 const currentIndexInStack = stack.findIndex(f => f.id === currentFile.id);
 
                 utils.elements.focusStackName.textContent = STACK_NAMES[appState.currentStack];
@@ -4159,7 +4225,7 @@
                 }
             }
         };
-        
+
         // ===== Event Handlers =====
         function setupEventHandlers() {
             // Provider selection
