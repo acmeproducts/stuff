@@ -5,25 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V16 - Final Interactions</title>
+    <title>Orbital8 V14 - Unified Cloud Storage</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V16 - PHASE 16 ===== */
+        /* ===== ORBITAL8 V14 - PHASE 12 ===== */
         /* Changes in this version:
-           - Feature (Focus Mode Rework):
-             - To Enter: A single tap on the main image. This is more intuitive than the filename.
-             - To Exit: A single tap anywhere on the image while in Focus Mode.
-             - The filename overlay is now a standard link that opens the image in a new tab.
-           - Feature (Drag Handle for Reordering):
-             - Replaced "touch-and-hold" with a dedicated drag handle (⠿) that appears on selected items in the grid.
-             - This resolves the conflict with the browser's context menu on mobile devices.
-             - A semi-transparent "ghost" image of the selected items now follows the cursor during a drag.
-             - The "select, then drag the handle" workflow is now fully implemented and functional.
-           - Bug Fix (Stack Order): Corrected the logic for moving images between stacks. The original stack now
-             correctly advances to the next image in its original order without reversing.
-           - Bug Fix (Grid Modal Close Button): Reverted the CSS for the 'X' button to a more robust flexbox
-             -based layout, ensuring it is always visible and correctly positioned in the top-right corner,
-             even on narrow mobile screens.
+           - Bug Fix (Focus Mode Activation): Replaced the faulty tap detection with a robust manual double-tap
+             system that no longer conflicts with single-tap gestures. Double-tap now correctly activates and
+             deactivates Focus Mode.
+           - UI (Focus Mode):
+             - Removed redundant buttons. The original "Details" button is retained.
+             - The Delete button is now reliable and moved to the bottom-right corner.
+             - Added a new label in the top-left corner to display the current stack name.
+             - Added an image counter in the bottom-left corner (e.g., 6/190).
+           - Feature (Focus Mode Stack Switching): The stack name in Focus Mode is clickable, opening a modal
+             to switch to another stack.
+           - Feature (Focus Mode State): The last image viewed in Focus Mode becomes the new top image of the
+             stack upon exiting.
+           - UI (Folder Button): The "Folders" button text is now static for consistency.
+           - UI (Filename Display): The filename overlay is now prepended with the truncated folder name.
         */
         
         :root {
@@ -335,8 +335,8 @@
         /* ===== Enhanced Grid System ===== */
         .modal-header { position: sticky; top: 0; background: white; z-index: 10; border-bottom: 1px solid #e5e7eb; }
         .modal-header-main { padding: 12px 16px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; justify-content: space-between; }
-        .modal-header-left { display: flex; align-items: center; gap: 12px; flex-grow: 1; min-width: 0; }
-        .modal-title { font-size: 20px; font-weight: 500; color: #1f2937; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .modal-header-left { display: flex; align-items: center; gap: 12px; }
+        .modal-title { font-size: 20px; font-weight: 500; color: #1f2937; line-height: 1.5; }
         .select-all-btn {
             background-color: #e5e7eb; color: #4b5563; padding: 2px 8px; border-radius: 9999px; font-size: 14px; font-weight: 500;
             display: inline-block; min-width: 36px; text-align: center; cursor: pointer; transition: background-color 0.2s;
@@ -344,7 +344,7 @@
         .select-all-btn:hover { background-color: #d1d5db; }
         .close-btn {
             color: #6b7280; transition: all 0.2s; cursor: pointer; background: transparent; border: none; border-radius: 6px;
-            padding: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-left: 12px;
+            padding: 4px; display: flex; align-items: center; justify-content: center;
         }
         .close-btn:hover { color: #374151; background: rgba(0, 0, 0, 0.05); }
         .close-btn svg { width: 24px; height: 24px; }
@@ -402,8 +402,6 @@
             align-items: center;
             justify-content: center;
             overflow: hidden;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            border: 2px solid transparent;
         }
         .grid-item::before {
             content: "";
@@ -420,46 +418,14 @@
             opacity: 0;
             transition: opacity 0.3s ease;
         }
-        .grid-image[data-src] { opacity: 0; }
-        .grid-image.loaded { opacity: 1; }
-        .grid-item.selected { border-color: #3b82f6; box-shadow: 0 0 0 2px #3b82f6; }
-        .grid-item.dragging { opacity: 0.4; transform: scale(0.95); }
-        .grid-item.drop-target { border-color: #f59e0b; box-shadow: 0 0 0 2px #f59e0b; }
+        .grid-image[data-src] { /* Style for lazy loading */
+            opacity: 0;
+        }
+        .grid-image.loaded {
+            opacity: 1;
+        }
+        .grid-item.selected { box-shadow: 0 0 0 4px #3b82f6; }
         
-        .drag-handle {
-            position: absolute;
-            top: 4px;
-            right: 4px;
-            width: 24px;
-            height: 24px;
-            background-color: rgba(0, 0, 0, 0.5);
-            color: white;
-            border-radius: 50%;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            line-height: 1;
-            cursor: move;
-            z-index: 2;
-        }
-        .grid-item.selected .drag-handle {
-            display: flex;
-        }
-
-        #drag-ghost {
-            position: absolute;
-            top: 0;
-            left: 0;
-            pointer-events: none;
-            z-index: 100;
-            opacity: 0.7;
-            background: #fff;
-            padding: 4px;
-            border-radius: 6px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        }
-
         /* ===== Details Modal ===== */
         .details-modal-content { max-width: 800px; max-height: 95vh; height: 95vh; display: flex; flex-direction: column; }
         .details-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
@@ -589,6 +555,7 @@
     </style>
 </head>
 <body>
+    <!-- Provider Selection Screen -->
     <div class="screen" id="provider-screen">
         <div class="card">
             <h1 class="title" style="font-size: 32px;">Orbital8</h1>
@@ -629,10 +596,11 @@
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
         <div class="app-footer">
-            - Made with :( by Team Dojo -
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph12.html</a>
         </div>
     </div>
     
+    <!-- Google Drive Auth Screen -->
     <div class="screen hidden" id="gdrive-auth-screen">
         <div class="card">
             <h1 class="title">Google Drive</h1>
@@ -643,10 +611,11 @@
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
         <div class="app-footer">
-            - Made with :( by Team Dojo -
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph12.html</a>
         </div>
     </div>
     
+    <!-- OneDrive Auth Screen -->
     <div class="screen hidden" id="onedrive-auth-screen">
         <div class="card">
             <h1 class="title">OneDrive</h1>
@@ -656,10 +625,11 @@
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
         <div class="app-footer">
-            - Made with :( by Team Dojo -
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph12.html</a>
         </div>
     </div>
     
+    <!-- Google Drive Folder Screen -->
     <div class="screen hidden" id="gdrive-folder-screen">
         <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
             <h2 class="title">Google Drive - Select Folder</h2>
@@ -672,10 +642,11 @@
             </div>
         </div>
         <div class="app-footer">
-            - Made with :( by Team Dojo -
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph12.html</a>
         </div>
     </div>
     
+    <!-- OneDrive Folder Screen -->
     <div class="screen hidden" id="onedrive-folder-screen">
         <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
             <h2 class="title">OneDrive - Select Folder</h2>
@@ -688,10 +659,11 @@
             </div>
         </div>
         <div class="app-footer">
-            - Made with :( by Team Dojo -
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph12.html</a>
         </div>
     </div>
     
+    <!-- Loading Screen -->
     <div class="screen hidden" id="loading-screen" style="z-index: 1500;">
         <div class="card">
             <h2 class="title">Loading Images</h2>
@@ -703,10 +675,11 @@
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
         <div class="app-footer">
-            - Made with :( by Team Dojo -
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph12.html</a>
         </div>
     </div>
     
+    <!-- Main App Container -->
     <div class="app-container hidden" id="app-container">
         <div class="nav-button back" id="back-button">← Folders</div>
         <div class="nav-button details" id="details-button">Details →</div>
@@ -733,6 +706,7 @@
         
         <a id="filename-overlay" class="filename-overlay" href="#" target="_blank"></a>
 
+        <!-- Focus Mode UI -->
         <div id="focus-stack-name" class="focus-mode-ui"></div>
         <div id="focus-image-count" class="focus-mode-ui"></div>
         <button id="focus-delete-btn" class="focus-mode-ui">
@@ -743,13 +717,15 @@
         
         <div id="toast" class="toast"></div>
         <div class="app-footer">
-            - Made with :( by Team Dojo -
+            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph12.html</a>
         </div>
     </div>
     
+    <!-- Enhanced Grid Modal -->
     <div id="grid-modal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
+                <!-- Row 1: Title -->
                 <div class="modal-header-main">
                     <div class="modal-header-left">
                         <h2 id="grid-title" class="modal-title">Grid View</h2>
@@ -762,6 +738,7 @@
                     </button>
                 </div>
                 
+                <!-- Row 2: Selection & Zoom -->
                 <div class="grid-row-2">
                     <span class="selection-count">
                         <span id="selection-text">0 selected</span>
@@ -777,11 +754,13 @@
                     </div>
                 </div>
                 
+                <!-- Row 3: Omni Search -->
                 <div class="grid-row-3">
                     <input type="text" id="omni-search" class="input" placeholder="Search tags, notes, and metadata..." style="margin-bottom: 0; flex-grow: 1;">
                     <button id="omni-search-btn" class="btn btn-primary">Go</button>
                 </div>
                 
+                <!-- Row 4: Reserved for Bulk Actions -->
                 <div class="grid-row-4">
                     <div class="bulk-actions">
                         <button id="tag-selected" class="btn btn-primary">Tag</button>
@@ -798,6 +777,7 @@
         </div>
     </div>
     
+    <!-- Unified Action Modal -->
     <div id="action-modal" class="modal hidden">
         <div class="modal-content action-modal">
             <h3 id="action-title" class="title" style="font-size: 18px; color: #1f2937; margin-bottom: 16px;">Action</h3>
@@ -809,11 +789,12 @@
         </div>
     </div>
     
+    <!-- Details Modal -->
     <div id="details-modal" class="modal hidden">
         <div class="modal-content details-modal-content">
             <div class="details-header">
                 <h3 class="details-title">Image Details</h3>
-                <button id="details-close" class="close-btn" style="position: static;">
+                <button id="details-close" class="close-btn">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -910,23 +891,23 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V16 - PHASE 16 =====
-        /* * Version: V16 P16 (orbital8-v16-ph16.html)
+        // ===== ORBITAL8 V14 - PHASE 12 =====
+        /* * Version: V14 P12 (orbital8-v14-ph12.html)
          * * Changes in this version:
-           - Feature (Focus Mode Rework):
-             - To Enter: A single tap on the main image. This is more intuitive than the filename.
-             - To Exit: A single tap anywhere on the image while in Focus Mode.
-             - The filename overlay is now a standard link that opens the image in a new tab.
-           - Feature (Drag Handle for Reordering):
-             - Replaced "touch-and-hold" with a dedicated drag handle (⠿) that appears on selected items in the grid.
-             - This resolves the conflict with the browser's context menu on mobile devices.
-             - A semi-transparent "ghost" image of the selected items now follows the cursor during a drag.
-             - The "select, then drag the handle" workflow is now fully implemented and functional.
-           - Bug Fix (Stack Order): Corrected the logic for moving images between stacks. The original stack now
-             correctly advances to the next image in its original order without reversing.
-           - Bug Fix (Grid Modal Close Button): Reverted the CSS for the 'X' button to a more robust flexbox
-             -based layout, ensuring it is always visible and correctly positioned in the top-right corner,
-             even on narrow mobile screens.
+           - Bug Fix (Focus Mode Activation): Replaced the faulty tap detection with a robust manual double-tap
+             system that no longer conflicts with single-tap gestures. Double-tap now correctly activates and
+             deactivates Focus Mode.
+           - UI (Focus Mode):
+             - Removed the redundant top-center Details button and the top-right Close button.
+             - The Delete button is now reliable and has been moved to the bottom-right corner.
+             - Added a new label in the top-left corner to display the current stack name.
+             - Added an image counter in the bottom-left corner (e.g., 6/190).
+           - Feature (Focus Mode Stack Switching): The stack name in Focus Mode is clickable, opening a modal
+             to switch to another stack.
+           - Feature (Focus Mode State): The last image viewed in Focus Mode becomes the new top image of the
+             stack upon exiting.
+           - UI (Folder Button): The "Folders" button text is now static for consistency.
+           - UI (Filename Display): The filename overlay is now prepended with the truncated folder name.
         */
         
         // ===== Core Constants & State =====
@@ -946,7 +927,7 @@
             currentImageIndex: -1,
             currentImageLoadId: null, 
             currentStack: 'in',
-            isFocusMode: false,
+            isFocusMode: false, // New state for Focus Mode
             stacks: { in: [], out: [], priority: [], trash: [] },
             isDragging: false,
             isPinching: false,
@@ -963,13 +944,7 @@
                     allFiles: [],
                     renderedCount: 0,
                     observer: null,
-                    batchSize: 20
-                },
-                dragState: {
-                    isTouchDragging: false,
-                    ghostElement: null,
-                    draggedIds: [],
-                    lastDropTarget: null
+                    batchSize: 20 // Number of images to load at a time
                 }
             },
             tags: new Set(),
@@ -1335,7 +1310,7 @@
                 }
             }
             
-            async getMetadata(fileId) {
+            async getMetadata(fileId) { // NOTE: Removed modifiedTime check for Google Drive fix
                 if (!this.db) return null;
                 try {
                     const transaction = this.db.transaction(['metadata'], 'readonly');
@@ -1346,6 +1321,8 @@
                         request.onerror = () => reject(request.error);
                     });
                     
+                    // For Google Drive, we can't trust modifiedTime.
+                    // For OneDrive, it's safe. We accept the cached data if it exists.
                     if (result) {
                         return result.metadata;
                     }
@@ -1356,7 +1333,7 @@
                 return null;
             }
             
-            async setMetadata(fileId, metadata) {
+            async setMetadata(fileId, metadata) { // NOTE: Removed modifiedTime
                 if (!this.db) return;
                 try {
                     const transaction = this.db.transaction(['metadata'], 'readwrite');
@@ -1482,12 +1459,13 @@
                     let response;
 
                     if (appState.currentProviderType === 'googledrive') {
+                        // ROBUSTNESS FIX: Always use the makeApiCall wrapper to handle token refreshes.
                         response = await appState.currentProvider.makeApiCall(`/files/${file.id}?alt=media`, {
                             headers: { 'Range': 'bytes=0-65535' },
                             signal: this.abortController.signal
-                        }, false);
+                        }, false); // isJson = false
                     } else {
-                        const accessToken = await appState.currentProvider.getAccessToken();
+                        const accessToken = await appState.currentProvider.getAccessToken(); // OneDrive handles this internally.
                         response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`, {
                             headers: { 
                                 'Authorization': `Bearer ${accessToken}`,
@@ -2198,6 +2176,9 @@
 
         // ===== Export System =====
         class ExportSystem {
+            // NOTE: The primary logic for fetching data has been moved to the new Live Export Process.
+            // This class is now only responsible for formatting and downloading the final data.
+            
             async exportData(imagesWithMetadata) {
                 if (imagesWithMetadata.length === 0) {
                     utils.showToast('No images to export', 'info', true);
@@ -2278,7 +2259,7 @@
             downloadCSV(data) {
                 const folderName = appState.currentFolder.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
                 const stackName = appState.grid.stack;
-                const date = new Date().toISOString().split('T')[0];
+                const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
                 const filename = `orbital8_${folderName}_${stackName}_${date}.csv`;
 
                 const csvContent = data.map(row => 
@@ -2373,6 +2354,7 @@
                 };
                 
                 try {
+                    // Cloud-First: Always fetch, never trust cache for file list
                     utils.elements.loadingMessage.textContent = `Loading images from ${appState.currentProviderType}...`;
                     
                     if (appState.currentProviderType === 'onedrive' && appState.currentProvider.metadataManager) {
@@ -2559,9 +2541,10 @@
                     
                     try {
                         await Promise.allSettled(batchPromises);
+                        // This data is volatile and just for the "Details" view, so we don't cache the whole file list here.
                         
                         if (i + BATCH_SIZE < pngFiles.length) {
-                            await new Promise(resolve => setTimeout(resolve, 100));
+                            await new Promise(resolve => setTimeout(resolve, 100)); // Increased delay
                         }
                         
                     } catch (error) {
@@ -2582,6 +2565,7 @@
                     return;
                 }
                 
+                // This is a "best effort" background process. The robust logic is in the Live Export.
                 try {
                     const metadata = await appState.metadataExtractor.fetchMetadata(file);
                     
@@ -2596,6 +2580,7 @@
                     file.metadataStatus = 'loaded';
                     
                 } catch (error) {
+                    // Fail silently. The Live Export process is the source of truth.
                     console.warn(`Background metadata extraction failed for ${file.name}: ${error.message}`);
                     file.metadataStatus = 'error';
                 }
@@ -2624,6 +2609,11 @@
             },
 
             rebuildStacks() {
+                const currentOrder = {};
+                STACK_TYPES.forEach(s => {
+                    currentOrder[s] = appState.stacks[s].map(f => f.id);
+                });
+
                 STACK_TYPES.forEach(stack => { appState.stacks[stack] = []; });
                 
                 appState.imageFiles.forEach(file => {
@@ -2702,7 +2692,7 @@
                     return;
                 }
 
-                utils.elements.detailsButton.style.display = 'flex';
+                utils.elements.detailsButton.style.display = 'flex'; // FIX: Show details button
                 
                 await utils.setImageSrc(utils.elements.centerImage, currentFile);
                 
@@ -2748,23 +2738,25 @@
                 let newSequence;
         
                 if (currentStackName === targetStack) {
+                    // FIX: When moving to the same stack, send to back by giving it the OLDEST timestamp.
                     const currentStackArray = appState.stacks[currentStackName];
                     const otherImages = currentStackArray.filter(img => img.id !== currentImage.id);
                     if (otherImages.length > 0) {
                         const minSequence = Math.min(...otherImages.map(img => img.stackSequence || 0));
                         newSequence = minSequence - 1;
                     } else {
-                        newSequence = Date.now();
+                        newSequence = Date.now(); // Only image in stack, timestamp doesn't matter as much.
                     }
         
                     const index = currentStackArray.findIndex(img => img.id === currentImage.id);
                     if (index > -1) {
                         const [item] = currentStackArray.splice(index, 1);
                         item.stackSequence = newSequence;
-                        currentStackArray.push(item);
+                        currentStackArray.push(item); // Manually move to end of array for immediate visual feedback
                         await masterController.updateUserMetadata(item.id, { stackSequence: newSequence });
                     }
                 } else {
+                    // Original logic: When moving to a NEW stack, give it the NEWEST timestamp to appear first.
                     newSequence = Date.now();
                     const oldStack = appState.stacks[currentStackName];
                     const oldIndex = oldStack.findIndex(img => img.id === currentImage.id);
@@ -2775,7 +2767,11 @@
                     await masterController.moveFileToStack(currentImage.id, targetStack, newSequence);
                 }
                 
+                // The sort will now work correctly for both cases.
                 appState.stacks[targetStack] = this.sortFiles(appState.stacks[targetStack]);
+                if (currentStackName !== targetStack) {
+                     appState.stacks[currentStackName] = this.sortFiles(appState.stacks[currentStackName]);
+                }
         
                 this.updateStackCounts();
                 this.updateActiveProxTab();
@@ -2808,7 +2804,7 @@
                 appState.currentImageLoadId = null;
                 utils.elements.centerImage.style.opacity = '0';
                 utils.elements.filenameOverlay.classList.remove('visible');
-                utils.elements.detailsButton.style.display = 'none';
+                utils.elements.detailsButton.style.display = 'none'; // FIX: Hide details button
                 setTimeout(() => {
                     utils.elements.centerImage.src = '';
                     utils.elements.centerImage.alt = 'No images in this stack';
@@ -2819,13 +2815,14 @@
             }
         };
 
-        // ===== Enhanced Grid View with Lazy Loading & Drag/Drop =====
+        // ===== Enhanced Grid View with Lazy Loading =====
         const gridView = {
             open(stack) {
                 utils.showModal('grid-modal');
                 utils.elements.gridTitle.textContent = STACK_NAMES[stack] || stack;
                 appState.grid.stack = stack;
                 
+                // Reset states
                 appState.grid.selected = [];
                 appState.grid.filtered = [];
                 utils.elements.gridContainer.innerHTML = '';
@@ -2833,11 +2830,6 @@
                 this.initializeLazyLoad(stack);
                 this.updateSelectionUI();
                 commonFunctions.updateStackCounts();
-                this.enableTouchDragDrop();
-                
-                // Set initial grid size
-                const value = utils.elements.gridSize.value;
-                utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
             },
             
             close() {
@@ -2875,11 +2867,12 @@
 
                 this.renderBatch();
 
+                // Setup IntersectionObserver
                 if (state.observer) state.observer.disconnect();
                 
                 state.observer = new IntersectionObserver(this.handleIntersection.bind(this), { 
                     root: utils.elements.gridContent, 
-                    rootMargin: "400px"
+                    rootMargin: "400px" // Pre-fetch images 400px before they are visible
                 });
 
                 const sentinel = document.getElementById('grid-sentinel');
@@ -2903,6 +2896,7 @@
                 const container = utils.elements.gridContainer;
                 const filesToRender = state.allFiles.slice(state.renderedCount, state.renderedCount + state.batchSize);
 
+                // Disconnect from old sentinel before removing it
                 const oldSentinel = document.getElementById('grid-sentinel');
                 if (oldSentinel && state.observer) {
                     state.observer.unobserve(oldSentinel);
@@ -2921,35 +2915,28 @@
                     const img = document.createElement('img');
                     img.className = 'grid-image';
                     img.alt = file.name || 'Image';
-                    img.dataset.src = utils.generateImageUrl(file);
+                    img.dataset.src = utils.generateImageUrl(file); // Store URL in data-src
 
-                    const handle = document.createElement('div');
-                    handle.className = 'drag-handle';
-                    handle.innerHTML = '⠿';
-                    
                     img.onload = () => img.classList.add('loaded');
                     img.onerror = () => {
                         img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
                         img.classList.add('loaded');
                     };
                     
-                    div.addEventListener('click', e => {
-                        if (e.target !== handle) {
-                            this.toggleSelection(e, file.id);
-                        }
-                    });
+                    div.addEventListener('click', e => this.toggleSelection(e, file.id));
                     
                     div.appendChild(img);
-                    div.appendChild(handle);
                     container.appendChild(div);
                 });
 
+                // Trigger loading for the new batch
                 container.querySelectorAll('.grid-image:not([src])').forEach(img => {
                     img.src = img.dataset.src;
                 });
 
                 state.renderedCount += filesToRender.length;
 
+                // Add a new sentinel if there are more files to load
                 if (state.renderedCount < state.allFiles.length) {
                     const sentinel = document.createElement('div');
                     sentinel.id = 'grid-sentinel';
@@ -3048,168 +3035,6 @@
                     
                     return regex.test(searchableText);
                 });
-            },
-
-            // --- START: DRAG-AND-DROP REWORK ---
-            enableTouchDragDrop() {
-                utils.elements.gridContainer.removeEventListener('touchstart', this.handleTouchDragStart);
-                utils.elements.gridContainer.addEventListener('touchstart', this.handleTouchDragStart.bind(this));
-            },
-
-            createDragGhost(sourceElement, selectedIds) {
-                const ghost = document.createElement('div');
-                ghost.id = 'drag-ghost';
-                const img = sourceElement.querySelector('.grid-image');
-                if (img) {
-                    const clone = img.cloneNode(true);
-                    clone.style.width = '80px';
-                    clone.style.height = '80px';
-                    clone.style.opacity = '1';
-                    ghost.appendChild(clone);
-                }
-                if (selectedIds.length > 1) {
-                    const count = document.createElement('span');
-                    count.textContent = `+${selectedIds.length - 1}`;
-                    count.style.cssText = 'position: absolute; bottom: 5px; right: 5px; background: #3b82f6; color: white; border-radius: 50%; padding: 2px 6px; font-size: 12px; font-weight: bold;';
-                    ghost.appendChild(count);
-                }
-                return ghost;
-            },
-
-            handleTouchDragStart(e) {
-                const handle = e.target.closest('.drag-handle');
-                if (!handle) return;
-                
-                e.preventDefault();
-                e.stopPropagation();
-
-                const targetItem = handle.closest('.grid-item');
-                const fileId = targetItem.dataset.fileId;
-
-                if (!appState.grid.selected.includes(fileId)) {
-                    this.deselectAll();
-                    this.toggleSelection({ currentTarget: targetItem }, fileId);
-                }
-
-                const dragState = appState.grid.dragState;
-                dragState.isTouchDragging = true;
-                dragState.draggedIds = [...appState.grid.selected];
-                dragState.ghostElement = this.createDragGhost(targetItem, dragState.draggedIds);
-                document.body.appendChild(dragState.ghostElement);
-
-                const touch = e.touches[0];
-                dragState.ghostElement.style.transform = `translate(${touch.clientX - 40}px, ${touch.clientY - 40}px)`;
-
-                // Bind move and end listeners to the document to capture movement anywhere on the screen
-                this._handleTouchDragMove = this.handleTouchDragMove.bind(this);
-                this._handleTouchDragEnd = this.handleTouchDragEnd.bind(this);
-                document.addEventListener('touchmove', this._handleTouchDragMove, { passive: false });
-                document.addEventListener('touchend', this._handleTouchDragEnd);
-                document.addEventListener('touchcancel', this._handleTouchDragEnd);
-            },
-
-            handleTouchDragMove(e) {
-                const dragState = appState.grid.dragState;
-                if (!dragState.isTouchDragging) return;
-                
-                e.preventDefault();
-
-                const touch = e.touches[0];
-                dragState.ghostElement.style.transform = `translate(${touch.clientX - 40}px, ${touch.clientY - 40}px)`;
-
-                const elementUnder = document.elementFromPoint(touch.clientX, touch.clientY);
-                const dropTarget = elementUnder ? elementUnder.closest('.grid-item') : null;
-
-                if (dragState.lastDropTarget && dragState.lastDropTarget !== dropTarget) {
-                    dragState.lastDropTarget.classList.remove('drop-target');
-                }
-
-                if (dropTarget && !dragState.draggedIds.includes(dropTarget.dataset.fileId)) {
-                    dropTarget.classList.add('drop-target');
-                    dragState.lastDropTarget = dropTarget;
-                } else {
-                    dragState.lastDropTarget = null;
-                }
-            },
-
-            handleTouchDragEnd(e) {
-                const dragState = appState.grid.dragState;
-                if (!dragState.isTouchDragging) return;
-
-                // Cleanup listeners immediately
-                document.removeEventListener('touchmove', this._handleTouchDragMove);
-                document.removeEventListener('touchend', this._handleTouchDragEnd);
-                document.removeEventListener('touchcancel', this._handleTouchDragEnd);
-
-                if (dragState.lastDropTarget) {
-                    const targetFileId = dragState.lastDropTarget.dataset.fileId;
-                    this.persistGroupDropOrder(dragState.draggedIds, targetFileId);
-                    dragState.lastDropTarget.classList.remove('drop-target');
-                }
-                
-                // Cleanup ghost and state
-                if (dragState.ghostElement) {
-                    dragState.ghostElement.remove();
-                }
-                
-                dragState.isTouchDragging = false;
-                dragState.ghostElement = null;
-                dragState.draggedIds = [];
-                dragState.lastDropTarget = null;
-            },
-            // --- END: DRAG-AND-DROP REWORK ---
-            
-            async persistGroupDropOrder(draggedIds, targetId) {
-                const stack = appState.stacks[appState.grid.stack];
-                
-                let newOrder = [];
-                const draggedFiles = [];
-                const remainingFiles = [];
-
-                stack.forEach(file => {
-                    if (draggedIds.includes(file.id)) {
-                        draggedFiles.push(file);
-                    } else {
-                        remainingFiles.push(file);
-                    }
-                });
-
-                const targetIndex = remainingFiles.findIndex(f => f.id === targetId);
-
-                if (targetIndex !== -1) {
-                    newOrder = [
-                        ...remainingFiles.slice(0, targetIndex),
-                        ...draggedFiles,
-                        ...remainingFiles.slice(targetIndex)
-                    ];
-                } else {
-                    newOrder = [...remainingFiles, ...draggedFiles];
-                }
-
-                appState.stacks[appState.grid.stack] = newOrder;
-                
-                const container = utils.elements.gridContainer;
-                container.innerHTML = '';
-                this.initializeLazyLoad(appState.grid.stack);
-
-                const newTimestamp = Date.now();
-                const updates = newOrder.map((file, index) => ({
-                    id: file.id,
-                    sequence: newTimestamp - index,
-                }));
-
-                utils.showToast(`Saving new order...`, 'info');
-                try {
-                    const updatePromises = updates.map(u => {
-                        const file = appState.imageFiles.find(f => f.id === u.id);
-                        file.stackSequence = u.sequence;
-                        return masterController.updateUserMetadata(u.id, { stackSequence: u.sequence });
-                    });
-                    await Promise.all(updatePromises);
-                    utils.showToast('New order saved!', 'success');
-                } catch (error) {
-                    utils.showToast('Error saving new order', 'error', true);
-                }
             }
         };
 
@@ -3707,6 +3532,7 @@
                     utils.showToast(successMessage.replace('{count}', promises.length), 'success', true);
                     this.hide();
                     
+                    // Refresh grid view
                     gridView.destroyLazyLoad();
                     gridView.initializeLazyLoad(appState.grid.stack);
                     appState.grid.selected = [];
@@ -3761,6 +3587,7 @@
                 await this.executeBulkAction(async (fileId) => {
                     await masterController.deleteFile(fileId);
                     
+                    // Remove from local state
                     const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
                     if (fileIndex > -1) {
                         const [file] = appState.imageFiles.splice(fileIndex, 1);
@@ -3772,6 +3599,7 @@
                 }, `Moved {count} images to provider trash`);
             },
             
+            // ===== NEW: LIVE EXPORT PROCESS =====
             async executeExport() {
                 const fileIds = [...appState.grid.selected];
                 const filesToExport = fileIds.map(id => appState.imageFiles.find(f => f.id === id)).filter(f => f);
@@ -3779,6 +3607,7 @@
                 const results = [];
                 let failures = 0;
                 
+                // 1. Setup the new UI in the modal
                 utils.elements.actionTitle.textContent = `Live Export: 0 of ${total}`;
                 utils.elements.actionContent.innerHTML = `
                     <div style="background: #111; border: 1px solid #333; color: #eee; font-family: monospace; font-size: 12px; height: 250px; overflow-y: scroll; padding: 8px; white-space: pre-wrap;" id="export-log"></div>
@@ -3794,6 +3623,7 @@
                 
                 log(`Starting export for ${total} images...`);
                 
+                // 2. Process each file sequentially with retries
                 for (let i = 0; i < filesToExport.length; i++) {
                     const file = filesToExport[i];
                     utils.elements.actionTitle.textContent = `Live Export: ${i + 1} of ${total}`;
@@ -3804,13 +3634,14 @@
                     
                     for (let attempt = 1; attempt <= 3; attempt++) {
                         try {
+                            // This is a fresh, live fetch direct from the cloud
                             const metadata = await appState.metadataExtractor.fetchMetadata(file, true);
                             if (metadata.error) throw new Error(metadata.error);
                             
                             extractedMetadata = metadata;
                             log(`  ✅ Success`);
                             success = true;
-                            break;
+                            break; // Exit retry loop on success
                         } catch (error) {
                             log(`  ⚠️ Attempt ${attempt} failed: ${error.message}`);
                             if (attempt < 3) {
@@ -3830,6 +3661,7 @@
                     });
                 }
                 
+                // 3. Finalize and download
                 log('\n-------------------------------------');
                 log('Export process complete.');
                 log(`Successfully processed: ${total - failures} files.`);
@@ -3886,12 +3718,12 @@
             }
         }
         
-        // ===== Gesture System (REWORKED FOR FOCUS MODE) =====
+        // ===== Gesture System =====
         function setupGestureSystem() {
             let startPos = { x: 0, y: 0 };
             let currentPos = { x: 0, y: 0 };
-            let startTime = 0;
             let gestureStarted = false;
+            let lastTapTime = 0; // For double tap detection
 
             const edgeElements = [utils.elements.edgeTop, utils.elements.edgeBottom, utils.elements.edgeLeft, utils.elements.edgeRight];
             
@@ -3953,25 +3785,36 @@
             document.addEventListener('touchend', handleEnd, { passive: false });
             
             function handleStart(e) {
-                if (e.touches && e.touches.length > 1) return;
+                // Double Tap Logic
+                const currentTime = Date.now();
+                if (currentTime - lastTapTime < 300) { // 300ms threshold for double tap
+                    e.preventDefault();
+                    focusMode.toggle();
+                    lastTapTime = 0; // Reset tap time
+                    return;
+                }
+                lastTapTime = currentTime;
+
+                if (appState.isFocusMode) return; // Don't run in focus mode
                 if (appState.imageFiles.length === 0 || appState.currentImageIndex === -1) return;
-                if (appState.currentScale > 1.1 && !appState.isFocusMode) return;
+                if (e.touches && (e.touches.length > 1 || appState.isPinching)) return;
+                if (appState.currentScale > 1.1) return;
                 
+                // e.preventDefault(); // Don't prevent default immediately, allow tap to register
                 const point = e.touches ? e.touches[0] : e;
                 
                 startPos = { x: point.clientX, y: point.clientY };
                 currentPos = { x: point.clientX, y: point.clientY };
-                startTime = Date.now();
                 gestureStarted = false;
                 
                 appState.isDragging = true;
-                if (!appState.isFocusMode) {
-                    utils.elements.centerImage.classList.add('dragging');
-                }
+                utils.elements.centerImage.classList.add('dragging');
             }
             
             function handleMove(e) {
-                if (!appState.isDragging) return;
+                if (!appState.isDragging || appState.isFocusMode) return;
+                if (appState.imageFiles.length === 0) return;
+                
                 if (e.touches && e.touches.length > 1) {
                     appState.isDragging = false;
                     utils.elements.centerImage.classList.remove('dragging');
@@ -3979,7 +3822,7 @@
                     return;
                 }
                 
-                e.preventDefault();
+                e.preventDefault(); // Prevent default on move to stop scrolling
                 const point = e.touches ? e.touches[0] : e;
                 
                 currentPos = { x: point.clientX, y: point.clientY };
@@ -3988,61 +3831,39 @@
                 const deltaY = currentPos.y - startPos.y;
                 const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
                 
-                if (distance > 10) { // Threshold to begin gesture
+                if (distance > 30) {
                     gestureStarted = true;
-                    if (!appState.isFocusMode) {
-                        const direction = determineSwipeDirection(deltaX, deltaY);
-                        if (direction) {
-                            hideAllEdgeGlows();
-                            showEdgeGlow(direction);
-                        }
+                    const direction = determineSwipeDirection(deltaX, deltaY);
+                    if (direction) {
+                        hideAllEdgeGlows();
+                        showEdgeGlow(direction);
                     }
-                } else if (!appState.isFocusMode) {
+                } else {
                     hideAllEdgeGlows();
                 }
             }
             
             function handleEnd(e) {
-                if (!appState.isDragging) return;
+                if (!appState.isDragging || appState.isFocusMode) return;
                 
                 appState.isDragging = false;
                 utils.elements.centerImage.classList.remove('dragging');
                 
-                const endTime = Date.now();
-                const duration = endTime - startTime;
+                if (!gestureStarted) {
+                    hideAllEdgeGlows();
+                    return;
+                }
+                
                 const deltaX = currentPos.x - startPos.x;
                 const deltaY = currentPos.y - startPos.y;
                 const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-                // --- DETERMINISTIC TAP LOGIC ---
-                // A tap is a short press (<250ms) with minimal movement (<10px).
-                if (duration < 250 && distance < 10) {
-                    focusMode.toggle();
-                    hideAllEdgeGlows();
-                    return; // Stop processing, it was a tap.
-                }
-
-                // --- SWIPE LOGIC (only if not a tap) ---
-                if (gestureStarted) {
-                    if (appState.isFocusMode) {
-                        // Focus Mode: Horizontal swipe navigates images.
-                        if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
-                            if (deltaX < 0) {
-                                focusMode.nextImage();
-                            } else {
-                                focusMode.prevImage();
-                            }
-                        }
-                    } else {
-                        // Normal Mode: Flick to stacks.
-                        if (distance > 80) { // Only flick if swipe is significant
-                            const direction = determineSwipeDirection(deltaX, deltaY);
-                            const targetStack = directionToStack(direction);
-                            if (targetStack && direction) {
-                                executeFlick(targetStack);
-                                return;
-                            }
-                        }
+                
+                if (distance > 80) {
+                    const direction = determineSwipeDirection(deltaX, deltaY);
+                    const targetStack = directionToStack(direction);
+                    if (targetStack && direction) {
+                        executeFlick(targetStack);
+                        return;
                     }
                 }
                 
@@ -4148,6 +3969,7 @@
                 if (appState.isFocusMode) {
                     this.updateUI();
                 } else {
+                    // On exit, re-order the stack
                     const lastViewedFile = appState.imageFiles[appState.currentImageIndex];
                     if (lastViewedFile) {
                         const stackArray = appState.stacks[appState.currentStack];
@@ -4164,7 +3986,6 @@
                 if (!appState.isFocusMode) return;
                 const stack = appState.stacks[appState.currentStack];
                 const currentFile = appState.imageFiles[appState.currentImageIndex];
-                if (!currentFile || !stack) return;
                 const currentIndexInStack = stack.findIndex(f => f.id === currentFile.id);
 
                 utils.elements.focusStackName.textContent = STACK_NAMES[appState.currentStack];
@@ -4205,6 +4026,7 @@
                 try {
                     await masterController.deleteFile(fileToDelete.id);
                     
+                    // Remove from local state
                     const fileIndex = appState.imageFiles.findIndex(f => f.id === fileToDelete.id);
                     if (fileIndex > -1) appState.imageFiles.splice(fileIndex, 1);
                     
@@ -4212,10 +4034,12 @@
                     
                     commonFunctions.updateStackCounts();
                     
+                    // Navigate to the next image or show empty state
                     if (currentStackArray.length === 0) {
-                        this.toggle();
+                        this.toggle(); // Exit focus mode if stack is empty
                         commonFunctions.showEmptyState();
                     } else {
+                        // Stay on the image that is now at the current index
                         const nextFile = currentStackArray[stackIndex % currentStackArray.length];
                         appState.currentImageIndex = appState.imageFiles.findIndex(f => f.id === nextFile.id);
                         await commonFunctions.displayCurrentImage();
@@ -4226,6 +4050,37 @@
             }
         };
 
+        function setupFocusModeGestures() {
+            let startX = 0;
+            let isSwiping = false;
+
+            utils.elements.imageViewport.addEventListener('touchstart', (e) => {
+                if (!appState.isFocusMode || e.touches.length > 1) return;
+                startX = e.touches[0].clientX;
+                isSwiping = true;
+            });
+
+            utils.elements.imageViewport.addEventListener('touchmove', (e) => {
+                if (!isSwiping || !appState.isFocusMode) return;
+                // We only care about the end of the swipe
+            });
+
+            utils.elements.imageViewport.addEventListener('touchend', (e) => {
+                if (!isSwiping || !appState.isFocusMode) return;
+                isSwiping = false;
+                const endX = e.changedTouches[0].clientX;
+                const deltaX = endX - startX;
+
+                if (Math.abs(deltaX) > 50) { // Swipe threshold
+                    if (deltaX < 0) { // Swipe Left (for next image)
+                        focusMode.nextImage();
+                    } else { // Swipe Right (for previous image)
+                        focusMode.prevImage();
+                    }
+                }
+            });
+        }
+        
         // ===== Event Handlers =====
         function setupEventHandlers() {
             // Provider selection
@@ -4242,7 +4097,7 @@
             document.getElementById('haptic-enabled').addEventListener('change', (e) => {
                 appState.hapticManager.setEnabled(e.target.checked);
             });
-
+            
             // Google Drive auth
             utils.elements.gdriveAuthButton.addEventListener('click', async () => {
                 const clientSecret = utils.elements.gdriveClientSecret.value.trim();
@@ -4348,7 +4203,7 @@
             });
             utils.elements.detailsClose.addEventListener('click', () => detailsModal.hide());
             
-            // Focus Mode UI
+            // Focus Mode
             utils.elements.focusStackName.addEventListener('click', () => modalManager.setupFocusStackSwitch());
             utils.elements.focusDeleteBtn.addEventListener('click', () => focusMode.deleteCurrentImage());
 
@@ -4439,7 +4294,9 @@
             
             utils.elements.actionCancel.addEventListener('click', () => modalManager.hide());
             utils.elements.actionConfirm.addEventListener('click', () => {
-                if (modalManager.currentAction === 'tag') {
+                if (modalManager.currentAction === 'move') {
+                    // Handled by move option buttons
+                } else if (modalManager.currentAction === 'tag') {
                     modalManager.executeTag();
                 } else if (modalManager.currentAction === 'delete') {
                     modalManager.executeDelete();
@@ -4734,6 +4591,7 @@
                 
                 setupEventHandlers();
                 setupGestureSystem();
+                setupFocusModeGestures(); // Initialize the new gesture handler
                 setupPinchZoom();
                 
                 commonFunctions.updateActiveProxTab();
