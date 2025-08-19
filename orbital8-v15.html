@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
-    <title>Orbital8 V19 - Lexo Refactor</title>
+    <title>Orbital8 V20 - Final Refactor</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
         :root {
@@ -199,6 +199,7 @@
             </div>
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
+        <div class="app-footer">Made with JOY by Mike - ;)</div>
     </div>
     
     <!-- Auth & Folder Screens (dynamically populated) -->
@@ -327,21 +328,19 @@
             </div>
         </div>
     </div>
-    <div class="app-footer">made with JOY by Mike - ;)</div>
+    <div class="app-footer">Made with JOY by Mike - ;)</div>
 
     <script>
-        // ===== ORBITAL8 V19 - LEXO REFACTOR =====
+        // ===== ORBITAL8 V20 - FINAL REFACTOR =====
         /*
-         * Changes in this version:
-         * - REFACTOR (Sequencing): Replaced the entire `stackSequence` integer-based system with a robust
-         * Fractional Indexing (lexicographical key) strategy. This is the definitive fix for all ordering issues.
-         * - The new `lexoKey` (a string) is now the single source of truth for image order in all views.
-         * - FIX (Drag & Drop): Drag-and-drop operations are now atomic and efficient. It only updates the `lexoKey`
-         * for the moved items, completely eliminating API rate-limit errors and the "unable to save order" message.
-         * - FIX (Ghost Images): The visual glitch causing ghost images after a drop is resolved.
-         * - FIX (Focus Mode Sync): Image order is now perfectly consistent between Focus Mode, Grid View, and the main
-         * Center Stage view. Exiting Focus Mode correctly preserves the viewing order in the active stack.
-         * - UPDATE (Footer): The footer has been updated per the latest request.
+         * This version implements the definitive "Get Well Plan" based on user feedback.
+         * - REFACTOR (Sequencing): The entire app now uses a Fractional Indexing (lexicographical key)
+         * strategy via a `lexoKey` property. This is the single source of truth for all image ordering.
+         * - FIX (Drag & Drop): Operations are now atomic and efficient. The "unable to save order" error
+         * and "ghost image" artifacts are resolved by adopting a data-first rendering approach.
+         * - FIX (Focus Mode Sync): Order is now perfectly consistent across all views. The last image
+         * viewed in Focus Mode reliably becomes the new top image of its stack, per the clarified user logic.
+         * - UPDATE (Footer): The footer is updated and correctly placed on all screens.
         */
         const STACK_TYPES = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
@@ -548,7 +547,7 @@
             generateImageUrl(file) { throw new Error("GenerateImageUrl method not implemented"); }
             generateFallbackImageUrl(file) { throw new Error("GenerateFallbackImageUrl method not implemented"); }
             async getFileContent(fileId, range, signal) { throw new Error("GetFileContent method not implemented"); }
-            parseFileMetadata(file) { return { stack: 'in', tags: [], qualityRating: 0, contentRating: 0, notes: '', lexoKey: lexoKey.generate() }; }
+            parseFileMetadata(file) { return { stack: 'in', tags: [], qualityRating: 0, contentRating: 0, notes: '', lexoKey: null }; }
         }
 
         class GoogleDriveProvider extends BaseStorageProvider {
@@ -817,10 +816,9 @@
                     let files = result.files || [];
                     if (files.length === 0) { utils.showToast('No images found', 'info', true); this.showFolderUI(); return; }
                     
-                    // Assign initial lexoKeys to any files that don't have one
                     const filesToUpdate = [];
                     let lastKey = null;
-                    files.sort((a,b) => (a.name || '').localeCompare(b.name || '')); // Initial sort for consistency
+                    files.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
                     
                     files = files.map(file => {
                         const parsed = { ...file, ...appState.currentProvider.parseFileMetadata(file), extractedMetadata: {}, metadataStatus: 'pending' };
@@ -934,12 +932,10 @@
                 
                 let newLexoKey;
                 if (currentStackName === targetStack) {
-                    // Move to end of the same stack
                     const currentStackArray = appState.stacks[currentStackName];
                     const lastItemKey = currentStackArray.length > 1 ? currentStackArray[currentStackArray.length - 1].lexoKey : null;
                     newLexoKey = lexoKey.generate(lastItemKey, null);
                 } else {
-                    // Move to top of a new stack
                     const targetStackArray = appState.stacks[targetStack];
                     const firstItemKey = targetStackArray.length > 0 ? targetStackArray[0].lexoKey : null;
                     newLexoKey = lexoKey.generate(null, firstItemKey);
@@ -985,8 +981,7 @@
                 appState.grid.stack = stack; 
                 appState.grid.selected = []; 
                 appState.grid.filtered = []; 
-                utils.elements.gridContainer.innerHTML = ''; 
-                this.initializeLazyLoad(stack); 
+                this.renderGridFromState();
                 this.updateSelectionUI(); 
                 commonFunctions.updateStackCounts(); 
                 this.enableTouchDragDrop(); 
@@ -994,22 +989,16 @@
                 utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`; 
             },
             close() {
-                utils.hideModal('gridModal'); this.resetSearch(); this.destroyLazyLoad();
-                if (appState.grid.selected.length === 1) { const selectedIndex = appState.imageFiles.findIndex(f => f.id === appState.grid.selected[0]); if (selectedIndex !== -1) { appState.currentImageIndex = selectedIndex; commonFunctions.displayCurrentImage(); } } else { commonFunctions.displayTopImageFromStack(appState.currentStack); }
+                utils.hideModal('gridModal'); this.resetSearch();
+                commonFunctions.displayTopImageFromStack(appState.currentStack);
                 appState.grid.stack = null; appState.grid.selected = [];
             },
-            initializeLazyLoad(stack) {
-                const state = appState.grid.lazyLoadState; state.allFiles = appState.grid.filtered.length > 0 ? appState.grid.filtered : appState.stacks[stack];
-                state.renderedCount = 0; utils.elements.selectAllBtn.textContent = state.allFiles.length;
-                this.renderBatch(); if (state.observer) state.observer.disconnect();
-                state.observer = new IntersectionObserver((entries) => { if (entries[0].isIntersecting) this.renderBatch(); }, { root: utils.elements.gridContent, rootMargin: "400px" });
-                const sentinel = document.getElementById('grid-sentinel'); if (sentinel) state.observer.observe(sentinel);
-            },
-            destroyLazyLoad() { const state = appState.grid.lazyLoadState; if (state.observer) { state.observer.disconnect(); state.observer = null; } state.allFiles = []; state.renderedCount = 0; },
-            renderBatch() {
-                const state = appState.grid.lazyLoadState; const container = utils.elements.gridContainer;
-                const filesToRender = state.allFiles.slice(state.renderedCount, state.renderedCount + state.batchSize);
-                const oldSentinel = document.getElementById('grid-sentinel'); if (oldSentinel && state.observer) { state.observer.unobserve(oldSentinel); oldSentinel.remove(); }
+            renderGridFromState() {
+                const container = utils.elements.gridContainer;
+                container.innerHTML = ''; // Clear the grid
+                const filesToRender = appState.grid.filtered.length > 0 ? appState.grid.filtered : appState.stacks[appState.grid.stack];
+                utils.elements.selectAllBtn.textContent = filesToRender.length;
+
                 filesToRender.forEach(file => {
                     const div = document.createElement('div'); div.className = 'grid-item'; div.dataset.fileId = file.id;
                     if (appState.grid.selected.includes(file.id)) div.classList.add('selected');
@@ -1019,22 +1008,24 @@
                     div.addEventListener('click', e => { if (e.target !== handle) this.toggleSelection(e, file.id); });
                     div.appendChild(img); div.appendChild(handle); container.appendChild(div);
                 });
-                state.renderedCount += filesToRender.length;
-                if (state.renderedCount < state.allFiles.length) { const sentinel = document.createElement('div'); sentinel.id = 'grid-sentinel'; container.appendChild(sentinel); if (state.observer) state.observer.observe(sentinel); }
             },
             toggleSelection(e, fileId) { const item = e.currentTarget; const index = appState.grid.selected.indexOf(fileId); if (index === -1) { appState.grid.selected.push(fileId); item.classList.add('selected'); } else { appState.grid.selected.splice(index, 1); item.classList.remove('selected'); } this.updateSelectionUI(); },
             updateSelectionUI() { const count = appState.grid.selected.length; utils.elements.selectionText.textContent = `${count} selected`; document.querySelectorAll('.bulk-actions .btn').forEach(btn => btn.disabled = count === 0); },
-            selectAll() { appState.grid.selected = appState.grid.lazyLoadState.allFiles.map(f => f.id); document.querySelectorAll('#grid-container .grid-item').forEach(item => item.classList.add('selected')); this.updateSelectionUI(); },
+            selectAll() { 
+                const filesToSelect = appState.grid.filtered.length > 0 ? appState.grid.filtered : appState.stacks[appState.grid.stack];
+                appState.grid.selected = filesToSelect.map(f => f.id); 
+                document.querySelectorAll('#grid-container .grid-item').forEach(item => item.classList.add('selected')); this.updateSelectionUI(); 
+            },
             deselectAll() { document.querySelectorAll('#grid-container .grid-item.selected').forEach(item => item.classList.remove('selected')); appState.grid.selected = []; this.updateSelectionUI(); },
             performSearch() {
                 const query = utils.elements.omniSearch.value.trim(); appState.grid.selected = [];
-                if (!query) return this.resetSearch();
+                if (!query) { this.resetSearch(); return; }
                 const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*').replace(/\\\?/g, '.'), 'i');
                 appState.grid.filtered = appState.stacks[appState.grid.stack].filter(file => regex.test([file.name || '', file.tags?.join(' ') || '', file.notes || '', JSON.stringify(file.extractedMetadata || {})].join(' ')));
-                appState.grid.selected = appState.grid.filtered.map(f => f.id); utils.elements.gridContainer.innerHTML = '';
-                this.initializeLazyLoad(appState.grid.stack); this.updateSelectionUI();
+                this.renderGridFromState();
+                this.updateSelectionUI();
             },
-            resetSearch() { utils.elements.omniSearch.value = ''; appState.grid.filtered = []; utils.elements.gridContainer.innerHTML = ''; this.initializeLazyLoad(appState.grid.stack); commonFunctions.updateStackCounts(); },
+            resetSearch() { utils.elements.omniSearch.value = ''; appState.grid.filtered = []; this.renderGridFromState(); commonFunctions.updateStackCounts(); },
             enableTouchDragDrop() { utils.elements.gridContainer.removeEventListener('touchstart', this.handleTouchDragStart); utils.elements.gridContainer.addEventListener('touchstart', this.handleTouchDragStart.bind(this)); },
             createDragGhost(sourceElement, selectedIds) {
                 const ghost = document.createElement('div'); ghost.id = 'drag-ghost';
@@ -1103,21 +1094,14 @@
                     file.lexoKey = newKeys[index];
                     return { id: file.id, lexoKey: file.lexoKey };
                 });
-
+                
                 const newOrder = (targetIndex !== -1) ? 
                     [...remainingFiles.slice(0, targetIndex), ...draggedFiles, ...remainingFiles.slice(targetIndex)] : 
                     [...remainingFiles, ...draggedFiles];
                 
-                appState.stacks[appState.grid.stack] = commonFunctions.sortFiles(newOrder);
-
-                const container = utils.elements.gridContainer;
-                const dropTargetElement = container.querySelector(`[data-file-id="${targetId}"]`);
-                draggedIds.slice().reverse().forEach(id => {
-                    const draggedElement = container.querySelector(`[data-file-id="${id}"]`);
-                    if (draggedElement) {
-                        container.insertBefore(draggedElement, dropTargetElement);
-                    }
-                });
+                appState.stacks[appState.grid.stack] = newOrder; // Update in-memory truth
+                
+                this.renderGridFromState(); // Re-render from the single source of truth
 
                 utils.showToast(`Saving new order...`, 'info');
                 try {
@@ -1198,7 +1182,7 @@
             setupExportAction() { this.show('export', { title: 'Export to Spreadsheet', content: `<p style="color: #4b5563;">This will start a live export for ${appState.grid.selected.length} selected image(s), fetching fresh data from the cloud.</p>`, confirmText: 'Begin Export' }); },
             setupFocusStackSwitch() { const available = STACK_TYPES.filter(s => s !== appState.currentStack && appState.stacks[s].length > 0); this.show('focus-stack-switch', { title: 'Switch Stack', content: available.length > 0 ? available.map(s => `<button class="move-option btn-base" data-stack="${s}" style="width:100%;text-align:left;padding:8px 16px;">${STACK_NAMES[s]} (${appState.stacks[s].length})</button>`).join('') : `<p style="color:#4b5563;text-align:center;">No other stacks have images.</p>`, confirmText: 'Cancel' }); document.querySelectorAll('.move-option').forEach(opt => opt.onclick = () => { switchToStack(opt.dataset.stack); focusMode.updateUI(); this.hide(); }); },
             setupFolderMoveAction() { this.show('folder-move', { title: 'Move to Different Folder', content: `<p style="color: #4b5563;">This will move ${appState.grid.selected.length} image(s) to a different folder.</p>`, confirmText: 'Choose Destination' }); },
-            async executeBulkAction(actionFn, successMessage) { const btn = utils.elements.actionConfirm; const originalText = btn.textContent; btn.disabled = true; btn.textContent = 'Processing...'; try { const promises = appState.grid.selected.map(id => actionFn(id)); await Promise.all(promises); utils.showToast(successMessage.replace('{count}', promises.length), 'success', true); this.hide(); gridView.destroyLazyLoad(); gridView.initializeLazyLoad(appState.grid.stack); appState.grid.selected = []; gridView.updateSelectionUI(); commonFunctions.updateStackCounts(); } catch (e) { utils.showToast(`Failed: ${e.message}`, 'error', true); } finally { btn.disabled = false; btn.textContent = originalText; } },
+            async executeBulkAction(actionFn, successMessage) { const btn = utils.elements.actionConfirm; const originalText = btn.textContent; btn.disabled = true; btn.textContent = 'Processing...'; try { const promises = appState.grid.selected.map(id => actionFn(id)); await Promise.all(promises); utils.showToast(successMessage.replace('{count}', promises.length), 'success', true); this.hide(); gridView.renderGridFromState(); appState.grid.selected = []; gridView.updateSelectionUI(); commonFunctions.updateStackCounts(); } catch (e) { utils.showToast(`Failed: ${e.message}`, 'error', true); } finally { btn.disabled = false; btn.textContent = originalText; } },
             async executeMove(targetStack) { await this.executeBulkAction(async (id) => { const file = appState.imageFiles.find(f => f.id === id); if (file) { const currentStack = file.stack; const targetStackArray = appState.stacks[targetStack]; const firstItemKey = targetStackArray.length > 0 ? targetStackArray[0].lexoKey : null; const newLexoKey = lexoKey.generate(null, firstItemKey); await masterController.updateUserMetadata(id, { stack: targetStack, lexoKey: newLexoKey }); const idx = appState.stacks[currentStack].findIndex(f => f.id === id); if (idx > -1) appState.stacks[currentStack].splice(idx, 1); appState.stacks[targetStack].unshift(file); appState.stacks[targetStack] = commonFunctions.sortFiles(appState.stacks[targetStack]); } }, `Moved {count} images to ${targetStack}`); },
             async executeTag() { const tags = document.getElementById('modal-tag-input').value.split(',').map(t => t.trim()).filter(Boolean); if (!tags.length) return; await this.executeBulkAction(async (id) => { const file = appState.imageFiles.find(f => f.id === id); if (file) { const newTags = [...new Set([...(file.tags || []), ...tags])]; await masterController.updateUserMetadata(id, { tags: newTags }); tags.forEach(t => appState.tags.add(t)); } }, `Tags added to {count} images`); },
             async executeDelete() { await this.executeBulkAction(async (id) => { await masterController.deleteFile(id); const fileIndex = appState.imageFiles.findIndex(f => f.id === id); if (fileIndex > -1) { const [file] = appState.imageFiles.splice(fileIndex, 1); const stackIndex = appState.stacks[file.stack].findIndex(f => f.id === id); if (stackIndex > -1) appState.stacks[file.stack].splice(stackIndex, 1); } }, `Moved {count} images to trash`); },
@@ -1219,7 +1203,7 @@
         };
 
         const focusMode = {
-            toggle() {
+            async toggle() {
                 appState.isFocusMode = !appState.isFocusMode;
                 utils.elements.appContainer.classList.toggle('focus-mode', appState.isFocusMode);
 
@@ -1228,20 +1212,28 @@
                 } else {
                     const lastViewedFile = appState.imageFiles[appState.currentImageIndex];
                     if (lastViewedFile) {
-                        const focusStackName = lastViewedFile.stack;
-                        const stackArray = appState.stacks[focusStackName];
-                        if (stackArray) {
-                            // The sort is now the source of truth, so no manual re-ordering is needed here.
-                            // Just ensure the correct stack is active.
+                        const stack = appState.stacks[lastViewedFile.stack];
+                        if (stack && stack[0].id !== lastViewedFile.id) {
+                            // Generate a new key to make this the absolute first item
+                            const newKey = lexoKey.generate(null, stack[0].lexoKey);
+                            await masterController.updateUserMetadata(lastViewedFile.id, { lexoKey: newKey });
+                            appState.stacks[lastViewedFile.stack] = commonFunctions.sortFiles(stack);
                         }
-                        appState.currentStack = focusStackName;
+                        appState.currentStack = lastViewedFile.stack;
                         commonFunctions.updateActiveProxTab();
                     }
                     commonFunctions.displayTopImageFromStack(appState.currentStack);
                 }
             },
             updateUI() { if (!appState.isFocusMode) return; const stack = appState.stacks[appState.currentStack]; const file = appState.imageFiles[appState.currentImageIndex]; const index = stack.findIndex(f => f.id === file.id); utils.elements.focusStackName.textContent = STACK_NAMES[appState.currentStack]; utils.elements.focusImageCount.textContent = `${index + 1} / ${stack.length}`; },
-            async navigate(direction) { const stack = appState.stacks[appState.currentStack]; if (stack.length === 0) return; const file = appState.imageFiles[appState.currentImageIndex]; const currentIndex = stack.findIndex(f => f.id === file.id); const nextIndex = (currentIndex + direction + stack.length) % stack.length; appState.currentImageIndex = appState.imageFiles.findIndex(f => f.id === stack[nextIndex].id); await commonFunctions.displayCurrentImage(); },
+            async navigate(direction) { // direction: 1 for left (forward), -1 for right (backward)
+                const stack = appState.stacks[appState.currentStack]; if (stack.length === 0) return; 
+                const file = appState.imageFiles[appState.currentImageIndex]; 
+                const currentIndex = stack.findIndex(f => f.id === file.id); 
+                const nextIndex = (currentIndex + direction + stack.length) % stack.length; 
+                appState.currentImageIndex = appState.imageFiles.findIndex(f => f.id === stack[nextIndex].id); 
+                await commonFunctions.displayCurrentImage(); 
+            },
             async deleteCurrentImage() {
                 const file = appState.imageFiles[appState.currentImageIndex]; if (!file) return;
                 const stack = appState.stacks[file.stack]; const stackIndex = stack.findIndex(f => f.id === file.id);
@@ -1281,7 +1273,15 @@
             };
             const onPointerUp = async e => {
                 document.querySelectorAll('.edge-glow').forEach(el => el.classList.remove('active'));
-                if (appState.isFocusMode) { if(!isSwiping) return; isSwiping = false; const deltaX = e.clientX - startPos.x; if(Math.abs(deltaX)>50) focusMode.navigate(deltaX < 0 ? 1 : -1); return; }
+                if (appState.isFocusMode) { 
+                    if(!isSwiping) return; 
+                    isSwiping = false; 
+                    const deltaX = e.clientX - startPos.x; 
+                    if(Math.abs(deltaX)>50) {
+                        focusMode.navigate(deltaX < 0 ? 1 : -1); // Left swipe: forward (1), Right swipe: backward (-1)
+                    }
+                    return; 
+                }
                 if (!appState.isDragging) return;
                 appState.isDragging = false; viewport.releasePointerCapture(e.pointerId); utils.elements.centerImage.classList.remove('dragging');
                 if (!gestureStarted) return;
@@ -1324,7 +1324,12 @@
                 utils.elements.actionConfirm.onclick = () => { const actions = { tag: modalManager.executeTag, delete: modalManager.executeDelete, export: modalManager.executeExport, 'folder-move': modalManager.executeFolderMove }; actions[modalManager.currentAction]?.(); };
                 document.addEventListener('keydown', e => {
                     if (document.querySelector('.modal:not(.hidden)') || ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
-                    if (appState.isFocusMode) { if (e.key === 'ArrowRight') focusMode.navigate(1); if (e.key === 'ArrowLeft') focusMode.navigate(-1); if (e.key === 'Escape') focusMode.toggle(); return; }
+                    if (appState.isFocusMode) { 
+                        if (e.key === 'ArrowRight') focusMode.navigate(1); // Right Arrow = Forward
+                        if (e.key === 'ArrowLeft') focusMode.navigate(-1); // Left Arrow = Backward
+                        if (e.key === 'Escape') focusMode.toggle(); 
+                        return; 
+                    }
                     const keyMap = { ArrowUp: 'priority', ArrowDown: 'trash', ArrowLeft: 'in', ArrowRight: 'out' };
                     if (keyMap[e.key]) { e.preventDefault(); if (appState.currentImageIndex !== -1) { acknowledgePillCounter(keyMap[e.key]); commonFunctions.moveToStack(keyMap[e.key]); } }
                     else if (e.key === 'Tab') { e.preventDefault(); const i = STACK_TYPES.indexOf(appState.currentStack); switchToStack(STACK_TYPES[(i + 1) % STACK_TYPES.length]); }
