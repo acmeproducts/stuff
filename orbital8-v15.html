@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
-    <title>Orbital8 V16 - Refactored</title>
+    <title>Orbital8 V17 - Patched</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
         :root {
@@ -327,10 +327,18 @@
             </div>
         </div>
     </div>
-    <div class="app-footer">refactored V2</div>
+    <div class="app-footer">made with JOY by Mike - v1</div>
 
     <script>
-        // ===== ORBITAL8 V16 - REFACTORED V2 =====
+        // ===== ORBITAL8 V17 - PATCHED =====
+        /*
+         * Changes in this version:
+         * - FIX (Drag & Drop): Implemented the robustness patch from the spec.
+         * - Replaced the grid reordering logic to only send API updates for moved items, preventing "unable to save order" errors on OneDrive.
+         * - Confirmed direct DOM manipulation (`insertBefore`) is used instead of `innerHTML` clearing, preventing visual artifacts ("ghost" images).
+         * - FIX (Focus Mode): Corrected the logic for exiting focus mode. The last-viewed image is now reliably set as the new top item of its stack, and the main view updates accordingly.
+         * - UPDATE (Footer): Updated the footer text on all screens per user request.
+        */
         const STACK_TYPES = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
         
@@ -967,27 +975,65 @@
                 if (dragState.ghostElement) { dragState.ghostElement.remove(); }
                 Object.assign(dragState, { isTouchDragging: false, ghostElement: null, draggedIds: [], lastDropTarget: null });
             },
+            // ===== START: DRAG & DROP FIX =====
             async persistGroupDropOrder(draggedIds, targetId) {
-                const stack = appState.stacks[appState.grid.stack]; const draggedFiles = [];
-                const remainingFiles = stack.filter(file => { if (draggedIds.includes(file.id)) { draggedFiles.push(file); return false; } return true; });
+                const stack = appState.stacks[appState.grid.stack];
+                const draggedFiles = [];
+                // Separate dragged files from the rest of the stack
+                const remainingFiles = stack.filter(file => {
+                    if (draggedIds.includes(file.id)) {
+                        draggedFiles.push(file);
+                        return false;
+                    }
+                    return true;
+                });
+
                 const targetIndex = remainingFiles.findIndex(f => f.id === targetId);
-                const newOrder = (targetIndex !== -1) ? [...remainingFiles.slice(0, targetIndex), ...draggedFiles, ...remainingFiles.slice(targetIndex)] : [...remainingFiles, ...draggedFiles];
+
+                // Determine the sequence numbers to insert the dragged items between
+                const seqAfter = (targetIndex !== -1) ? remainingFiles[targetIndex].stackSequence : 0; // If dropping at the end, the sequence is 0
+                const seqBefore = (targetIndex > 0) ? remainingFiles[targetIndex - 1].stackSequence : (Date.now()); // If dropping at the start, use a new high number
+
+                // Calculate new sequence numbers for ONLY the dragged items to minimize API calls
+                const numDragged = draggedIds.length;
+                const step = (seqBefore - seqAfter) / (numDragged + 1);
+                const updates = draggedFiles.map((file, index) => {
+                    const newSequence = Math.round(seqBefore - (step * (index + 1)));
+                    file.stackSequence = newSequence; // Update the local data model immediately
+                    return { id: file.id, sequence: newSequence };
+                });
+
+                // Reconstruct the full stack in memory with the new order
+                const newOrder = (targetIndex !== -1) ? 
+                    [...remainingFiles.slice(0, targetIndex), ...draggedFiles, ...remainingFiles.slice(targetIndex)] : 
+                    [...remainingFiles, ...draggedFiles];
                 appState.stacks[appState.grid.stack] = newOrder;
-                const container = utils.elements.gridContainer; const dropTargetElement = container.querySelector(`[data-file-id="${targetId}"]`);
-                draggedIds.reverse().forEach(id => { const draggedElement = container.querySelector(`[data-file-id="${id}"]`); if (draggedElement) { container.insertBefore(draggedElement, dropTargetElement); } });
-                const newTimestamp = Date.now();
-                const updates = newOrder.map((file, index) => ({ id: file.id, sequence: newTimestamp - index, }));
+
+                // Visually update the grid using direct DOM manipulation to prevent artifacts
+                const container = utils.elements.gridContainer;
+                const dropTargetElement = container.querySelector(`[data-file-id="${targetId}"]`);
+                // Reverse is needed to maintain original selection order when inserting
+                draggedIds.slice().reverse().forEach(id => {
+                    const draggedElement = container.querySelector(`[data-file-id="${id}"]`);
+                    if (draggedElement) {
+                        container.insertBefore(draggedElement, dropTargetElement);
+                    }
+                });
+
+                // Send the minimal batch of updates to the provider
                 utils.showToast(`Saving new order...`, 'info');
                 try {
-                    const updatePromises = updates.map(u => {
-                        const file = appState.imageFiles.find(f => f.id === u.id);
-                        if (file.stackSequence !== u.sequence) { file.stackSequence = u.sequence; return masterController.updateUserMetadata(u.id, { stackSequence: u.sequence }); }
-                        return Promise.resolve();
-                    });
+                    const updatePromises = updates.map(u => 
+                        masterController.updateUserMetadata(u.id, { stackSequence: u.sequence })
+                    );
                     await Promise.all(updatePromises);
                     utils.showToast('New order saved!', 'success');
-                } catch (error) { utils.showToast('Error saving new order', 'error', true); }
+                } catch (error) {
+                    console.error("Failed to save order:", error);
+                    utils.showToast('Unable to save order', 'error', true);
+                }
             }
+            // ===== END: DRAG & DROP FIX =====
         };
 
         const detailsModal = {
@@ -1076,26 +1122,43 @@
         };
 
         const focusMode = {
+            // ===== START: FOCUS MODE FIX =====
             toggle() {
                 appState.isFocusMode = !appState.isFocusMode;
                 utils.elements.appContainer.classList.toggle('focus-mode', appState.isFocusMode);
+
                 if (appState.isFocusMode) {
+                    // Entering focus mode, just update the UI.
                     this.updateUI();
                 } else {
+                    // Exiting focus mode, update the active stack order.
                     const lastViewedFile = appState.imageFiles[appState.currentImageIndex];
+
                     if (lastViewedFile) {
-                        const stackArray = appState.stacks[lastViewedFile.stack];
-                        const index = stackArray.findIndex(f => f.id === lastViewedFile.id);
-                        if (index > 0) {
-                            stackArray.unshift(stackArray.splice(index, 1)[0]);
+                        const focusStackName = lastViewedFile.stack;
+                        const stackArray = appState.stacks[focusStackName];
+                        
+                        if (stackArray) {
+                            const indexInStack = stackArray.findIndex(f => f.id === lastViewedFile.id);
+
+                            // If the file was found and isn't already at the top, move it there.
+                            // This makes the last-viewed image the new "active" image for that stack.
+                            if (indexInStack > 0) {
+                                const [fileToMove] = stackArray.splice(indexInStack, 1);
+                                stackArray.unshift(fileToMove);
+                            }
                         }
-                        // BUG FIX #3: Set the current stack to the one we were just viewing in focus mode.
-                        appState.currentStack = lastViewedFile.stack;
+
+                        // Ensure the app's main stack is the one we were just viewing.
+                        appState.currentStack = focusStackName;
                         commonFunctions.updateActiveProxTab();
                     }
-                    commonFunctions.displayCurrentImage();
+                    
+                    // Display the top image of the now-current and re-ordered stack.
+                    commonFunctions.displayTopImageFromStack(appState.currentStack);
                 }
             },
+            // ===== END: FOCUS MODE FIX =====
             updateUI() { if (!appState.isFocusMode) return; const stack = appState.stacks[appState.currentStack]; const file = appState.imageFiles[appState.currentImageIndex]; const index = stack.findIndex(f => f.id === file.id); utils.elements.focusStackName.textContent = STACK_NAMES[appState.currentStack]; utils.elements.focusImageCount.textContent = `${index + 1} / ${stack.length}`; },
             async navigate(direction) { const stack = appState.stacks[appState.currentStack]; if (stack.length === 0) return; const file = appState.imageFiles[appState.currentImageIndex]; const currentIndex = stack.findIndex(f => f.id === file.id); const nextIndex = (currentIndex + direction + stack.length) % stack.length; appState.currentImageIndex = appState.imageFiles.findIndex(f => f.id === stack[nextIndex].id); await commonFunctions.displayCurrentImage(); },
             async deleteCurrentImage() {
