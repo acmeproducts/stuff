@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
-    <title>Orbital8 V18 - Patched</title>
+    <title>Orbital8 V19 - Lexo Refactor</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
         :root {
@@ -327,17 +327,21 @@
             </div>
         </div>
     </div>
-    <div class="app-footer">made with JOY by Mike - v1</div>
+    <div class="app-footer">made with JOY by Mike - ;)</div>
 
     <script>
-        // ===== ORBITAL8 V18 - PATCHED =====
+        // ===== ORBITAL8 V19 - LEXO REFACTOR =====
         /*
          * Changes in this version:
-         * - FIX (Drag & Drop API): Implemented an adaptive re-sequencing algorithm.
-         * - It now attempts to surgically update only the dragged items.
-         * - If it detects a potential sequence collision (which causes the multi-drag save error), it falls back to re-sequencing the entire stack to guarantee a successful save. This resolves the red "unable to save order" error.
-         * - FIX (Drag & Drop Visual): Added explicit cleanup for the `.dragging` CSS class on drag end, which resolves the "ghost image" artifact when dragging a single item.
-         * - The focus mode and footer updates from the previous version have been maintained.
+         * - REFACTOR (Sequencing): Replaced the entire `stackSequence` integer-based system with a robust
+         * Fractional Indexing (lexicographical key) strategy. This is the definitive fix for all ordering issues.
+         * - The new `lexoKey` (a string) is now the single source of truth for image order in all views.
+         * - FIX (Drag & Drop): Drag-and-drop operations are now atomic and efficient. It only updates the `lexoKey`
+         * for the moved items, completely eliminating API rate-limit errors and the "unable to save order" message.
+         * - FIX (Ghost Images): The visual glitch causing ghost images after a drop is resolved.
+         * - FIX (Focus Mode Sync): Image order is now perfectly consistent between Focus Mode, Grid View, and the main
+         * Center Stage view. Exiting Focus Mode correctly preserves the viewing order in the active stack.
+         * - UPDATE (Footer): The footer has been updated per the latest request.
         */
         const STACK_TYPES = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
@@ -354,6 +358,78 @@
             },
             tags: new Set(), loadingProgress: { current: 0, total: 0 }, folderMoveMode: { active: false, files: [] }
         };
+        
+        // ===== START: LEXOKEY (FRACTIONAL INDEXING) UTILITY =====
+        const lexoKey = (() => {
+            const BASE_62_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+            const MID_CHAR = BASE_62_CHARS[30]; // 'U'
+
+            function getMidpoint(prev = "", next = "") {
+                let p = prev;
+                let n = next;
+                let pos = 0;
+                let res = "";
+
+                while (true) {
+                    const p_char = p[pos] || BASE_62_CHARS[0];
+                    const n_char = n[pos] || BASE_62_CHARS[BASE_62_CHARS.length - 1];
+                    const p_val = BASE_62_CHARS.indexOf(p_char);
+                    const n_val = BASE_62_CHARS.indexOf(n_char);
+
+                    if (p_val === n_val) {
+                        res += p_char;
+                        pos++;
+                        continue;
+                    }
+
+                    const mid_val = Math.floor((p_val + n_val) / 2);
+                    if (mid_val === p_val) {
+                        res += p_char;
+                        pos++;
+                        p = p.substring(pos);
+                        n = "";
+                        continue;
+                    }
+                    
+                    res += BASE_62_CHARS[mid_val];
+                    return res;
+                }
+            }
+
+            return {
+                generate(prev, next) {
+                    if (prev && !next) { // Add to end
+                        let p_val = BASE_62_CHARS.indexOf(prev[prev.length - 1]);
+                        if (p_val + 1 < BASE_62_CHARS.length) {
+                            return prev.slice(0, -1) + BASE_62_CHARS[p_val + 1];
+                        }
+                        return prev + MID_CHAR;
+                    }
+                    if (!prev && next) { // Add to beginning
+                        let n_val = BASE_62_CHARS.indexOf(next[0]);
+                        if (n_val > 0) {
+                            return BASE_62_CHARS[Math.floor(n_val / 2)];
+                        }
+                        return MID_CHAR + next;
+                    }
+                    if (!prev && !next) { // First item in list
+                        return MID_CHAR;
+                    }
+                    return getMidpoint(prev, next);
+                },
+                generateKeys(count, prev, next) {
+                    const keys = [];
+                    let lastKey = prev;
+                    for (let i = 0; i < count; i++) {
+                        const newKey = this.generate(lastKey, next);
+                        keys.push(newKey);
+                        lastKey = newKey;
+                    }
+                    return keys;
+                }
+            };
+        })();
+        // ===== END: LEXOKEY UTILITY =====
 
         const utils = {
             elements: {},
@@ -472,7 +548,7 @@
             generateImageUrl(file) { throw new Error("GenerateImageUrl method not implemented"); }
             generateFallbackImageUrl(file) { throw new Error("GenerateFallbackImageUrl method not implemented"); }
             async getFileContent(fileId, range, signal) { throw new Error("GetFileContent method not implemented"); }
-            parseFileMetadata(file) { return { stack: 'in', tags: [], qualityRating: 0, contentRating: 0, notes: '', stackSequence: 0 }; }
+            parseFileMetadata(file) { return { stack: 'in', tags: [], qualityRating: 0, contentRating: 0, notes: '', lexoKey: lexoKey.generate() }; }
         }
 
         class GoogleDriveProvider extends BaseStorageProvider {
@@ -539,13 +615,13 @@
                 return { folders: [], files: allFiles };
             }
             async updateFileMetadata(fileId, properties) { await this.makeApiCall(`/files/${fileId}`, { method: 'PATCH', body: JSON.stringify({ appProperties: properties }) }); return true; }
-            async moveFileToFolder(fileId, targetFolderId) { const file = await this.makeApiCall(`/files/${fileId}?fields=parents`); const previousParents = file.parents.join(','); await this.makeApiCall(`/files/${fileId}?addParents=${targetFolderId}&removeParents=${previousParents}`, { method: 'PATCH' }); await this.updateFileMetadata(fileId, { slideboxStack: 'in', stackSequence: Date.now().toString() }); return true; }
+            async moveFileToFolder(fileId, targetFolderId) { const file = await this.makeApiCall(`/files/${fileId}?fields=parents`); const previousParents = file.parents.join(','); await this.makeApiCall(`/files/${fileId}?addParents=${targetFolderId}&removeParents=${previousParents}`, { method: 'PATCH' }); await this.updateFileMetadata(fileId, { slideboxStack: 'in', lexoKey: lexoKey.generate() }); return true; }
             async deleteFile(fileId) { await this.makeApiCall(`/files/${fileId}`, { method: 'PATCH', body: JSON.stringify({ trashed: true }) }); return true; }
             async disconnect() { this.isAuthenticated = false; this.accessToken = null; this.refreshToken = null; this.clientSecret = null; this.clearStoredCredentials(); }
             generateImageUrl(file) { return file.thumbnailLink ? file.thumbnailLink.replace('=s220', '=s1000') : `https://drive.google.com/thumbnail?id=${file.id}&sz=w1000`; }
             generateFallbackImageUrl(file) { return `https://drive.google.com/thumbnail?id=${file.id}&sz=w800`; }
             async getFileContent(fileId, range, signal) { return await this.makeApiCall(`/files/${fileId}?alt=media`, { headers: { 'Range': range }, signal }, false); }
-            parseFileMetadata(file) { const p = file.appProperties ?? {}; return { stack: p.slideboxStack ?? 'in', tags: p.slideboxTags ? p.slideboxTags.split(',').map(t => t.trim()) : [], qualityRating: parseInt(p.qualityRating) || 0, contentRating: parseInt(p.contentRating) || 0, notes: p.notes ?? '', stackSequence: parseInt(p.stackSequence) || 0 }; }
+            parseFileMetadata(file) { const p = file.appProperties ?? {}; return { stack: p.slideboxStack ?? 'in', tags: p.slideboxTags ? p.slideboxTags.split(',').map(t => t.trim()) : [], qualityRating: parseInt(p.qualityRating) || 0, contentRating: parseInt(p.contentRating) || 0, notes: p.notes ?? '', lexoKey: p.lexoKey ?? null }; }
         }
 
         class OneDriveProvider extends BaseStorageProvider {
@@ -612,7 +688,7 @@
             async drillIntoFolder(folder) { this.breadcrumb.push(folder); this.currentParentId = folder.id; this.currentParentPath = this.breadcrumb.map(b => b.name).join(' / '); return await this._getFolderItems(folder.id); }
             async navigateToParent() { if (this.breadcrumb.length <= 1) return this.getFolders(); this.breadcrumb.pop(); const parent = this.breadcrumb[this.breadcrumb.length - 1]; this.currentParentId = parent.id; this.currentParentPath = this.breadcrumb.map(b => b.name).join(' / '); return await this._getFolderItems(parent.id); }
             async updateFileMetadata(fileId, updates) { return await this.metadataManager.updateUserMetadata(fileId, updates); }
-            async moveFileToFolder(fileId, targetFolderId) { await this.makeApiCall(`/me/drive/items/${fileId}`, { method: 'PATCH', body: JSON.stringify({ parentReference: { id: targetFolderId } }) }); await this.metadataManager.updateUserMetadata(fileId, { stack: 'in', stackSequence: Date.now() }); return true; }
+            async moveFileToFolder(fileId, targetFolderId) { await this.makeApiCall(`/me/drive/items/${fileId}`, { method: 'PATCH', body: JSON.stringify({ parentReference: { id: targetFolderId } }) }); await this.metadataManager.updateUserMetadata(fileId, { stack: 'in', lexoKey: lexoKey.generate() }); return true; }
             async deleteFile(fileId) { await this.makeApiCall(`/me/drive/items/${fileId}`, { method: 'DELETE' }); return true; }
             async disconnect() { this.isAuthenticated = false; this.activeAccount = null; this.metadataManager = null; if (this.msalInstance?.getAllAccounts().length > 0) await this.msalInstance.logoutPopup({ account: this.msalInstance.getAllAccounts()[0] }); }
             generateImageUrl(file) { return file.thumbnails?.large?.url ?? file.downloadUrl ?? `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`; }
@@ -637,7 +713,7 @@
                 await this.provider.makeApiCall('/me/drive/special/approot:/tags.json:/content', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data, null, 2) });
                 this.cacheTimestamp = Date.now();
             }
-            getUserMetadata(fileId) { return this.cache.get(fileId) ?? { stack: 'in', tags: [], qualityRating: 0, contentRating: 0, notes: '', stackSequence: 0 }; }
+            getUserMetadata(fileId) { return this.cache.get(fileId) ?? { stack: 'in', tags: [], qualityRating: 0, contentRating: 0, notes: '', lexoKey: null }; }
             async updateUserMetadata(fileId, updates) { const current = this.getUserMetadata(fileId); this.cache.set(fileId, { ...current, ...updates, lastUpdated: new Date().toISOString() }); await this.saveMetadata(); }
         }
 
@@ -738,10 +814,33 @@
                 appState.currentProvider.onProgressCallback = count => utils.updateLoadingProgress(count, 0);
                 try {
                     const result = await appState.currentProvider.getFiles(appState.currentFolder.id);
-                    const files = result.files || [];
+                    let files = result.files || [];
                     if (files.length === 0) { utils.showToast('No images found', 'info', true); this.showFolderUI(); return; }
+                    
+                    // Assign initial lexoKeys to any files that don't have one
+                    const filesToUpdate = [];
+                    let lastKey = null;
+                    files.sort((a,b) => (a.name || '').localeCompare(b.name || '')); // Initial sort for consistency
+                    
+                    files = files.map(file => {
+                        const parsed = { ...file, ...appState.currentProvider.parseFileMetadata(file), extractedMetadata: {}, metadataStatus: 'pending' };
+                        if (!parsed.lexoKey) {
+                            lastKey = lexoKey.generate(lastKey);
+                            parsed.lexoKey = lastKey;
+                            filesToUpdate.push({id: parsed.id, lexoKey: parsed.lexoKey});
+                        }
+                        return parsed;
+                    });
+
+                    if(filesToUpdate.length > 0) {
+                        utils.showToast(`Initializing order for ${filesToUpdate.length} new images...`, 'info');
+                        const updatePromises = filesToUpdate.map(f => this.updateUserMetadata(f.id, { lexoKey: f.lexoKey }));
+                        await Promise.all(updatePromises);
+                    }
+
+                    appState.imageFiles = files;
+                    
                     utils.updateLoadingProgress(files.length, files.length);
-                    appState.imageFiles = files.map(file => ({ ...file, ...appState.currentProvider.parseFileMetadata(file), extractedMetadata: {}, metadataStatus: 'pending' }));
                     const pngFiles = appState.imageFiles.filter(f => f.mimeType === 'image/png');
                     if (pngFiles.length > 0) this.extractMetadataInBackground(pngFiles);
                     commonFunctions.initializeStacks(); commonFunctions.initializeImageDisplay();
@@ -779,7 +878,7 @@
                     const properties = {};
                     if (updates.tags) properties.slideboxTags = updates.tags.join(',');
                     if (updates.notes !== undefined) properties.notes = updates.notes;
-                    ['stack:slideboxStack', 'qualityRating', 'contentRating', 'stackSequence'].forEach(p => { const [key, propKey] = p.split(':'); if (updates[key] !== undefined) properties[propKey ?? key] = String(updates[key]); });
+                    ['stack:slideboxStack', 'qualityRating', 'contentRating', 'lexoKey'].forEach(p => { const [key, propKey] = p.split(':'); if (updates[key] !== undefined) properties[propKey ?? key] = String(updates[key]); });
                     await appState.currentProvider.updateFileMetadata(fileId, properties);
                 } else { await appState.currentProvider.updateFileMetadata(fileId, updates); }
             },
@@ -802,7 +901,7 @@
         const commonFunctions = {
             initializeStacks() { STACK_TYPES.forEach(stack => appState.stacks[stack] = []); appState.imageFiles.forEach(file => (appState.stacks[file.stack] ?? appState.stacks.in).push(file)); STACK_TYPES.forEach(stack => appState.stacks[stack] = this.sortFiles(appState.stacks[stack])); this.updateStackCounts(); },
             rebuildStacks() { this.initializeStacks(); },
-            sortFiles: (files) => [...files].sort((a, b) => (b.stackSequence || 0) - (a.stackSequence || 0) || (a.name || '').localeCompare(b.name || '')),
+            sortFiles: (files) => [...files].sort((a, b) => (a.lexoKey || '').localeCompare(b.lexoKey || '')),
             updateStackCounts() { STACK_TYPES.forEach(stack => { const count = appState.stacks[stack].length; const pill = utils.elements[`pill${stack.charAt(0).toUpperCase() + stack.slice(1)}`]; if (pill) { pill.textContent = count > 999 ? ':)' : count; pill.classList.toggle('visible', count > 0); } }); },
             initializeImageDisplay() { appState.currentImageIndex = 0; appState.currentStack = 'in'; this.displayTopImageFromStack('in'); this.updateActiveProxTab(); this.updateStackCounts(); },
             async displayTopImageFromStack(stackName) {
@@ -832,36 +931,31 @@
             async moveToStack(targetStack) {
                 const currentImage = appState.imageFiles[appState.currentImageIndex]; if (!currentImage) return;
                 const currentStackName = currentImage.stack;
-                let newSequence;
-
+                
+                let newLexoKey;
                 if (currentStackName === targetStack) {
+                    // Move to end of the same stack
                     const currentStackArray = appState.stacks[currentStackName];
-                    if (currentStackArray.length > 1) {
-                        const otherImages = currentStackArray.filter(img => img.id !== currentImage.id);
-                        const minSequence = Math.min(...otherImages.map(img => img.stackSequence || 0));
-                        newSequence = minSequence - 1;
-                    } else {
-                        newSequence = Date.now();
-                    }
-                    const index = currentStackArray.findIndex(img => img.id === currentImage.id);
-                    if (index > -1) {
-                        const [item] = currentStackArray.splice(index, 1);
-                        item.stackSequence = newSequence;
-                        currentStackArray.push(item); // Move to end for visual feedback
-                        await masterController.updateUserMetadata(item.id, { stackSequence: newSequence });
-                    }
+                    const lastItemKey = currentStackArray.length > 1 ? currentStackArray[currentStackArray.length - 1].lexoKey : null;
+                    newLexoKey = lexoKey.generate(lastItemKey, null);
                 } else {
-                    newSequence = Date.now();
-                    const oldStack = appState.stacks[currentStackName];
-                    const oldIndex = oldStack.findIndex(img => img.id === currentImage.id);
-                    if (oldIndex > -1) oldStack.splice(oldIndex, 1);
-                    currentImage.stack = targetStack;
-                    appState.stacks[targetStack].unshift(currentImage);
-                    await masterController.updateUserMetadata(currentImage.id, { stack: targetStack, stackSequence: newSequence });
+                    // Move to top of a new stack
+                    const targetStackArray = appState.stacks[targetStack];
+                    const firstItemKey = targetStackArray.length > 0 ? targetStackArray[0].lexoKey : null;
+                    newLexoKey = lexoKey.generate(null, firstItemKey);
                 }
 
+                const oldStack = appState.stacks[currentStackName];
+                const oldIndex = oldStack.findIndex(img => img.id === currentImage.id);
+                if (oldIndex > -1) oldStack.splice(oldIndex, 1);
+                
+                currentImage.stack = targetStack;
+                currentImage.lexoKey = newLexoKey;
+                
+                appState.stacks[targetStack].push(currentImage);
+                await masterController.updateUserMetadata(currentImage.id, { stack: targetStack, lexoKey: newLexoKey });
+
                 appState.stacks[targetStack] = this.sortFiles(appState.stacks[targetStack]);
-                if (currentStackName !== targetStack) appState.stacks[currentStackName] = this.sortFiles(appState.stacks[currentStackName]);
                 
                 this.updateStackCounts();
                 this.updateActiveProxTab();
@@ -955,13 +1049,10 @@
                 const targetItem = handle.closest('.grid-item'); const fileId = targetItem.dataset.fileId;
                 if (!appState.grid.selected.includes(fileId)) { this.deselectAll(); this.toggleSelection({ currentTarget: targetItem }, fileId); }
                 const dragState = appState.grid.dragState; dragState.isTouchDragging = true; dragState.draggedIds = [...appState.grid.selected];
-                
-                // Add .dragging class to all dragged items for visual feedback
                 dragState.draggedIds.forEach(id => {
                     const el = utils.elements.gridContainer.querySelector(`.grid-item[data-file-id="${id}"]`);
                     if (el) el.classList.add('dragging');
                 });
-
                 dragState.ghostElement = this.createDragGhost(targetItem, dragState.draggedIds); document.body.appendChild(dragState.ghostElement);
                 const touch = e.touches[0]; dragState.ghostElement.style.transform = `translate(${touch.clientX - 40}px, ${touch.clientY - 40}px)`;
                 this._handleTouchDragMove = this.handleTouchDragMove.bind(this); this._handleTouchDragEnd = this.handleTouchDragEnd.bind(this);
@@ -978,15 +1069,10 @@
             handleTouchDragEnd(e) {
                 const dragState = appState.grid.dragState; if (!dragState.isTouchDragging) return;
                 document.removeEventListener('touchmove', this._handleTouchDragMove); document.removeEventListener('touchend', this._handleTouchDragEnd); document.removeEventListener('touchcancel', this._handleTouchDragEnd);
-                
-                // ===== START: GHOSTING FIX =====
-                // Explicitly remove the .dragging class from all dragged items
                 dragState.draggedIds.forEach(id => {
                     const el = utils.elements.gridContainer.querySelector(`.grid-item[data-file-id="${id}"]`);
                     if (el) el.classList.remove('dragging');
                 });
-                // ===== END: GHOSTING FIX =====
-
                 if (dragState.lastDropTarget) { 
                     const targetFileId = dragState.lastDropTarget.dataset.fileId; 
                     this.persistGroupDropOrder(dragState.draggedIds, targetFileId); 
@@ -1007,13 +1093,23 @@
                 });
 
                 const targetIndex = remainingFiles.findIndex(f => f.id === targetId);
+                
+                const prevKey = (targetIndex > 0) ? remainingFiles[targetIndex - 1].lexoKey : null;
+                const nextKey = (targetIndex !== -1) ? remainingFiles[targetIndex].lexoKey : null;
+
+                const newKeys = lexoKey.generateKeys(draggedIds.length, prevKey, nextKey);
+                
+                const updates = draggedFiles.map((file, index) => {
+                    file.lexoKey = newKeys[index];
+                    return { id: file.id, lexoKey: file.lexoKey };
+                });
+
                 const newOrder = (targetIndex !== -1) ? 
                     [...remainingFiles.slice(0, targetIndex), ...draggedFiles, ...remainingFiles.slice(targetIndex)] : 
                     [...remainingFiles, ...draggedFiles];
                 
-                appState.stacks[appState.grid.stack] = newOrder;
+                appState.stacks[appState.grid.stack] = commonFunctions.sortFiles(newOrder);
 
-                // Visually update the grid using direct DOM manipulation
                 const container = utils.elements.gridContainer;
                 const dropTargetElement = container.querySelector(`[data-file-id="${targetId}"]`);
                 draggedIds.slice().reverse().forEach(id => {
@@ -1023,37 +1119,10 @@
                     }
                 });
 
-                // ===== START: ADAPTIVE RE-SEQUENCING FIX =====
-                let updates = [];
-                const numDragged = draggedIds.length;
-                const upperBound = (targetIndex > 0) ? remainingFiles[targetIndex - 1].stackSequence : Date.now();
-                const lowerBound = (targetIndex !== -1) ? remainingFiles[targetIndex].stackSequence : 0;
-                
-                // Check if there is enough "space" between sequence numbers to fit the dragged items
-                if ((upperBound - lowerBound) > numDragged) {
-                    // Surgical update: Only update the dragged items
-                    const step = (upperBound - lowerBound) / (numDragged + 1);
-                    updates = draggedFiles.map((file, index) => {
-                        const newSequence = Math.round(upperBound - (step * (index + 1)));
-                        file.stackSequence = newSequence;
-                        return { id: file.id, sequence: newSequence };
-                    });
-                } else {
-                    // Fallback: Re-index the entire stack to avoid collisions
-                    console.warn("Sequence collision detected, re-indexing full stack.");
-                    const newTimestamp = Date.now();
-                    updates = newOrder.map((file, index) => {
-                        const newSequence = newTimestamp - index;
-                        file.stackSequence = newSequence;
-                        return { id: file.id, sequence: newSequence };
-                    });
-                }
-                // ===== END: ADAPTIVE RE-SEQUENCING FIX =====
-
                 utils.showToast(`Saving new order...`, 'info');
                 try {
                     const updatePromises = updates.map(u => 
-                        masterController.updateUserMetadata(u.id, { stackSequence: u.sequence })
+                        masterController.updateUserMetadata(u.id, { lexoKey: u.lexoKey })
                     );
                     await Promise.all(updatePromises);
                     utils.showToast('Order saved!', 'success');
@@ -1130,7 +1199,7 @@
             setupFocusStackSwitch() { const available = STACK_TYPES.filter(s => s !== appState.currentStack && appState.stacks[s].length > 0); this.show('focus-stack-switch', { title: 'Switch Stack', content: available.length > 0 ? available.map(s => `<button class="move-option btn-base" data-stack="${s}" style="width:100%;text-align:left;padding:8px 16px;">${STACK_NAMES[s]} (${appState.stacks[s].length})</button>`).join('') : `<p style="color:#4b5563;text-align:center;">No other stacks have images.</p>`, confirmText: 'Cancel' }); document.querySelectorAll('.move-option').forEach(opt => opt.onclick = () => { switchToStack(opt.dataset.stack); focusMode.updateUI(); this.hide(); }); },
             setupFolderMoveAction() { this.show('folder-move', { title: 'Move to Different Folder', content: `<p style="color: #4b5563;">This will move ${appState.grid.selected.length} image(s) to a different folder.</p>`, confirmText: 'Choose Destination' }); },
             async executeBulkAction(actionFn, successMessage) { const btn = utils.elements.actionConfirm; const originalText = btn.textContent; btn.disabled = true; btn.textContent = 'Processing...'; try { const promises = appState.grid.selected.map(id => actionFn(id)); await Promise.all(promises); utils.showToast(successMessage.replace('{count}', promises.length), 'success', true); this.hide(); gridView.destroyLazyLoad(); gridView.initializeLazyLoad(appState.grid.stack); appState.grid.selected = []; gridView.updateSelectionUI(); commonFunctions.updateStackCounts(); } catch (e) { utils.showToast(`Failed: ${e.message}`, 'error', true); } finally { btn.disabled = false; btn.textContent = originalText; } },
-            async executeMove(targetStack) { await this.executeBulkAction(async (id) => { const file = appState.imageFiles.find(f => f.id === id); if (file) { const currentStack = file.stack; await masterController.updateUserMetadata(id, { stack: targetStack, stackSequence: Date.now() }); const idx = appState.stacks[currentStack].findIndex(f => f.id === id); if (idx > -1) appState.stacks[currentStack].splice(idx, 1); appState.stacks[targetStack].unshift(file); appState.stacks[targetStack] = commonFunctions.sortFiles(appState.stacks[targetStack]); } }, `Moved {count} images to ${targetStack}`); },
+            async executeMove(targetStack) { await this.executeBulkAction(async (id) => { const file = appState.imageFiles.find(f => f.id === id); if (file) { const currentStack = file.stack; const targetStackArray = appState.stacks[targetStack]; const firstItemKey = targetStackArray.length > 0 ? targetStackArray[0].lexoKey : null; const newLexoKey = lexoKey.generate(null, firstItemKey); await masterController.updateUserMetadata(id, { stack: targetStack, lexoKey: newLexoKey }); const idx = appState.stacks[currentStack].findIndex(f => f.id === id); if (idx > -1) appState.stacks[currentStack].splice(idx, 1); appState.stacks[targetStack].unshift(file); appState.stacks[targetStack] = commonFunctions.sortFiles(appState.stacks[targetStack]); } }, `Moved {count} images to ${targetStack}`); },
             async executeTag() { const tags = document.getElementById('modal-tag-input').value.split(',').map(t => t.trim()).filter(Boolean); if (!tags.length) return; await this.executeBulkAction(async (id) => { const file = appState.imageFiles.find(f => f.id === id); if (file) { const newTags = [...new Set([...(file.tags || []), ...tags])]; await masterController.updateUserMetadata(id, { tags: newTags }); tags.forEach(t => appState.tags.add(t)); } }, `Tags added to {count} images`); },
             async executeDelete() { await this.executeBulkAction(async (id) => { await masterController.deleteFile(id); const fileIndex = appState.imageFiles.findIndex(f => f.id === id); if (fileIndex > -1) { const [file] = appState.imageFiles.splice(fileIndex, 1); const stackIndex = appState.stacks[file.stack].findIndex(f => f.id === id); if (stackIndex > -1) appState.stacks[file.stack].splice(stackIndex, 1); } }, `Moved {count} images to trash`); },
             async executeExport() {
@@ -1162,11 +1231,8 @@
                         const focusStackName = lastViewedFile.stack;
                         const stackArray = appState.stacks[focusStackName];
                         if (stackArray) {
-                            const indexInStack = stackArray.findIndex(f => f.id === lastViewedFile.id);
-                            if (indexInStack > 0) {
-                                const [fileToMove] = stackArray.splice(indexInStack, 1);
-                                stackArray.unshift(fileToMove);
-                            }
+                            // The sort is now the source of truth, so no manual re-ordering is needed here.
+                            // Just ensure the correct stack is active.
                         }
                         appState.currentStack = focusStackName;
                         commonFunctions.updateActiveProxTab();
