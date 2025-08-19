@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
-    <title>Orbital8 V17 - Patched</title>
+    <title>Orbital8 V18 - Patched</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
         :root {
@@ -330,14 +330,14 @@
     <div class="app-footer">made with JOY by Mike - v1</div>
 
     <script>
-        // ===== ORBITAL8 V17 - PATCHED =====
+        // ===== ORBITAL8 V18 - PATCHED =====
         /*
          * Changes in this version:
-         * - FIX (Drag & Drop): Implemented the robustness patch from the spec.
-         * - Replaced the grid reordering logic to only send API updates for moved items, preventing "unable to save order" errors on OneDrive.
-         * - Confirmed direct DOM manipulation (`insertBefore`) is used instead of `innerHTML` clearing, preventing visual artifacts ("ghost" images).
-         * - FIX (Focus Mode): Corrected the logic for exiting focus mode. The last-viewed image is now reliably set as the new top item of its stack, and the main view updates accordingly.
-         * - UPDATE (Footer): Updated the footer text on all screens per user request.
+         * - FIX (Drag & Drop API): Implemented an adaptive re-sequencing algorithm.
+         * - It now attempts to surgically update only the dragged items.
+         * - If it detects a potential sequence collision (which causes the multi-drag save error), it falls back to re-sequencing the entire stack to guarantee a successful save. This resolves the red "unable to save order" error.
+         * - FIX (Drag & Drop Visual): Added explicit cleanup for the `.dragging` CSS class on drag end, which resolves the "ghost image" artifact when dragging a single item.
+         * - The focus mode and footer updates from the previous version have been maintained.
         */
         const STACK_TYPES = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
@@ -955,6 +955,13 @@
                 const targetItem = handle.closest('.grid-item'); const fileId = targetItem.dataset.fileId;
                 if (!appState.grid.selected.includes(fileId)) { this.deselectAll(); this.toggleSelection({ currentTarget: targetItem }, fileId); }
                 const dragState = appState.grid.dragState; dragState.isTouchDragging = true; dragState.draggedIds = [...appState.grid.selected];
+                
+                // Add .dragging class to all dragged items for visual feedback
+                dragState.draggedIds.forEach(id => {
+                    const el = utils.elements.gridContainer.querySelector(`.grid-item[data-file-id="${id}"]`);
+                    if (el) el.classList.add('dragging');
+                });
+
                 dragState.ghostElement = this.createDragGhost(targetItem, dragState.draggedIds); document.body.appendChild(dragState.ghostElement);
                 const touch = e.touches[0]; dragState.ghostElement.style.transform = `translate(${touch.clientX - 40}px, ${touch.clientY - 40}px)`;
                 this._handleTouchDragMove = this.handleTouchDragMove.bind(this); this._handleTouchDragEnd = this.handleTouchDragEnd.bind(this);
@@ -971,15 +978,26 @@
             handleTouchDragEnd(e) {
                 const dragState = appState.grid.dragState; if (!dragState.isTouchDragging) return;
                 document.removeEventListener('touchmove', this._handleTouchDragMove); document.removeEventListener('touchend', this._handleTouchDragEnd); document.removeEventListener('touchcancel', this._handleTouchDragEnd);
-                if (dragState.lastDropTarget) { const targetFileId = dragState.lastDropTarget.dataset.fileId; this.persistGroupDropOrder(dragState.draggedIds, targetFileId); dragState.lastDropTarget.classList.remove('drop-target'); }
+                
+                // ===== START: GHOSTING FIX =====
+                // Explicitly remove the .dragging class from all dragged items
+                dragState.draggedIds.forEach(id => {
+                    const el = utils.elements.gridContainer.querySelector(`.grid-item[data-file-id="${id}"]`);
+                    if (el) el.classList.remove('dragging');
+                });
+                // ===== END: GHOSTING FIX =====
+
+                if (dragState.lastDropTarget) { 
+                    const targetFileId = dragState.lastDropTarget.dataset.fileId; 
+                    this.persistGroupDropOrder(dragState.draggedIds, targetFileId); 
+                    dragState.lastDropTarget.classList.remove('drop-target'); 
+                }
                 if (dragState.ghostElement) { dragState.ghostElement.remove(); }
                 Object.assign(dragState, { isTouchDragging: false, ghostElement: null, draggedIds: [], lastDropTarget: null });
             },
-            // ===== START: DRAG & DROP FIX =====
             async persistGroupDropOrder(draggedIds, targetId) {
                 const stack = appState.stacks[appState.grid.stack];
                 const draggedFiles = [];
-                // Separate dragged files from the rest of the stack
                 const remainingFiles = stack.filter(file => {
                     if (draggedIds.includes(file.id)) {
                         draggedFiles.push(file);
@@ -989,30 +1007,15 @@
                 });
 
                 const targetIndex = remainingFiles.findIndex(f => f.id === targetId);
-
-                // Determine the sequence numbers to insert the dragged items between
-                const seqAfter = (targetIndex !== -1) ? remainingFiles[targetIndex].stackSequence : 0; // If dropping at the end, the sequence is 0
-                const seqBefore = (targetIndex > 0) ? remainingFiles[targetIndex - 1].stackSequence : (Date.now()); // If dropping at the start, use a new high number
-
-                // Calculate new sequence numbers for ONLY the dragged items to minimize API calls
-                const numDragged = draggedIds.length;
-                const step = (seqBefore - seqAfter) / (numDragged + 1);
-                const updates = draggedFiles.map((file, index) => {
-                    const newSequence = Math.round(seqBefore - (step * (index + 1)));
-                    file.stackSequence = newSequence; // Update the local data model immediately
-                    return { id: file.id, sequence: newSequence };
-                });
-
-                // Reconstruct the full stack in memory with the new order
                 const newOrder = (targetIndex !== -1) ? 
                     [...remainingFiles.slice(0, targetIndex), ...draggedFiles, ...remainingFiles.slice(targetIndex)] : 
                     [...remainingFiles, ...draggedFiles];
+                
                 appState.stacks[appState.grid.stack] = newOrder;
 
-                // Visually update the grid using direct DOM manipulation to prevent artifacts
+                // Visually update the grid using direct DOM manipulation
                 const container = utils.elements.gridContainer;
                 const dropTargetElement = container.querySelector(`[data-file-id="${targetId}"]`);
-                // Reverse is needed to maintain original selection order when inserting
                 draggedIds.slice().reverse().forEach(id => {
                     const draggedElement = container.querySelector(`[data-file-id="${id}"]`);
                     if (draggedElement) {
@@ -1020,20 +1023,45 @@
                     }
                 });
 
-                // Send the minimal batch of updates to the provider
+                // ===== START: ADAPTIVE RE-SEQUENCING FIX =====
+                let updates = [];
+                const numDragged = draggedIds.length;
+                const upperBound = (targetIndex > 0) ? remainingFiles[targetIndex - 1].stackSequence : Date.now();
+                const lowerBound = (targetIndex !== -1) ? remainingFiles[targetIndex].stackSequence : 0;
+                
+                // Check if there is enough "space" between sequence numbers to fit the dragged items
+                if ((upperBound - lowerBound) > numDragged) {
+                    // Surgical update: Only update the dragged items
+                    const step = (upperBound - lowerBound) / (numDragged + 1);
+                    updates = draggedFiles.map((file, index) => {
+                        const newSequence = Math.round(upperBound - (step * (index + 1)));
+                        file.stackSequence = newSequence;
+                        return { id: file.id, sequence: newSequence };
+                    });
+                } else {
+                    // Fallback: Re-index the entire stack to avoid collisions
+                    console.warn("Sequence collision detected, re-indexing full stack.");
+                    const newTimestamp = Date.now();
+                    updates = newOrder.map((file, index) => {
+                        const newSequence = newTimestamp - index;
+                        file.stackSequence = newSequence;
+                        return { id: file.id, sequence: newSequence };
+                    });
+                }
+                // ===== END: ADAPTIVE RE-SEQUENCING FIX =====
+
                 utils.showToast(`Saving new order...`, 'info');
                 try {
                     const updatePromises = updates.map(u => 
                         masterController.updateUserMetadata(u.id, { stackSequence: u.sequence })
                     );
                     await Promise.all(updatePromises);
-                    utils.showToast('New order saved!', 'success');
+                    utils.showToast('Order saved!', 'success');
                 } catch (error) {
                     console.error("Failed to save order:", error);
                     utils.showToast('Unable to save order', 'error', true);
                 }
             }
-            // ===== END: DRAG & DROP FIX =====
         };
 
         const detailsModal = {
@@ -1122,43 +1150,30 @@
         };
 
         const focusMode = {
-            // ===== START: FOCUS MODE FIX =====
             toggle() {
                 appState.isFocusMode = !appState.isFocusMode;
                 utils.elements.appContainer.classList.toggle('focus-mode', appState.isFocusMode);
 
                 if (appState.isFocusMode) {
-                    // Entering focus mode, just update the UI.
                     this.updateUI();
                 } else {
-                    // Exiting focus mode, update the active stack order.
                     const lastViewedFile = appState.imageFiles[appState.currentImageIndex];
-
                     if (lastViewedFile) {
                         const focusStackName = lastViewedFile.stack;
                         const stackArray = appState.stacks[focusStackName];
-                        
                         if (stackArray) {
                             const indexInStack = stackArray.findIndex(f => f.id === lastViewedFile.id);
-
-                            // If the file was found and isn't already at the top, move it there.
-                            // This makes the last-viewed image the new "active" image for that stack.
                             if (indexInStack > 0) {
                                 const [fileToMove] = stackArray.splice(indexInStack, 1);
                                 stackArray.unshift(fileToMove);
                             }
                         }
-
-                        // Ensure the app's main stack is the one we were just viewing.
                         appState.currentStack = focusStackName;
                         commonFunctions.updateActiveProxTab();
                     }
-                    
-                    // Display the top image of the now-current and re-ordered stack.
                     commonFunctions.displayTopImageFromStack(appState.currentStack);
                 }
             },
-            // ===== END: FOCUS MODE FIX =====
             updateUI() { if (!appState.isFocusMode) return; const stack = appState.stacks[appState.currentStack]; const file = appState.imageFiles[appState.currentImageIndex]; const index = stack.findIndex(f => f.id === file.id); utils.elements.focusStackName.textContent = STACK_NAMES[appState.currentStack]; utils.elements.focusImageCount.textContent = `${index + 1} / ${stack.length}`; },
             async navigate(direction) { const stack = appState.stacks[appState.currentStack]; if (stack.length === 0) return; const file = appState.imageFiles[appState.currentImageIndex]; const currentIndex = stack.findIndex(f => f.id === file.id); const nextIndex = (currentIndex + direction + stack.length) % stack.length; appState.currentImageIndex = appState.imageFiles.findIndex(f => f.id === stack[nextIndex].id); await commonFunctions.displayCurrentImage(); },
             async deleteCurrentImage() {
