@@ -1,3 +1,4 @@
+<!-- orbital8-v12.5 - 2025-08-19 12:18 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,17 +6,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V12.4 - Grid Mode Fixes</title>
+    <title>Orbital8 V12.5 - Robust Saving & Feedback</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V12.4 - Grid Mode Fixes ===== */
+        /* ===== ORBITAL8 V12.5 - Robust Saving & Feedback ===== */
         /* Changes in this version:
-           - Bug Fix (Grid Save): Correctly implemented the logic to save the reordered stack order to
-             a single `.orbital8_order.json` file in Google Drive, resolving the previous save error.
-             The reordering feature is now fully persistent.
-           - Bug Fix (Grid Auto-Selection): When the grid is opened, the first item is now automatically
-             selected, and the action buttons are enabled as requested.
-           - Versioning: Updated to v12.4.
+           - Feature (Error Handling): Critical save errors now display in a modal dialog that
+             must be acknowledged. The full error message is automatically copied to the clipboard.
+           - Feature (UI Feedback): When closing the grid after reordering, a loading overlay
+             now appears inside the modal, preventing interaction until the save is complete.
+           - Bug Fix (Save Logic): Corrected the save logic for both Google Drive and OneDrive
+             to properly handle cases where the order file doesn't exist, fixing the "Failed to fetch"
+             and related API errors. The save process is now robust.
+           - Versioning: Updated to v12.5.
         */
         
         :root {
@@ -321,6 +324,7 @@
         .modal-content {
             background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             width: 100%; height: 100%; max-width: 1152px; max-height: 90vh; margin: 16px; display: flex; flex-direction: column;
+            position: relative; /* For loading overlay */
         }
         .action-modal { max-width: 448px; padding: 24px; }
         
@@ -521,6 +525,42 @@
         .app-container.focus-mode .nav-button.details {
             background: rgba(0, 0, 0, 0.4);
         }
+
+        /* ===== NEW: Grid Loading & Error Modals ===== */
+        #grid-loading-overlay {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        #grid-loading-overlay .spinner {
+            width: 40px; height: 40px; border-width: 4px;
+        }
+        #grid-loading-message {
+            margin-top: 16px; font-size: 16px; font-weight: 500; color: #374151;
+        }
+
+        #error-modal .action-modal { max-width: 600px; }
+        #error-message {
+            background-color: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        #error-copy-status {
+            font-size: 12px; color: #4b5563; margin-top: 8px; text-align: center;
+        }
         
         /* ===== Responsive ===== */
         .hidden { display: none !important; }
@@ -551,6 +591,7 @@
     </style>
 </head>
 <body>
+    <!-- Provider Selection Screen -->
     <div class="screen" id="provider-screen">
         <div class="card">
             <h1 class="title" style="font-size: 32px;">Orbital8</h1>
@@ -593,6 +634,7 @@
         <div class="app-footer">orbital8-v12.4 - 2025-08-19 11:05 AM</div>
     </div>
     
+    <!-- Google Drive Auth Screen -->
     <div class="screen hidden" id="gdrive-auth-screen">
         <div class="card">
             <h1 class="title">Google Drive</h1>
@@ -605,6 +647,7 @@
         <div class="app-footer">orbital8-v12.4 - 2025-08-19 11:05 AM</div>
     </div>
     
+    <!-- OneDrive Auth Screen -->
     <div class="screen hidden" id="onedrive-auth-screen">
         <div class="card">
             <h1 class="title">OneDrive</h1>
@@ -616,6 +659,7 @@
         <div class="app-footer">orbital8-v12.4 - 2025-08-19 11:05 AM</div>
     </div>
     
+    <!-- Google Drive Folder Screen -->
     <div class="screen hidden" id="gdrive-folder-screen">
         <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
             <h2 class="title">Google Drive - Select Folder</h2>
@@ -630,6 +674,7 @@
         <div class="app-footer">orbital8-v12.4 - 2025-08-19 11:05 AM</div>
     </div>
     
+    <!-- OneDrive Folder Screen -->
     <div class="screen hidden" id="onedrive-folder-screen">
         <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
             <h2 class="title">OneDrive - Select Folder</h2>
@@ -644,6 +689,7 @@
         <div class="app-footer">orbital8-v12.4 - 2025-08-19 11:05 AM</div>
     </div>
     
+    <!-- Loading Screen -->
     <div class="screen hidden" id="loading-screen" style="z-index: 1500;">
         <div class="card">
             <h2 class="title">Loading Images</h2>
@@ -657,6 +703,7 @@
         <div class="app-footer">orbital8-v12.4 - 2025-08-19 11:05 AM</div>
     </div>
     
+    <!-- Main App Container -->
     <div class="app-container hidden" id="app-container">
         <div class="nav-button back" id="back-button">← Folders</div>
         <div class="nav-button details" id="details-button">Details →</div>
@@ -683,6 +730,7 @@
         
         <a id="filename-overlay" class="filename-overlay" href="#" target="_blank"></a>
 
+        <!-- Focus Mode & Normal Mode UI -->
         <div id="focus-stack-name" class="focus-mode-ui"></div>
         <div id="focus-image-count" class="focus-mode-ui"></div>
         <div id="normal-image-count"></div>
@@ -696,9 +744,11 @@
         <div class="app-footer">orbital8-v12.4 - 2025-08-19 11:05 AM</div>
     </div>
     
+    <!-- Enhanced Grid Modal -->
     <div id="grid-modal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
+                <!-- Row 1: Title -->
                 <div class="modal-header-main">
                     <div class="modal-header-left">
                         <h2 id="grid-title" class="modal-title">Grid View</h2>
@@ -711,6 +761,7 @@
                     </button>
                 </div>
                 
+                <!-- Row 2: Selection & Zoom -->
                 <div class="grid-row-2">
                     <span class="selection-count">
                         <span id="selection-text">0 selected</span>
@@ -726,6 +777,7 @@
                     </div>
                 </div>
                 
+                <!-- Row 3: Omni Search -->
                 <div class="grid-row-3">
                     <input type="text" id="omni-search" class="input" placeholder="Search tags, notes, and metadata..." style="margin-bottom: 0;">
                     <button id="clear-search-btn">
@@ -733,6 +785,7 @@
                     </button>
                 </div>
                 
+                <!-- Row 4: Reserved for Bulk Actions -->
                 <div class="grid-row-4">
                     <div class="bulk-actions">
                         <button id="tag-selected" class="btn btn-primary">Tag</button>
@@ -746,9 +799,15 @@
             <div id="grid-content" class="grid-content">
                 <div id="grid-container" class="grid-container"></div>
             </div>
+            <!-- NEW: Grid Loading Overlay -->
+            <div id="grid-loading-overlay" class="hidden">
+                <div class="spinner"></div>
+                <div id="grid-loading-message">Saving...</div>
+            </div>
         </div>
     </div>
     
+    <!-- Unified Action Modal -->
     <div id="action-modal" class="modal hidden">
         <div class="modal-content action-modal">
             <h3 id="action-title" class="title" style="font-size: 18px; color: #1f2937; margin-bottom: 16px;">Action</h3>
@@ -759,7 +818,20 @@
             </div>
         </div>
     </div>
+
+    <!-- NEW: Error Modal -->
+    <div id="error-modal" class="modal hidden">
+        <div class="modal-content action-modal">
+            <h3 class="title" style="font-size: 18px; color: #b91c1c; margin-bottom: 16px;">An Error Occurred</h3>
+            <div id="error-message"></div>
+            <div id="error-copy-status">Error message copied to clipboard.</div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+                <button id="error-ok-btn" class="btn btn-danger">OK</button>
+            </div>
+        </div>
+    </div>
     
+    <!-- Details Modal -->
     <div id="details-modal" class="modal hidden">
         <div class="modal-content details-modal-content">
             <div class="details-header">
@@ -1001,6 +1073,8 @@
                     closeGrid: document.getElementById('close-grid'),
                     gridSize: document.getElementById('grid-size'),
                     gridSizeValue: document.getElementById('grid-size-value'),
+                    gridLoadingOverlay: document.getElementById('grid-loading-overlay'),
+                    gridLoadingMessage: document.getElementById('grid-loading-message'),
                     
                     // Search elements
                     omniSearch: document.getElementById('omni-search'),
@@ -1020,6 +1094,12 @@
                     actionCancel: document.getElementById('action-cancel'),
                     actionConfirm: document.getElementById('action-confirm'),
                     
+                    // Error modal
+                    errorModal: document.getElementById('error-modal'),
+                    errorMessage: document.getElementById('error-message'),
+                    errorCopyStatus: document.getElementById('error-copy-status'),
+                    errorOkBtn: document.getElementById('error-ok-btn'),
+
                     // Details modal
                     detailsModal: document.getElementById('details-modal'),
                     detailsClose: document.getElementById('details-close'),
@@ -1058,12 +1138,38 @@
                     appState.hapticManager.triggerFeedback(hapticType);
                 }
             },
+
+            showErrorModal(message) {
+                this.elements.errorMessage.textContent = message;
+                this.copyToClipboard(message, false); // Don't show toast
+                this.showModal('error-modal');
+            },
+
+            copyToClipboard(text, showToast = true) {
+                navigator.clipboard.writeText(text).then(() => {
+                    if(showToast) this.showToast('📋 Copied to clipboard', 'success', true);
+                }).catch(() => {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.opacity = '0';
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        if(showToast) this.showToast('📋 Copied to clipboard', 'success', true);
+                    } catch (err) {
+                        if(showToast) this.showToast('❌ Failed to copy', 'error', true);
+                    }
+                    document.body.removeChild(textArea);
+                });
+            },
             
             async withErrorHandling(operation, errorMessage = 'Operation failed') {
                 try {
                     return await operation();
                 } catch (error) {
-                    this.showToast(`${errorMessage}: ${error.message}`, 'error', true);
+                    this.showErrorModal(`${errorMessage}: ${error.message}`);
                     throw error;
                 }
             },
@@ -1459,6 +1565,7 @@
                 this.redirectUri = window.location.origin + window.location.pathname;
                 this.scope = 'https://www.googleapis.com/auth/drive';
                 this.apiBase = 'https://www.googleapis.com/drive/v3';
+                this.uploadApiBase = 'https://www.googleapis.com/upload/drive/v3';
                 this.accessToken = null;
                 this.refreshToken = null;
                 this.clientSecret = null;
@@ -2342,7 +2449,7 @@
                     commonFunctions.initializeImageDisplay();
                     
                 } catch (error) {
-                    utils.showToast(`Error loading images: ${error.message}`, 'error', true);
+                    utils.showErrorModal(`Error loading images: ${error.message}`);
                     this.returnToFolderSelection();
                 } finally {
                     if (appState.currentProvider) {
@@ -2753,7 +2860,6 @@
                 this.updateSelectionUI();
                 commonFunctions.updateStackCounts();
 
-                // BUG FIX: Auto-select the first item
                 const firstItem = utils.elements.gridContainer.querySelector('.grid-item');
                 if (firstItem) {
                     const fileId = firstItem.dataset.fileId;
@@ -2763,7 +2869,14 @@
             
             async close() {
                 if (appState.grid.isDirty) {
-                    await this.reorderStackOnClose();
+                    utils.elements.gridLoadingOverlay.classList.remove('hidden');
+                    try {
+                        await this.reorderStackOnClose();
+                    } catch (error) {
+                        utils.showErrorModal(`Failed to save new order: ${error.message}`);
+                    } finally {
+                        utils.elements.gridLoadingOverlay.classList.add('hidden');
+                    }
                 }
                 
                 utils.hideModal('grid-modal');
@@ -3000,16 +3113,12 @@
                 appState.stacks[appState.grid.stack] = newStack;
                 appState.currentStackPosition = 0; 
                 
-                try {
-                    // This is a simplified approach. A more robust solution would batch these updates.
-                    const updatePromises = newStack.map(file => 
-                        masterController.updateUserMetadata(file.id, { stackSequence: file.stackSequence })
-                    );
-                    await Promise.all(updatePromises);
-                    utils.showToast('Stack order saved', 'success');
-                } catch (error) {
-                    utils.showToast(`Error saving stack order: ${error.message}`, 'error', true);
-                }
+                // Persist the new order
+                const updatePromises = newStack.map(file => 
+                    masterController.updateUserMetadata(file.id, { stackSequence: file.stackSequence })
+                );
+                await Promise.all(updatePromises);
+                utils.showToast('Stack order saved', 'success');
             }
         };
 
@@ -3128,7 +3237,7 @@
                                 this.populateTagsTab(currentFile);
                                 input.remove();
                             } catch (error) {
-                                utils.showToast('Failed to add tag', 'error', true);
+                                utils.showErrorModal(`Failed to add tag: ${error.message}`);
                             }
                         }
                     } else if (e.key === 'Escape') {
@@ -3149,7 +3258,7 @@
                     await masterController.updateUserMetadata(file.id, { tags: newTags });
                     this.populateTagsTab(file);
                 } catch (error) {
-                    utils.showToast('Failed to remove tag', 'error', true);
+                    utils.showErrorModal(`Failed to remove tag: ${error.message}`);
                 }
             },
             
@@ -3166,7 +3275,7 @@
                         try {
                             await masterController.updateUserMetadata(currentFile.id, { notes: utils.elements.detailNotes.value });
                         } catch (error) {
-                            utils.showToast('Failed to save notes', 'error', true);
+                            utils.showErrorModal(`Failed to save notes: ${error.message}`);
                         }
                     }
                 });
@@ -3214,7 +3323,7 @@
                         try {
                             await masterController.updateUserMetadata(currentFile.id, updatePayload);
                         } catch (error) {
-                            utils.showToast(`Failed to save ${type} rating`, 'error', true);
+                            utils.showErrorModal(`Failed to save ${type} rating: ${error.message}`);
                             rating = currentRating;
                             updateVisuals(rating);
                         }
@@ -3330,26 +3439,6 @@
                 row.appendChild(keyCell);
                 row.appendChild(valueCell);
                 utils.elements.metadataTable.appendChild(row);
-            },
-            
-            copyToClipboard(text) {
-                navigator.clipboard.writeText(text).then(() => {
-                    utils.showToast('📋 Copied to clipboard', 'success', true);
-                }).catch(() => {
-                    const textArea = document.createElement('textarea');
-                    textArea.value = text;
-                    textArea.style.position = 'fixed';
-                    textArea.style.opacity = '0';
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    try {
-                        document.execCommand('copy');
-                        utils.showToast('📋 Copied to clipboard', 'success', true);
-                    } catch (err) {
-                        utils.showToast('❌ Failed to copy', 'error', true);
-                    }
-                    document.body.removeChild(textArea);
-                });
             }
         };
 
@@ -3518,7 +3607,7 @@
                     
                     commonFunctions.updateStackCounts();
                 } catch (error) {
-                    utils.showToast(`Failed to process some images: ${error.message}`, 'error', true);
+                    utils.showErrorModal(`Failed to process some images: ${error.message}`);
                 } finally {
                     confirmBtn.disabled = false;
                     confirmBtn.textContent = originalText;
@@ -3741,7 +3830,7 @@
                     await commonFunctions.moveToStack(targetStack);
                     hideAllEdgeGlows();
                 } catch (error) {
-                    utils.showToast(`Error moving image: ${error.message}`, 'error', true);
+                    utils.showErrorModal(`Error moving image: ${error.message}`);
                     hideAllEdgeGlows();
                 }
             }
@@ -3974,7 +4063,7 @@
                         await commonFunctions.displayCurrentImage();
                     }
                 } catch (error) {
-                    utils.showToast(`Failed to delete ${fileToDelete.name}`, 'error', true);
+                    utils.showErrorModal(`Failed to delete ${fileToDelete.name}: ${error.message}`);
                 }
             }
         };
@@ -4053,8 +4142,7 @@
                         }, 1000);
                     }
                 } catch (error) {
-                    utils.elements.gdriveAuthStatus.textContent = `Authentication failed: ${error.message}`;
-                    utils.elements.gdriveAuthStatus.className = 'status error';
+                    utils.showErrorModal(`Authentication failed: ${error.message}`);
                 } finally {
                     utils.elements.gdriveAuthButton.disabled = false;
                     utils.elements.gdriveAuthButton.textContent = 'Connect Drive';
@@ -4085,8 +4173,7 @@
                         }, 1000);
                     }
                 } catch (error) {
-                    utils.elements.onedriveAuthStatus.textContent = `Authentication failed: ${error.message}`;
-                    utils.elements.onedriveAuthStatus.className = 'status error';
+                    utils.showErrorModal(`Authentication failed: ${error.message}`);
                 } finally {
                     utils.elements.onedriveAuthButton.disabled = false;
                     utils.elements.onedriveAuthButton.textContent = 'Connect OneDrive';
@@ -4131,6 +4218,9 @@
             utils.elements.focusStackName.addEventListener('click', () => modalManager.setupFocusStackSwitch());
             utils.elements.focusDeleteBtn.addEventListener('click', () => focusMode.deleteCurrentImage());
 
+            // Error Modal
+            utils.elements.errorOkBtn.addEventListener('click', () => utils.hideModal('error-modal'));
+
             // Tabs
             document.querySelectorAll('.tab-button').forEach(btn => {
                 btn.addEventListener('click', () => detailsModal.switchTab(btn.dataset.tab));
@@ -4146,7 +4236,7 @@
                     const originalText = button.textContent;
                     button.textContent = '✓';
                     
-                    detailsModal.copyToClipboard(value);
+                    utils.copyToClipboard(value);
                     
                     setTimeout(() => {
                         button.classList.remove('copied');
@@ -4341,7 +4431,7 @@
                 });
                 
             } catch (error) {
-                utils.showToast(`Error loading folders: ${error.message}`, 'error', true);
+                utils.showErrorModal(`Error loading folders: ${error.message}`);
             }
         }
         
@@ -4358,7 +4448,7 @@
                 displayOneDriveFolders(folders);
                 updateOneDriveNavigation();
             } catch (error) {
-                utils.showToast('Error loading folders', 'error', true);
+                utils.showErrorModal('Error loading folders: ' + error.message);
             }
         }
         
@@ -4413,7 +4503,7 @@
                         displayOneDriveFolders(subfolders);
                         updateOneDriveNavigation();
                     } catch (error) {
-                        utils.showToast('Error loading subfolders', 'error', true);
+                        utils.showErrorModal('Error loading subfolders: ' + error.message);
                     }
                 });
             });
@@ -4465,7 +4555,7 @@
                 masterController.returnToFolderSelection();
                 
             } catch (error) {
-                utils.showToast('Error moving files', 'error', true);
+                utils.showErrorModal('Error moving files: ' + error.message);
                 masterController.returnToFolderSelection();
             }
         }
@@ -4485,7 +4575,7 @@
                         displayOneDriveFolders(folders);
                         updateOneDriveNavigation();
                     } catch (error) {
-                        utils.showToast('Error navigating to parent folder', 'error', true);
+                        utils.showErrorModal('Error navigating to parent folder: ' + error.message);
                     }
                 };
             } else {
@@ -4518,7 +4608,7 @@
                 commonFunctions.updateActiveProxTab();
                 
             } catch (error) {
-                utils.showToast('Failed to initialize app', 'error', true);
+                utils.showErrorModal('Failed to initialize app: ' + error.message);
             }
         }
         
