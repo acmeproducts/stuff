@@ -2081,7 +2081,6 @@
                     '/me/drive/root/children' : 
                     `/me/drive/items/${folderId}/children`;
                 
-                // BUG FIX: Correctly handle pagination
                 let nextLink = endpoint;
                 
                 do {
@@ -2237,6 +2236,15 @@
                 const current = this.getUserMetadata(fileId);
                 const updated = { ...current, ...updates };
                 return await this.setUserMetadata(fileId, updated);
+            }
+
+            async saveAllMetadata(filesToUpdate) {
+                filesToUpdate.forEach(file => {
+                    const current = this.getUserMetadata(file.id);
+                    const updated = { ...current, stackSequence: file.stackSequence };
+                    this.cache.set(file.id, updated);
+                });
+                await this.saveMetadata();
             }
         }
 
@@ -3098,7 +3106,7 @@
                     topItems = stackArray.filter(f => topItemIds.has(f.id)).sort((a,b) => a.name.localeCompare(b.name));
                     bottomItems = stackArray.filter(f => !topItemIds.has(f.id));
                 } else {
-                    return;
+                    return; // No reordering needed
                 }
                 
                 const newStack = [...topItems, ...bottomItems];
@@ -3117,10 +3125,14 @@
                 appState.currentStackPosition = 0; 
                 
                 if(itemsToUpdate.length > 0) {
-                    const updatePromises = itemsToUpdate.map(file => 
-                        masterController.updateUserMetadata(file.id, { stackSequence: file.stackSequence })
-                    );
-                    await Promise.all(updatePromises);
+                    if (appState.currentProviderType === 'onedrive') {
+                        await appState.currentProvider.metadataManager.saveAllMetadata(itemsToUpdate);
+                    } else {
+                        const updatePromises = itemsToUpdate.map(file => 
+                            masterController.updateUserMetadata(file.id, { stackSequence: file.stackSequence })
+                        );
+                        await Promise.all(updatePromises);
+                    }
                     utils.showToast('Stack order saved', 'success');
                 }
             }
