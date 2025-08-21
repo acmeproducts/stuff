@@ -816,6 +816,103 @@
             downloadCSV(data) { const folderName = appState.currentFolder.name.replace(/[^a-z0-9]/gi, '_').toLowerCase(); const stackName = appState.grid.stack; const date = new Date().toISOString().split('T')[0]; const filename = `orbital8_${folderName}_${stackName}_${date}.csv`; const csvContent = data.map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',')).join('\n'); const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); }
         }
 
+        // ===== Sync Manager (NEW) =====
+        class SyncManager {
+            constructor() {
+                this.syncTimer = null;
+                this.isSyncing = false;
+                this.debounceTime = 3000; // 3 seconds
+            }
+
+            requestSync() {
+                clearTimeout(this.syncTimer);
+                this.updateSaveButton('dirty');
+                this.syncTimer = setTimeout(() => this._sync(), this.debounceTime);
+            }
+
+            async forceSync() {
+                clearTimeout(this.syncTimer);
+                await this._sync();
+            }
+
+            updateSaveButton(state) { // states: 'idle', 'dirty', 'saving', 'error'
+                const btn = utils.elements.saveButton;
+                const spinner = btn.querySelector('.spinner');
+                const text = btn.lastChild;
+
+                btn.classList.remove('saving');
+                spinner.style.display = 'none';
+
+                switch(state) {
+                    case 'dirty':
+                        text.textContent = 'Save';
+                        btn.style.borderColor = 'var(--app-accent)';
+                        break;
+                    case 'saving':
+                        btn.classList.add('saving');
+                        text.textContent = 'Saving...';
+                        spinner.style.display = 'inline-block';
+                        btn.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                        break;
+                    case 'error':
+                        text.textContent = 'Error';
+                        btn.style.borderColor = '#ef4444';
+                        break;
+                    case 'idle':
+                    default:
+                        text.textContent = 'Saved';
+                        btn.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                        break;
+                }
+            }
+
+            async _sync() {
+                if (this.isSyncing) return;
+
+                const changedFileRecords = await appState.localDB.getChanges();
+                if (changedFileRecords.length === 0) {
+                    this.updateSaveButton('idle');
+                    return;
+                }
+
+                this.isSyncing = true;
+                this.updateSaveButton('saving');
+
+                try {
+                    const changedFileIds = new Set(changedFileRecords.map(r => r.id));
+                    const updatedOrderFileData = JSON.parse(JSON.stringify(appState.currentFolder.orderFileData)); // Deep copy
+                    if (!updatedOrderFileData.files) updatedOrderFileData.files = {};
+
+                    for (const id of changedFileIds) {
+                        const localData = await appState.localDB.getUserMetadata(id);
+                        if (localData) {
+                            updatedOrderFileData.files[id] = localData;
+                        }
+                    }
+
+                    const content = JSON.stringify(updatedOrderFileData, null, 2);
+
+                    if (appState.currentFolder.orderFileId) {
+                        await appState.currentProvider.updateFileContent(appState.currentFolder.orderFileId, content);
+                    } else {
+                        const newFile = await appState.currentProvider.createFile(appState.currentFolder.id, ORDER_FILE_NAME, content);
+                        appState.currentFolder.orderFileId = newFile.id;
+                    }
+
+                    appState.currentFolder.orderFileData = updatedOrderFileData;
+                    await appState.localDB.clearChanges();
+                    this.updateSaveButton('idle');
+                    utils.showToast('Changes saved to cloud', 'success');
+
+                } catch (error) {
+                    utils.showErrorModal(error);
+                    this.updateSaveButton('error');
+                } finally {
+                    this.isSyncing = false;
+                }
+            }
+        }
+
         // Handle OAuth callback for Google Drive
         if (window.location.search.includes('code=') || window.location.search.includes('error=')) {
             const urlParams = new URLSearchParams(window.location.search);
