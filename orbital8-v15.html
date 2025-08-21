@@ -1,3 +1,4 @@
+<!-- orbital8-v12.3 - 2025-08-19 05:22 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,25 +6,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V14 - Unified Cloud Storage</title>
+    <title>Orbital8 V12.3 - Enhanced Grid Mode</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V14 - PHASE 12 ===== */
+        /* ===== ORBITAL8 V12.3 - Enhanced Grid Mode ===== */
         /* Changes in this version:
-           - Bug Fix (Focus Mode Activation): Replaced the faulty tap detection with a robust manual double-tap
-             system that no longer conflicts with single-tap gestures. Double-tap now correctly activates and
-             deactivates Focus Mode.
-           - UI (Focus Mode):
-             - Removed redundant buttons. The original "Details" button is retained.
-             - The Delete button is now reliable and moved to the bottom-right corner.
-             - Added a new label in the top-left corner to display the current stack name.
-             - Added an image counter in the bottom-left corner (e.g., 6/190).
-           - Feature (Focus Mode Stack Switching): The stack name in Focus Mode is clickable, opening a modal
-             to switch to another stack.
-           - Feature (Focus Mode State): The last image viewed in Focus Mode becomes the new top image of the
-             stack upon exiting.
-           - UI (Folder Button): The "Folders" button text is now static for consistency.
-           - UI (Filename Display): The filename overlay is now prepended with the truncated folder name.
+           - Feature (Live Search): Grid search now updates results instantly as you type. An 'X' button
+             has been added to the search bar to clear the query and reset the view.
+           - Feature (Grid Reordering): Closing the grid with an active search or manual selection
+             reorders the stack, placing those images at the top and saving the new order to a
+             dedicated JSON file in the cloud for persistence.
+           - Bug Fix (Grid Layout): The grid now correctly initializes with the number of columns
+             set by the slider upon opening.
+           - Bug Fix (Grid Reactivity): The grid view now updates immediately after move or delete
+             operations are performed within the modal.
+           - Bug Fix (Grid Selection): Selected items are now visually deselected after a bulk
+             action (like tagging) is completed.
+           - Versioning: Updated to v12.3.
         */
         
         :root {
@@ -374,11 +373,21 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            position: relative;
         }
         #omni-search {
-            flex-grow: 1; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;
+            flex-grow: 1; padding: 6px 30px 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;
         }
-        #omni-search-btn { padding: 6px 16px; }
+        #clear-search-btn {
+            position: absolute;
+            right: 24px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            cursor: pointer;
+            display: none; /* Hidden by default */
+        }
+        #clear-search-btn:hover { color: #6b7280; }
         
         .grid-row-4 {
             padding: 8px 16px;
@@ -480,17 +489,9 @@
             color: rgba(255, 255, 255, 0.6); text-align: center; padding: 4px 8px;
             font-size: 10px; z-index: 5; backdrop-filter: blur(10px);
         }
-        .footer-link {
-            color: rgba(255, 255, 255, 0.6);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-        .footer-link:hover {
-            color: white;
-        }
         
-        /* ===== Focus Mode ===== */
-        .focus-mode-ui {
+        /* ===== Focus Mode & Counters ===== */
+        .focus-mode-ui, #normal-image-count {
             position: absolute;
             background: rgba(0, 0, 0, 0.4);
             color: white;
@@ -506,17 +507,19 @@
             padding: 8px 12px;
             cursor: pointer;
         }
-        .focus-mode-ui:hover {
+        .focus-mode-ui:hover, #normal-image-count:hover {
             background: rgba(0, 0, 0, 0.6);
             border-color: white;
         }
         #focus-stack-name { top: 20px; left: 20px; }
         #focus-image-count { bottom: 20px; left: 20px; }
+        #normal-image-count { bottom: 20px; left: 20px; display: flex; } /* NEW: Visible by default */
         #focus-delete-btn { bottom: 20px; right: 20px; width: 44px; height: 44px; padding: 0; border-radius: 50%; }
         
         .app-container.focus-mode .pill-counter,
         .app-container.focus-mode .nav-button.back,
-        .app-container.focus-mode .filename-overlay {
+        .app-container.focus-mode .filename-overlay,
+        .app-container.focus-mode #normal-image-count { /* Hide normal counter in focus mode */
             display: none;
         }
         .app-container.focus-mode .focus-mode-ui {
@@ -532,7 +535,7 @@
         @media screen and (min-width: 768px) {
             .pill-counter { font-size: 16px; padding: 8px 16px; min-width: 40px; }
             .nav-button { font-size: 14px; padding: 10px 16px; }
-            .focus-mode-ui { font-size: 14px; padding: 10px 16px; }
+            .focus-mode-ui, #normal-image-count { font-size: 14px; padding: 10px 16px; }
         }
         
         @media screen and (max-width: 767px) {
@@ -595,9 +598,7 @@
             
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">
-            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph12.html</a>
-        </div>
+        <div class="app-footer">orbital8-v12.3 - 2025-08-19 05:22 AM</div>
     </div>
     
     <!-- Google Drive Auth Screen -->
@@ -610,9 +611,7 @@
             <button class="button" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
-        <div class="app-footer">
-            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph12.html</a>
-        </div>
+        <div class="app-footer">orbital8-v12.3 - 2025-08-19 05:22 AM</div>
     </div>
     
     <!-- OneDrive Auth Screen -->
@@ -624,9 +623,7 @@
             <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
-        <div class="app-footer">
-            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph12.html</a>
-        </div>
+        <div class="app-footer">orbital8-v12.3 - 2025-08-19 05:22 AM</div>
     </div>
     
     <!-- Google Drive Folder Screen -->
@@ -641,9 +638,7 @@
                 <button class="folder-button danger" id="gdrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">
-            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph12.html</a>
-        </div>
+        <div class="app-footer">orbital8-v12.3 - 2025-08-19 05:22 AM</div>
     </div>
     
     <!-- OneDrive Folder Screen -->
@@ -658,9 +653,7 @@
                 <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">
-            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph12.html</a>
-        </div>
+        <div class="app-footer">orbital8-v12.3 - 2025-08-19 05:22 AM</div>
     </div>
     
     <!-- Loading Screen -->
@@ -674,9 +667,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">
-            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph12.html</a>
-        </div>
+        <div class="app-footer">orbital8-v12.3 - 2025-08-19 05:22 AM</div>
     </div>
     
     <!-- Main App Container -->
@@ -706,9 +697,10 @@
         
         <a id="filename-overlay" class="filename-overlay" href="#" target="_blank"></a>
 
-        <!-- Focus Mode UI -->
+        <!-- Focus Mode & Normal Mode UI -->
         <div id="focus-stack-name" class="focus-mode-ui"></div>
         <div id="focus-image-count" class="focus-mode-ui"></div>
+        <div id="normal-image-count"></div>
         <button id="focus-delete-btn" class="focus-mode-ui">
             <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -716,9 +708,7 @@
         </button>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">
-            <a href="https://github.com/acmeproducts/stuff/blob/main/orbital8-v14.html" target="_blank" class="footer-link">orbital8-v14-ph12.html</a>
-        </div>
+        <div class="app-footer">orbital8-v12.3 - 2025-08-19 05:22 AM</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -756,8 +746,10 @@
                 
                 <!-- Row 3: Omni Search -->
                 <div class="grid-row-3">
-                    <input type="text" id="omni-search" class="input" placeholder="Search tags, notes, and metadata..." style="margin-bottom: 0; flex-grow: 1;">
-                    <button id="omni-search-btn" class="btn btn-primary">Go</button>
+                    <input type="text" id="omni-search" class="input" placeholder="Search tags, notes, and metadata..." style="margin-bottom: 0;">
+                    <button id="clear-search-btn">
+                         <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
                 </div>
                 
                 <!-- Row 4: Reserved for Bulk Actions -->
@@ -891,23 +883,21 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V14 - PHASE 12 =====
-        /* * Version: V14 P12 (orbital8-v14-ph12.html)
+        // ===== ORBITAL8 V12.3 - Enhanced Grid Mode =====
+        /* * Version: V12.3 (orbital8-v12.3)
          * * Changes in this version:
-           - Bug Fix (Focus Mode Activation): Replaced the faulty tap detection with a robust manual double-tap
-             system that no longer conflicts with single-tap gestures. Double-tap now correctly activates and
-             deactivates Focus Mode.
-           - UI (Focus Mode):
-             - Removed the redundant top-center Details button and the top-right Close button.
-             - The Delete button is now reliable and has been moved to the bottom-right corner.
-             - Added a new label in the top-left corner to display the current stack name.
-             - Added an image counter in the bottom-left corner (e.g., 6/190).
-           - Feature (Focus Mode Stack Switching): The stack name in Focus Mode is clickable, opening a modal
-             to switch to another stack.
-           - Feature (Focus Mode State): The last image viewed in Focus Mode becomes the new top image of the
-             stack upon exiting.
-           - UI (Folder Button): The "Folders" button text is now static for consistency.
-           - UI (Filename Display): The filename overlay is now prepended with the truncated folder name.
+           - Feature (Live Search): Grid search now updates results instantly as you type. An 'X' button
+             has been added to the search bar to clear the query and reset the view.
+           - Feature (Grid Reordering): Closing the grid with an active search or manual selection
+             reorders the stack, placing those images at the top and saving the new order to a
+             dedicated JSON file in the cloud for persistence.
+           - Bug Fix (Grid Layout): The grid now correctly initializes with the number of columns
+             set by the slider upon opening.
+           - Bug Fix (Grid Reactivity): The grid view now updates immediately after move or delete
+             operations are performed within the modal.
+           - Bug Fix (Grid Selection): Selected items are now visually deselected after a bulk
+             action (like tagging) is completed.
+           - Versioning: Updated to v12.3.
         */
         
         // ===== Core Constants & State =====
@@ -924,10 +914,10 @@
             exportSystem: null,
             currentFolder: { id: null, name: '' },
             imageFiles: [],
-            currentImageIndex: -1,
             currentImageLoadId: null, 
             currentStack: 'in',
-            isFocusMode: false, // New state for Focus Mode
+            currentStackPosition: 0,
+            isFocusMode: false,
             stacks: { in: [], out: [], priority: [], trash: [] },
             isDragging: false,
             isPinching: false,
@@ -940,11 +930,12 @@
                 stack: null, 
                 selected: [], 
                 filtered: [],
+                isDirty: false, // NEW: Tracks if reordering is needed on close
                 lazyLoadState: {
                     allFiles: [],
                     renderedCount: 0,
                     observer: null,
-                    batchSize: 20 // Number of images to load at a time
+                    batchSize: 20
                 }
             },
             tags: new Set(),
@@ -1003,9 +994,10 @@
                     toast: document.getElementById('toast'),
                     filenameOverlay: document.getElementById('filename-overlay'),
                     
-                    // Focus Mode elements
+                    // Focus Mode & Normal Mode elements
                     focusStackName: document.getElementById('focus-stack-name'),
                     focusImageCount: document.getElementById('focus-image-count'),
+                    normalImageCount: document.getElementById('normal-image-count'),
                     focusDeleteBtn: document.getElementById('focus-delete-btn'),
 
                     // Loading elements
@@ -1040,7 +1032,7 @@
                     
                     // Search elements
                     omniSearch: document.getElementById('omni-search'),
-                    omniSearchBtn: document.getElementById('omni-search-btn'),
+                    clearSearchBtn: document.getElementById('clear-search-btn'),
                     
                     // Action buttons
                     tagSelected: document.getElementById('tag-selected'),
@@ -1310,7 +1302,7 @@
                 }
             }
             
-            async getMetadata(fileId) { // NOTE: Removed modifiedTime check for Google Drive fix
+            async getMetadata(fileId) {
                 if (!this.db) return null;
                 try {
                     const transaction = this.db.transaction(['metadata'], 'readonly');
@@ -1321,8 +1313,6 @@
                         request.onerror = () => reject(request.error);
                     });
                     
-                    // For Google Drive, we can't trust modifiedTime.
-                    // For OneDrive, it's safe. We accept the cached data if it exists.
                     if (result) {
                         return result.metadata;
                     }
@@ -1333,7 +1323,7 @@
                 return null;
             }
             
-            async setMetadata(fileId, metadata) { // NOTE: Removed modifiedTime
+            async setMetadata(fileId, metadata) {
                 if (!this.db) return;
                 try {
                     const transaction = this.db.transaction(['metadata'], 'readwrite');
@@ -1459,13 +1449,12 @@
                     let response;
 
                     if (appState.currentProviderType === 'googledrive') {
-                        // ROBUSTNESS FIX: Always use the makeApiCall wrapper to handle token refreshes.
                         response = await appState.currentProvider.makeApiCall(`/files/${file.id}?alt=media`, {
                             headers: { 'Range': 'bytes=0-65535' },
                             signal: this.abortController.signal
-                        }, false); // isJson = false
+                        }, false);
                     } else {
-                        const accessToken = await appState.currentProvider.getAccessToken(); // OneDrive handles this internally.
+                        const accessToken = await appState.currentProvider.getAccessToken();
                         response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`, {
                             headers: { 
                                 'Authorization': `Bearer ${accessToken}`,
@@ -2176,9 +2165,6 @@
 
         // ===== Export System =====
         class ExportSystem {
-            // NOTE: The primary logic for fetching data has been moved to the new Live Export Process.
-            // This class is now only responsible for formatting and downloading the final data.
-            
             async exportData(imagesWithMetadata) {
                 if (imagesWithMetadata.length === 0) {
                     utils.showToast('No images to export', 'info', true);
@@ -2354,7 +2340,6 @@
                 };
                 
                 try {
-                    // Cloud-First: Always fetch, never trust cache for file list
                     utils.elements.loadingMessage.textContent = `Loading images from ${appState.currentProviderType}...`;
                     
                     if (appState.currentProviderType === 'onedrive' && appState.currentProvider.metadataManager) {
@@ -2541,10 +2526,9 @@
                     
                     try {
                         await Promise.allSettled(batchPromises);
-                        // This data is volatile and just for the "Details" view, so we don't cache the whole file list here.
                         
                         if (i + BATCH_SIZE < pngFiles.length) {
-                            await new Promise(resolve => setTimeout(resolve, 100)); // Increased delay
+                            await new Promise(resolve => setTimeout(resolve, 100));
                         }
                         
                     } catch (error) {
@@ -2565,7 +2549,6 @@
                     return;
                 }
                 
-                // This is a "best effort" background process. The robust logic is in the Live Export.
                 try {
                     const metadata = await appState.metadataExtractor.fetchMetadata(file);
                     
@@ -2580,7 +2563,6 @@
                     file.metadataStatus = 'loaded';
                     
                 } catch (error) {
-                    // Fail silently. The Live Export process is the source of truth.
                     console.warn(`Background metadata extraction failed for ${file.name}: ${error.message}`);
                     file.metadataStatus = 'error';
                 }
@@ -2607,27 +2589,6 @@
                 
                 this.updateStackCounts();
             },
-
-            rebuildStacks() {
-                const currentOrder = {};
-                STACK_TYPES.forEach(s => {
-                    currentOrder[s] = appState.stacks[s].map(f => f.id);
-                });
-
-                STACK_TYPES.forEach(stack => { appState.stacks[stack] = []; });
-                
-                appState.imageFiles.forEach(file => {
-                    if (appState.stacks[file.stack]) {
-                        appState.stacks[file.stack].push(file);
-                    } else {
-                        appState.stacks.in.push(file);
-                    }
-                });
-
-                STACK_TYPES.forEach(s => {
-                    appState.stacks[s] = this.sortFiles(appState.stacks[s]);
-                });
-            },
             
             sortFiles(files) {
                 return [...files].sort((a, b) => {
@@ -2652,7 +2613,7 @@
             },
             
             initializeImageDisplay() {
-                appState.currentImageIndex = 0;
+                appState.currentStackPosition = 0;
                 appState.currentStack = 'in';
                 
                 this.displayTopImageFromStack('in');
@@ -2661,38 +2622,42 @@
             },
             
             async displayTopImageFromStack(stackName) {
-                if (appState.stacks[stackName].length === 0) {
+                const stack = appState.stacks[stackName];
+                if (stack.length === 0) {
                     this.showEmptyState();
                     return;
                 }
                 
                 utils.elements.emptyState.classList.add('hidden');
-                const topImage = appState.stacks[stackName][0];
-                const imageIndex = appState.imageFiles.findIndex(f => f.id === topImage.id);
+                appState.currentStack = stackName;
+                appState.currentStackPosition = 0; // Always start at the top
                 
-                if (imageIndex !== -1) {
-                    appState.currentImageIndex = imageIndex;
-                    appState.currentStack = stackName;
-                    await this.displayCurrentImage();
-                    this.updateActiveProxTab();
-                } else {
-                    this.showEmptyState();
-                }
+                await this.displayCurrentImage();
+                this.updateActiveProxTab();
             },
             
             async displayCurrentImage() {
-                if (appState.imageFiles.length === 0 || appState.currentImageIndex === -1) {
+                const currentStackArray = appState.stacks[appState.currentStack];
+                if (!currentStackArray || currentStackArray.length === 0) {
                     this.showEmptyState();
                     return;
                 }
                 
-                const currentFile = appState.imageFiles[appState.currentImageIndex];
+                // Ensure pointer is within bounds
+                if (appState.currentStackPosition >= currentStackArray.length) {
+                    appState.currentStackPosition = currentStackArray.length - 1;
+                }
+                if (appState.currentStackPosition < 0) {
+                    appState.currentStackPosition = 0;
+                }
+
+                const currentFile = currentStackArray[appState.currentStackPosition];
                 if (!currentFile) {
                     this.showEmptyState();
                     return;
                 }
 
-                utils.elements.detailsButton.style.display = 'flex'; // FIX: Show details button
+                utils.elements.detailsButton.style.display = 'flex';
                 
                 await utils.setImageSrc(utils.elements.centerImage, currentFile);
                 
@@ -2710,9 +2675,18 @@
                     masterController.processFileMetadata(currentFile);
                 }
                 
-                if (appState.isFocusMode) {
-                    focusMode.updateUI();
-                }
+                this.updateImageCounters();
+            },
+
+            updateImageCounters() {
+                const stack = appState.stacks[appState.currentStack];
+                const total = stack.length;
+                const current = total > 0 ? appState.currentStackPosition + 1 : 0; // 1-based for display
+                const text = `${current} / ${total}`;
+
+                utils.elements.focusImageCount.textContent = text;
+                utils.elements.normalImageCount.textContent = text;
+                utils.elements.focusStackName.textContent = STACK_NAMES[appState.currentStack];
             },
             
             applyTransform() {
@@ -2731,80 +2705,53 @@
             },
             
             async moveToStack(targetStack) {
-                const currentImage = appState.imageFiles[appState.currentImageIndex];
+                const currentStackArray = appState.stacks[appState.currentStack];
+                if (!currentStackArray || currentStackArray.length === 0) return;
+                
+                const currentImage = currentStackArray[appState.currentStackPosition];
                 if (!currentImage) return;
-                const currentStackName = currentImage.stack;
-        
-                let newSequence;
-        
-                if (currentStackName === targetStack) {
-                    // FIX: When moving to the same stack, send to back by giving it the OLDEST timestamp.
-                    const currentStackArray = appState.stacks[currentStackName];
+
+                const originalStackName = appState.currentStack;
+
+                // If moving to the same stack, move to the end
+                if (targetStack === originalStackName) {
                     const otherImages = currentStackArray.filter(img => img.id !== currentImage.id);
-                    if (otherImages.length > 0) {
-                        const minSequence = Math.min(...otherImages.map(img => img.stackSequence || 0));
-                        newSequence = minSequence - 1;
-                    } else {
-                        newSequence = Date.now(); // Only image in stack, timestamp doesn't matter as much.
-                    }
-        
-                    const index = currentStackArray.findIndex(img => img.id === currentImage.id);
-                    if (index > -1) {
-                        const [item] = currentStackArray.splice(index, 1);
-                        item.stackSequence = newSequence;
-                        currentStackArray.push(item); // Manually move to end of array for immediate visual feedback
-                        await masterController.updateUserMetadata(item.id, { stackSequence: newSequence });
-                    }
+                    const minSequence = otherImages.length > 0 ? Math.min(...otherImages.map(img => img.stackSequence || 0)) : Date.now();
+                    const newSequence = minSequence - 1;
+
+                    await masterController.updateUserMetadata(currentImage.id, { stackSequence: newSequence });
+                    
+                    // Re-order locally by re-sorting the whole array
+                    const [item] = currentStackArray.splice(appState.currentStackPosition, 1);
+                    item.stackSequence = newSequence;
+                    currentStackArray.push(item);
+
                 } else {
-                    // Original logic: When moving to a NEW stack, give it the NEWEST timestamp to appear first.
-                    newSequence = Date.now();
-                    const oldStack = appState.stacks[currentStackName];
-                    const oldIndex = oldStack.findIndex(img => img.id === currentImage.id);
-                    if (oldIndex > -1) {
-                        oldStack.splice(oldIndex, 1);
-                    }
-                    appState.stacks[targetStack].unshift(currentImage);
+                    // Move to a different stack
+                    const newSequence = Date.now();
                     await masterController.moveFileToStack(currentImage.id, targetStack, newSequence);
+
+                    // Re-order locally
+                    const [item] = currentStackArray.splice(appState.currentStackPosition, 1);
+                    item.stack = targetStack;
+                    item.stackSequence = newSequence;
+                    appState.stacks[targetStack].unshift(item); // Add to top of new stack
+                    appState.stacks[targetStack] = this.sortFiles(appState.stacks[targetStack]);
                 }
                 
-                // The sort will now work correctly for both cases.
-                appState.stacks[targetStack] = this.sortFiles(appState.stacks[targetStack]);
-                if (currentStackName !== targetStack) {
-                     appState.stacks[currentStackName] = this.sortFiles(appState.stacks[currentStackName]);
-                }
-        
                 this.updateStackCounts();
                 this.updateActiveProxTab();
                 
-                if (appState.stacks[appState.currentStack].length > 0) {
-                    this.moveToNextImage();
-                } else {
-                    this.showEmptyState();
-                }
-            },
-            
-            async moveToNextImage() {
-                const activeStackImages = appState.stacks[appState.currentStack];
-                if (activeStackImages.length > 0) {
-                    const nextImage = activeStackImages[0];
-                    const nextGlobalIndex = appState.imageFiles.findIndex(img => img.id === nextImage.id);
-                    if (nextGlobalIndex !== -1) {
-                        appState.currentImageIndex = nextGlobalIndex;
-                        await this.displayCurrentImage();
-                    } else {
-                        this.showEmptyState();
-                    }
-                } else {
-                    this.showEmptyState();
-                }
+                // Display next image in the original stack
+                await this.displayCurrentImage();
             },
             
             showEmptyState() {
-                appState.currentImageIndex = -1;
                 appState.currentImageLoadId = null;
                 utils.elements.centerImage.style.opacity = '0';
                 utils.elements.filenameOverlay.classList.remove('visible');
-                utils.elements.detailsButton.style.display = 'none'; // FIX: Hide details button
+                utils.elements.detailsButton.style.display = 'none';
+                this.updateImageCounters(); // Show 0/0
                 setTimeout(() => {
                     utils.elements.centerImage.src = '';
                     utils.elements.centerImage.alt = 'No images in this stack';
@@ -2821,8 +2768,12 @@
                 utils.showModal('grid-modal');
                 utils.elements.gridTitle.textContent = STACK_NAMES[stack] || stack;
                 appState.grid.stack = stack;
+                appState.grid.isDirty = false;
                 
-                // Reset states
+                // BUG FIX: Initialize grid layout correctly
+                const value = utils.elements.gridSize.value;
+                utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
+                
                 appState.grid.selected = [];
                 appState.grid.filtered = [];
                 utils.elements.gridContainer.innerHTML = '';
@@ -2832,7 +2783,11 @@
                 commonFunctions.updateStackCounts();
             },
             
-            close() {
+            async close() {
+                if (appState.grid.isDirty) {
+                    await this.reorderStackOnClose();
+                }
+                
                 utils.hideModal('grid-modal');
                 this.resetSearch();
                 this.destroyLazyLoad();
@@ -2840,14 +2795,14 @@
                 const selectedImages = appState.grid.selected;
                 if (selectedImages.length === 1) {
                     const selectedFileId = selectedImages[0];
-                    const selectedIndex = appState.imageFiles.findIndex(f => f.id === selectedFileId);
+                    const stackArray = appState.stacks[appState.currentStack];
+                    const selectedIndex = stackArray.findIndex(f => f.id === selectedFileId);
                     if (selectedIndex !== -1) {
-                        appState.currentImageIndex = selectedIndex;
-                        commonFunctions.displayCurrentImage();
+                        appState.currentStackPosition = selectedIndex;
                     }
-                } else {
-                    commonFunctions.displayTopImageFromStack(appState.currentStack);
                 }
+                
+                commonFunctions.displayCurrentImage();
                 
                 appState.grid.stack = null;
                 appState.grid.selected = [];
@@ -2867,12 +2822,11 @@
 
                 this.renderBatch();
 
-                // Setup IntersectionObserver
                 if (state.observer) state.observer.disconnect();
                 
                 state.observer = new IntersectionObserver(this.handleIntersection.bind(this), { 
                     root: utils.elements.gridContent, 
-                    rootMargin: "400px" // Pre-fetch images 400px before they are visible
+                    rootMargin: "400px"
                 });
 
                 const sentinel = document.getElementById('grid-sentinel');
@@ -2896,7 +2850,6 @@
                 const container = utils.elements.gridContainer;
                 const filesToRender = state.allFiles.slice(state.renderedCount, state.renderedCount + state.batchSize);
 
-                // Disconnect from old sentinel before removing it
                 const oldSentinel = document.getElementById('grid-sentinel');
                 if (oldSentinel && state.observer) {
                     state.observer.unobserve(oldSentinel);
@@ -2915,7 +2868,7 @@
                     const img = document.createElement('img');
                     img.className = 'grid-image';
                     img.alt = file.name || 'Image';
-                    img.dataset.src = utils.generateImageUrl(file); // Store URL in data-src
+                    img.dataset.src = utils.generateImageUrl(file);
 
                     img.onload = () => img.classList.add('loaded');
                     img.onerror = () => {
@@ -2929,14 +2882,12 @@
                     container.appendChild(div);
                 });
 
-                // Trigger loading for the new batch
                 container.querySelectorAll('.grid-image:not([src])').forEach(img => {
                     img.src = img.dataset.src;
                 });
 
                 state.renderedCount += filesToRender.length;
 
-                // Add a new sentinel if there are more files to load
                 if (state.renderedCount < state.allFiles.length) {
                     const sentinel = document.createElement('div');
                     sentinel.id = 'grid-sentinel';
@@ -2959,6 +2910,7 @@
                     gridItem.classList.remove('selected');
                 }
                 
+                appState.grid.isDirty = true;
                 this.updateSelectionUI();
             },
             
@@ -2982,11 +2934,12 @@
                     item.classList.add('selected');
                 });
                 
+                appState.grid.isDirty = true;
                 this.updateSelectionUI();
             },
             
             deselectAll() {
-                document.querySelectorAll('#grid-container .grid-item').forEach(item => 
+                document.querySelectorAll('#grid-container .grid-item.selected').forEach(item => 
                     item.classList.remove('selected')
                 );
                 appState.grid.selected = [];
@@ -2995,6 +2948,7 @@
             
             performSearch() {
                 const query = utils.elements.omniSearch.value.trim();
+                utils.elements.clearSearchBtn.style.display = query ? 'block' : 'none';
                 appState.grid.selected = [];
                 
                 if (!query) {
@@ -3003,19 +2957,21 @@
                 }
                 
                 appState.grid.filtered = this.searchImages(query);
-                appState.grid.selected = appState.grid.filtered.map(f => f.id);
                 
                 utils.elements.gridContainer.innerHTML = '';
                 this.initializeLazyLoad(appState.grid.stack);
                 this.updateSelectionUI();
+                appState.grid.isDirty = true;
             },
 
             resetSearch() {
                 utils.elements.omniSearch.value = '';
+                utils.elements.clearSearchBtn.style.display = 'none';
                 appState.grid.filtered = [];
                 utils.elements.gridContainer.innerHTML = '';
                 this.initializeLazyLoad(appState.grid.stack);
                 commonFunctions.updateStackCounts();
+                this.deselectAll();
             },
             
             searchImages(query) {
@@ -3035,6 +2991,47 @@
                     
                     return regex.test(searchableText);
                 });
+            },
+
+            async reorderStackOnClose() {
+                const stackArray = appState.stacks[appState.grid.stack];
+                let topItems = [];
+                let bottomItems = [];
+
+                if (appState.grid.filtered.length > 0) { // Search was active
+                    const filteredIds = new Set(appState.grid.filtered.map(f => f.id));
+                    topItems = appState.grid.filtered.sort((a, b) => a.name.localeCompare(b.name));
+                    bottomItems = stackArray.filter(f => !filteredIds.has(f.id));
+                } else if (appState.grid.selected.length > 0) { // Manual selection
+                    const selectedIds = new Set(appState.grid.selected);
+                    topItems = stackArray.filter(f => selectedIds.has(f.id)).sort((a,b) => a.name.localeCompare(b.name));
+                    bottomItems = stackArray.filter(f => !selectedIds.has(f.id));
+                } else {
+                    return; // No reordering needed
+                }
+                
+                const newStack = [...topItems, ...bottomItems];
+                const timestamp = Date.now();
+                
+                // Update sequence numbers for persistence
+                for (let i = 0; i < newStack.length; i++) {
+                    newStack[i].stackSequence = timestamp - i;
+                }
+
+                appState.stacks[appState.grid.stack] = newStack;
+                appState.currentStackPosition = 0; // Reset pointer to the top of the reordered stack
+
+                // Persist the new order
+                try {
+                    // This is a simplified approach. A more robust solution would batch these updates.
+                    const updatePromises = newStack.map(file => 
+                        masterController.updateUserMetadata(file.id, { stackSequence: file.stackSequence })
+                    );
+                    await Promise.all(updatePromises);
+                    utils.showToast('Stack order saved', 'success');
+                } catch (error) {
+                    utils.showToast('Failed to save new stack order', 'error', true);
+                }
             }
         };
 
@@ -3043,7 +3040,7 @@
             currentTab: 'info',
             
             async show() {
-                const currentFile = appState.imageFiles[appState.currentImageIndex];
+                const currentFile = appState.stacks[appState.currentStack][appState.currentStackPosition];
                 if (!currentFile) return;
 
                 if (currentFile.metadataStatus !== 'loaded') {
@@ -3142,7 +3139,7 @@
                     if (e.key === 'Enter') {
                         const tagName = input.value.trim();
                         if (tagName) {
-                            const currentFile = appState.imageFiles[appState.currentImageIndex];
+                            const currentFile = appState.stacks[appState.currentStack][appState.currentStackPosition];
                             try {
                                 const currentTags = currentFile.tags || [];
                                 const newTags = [...new Set([...currentTags, tagName])];
@@ -3186,7 +3183,7 @@
                 utils.elements.detailNotes = newNotesTextarea;
                 
                 utils.elements.detailNotes.addEventListener('blur', async () => {
-                    const currentFile = appState.imageFiles[appState.currentImageIndex];
+                    const currentFile = appState.stacks[appState.currentStack][appState.currentStackPosition];
                     if (currentFile.notes !== utils.elements.detailNotes.value) {
                         try {
                             await masterController.updateUserMetadata(currentFile.id, { notes: utils.elements.detailNotes.value });
@@ -3226,7 +3223,7 @@
                         }
                         updateVisuals(rating);
         
-                        const currentFile = appState.imageFiles[appState.currentImageIndex];
+                        const currentFile = appState.stacks[appState.currentStack][appState.currentStackPosition];
                         if (!currentFile) return;
         
                         const updatePayload = {};
@@ -3497,7 +3494,7 @@
                     option.addEventListener('click', () => {
                         const targetStack = option.dataset.stack;
                         switchToStack(targetStack);
-                        focusMode.updateUI();
+                        commonFunctions.updateImageCounters();
                         this.hide();
                     });
                 });
@@ -3519,7 +3516,8 @@
                 });
             },
             
-            async executeBulkAction(actionFn, successMessage) {
+            async executeBulkAction(actionFn, successMessage, options = {}) {
+                const { refreshGrid = true, deselect = true } = options;
                 const confirmBtn = utils.elements.actionConfirm;
                 const originalText = confirmBtn.textContent;
                 confirmBtn.disabled = true;
@@ -3530,13 +3528,16 @@
                     await Promise.all(promises);
 
                     utils.showToast(successMessage.replace('{count}', promises.length), 'success', true);
-                    this.hide();
+                    if(!options.keepModalOpen) this.hide();
                     
-                    // Refresh grid view
-                    gridView.destroyLazyLoad();
-                    gridView.initializeLazyLoad(appState.grid.stack);
-                    appState.grid.selected = [];
-                    gridView.updateSelectionUI();
+                    if (refreshGrid) {
+                        // BUG FIX: Re-render the grid content after action
+                        utils.elements.gridContainer.innerHTML = '';
+                        gridView.initializeLazyLoad(appState.grid.stack);
+                    }
+                    if (deselect) {
+                        gridView.deselectAll(); // BUG FIX: Visually deselect and reset buttons
+                    }
                     
                     commonFunctions.updateStackCounts();
                 } catch (error) {
@@ -3580,14 +3581,13 @@
                         await masterController.updateUserMetadata(fileId, { tags: newTags });
                         tagsToAdd.forEach(tag => appState.tags.add(tag));
                     }
-                }, `Tags added to {count} images`);
+                }, `Tags added to {count} images`, { refreshGrid: false });
             },
 
             async executeDelete() {
                 await this.executeBulkAction(async (fileId) => {
                     await masterController.deleteFile(fileId);
                     
-                    // Remove from local state
                     const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
                     if (fileIndex > -1) {
                         const [file] = appState.imageFiles.splice(fileIndex, 1);
@@ -3599,7 +3599,6 @@
                 }, `Moved {count} images to provider trash`);
             },
             
-            // ===== NEW: LIVE EXPORT PROCESS =====
             async executeExport() {
                 const fileIds = [...appState.grid.selected];
                 const filesToExport = fileIds.map(id => appState.imageFiles.find(f => f.id === id)).filter(f => f);
@@ -3607,7 +3606,6 @@
                 const results = [];
                 let failures = 0;
                 
-                // 1. Setup the new UI in the modal
                 utils.elements.actionTitle.textContent = `Live Export: 0 of ${total}`;
                 utils.elements.actionContent.innerHTML = `
                     <div style="background: #111; border: 1px solid #333; color: #eee; font-family: monospace; font-size: 12px; height: 250px; overflow-y: scroll; padding: 8px; white-space: pre-wrap;" id="export-log"></div>
@@ -3623,7 +3621,6 @@
                 
                 log(`Starting export for ${total} images...`);
                 
-                // 2. Process each file sequentially with retries
                 for (let i = 0; i < filesToExport.length; i++) {
                     const file = filesToExport[i];
                     utils.elements.actionTitle.textContent = `Live Export: ${i + 1} of ${total}`;
@@ -3634,14 +3631,13 @@
                     
                     for (let attempt = 1; attempt <= 3; attempt++) {
                         try {
-                            // This is a fresh, live fetch direct from the cloud
                             const metadata = await appState.metadataExtractor.fetchMetadata(file, true);
                             if (metadata.error) throw new Error(metadata.error);
                             
                             extractedMetadata = metadata;
                             log(`  ✅ Success`);
                             success = true;
-                            break; // Exit retry loop on success
+                            break;
                         } catch (error) {
                             log(`  ⚠️ Attempt ${attempt} failed: ${error.message}`);
                             if (attempt < 3) {
@@ -3661,7 +3657,6 @@
                     });
                 }
                 
-                // 3. Finalize and download
                 log('\n-------------------------------------');
                 log('Export process complete.');
                 log(`Successfully processed: ${total - failures} files.`);
@@ -3723,7 +3718,7 @@
             let startPos = { x: 0, y: 0 };
             let currentPos = { x: 0, y: 0 };
             let gestureStarted = false;
-            let lastTapTime = 0; // For double tap detection
+            let lastTapTime = 0;
 
             const edgeElements = [utils.elements.edgeTop, utils.elements.edgeBottom, utils.elements.edgeLeft, utils.elements.edgeRight];
             
@@ -3757,9 +3752,7 @@
             }
             
             async function executeFlick(targetStack) {
-                if (appState.currentImageIndex === -1) return;
-                const currentImage = appState.imageFiles[appState.currentImageIndex];
-                if (!currentImage) return;
+                if (appState.stacks[appState.currentStack].length === 0) return;
 
                 acknowledgePillCounter(targetStack);
                 
@@ -3785,22 +3778,20 @@
             document.addEventListener('touchend', handleEnd, { passive: false });
             
             function handleStart(e) {
-                // Double Tap Logic
                 const currentTime = Date.now();
-                if (currentTime - lastTapTime < 300) { // 300ms threshold for double tap
+                if (currentTime - lastTapTime < 300) {
                     e.preventDefault();
                     focusMode.toggle();
-                    lastTapTime = 0; // Reset tap time
+                    lastTapTime = 0;
                     return;
                 }
                 lastTapTime = currentTime;
 
-                if (appState.isFocusMode) return; // Don't run in focus mode
-                if (appState.imageFiles.length === 0 || appState.currentImageIndex === -1) return;
+                if (appState.isFocusMode) return;
+                if (appState.stacks[appState.currentStack].length === 0) return;
                 if (e.touches && (e.touches.length > 1 || appState.isPinching)) return;
                 if (appState.currentScale > 1.1) return;
                 
-                // e.preventDefault(); // Don't prevent default immediately, allow tap to register
                 const point = e.touches ? e.touches[0] : e;
                 
                 startPos = { x: point.clientX, y: point.clientY };
@@ -3822,7 +3813,7 @@
                     return;
                 }
                 
-                e.preventDefault(); // Prevent default on move to stop scrolling
+                e.preventDefault();
                 const point = e.touches ? e.touches[0] : e;
                 
                 currentPos = { x: point.clientX, y: point.clientY };
@@ -3966,82 +3957,43 @@
             toggle() {
                 appState.isFocusMode = !appState.isFocusMode;
                 utils.elements.appContainer.classList.toggle('focus-mode', appState.isFocusMode);
-                if (appState.isFocusMode) {
-                    this.updateUI();
-                } else {
-                    // On exit, re-order the stack
-                    const lastViewedFile = appState.imageFiles[appState.currentImageIndex];
-                    if (lastViewedFile) {
-                        const stackArray = appState.stacks[appState.currentStack];
-                        const index = stackArray.findIndex(f => f.id === lastViewedFile.id);
-                        if (index > 0) {
-                            const [item] = stackArray.splice(index, 1);
-                            stackArray.unshift(item);
-                        }
-                    }
-                    commonFunctions.displayCurrentImage();
-                }
-            },
-            updateUI() {
-                if (!appState.isFocusMode) return;
-                const stack = appState.stacks[appState.currentStack];
-                const currentFile = appState.imageFiles[appState.currentImageIndex];
-                const currentIndexInStack = stack.findIndex(f => f.id === currentFile.id);
-
-                utils.elements.focusStackName.textContent = STACK_NAMES[appState.currentStack];
-                utils.elements.focusImageCount.textContent = `${currentIndexInStack + 1} / ${stack.length}`;
+                commonFunctions.updateImageCounters(); // Sync counters on toggle
             },
             async nextImage() {
                 const stack = appState.stacks[appState.currentStack];
                 if (stack.length === 0) return;
 
-                const currentFile = appState.imageFiles[appState.currentImageIndex];
-                const currentIndexInStack = stack.findIndex(f => f.id === currentFile.id);
-                
-                const nextIndexInStack = (currentIndexInStack + 1) % stack.length;
-                const nextFile = stack[nextIndexInStack];
-                
-                appState.currentImageIndex = appState.imageFiles.findIndex(f => f.id === nextFile.id);
+                appState.currentStackPosition = (appState.currentStackPosition + 1) % stack.length;
                 await commonFunctions.displayCurrentImage();
             },
             async prevImage() {
                 const stack = appState.stacks[appState.currentStack];
                 if (stack.length === 0) return;
 
-                const currentFile = appState.imageFiles[appState.currentImageIndex];
-                const currentIndexInStack = stack.findIndex(f => f.id === currentFile.id);
-
-                const prevIndexInStack = (currentIndexInStack - 1 + stack.length) % stack.length;
-                const prevFile = stack[prevIndexInStack];
-
-                appState.currentImageIndex = appState.imageFiles.findIndex(f => f.id === prevFile.id);
+                appState.currentStackPosition = (appState.currentStackPosition - 1 + stack.length) % stack.length;
                 await commonFunctions.displayCurrentImage();
             },
             async deleteCurrentImage() {
-                if (appState.currentImageIndex === -1) return;
-                const fileToDelete = appState.imageFiles[appState.currentImageIndex];
-                const currentStackArray = appState.stacks[fileToDelete.stack];
-                const stackIndex = currentStackArray.findIndex(f => f.id === fileToDelete.id);
+                const currentStackArray = appState.stacks[appState.currentStack];
+                if (currentStackArray.length === 0) return;
+
+                const fileToDelete = currentStackArray[appState.currentStackPosition];
                 
                 try {
                     await masterController.deleteFile(fileToDelete.id);
                     
-                    // Remove from local state
                     const fileIndex = appState.imageFiles.findIndex(f => f.id === fileToDelete.id);
                     if (fileIndex > -1) appState.imageFiles.splice(fileIndex, 1);
                     
-                    if (stackIndex > -1) currentStackArray.splice(stackIndex, 1);
+                    currentStackArray.splice(appState.currentStackPosition, 1);
                     
                     commonFunctions.updateStackCounts();
                     
-                    // Navigate to the next image or show empty state
                     if (currentStackArray.length === 0) {
-                        this.toggle(); // Exit focus mode if stack is empty
+                        this.toggle();
                         commonFunctions.showEmptyState();
                     } else {
-                        // Stay on the image that is now at the current index
-                        const nextFile = currentStackArray[stackIndex % currentStackArray.length];
-                        appState.currentImageIndex = appState.imageFiles.findIndex(f => f.id === nextFile.id);
+                        // Pointer will now reference the next image automatically
                         await commonFunctions.displayCurrentImage();
                     }
                 } catch (error) {
@@ -4060,21 +4012,16 @@
                 isSwiping = true;
             });
 
-            utils.elements.imageViewport.addEventListener('touchmove', (e) => {
-                if (!isSwiping || !appState.isFocusMode) return;
-                // We only care about the end of the swipe
-            });
-
             utils.elements.imageViewport.addEventListener('touchend', (e) => {
                 if (!isSwiping || !appState.isFocusMode) return;
                 isSwiping = false;
                 const endX = e.changedTouches[0].clientX;
                 const deltaX = endX - startX;
 
-                if (Math.abs(deltaX) > 50) { // Swipe threshold
-                    if (deltaX < 0) { // Swipe Left (for next image)
+                if (Math.abs(deltaX) > 50) {
+                    if (deltaX < 0) {
                         focusMode.nextImage();
-                    } else { // Swipe Right (for previous image)
+                    } else {
                         focusMode.prevImage();
                     }
                 }
@@ -4197,7 +4144,7 @@
             
             // Details modal
             utils.elements.detailsButton.addEventListener('click', () => {
-                if (appState.currentImageIndex !== -1) {
+                if (appState.stacks[appState.currentStack].length > 0) {
                     detailsModal.show();
                 }
             });
@@ -4280,10 +4227,8 @@
             });
             
             // Search functionality
-            utils.elements.omniSearchBtn.addEventListener('click', () => gridView.performSearch());
-            utils.elements.omniSearch.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') gridView.performSearch();
-            });
+            utils.elements.omniSearch.addEventListener('input', () => gridView.performSearch());
+            utils.elements.clearSearchBtn.addEventListener('click', () => gridView.resetSearch());
             
             // Action buttons
             utils.elements.moveSelected.addEventListener('click', () => modalManager.setupMoveAction());
@@ -4340,7 +4285,7 @@
                 if (keyMap[e.key]) {
                     e.preventDefault();
                     const targetStack = keyMap[e.key];
-                    if (appState.currentImageIndex !== -1) {
+                    if (appState.stacks[appState.currentStack].length > 0) {
                         acknowledgePillCounter(targetStack);
                         commonFunctions.moveToStack(targetStack);
                     }
@@ -4360,8 +4305,6 @@
         }
         
         function switchToStack(stackName) {
-            appState.currentStack = stackName;
-            commonFunctions.updateActiveProxTab();
             commonFunctions.displayTopImageFromStack(stackName);
         }
         
@@ -4539,7 +4482,8 @@
                 
                 await appState.fileCache.clearCacheForFolder(appState.currentFolder.id);
                 appState.folderMoveMode = { active: false, files: [] };
-                commonFunctions.rebuildStacks();
+                
+                commonFunctions.initializeStacks(); 
                 commonFunctions.updateStackCounts();
                 masterController.returnToFolderSelection();
                 
@@ -4591,7 +4535,7 @@
                 
                 setupEventHandlers();
                 setupGestureSystem();
-                setupFocusModeGestures(); // Initialize the new gesture handler
+                setupFocusModeGestures();
                 setupPinchZoom();
                 
                 commonFunctions.updateActiveProxTab();
@@ -4605,3 +4549,4 @@
     </script>
 </body>
 </html>
+
