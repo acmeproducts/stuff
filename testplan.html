@@ -107,6 +107,11 @@
             text-align: center;
             background-color: var(--light-gray);
             margin-bottom: 1rem;
+            transition: background-color 0.2s;
+        }
+        .drop-area.pasted {
+            background-color: #d4edda; /* Light green for success */
+            border-color: var(--success-color);
         }
 
         /* Test Screen Layout */
@@ -211,7 +216,7 @@
             <div class="form-group">
                 <label for="program-version">Program Version (Filename)</label>
                 <div id="code-file-drop-area" class="drop-area">
-                    <p>Drag & drop code file here to populate version and include in report</p>
+                    <p>Drag & drop code file, or paste code here</p>
                 </div>
                 <input type="text" id="program-version" placeholder="e.g., orbital8-v2.1.0.zip">
             </div>
@@ -223,7 +228,7 @@
             <h2>Test Plan</h2>
             <div class="form-group">
                  <div id="test-plan-drop-area" class="drop-area">
-                    <p>Drag & drop a .txt test plan file here</p>
+                    <p>Drag & drop a .txt test plan file, or paste plan below</p>
                 </div>
                 <textarea id="test-plan-editor"></textarea>
                 <input type="file" id="import-plan-input" accept=".txt" style="display: none;">
@@ -495,26 +500,34 @@ function selectStep(sectionIndex, stepIndex) {
     renderScreenshots(step.screenshots, 'screenshot-preview-current');
 }
 
-// --- FILE HANDLING ---
+// --- FILE HANDLING & PASTING ---
 function setupFileDropAreas() {
-    // Code file drop area
+    // Code file drop/paste area
     const codeDropArea = document.getElementById('code-file-drop-area');
     setupGenericDropArea(codeDropArea, (file) => {
         document.getElementById('program-version').value = file.name;
         const reader = new FileReader();
-        reader.onload = (e) => {
-            testData.codeFileContent = e.target.result;
-        };
+        reader.onload = (e) => { testData.codeFileContent = e.target.result; };
         reader.readAsText(file);
+    });
+    codeDropArea.addEventListener('paste', e => {
+        e.preventDefault();
+        const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+        testData.codeFileContent = pastedText;
+        document.getElementById('program-version').value = "Pasted Code Snippet";
+        codeDropArea.querySelector('p').textContent = "Code pasted successfully!";
+        codeDropArea.classList.add('pasted');
+        setTimeout(() => {
+            codeDropArea.querySelector('p').textContent = "Drag & drop code file, or paste code here";
+            codeDropArea.classList.remove('pasted');
+        }, 2000);
     });
 
     // Test plan drop area
     const planDropArea = document.getElementById('test-plan-drop-area');
     setupGenericDropArea(planDropArea, (file) => {
         const reader = new FileReader();
-        reader.onload = (e) => {
-            document.getElementById('test-plan-editor').value = e.target.result;
-        };
+        reader.onload = (e) => { document.getElementById('test-plan-editor').value = e.target.result; };
         reader.readAsText(file);
     });
 
@@ -524,7 +537,7 @@ function setupFileDropAreas() {
     screenshotDropArea.addEventListener('click', () => document.getElementById('screenshot-input').click());
     document.getElementById('screenshot-input').addEventListener('change', (e) => Array.from(e.target.files).forEach(handleScreenshotFile));
     document.addEventListener('paste', (e) => {
-        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+        if (e.target.tagName === 'TEXTAREA' || e.target.id === 'program-version' || e.target.id === 'test-name') return;
         Array.from(e.clipboardData.items).forEach(item => {
             if (item.type.indexOf('image') !== -1) {
                 handleScreenshotFile(item.getAsFile());
@@ -546,7 +559,7 @@ function setupGenericDropArea(area, fileHandler) {
 
 function handleScreenshotFile(file) {
     const { section, step } = testData.currentStep;
-    if (section === null || !file.type.startsWith('image/')) return;
+    if (section === null || !file || !file.type.startsWith('image/')) return;
     const stepObj = testData.tree[section].children[step];
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -623,6 +636,7 @@ function filterReport(filterType) {
 }
 
 function escapeHtml(unsafe) {
+    if (typeof unsafe !== 'string') return '';
     return unsafe
          .replace(/&/g, "&amp;")
          .replace(/</g, "&lt;")
@@ -633,7 +647,7 @@ function escapeHtml(unsafe) {
 
 function renderHtmlReport(filter, searchTerm = '') {
     const container = document.getElementById('html-report-output');
-    let reportHtml = `<h3>${testData.testName} - ${testData.programVersion}</h3>`;
+    let reportHtml = `<h3>${escapeHtml(testData.testName)} - ${escapeHtml(testData.programVersion)}</h3>`;
     testData.tree.forEach((section, sectionIndex) => {
         const filteredChildren = section.children.filter(step => {
             const statusMatch = (filter === 'all' || step.status === filter);
@@ -644,9 +658,9 @@ function renderHtmlReport(filter, searchTerm = '') {
             return (filter === 'search') ? searchMatch : (statusMatch && searchMatch);
         });
         if (filteredChildren.length > 0) {
-            reportHtml += `<h4>${section.title}</h4>`;
+            reportHtml += `<h4>${escapeHtml(section.title)}</h4>`;
             filteredChildren.forEach(step => {
-                reportHtml += `<div class="report-step"><h5>Step ${sectionIndex + 1}.${step.id + 1}: ${step.description} <span class="status-badge badge-${step.status}">${step.status.toUpperCase()}</span></h5><p><strong>Notes:</strong></p><pre>${escapeHtml(step.notes) || 'N/A'}</pre>${step.screenshots.length > 0 ? `<p><strong>Attachments:</strong></p><div>${step.screenshots.map(src => `<img src="${src}" alt="Attachment">`).join('')}</div>` : ''}</div>`;
+                reportHtml += `<div class="report-step"><h5>Step ${sectionIndex + 1}.${step.id + 1}: ${escapeHtml(step.description)} <span class="status-badge badge-${step.status}">${step.status.toUpperCase()}</span></h5><p><strong>Notes:</strong></p><pre>${escapeHtml(step.notes) || 'N/A'}</pre>${step.screenshots.length > 0 ? `<p><strong>Attachments:</strong></p><div>${step.screenshots.map(src => `<img src="${src}" alt="Attachment">`).join('')}</div>` : ''}</div>`;
             });
         }
     });
