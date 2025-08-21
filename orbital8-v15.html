@@ -11,13 +11,13 @@
     <style>
         /* ===== ORBITAL8 v12.17 - Regression Fix Release ===== */
         /* Changes in this version:
-           - FIX (Grid UI): Restored the correct button colors (primary, danger) in the Grid View's
-             bulk action bar.
+           - FIX (Grid UI): Restored the correct orange accent and red button colors in the Grid View's
+             bulk action bar, matching the application baseline.
            - FIX (Details Panel): Corrected the CSS for the tag input field in the Details modal to
              ensure dark text on a light background.
            - FIX (Grid Logic): Corrected the bulk move logic. When moving items (even to the same
              stack), they are now correctly re-sorted to the top of the stack, and the grid view
-             updates instantly to reflect the new order.
+             updates instantly to reflect the new order. Search results are also moved to the top.
            - FEATURE (Tags): The "Tags" tab in the Details modal now displays a list of all unique
              tags used in the current folder, making it easier to apply existing tags consistently.
            - Versioning: Updated to v12.17.
@@ -93,8 +93,8 @@
         .folder-button.danger:hover { background: rgba(239, 68, 68, 0.1); }
         
         .btn { padding: 4px 12px; border-radius: 6px; font-size: 14px; font-weight: 500; margin-bottom: 0; width: auto; }
-        .btn-primary { background: #3b82f6; color: white; }
-        .btn-primary:hover:not(:disabled) { background: #2563eb; }
+        .btn-primary { background: linear-gradient(45deg, var(--app-accent), #d97706); color: white; }
+        .btn-primary:hover:not(:disabled) { background: linear-gradient(45deg, #fbbf24, #f59e0b); }
         .btn-danger { background: #ef4444; color: white; }
         .btn-danger:hover:not(:disabled) { background: #dc2626; }
         .btn-secondary { background: #e5e7eb; color: #4b5563; }
@@ -359,14 +359,6 @@
         }
         .grid-image.loaded { opacity: 1; }
         .grid-item.selected { box-shadow: 0 0 0 4px #3b82f6; }
-
-        #grid-loading-overlay {
-            position: absolute; inset: 0; background: rgba(255, 255, 255, 0.8);
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 20; backdrop-filter: blur(4px);
-        }
-        #grid-loading-overlay .spinner { width: 40px; height: 40px; border-width: 4px; margin: 0 0 16px 0; }
-        #grid-loading-overlay p { font-size: 16px; font-weight: 500; color: #374151; }
         
         /* ===== Details Modal ===== */
         .details-modal-content { max-width: 800px; max-height: 95vh; height: 95vh; display: flex; flex-direction: column; }
@@ -378,7 +370,7 @@
             cursor: pointer; transition: all 0.2s; border-bottom: 2px solid transparent;
         }
         .tab-button:hover { color: #374151; background: rgba(0, 0, 0, 0.02); }
-        .tab-button.active { color: #3b82f6; border-bottom-color: #3b82f6; background: white; }
+        .tab-button.active { color: var(--app-accent); border-bottom-color: var(--app-accent); background: white; }
         .details-content { flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; }
         .tab-content { display: none; padding: 20px; height: 100%; }
         .tab-content.active { display: block; }
@@ -409,7 +401,7 @@
         }
         .metadata-table .value-cell { color: #6b7280; white-space: pre-wrap; position: relative; max-width: 0; word-break: break-all; }
         .copy-button {
-            background: #f59e0b; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; color: white;
+            background: var(--app-accent); border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; color: white;
             cursor: pointer; transition: all 0.2s; margin-left: 8px; vertical-align: top; font-weight: 500;
         }
         .copy-button:hover { background: #d97706; transform: translateY(-1px); box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3); }
@@ -1332,17 +1324,35 @@
                 finally { confirmBtn.disabled = false; confirmBtn.textContent = originalText; }
             },
             async executeMove(targetStack) {
-                await this.executeBulkAction(async (fileId) => {
-                    const file = appState.imageFiles.find(f => f.id === fileId);
-                    if (file) {
-                        const originalStack = file.stack;
-                        const originalStackIndex = appState.stacks[originalStack].findIndex(f => f.id === fileId);
-                        if (originalStackIndex > -1) appState.stacks[originalStack].splice(originalStackIndex, 1);
-                        appState.stacks[targetStack].unshift(file);
-                        appState.stacks[targetStack] = commonFunctions.sortFiles(appState.stacks[targetStack]);
-                        await masterController.updateUserMetadata(file.id, { stack: targetStack, stackSequence: Date.now() });
-                    }
-                }, `Moved {count} images to ${STACK_NAMES[targetStack]}`);
+                const selectedFiles = appState.grid.selected.map(id => appState.imageFiles.find(f => f.id === id)).filter(Boolean);
+                if (selectedFiles.length === 0) return;
+
+                // Remove from old stacks
+                selectedFiles.forEach(file => {
+                    const originalStack = appState.stacks[file.stack];
+                    const index = originalStack.findIndex(f => f.id === file.id);
+                    if (index > -1) originalStack.splice(index, 1);
+                });
+
+                // Add to new stack and get new sequence numbers
+                const targetStackArray = appState.stacks[targetStack];
+                const timestamp = Date.now();
+                const updatePromises = selectedFiles.map((file, index) => {
+                    file.stack = targetStack;
+                    file.stackSequence = timestamp - index;
+                    return masterController.updateUserMetadata(file.id, { stack: targetStack, stackSequence: file.stackSequence });
+                });
+                
+                appState.stacks[targetStack].unshift(...selectedFiles);
+                appState.stacks[targetStack] = commonFunctions.sortFiles(appState.stacks[targetStack]);
+
+                await Promise.all(updatePromises);
+
+                utils.showToast(`Moved ${selectedFiles.length} images to ${STACK_NAMES[targetStack]}`, 'success', true);
+                this.hide();
+                gridView.renderGridFromState(); 
+                gridView.deselectAll();
+                commonFunctions.updateStackCounts();
             },
             async executeTag() {
                 const tagsToAdd = document.getElementById('modal-tag-input').value.split(',').map(t => t.trim()).filter(Boolean);
