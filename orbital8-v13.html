@@ -1,4 +1,4 @@
-<!-- orbital8-v30.1 - 2025-08-22 05:58 AM -->
+<!-- orbital8-v40.1 - 2025-08-22 06:48 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,18 +6,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V30.1 - Regression Fix</title>
+    <title>Orbital8 V40.1 - Refactored Architecture</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V30.1 - Regression Fix ===== */
+        /* ===== ORBITAL8 V40.1 - Refactored Architecture ===== */
         /* Changes in this version:
-           - Bug Fix (Critical Regression): Restored all bulk operations (Move, Tag, Delete, etc.) in the grid modal.
-             The logic was corrected in the modalManager to properly handle confirmation events.
-           - Bug Fix (Performance): Re-implemented the efficient, single-call metadata save logic from the baseline
-             to fix the "Failed to save stack order" error and eliminate the lag on closing the grid modal.
-           - Bug Fix (UI): Corrected all footer version numbers and timestamps to be consistent.
-           - Refactor (Code Clarity): Added comments to the modalManager and gridView to document the restored logic.
-           - Versioning: Updated to v30.1.
+           - Refactor (Architecture): Implemented the Provider Abstraction Layer. All provider-specific
+             logic (Google Drive, OneDrive) is now encapsulated within its own object, called via a
+             generic interface in the main application logic (appState.currentProvider).
+           - Refactor (Data Model): Implemented a unified data model for Google Drive, mirroring the
+             high-performance OneDrive approach. Metadata is now stored in a single `.orbital8_metadata.json`
+             file, drastically reducing API calls and improving performance for tagging, rating, and sorting.
+           - Refactor (Modularity): Consolidated UI components like the Gesture System into dedicated objects
+             to clean up the global scope and improve code organization.
+           - Bug Fix (UI): Corrected the font color for the Notes and Tags input fields in the Details
+             panel to ensure text is visible against the white background.
+           - Versioning: Updated to v40.1.
         */
         
         :root {
@@ -65,8 +69,7 @@
         }
         .notes-textarea { min-height: 120px; font-family: inherit; resize: vertical; }
 
-        #action-modal .tag-input, #grid-modal .input,
-        #details-modal .notes-textarea, #details-modal .tag-input {
+        #action-modal .tag-input, #grid-modal .input, #details-modal .notes-textarea, #details-modal .tag-input {
             color: #1f2937;
             background: #f3f4f6;
             border-color: #d1d5db;
@@ -509,7 +512,7 @@
         }
         #focus-stack-name { top: 20px; left: 20px; }
         #focus-image-count { bottom: 20px; left: 20px; }
-        #normal-image-count { bottom: 20px; left: 20px; display: flex; }
+        #normal-image-count { bottom: 20px; left: 20px; display: flex; } /* NEW: Visible by default */
         #focus-delete-btn { bottom: 20px; right: 20px; width: 44px; height: 44px; padding: 0; border-radius: 50%; }
         
         .app-container.focus-mode .pill-counter,
@@ -594,7 +597,7 @@
             
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">orbital8-v30.1 - 2025-08-22 04:37 AM</div>
+        <div class="app-footer">orbital8-v40.1 - 2025-08-22 06:48 AM</div>
     </div>
     
     <!-- Google Drive Auth Screen -->
@@ -607,7 +610,7 @@
             <button class="button" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
-        <div class="app-footer">orbital8-v30.1 - 2025-08-22 04:37 AM</div>
+        <div class="app-footer">orbital8-v40.1 - 2025-08-22 06:48 AM</div>
     </div>
     
     <!-- OneDrive Auth Screen -->
@@ -619,7 +622,7 @@
             <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
-        <div class="app-footer">orbital8-v30.1 - 2025-08-22 04:37 AM</div>
+        <div class="app-footer">orbital8-v40.1 - 2025-08-22 06:48 AM</div>
     </div>
     
     <!-- Google Drive Folder Screen -->
@@ -634,7 +637,7 @@
                 <button class="folder-button danger" id="gdrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v19.4 - 2025-08-22 04:37 AM</div>
+        <div class="app-footer">orbital8-v40.1 - 2025-08-22 06:48 AM</div>
     </div>
     
     <!-- OneDrive Folder Screen -->
@@ -649,7 +652,7 @@
                 <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v19.4 - 2025-08-22 04:37 AM</div>
+        <div class="app-footer">orbital8-v40.1 - 2025-08-22 06:48 AM</div>
     </div>
     
     <!-- Loading Screen -->
@@ -663,7 +666,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">orbital8-v19.4 - 2025-08-22 04:37 AM</div>
+        <div class="app-footer">orbital8-v40.1 - 2025-08-22 06:48 AM</div>
     </div>
     
     <!-- Main App Container -->
@@ -704,7 +707,7 @@
         </button>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">orbital8-v19.4 - 2025-08-22 04:37 AM</div>
+        <div class="app-footer">orbital8-v40.1 - 2025-08-22 06:48 AM</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -818,40 +821,55 @@
                 
                 <div id="tab-tags" class="tab-content">
                     <div style="margin-bottom: 20px;">
-                        <label style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">Tags on this Image:</label>
                         <div class="tags-container" id="detail-tags"></div>
-                    </div>
-                    <div>
-                         <label style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">Tags in this Folder:</label>
-                        <div class="tags-container" id="folder-tags-list"></div>
                     </div>
                 </div>
                 
                 <div id="tab-notes" class="tab-content">
                     <div style="margin-bottom: 24px;">
-                        <label for="detail-notes" style="font-size: 14px; color: #374151; margin-bottom: 8px; display: block; font-weight: 500;">Notes:</label>
+                        <label for="detail-notes" style="font-size: 14px; color: #6b7280; min-width: 80px; font-weight: 500;">Notes:</label>
                         <textarea id="detail-notes" class="notes-textarea" placeholder="Add your notes here..."></textarea>
                     </div>
                     
                     <div style="margin-bottom: 20px;">
                         <div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">Quality Rating:</div>
                         <div class="star-rating" id="quality-rating">
-                            <svg class="star" data-rating="1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                            <svg class="star" data-rating="2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                            <svg class="star" data-rating="3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                            <svg class="star" data-rating="4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                            <svg class="star" data-rating="5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                            <svg class="star" data-rating="1" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="2" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="3" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
                         </div>
                     </div>
                     
                     <div style="margin-bottom: 20px;">
                         <div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">Content Rating:</div>
                         <div class="star-rating" id="content-rating">
-                           <svg class="star" data-rating="1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                           <svg class="star" data-rating="2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                           <svg class="star" data-rating="3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                           <svg class="star" data-rating="4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                           <svg class="star" data-rating="5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                            <svg class="star" data-rating="1" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="2" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="3" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <svg class="star" data-rating="5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
                         </div>
                     </div>
                 </div>
@@ -864,16 +882,20 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V19.4 - Regression Fix =====
-        /* * Version: V19.4 (orbital8-v19.4)
+        // ===== ORBITAL8 V40.1 - Refactored Architecture =====
+        /* * Version: V40.1 (orbital8-v40.1)
          * * Changes in this version:
-           - Bug Fix (Critical Regression): Restored all bulk operations (Move, Tag, Delete, etc.) in the grid modal.
-             The logic was corrected in the modalManager to properly handle confirmation events.
-           - Bug Fix (Performance): Re-implemented the efficient, single-call metadata save logic from the baseline
-             to fix the "Failed to save stack order" error and eliminate the lag on closing the grid modal.
-           - Bug Fix (UI): Corrected all footer version numbers and timestamps to be consistent.
-           - Refactor (Code Clarity): Added comments to the modalManager and gridView to document the restored logic.
-           - Versioning: Updated to v19.4.
+           - Refactor (Architecture): Implemented the Provider Abstraction Layer. All provider-specific
+             logic (Google Drive, OneDrive) is now encapsulated within its own object, called via a
+             generic interface in the main application logic (appState.currentProvider).
+           - Refactor (Data Model): Implemented a unified data model for Google Drive, mirroring the
+             high-performance OneDrive approach. Metadata is now stored in a single `.orbital8_metadata.json`
+             file, drastically reducing API calls and improving performance for tagging, rating, and sorting.
+           - Refactor (Modularity): Consolidated UI components like the Gesture System into dedicated objects
+             to clean up the global scope and improve code organization.
+           - Bug Fix (UI): Corrected the font color for the Notes and Tags input fields in the Details
+             panel to ensure text is visible against the white background.
+           - Versioning: Updated to v40.1.
         */
         
         // ===== Core Constants & State =====
@@ -888,6 +910,7 @@
             visualCueManager: null,
             hapticManager: null,
             exportSystem: null,
+            gestureSystem: null,
             currentFolder: { id: null, name: '' },
             imageFiles: [],
             currentImageLoadId: null, 
@@ -925,6 +948,7 @@
             
             init() {
                 this.elements = {
+                    // Screens
                     providerScreen: document.getElementById('provider-screen'),
                     gdriveAuthScreen: document.getElementById('gdrive-auth-screen'),
                     onedriveAuthScreen: document.getElementById('onedrive-auth-screen'),
@@ -932,9 +956,13 @@
                     onedriveFolderScreen: document.getElementById('onedrive-folder-screen'),
                     loadingScreen: document.getElementById('loading-screen'),
                     appContainer: document.getElementById('app-container'),
+                    
+                    // Provider selection
                     googleDriveBtn: document.getElementById('google-drive-btn'),
                     onedriveBtn: document.getElementById('onedrive-btn'),
                     providerStatus: document.getElementById('provider-status'),
+                    
+                    // Google Drive elements
                     gdriveClientSecret: document.getElementById('gdrive-client-secret'),
                     gdriveAuthButton: document.getElementById('gdrive-auth-button'),
                     gdriveBackButton: document.getElementById('gdrive-back-button'),
@@ -943,6 +971,8 @@
                     gdriveRefreshFolders: document.getElementById('gdrive-refresh-folders'),
                     gdriveBackToProvider: document.getElementById('gdrive-back-to-provider'),
                     gdriveLogout: document.getElementById('gdrive-logout'),
+                    
+                    // OneDrive elements
                     onedriveAuthButton: document.getElementById('onedrive-auth-button'),
                     onedriveBackButton: document.getElementById('onedrive-back-button'),
                     onedriveAuthStatus: document.getElementById('onedrive-auth-status'),
@@ -951,6 +981,8 @@
                     onedriveRefreshFolders: document.getElementById('onedrive-refresh-folders'),
                     onedriveBackToProvider: document.getElementById('onedrive-back-to-provider'),
                     onedriveLogout: document.getElementById('onedrive-logout'),
+                    
+                    // App elements
                     backButton: document.getElementById('back-button'),
                     detailsButton: document.getElementById('details-button'),
                     imageViewport: document.getElementById('image-viewport'),
@@ -960,22 +992,32 @@
                     selectAnotherFolderBtn: document.getElementById('select-another-folder-btn'),
                     toast: document.getElementById('toast'),
                     filenameOverlay: document.getElementById('filename-overlay'),
+                    
+                    // Focus Mode & Normal Mode elements
                     focusStackName: document.getElementById('focus-stack-name'),
                     focusImageCount: document.getElementById('focus-image-count'),
                     normalImageCount: document.getElementById('normal-image-count'),
                     focusDeleteBtn: document.getElementById('focus-delete-btn'),
+
+                    // Loading elements
                     loadingCounter: document.getElementById('loading-counter'),
                     loadingMessage: document.getElementById('loading-message'),
                     loadingProgressBar: document.getElementById('loading-progress-bar'),
                     cancelLoading: document.getElementById('cancel-loading'),
+                    
+                    // Edge glows
                     edgeTop: document.getElementById('edge-top'),
                     edgeBottom: document.getElementById('edge-bottom'),
                     edgeLeft: document.getElementById('edge-left'),
                     edgeRight: document.getElementById('edge-right'),
+                    
+                    // Pill counters
                     pillPriority: document.getElementById('pill-priority'),
                     pillTrash: document.getElementById('pill-trash'),
                     pillIn: document.getElementById('pill-in'),
                     pillOut: document.getElementById('pill-out'),
+                    
+                    // Grid modal
                     gridModal: document.getElementById('grid-modal'),
                     gridContent: document.getElementById('grid-content'),
                     gridTitle: document.getElementById('grid-title'),
@@ -986,18 +1028,26 @@
                     closeGrid: document.getElementById('close-grid'),
                     gridSize: document.getElementById('grid-size'),
                     gridSizeValue: document.getElementById('grid-size-value'),
+                    
+                    // Search elements
                     omniSearch: document.getElementById('omni-search'),
                     clearSearchBtn: document.getElementById('clear-search-btn'),
+                    
+                    // Action buttons
                     tagSelected: document.getElementById('tag-selected'),
                     moveSelected: document.getElementById('move-selected'),
                     deleteSelected: document.getElementById('delete-selected'),
                     exportSelected: document.getElementById('export-selected'),
                     folderSelected: document.getElementById('folder-selected'),
+                    
+                    // Action modal
                     actionModal: document.getElementById('action-modal'),
                     actionTitle: document.getElementById('action-title'),
                     actionContent: document.getElementById('action-content'),
                     actionCancel: document.getElementById('action-cancel'),
                     actionConfirm: document.getElementById('action-confirm'),
+                    
+                    // Details modal
                     detailsModal: document.getElementById('details-modal'),
                     detailsClose: document.getElementById('details-close'),
                     detailFilename: document.getElementById('detail-filename'),
@@ -1005,7 +1055,6 @@
                     detailDate: document.getElementById('detail-date'),
                     detailSize: document.getElementById('detail-size'),
                     detailTags: document.getElementById('detail-tags'),
-                    folderTagsList: document.getElementById('folder-tags-list'),
                     detailNotes: document.getElementById('detail-notes'),
                     qualityRating: document.getElementById('quality-rating'),
                     contentRating: document.getElementById('content-rating'),
@@ -1155,7 +1204,7 @@
         }
 
         // ===== Haptic Feedback Manager =====
-        class HapticManager {
+        class HapticFeedbackManager {
             constructor() {
                 this.isEnabled = localStorage.getItem('orbital8_haptic_enabled') !== 'false';
                 this.isSupported = 'vibrate' in navigator;
@@ -1429,43 +1478,7 @@
             }
         }
 
-        // ===== Google Drive Provider & Metadata (Phase 1: appProperties) =====
-        class GoogleDriveMetadataManager {
-            constructor(provider) {
-                this.provider = provider;
-            }
-
-            getUserMetadata(file) {
-                const props = file.appProperties || {};
-                return {
-                    stack: props.slideboxStack || 'in',
-                    tags: props.slideboxTags ? props.slideboxTags.split(',').map(t => t.trim()) : [],
-                    qualityRating: parseInt(props.qualityRating) || 0,
-                    contentRating: parseInt(props.contentRating) || 0,
-                    notes: props.notes || '',
-                    stackSequence: parseInt(props.stackSequence) || 0
-                };
-            }
-
-            async updateUserMetadata(fileId, updates) {
-                const properties = {};
-                if (updates.stack) properties.slideboxStack = updates.stack;
-                if (updates.tags) properties.slideboxTags = updates.tags.join(',');
-                if (updates.qualityRating !== undefined) properties.qualityRating = updates.qualityRating.toString();
-                if (updates.contentRating !== undefined) properties.contentRating = updates.contentRating.toString();
-                if (updates.notes !== undefined) properties.notes = updates.notes;
-                if (updates.stackSequence !== undefined) properties.stackSequence = updates.stackSequence.toString();
-
-                if (Object.keys(properties).length > 0) {
-                     await this.provider.makeApiCall(`/files/${fileId}`, {
-                        method: 'PATCH',
-                        body: JSON.stringify({ appProperties: properties })
-                    });
-                }
-                return true;
-            }
-        }
-
+        // ===== Google Drive Provider =====
         class GoogleDriveProvider {
             constructor() {
                 this.name = 'googledrive';
@@ -1473,6 +1486,7 @@
                 this.redirectUri = window.location.origin + window.location.pathname;
                 this.scope = 'https://www.googleapis.com/auth/drive';
                 this.apiBase = 'https://www.googleapis.com/drive/v3';
+                this.uploadApiBase = 'https://www.googleapis.com/upload/drive/v3';
                 this.accessToken = null;
                 this.refreshToken = null;
                 this.clientSecret = null;
@@ -1594,7 +1608,7 @@
                 
                 const tokens = await response.json();
                 this.accessToken = tokens.access_token;
-                if (tokens.refresh_token) this.refreshToken = tokens.refresh_token;
+                this.refreshToken = tokens.refresh_token;
                 this.storeCredentials();
             }
             
@@ -1624,17 +1638,18 @@
                 return this.accessToken;
             }
             
-            async makeApiCall(endpoint, options = {}, isJson = true) {
+            async makeApiCall(endpoint, options = {}, isJson = true, useUpload = false) {
                 if (!this.accessToken) {
                     throw new Error('Not authenticated');
                 }
                 
-                const url = endpoint.startsWith('https://') ? endpoint : `${this.apiBase}${endpoint}`;
+                const base = useUpload ? this.uploadApiBase : this.apiBase;
+                const url = endpoint.startsWith('https://') ? endpoint : `${base}${endpoint}`;
                 const headers = {
                     'Authorization': `Bearer ${this.accessToken}`,
                     ...options.headers
                 };
-                if(isJson) {
+                if (isJson && !useUpload) { // Upload API handles content-type differently
                     headers['Content-Type'] = 'application/json';
                 }
                 
@@ -1680,7 +1695,7 @@
                 
                 do {
                     const query = `'${folderId}' in parents and trashed=false and (mimeType contains 'image/')`;
-                    let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,appProperties,parents),nextPageToken&pageSize=100`;
+                    let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,parents),nextPageToken&pageSize=100`;
                     
                     if (nextPageToken) {
                         url += `&pageToken=${nextPageToken}`;
@@ -1700,7 +1715,6 @@
                             modifiedTime: file.modifiedTime,
                             thumbnailLink: file.thumbnailLink,
                             downloadUrl: file.webContentLink,
-                            appProperties: file.appProperties || {},
                             parents: file.parents
                         }));
                     
@@ -1746,23 +1760,61 @@
             }
         }
 
-        // ===== OneDrive Provider & Metadata (Phase 1: JSON file) =====
-        class OneDriveMetadataManager {
-            constructor(provider) {
-                this.provider = provider;
+        // ===== Google Drive Metadata Manager (Unified Model) =====
+        class GoogleDriveMetadataManager {
+            constructor(gdriveProvider) {
+                this.provider = gdriveProvider;
+                this.metadataFileId = null;
                 this.cache = new Map();
                 this.cacheTimestamp = 0;
                 this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
+                this.metadataFileName = '.orbital8_metadata.json';
+            }
+
+            async _findOrCreateMetadataFile(folderId) {
+                if (this.metadataFileId) return this.metadataFileId;
+
+                const query = `'${folderId}' in parents and name='${this.metadataFileName}' and trashed=false`;
+                const response = await this.provider.makeApiCall(`/files?q=${encodeURIComponent(query)}&fields=files(id)`);
+                
+                if (response.files && response.files.length > 0) {
+                    this.metadataFileId = response.files[0].id;
+                    return this.metadataFileId;
+                }
+
+                const fileMetadata = {
+                    name: this.metadataFileName,
+                    mimeType: 'application/json',
+                    parents: [folderId]
+                };
+                const initialContent = { version: 1, lastModified: new Date().toISOString(), files: {} };
+                const blob = new Blob([JSON.stringify(initialContent)], { type: 'application/json' });
+                
+                const createdFile = await this.provider.makeApiCall('/files', {
+                    method: 'POST',
+                    body: JSON.stringify(fileMetadata)
+                });
+                
+                await this.provider.makeApiCall(`/files/${createdFile.id}?uploadType=media`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: blob
+                });
+
+                this.metadataFileId = createdFile.id;
+                return this.metadataFileId;
             }
             
-            async loadMetadata() {
+            async loadMetadata(folderId) {
                 try {
                     const now = Date.now();
                     if (this.cache.size > 0 && (now - this.cacheTimestamp) < this.cacheExpiry) {
                         return this.cache;
                     }
                     
-                    const response = await this.provider.makeApiCall('/me/drive/special/approot:/tags.json:/content', {}, false);
+                    await this._findOrCreateMetadataFile(folderId);
+                    
+                    const response = await this.provider.makeApiCall(`/files/${this.metadataFileId}?alt=media`, {}, false);
                     const data = await response.json();
                     
                     if (data && data.files) {
@@ -1775,16 +1827,14 @@
                     
                     return this.cache;
                 } catch (error) {
-                    if (error.message.includes('404')) {
-                        await this.saveMetadata();
-                        return this.cache;
-                    }
-                    console.warn('Failed to load user metadata:', error);
+                    console.warn('Failed to load Google Drive metadata:', error);
                     return this.cache;
                 }
             }
             
             async saveMetadata() {
+                if (!this.metadataFileId) throw new Error("Metadata file not initialized.");
+
                 try {
                     const data = {
                         version: 1,
@@ -1792,21 +1842,23 @@
                         files: Object.fromEntries(this.cache)
                     };
                     
-                    await this.provider.makeApiCall('/me/drive/special/approot:/tags.json:/content', {
-                        method: 'PUT',
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+
+                    await this.provider.makeApiCall(`/files/${this.metadataFileId}?uploadType=media`, {
+                        method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data, null, 2)
-                    });
+                        body: blob
+                    }, false, true); // useUpload = true
                     
                     this.cacheTimestamp = Date.now();
                 } catch (error) {
-                    console.warn('Failed to save user metadata:', error);
+                    console.warn('Failed to save Google Drive metadata:', error);
                     throw error;
                 }
             }
             
-            getUserMetadata(file) { // Note: Takes the full file object now
-                return this.cache.get(file.id) || {
+            getUserMetadata(fileId) {
+                return this.cache.get(fileId) || {
                     stack: 'in',
                     tags: [],
                     qualityRating: 0,
@@ -1823,17 +1875,18 @@
                 };
                 
                 this.cache.set(fileId, updated);
-                // Note: saveMetadata is called separately now for efficiency
+                await this.saveMetadata();
                 return updated;
             }
             
             async updateUserMetadata(fileId, updates) {
-                const current = this.getUserMetadata({id: fileId}); // Pass a mock file object
+                const current = this.getUserMetadata(fileId);
                 const updated = { ...current, ...updates };
                 return await this.setUserMetadata(fileId, updated);
             }
         }
 
+        // ===== OneDrive Provider =====
         class OneDriveProvider {
             constructor() {
                 this.name = 'onedrive';
@@ -1844,7 +1897,7 @@
                 this.currentParentId = null;
                 this.currentParentPath = '';
                 this.breadcrumb = [];
-                this.metadataManager = new OneDriveMetadataManager(this);
+                this.metadataManager = null;
                 this.initMSAL();
             }
             
@@ -1875,6 +1928,8 @@
                     }
 
                     this.isAuthenticated = true;
+                    this.metadataManager = new OneDriveMetadataManager(this);
+                    
                     return true;
                 } catch (error) {
                     this.isAuthenticated = false;
@@ -1905,17 +1960,14 @@
                 }
             }
             
-            async makeApiCall(endpoint, options = {}, isJson = true) {
+            async makeApiCall(endpoint, options = {}) {
                 const accessToken = await this.getAccessToken();
-                const url = endpoint.startsWith('https://') ? endpoint : `${this.apiBase}${endpoint}`;
+                const url = `${this.apiBase}${endpoint}`;
                 const headers = {
                     'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
                     ...options.headers
                 };
-
-                if(isJson){
-                    headers['Content-Type'] = 'application/json';
-                }
                 
                 const response = await fetch(url, { ...options, headers });
                 
@@ -1924,15 +1976,13 @@
                     throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`);
                 }
                 
-                if (isJson) {
-                    return response.json();
-                }
                 return response;
             }
             
             async getDownloadsFolder() {
                 try {
-                    const data = await this.makeApiCall('/me/drive/root/children', {}, true);
+                    const response = await this.makeApiCall('/me/drive/root/children');
+                    const data = await response.json();
                     
                     const downloadsFolder = data.value.find(item => 
                         item.folder && 
@@ -1943,10 +1993,18 @@
                         return downloadsFolder;
                     }
                     
-                    return { id: 'root', name: 'Root', folder: true };
+                    return {
+                        id: 'root',
+                        name: 'Root',
+                        folder: true
+                    };
                 } catch (error) {
                     console.warn('Could not find Downloads folder, using root:', error);
-                    return { id: 'root', name: 'Root', folder: true };
+                    return {
+                        id: 'root',
+                        name: 'Root', 
+                        folder: true
+                    };
                 }
             }
             
@@ -1976,9 +2034,11 @@
                     
                     do {
                         const url = nextLink || endpoint;
-                        const data = nextLink ? 
-                            await this.makeApiCall(nextLink.replace(this.apiBase, ''), {}, true) :
-                            await this.makeApiCall(url, {}, true);
+                        const response = nextLink ? 
+                            await this.makeApiCall(nextLink.replace(this.apiBase, '')) :
+                            await this.makeApiCall(url);
+                        
+                        const data = await response.json();
                         
                         const folderItems = data.value
                             .filter(item => item.folder)
@@ -2049,9 +2109,11 @@
                 
                 do {
                     const url = nextLink || endpoint;
-                    const data = nextLink ? 
-                        await this.makeApiCall(nextLink.replace(this.apiBase, ''), {}, true) :
-                        await this.makeApiCall(url, {}, true);
+                    const response = nextLink ? 
+                        await this.makeApiCall(nextLink.replace(this.apiBase, '')) :
+                        await this.makeApiCall(url);
+                    
+                    const data = await response.json();
                     
                     const files = data.value
                         .filter(item => item.file && item.file.mimeType && item.file.mimeType.startsWith('image/'))
@@ -2098,13 +2160,14 @@
             async deleteFile(fileId) {
                 await this.makeApiCall(`/me/drive/items/${fileId}`, {
                     method: 'DELETE'
-                }, false);
+                });
                 return true;
             }
             
             async disconnect() {
                 this.isAuthenticated = false;
                 this.activeAccount = null;
+                this.metadataManager = null;
                 if (this.msalInstance) {
                     const accounts = this.msalInstance.getAllAccounts();
                     if (accounts.length > 0) {
@@ -2113,6 +2176,94 @@
                         });
                     }
                 }
+            }
+        }
+
+        // ===== OneDrive Metadata Manager =====
+        class OneDriveMetadataManager {
+            constructor(oneDriveProvider) {
+                this.provider = oneDriveProvider;
+                this.cache = new Map();
+                this.cacheTimestamp = 0;
+                this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
+            }
+            
+            async loadMetadata() {
+                try {
+                    const now = Date.now();
+                    if (this.cache.size > 0 && (now - this.cacheTimestamp) < this.cacheExpiry) {
+                        return this.cache;
+                    }
+                    
+                    const response = await this.provider.makeApiCall('/me/drive/special/approot:/.orbital8_metadata.json:/content');
+                    const data = await response.json();
+                    
+                    if (data && data.files) {
+                        this.cache.clear();
+                        Object.entries(data.files).forEach(([fileId, metadata]) => {
+                            this.cache.set(fileId, metadata);
+                        });
+                        this.cacheTimestamp = now;
+                    }
+                    
+                    return this.cache;
+                } catch (error) {
+                    if (error.message.includes('404')) {
+                        await this.saveMetadata();
+                        return this.cache;
+                    }
+                    console.warn('Failed to load user metadata:', error);
+                    return this.cache;
+                }
+            }
+            
+            async saveMetadata() {
+                try {
+                    const data = {
+                        version: 1,
+                        lastModified: new Date().toISOString(),
+                        files: Object.fromEntries(this.cache)
+                    };
+                    
+                    await this.provider.makeApiCall('/me/drive/special/approot:/.orbital8_metadata.json:/content', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data, null, 2)
+                    });
+                    
+                    this.cacheTimestamp = Date.now();
+                } catch (error) {
+                    console.warn('Failed to save user metadata:', error);
+                    throw error;
+                }
+            }
+            
+            getUserMetadata(fileId) {
+                return this.cache.get(fileId) || {
+                    stack: 'in',
+                    tags: [],
+                    qualityRating: 0,
+                    contentRating: 0,
+                    notes: '',
+                    stackSequence: 0
+                };
+            }
+            
+            async setUserMetadata(fileId, metadata) {
+                const updated = {
+                    ...metadata,
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                this.cache.set(fileId, updated);
+                await this.saveMetadata();
+                return updated;
+            }
+            
+            async updateUserMetadata(fileId, updates) {
+                const current = this.getUserMetadata(fileId);
+                const updated = { ...current, ...updates };
+                return await this.setUserMetadata(fileId, updated);
             }
         }
 
@@ -2228,11 +2379,176 @@
             }
         }
 
+        // ===== App Controller =====
+        const appController = {
+            selectGoogleDrive() {
+                appState.currentProviderType = 'googledrive';
+                utils.showScreen('gdrive-auth-screen');
+                const provider = new GoogleDriveProvider();
+                if (provider.isAuthenticated) {
+                    appState.currentProvider = provider;
+                    utils.showScreen('gdrive-folder-screen');
+                    this.loadFolders();
+                }
+            },
+            
+            async selectOneDrive() {
+                appState.currentProviderType = 'onedrive';
+                utils.showScreen('onedrive-auth-screen');
+                const provider = new OneDriveProvider();
+                try {
+                    const success = await provider.authenticate();
+                    if (success) {
+                        appState.currentProvider = provider;
+                        utils.showScreen('onedrive-folder-screen');
+                        this.loadFolders();
+                    }
+                } catch (error) {
+                    utils.elements.onedriveAuthStatus.textContent = 'Click to sign in with your Microsoft account';
+                }
+            },
+            
+            backToProviderSelection() {
+                appState.currentProvider = null;
+                appState.currentProviderType = null;
+                utils.showScreen('provider-screen');
+            },
+
+            async loadFolders() {
+                if (!appState.currentProvider) return;
+                
+                const listEl = utils.elements[`${appState.currentProviderType}FolderList`];
+                listEl.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
+                        <div class="spinner"></div>
+                        <span>Loading folders...</span>
+                    </div>
+                `;
+
+                try {
+                    const folders = await appState.currentProvider.getFolders();
+                    this.displayFolders(folders);
+                } catch (error) {
+                    utils.showToast(`Error loading folders: ${error.message}`, 'error', true);
+                }
+            },
+
+            displayFolders(folders) {
+                if (appState.currentProviderType === 'googledrive') {
+                    this.displayGoogleDriveFolders(folders);
+                } else {
+                    this.displayOneDriveFolders(folders);
+                }
+            },
+
+            displayGoogleDriveFolders(folders) {
+                const listEl = utils.elements.gdriveFolderList;
+                listEl.innerHTML = '';
+
+                if (folders.length === 0) {
+                    listEl.innerHTML = `<div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">No folders found</div>`;
+                    return;
+                }
+
+                folders.forEach(folder => {
+                    const div = document.createElement('div');
+                    div.className = 'folder-item';
+                    div.innerHTML = `
+                        <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <div class="folder-info">
+                            <div class="folder-name">${folder.name}</div>
+                            <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()}</div>
+                        </div>
+                    `;
+                    div.addEventListener('click', () => {
+                        if (appState.folderMoveMode.active) {
+                            modalManager.handleFolderMoveSelection(folder.id, folder.name);
+                        } else {
+                            masterController.initializeWithProvider(folder.id, folder.name);
+                        }
+                    });
+                    listEl.appendChild(div);
+                });
+            },
+
+            displayOneDriveFolders(folders) {
+                const listEl = utils.elements.onedriveFolderList;
+                listEl.innerHTML = '';
+
+                if (folders.length === 0) {
+                    listEl.innerHTML = `<div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">No folders found</div>`;
+                    return;
+                }
+
+                folders.forEach(folder => {
+                    const div = document.createElement('div');
+                    div.className = 'folder-item';
+                    const hasChildren = folder.hasChildren;
+                    const iconColor = hasChildren ? 'var(--app-accent)' : 'rgba(255, 255, 255, 0.6)';
+                    div.innerHTML = `
+                        <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: ${iconColor};"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <div class="folder-info">
+                            <div class="folder-name">${folder.name}</div>
+                            <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()} • ${folder.itemCount} items</div>
+                        </div>
+                        <div class="folder-actions">
+                            ${hasChildren ? `<button class="folder-action-btn drill-btn" data-folder-id="${folder.id}" data-folder-name="${folder.name}">Browse →</button>` : ''}
+                            <button class="folder-action-btn select-btn" data-folder-id="${folder.id}" data-folder-name="${folder.name}">Select</button>
+                        </div>
+                    `;
+                    listEl.appendChild(div);
+                });
+                
+                listEl.querySelectorAll('.drill-btn').forEach(btn => btn.addEventListener('click', (e) => this.drillIntoOneDriveFolder(e)));
+                listEl.querySelectorAll('.select-btn').forEach(btn => btn.addEventListener('click', (e) => this.selectOneDriveFolder(e)));
+                this.updateOneDriveNavigation();
+            },
+
+            async drillIntoOneDriveFolder(e) {
+                e.stopPropagation();
+                const { folderId, folderName } = e.target.dataset;
+                try {
+                    const subfolders = await appState.currentProvider.drillIntoFolder({ id: folderId, name: folderName });
+                    this.displayOneDriveFolders(subfolders);
+                } catch (error) {
+                    utils.showToast('Error loading subfolders', 'error', true);
+                }
+            },
+
+            selectOneDriveFolder(e) {
+                e.stopPropagation();
+                const { folderId, folderName } = e.target.dataset;
+                if (appState.folderMoveMode.active) {
+                    modalManager.handleFolderMoveSelection(folderId, folderName);
+                } else {
+                    masterController.initializeWithProvider(folderId, folderName);
+                }
+            },
+
+            updateOneDriveNavigation() {
+                const provider = appState.currentProvider;
+                utils.elements.onedriveFolderSubtitle.textContent = `Current: ${provider.getCurrentPath()}`;
+                const refreshBtn = utils.elements.onedriveRefreshFolders;
+                if (provider.canGoUp()) {
+                    refreshBtn.textContent = '← Go Up';
+                    refreshBtn.onclick = async () => {
+                        try {
+                            const folders = await provider.navigateToParent();
+                            this.displayOneDriveFolders(folders);
+                        } catch (error) {
+                            utils.showToast('Error navigating up', 'error', true);
+                        }
+                    };
+                } else {
+                    refreshBtn.textContent = 'Refresh';
+                    refreshBtn.onclick = () => this.loadFolders();
+                }
+            }
+        };
+
         // ===== Master Controller =====
         const masterController = {
-            async initializeWithProvider(providerType, folderId, folderName, providerInstance) {
-                appState.currentProviderType = providerType;
-                appState.currentProvider = providerInstance;
+            async initializeWithProvider(folderId, folderName) {
                 appState.currentFolder.id = folderId;
                 appState.currentFolder.name = folderName;
                 
@@ -2249,10 +2565,10 @@
                 };
                 
                 try {
-                    utils.elements.loadingMessage.textContent = `Loading images from ${appState.currentProviderType}...`;
+                    utils.elements.loadingMessage.textContent = `Loading images from ${appState.currentProvider.name}...`;
                     
-                    if (appState.currentProviderType === 'onedrive') {
-                        await appState.currentProvider.metadataManager.loadMetadata();
+                    if (appState.currentProvider.metadataManager) {
+                        await appState.currentProvider.metadataManager.loadMetadata(appState.currentFolder.id);
                     }
                     
                     const result = await appState.currentProvider.getFiles(appState.currentFolder.id);
@@ -2289,7 +2605,7 @@
             },
             
             processFileWithProviderMetadata(file) {
-                const userMetadata = appState.currentProvider.metadataManager.getUserMetadata(file);
+                const userMetadata = appState.currentProvider.metadataManager.getUserMetadata(file.id);
                 
                 return {
                     id: file.id,
@@ -2301,6 +2617,7 @@
                     createdTime: file.createdTime,
                     modifiedTime: file.modifiedTime,
                     thumbnails: file.thumbnails,
+                    thumbnailLink: file.thumbnailLink,
                     downloadUrl: file.downloadUrl,
                     extractedMetadata: {},
                     metadataStatus: 'pending',
@@ -2362,11 +2679,7 @@
                 if (tooltip) tooltip.remove();
             },
             
-            async returnToFolderSelection() {
-                if (appState.currentProvider.metadataManager.saveMetadata) {
-                    await appState.currentProvider.metadataManager.saveMetadata();
-                }
-
+            returnToFolderSelection() {
                 if (appState.currentProviderType === 'googledrive') {
                     utils.showScreen('gdrive-folder-screen');
                 } else if (appState.currentProviderType === 'onedrive') {
@@ -2419,9 +2732,7 @@
                 try {
                     const metadata = await appState.metadataExtractor.fetchMetadata(file);
                     
-                    if (metadata.error) {
-                        throw new Error(metadata.error);
-                    }
+                    if (metadata.error) throw new Error(metadata.error);
                     
                     if (Object.keys(metadata).length > 0) {
                         file.extractedMetadata = metadata;
@@ -2439,7 +2750,6 @@
         // ===== Common Functions =====
         const commonFunctions = {
             initializeStacks() {
-                appState.tags.clear();
                 STACK_TYPES.forEach(stack => { appState.stacks[stack] = []; });
                 
                 appState.imageFiles.forEach(file => {
@@ -2448,9 +2758,6 @@
                         appState.stacks[stack].push(file);
                     } else {
                         appState.stacks.in.push(file);
-                    }
-                    if (file.tags) {
-                        file.tags.forEach(tag => appState.tags.add(tag));
                     }
                 });
                 
@@ -2514,6 +2821,7 @@
                     return;
                 }
                 
+                // Ensure pointer is within bounds
                 if (appState.currentStackPosition >= currentStackArray.length) {
                     appState.currentStackPosition = currentStackArray.length - 1;
                 }
@@ -2551,7 +2859,7 @@
             updateImageCounters() {
                 const stack = appState.stacks[appState.currentStack];
                 const total = stack.length;
-                const current = total > 0 ? appState.currentStackPosition + 1 : 0;
+                const current = total > 0 ? appState.currentStackPosition + 1 : 0; // 1-based for display
                 const text = `${current} / ${total}`;
 
                 utils.elements.focusImageCount.textContent = text;
@@ -2582,32 +2890,37 @@
                 if (!currentImage) return;
 
                 const originalStackName = appState.currentStack;
+                let newSequence;
 
+                // If moving to the same stack, move to the end
                 if (targetStack === originalStackName) {
                     const otherImages = currentStackArray.filter(img => img.id !== currentImage.id);
                     const minSequence = otherImages.length > 0 ? Math.min(...otherImages.map(img => img.stackSequence || 0)) : Date.now();
-                    const newSequence = minSequence - 1;
+                    newSequence = minSequence - 1;
 
-                    await masterController.updateUserMetadata(currentImage.id, { stackSequence: newSequence });
-                    
+                    // Re-order locally by re-sorting the whole array
                     const [item] = currentStackArray.splice(appState.currentStackPosition, 1);
                     item.stackSequence = newSequence;
                     currentStackArray.push(item);
 
                 } else {
-                    const newSequence = Date.now();
-                    await masterController.updateUserMetadata(currentImage.id, { stack: targetStack, stackSequence: newSequence });
+                    // Move to a different stack
+                    newSequence = Date.now();
 
+                    // Re-order locally
                     const [item] = currentStackArray.splice(appState.currentStackPosition, 1);
                     item.stack = targetStack;
                     item.stackSequence = newSequence;
-                    appState.stacks[targetStack].unshift(item);
+                    appState.stacks[targetStack].unshift(item); // Add to top of new stack
                     appState.stacks[targetStack] = this.sortFiles(appState.stacks[targetStack]);
                 }
                 
+                await masterController.updateUserMetadata(currentImage.id, { stack: targetStack, stackSequence: newSequence });
+
                 this.updateStackCounts();
                 this.updateActiveProxTab();
                 
+                // Display next image in the original stack
                 await this.displayCurrentImage();
             },
             
@@ -2616,18 +2929,18 @@
                 utils.elements.centerImage.style.opacity = '0';
                 utils.elements.filenameOverlay.classList.remove('visible');
                 utils.elements.detailsButton.style.display = 'none';
-                this.updateImageCounters(); 
+                this.updateImageCounters(); // Show 0/0
                 setTimeout(() => {
                     utils.elements.centerImage.src = '';
                     utils.elements.centerImage.alt = 'No images in this stack';
                     utils.elements.emptyState.classList.remove('hidden');
                     utils.elements.centerImage.style.opacity = '1';
-                    appController.updateEmptyStateButtons();
+                    updateEmptyStateButtons();
                 }, 200);
             }
         };
 
-        // ===== Grid View Module =====
+        // ===== Enhanced Grid View with Lazy Loading =====
         const gridView = {
             open(stack) {
                 utils.showModal('grid-modal');
@@ -2857,19 +3170,16 @@
                 });
             },
 
-            // REGRESSION FIX: This function was making an API call for every single file.
-            // It has been restored to the baseline's efficient method of updating the metadata
-            // object in memory and then making a single API call to save the entire object.
             async reorderStackOnClose() {
                 const stackArray = appState.stacks[appState.grid.stack];
                 let topItems = [];
                 let bottomItems = [];
 
-                if (appState.grid.filtered.length > 0) { // A search was performed
+                if (appState.grid.filtered.length > 0) { // Search was active
                     const filteredIds = new Set(appState.grid.filtered.map(f => f.id));
                     topItems = appState.grid.filtered.sort((a, b) => a.name.localeCompare(b.name));
                     bottomItems = stackArray.filter(f => !filteredIds.has(f.id));
-                } else if (appState.grid.selected.length > 0) { // A manual selection was made
+                } else if (appState.grid.selected.length > 0) { // Manual selection
                     const selectedIds = new Set(appState.grid.selected);
                     topItems = stackArray.filter(f => selectedIds.has(f.id)).sort((a,b) => a.name.localeCompare(b.name));
                     bottomItems = stackArray.filter(f => !selectedIds.has(f.id));
@@ -2880,35 +3190,20 @@
                 const newStack = [...topItems, ...bottomItems];
                 const timestamp = Date.now();
                 
-                const updatePromises = [];
-                // Update sequence numbers for all files in the stack locally first.
+                // Update sequence numbers for persistence
                 for (let i = 0; i < newStack.length; i++) {
-                    const file = newStack[i];
-                    const newSequence = timestamp - i;
-                    if (file.stackSequence !== newSequence) {
-                        file.stackSequence = newSequence;
-                        // For OneDrive, this updates the in-memory cache which will be saved in one go.
-                        // For Google Drive, the change is just in appState for now.
-                        if (appState.currentProviderType === 'onedrive') {
-                             appState.currentProvider.metadataManager.updateUserMetadata(file.id, { stackSequence: file.stackSequence });
-                        } else {
-                            updatePromises.push(masterController.updateUserMetadata(file.id, { stackSequence: file.stackSequence }));
-                        }
-                    }
+                    newStack[i].stackSequence = timestamp - i;
                 }
 
                 appState.stacks[appState.grid.stack] = newStack;
-                appState.currentStackPosition = 0;
+                appState.currentStackPosition = 0; // Reset pointer to the top of the reordered stack
 
+                // Persist the new order
                 try {
-                    // Now, save the entire metadata object in a single, efficient call for OneDrive.
-                    if (appState.currentProvider.metadataManager.saveMetadata) {
-                         await appState.currentProvider.metadataManager.saveMetadata();
-                    }
-                    // For Google Drive, execute the batched promises.
-                    if (updatePromises.length > 0) {
-                        await Promise.all(updatePromises);
-                    }
+                    const updatePromises = newStack.map(file => 
+                        masterController.updateUserMetadata(file.id, { stackSequence: file.stackSequence })
+                    );
+                    await Promise.all(updatePromises);
                     utils.showToast('Stack order saved', 'success');
                 } catch (error) {
                     utils.showToast('Failed to save new stack order', 'error', true);
@@ -2916,7 +3211,7 @@
             }
         };
 
-        // ===== Details Modal Module =====
+        // ===== Details Modal =====
         const detailsModal = {
             currentTab: 'info',
             
@@ -2960,7 +3255,13 @@
             populateInfoTab(file) {
                 const filename = file.name || 'Unknown';
                 utils.elements.detailFilename.textContent = filename;
-                utils.elements.detailFilenameLink.href = appState.exportSystem.getDirectImageURL(file);
+                
+                if (appState.currentProviderType === 'googledrive') {
+                    utils.elements.detailFilenameLink.href = `https://drive.google.com/file/d/${file.id}/view`;
+                } else {
+                    utils.elements.detailFilenameLink.href = file.downloadUrl || '#';
+                }
+                utils.elements.detailFilenameLink.style.display = 'inline';
                 
                 const date = file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : 
                            file.createdTime ? new Date(file.createdTime).toLocaleString() : 'Unknown';
@@ -2972,88 +3273,82 @@
             
             populateTagsTab(file) {
                 const tags = file.tags || [];
+                
                 utils.elements.detailTags.innerHTML = '';
+                
                 tags.forEach(tag => {
-                    const tagElement = this.createTagElement(tag, true);
+                    const tagElement = document.createElement('div');
+                    tagElement.className = 'tag-item';
+                    tagElement.innerHTML = `
+                        <span>${tag}</span>
+                        <button class="tag-remove" data-tag="${tag}">×</button>
+                    `;
                     utils.elements.detailTags.appendChild(tagElement);
                 });
                 
                 const addButton = document.createElement('div');
                 addButton.className = 'add-tag-btn';
                 addButton.textContent = '+ Add Tag';
-                addButton.onclick = () => this.showAddTagInput();
+                addButton.addEventListener('click', () => this.showAddTagInput());
                 utils.elements.detailTags.appendChild(addButton);
-
-                utils.elements.folderTagsList.innerHTML = '';
-                const otherTags = Array.from(appState.tags).filter(t => !tags.includes(t));
-                otherTags.forEach(tag => {
-                    const tagElement = this.createTagElement(tag, false);
-                    utils.elements.folderTagsList.appendChild(tagElement);
+                
+                utils.elements.detailTags.querySelectorAll('.tag-remove').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const tagToRemove = e.target.dataset.tag;
+                        this.removeTag(file, tagToRemove);
+                    });
                 });
-            },
-
-            createTagElement(tag, isApplied) {
-                const tagElement = document.createElement('div');
-                tagElement.className = 'tag-item';
-                tagElement.innerHTML = `<span>${tag}</span>`;
-                const button = document.createElement('button');
-                button.className = 'tag-remove';
-
-                if (isApplied) {
-                    button.innerHTML = '×';
-                    button.onclick = () => this.removeTag(tag);
-                } else {
-                    button.innerHTML = '+';
-                    tagElement.style.background = '#e5e7eb';
-                    tagElement.style.color = '#4b5563';
-                    button.style.color = '#4b5563';
-                    button.onclick = () => this.addTag(tag);
-                }
-                tagElement.appendChild(button);
-                return tagElement;
             },
             
             showAddTagInput() {
                 const input = document.createElement('input');
                 input.type = 'text';
                 input.className = 'tag-input';
-                input.placeholder = 'Enter new tag';
+                input.placeholder = 'Enter tag name';
+                input.style.marginLeft = '8px';
                 
                 const addButton = utils.elements.detailTags.querySelector('.add-tag-btn');
                 addButton.parentNode.insertBefore(input, addButton);
                 input.focus();
                 
-                const handleKeyDown = (e) => {
+                input.addEventListener('keydown', async (e) => {
                     if (e.key === 'Enter') {
                         const tagName = input.value.trim();
-                        if (tagName) this.addTag(tagName);
-                        input.remove();
+                        if (tagName) {
+                            const currentFile = appState.stacks[appState.currentStack][appState.currentStackPosition];
+                            try {
+                                const currentTags = currentFile.tags || [];
+                                const newTags = [...new Set([...currentTags, tagName])];
+                                
+                                await masterController.updateUserMetadata(currentFile.id, { tags: newTags });
+                                appState.tags.add(tagName);
+                                
+                                this.populateTagsTab(currentFile);
+                                input.remove();
+                            } catch (error) {
+                                utils.showToast('Failed to add tag', 'error', true);
+                            }
+                        }
                     } else if (e.key === 'Escape') {
                         input.remove();
                     }
-                };
-
-                input.addEventListener('keydown', handleKeyDown);
-                input.addEventListener('blur', () => { setTimeout(() => input.remove(), 100); });
-            },
-
-            async addTag(tag) {
-                const currentFile = appState.stacks[appState.currentStack][appState.currentStackPosition];
-                const currentTags = currentFile.tags || [];
-                if (currentTags.includes(tag)) return;
-
-                const newTags = [...new Set([...currentTags, tag])];
-                await masterController.updateUserMetadata(currentFile.id, { tags: newTags });
-                appState.tags.add(tag);
-                this.populateTagsTab(currentFile);
+                });
+                
+                input.addEventListener('blur', () => {
+                    setTimeout(() => input.remove(), 100);
+                });
             },
             
-            async removeTag(tagToRemove) {
-                const currentFile = appState.stacks[appState.currentStack][appState.currentStackPosition];
-                const currentTags = currentFile.tags || [];
-                const newTags = currentTags.filter(tag => tag !== tagToRemove);
-                await masterController.updateUserMetadata(currentFile.id, { tags: newTags });
-                this.populateTagsTab(currentFile);
+            async removeTag(file, tagToRemove) {
+                try {
+                    const currentTags = file.tags || [];
+                    const newTags = currentTags.filter(tag => tag !== tagToRemove);
+                    
+                    await masterController.updateUserMetadata(file.id, { tags: newTags });
+                    this.populateTagsTab(file);
+                } catch (error) {
+                    utils.showToast('Failed to remove tag', 'error', true);
+                }
             },
             
             populateNotesTab(file) {
@@ -3066,7 +3361,11 @@
                 utils.elements.detailNotes.addEventListener('blur', async () => {
                     const currentFile = appState.stacks[appState.currentStack][appState.currentStackPosition];
                     if (currentFile.notes !== utils.elements.detailNotes.value) {
-                        await masterController.updateUserMetadata(currentFile.id, { notes: utils.elements.detailNotes.value });
+                        try {
+                            await masterController.updateUserMetadata(currentFile.id, { notes: utils.elements.detailNotes.value });
+                        } catch (error) {
+                            utils.showToast('Failed to save notes', 'error', true);
+                        }
                     }
                 });
                 
@@ -3081,20 +3380,45 @@
                 let rating = currentRating;
                 const stars = container.querySelectorAll('.star');
         
-                const updateVisuals = (r) => { stars.forEach((s, i) => s.classList.toggle('active', i < r)); };
+                const updateVisuals = (r) => {
+                    stars.forEach((star, index) => {
+                        star.classList.toggle('active', index < r);
+                    });
+                };
+        
                 container.onmouseleave = () => updateVisuals(rating);
         
                 stars.forEach((star, index) => {
                     star.onmouseenter = () => updateVisuals(index + 1);
                     star.onclick = async () => {
-                        rating = (index + 1 === rating) ? 0 : index + 1;
+                        const newRating = index + 1;
+                        if (newRating === rating) {
+                            rating = 0;
+                        } else {
+                            rating = newRating;
+                        }
                         updateVisuals(rating);
+        
                         const currentFile = appState.stacks[appState.currentStack][appState.currentStackPosition];
                         if (!currentFile) return;
-                        const updatePayload = type === 'quality' ? { qualityRating: rating } : { contentRating: rating };
-                        await masterController.updateUserMetadata(currentFile.id, updatePayload);
+        
+                        const updatePayload = {};
+                        if (type === 'quality') {
+                            updatePayload.qualityRating = rating;
+                        } else {
+                            updatePayload.contentRating = rating;
+                        }
+        
+                        try {
+                            await masterController.updateUserMetadata(currentFile.id, updatePayload);
+                        } catch (error) {
+                            utils.showToast(`Failed to save ${type} rating`, 'error', true);
+                            rating = currentRating;
+                            updateVisuals(rating);
+                        }
                     };
                 });
+        
                 updateVisuals(rating);
             },
             
@@ -3113,40 +3437,96 @@
                     return;
                 }
                 
-                const priorityFields = ['prompt', 'Prompt', 'negative prompt', 'Negative prompt', 'model', 'Model', 'seed', 'Seed', 'steps', 'Steps', 'cfg scale', 'CFG scale', 'sampler', 'Sampler', 'scheduler', 'Scheduler', 'api_call', 'API_Call'];
-                const addedKeys = new Set();
-
+                const priorityFields = ['prompt', 'Prompt', 'model', 'Model', 'seed', 'Seed', 'negative_prompt', 'Negative_Prompt', 'steps', 'Steps', 'cfg_scale', 'CFG_Scale', 'sampler', 'Sampler', 'scheduler', 'Scheduler', 'api_call', 'API_Call'];
+                
                 priorityFields.forEach(field => {
-                    const lowerField = field.toLowerCase();
-                    for (const key in metadata) {
-                        if (key.toLowerCase() === lowerField && !addedKeys.has(lowerField)) {
-                            this.addMetadataRow(key, metadata[key], true);
-                            addedKeys.add(lowerField);
-                        }
+                    if (metadata[field]) {
+                        this.addMetadataRow(field, metadata[field], true);
                     }
                 });
                 
-                const remainingFields = Object.entries(metadata).filter(([key]) => !addedKeys.has(key.toLowerCase()) && metadata[key]);
+                const remainingFields = Object.entries(metadata).filter(([key, value]) => 
+                    !priorityFields.includes(key) && 
+                    !priorityFields.includes(key.toLowerCase()) && 
+                    value
+                );
                 
-                if (addedKeys.size > 0 && remainingFields.length > 0) {
-                    const sep = `<tr><td colspan="2" style="padding: 8px; background: #f0f0f0; text-align: center; font-size: 12px; color: #666; font-weight: bold;">Other Metadata</td></tr>`;
-                    utils.elements.metadataTable.insertAdjacentHTML('beforeend', sep);
+                if (priorityFields.some(field => metadata[field]) && remainingFields.length > 0) {
+                    const separatorRow = document.createElement('tr');
+                    separatorRow.innerHTML = `
+                        <td colspan="2" style="padding: 8px; background: #f0f0f0; text-align: center; font-size: 12px; color: #666; font-weight: bold;">
+                            Other Metadata
+                        </td>
+                    `;
+                    utils.elements.metadataTable.appendChild(separatorRow);
                 }
                 
-                remainingFields.forEach(([key, value]) => this.addMetadataRow(key, value, false));
+                remainingFields.forEach(([key, value]) => {
+                    this.addMetadataRow(key, value, false);
+                });
+                
+                if (Object.keys(metadata).length > 0) {
+                    const separatorRow = document.createElement('tr');
+                    separatorRow.innerHTML = `
+                        <td colspan="2" style="padding: 8px; background: #f0f0f0; text-align: center; font-size: 12px; color: #666; font-weight: bold;">
+                            File Information
+                        </td>
+                    `;
+                    utils.elements.metadataTable.appendChild(separatorRow);
+                }
+                
+                this.addMetadataRow('File Name', file.name || 'Unknown', false);
+                this.addMetadataRow('File Size', file.size ? utils.formatFileSize(file.size) : 'Unknown', false);
+                this.addMetadataRow('MIME Type', file.mimeType || 'Unknown', false);
+                this.addMetadataRow('Created', file.createdTime ? new Date(file.createdTime).toLocaleString() : 'Unknown', false);
+                this.addMetadataRow('Modified', file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : 'Unknown', false);
+                this.addMetadataRow('Provider', appState.currentProviderType === 'googledrive' ? 'Google Drive' : 'OneDrive', false);
             },
             
             addMetadataRow(key, value, needsCopyButton = false) {
                 const row = document.createElement('tr');
+                
                 const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                 
-                let valHtml = `<span>${String(value).replace(/</g, "&lt;")}</span>`;
-
-                if (needsCopyButton) {
-                    valHtml += `<button class="copy-button copy-metadata" data-value="${String(value).replace(/"/g, '&quot;')}">Copy</button>`;
+                let formattedValue = String(value);
+                
+                if (formattedValue.length > 200) {
+                    formattedValue = formattedValue
+                        .replace(/,\s+/g, ',\n')
+                        .replace(/\.\s+/g, '.\n')
+                        .replace(/;\s+/g, ';\n')
+                        .trim();
+                } else if (formattedValue.length > 100) {
+                    formattedValue = formattedValue.replace(/\s+/g, ' ').trim();
                 }
                 
-                row.innerHTML = `<td class="key-cell">${formattedKey}</td><td class="value-cell">${valHtml}</td>`;
+                const keyCell = document.createElement('td');
+                keyCell.className = 'key-cell';
+                keyCell.textContent = formattedKey;
+                
+                const valueCell = document.createElement('td');
+                valueCell.className = 'value-cell';
+                
+                if (formattedValue.length > 500) {
+                    valueCell.style.maxHeight = '120px';
+                    valueCell.style.overflowY = 'auto';
+                    valueCell.style.fontSize = '12px';
+                    valueCell.style.lineHeight = '1.4';
+                }
+                
+                valueCell.textContent = formattedValue;
+                
+                if (needsCopyButton) {
+                    const copyButton = document.createElement('button');
+                    copyButton.className = 'copy-button copy-metadata';
+                    copyButton.textContent = 'Copy';
+                    copyButton.dataset.value = String(value);
+                    copyButton.title = `Copy ${formattedKey} to clipboard`;
+                    valueCell.appendChild(copyButton);
+                }
+                
+                row.appendChild(keyCell);
+                row.appendChild(valueCell);
                 utils.elements.metadataTable.appendChild(row);
             },
             
@@ -3154,42 +3534,421 @@
                 navigator.clipboard.writeText(text).then(() => {
                     utils.showToast('📋 Copied to clipboard', 'success', true);
                 }).catch(() => {
-                    const ta = document.createElement('textarea');
-                    ta.value = text;
-                    ta.style.position = 'fixed'; ta.style.opacity = '0';
-                    document.body.appendChild(ta);
-                    ta.select();
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.opacity = '0';
+                    document.body.appendChild(textArea);
+                    textArea.select();
                     try {
                         document.execCommand('copy');
                         utils.showToast('📋 Copied to clipboard', 'success', true);
                     } catch (err) {
                         utils.showToast('❌ Failed to copy', 'error', true);
                     }
-                    document.body.removeChild(ta);
+                    document.body.removeChild(textArea);
                 });
             }
         };
 
-        // ===== Gesture & Zoom System =====
+        // ===== Unified Modal Manager =====
+        const modalManager = {
+            currentAction: null,
+            
+            show(type, options = {}) {
+                this.currentAction = type;
+                const { title, content, confirmText = 'Confirm', confirmClass = 'btn-primary' } = options;
+                
+                utils.elements.actionTitle.textContent = title || 'Action';
+                utils.elements.actionContent.innerHTML = content || '';
+                utils.elements.actionConfirm.textContent = confirmText;
+                utils.elements.actionConfirm.className = `btn ${confirmClass}`;
+                utils.elements.actionConfirm.disabled = false;
+                utils.elements.actionCancel.textContent = "Cancel";
+
+                utils.showModal('action-modal');
+            },
+            
+            hide() {
+                utils.hideModal('action-modal');
+                this.currentAction = null;
+            },
+            
+            setupMoveAction() {
+                this.show('move', {
+                    title: 'Move to Stack',
+                    content: `
+                        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+                            ${STACK_TYPES.map(stack => 
+                                `<button class="move-option" data-stack="${stack}" style="width: 100%; text-align: left; padding: 8px 16px; border-radius: 6px; border: none; background: transparent; cursor: pointer; transition: background-color 0.2s;">${STACK_NAMES[stack]}</button>`
+                            ).join('')}
+                        </div>
+                    `,
+                    confirmText: 'Cancel'
+                });
+                
+                document.querySelectorAll('.move-option').forEach(option => {
+                    option.addEventListener('click', () => {
+                        const targetStack = option.dataset.stack;
+                        this.executeMove(targetStack);
+                    });
+                });
+            },
+            
+            setupTagAction() {
+                this.show('tag', {
+                    title: 'Add Tags',
+                    content: `
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 4px;">Enter tags (comma separated)</label>
+                            <input type="text" id="modal-tag-input" class="tag-input" placeholder="nature, landscape, vacation">
+                        </div>
+                        <div id="modal-tag-suggestions" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
+                            ${Array.from(appState.tags).map(tag => 
+                                `<button class="tag-suggestion" data-tag="${tag}" style="background-color: #e5e7eb; color: #374151; padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: background-color 0.2s; border: none;">${tag}</button>`
+                            ).join('')}
+                        </div>
+                    `,
+                    confirmText: 'Apply'
+                });
+                
+                document.querySelectorAll('.tag-suggestion').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const input = document.getElementById('modal-tag-input');
+                        input.value += (input.value ? ', ' : '') + btn.dataset.tag;
+                    });
+                });
+            },
+            
+            setupDeleteAction() {
+                const selectedCount = appState.grid.selected.length;
+                const providerName = appState.currentProviderType === 'googledrive' ? 'Google Drive' : 'OneDrive';
+                const message = `Are you sure you want to move ${selectedCount} image(s) to your ${providerName} trash? This can be recovered from the provider's website.`;
+                
+                this.show('delete', {
+                    title: 'Confirm Delete',
+                    content: `<p style="color: #4b5563; margin-bottom: 16px;">${message}</p>`,
+                    confirmText: `Move to ${providerName} Trash`,
+                    confirmClass: 'btn-danger'
+                });
+            },
+            
+            setupExportAction() {
+                this.show('export', {
+                    title: 'Export to Spreadsheet',
+                    content: `
+                        <p style="color: #4b5563; margin-bottom: 16px;">
+                            This will start the new Live Export process for ${appState.grid.selected.length} selected image(s).
+                        </p>
+                        <p style="color: #4b5563; margin-bottom: 16px;">
+                            It will fetch fresh data directly from the cloud to ensure 100% accuracy.
+                        </p>
+                    `,
+                    confirmText: 'Begin Export'
+                });
+            },
+
+            setupFocusStackSwitch() {
+                const availableStacks = STACK_TYPES.filter(s => s !== appState.currentStack && appState.stacks[s].length > 0);
+                let content = `<div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">`;
+                if (availableStacks.length > 0) {
+                    content += availableStacks.map(stack => 
+                        `<button class="move-option" data-stack="${stack}" style="width: 100%; text-align: left; padding: 8px 16px; border-radius: 6px; border: none; background: transparent; cursor: pointer; transition: background-color 0.2s;">${STACK_NAMES[stack]} (${appState.stacks[stack].length})</button>`
+                    ).join('');
+                } else {
+                    content += `<p style="color: #4b5563; text-align: center;">No other stacks have images.</p>`;
+                }
+                content += `</div>`;
+
+                this.show('focus-stack-switch', {
+                    title: 'Switch Stack',
+                    content: content,
+                    confirmText: 'Cancel'
+                });
+
+                document.querySelectorAll('.move-option').forEach(option => {
+                    option.addEventListener('click', () => {
+                        const targetStack = option.dataset.stack;
+                        switchToStack(targetStack);
+                        commonFunctions.updateImageCounters();
+                        this.hide();
+                    });
+                });
+            },
+            
+            setupFolderMoveAction() {
+                this.show('folder-move', {
+                    title: 'Move to Different Folder',
+                    content: `
+                        <p style="color: #4b5563; margin-bottom: 16px;">
+                            This will move ${appState.grid.selected.length} image${appState.grid.selected.length > 1 ? 's' : ''} to a different folder. 
+                            The images will be removed from this stack and their metadata will move with them.
+                        </p>
+                    `,
+                    confirmText: 'Choose Destination Folder'
+                });
+            },
+            
+            async executeBulkAction(actionFn, successMessage, options = {}) {
+                const { refreshGrid = true, deselect = true } = options;
+                const confirmBtn = utils.elements.actionConfirm;
+                const originalText = confirmBtn.textContent;
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Processing...';
+
+                try {
+                    const promises = appState.grid.selected.map(fileId => actionFn(fileId));
+                    await Promise.all(promises);
+
+                    utils.showToast(successMessage.replace('{count}', promises.length), 'success', true);
+                    if(!options.keepModalOpen) this.hide();
+                    
+                    if (refreshGrid) {
+                        utils.elements.gridContainer.innerHTML = '';
+                        gridView.initializeLazyLoad(appState.grid.stack);
+                    }
+                    if (deselect) {
+                        gridView.deselectAll();
+                    }
+                    
+                    commonFunctions.updateStackCounts();
+                } catch (error) {
+                    utils.showToast(`Failed to process some images: ${error.message}`, 'error', true);
+                } finally {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = originalText;
+                }
+            },
+
+            async executeMove(targetStack) {
+                await this.executeBulkAction(async (fileId) => {
+                    const file = appState.imageFiles.find(f => f.id === fileId);
+                    if (file) {
+                        const currentStack = file.stack;
+                        const newSequence = Date.now();
+                        await masterController.updateUserMetadata(fileId, { stack: targetStack, stackSequence: newSequence });
+                        
+                        const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === fileId);
+                        if (currentStackIndex !== -1) {
+                            appState.stacks[currentStack].splice(currentStackIndex, 1);
+                        }
+                        
+                        file.stackSequence = newSequence;
+                        appState.stacks[targetStack].unshift(file);
+                        appState.stacks[targetStack] = commonFunctions.sortFiles(appState.stacks[targetStack]);
+                    }
+                }, `Moved {count} images to ${targetStack}`);
+            },
+
+            async executeTag() {
+                const tagInput = document.getElementById('modal-tag-input');
+                if (!tagInput.value.trim()) return;
+                const tagsToAdd = tagInput.value.split(',').map(tag => tag.trim()).filter(tag => tag);
+
+                await this.executeBulkAction(async (fileId) => {
+                    const file = appState.imageFiles.find(f => f.id === fileId);
+                    if (file) {
+                        const currentTags = file.tags || [];
+                        const newTags = [...new Set([...currentTags, ...tagsToAdd])];
+                        await masterController.updateUserMetadata(fileId, { tags: newTags });
+                        tagsToAdd.forEach(tag => appState.tags.add(tag));
+                    }
+                }, `Tags added to {count} images`, { refreshGrid: false });
+            },
+
+            async executeDelete() {
+                await this.executeBulkAction(async (fileId) => {
+                    await masterController.deleteFile(fileId);
+                    
+                    const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
+                    if (fileIndex > -1) {
+                        const [file] = appState.imageFiles.splice(fileIndex, 1);
+                        const stackIndex = appState.stacks[file.stack].findIndex(f => f.id === fileId);
+                        if (stackIndex > -1) {
+                            appState.stacks[file.stack].splice(stackIndex, 1);
+                        }
+                    }
+                }, `Moved {count} images to provider trash`);
+            },
+            
+            async executeExport() {
+                const fileIds = [...appState.grid.selected];
+                const filesToExport = fileIds.map(id => appState.imageFiles.find(f => f.id === id)).filter(f => f);
+                const total = filesToExport.length;
+                const results = [];
+                let failures = 0;
+                
+                utils.elements.actionTitle.textContent = `Live Export: 0 of ${total}`;
+                utils.elements.actionContent.innerHTML = `
+                    <div style="background: #111; border: 1px solid #333; color: #eee; font-family: monospace; font-size: 12px; height: 250px; overflow-y: scroll; padding: 8px; white-space: pre-wrap;" id="export-log"></div>
+                `;
+                const logEl = document.getElementById('export-log');
+                utils.elements.actionConfirm.disabled = true;
+                utils.elements.actionCancel.textContent = "Close";
+                
+                const log = (message) => {
+                    logEl.textContent += message + '\n';
+                    logEl.scrollTop = logEl.scrollHeight;
+                };
+                
+                log(`Starting export for ${total} images...`);
+                
+                for (let i = 0; i < filesToExport.length; i++) {
+                    const file = filesToExport[i];
+                    utils.elements.actionTitle.textContent = `Live Export: ${i + 1} of ${total}`;
+                    log(`\n[${i+1}/${total}] Processing: ${file.name}`);
+                    
+                    let extractedMetadata = {};
+                    let success = false;
+                    
+                    for (let attempt = 1; attempt <= 3; attempt++) {
+                        try {
+                            const metadata = await appState.metadataExtractor.fetchMetadata(file, true);
+                            if (metadata.error) throw new Error(metadata.error);
+                            
+                            extractedMetadata = metadata;
+                            log(`  ✅ Success`);
+                            success = true;
+                            break;
+                        } catch (error) {
+                            log(`  ⚠️ Attempt ${attempt} failed: ${error.message}`);
+                            if (attempt < 3) {
+                                const delay = 1000 * attempt;
+                                log(`     Retrying in ${delay / 1000}s...`);
+                                await new Promise(res => setTimeout(res, delay));
+                            } else {
+                                log(`  ❌ FAILED permanently after 3 attempts.`);
+                                failures++;
+                            }
+                        }
+                    }
+                    
+                    results.push({
+                        ...file,
+                        extractedMetadata: extractedMetadata
+                    });
+                }
+                
+                log('\n-------------------------------------');
+                log('Export process complete.');
+                log(`Successfully processed: ${total - failures} files.`);
+                log(`Failed: ${failures} files.`);
+                
+                if (results.length > 0) {
+                    appState.exportSystem.exportData(results);
+                    log('CSV file has been generated and downloaded.');
+                } else {
+                    log('No data to export.');
+                }
+                
+                utils.elements.actionTitle.textContent = `Export Complete`;
+                utils.elements.actionConfirm.disabled = true;
+                utils.elements.actionCancel.textContent = "Close";
+            },
+            
+            async handleFolderMoveSelection(folderId, folderName) {
+                const filesToMove = appState.folderMoveMode.files;
+                utils.showScreen('loading-screen');
+                utils.updateLoadingProgress(0, filesToMove.length);
+
+                try {
+                    for(let i = 0; i < filesToMove.length; i++) {
+                        const fileId = filesToMove[i];
+                        await appState.currentProvider.moveFileToFolder(fileId, folderId);
+                        
+                        const fileIndex = appState.imageFiles.findIndex(f => f.id === fileId);
+                        if (fileIndex > -1) {
+                            const [file] = appState.imageFiles.splice(fileIndex, 1);
+                            const stackIndex = appState.stacks[file.stack].findIndex(f => f.id === fileId);
+                            if (stackIndex > -1) {
+                                appState.stacks[file.stack].splice(stackIndex, 1);
+                            }
+                        }
+                        utils.updateLoadingProgress(i + 1, filesToMove.length);
+                    }
+
+                    utils.showToast(`Moved ${filesToMove.length} images to ${folderName}`, 'success', true);
+                    
+                    await appState.fileCache.clearCacheForFolder(appState.currentFolder.id);
+                    appState.folderMoveMode = { active: false, files: [] };
+                    
+                    commonFunctions.initializeStacks(); 
+                    commonFunctions.updateStackCounts();
+                    masterController.returnToFolderSelection();
+                    
+                } catch (error) {
+                    utils.showToast('Error moving files', 'error', true);
+                    masterController.returnToFolderSelection();
+                }
+            },
+
+            executeFolderMove() {
+                appState.folderMoveMode = {
+                    active: true,
+                    files: [...appState.grid.selected],
+                };
+                
+                this.hide();
+                gridView.close();
+                masterController.returnToFolderSelection();
+                utils.showToast(`Select destination folder for ${appState.folderMoveMode.files.length} images`, 'info', true);
+            }
+        };
+
+        // ===== Gesture System =====
         class GestureSystem {
             constructor() {
                 this.startPos = { x: 0, y: 0 };
                 this.currentPos = { x: 0, y: 0 };
                 this.gestureStarted = false;
                 this.lastTapTime = 0;
-                this.lastTouchPos = { x: 0, y: 0 };
+                this.edgeElements = [utils.elements.edgeTop, utils.elements.edgeBottom, utils.elements.edgeLeft, utils.elements.edgeRight];
+                this.bindEvents();
             }
-        
-            init() {
+
+            bindEvents() {
                 utils.elements.imageViewport.addEventListener('mousedown', this.handleStart.bind(this));
                 document.addEventListener('mousemove', this.handleMove.bind(this));
                 document.addEventListener('mouseup', this.handleEnd.bind(this));
                 utils.elements.imageViewport.addEventListener('touchstart', this.handleStart.bind(this), { passive: false });
                 document.addEventListener('touchmove', this.handleMove.bind(this), { passive: false });
                 document.addEventListener('touchend', this.handleEnd.bind(this), { passive: false });
-                utils.elements.centerImage.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
             }
-        
+
+            showEdgeGlow(direction) {
+                this.edgeElements.forEach(edge => edge.classList.remove('active'));
+                const edgeEl = utils.elements[`edge${direction.charAt(0).toUpperCase() + direction.slice(1)}`];
+                if (edgeEl) edgeEl.classList.add('active');
+            }
+
+            hideAllEdgeGlows() {
+                this.edgeElements.forEach(edge => edge.classList.remove('active'));
+            }
+
+            determineSwipeDirection(deltaX, deltaY) {
+                if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                    return deltaX > 0 ? 'right' : 'left';
+                }
+                return deltaY > 0 ? 'bottom' : 'top';
+            }
+
+            directionToStack(direction) {
+                return { top: 'priority', bottom: 'trash', left: 'in', right: 'out' }[direction];
+            }
+
+            async executeFlick(targetStack) {
+                if (appState.stacks[appState.currentStack].length === 0) return;
+                acknowledgePillCounter(targetStack);
+                if (appState.hapticManager) appState.hapticManager.triggerFeedback('swipe');
+                try {
+                    await commonFunctions.moveToStack(targetStack);
+                    this.hideAllEdgeGlows();
+                } catch (error) {
+                    utils.showToast(`Error moving image: ${error.message}`, 'error', true);
+                    this.hideAllEdgeGlows();
+                }
+            }
+
             handleStart(e) {
                 const currentTime = Date.now();
                 if (currentTime - this.lastTapTime < 300) {
@@ -3199,138 +3958,158 @@
                     return;
                 }
                 this.lastTapTime = currentTime;
-        
-                if (e.touches) {
-                    if (e.touches.length === 2) {
-                        e.preventDefault();
-                        appState.isPinching = true;
-                        appState.initialDistance = this.getDistance(e.touches[0], e.touches[1]);
-                        this.lastTouchPos = this.getCenter(e.touches[0], e.touches[1]);
-                        return;
-                    } else if (e.touches.length === 1 && appState.currentScale > 1) {
-                        this.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-                        return;
-                    }
-                }
-        
-                if (appState.isFocusMode || appState.stacks[appState.currentStack].length === 0 || appState.currentScale > 1.1) return;
-        
+
+                if (appState.isFocusMode || appState.stacks[appState.currentStack].length === 0 || (e.touches && (e.touches.length > 1 || appState.isPinching)) || appState.currentScale > 1.1) return;
+                
                 const point = e.touches ? e.touches[0] : e;
                 this.startPos = { x: point.clientX, y: point.clientY };
-                this.currentPos = { ...this.startPos };
+                this.currentPos = { x: point.clientX, y: point.clientY };
                 this.gestureStarted = false;
                 appState.isDragging = true;
                 utils.elements.centerImage.classList.add('dragging');
             }
-        
+
             handleMove(e) {
-                if (e.touches) {
-                    if (e.touches.length === 2 && appState.isPinching) {
-                        e.preventDefault();
-                        const currentDistance = this.getDistance(e.touches[0], e.touches[1]);
-                        const scaleFactor = currentDistance / appState.initialDistance;
-                        let newScale = appState.currentScale * scaleFactor;
-                        appState.currentScale = Math.max(appState.minScale, Math.min(appState.maxScale, newScale));
-                        appState.initialDistance = currentDistance;
-                        commonFunctions.applyTransform();
-                        return;
-                    } else if (e.touches.length === 1 && appState.currentScale > 1) {
-                        e.preventDefault();
-                        const deltaX = e.touches[0].clientX - this.lastTouchPos.x;
-                        const deltaY = e.touches[0].clientY - this.lastTouchPos.y;
-                        appState.panOffset.x += deltaX / appState.currentScale;
-                        appState.panOffset.y += deltaY / appState.currentScale;
-                        this.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-                        commonFunctions.applyTransform();
-                        return;
-                    }
-                }
-        
                 if (!appState.isDragging || appState.isFocusMode || appState.imageFiles.length === 0) return;
-        
+                if (e.touches && e.touches.length > 1) {
+                    appState.isDragging = false;
+                    utils.elements.centerImage.classList.remove('dragging');
+                    this.hideAllEdgeGlows();
+                    return;
+                }
+                
                 e.preventDefault();
                 const point = e.touches ? e.touches[0] : e;
                 this.currentPos = { x: point.clientX, y: point.clientY };
                 const deltaX = this.currentPos.x - this.startPos.x;
                 const deltaY = this.currentPos.y - this.startPos.y;
                 const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        
+                
                 if (distance > 30) {
                     this.gestureStarted = true;
                     const direction = this.determineSwipeDirection(deltaX, deltaY);
-                    if (direction) this.showEdgeGlow(direction);
+                    if (direction) {
+                        this.hideAllEdgeGlows();
+                        this.showEdgeGlow(direction);
+                    }
                 } else {
                     this.hideAllEdgeGlows();
                 }
             }
-        
+
             handleEnd(e) {
-                if (e.touches && e.touches.length < 2) {
+                if (!appState.isDragging || appState.isFocusMode) return;
+                appState.isDragging = false;
+                utils.elements.centerImage.classList.remove('dragging');
+                if (!this.gestureStarted) {
+                    this.hideAllEdgeGlows();
+                    return;
+                }
+                
+                const deltaX = this.currentPos.x - this.startPos.x;
+                const deltaY = this.currentPos.y - this.startPos.y;
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                
+                if (distance > 80) {
+                    const direction = this.determineSwipeDirection(deltaX, deltaY);
+                    const targetStack = this.directionToStack(direction);
+                    if (targetStack) {
+                        this.executeFlick(targetStack);
+                        return;
+                    }
+                }
+                this.hideAllEdgeGlows();
+            }
+        }
+        
+        // ===== Pinch Zoom System =====
+        function setupPinchZoom() {
+            function getDistance(touch1, touch2) {
+                const dx = touch1.clientX - touch2.clientX;
+                const dy = touch1.clientY - touch2.clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+            
+            function getCenter(touch1, touch2) {
+                return {
+                    x: (touch1.clientX + touch2.clientX) / 2,
+                    y: (touch1.clientY + touch2.clientY) / 2
+                };
+            }
+            
+            utils.elements.centerImage.addEventListener('touchstart', handleTouchStart, { passive: false });
+            utils.elements.centerImage.addEventListener('touchmove', handleTouchMove, { passive: false });
+            utils.elements.centerImage.addEventListener('touchend', handleTouchEnd, { passive: false });
+            utils.elements.centerImage.addEventListener('wheel', handleWheel, { passive: false });
+            
+            function handleTouchStart(e) {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    appState.isPinching = true;
+                    appState.initialDistance = getDistance(e.touches[0], e.touches[1]);
+                    appState.lastTouchPos = getCenter(e.touches[0], e.touches[1]);
+                } else if (e.touches.length === 1 && appState.currentScale > 1) {
+                    appState.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+            }
+            
+            function handleTouchMove(e) {
+                if (e.touches.length === 2 && appState.isPinching) {
+                    e.preventDefault();
+                    
+                    const currentDistance = getDistance(e.touches[0], e.touches[1]);
+                    const scaleFactor = currentDistance / appState.initialDistance;
+                    
+                    let newScale = appState.currentScale * scaleFactor;
+                    newScale = Math.max(appState.minScale, Math.min(appState.maxScale, newScale));
+                    
+                    appState.currentScale = newScale;
+                    appState.initialDistance = currentDistance;
+                    
+                    commonFunctions.applyTransform();
+                } else if (e.touches.length === 1 && appState.currentScale > 1) {
+                    e.preventDefault();
+                    
+                    const deltaX = e.touches[0].clientX - appState.lastTouchPos.x;
+                    const deltaY = e.touches[0].clientY - appState.lastTouchPos.y;
+                    
+                    appState.panOffset.x += deltaX / appState.currentScale;
+                    appState.panOffset.y += deltaY / appState.currentScale;
+                    
+                    appState.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                    
+                    commonFunctions.applyTransform();
+                }
+            }
+            
+            function handleTouchEnd(e) {
+                if (e.touches.length < 2) {
                     appState.isPinching = false;
                 }
-        
+                
                 if (appState.currentScale < 1.1) {
                     appState.currentScale = 1;
                     appState.panOffset = { x: 0, y: 0 };
                     commonFunctions.applyTransform();
                 }
-
-                if (!appState.isDragging || appState.isFocusMode) return;
-        
-                appState.isDragging = false;
-                utils.elements.centerImage.classList.remove('dragging');
-                this.hideAllEdgeGlows();
-        
-                if (!this.gestureStarted) return;
-        
-                const deltaX = this.currentPos.x - this.startPos.x;
-                const deltaY = this.currentPos.y - this.startPos.y;
-                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        
-                if (distance > 80) {
-                    const direction = this.determineSwipeDirection(deltaX, deltaY);
-                    const targetStack = this.directionToStack(direction);
-                    if (targetStack) this.executeFlick(targetStack);
-                }
             }
-        
-            handleWheel(e) {
+            
+            function handleWheel(e) {
                 e.preventDefault();
+                
                 const scaleChange = e.deltaY > 0 ? 0.9 : 1.1;
-                appState.currentScale = Math.max(appState.minScale, Math.min(appState.maxScale, appState.currentScale * scaleChange));
+                let newScale = appState.currentScale * scaleChange;
+                newScale = Math.max(appState.minScale, Math.min(appState.maxScale, newScale));
+                
+                appState.currentScale = newScale;
+                
                 if (appState.currentScale <= 1.1) {
                     appState.currentScale = 1;
                     appState.panOffset = { x: 0, y: 0 };
                 }
+                
                 commonFunctions.applyTransform();
             }
-        
-            showEdgeGlow(direction) {
-                ['top', 'bottom', 'left', 'right'].forEach(d => utils.elements[`edge${d.charAt(0).toUpperCase() + d.slice(1)}`].classList.remove('active'));
-                if (utils.elements[`edge${direction.charAt(0).toUpperCase() + direction.slice(1)}`]) {
-                    utils.elements[`edge${direction.charAt(0).toUpperCase() + direction.slice(1)}`].classList.add('active');
-                }
-            }
-        
-            hideAllEdgeGlows() {
-                ['top', 'bottom', 'left', 'right'].forEach(d => utils.elements[`edge${d.charAt(0).toUpperCase() + d.slice(1)}`].classList.remove('active'));
-            }
-        
-            determineSwipeDirection(deltaX, deltaY) {
-                return Math.abs(deltaX) > Math.abs(deltaY) ? (deltaX > 0 ? 'right' : 'left') : (deltaY > 0 ? 'bottom' : 'top');
-            }
-        
-            directionToStack = (d) => ({ 'top': 'priority', 'bottom': 'trash', 'left': 'in', 'right': 'out' })[d];
-        
-            async executeFlick(targetStack) {
-                if (appState.stacks[appState.currentStack].length === 0) return;
-                appController.acknowledgePillCounter(targetStack);
-                if (appState.hapticManager) appState.hapticManager.triggerFeedback('swipe');
-                await commonFunctions.moveToStack(targetStack);
-            }
-        
-            getDistance = (t1, t2) => Math.sqrt(Math.pow(t1.clientX - t2.clientX, 2) + Math.pow(t1.clientY - t2.clientY, 2));
-            getCenter = (t1, t2) => ({ x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 });
         }
 
         // ===== Focus Mode =====
@@ -3338,7 +4117,7 @@
             toggle() {
                 appState.isFocusMode = !appState.isFocusMode;
                 utils.elements.appContainer.classList.toggle('focus-mode', appState.isFocusMode);
-                commonFunctions.updateImageCounters();
+                commonFunctions.updateImageCounters(); // Sync counters on toggle
             },
             async nextImage() {
                 const stack = appState.stacks[appState.currentStack];
@@ -3408,148 +4187,21 @@
             });
         }
         
-        // ===== Main App Controller =====
-        const appController = {
-            init() {
-                utils.init();
-                appState.visualCueManager = new VisualCueManager();
-                appState.hapticManager = new HapticManager();
-                appState.exportSystem = new ExportSystem();
-                appState.fileCache = new EnhancedFileCache();
-                appState.metadataExtractor = new ProgressiveMetadataExtractor();
-                appState.gestureSystem = new GestureSystem();
-
-                return appState.fileCache.init()
-                    .then(() => {
-                        this.setupEventHandlers();
-                        appState.gestureSystem.init();
-                        setupFocusModeGestures();
-                        utils.showScreen('provider-screen');
-                        commonFunctions.updateActiveProxTab();
-                    })
-                    .catch(err => utils.showToast('Failed to initialize app', 'error', true));
-            },
-
-            setupEventHandlers() {
-                utils.elements.googleDriveBtn.addEventListener('click', () => this.selectProvider('googledrive'));
-                utils.elements.onedriveBtn.addEventListener('click', () => this.selectProvider('onedrive'));
-                
-                document.querySelectorAll('.intensity-btn').forEach(btn => btn.addEventListener('click', () => appState.visualCueManager.setIntensity(btn.dataset.level)));
-                document.getElementById('haptic-enabled').addEventListener('change', e => appState.hapticManager.setEnabled(e.target.checked));
-                
-                utils.elements.gdriveAuthButton.addEventListener('click', () => this.authenticateGoogleDrive());
-                utils.elements.gdriveBackButton.addEventListener('click', this.backToProviderSelection);
-                utils.elements.onedriveAuthButton.addEventListener('click', () => this.authenticateOneDrive());
-                utils.elements.onedriveBackButton.addEventListener('click', this.backToProviderSelection);
-
-                utils.elements.gdriveRefreshFolders.addEventListener('click', () => this.loadFolders('googledrive'));
-                utils.elements.gdriveBackToProvider.addEventListener('click', this.backToProviderSelection);
-                utils.elements.gdriveLogout.addEventListener('click', () => this.disconnectProvider('googledrive'));
-
-                utils.elements.onedriveRefreshFolders.addEventListener('click', () => this.loadFolders('onedrive'));
-                utils.elements.onedriveBackToProvider.addEventListener('click', this.backToProviderSelection);
-                utils.elements.onedriveLogout.addEventListener('click', () => this.disconnectProvider('onedrive'));
-
-                utils.elements.cancelLoading.addEventListener('click', () => {
-                    appState.metadataExtractor.abort();
-                    masterController.returnToFolderSelection();
-                    utils.showToast('Loading cancelled', 'info', true);
-                });
-
-                utils.elements.detailsButton.addEventListener('click', () => appState.stacks[appState.currentStack].length > 0 && detailsModal.show());
-                utils.elements.detailsClose.addEventListener('click', () => detailsModal.hide());
-
-                utils.elements.focusStackName.addEventListener('click', () => modalManager.setupFocusStackSwitch());
-                utils.elements.focusDeleteBtn.addEventListener('click', () => focusMode.deleteCurrentImage());
-
-                document.querySelectorAll('.tab-button').forEach(btn => btn.addEventListener('click', () => detailsModal.switchTab(btn.dataset.tab)));
-                document.addEventListener('click', e => {
-                    if (e.target.classList.contains('copy-metadata')) {
-                        detailsModal.copyToClipboard(e.target.dataset.value);
-                        e.target.classList.add('copied');
-                        e.target.textContent = '✓';
-                        setTimeout(() => { e.target.classList.remove('copied'); e.target.textContent = 'Copy'; }, 1000);
-                    }
-                });
-
-                utils.elements.selectAnotherStackBtn.addEventListener('click', () => this.cycleToNextNonEmptyStack());
-                utils.elements.selectAnotherFolderBtn.addEventListener('click', () => masterController.returnToFolderSelection());
-
-                STACK_TYPES.forEach(stackName => {
-                    const pill = document.getElementById(`pill-${stackName}`);
-                    if (pill) {
-                        pill.addEventListener('click', e => {
-                            e.stopPropagation();
-                            appState.hapticManager.triggerFeedback('pillTap');
-                            if (appState.currentStack === stackName) gridView.open(stackName);
-                            else this.switchToStack(stackName);
-                            this.acknowledgePillCounter(stackName);
-                        });
-                    }
-                });
-
-                utils.elements.closeGrid.addEventListener('click', () => gridView.close());
-                utils.elements.selectAllBtn.addEventListener('click', () => gridView.selectAll());
-                utils.elements.deselectAllBtn.addEventListener('click', () => gridView.deselectAll());
-                utils.elements.gridSize.addEventListener('input', e => {
-                    utils.elements.gridSizeValue.textContent = e.target.value;
-                    utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${e.target.value}, 1fr)`;
-                });
-                utils.elements.omniSearch.addEventListener('input', () => gridView.performSearch());
-                utils.elements.clearSearchBtn.addEventListener('click', () => gridView.resetSearch());
-
-                // Modal actions
-                utils.elements.moveSelected.addEventListener('click', () => modalManager.setupMoveAction());
-                utils.elements.tagSelected.addEventListener('click', () => modalManager.setupTagAction());
-                utils.elements.deleteSelected.addEventListener('click', () => modalManager.setupDeleteAction());
-                utils.elements.exportSelected.addEventListener('click', () => modalManager.setupExportAction());
-                utils.elements.folderSelected.addEventListener('click', () => modalManager.setupFolderMoveAction());
-                utils.elements.actionCancel.addEventListener('click', () => modalManager.hide());
-                
-                // REGRESSION FIX: The main confirmation handler was missing logic. It is now restored.
-                utils.elements.actionConfirm.addEventListener('click', () => {
-                    const action = modalManager.currentAction;
-                    if (action === 'move') {
-                        // This is now handled by direct clicks on stack options.
-                    } else if (action === 'tag') {
-                        modalManager.executeTag();
-                    } else if (action === 'delete') {
-                        modalManager.executeDelete();
-                    } else if (action === 'export') {
-                        modalManager.executeExport();
-                    } else if (action === 'folder-move') {
-                        modalManager.executeFolderMove();
-                    }
-                });
-
-                // Keyboard navigation
-                document.addEventListener('keydown', e => this.handleKeyPress(e));
-            },
+        // ===== Event Handlers =====
+        function setupEventHandlers() {
+            // Provider selection
+            utils.elements.googleDriveBtn.addEventListener('click', () => appController.selectGoogleDrive());
+            utils.elements.onedriveBtn.addEventListener('click', () => appController.selectOneDrive());
             
-            async selectProvider(providerType) {
-                appState.currentProviderType = providerType;
-                let provider, authScreenId, folderScreenId;
+            // Settings
+            document.querySelectorAll('.intensity-btn').forEach(btn => {
+                btn.addEventListener('click', () => appState.visualCueManager.setIntensity(btn.dataset.level));
+            });
             
-                if (providerType === 'googledrive') {
-                    provider = new GoogleDriveProvider();
-                    authScreenId = 'gdrive-auth-screen';
-                    folderScreenId = 'gdrive-folder-screen';
-                } else {
-                    provider = new OneDriveProvider();
-                    authScreenId = 'onedrive-auth-screen';
-                    folderScreenId = 'onedrive-folder-screen';
-                }
+            document.getElementById('haptic-enabled').addEventListener('change', (e) => appState.hapticManager.setEnabled(e.target.checked));
             
-                utils.showScreen(authScreenId);
-            
-                if (provider.isAuthenticated) {
-                    appState.currentProvider = provider;
-                    utils.showScreen(folderScreenId);
-                    await this.loadFolders(providerType);
-                }
-            },
-            
-            async authenticateGoogleDrive() {
+            // Google Drive auth
+            utils.elements.gdriveAuthButton.addEventListener('click', async () => {
                 const clientSecret = utils.elements.gdriveClientSecret.value.trim();
                 if (!clientSecret) {
                     utils.elements.gdriveAuthStatus.textContent = 'Please enter client secret';
@@ -3562,7 +4214,7 @@
                     if (await provider.authenticate(clientSecret)) {
                         appState.currentProvider = provider;
                         utils.showScreen('gdrive-folder-screen');
-                        await this.loadFolders('googledrive');
+                        appController.loadFolders();
                     }
                 } catch (error) {
                     utils.elements.gdriveAuthStatus.textContent = `Auth failed: ${error.message}`;
@@ -3570,9 +4222,12 @@
                     utils.elements.gdriveAuthButton.disabled = false;
                     utils.elements.gdriveAuthButton.textContent = 'Connect Drive';
                 }
-            },
+            });
             
-            async authenticateOneDrive() {
+            utils.elements.gdriveBackButton.addEventListener('click', () => appController.backToProviderSelection());
+            
+            // OneDrive auth
+            utils.elements.onedriveAuthButton.addEventListener('click', async () => {
                 utils.elements.onedriveAuthButton.disabled = true;
                 utils.elements.onedriveAuthButton.textContent = 'Connecting...';
                 try {
@@ -3580,7 +4235,7 @@
                     if (await provider.authenticate()) {
                         appState.currentProvider = provider;
                         utils.showScreen('onedrive-folder-screen');
-                        await this.loadFolders('onedrive');
+                        appController.loadFolders();
                     }
                 } catch (error) {
                     utils.elements.onedriveAuthStatus.textContent = `Auth failed: ${error.message}`;
@@ -3588,209 +4243,218 @@
                     utils.elements.onedriveAuthButton.disabled = false;
                     utils.elements.onedriveAuthButton.textContent = 'Connect OneDrive';
                 }
-            },
-
-            backToProviderSelection() {
-                appState.currentProvider = null;
-                appState.currentProviderType = null;
-                utils.showScreen('provider-screen');
-            },
-        
-            async disconnectProvider(providerType) {
-                if (appState.currentProvider) {
-                    await appState.currentProvider.disconnect();
-                }
-                this.backToProviderSelection();
-            },
+            });
             
-            async loadFolders(providerType) {
-                const listEl = utils.elements[`${providerType === 'googledrive' ? 'gdrive' : 'onedrive'}FolderList`];
-                listEl.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);"><div class="spinner"></div><span>Loading...</span></div>`;
-                try {
-                    const folders = await appState.currentProvider.getFolders();
-                    this.displayFolders(folders, providerType);
-                    if (providerType === 'onedrive') this.updateOneDriveNavigation();
-                } catch (error) {
-                    utils.showToast(`Error loading folders: ${error.message}`, 'error', true);
-                }
-            },
-        
-            displayFolders(folders, providerType) {
-                const listEl = providerType === 'googledrive' ? utils.elements.gdriveFolderList : utils.elements.onedriveFolderList;
-                listEl.innerHTML = '';
-                if (folders.length === 0) {
-                    listEl.innerHTML = `<div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);"><span>No folders found</span></div>`;
-                    return;
-                }
-                folders.forEach(folder => {
-                    const div = document.createElement('div');
-                    div.className = 'folder-item';
-                    div.innerHTML = this.getFolderHTML(folder, providerType);
-                    listEl.appendChild(div);
-                });
-                this.setupFolderEventListeners(providerType);
-            },
+            utils.elements.onedriveBackButton.addEventListener('click', () => appController.backToProviderSelection());
             
-            getFolderHTML(folder, providerType) {
-                const icon = `<svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>`;
-                const info = `<div class="folder-info"><div class="folder-name">${folder.name}</div><div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()}</div></div>`;
-                
-                if (providerType === 'onedrive') {
-                    const actions = `<div class="folder-actions">
-                        ${folder.hasChildren ? `<button class="folder-action-btn drill-btn" data-folder-id="${folder.id}" data-folder-name="${folder.name}">Browse →</button>` : ''}
-                        <button class="folder-action-btn select-btn" data-folder-id="${folder.id}" data-folder-name="${folder.name}">Select</button>
-                    </div>`;
-                    return `${icon}${info}${actions}`;
-                }
-                return `${icon}${info}`;
-            },
-        
-            setupFolderEventListeners(providerType) {
-                if (providerType === 'googledrive') {
-                    utils.elements.gdriveFolderList.querySelectorAll('.folder-item').forEach((item, index) => {
-                        item.onclick = async () => {
-                            const folders = await appState.currentProvider.getFolders();
-                            this.handleFolderClick(folders[index]);
-                        };
-                    });
-                } else {
-                    utils.elements.onedriveFolderList.querySelectorAll('.drill-btn').forEach(btn => btn.onclick = e => {
-                        e.stopPropagation();
-                        this.drillIntoOneDriveFolder(e.target.dataset.folderId, e.target.dataset.folderName);
-                    });
-                    utils.elements.onedriveFolderList.querySelectorAll('.select-btn').forEach(btn => btn.onclick = e => {
-                        e.stopPropagation();
-                        this.handleFolderClick({ id: e.target.dataset.folderId, name: e.target.dataset.folderName });
-                    });
-                }
-            },
-        
-            async handleFolderClick(folder) {
-                if (appState.folderMoveMode.active) {
-                    await this.handleFolderMoveSelection(folder.id, folder.name);
-                } else {
-                    masterController.initializeWithProvider(appState.currentProviderType, folder.id, folder.name, appState.currentProvider);
-                }
-            },
-        
-            async handleFolderMoveSelection(folderId, folderName) {
-                const filesToMove = appState.folderMoveMode.files;
-                utils.showScreen('loading-screen');
-                utils.updateLoadingProgress(0, filesToMove.length);
-        
-                try {
-                    for(let i = 0; i < filesToMove.length; i++) {
-                        await appState.currentProvider.moveFileToFolder(filesToMove[i], folderId);
-                        const file = appState.imageFiles.find(f => f.id === filesToMove[i]);
-                        if (file) {
-                            file.stack = 'in'; // Reset stack on move
-                            await masterController.updateUserMetadata(file.id, { stack: 'in', stackSequence: Date.now() });
-                        }
-                        utils.updateLoadingProgress(i + 1, filesToMove.length);
-                    }
+            // Folder management
+            utils.elements.gdriveRefreshFolders.addEventListener('click', () => appController.loadFolders());
+            utils.elements.gdriveBackToProvider.addEventListener('click', () => appController.backToProviderSelection());
+            utils.elements.gdriveLogout.addEventListener('click', () => {
+                appState.currentProvider.disconnect();
+                appController.backToProviderSelection();
+            });
+            
+            utils.elements.onedriveBackToProvider.addEventListener('click', () => appController.backToProviderSelection());
+            utils.elements.onedriveLogout.addEventListener('click', () => {
+                appState.currentProvider.disconnect();
+                appController.backToProviderSelection();
+            });
+            
+            // Loading screen cancel
+            utils.elements.cancelLoading.addEventListener('click', () => {
+                if (appState.metadataExtractor) appState.metadataExtractor.abort();
+                masterController.returnToFolderSelection();
+                utils.showToast('Loading cancelled', 'info', true);
+            });
+            
+            // Details modal
+            utils.elements.detailsButton.addEventListener('click', () => {
+                if (appState.stacks[appState.currentStack].length > 0) detailsModal.show();
+            });
+            utils.elements.detailsClose.addEventListener('click', () => detailsModal.hide());
+            
+            // Focus Mode
+            utils.elements.focusStackName.addEventListener('click', () => modalManager.setupFocusStackSwitch());
+            utils.elements.focusDeleteBtn.addEventListener('click', () => focusMode.deleteCurrentImage());
 
-                    if (appState.currentProvider.metadataManager.saveMetadata) {
-                        await appState.currentProvider.metadataManager.saveMetadata();
-                    }
-                    utils.showToast(`Moved ${filesToMove.length} images`, 'success', true);
-
-                    await appState.fileCache.clearCacheForFolder(appState.currentFolder.id);
-                    appState.folderMoveMode = { active: false, files: [] };
-                    
-                    masterController.returnToFolderSelection();
-                } catch (error) {
-                    utils.showToast('Error moving files', 'error', true);
-                    masterController.returnToFolderSelection();
+            // Tabs
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.addEventListener('click', () => detailsModal.switchTab(btn.dataset.tab));
+            });
+            
+            // Copy metadata buttons
+            document.addEventListener('click', (e) => {
+                if (e.target.classList.contains('copy-metadata')) {
+                    const button = e.target;
+                    button.classList.add('copied');
+                    button.textContent = '✓';
+                    detailsModal.copyToClipboard(button.dataset.value);
+                    setTimeout(() => {
+                        button.classList.remove('copied');
+                        button.textContent = 'Copy';
+                    }, 1000);
                 }
-            },
-        
-            async drillIntoOneDriveFolder(folderId, folderName) {
-                const subfolders = await appState.currentProvider.drillIntoFolder({ id: folderId, name: folderName });
-                this.displayFolders(subfolders, 'onedrive');
-                this.updateOneDriveNavigation();
-            },
-        
-            updateOneDriveNavigation() {
-                const canGoUp = appState.currentProvider.canGoUp();
-                utils.elements.onedriveFolderSubtitle.textContent = `Current: ${appState.currentProvider.getCurrentPath()}`;
-                const refreshBtn = utils.elements.onedriveRefreshFolders;
-                refreshBtn.textContent = canGoUp ? '← Go Up' : 'Refresh';
-                refreshBtn.onclick = async () => {
-                    const folders = canGoUp ? await appState.currentProvider.navigateToParent() : await appState.currentProvider.getFolders();
-                    this.displayFolders(folders, 'onedrive');
-                    this.updateOneDriveNavigation();
-                };
-            },
-        
-            updateEmptyStateButtons() {
-                const hasOtherStacks = STACK_TYPES.some(s => s !== appState.currentStack && appState.stacks[s].length > 0);
-                utils.elements.selectAnotherStackBtn.style.display = hasOtherStacks ? 'block' : 'none';
-                utils.elements.selectAnotherFolderBtn.style.display = 'block';
-            },
-
-            acknowledgePillCounter(stackName) {
+            });
+            
+            // Empty state buttons
+            utils.elements.selectAnotherStackBtn.addEventListener('click', () => {
+                const stacksWithImages = STACK_TYPES.filter(stack => appState.stacks[stack].length > 0);
+                if (stacksWithImages.length > 0) {
+                    const nextStack = stacksWithImages.find(stack => stack !== appState.currentStack) || stacksWithImages[0];
+                    switchToStack(nextStack);
+                }
+            });
+            
+            utils.elements.selectAnotherFolderBtn.addEventListener('click', () => masterController.returnToFolderSelection());
+            
+            // Pill counter clicks
+            STACK_TYPES.forEach(stackName => {
                 const pill = document.getElementById(`pill-${stackName}`);
                 if (pill) {
-                    pill.classList.remove('triple-ripple', 'glow-effect');
-                    pill.offsetHeight; // Trigger reflow
-                    pill.classList.add('triple-ripple');
-                    setTimeout(() => pill.classList.add('glow-effect'), 100);
-                    setTimeout(() => pill.classList.remove('triple-ripple', 'glow-effect'), 3000);
+                    pill.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (appState.hapticManager) appState.hapticManager.triggerFeedback('pillTap');
+                        if (appState.currentStack === stackName) gridView.open(stackName);
+                        else switchToStack(stackName);
+                        acknowledgePillCounter(stackName);
+                    });
                 }
-            },
+            });
             
-            switchToStack(stackName) {
-                commonFunctions.displayTopImageFromStack(stackName);
-            },
-        
-            cycleToNextNonEmptyStack() {
-                const stackOrder = ['in', 'priority', 'out', 'trash'];
-                const currentIndex = stackOrder.indexOf(appState.currentStack);
-                for (let i = 1; i < stackOrder.length; i++) {
-                    const nextStack = stackOrder[(currentIndex + i) % stackOrder.length];
-                    if (appState.stacks[nextStack].length > 0) {
-                        this.switchToStack(nextStack);
-                        return;
-                    }
-                }
-            },
-
-            handleKeyPress(e) {
-                if (utils.elements.appContainer.classList.contains('hidden') || 
-                    !utils.elements.detailsModal.classList.contains('hidden') ||
-                    !utils.elements.gridModal.classList.contains('hidden') ||
-                    ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
-                    if (e.key === 'Escape') {
-                        if (!utils.elements.detailsModal.classList.contains('hidden')) detailsModal.hide();
-                        else if (!utils.elements.gridModal.classList.contains('hidden')) gridView.close();
-                    }
+            // Grid controls
+            utils.elements.closeGrid.addEventListener('click', () => gridView.close());
+            utils.elements.selectAllBtn.addEventListener('click', () => gridView.selectAll());
+            utils.elements.deselectAllBtn.addEventListener('click', () => gridView.deselectAll());
+            
+            utils.elements.gridSize.addEventListener('input', () => {
+                const value = utils.elements.gridSize.value;
+                utils.elements.gridSizeValue.textContent = value;
+                utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
+            });
+            
+            // Search functionality
+            utils.elements.omniSearch.addEventListener('input', () => gridView.performSearch());
+            utils.elements.clearSearchBtn.addEventListener('click', () => gridView.resetSearch());
+            
+            // Action buttons
+            utils.elements.moveSelected.addEventListener('click', () => modalManager.setupMoveAction());
+            utils.elements.tagSelected.addEventListener('click', () => modalManager.setupTagAction());
+            utils.elements.deleteSelected.addEventListener('click', () => modalManager.setupDeleteAction());
+            utils.elements.exportSelected.addEventListener('click', () => modalManager.setupExportAction());
+            utils.elements.folderSelected.addEventListener('click', () => modalManager.setupFolderMoveAction());
+            
+            utils.elements.actionCancel.addEventListener('click', () => modalManager.hide());
+            utils.elements.actionConfirm.addEventListener('click', () => {
+                const actions = {
+                    'tag': () => modalManager.executeTag(),
+                    'delete': () => modalManager.executeDelete(),
+                    'export': () => modalManager.executeExport(),
+                    'folder-move': () => modalManager.executeFolderMove()
+                };
+                if (actions[modalManager.currentAction]) actions[modalManager.currentAction]();
+            });
+            
+            // Keyboard navigation
+            document.addEventListener('keydown', (e) => {
+                if (utils.elements.appContainer.classList.contains('hidden')) return;
+                
+                if (!utils.elements.detailsModal.classList.contains('hidden')) {
+                    if (e.key === 'Escape') detailsModal.hide();
                     return;
                 }
+                
+                if (!utils.elements.gridModal.classList.contains('hidden')) {
+                    if (e.key === 'Escape') gridView.close();
+                    return;
+                }
+                
+                if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
 
                 if (appState.isFocusMode) {
                     if (e.key === 'ArrowRight') focusMode.nextImage();
-                    else if (e.key === 'ArrowLeft') focusMode.prevImage();
-                    else if (e.key === 'Escape') focusMode.toggle();
+                    if (e.key === 'ArrowLeft') focusMode.prevImage();
+                    if (e.key === 'Escape') focusMode.toggle();
                     return;
                 }
-        
+                
                 const keyMap = { 'ArrowUp': 'priority', 'ArrowDown': 'trash', 'ArrowLeft': 'in', 'ArrowRight': 'out' };
                 if (keyMap[e.key]) {
                     e.preventDefault();
                     if (appState.stacks[appState.currentStack].length > 0) {
-                        this.acknowledgePillCounter(keyMap[e.key]);
+                        acknowledgePillCounter(keyMap[e.key]);
                         commonFunctions.moveToStack(keyMap[e.key]);
                     }
-                } else if (e.key === 'Tab') {
-                    e.preventDefault();
-                    this.cycleToNextNonEmptyStack();
-                } else if (e.key === 'Escape') {
-                    masterController.returnToFolderSelection();
+                    return;
                 }
+                
+                if (e.key === 'Tab') { e.preventDefault(); cycleThroughProxTabs(); }
+                if (e.key === 'Escape') masterController.returnToFolderSelection();
+            });
+        }
+        
+        function switchToStack(stackName) {
+            commonFunctions.displayTopImageFromStack(stackName);
+        }
+        
+        function cycleThroughProxTabs() {
+            const stackOrder = ['in', 'out', 'priority', 'trash'];
+            const currentIndex = stackOrder.indexOf(appState.currentStack);
+            const nextIndex = (currentIndex + 1) % stackOrder.length;
+            const nextStack = stackOrder[nextIndex];
+            
+            switchToStack(nextStack);
+        }
+        
+        function updateEmptyStateButtons() {
+            const stacksWithImages = STACK_TYPES.filter(stack => appState.stacks[stack].length > 0);
+            const hasOtherStacks = stacksWithImages.some(stack => stack !== appState.currentStack);
+            
+            utils.elements.selectAnotherStackBtn.style.display = hasOtherStacks ? 'block' : 'none';
+            utils.elements.selectAnotherFolderBtn.style.display = 'block';
+        }
+        
+        function acknowledgePillCounter(stackName) {
+            const pill = document.getElementById(`pill-${stackName}`);
+            if (pill) {
+                pill.classList.remove('triple-ripple', 'glow-effect');
+                pill.offsetHeight;
+                pill.classList.add('triple-ripple');
+                
+                setTimeout(() => pill.classList.add('glow-effect'), 100);
+                setTimeout(() => pill.classList.remove('triple-ripple', 'glow-effect'), 3000);
             }
-        };
-
-        document.addEventListener('DOMContentLoaded', () => appController.init());
+        }
+        
+        // ===== Initialize App =====
+        async function initApp() {
+            try {
+                utils.init();
+                
+                appState.visualCueManager = new VisualCueManager();
+                appState.hapticManager = new HapticFeedbackManager();
+                appState.exportSystem = new ExportSystem();
+                appState.gestureSystem = new GestureSystem();
+                
+                appState.fileCache = new EnhancedFileCache();
+                await appState.fileCache.init();
+                
+                appState.metadataExtractor = new ProgressiveMetadataExtractor();
+                
+                utils.showScreen('provider-screen');
+                
+                setupEventHandlers();
+                setupFocusModeGestures();
+                setupPinchZoom();
+                
+                commonFunctions.updateActiveProxTab();
+                
+            } catch (error) {
+                utils.showToast('Failed to initialize app', 'error', true);
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>
 </html>
