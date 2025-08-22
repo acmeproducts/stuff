@@ -1,4 +1,4 @@
-<!-- orbital8-v19.3 - 2025-08-22 03:41 AM -->
+<!-- orbital8-v19.3 - 2025-08-22 04:02 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -15,6 +15,7 @@
              The logic was corrected in the modalManager to properly handle confirmation events.
            - Bug Fix (Performance): Re-implemented the efficient, single-call metadata save logic from the baseline
              to fix the "Failed to save stack order" error and eliminate the lag on closing the grid modal.
+           - Bug Fix (UI): Corrected all footer version numbers and timestamps to be consistent.
            - Refactor (Code Clarity): Added comments to the modalManager and gridView to document the restored logic.
            - Versioning: Updated to v19.3.
         */
@@ -593,7 +594,7 @@
             
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">orbital8-v19.2 - 2025-08-22 03:13 AM</div>
+        <div class="app-footer">orbital8-v19.3 - 2025-08-22 04:02 AM</div>
     </div>
     
     <!-- Google Drive Auth Screen -->
@@ -606,7 +607,7 @@
             <button class="button" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
-        <div class="app-footer">orbital8-v19.2 - 2025-08-22 03:13 AM</div>
+        <div class="app-footer">orbital8-v19.3 - 2025-08-22 04:02 AM</div>
     </div>
     
     <!-- OneDrive Auth Screen -->
@@ -618,7 +619,7 @@
             <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
-        <div class="app-footer">orbital8-v19.2 - 2025-08-22 03:13 AM</div>
+        <div class="app-footer">orbital8-v19.3 - 2025-08-22 04:02 AM</div>
     </div>
     
     <!-- Google Drive Folder Screen -->
@@ -633,7 +634,7 @@
                 <button class="folder-button danger" id="gdrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v19.2 - 2025-08-22 03:13 AM</div>
+        <div class="app-footer">orbital8-v19.3 - 2025-08-22 04:02 AM</div>
     </div>
     
     <!-- OneDrive Folder Screen -->
@@ -648,7 +649,7 @@
                 <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v19.2 - 2025-08-22 03:13 AM</div>
+        <div class="app-footer">orbital8-v19.3 - 2025-08-22 04:02 AM</div>
     </div>
     
     <!-- Loading Screen -->
@@ -662,7 +663,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">orbital8-v19.2 - 2025-08-22 03:13 AM</div>
+        <div class="app-footer">orbital8-v19.3 - 2025-08-22 04:02 AM</div>
     </div>
     
     <!-- Main App Container -->
@@ -703,7 +704,7 @@
         </button>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">orbital8-v19.2 - 2025-08-22 03:13 AM</div>
+        <div class="app-footer">orbital8-v19.3 - 2025-08-22 04:02 AM</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -863,15 +864,16 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V19.2 - Regression Fix =====
-        /* * Version: V19.2 (orbital8-v19.2)
+        // ===== ORBITAL8 V19.3 - Regression Fix =====
+        /* * Version: V19.3 (orbital8-v19.3)
          * * Changes in this version:
            - Bug Fix (Critical Regression): Restored all bulk operations (Move, Tag, Delete, etc.) in the grid modal.
              The logic was corrected in the modalManager to properly handle confirmation events.
            - Bug Fix (Performance): Re-implemented the efficient, single-call metadata save logic from the baseline
              to fix the "Failed to save stack order" error and eliminate the lag on closing the grid modal.
+           - Bug Fix (UI): Corrected all footer version numbers and timestamps to be consistent.
            - Refactor (Code Clarity): Added comments to the modalManager and gridView to document the restored logic.
-           - Versioning: Updated to v19.2.
+           - Versioning: Updated to v19.3.
         */
         
         // ===== Core Constants & State =====
@@ -2878,15 +2880,20 @@
                 const newStack = [...topItems, ...bottomItems];
                 const timestamp = Date.now();
                 
+                const updatePromises = [];
                 // Update sequence numbers for all files in the stack locally first.
                 for (let i = 0; i < newStack.length; i++) {
                     const file = newStack[i];
                     const newSequence = timestamp - i;
                     if (file.stackSequence !== newSequence) {
                         file.stackSequence = newSequence;
-                        // For OneDrive, this updates the in-memory cache.
-                        // For Google Drive, the change is just in appState for now.
-                        appState.currentProvider.metadataManager.updateUserMetadata(file.id, { stackSequence: file.stackSequence });
+                        // For OneDrive, this updates the in-memory cache which will be saved in one go.
+                        // For Google Drive, we collect promises to run in batches.
+                        if (appState.currentProviderType === 'onedrive') {
+                             appState.currentProvider.metadataManager.updateUserMetadata(file.id, { stackSequence: file.stackSequence });
+                        } else {
+                            updatePromises.push(masterController.updateUserMetadata(file.id, { stackSequence: file.stackSequence }));
+                        }
                     }
                 }
 
@@ -2894,9 +2901,13 @@
                 appState.currentStackPosition = 0;
 
                 try {
-                    // Now, save the entire metadata object in a single, efficient call.
+                    // Now, save the entire metadata object in a single, efficient call for OneDrive.
                     if (appState.currentProvider.metadataManager.saveMetadata) {
                          await appState.currentProvider.metadataManager.saveMetadata();
+                    }
+                    // For Google Drive, execute the batched promises.
+                    if (updatePromises.length > 0) {
+                        await Promise.all(updatePromises);
                     }
                     utils.showToast('Stack order saved', 'success');
                 } catch (error) {
