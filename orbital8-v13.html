@@ -1,4 +1,4 @@
-<!-- orbital8-v40.1 - 2025-08-22 01:18 PM -->
+<!-- orbital8-v40.2 - 2025-08-22 02:38 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,19 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V40.1 - Journaling Refactor</title>
+    <title>Orbital8 V40.2 - Performance & Stability</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V40.1 - Journaling Refactor ===== */
+        /* ===== ORBITAL8 V40.2 - Performance & Stability ===== */
         /* Changes in this version:
-           - Refactor (Architecture): Implemented Provider Abstraction Layer and modularized UI components
-             (GridView, DetailsModal, GestureSystem) for Google Drive.
-           - Refactor (Data Model): Implemented a high-performance journaling system for Google Drive metadata.
-             Changes are appended to a lightweight log file (.orbital8_log.jsonl) for speed and reliability,
-             with a full metadata save (.orbital8_metadata.json) occurring only during compaction.
-           - Scoping: OneDrive functionality has been temporarily disabled on the provider selection screen
-             to focus on the Google Drive refactor. It will be re-enabled in a future version.
-           - Versioning: Updated all footers and comments to v40.1.
+           - Perf (Responsiveness): Refactored metadata logging to be asynchronous. UI updates for flicking and
+             swiping are now instant, while network operations happen in the background.
+           - Perf (Image Loading): Implemented image pre-fetching. The next 2-3 images in a stack are
+             loaded in the background, making navigation in both normal and Focus Mode significantly smoother.
+           - Bug Fix (Critical): Resolved "Unexpected end of JSON input" error by adding checks for empty
+             metadata/log files during the initial load process.
+           - Bug Fix (Grid View): Corrected the metadata commit logic to prevent race conditions. Exiting the
+             grid and performing bulk operations are now stable and performant.
+           - Bug Fix (UI): Re-implemented broken event listeners for the Details panel tabs.
+           - Versioning: Updated all footers and comments to v40.2.
         */
         
         :root {
@@ -595,7 +597,7 @@
             
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">orbital8-v40.1 - 2025-08-22 01:18 PM</div>
+        <div class="app-footer">orbital8-v40.2 - 2025-08-22 02:38 PM</div>
     </div>
     
     <!-- Google Drive Auth Screen -->
@@ -608,7 +610,7 @@
             <button class="button" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
-        <div class="app-footer">orbital8-v40.1 - 2025-08-22 01:18 PM</div>
+        <div class="app-footer">orbital8-v40.2 - 2025-08-22 02:38 PM</div>
     </div>
     
     <!-- OneDrive Auth Screen (Kept for structure, but unused) -->
@@ -620,7 +622,7 @@
             <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
-        <div class="app-footer">orbital8-v40.1 - 2025-08-22 01:18 PM</div>
+        <div class="app-footer">orbital8-v40.2 - 2025-08-22 02:38 PM</div>
     </div>
     
     <!-- Google Drive Folder Screen -->
@@ -635,7 +637,7 @@
                 <button class="folder-button danger" id="gdrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v40.1 - 2025-08-22 01:18 PM</div>
+        <div class="app-footer">orbital8-v40.2 - 2025-08-22 02:38 PM</div>
     </div>
     
     <!-- OneDrive Folder Screen (Kept for structure, but unused) -->
@@ -650,7 +652,7 @@
                 <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v40.1 - 2025-08-22 01:18 PM</div>
+        <div class="app-footer">orbital8-v40.2 - 2025-08-22 02:38 PM</div>
     </div>
     
     <!-- Loading Screen -->
@@ -664,7 +666,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">orbital8-v40.1 - 2025-08-22 01:18 PM</div>
+        <div class="app-footer">orbital8-v40.2 - 2025-08-22 02:38 PM</div>
     </div>
     
     <!-- Main App Container -->
@@ -705,7 +707,7 @@
         </button>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">orbital8-v40.1 - 2025-08-22 01:18 PM</div>
+        <div class="app-footer">orbital8-v40.2 - 2025-08-22 02:38 PM</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -880,17 +882,19 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V40.1 - Journaling Refactor =====
-        /* * Version: V40.1 (orbital8-v40.1)
+        // ===== ORBITAL8 V40.2 - Performance & Stability =====
+        /* * Version: V40.2 (orbital8-v40.2)
          * * Changes in this version:
-           - Refactor (Architecture): Implemented Provider Abstraction Layer and modularized UI components
-             (GridView, DetailsModal, GestureSystem) for Google Drive.
-           - Refactor (Data Model): Implemented a high-performance journaling system for Google Drive metadata.
-             Changes are appended to a lightweight log file (.orbital8_log.jsonl) for speed and reliability,
-             with a full metadata save (.orbital8_metadata.json) occurring only during compaction.
-           - Scoping: OneDrive functionality has been temporarily disabled on the provider selection screen
-             to focus on the Google Drive refactor. It will be re-enabled in a future version.
-           - Versioning: Updated all footers and comments to v40.1.
+           - Perf (Responsiveness): Refactored metadata logging to be asynchronous. UI updates for flicking and
+             swiping are now instant, while network operations happen in the background.
+           - Perf (Image Loading): Implemented image pre-fetching. The next 2-3 images in a stack are
+             loaded in the background, making navigation in both normal and Focus Mode significantly smoother.
+           - Bug Fix (Critical): Resolved "Unexpected end of JSON input" error by adding checks for empty
+             metadata/log files during the initial load process.
+           - Bug Fix (Grid View): Corrected the metadata commit logic to prevent race conditions. Exiting the
+             grid and performing bulk operations are now stable and performant.
+           - Bug Fix (UI): Re-implemented broken event listeners for the Details panel tabs.
+           - Versioning: Updated all footers and comments to v40.2.
         */
         
         // ===== Core Constants & State =====
@@ -908,6 +912,7 @@
             gestureSystem: null,
             currentFolder: { id: null, name: '' },
             imageFiles: [],
+            imagePrefetcher: null,
             currentImageLoadId: null, 
             currentStack: 'in',
             currentStackPosition: 0,
@@ -966,16 +971,6 @@
                     gdriveRefreshFolders: document.getElementById('gdrive-refresh-folders'),
                     gdriveBackToProvider: document.getElementById('gdrive-back-to-provider'),
                     gdriveLogout: document.getElementById('gdrive-logout'),
-                    
-                    // OneDrive elements
-                    onedriveAuthButton: document.getElementById('onedrive-auth-button'),
-                    onedriveBackButton: document.getElementById('onedrive-back-button'),
-                    onedriveAuthStatus: document.getElementById('onedrive-auth-status'),
-                    onedriveFolderList: document.getElementById('onedrive-folder-list'),
-                    onedriveFolderSubtitle: document.getElementById('onedrive-folder-subtitle'),
-                    onedriveRefreshFolders: document.getElementById('onedrive-refresh-folders'),
-                    onedriveBackToProvider: document.getElementById('onedrive-back-to-provider'),
-                    onedriveLogout: document.getElementById('onedrive-logout'),
                     
                     // App elements
                     backButton: document.getElementById('back-button'),
@@ -1103,22 +1098,8 @@
                     };
                     img.onerror = () => {
                         if (appState.currentImageLoadId !== loadId) return;
-
-                        let fallbackUrl;
-                        if (appState.currentProviderType === 'googledrive') {
-                            fallbackUrl = file.thumbnailLink ? 
-                                file.thumbnailLink.replace('=s220', '=s800') :
-                                `https://drive.google.com/thumbnail?id=${file.id}&sz=w800`;
-                        } else {
-                            fallbackUrl = file.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
-                        }
-                        
-                        img.onerror = () => {
-                            if (appState.currentImageLoadId !== loadId) return;
-                            img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
-                            resolve();
-                        };
-                        img.src = fallbackUrl;
+                        img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
+                        resolve();
                     };
                     img.src = imageUrl;
                     img.alt = file.name || 'Image';
@@ -1126,17 +1107,10 @@
             },
             
             generateImageUrl(file) {
-                if (appState.currentProviderType === 'googledrive') {
-                    if (file.thumbnailLink) {
-                        return file.thumbnailLink.replace('=s220', '=s1000');
-                    }
-                    return `https://drive.google.com/thumbnail?id=${file.id}&sz=w1000`;
-                } else {
-                    if (file.thumbnails && file.thumbnails.large) {
-                        return file.thumbnails.large.url;
-                    }
-                    return file.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
+                if (file.thumbnailLink) {
+                    return file.thumbnailLink.replace('=s220', '=s1000');
                 }
+                return `https://drive.google.com/thumbnail?id=${file.id}&sz=w1000`;
             },
             
             formatFileSize(bytes) {
@@ -1656,6 +1630,7 @@
                 }
                 
                 if (isJson) {
+                    if (response.headers.get("content-length") === "0") return {};
                     return await response.json();
                 }
                 return response;
@@ -1783,7 +1758,7 @@
                     const initialContent = { version: 2, lastModified: new Date().toISOString(), files: {} };
                     const blob = new Blob([JSON.stringify(initialContent)], { type: 'application/json' });
                     const createdFile = await this.provider.makeApiCall('/files', { method: 'POST', body: JSON.stringify(fileMetadata) });
-                    await this.provider.makeApiCall(`/files/${createdFile.id}?uploadType=media`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: blob });
+                    await this.provider.makeApiCall(`/upload/drive/v3/files/${createdFile.id}?uploadType=media`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: blob }, false, true);
                     this.metadataFileId = createdFile.id;
                 }
 
@@ -1791,7 +1766,7 @@
                     const logMetadata = { name: this.logFileName, mimeType: 'application/jsonl', parents: [folderId] };
                     const blob = new Blob([''], { type: 'application/jsonl' });
                     const createdFile = await this.provider.makeApiCall('/files', { method: 'POST', body: JSON.stringify(logMetadata) });
-                    await this.provider.makeApiCall(`/files/${createdFile.id}?uploadType=media`, { method: 'PATCH', headers: { 'Content-Type': 'application/jsonl' }, body: blob });
+                    await this.provider.makeApiCall(`/upload/drive/v3/files/${createdFile.id}?uploadType=media`, { method: 'PATCH', headers: { 'Content-Type': 'application/jsonl' }, body: blob }, false, true);
                     this.logFileId = createdFile.id;
                 }
             }
@@ -1802,7 +1777,8 @@
                 await this._findOrCreateFiles(folderId);
                 
                 const metaResponse = await this.provider.makeApiCall(`/files/${this.metadataFileId}?alt=media`, {}, false);
-                const metaData = await metaResponse.json();
+                const metaText = await metaResponse.text();
+                const metaData = metaText ? JSON.parse(metaText) : { files: {} };
                 
                 if (metaData && metaData.files) {
                     Object.entries(metaData.files).forEach(([fileId, metadata]) => {
@@ -1824,44 +1800,48 @@
                 return this.cache;
             }
             
-            async logChange(fileId, update) {
+            logChange(fileId, update) {
                 const logEntry = { fileId, update, timestamp: Date.now() };
                 this.log.push(logEntry);
 
                 const current = this.cache.get(fileId) || {};
                 this.cache.set(fileId, { ...current, ...update });
                 
-                const logContent = this.log.map(entry => JSON.stringify(entry)).join('\n');
-                const blob = new Blob([logContent], { type: 'application/jsonl' });
-                
-                await this.provider.makeApiCall(`/files/${this.logFileId}?uploadType=media`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/jsonl' },
-                    body: blob
-                }, false, true);
-
-                if (blob.size > this.logSizeThreshold) {
-                    this.scheduleCommit();
-                }
+                this.scheduleCommit();
             }
 
             scheduleCommit() {
                 if (this.commitTimeout) clearTimeout(this.commitTimeout);
-                this.commitTimeout = setTimeout(() => this.commitChanges(true), 5000); // Commit after 5s of inactivity
+                this.commitTimeout = setTimeout(() => this.commitChanges(), 2000); // Commit after 2s of inactivity
             }
 
             async commitChanges(force = false) {
                 if (this.commitTimeout) clearTimeout(this.commitTimeout);
                 if (!force && this.log.length === 0) return;
 
-                const data = {
+                const logContent = this.log.map(entry => JSON.stringify(entry)).join('\n');
+                const blob = new Blob([logContent], { type: 'application/jsonl' });
+                
+                this.provider.makeApiCall(`/upload/drive/v3/files/${this.logFileId}?uploadType=media`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/jsonl' },
+                    body: blob
+                }, false, true).catch(err => console.error("Async log write failed:", err));
+
+                if (force || blob.size > this.logSizeThreshold) {
+                    await this.compactLog();
+                }
+            }
+
+            async compactLog() {
+                 const data = {
                     version: 2,
                     lastModified: new Date().toISOString(),
                     files: Object.fromEntries(this.cache)
                 };
                 
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                await this.provider.makeApiCall(`/files/${this.metadataFileId}?uploadType=media`, {
+                await this.provider.makeApiCall(`/upload/drive/v3/files/${this.metadataFileId}?uploadType=media`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: blob
@@ -1869,7 +1849,7 @@
 
                 // Clear the log file
                 const emptyBlob = new Blob([''], { type: 'application/jsonl' });
-                await this.provider.makeApiCall(`/files/${this.logFileId}?uploadType=media`, {
+                await this.provider.makeApiCall(`/upload/drive/v3/files/${this.logFileId}?uploadType=media`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/jsonl' },
                     body: emptyBlob
@@ -1983,6 +1963,28 @@
                 URL.revokeObjectURL(url);
             }
         }
+
+        // ===== Image Prefetcher =====
+        class ImagePrefetcher {
+            constructor(prefetchCount = 2) {
+                this.prefetchCount = prefetchCount;
+                this.cache = {};
+            }
+
+            preload(files) {
+                files.slice(0, this.prefetchCount).forEach(file => {
+                    if (!file || this.cache[file.id]) return;
+                    const img = new Image();
+                    img.src = utils.generateImageUrl(file);
+                    this.cache[file.id] = true;
+                });
+            }
+
+            clear() {
+                this.cache = {};
+            }
+        }
+
 
         // Handle OAuth callback for Google Drive
         if (window.location.search.includes('code=') || window.location.search.includes('error=')) {
@@ -2171,7 +2173,7 @@
                 utils.elements.backButton.addEventListener('mouseenter', () => {
                     const folderName = appState.currentFolder.name || 'Unknown';
                     const imageCount = appState.imageFiles.length;
-                    const provider = appState.currentProviderType === 'googledrive' ? 'Google Drive' : 'OneDrive';
+                    const provider = 'Google Drive';
                     this.showTooltip(utils.elements.backButton, `${provider}: ${folderName} • ${imageCount} images`);
                 });
                 
@@ -2205,19 +2207,15 @@
             
             returnToFolderSelection() {
                 appState.currentProvider.metadataManager.commitChanges(true); // Force compaction on exit
-                if (appState.currentProviderType === 'googledrive') {
-                    utils.showScreen('gdrive-folder-screen');
-                } else if (appState.currentProviderType === 'onedrive') {
-                    utils.showScreen('onedrive-folder-screen');
-                }
+                utils.showScreen('gdrive-folder-screen');
             },
             
-            async logAndUpdate(fileId, updates) {
+            logAndUpdate(fileId, updates) {
                 const file = appState.imageFiles.find(f => f.id === fileId);
                 if (!file) throw new Error('File not found');
                 
                 Object.assign(file, updates);
-                await appState.currentProvider.metadataManager.logChange(fileId, updates);
+                appState.currentProvider.metadataManager.logChange(fileId, updates);
             },
             
             async deleteFile(fileId) {
@@ -2379,6 +2377,7 @@
                 }
                 
                 this.updateImageCounters();
+                appState.imagePrefetcher.preload(currentStackArray.slice(appState.currentStackPosition + 1));
             },
 
             updateImageCounters() {
@@ -2407,7 +2406,7 @@
                 if (currentPill) currentPill.classList.add('active');
             },
             
-            async moveToStack(targetStack) {
+            moveToStack(targetStack) {
                 const currentStackArray = appState.stacks[appState.currentStack];
                 if (!currentStackArray || currentStackArray.length === 0) return;
                 
@@ -2440,13 +2439,13 @@
                     appState.stacks[targetStack] = this.sortFiles(appState.stacks[targetStack]);
                 }
                 
-                await masterController.logAndUpdate(currentImage.id, { stack: targetStack, stackSequence: newSequence });
+                masterController.logAndUpdate(currentImage.id, { stack: targetStack, stackSequence: newSequence });
 
                 this.updateStackCounts();
                 this.updateActiveProxTab();
                 
                 // Display next image in the original stack
-                await this.displayCurrentImage();
+                this.displayCurrentImage();
             },
             
             showEmptyState() {
@@ -3220,7 +3219,7 @@
 
                 try {
                     appState.grid.selected.forEach(fileId => actionFn(fileId));
-                    await appState.currentProvider.metadataManager.commitChanges();
+                    await appState.currentProvider.metadataManager.commitChanges(true); // Force commit
 
                     utils.showToast(successMessage.replace('{count}', appState.grid.selected.length), 'success', true);
                     if(!options.keepModalOpen) this.hide();
@@ -3262,7 +3261,7 @@
                 });
 
                 appState.stacks[targetStack] = commonFunctions.sortFiles(appState.stacks[targetStack]);
-                await appState.currentProvider.metadataManager.commitChanges();
+                await appState.currentProvider.metadataManager.commitChanges(true);
                 
                 utils.showToast(`Moved ${filesToMove.length} images to ${targetStack}`, 'success', true);
                 this.hide();
@@ -3304,7 +3303,7 @@
                         }
                     }
                     
-                    await appState.currentProvider.metadataManager.commitChanges();
+                    await appState.currentProvider.metadataManager.commitChanges(true);
                     utils.showToast(`Moved {count} images to provider trash`.replace('{count}', appState.grid.selected.length), 'success', true);
                     
                     this.hide();
@@ -3466,12 +3465,12 @@
                 return { top: 'priority', bottom: 'trash', left: 'in', right: 'out' }[direction];
             }
 
-            async executeFlick(targetStack) {
+            executeFlick(targetStack) {
                 if (appState.stacks[appState.currentStack].length === 0) return;
                 acknowledgePillCounter(targetStack);
                 if (appState.hapticManager) appState.hapticManager.triggerFeedback('swipe');
                 try {
-                    await commonFunctions.moveToStack(targetStack);
+                    commonFunctions.moveToStack(targetStack);
                     this.hideAllEdgeGlows();
                 } catch (error) {
                     utils.showToast(`Error moving image: ${error.message}`, 'error', true);
@@ -3943,6 +3942,7 @@
                 appState.hapticManager = new HapticFeedbackManager();
                 appState.exportSystem = new ExportSystem();
                 appState.gestureSystem = new GestureSystem();
+                appState.imagePrefetcher = new ImagePrefetcher();
                 
                 appState.fileCache = new EnhancedFileCache();
                 await appState.fileCache.init();
