@@ -1,4 +1,4 @@
-<!-- orbital8-v40.3 - 2025-08-22 12:18 PM -->
+<!-- orbital8-v40.1 - 2025-08-22 01:18 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,17 +6,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V40.3 - Versioning Fix</title>
+    <title>Orbital8 V40.1 - Journaling Refactor</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V40.3 - Versioning Fix ===== */
+        /* ===== ORBITAL8 V40.1 - Journaling Refactor ===== */
         /* Changes in this version:
-           - Bug Fix (Versioning): Corrected the version number and timestamp in the master footer across all
-             application screens to ensure proper test validation and version tracking.
-           - Bug Fix (Google Drive): Corrected the API query for listing folders to exclude trashed items.
-           - Bug Fix (OneDrive): Resolved search failures for images without tags/metadata.
-           - Bug Fix (OneDrive): Fixed '409 Conflict' errors during bulk operations by batching metadata saves.
-           - Versioning: Updated to v40.3.
+           - Refactor (Architecture): Implemented Provider Abstraction Layer and modularized UI components
+             (GridView, DetailsModal, GestureSystem) for Google Drive.
+           - Refactor (Data Model): Implemented a high-performance journaling system for Google Drive metadata.
+             Changes are appended to a lightweight log file (.orbital8_log.jsonl) for speed and reliability,
+             with a full metadata save (.orbital8_metadata.json) occurring only during compaction.
+           - Scoping: OneDrive functionality has been temporarily disabled on the provider selection screen
+             to focus on the Google Drive refactor. It will be re-enabled in a future version.
+           - Versioning: Updated all footers and comments to v40.1.
         */
         
         :root {
@@ -104,7 +106,7 @@
             font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s ease;
             backdrop-filter: blur(10px);
         }
-        .provider-button:hover {
+        .provider-button:hover:not(:disabled) {
             background: rgba(255, 255, 255, 0.2); border-color: var(--app-accent);
             transform: translateY(-2px); box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
         }
@@ -565,12 +567,13 @@
                 Google Drive
             </button>
             
-            <button class="provider-button" id="onedrive-btn">
+            <button class="provider-button" id="onedrive-btn" disabled>
                 <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24">
                     <path fill="currentColor" d="M17.75 8C16.82 8 16 8.82 16 9.75S16.82 11.5 17.75 11.5s1.75-.82 1.75-1.75S18.68 8 17.75 8z"/>
                 </svg>
                 OneDrive
             </button>
+            <p class="subtitle" style="font-size: 12px; margin-top: -10px;">(OneDrive support is being refactored and will return in a future version)</p>
             
             <div class="settings-section">
                 <div style="margin-bottom: 16px;">
@@ -592,7 +595,7 @@
             
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">orbital8-v40.3 - 2025-08-22 12:18 PM</div>
+        <div class="app-footer">orbital8-v40.1 - 2025-08-22 01:18 PM</div>
     </div>
     
     <!-- Google Drive Auth Screen -->
@@ -605,10 +608,10 @@
             <button class="button" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
-        <div class="app-footer">orbital8-v40.3 - 2025-08-22 12:18 PM</div>
+        <div class="app-footer">orbital8-v40.1 - 2025-08-22 01:18 PM</div>
     </div>
     
-    <!-- OneDrive Auth Screen -->
+    <!-- OneDrive Auth Screen (Kept for structure, but unused) -->
     <div class="screen hidden" id="onedrive-auth-screen">
         <div class="card">
             <h1 class="title">OneDrive</h1>
@@ -617,7 +620,7 @@
             <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
-        <div class="app-footer">orbital8-v40.3 - 2025-08-22 12:18 PM</div>
+        <div class="app-footer">orbital8-v40.1 - 2025-08-22 01:18 PM</div>
     </div>
     
     <!-- Google Drive Folder Screen -->
@@ -632,10 +635,10 @@
                 <button class="folder-button danger" id="gdrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v40.3 - 2025-08-22 12:18 PM</div>
+        <div class="app-footer">orbital8-v40.1 - 2025-08-22 01:18 PM</div>
     </div>
     
-    <!-- OneDrive Folder Screen -->
+    <!-- OneDrive Folder Screen (Kept for structure, but unused) -->
     <div class="screen hidden" id="onedrive-folder-screen">
         <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
             <h2 class="title">OneDrive - Select Folder</h2>
@@ -647,7 +650,7 @@
                 <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v40.3 - 2025-08-22 12:18 PM</div>
+        <div class="app-footer">orbital8-v40.1 - 2025-08-22 01:18 PM</div>
     </div>
     
     <!-- Loading Screen -->
@@ -661,7 +664,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">orbital8-v40.3 - 2025-08-22 12:18 PM</div>
+        <div class="app-footer">orbital8-v40.1 - 2025-08-22 01:18 PM</div>
     </div>
     
     <!-- Main App Container -->
@@ -702,7 +705,7 @@
         </button>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">orbital8-v40.3 - 2025-08-22 12:18 PM</div>
+        <div class="app-footer">orbital8-v40.1 - 2025-08-22 01:18 PM</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -877,15 +880,17 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V40.3 - Versioning Fix =====
-        /* * Version: V40.3 (orbital8-v40.3)
+        // ===== ORBITAL8 V40.1 - Journaling Refactor =====
+        /* * Version: V40.1 (orbital8-v40.1)
          * * Changes in this version:
-           - Bug Fix (Versioning): Corrected the version number and timestamp in the master footer across all
-             application screens to ensure proper test validation and version tracking.
-           - Bug Fix (Google Drive): Corrected the API query for listing folders to exclude trashed items.
-           - Bug Fix (OneDrive): Resolved search failures for images without tags/metadata.
-           - Bug Fix (OneDrive): Fixed '409 Conflict' errors during bulk operations by batching metadata saves.
-           - Versioning: Updated to v40.3.
+           - Refactor (Architecture): Implemented Provider Abstraction Layer and modularized UI components
+             (GridView, DetailsModal, GestureSystem) for Google Drive.
+           - Refactor (Data Model): Implemented a high-performance journaling system for Google Drive metadata.
+             Changes are appended to a lightweight log file (.orbital8_log.jsonl) for speed and reliability,
+             with a full metadata save (.orbital8_metadata.json) occurring only during compaction.
+           - Scoping: OneDrive functionality has been temporarily disabled on the provider selection screen
+             to focus on the Google Drive refactor. It will be re-enabled in a future version.
+           - Versioning: Updated all footers and comments to v40.1.
         */
         
         // ===== Core Constants & State =====
@@ -1435,23 +1440,11 @@
                 
                 try {
                     this.abortController = new AbortController();
-                    let response;
-
-                    if (appState.currentProviderType === 'googledrive') {
-                        response = await appState.currentProvider.makeApiCall(`/files/${file.id}?alt=media`, {
-                            headers: { 'Range': 'bytes=0-65535' },
-                            signal: this.abortController.signal
-                        }, false);
-                    } else {
-                        const accessToken = await appState.currentProvider.getAccessToken();
-                        response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`, {
-                            headers: { 
-                                'Authorization': `Bearer ${accessToken}`,
-                                'Range': 'bytes=0-65535'
-                            },
-                            signal: this.abortController.signal
-                        });
-                    }
+                    
+                    const response = await appState.currentProvider.makeApiCall(`/files/${file.id}?alt=media`, {
+                        headers: { 'Range': 'bytes=0-65535' },
+                        signal: this.abortController.signal
+                    }, false);
                     
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status} ${response.statusText}`);
@@ -1726,11 +1719,11 @@
                 await this.makeApiCall(`/files/${fileId}?addParents=${targetFolderId}&removeParents=${previousParents}&fields=id,parents`, {
                     method: 'PATCH'
                 });
-                this.metadataManager.updateUserMetadata(fileId, { 
+                this.metadataManager.logChange(fileId, { 
                     stack: 'in',
                     stackSequence: Date.now()
                 });
-                await this.metadataManager.commitMetadataChanges();
+                await this.metadataManager.commitChanges();
                 return true;
             }
             
@@ -1743,6 +1736,7 @@
             }
             
             async disconnect() {
+                await this.metadataManager.commitChanges(true); // Force compaction on disconnect
                 this.isAuthenticated = false;
                 this.accessToken = null;
                 this.refreshToken = null;
@@ -1751,472 +1745,137 @@
             }
         }
 
-        // ===== Google Drive Metadata Manager (Unified Model) =====
+        // ===== Google Drive Metadata Manager (Journaling Model) =====
         class GoogleDriveMetadataManager {
             constructor(gdriveProvider) {
                 this.provider = gdriveProvider;
                 this.metadataFileId = null;
+                this.logFileId = null;
                 this.cache = new Map();
-                this.cacheTimestamp = 0;
-                this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
+                this.log = [];
                 this.metadataFileName = '.orbital8_metadata.json';
+                this.logFileName = '.orbital8_log.jsonl';
+                this.commitTimeout = null;
+                this.logSizeThreshold = 50 * 1024; // 50 KB
             }
 
-            async _findOrCreateMetadataFile(folderId) {
-                if (this.metadataFileId) return this.metadataFileId;
-
-                const query = `'${folderId}' in parents and name='${this.metadataFileName}' and trashed=false`;
-                const response = await this.provider.makeApiCall(`/files?q=${encodeURIComponent(query)}&fields=files(id)`);
+            async _findOrCreateFiles(folderId) {
+                const query = `'${folderId}' in parents and (name='${this.metadataFileName}' or name='${this.logFileName}') and trashed=false`;
+                const response = await this.provider.makeApiCall(`/files?q=${encodeURIComponent(query)}&fields=files(id,name)`);
                 
+                let foundMeta = false;
+                let foundLog = false;
+
                 if (response.files && response.files.length > 0) {
-                    this.metadataFileId = response.files[0].id;
-                    return this.metadataFileId;
+                    for (const file of response.files) {
+                        if (file.name === this.metadataFileName) {
+                            this.metadataFileId = file.id;
+                            foundMeta = true;
+                        } else if (file.name === this.logFileName) {
+                            this.logFileId = file.id;
+                            foundLog = true;
+                        }
+                    }
                 }
 
-                const fileMetadata = {
-                    name: this.metadataFileName,
-                    mimeType: 'application/json',
-                    parents: [folderId]
-                };
-                const initialContent = { version: 1, lastModified: new Date().toISOString(), files: {} };
-                const blob = new Blob([JSON.stringify(initialContent)], { type: 'application/json' });
-                
-                const createdFile = await this.provider.makeApiCall('/files', {
-                    method: 'POST',
-                    body: JSON.stringify(fileMetadata)
-                });
-                
-                await this.provider.makeApiCall(`/files/${createdFile.id}?uploadType=media`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: blob
-                });
+                if (!foundMeta) {
+                    const fileMetadata = { name: this.metadataFileName, mimeType: 'application/json', parents: [folderId] };
+                    const initialContent = { version: 2, lastModified: new Date().toISOString(), files: {} };
+                    const blob = new Blob([JSON.stringify(initialContent)], { type: 'application/json' });
+                    const createdFile = await this.provider.makeApiCall('/files', { method: 'POST', body: JSON.stringify(fileMetadata) });
+                    await this.provider.makeApiCall(`/files/${createdFile.id}?uploadType=media`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: blob });
+                    this.metadataFileId = createdFile.id;
+                }
 
-                this.metadataFileId = createdFile.id;
-                return this.metadataFileId;
+                if (!foundLog) {
+                    const logMetadata = { name: this.logFileName, mimeType: 'application/jsonl', parents: [folderId] };
+                    const blob = new Blob([''], { type: 'application/jsonl' });
+                    const createdFile = await this.provider.makeApiCall('/files', { method: 'POST', body: JSON.stringify(logMetadata) });
+                    await this.provider.makeApiCall(`/files/${createdFile.id}?uploadType=media`, { method: 'PATCH', headers: { 'Content-Type': 'application/jsonl' }, body: blob });
+                    this.logFileId = createdFile.id;
+                }
             }
             
             async loadMetadata(folderId) {
-                try {
-                    const now = Date.now();
-                    if (this.cache.size > 0 && (now - this.cacheTimestamp) < this.cacheExpiry) {
-                        return this.cache;
-                    }
-                    
-                    await this._findOrCreateMetadataFile(folderId);
-                    
-                    const response = await this.provider.makeApiCall(`/files/${this.metadataFileId}?alt=media`, {}, false);
-                    const data = await response.json();
-                    
-                    if (data && data.files) {
-                        this.cache.clear();
-                        Object.entries(data.files).forEach(([fileId, metadata]) => {
-                            this.cache.set(fileId, metadata);
-                        });
-                        this.cacheTimestamp = now;
-                    }
-                    
-                    return this.cache;
-                } catch (error) {
-                    console.warn('Failed to load Google Drive metadata:', error);
-                    return this.cache;
-                }
-            }
-            
-            async commitMetadataChanges() {
-                if (!this.metadataFileId) throw new Error("Metadata file not initialized.");
-
-                try {
-                    const data = {
-                        version: 1,
-                        lastModified: new Date().toISOString(),
-                        files: Object.fromEntries(this.cache)
-                    };
-                    
-                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-
-                    await this.provider.makeApiCall(`/files/${this.metadataFileId}?uploadType=media`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: blob
-                    }, false, true); // useUpload = true
-                    
-                    this.cacheTimestamp = Date.now();
-                } catch (error) {
-                    console.warn('Failed to save Google Drive metadata:', error);
-                    throw error;
-                }
-            }
-            
-            getUserMetadata(fileId) {
-                return this.cache.get(fileId) || {
-                    stack: 'in',
-                    tags: [],
-                    qualityRating: 0,
-                    contentRating: 0,
-                    notes: '',
-                    stackSequence: 0
-                };
-            }
-            
-            updateUserMetadata(fileId, updates) {
-                const current = this.getUserMetadata(fileId);
-                const updated = { ...current, ...updates, lastUpdated: new Date().toISOString() };
-                this.cache.set(fileId, updated);
-            }
-        }
-
-        // ===== OneDrive Provider =====
-        class OneDriveProvider {
-            constructor() {
-                this.name = 'onedrive';
-                this.apiBase = 'https://graph.microsoft.com/v1.0';
-                this.isAuthenticated = false;
-                this.activeAccount = null;
-                this.msalInstance = null;
-                this.currentParentId = null;
-                this.currentParentPath = '';
-                this.breadcrumb = [];
-                this.metadataManager = null;
-                this.initMSAL();
-            }
-            
-            initMSAL() {
-                const msalConfig = {
-                    auth: {
-                        clientId: 'b407fd45-c551-4dbb-9da5-cab3a2c5a949',
-                        authority: 'https://login.microsoftonline.com/common',
-                        redirectUri: window.location.origin + window.location.pathname
-                    },
-                    cache: { cacheLocation: 'localStorage' }
-                };
-                this.msalInstance = new msal.PublicClientApplication(msalConfig);
-            }
-            
-            async authenticate() {
-                try {
-                    const accounts = this.msalInstance.getAllAccounts();
-                    if (accounts.length > 0) {
-                        this.msalInstance.setActiveAccount(accounts[0]);
-                        this.activeAccount = accounts[0];
-                    } else {
-                        const loginResponse = await this.msalInstance.loginPopup({
-                            scopes: ['Files.ReadWrite.AppFolder', 'User.Read']
-                        });
-                        this.activeAccount = loginResponse.account;
-                        this.msalInstance.setActiveAccount(this.activeAccount);
-                    }
-
-                    this.isAuthenticated = true;
-                    this.metadataManager = new OneDriveMetadataManager(this);
-                    
-                    return true;
-                } catch (error) {
-                    this.isAuthenticated = false;
-                    throw new Error(`Authentication failed: ${error.message}`);
-                }
-            }
-            
-            async getAccessToken() {
-                if (!this.activeAccount) {
-                    throw new Error('No active account');
-                }
+                this.log = [];
+                this.cache.clear();
+                await this._findOrCreateFiles(folderId);
                 
-                try {
-                    const response = await this.msalInstance.acquireTokenSilent({
-                        scopes: ['Files.ReadWrite.AppFolder'],
-                        account: this.activeAccount
+                const metaResponse = await this.provider.makeApiCall(`/files/${this.metadataFileId}?alt=media`, {}, false);
+                const metaData = await metaResponse.json();
+                
+                if (metaData && metaData.files) {
+                    Object.entries(metaData.files).forEach(([fileId, metadata]) => {
+                        this.cache.set(fileId, metadata);
                     });
-                    return response.accessToken;
-                } catch (silentError) {
-                    if (silentError instanceof msal.InteractionRequiredAuthError) {
-                        const response = await this.msalInstance.acquireTokenPopup({
-                            scopes: ['Files.ReadWrite.AppFolder'],
-                            account: this.activeAccount
-                        });
-                        return response.accessToken;
-                    }
-                    throw silentError;
                 }
-            }
-            
-            async makeApiCall(endpoint, options = {}) {
-                const accessToken = await this.getAccessToken();
-                const url = `${this.apiBase}${endpoint}`;
-                const headers = {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                    ...options.headers
-                };
-                
-                const response = await fetch(url, { ...options, headers });
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`);
-                }
-                
-                return response;
-            }
-            
-            async getDownloadsFolder() {
-                try {
-                    const response = await this.makeApiCall('/me/drive/root/children');
-                    const data = await response.json();
-                    
-                    const downloadsFolder = data.value.find(item => 
-                        item.folder && 
-                        (item.name.toLowerCase() === 'downloads' || item.name.toLowerCase() === 'download')
-                    );
-                    
-                    if (downloadsFolder) {
-                        return downloadsFolder;
-                    }
-                    
-                    return {
-                        id: 'root',
-                        name: 'Root',
-                        folder: true
-                    };
-                } catch (error) {
-                    console.warn('Could not find Downloads folder, using root:', error);
-                    return {
-                        id: 'root',
-                        name: 'Root', 
-                        folder: true
-                    };
-                }
-            }
-            
-            async getFolders() {
-                try {
-                    const downloadsFolder = await this.getDownloadsFolder();
-                    
-                    this.currentParentId = downloadsFolder.id;
-                    this.currentParentPath = downloadsFolder.name;
-                    this.breadcrumb = [{ id: downloadsFolder.id, name: downloadsFolder.name }];
-                    
-                    return await this.loadFoldersInParent(downloadsFolder.id);
-                } catch (error) {
-                    console.warn('Failed to load initial folders:', error);
-                    return [];
-                }
-            }
-            
-            async loadFoldersInParent(parentId) {
-                try {
-                    const folders = [];
-                    let nextLink = null;
-                    
-                    const endpoint = parentId === 'root' ? 
-                        '/me/drive/root/children' : 
-                        `/me/drive/items/${parentId}/children`;
-                    
-                    do {
-                        const url = nextLink || endpoint;
-                        const response = nextLink ? 
-                            await this.makeApiCall(nextLink.replace(this.apiBase, '')) :
-                            await this.makeApiCall(url);
-                        
-                        const data = await response.json();
-                        
-                        const folderItems = data.value
-                            .filter(item => item.folder)
-                            .map(folder => ({
-                                id: folder.id,
-                                name: folder.name,
-                                type: 'folder',
-                                createdTime: folder.createdDateTime,
-                                modifiedTime: folder.lastModifiedDateTime,
-                                itemCount: folder.folder.childCount || 0,
-                                hasChildren: (folder.folder.childCount || 0) > 0
-                            }));
-                        
-                        folders.push(...folderItems);
-                        nextLink = data['@odata.nextLink'];
-                        
-                    } while (nextLink);
-                    
-                    return folders.sort((a, b) => a.name.localeCompare(b.name));
-                    
-                } catch (error) {
-                    console.warn('Failed to load folders:', error);
-                    return [];
-                }
-            }
-            
-            async drillIntoFolder(folder) {
-                try {
-                    this.breadcrumb.push({ id: folder.id, name: folder.name });
-                    this.currentParentId = folder.id;
-                    this.currentParentPath = this.breadcrumb.map(b => b.name).join(' / ');
-                    
-                    return await this.loadFoldersInParent(folder.id);
-                } catch (error) {
-                    console.warn('Failed to drill into folder:', error);
-                    return [];
-                }
-            }
-            
-            async navigateToParent() {
-                if (this.breadcrumb.length <= 1) {
-                    return await this.getFolders();
-                }
-                
-                this.breadcrumb.pop();
-                const parentFolder = this.breadcrumb[this.breadcrumb.length - 1];
-                
-                this.currentParentId = parentFolder.id;
-                this.currentParentPath = this.breadcrumb.map(b => b.name).join(' / ');
-                
-                return await this.loadFoldersInParent(parentFolder.id);
-            }
-            
-            getCurrentPath() {
-                return this.currentParentPath;
-            }
-            
-            canGoUp() {
-                return this.breadcrumb.length > 1;
-            }
-            
-            async getFiles(folderId = 'root') {
-                const allFiles = [];
-                let nextLink = null;
-                let endpoint = folderId === 'root' ? 
-                    '/me/drive/root/children' : 
-                    `/me/drive/items/${folderId}/children`;
-                
-                do {
-                    const url = nextLink || endpoint;
-                    const response = nextLink ? 
-                        await this.makeApiCall(nextLink.replace(this.apiBase, '')) :
-                        await this.makeApiCall(url);
-                    
-                    const data = await response.json();
-                    
-                    const files = data.value
-                        .filter(item => item.file && item.file.mimeType && item.file.mimeType.startsWith('image/'))
-                        .map(item => ({
-                            id: item.id,
-                            name: item.name,
-                            type: 'file',
-                            mimeType: item.file.mimeType,
-                            size: item.size || 0,
-                            createdTime: item.createdDateTime,
-                            modifiedTime: item.lastModifiedDateTime,
-                            thumbnails: item.thumbnails && item.thumbnails.length > 0 ? {
-                                large: item.thumbnails[0].large
-                            } : null,
-                            downloadUrl: item['@microsoft.graph.downloadUrl']
-                        }));
-                    
-                    allFiles.push(...files);
-                    nextLink = data['@odata.nextLink'];
-                    
-                    if (this.onProgressCallback) {
-                        this.onProgressCallback(allFiles.length);
-                    }
-                    
-                } while (nextLink);
-                
-                return { folders: [], files: allFiles };
-            }
 
-            async moveFileToFolder(fileId, targetFolderId) {
-                await this.makeApiCall(`/me/drive/items/${fileId}`, {
+                const logResponse = await this.provider.makeApiCall(`/files/${this.logFileId}?alt=media`, {}, false);
+                const logText = await logResponse.text();
+                if (logText.trim()) {
+                    const logEntries = logText.trim().split('\n').map(line => JSON.parse(line));
+                    this.log = logEntries;
+                    logEntries.forEach(entry => {
+                        const current = this.cache.get(entry.fileId) || {};
+                        this.cache.set(entry.fileId, { ...current, ...entry.update });
+                    });
+                }
+                
+                return this.cache;
+            }
+            
+            async logChange(fileId, update) {
+                const logEntry = { fileId, update, timestamp: Date.now() };
+                this.log.push(logEntry);
+
+                const current = this.cache.get(fileId) || {};
+                this.cache.set(fileId, { ...current, ...update });
+                
+                const logContent = this.log.map(entry => JSON.stringify(entry)).join('\n');
+                const blob = new Blob([logContent], { type: 'application/jsonl' });
+                
+                await this.provider.makeApiCall(`/files/${this.logFileId}?uploadType=media`, {
                     method: 'PATCH',
-                    body: JSON.stringify({
-                        parentReference: { id: targetFolderId }
-                    })
-                });
-                this.metadataManager.updateUserMetadata(fileId, { 
-                    stack: 'in',
-                    stackSequence: Date.now()
-                });
-                await this.metadataManager.commitMetadataChanges();
-                return true;
-            }
-            
-            async deleteFile(fileId) {
-                await this.makeApiCall(`/me/drive/items/${fileId}`, {
-                    method: 'DELETE'
-                });
-                return true;
-            }
-            
-            async disconnect() {
-                this.isAuthenticated = false;
-                this.activeAccount = null;
-                this.metadataManager = null;
-                if (this.msalInstance) {
-                    const accounts = this.msalInstance.getAllAccounts();
-                    if (accounts.length > 0) {
-                        await this.msalInstance.logoutPopup({
-                            account: accounts[0]
-                        });
-                    }
-                }
-            }
-        }
+                    headers: { 'Content-Type': 'application/jsonl' },
+                    body: blob
+                }, false, true);
 
-        // ===== OneDrive Metadata Manager =====
-        class OneDriveMetadataManager {
-            constructor(oneDriveProvider) {
-                this.provider = oneDriveProvider;
-                this.cache = new Map();
-                this.cacheTimestamp = 0;
-                this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
-            }
-            
-            async loadMetadata() {
-                try {
-                    const now = Date.now();
-                    if (this.cache.size > 0 && (now - this.cacheTimestamp) < this.cacheExpiry) {
-                        return this.cache;
-                    }
-                    
-                    const response = await this.provider.makeApiCall('/me/drive/special/approot:/.orbital8_metadata.json:/content');
-                    const data = await response.json();
-                    
-                    if (data && data.files) {
-                        this.cache.clear();
-                        Object.entries(data.files).forEach(([fileId, metadata]) => {
-                            this.cache.set(fileId, metadata);
-                        });
-                        this.cacheTimestamp = now;
-                    }
-                    
-                    return this.cache;
-                } catch (error) {
-                    if (error.message.includes('404')) {
-                        await this.commitMetadataChanges();
-                        return this.cache;
-                    }
-                    console.warn('Failed to load user metadata:', error);
-                    return this.cache;
+                if (blob.size > this.logSizeThreshold) {
+                    this.scheduleCommit();
                 }
             }
-            
-            async commitMetadataChanges() {
-                try {
-                    const data = {
-                        version: 1,
-                        lastModified: new Date().toISOString(),
-                        files: Object.fromEntries(this.cache)
-                    };
-                    
-                    await this.provider.makeApiCall('/me/drive/special/approot:/.orbital8_metadata.json:/content', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data, null, 2)
-                    });
-                    
-                    this.cacheTimestamp = Date.now();
-                } catch (error) {
-                    console.warn('Failed to save user metadata:', error);
-                    throw error;
-                }
+
+            scheduleCommit() {
+                if (this.commitTimeout) clearTimeout(this.commitTimeout);
+                this.commitTimeout = setTimeout(() => this.commitChanges(true), 5000); // Commit after 5s of inactivity
+            }
+
+            async commitChanges(force = false) {
+                if (this.commitTimeout) clearTimeout(this.commitTimeout);
+                if (!force && this.log.length === 0) return;
+
+                const data = {
+                    version: 2,
+                    lastModified: new Date().toISOString(),
+                    files: Object.fromEntries(this.cache)
+                };
+                
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                await this.provider.makeApiCall(`/files/${this.metadataFileId}?uploadType=media`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: blob
+                }, false, true);
+
+                // Clear the log file
+                const emptyBlob = new Blob([''], { type: 'application/jsonl' });
+                await this.provider.makeApiCall(`/files/${this.logFileId}?uploadType=media`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/jsonl' },
+                    body: emptyBlob
+                }, false, true);
+
+                this.log = [];
             }
             
             getUserMetadata(fileId) {
@@ -2228,12 +1887,6 @@
                     notes: '',
                     stackSequence: 0
                 };
-            }
-            
-            updateUserMetadata(fileId, updates) {
-                const current = this.getUserMetadata(fileId);
-                const updated = { ...current, ...updates, lastUpdated: new Date().toISOString() };
-                this.cache.set(fileId, updated);
             }
         }
 
@@ -2302,8 +1955,6 @@
             getDirectImageURL(image) {
                 if (appState.currentProviderType === 'googledrive') {
                     return `https://drive.google.com/uc?id=${image.id}&export=view`;
-                } else if (appState.currentProviderType === 'onedrive') {
-                    return image.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${image.id}/content`;
                 }
                 return '';
             }
@@ -2362,23 +2013,10 @@
                 }
             },
             
-            async selectOneDrive() {
-                appState.currentProviderType = 'onedrive';
-                utils.showScreen('onedrive-auth-screen');
-                const provider = new OneDriveProvider();
-                try {
-                    const success = await provider.authenticate();
-                    if (success) {
-                        appState.currentProvider = provider;
-                        utils.showScreen('onedrive-folder-screen');
-                        this.loadFolders();
-                    }
-                } catch (error) {
-                    utils.elements.onedriveAuthStatus.textContent = 'Click to sign in with your Microsoft account';
-                }
-            },
-            
             backToProviderSelection() {
+                if (appState.currentProvider) {
+                    appState.currentProvider.metadataManager.commitChanges(true);
+                }
                 appState.currentProvider = null;
                 appState.currentProviderType = null;
                 utils.showScreen('provider-screen');
@@ -2387,7 +2025,7 @@
             async loadFolders() {
                 if (!appState.currentProvider) return;
                 
-                const listEl = utils.elements[`${appState.currentProviderType}FolderList`];
+                const listEl = utils.elements.gdriveFolderList;
                 listEl.innerHTML = `
                     <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
                         <div class="spinner"></div>
@@ -2404,14 +2042,6 @@
             },
 
             displayFolders(folders) {
-                if (appState.currentProviderType === 'googledrive') {
-                    this.displayGoogleDriveFolders(folders);
-                } else {
-                    this.displayOneDriveFolders(folders);
-                }
-            },
-
-            displayGoogleDriveFolders(folders) {
                 const listEl = utils.elements.gdriveFolderList;
                 listEl.innerHTML = '';
 
@@ -2439,80 +2069,6 @@
                     });
                     listEl.appendChild(div);
                 });
-            },
-
-            displayOneDriveFolders(folders) {
-                const listEl = utils.elements.onedriveFolderList;
-                listEl.innerHTML = '';
-
-                if (folders.length === 0) {
-                    listEl.innerHTML = `<div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">No folders found</div>`;
-                    return;
-                }
-
-                folders.forEach(folder => {
-                    const div = document.createElement('div');
-                    div.className = 'folder-item';
-                    const hasChildren = folder.hasChildren;
-                    const iconColor = hasChildren ? 'var(--app-accent)' : 'rgba(255, 255, 255, 0.6)';
-                    div.innerHTML = `
-                        <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: ${iconColor};"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
-                        <div class="folder-info">
-                            <div class="folder-name">${folder.name}</div>
-                            <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()} • ${folder.itemCount} items</div>
-                        </div>
-                        <div class="folder-actions">
-                            ${hasChildren ? `<button class="folder-action-btn drill-btn" data-folder-id="${folder.id}" data-folder-name="${folder.name}">Browse →</button>` : ''}
-                            <button class="folder-action-btn select-btn" data-folder-id="${folder.id}" data-folder-name="${folder.name}">Select</button>
-                        </div>
-                    `;
-                    listEl.appendChild(div);
-                });
-                
-                listEl.querySelectorAll('.drill-btn').forEach(btn => btn.addEventListener('click', (e) => this.drillIntoOneDriveFolder(e)));
-                listEl.querySelectorAll('.select-btn').forEach(btn => btn.addEventListener('click', (e) => this.selectOneDriveFolder(e)));
-                this.updateOneDriveNavigation();
-            },
-
-            async drillIntoOneDriveFolder(e) {
-                e.stopPropagation();
-                const { folderId, folderName } = e.target.dataset;
-                try {
-                    const subfolders = await appState.currentProvider.drillIntoFolder({ id: folderId, name: folderName });
-                    this.displayOneDriveFolders(subfolders);
-                } catch (error) {
-                    utils.showToast('Error loading subfolders', 'error', true);
-                }
-            },
-
-            selectOneDriveFolder(e) {
-                e.stopPropagation();
-                const { folderId, folderName } = e.target.dataset;
-                if (appState.folderMoveMode.active) {
-                    modalManager.handleFolderMoveSelection(folderId, folderName);
-                } else {
-                    masterController.initializeWithProvider(folderId, folderName);
-                }
-            },
-
-            updateOneDriveNavigation() {
-                const provider = appState.currentProvider;
-                utils.elements.onedriveFolderSubtitle.textContent = `Current: ${provider.getCurrentPath()}`;
-                const refreshBtn = utils.elements.onedriveRefreshFolders;
-                if (provider.canGoUp()) {
-                    refreshBtn.textContent = '← Go Up';
-                    refreshBtn.onclick = async () => {
-                        try {
-                            const folders = await provider.navigateToParent();
-                            this.displayOneDriveFolders(folders);
-                        } catch (error) {
-                            utils.showToast('Error navigating up', 'error', true);
-                        }
-                    };
-                } else {
-                    refreshBtn.textContent = 'Refresh';
-                    refreshBtn.onclick = () => this.loadFolders();
-                }
             }
         };
 
@@ -2537,9 +2093,7 @@
                 try {
                     utils.elements.loadingMessage.textContent = `Loading images from ${appState.currentProvider.name}...`;
                     
-                    if (appState.currentProvider.metadataManager) {
-                        await appState.currentProvider.metadataManager.loadMetadata(appState.currentFolder.id);
-                    }
+                    await appState.currentProvider.metadataManager.loadMetadata(appState.currentFolder.id);
                     
                     const result = await appState.currentProvider.getFiles(appState.currentFolder.id);
                     const files = result.files || [];
@@ -2650,6 +2204,7 @@
             },
             
             returnToFolderSelection() {
+                appState.currentProvider.metadataManager.commitChanges(true); // Force compaction on exit
                 if (appState.currentProviderType === 'googledrive') {
                     utils.showScreen('gdrive-folder-screen');
                 } else if (appState.currentProviderType === 'onedrive') {
@@ -2657,13 +2212,12 @@
                 }
             },
             
-            async updateUserMetadataAndSave(fileId, updates) {
+            async logAndUpdate(fileId, updates) {
                 const file = appState.imageFiles.find(f => f.id === fileId);
                 if (!file) throw new Error('File not found');
                 
                 Object.assign(file, updates);
-                appState.currentProvider.metadataManager.updateUserMetadata(fileId, updates);
-                await appState.currentProvider.metadataManager.commitMetadataChanges();
+                await appState.currentProvider.metadataManager.logChange(fileId, updates);
             },
             
             async deleteFile(fileId) {
@@ -2886,7 +2440,7 @@
                     appState.stacks[targetStack] = this.sortFiles(appState.stacks[targetStack]);
                 }
                 
-                await masterController.updateUserMetadataAndSave(currentImage.id, { stack: targetStack, stackSequence: newSequence });
+                await masterController.logAndUpdate(currentImage.id, { stack: targetStack, stackSequence: newSequence });
 
                 this.updateStackCounts();
                 this.updateActiveProxTab();
@@ -3164,14 +2718,14 @@
                 // Update sequence numbers for persistence
                 for (let i = 0; i < newStack.length; i++) {
                     newStack[i].stackSequence = timestamp - i;
-                    appState.currentProvider.metadataManager.updateUserMetadata(newStack[i].id, { stackSequence: newStack[i].stackSequence });
+                    appState.currentProvider.metadataManager.logChange(newStack[i].id, { stackSequence: newStack[i].stackSequence });
                 }
 
                 appState.stacks[appState.grid.stack] = newStack;
                 appState.currentStackPosition = 0; // Reset pointer to the top of the reordered stack
 
                 try {
-                    await appState.currentProvider.metadataManager.commitMetadataChanges();
+                    await appState.currentProvider.metadataManager.commitChanges();
                     utils.showToast('Stack order saved', 'success');
                 } catch (error) {
                     utils.showToast('Failed to save new stack order', 'error', true);
@@ -3288,7 +2842,7 @@
                                 const currentTags = currentFile.tags || [];
                                 const newTags = [...new Set([...currentTags, tagName])];
                                 
-                                await masterController.updateUserMetadataAndSave(currentFile.id, { tags: newTags });
+                                await masterController.logAndUpdate(currentFile.id, { tags: newTags });
                                 appState.tags.add(tagName);
                                 
                                 this.populateTagsTab(currentFile);
@@ -3312,7 +2866,7 @@
                     const currentTags = file.tags || [];
                     const newTags = currentTags.filter(tag => tag !== tagToRemove);
                     
-                    await masterController.updateUserMetadataAndSave(file.id, { tags: newTags });
+                    await masterController.logAndUpdate(file.id, { tags: newTags });
                     this.populateTagsTab(file);
                 } catch (error) {
                     utils.showToast('Failed to remove tag', 'error', true);
@@ -3330,7 +2884,7 @@
                     const currentFile = appState.stacks[appState.currentStack][appState.currentStackPosition];
                     if (currentFile.notes !== utils.elements.detailNotes.value) {
                         try {
-                            await masterController.updateUserMetadataAndSave(currentFile.id, { notes: utils.elements.detailNotes.value });
+                            await masterController.logAndUpdate(currentFile.id, { notes: utils.elements.detailNotes.value });
                         } catch (error) {
                             utils.showToast('Failed to save notes', 'error', true);
                         }
@@ -3378,7 +2932,7 @@
                         }
         
                         try {
-                            await masterController.updateUserMetadataAndSave(currentFile.id, updatePayload);
+                            await masterController.logAndUpdate(currentFile.id, updatePayload);
                         } catch (error) {
                             utils.showToast(`Failed to save ${type} rating`, 'error', true);
                             rating = currentRating;
@@ -3590,7 +3144,7 @@
             
             setupDeleteAction() {
                 const selectedCount = appState.grid.selected.length;
-                const providerName = appState.currentProviderType === 'googledrive' ? 'Google Drive' : 'OneDrive';
+                const providerName = 'Google Drive';
                 const message = `Are you sure you want to move ${selectedCount} image(s) to your ${providerName} trash? This can be recovered from the provider's website.`;
                 
                 this.show('delete', {
@@ -3666,7 +3220,7 @@
 
                 try {
                     appState.grid.selected.forEach(fileId => actionFn(fileId));
-                    await appState.currentProvider.metadataManager.commitMetadataChanges();
+                    await appState.currentProvider.metadataManager.commitChanges();
 
                     utils.showToast(successMessage.replace('{count}', appState.grid.selected.length), 'success', true);
                     if(!options.keepModalOpen) this.hide();
@@ -3695,7 +3249,7 @@
                     const currentStack = file.stack;
                     const newSequence = Date.now();
                     
-                    appState.currentProvider.metadataManager.updateUserMetadata(file.id, { stack: targetStack, stackSequence: newSequence });
+                    appState.currentProvider.metadataManager.logChange(file.id, { stack: targetStack, stackSequence: newSequence });
                     
                     const currentStackIndex = appState.stacks[currentStack].findIndex(f => f.id === file.id);
                     if (currentStackIndex !== -1) {
@@ -3708,7 +3262,7 @@
                 });
 
                 appState.stacks[targetStack] = commonFunctions.sortFiles(appState.stacks[targetStack]);
-                await appState.currentProvider.metadataManager.commitMetadataChanges();
+                await appState.currentProvider.metadataManager.commitChanges();
                 
                 utils.showToast(`Moved ${filesToMove.length} images to ${targetStack}`, 'success', true);
                 this.hide();
@@ -3728,7 +3282,7 @@
                     if (file) {
                         const currentTags = file.tags || [];
                         const newTags = [...new Set([...currentTags, ...tagsToAdd])];
-                        appState.currentProvider.metadataManager.updateUserMetadata(fileId, { tags: newTags });
+                        appState.currentProvider.metadataManager.logChange(fileId, { tags: newTags });
                         tagsToAdd.forEach(tag => appState.tags.add(tag));
                     }
                 }, `Tags added to {count} images`, { refreshGrid: false });
@@ -3750,7 +3304,7 @@
                         }
                     }
                     
-                    await appState.currentProvider.metadataManager.commitMetadataChanges();
+                    await appState.currentProvider.metadataManager.commitChanges();
                     utils.showToast(`Moved {count} images to provider trash`.replace('{count}', appState.grid.selected.length), 'success', true);
                     
                     this.hide();
@@ -4167,7 +3721,6 @@
         function setupEventHandlers() {
             // Provider selection
             utils.elements.googleDriveBtn.addEventListener('click', () => appController.selectGoogleDrive());
-            utils.elements.onedriveBtn.addEventListener('click', () => appController.selectOneDrive());
             
             // Settings
             document.querySelectorAll('.intensity-btn').forEach(btn => {
@@ -4202,37 +3755,10 @@
             
             utils.elements.gdriveBackButton.addEventListener('click', () => appController.backToProviderSelection());
             
-            // OneDrive auth
-            utils.elements.onedriveAuthButton.addEventListener('click', async () => {
-                utils.elements.onedriveAuthButton.disabled = true;
-                utils.elements.onedriveAuthButton.textContent = 'Connecting...';
-                try {
-                    const provider = new OneDriveProvider();
-                    if (await provider.authenticate()) {
-                        appState.currentProvider = provider;
-                        utils.showScreen('onedrive-folder-screen');
-                        appController.loadFolders();
-                    }
-                } catch (error) {
-                    utils.elements.onedriveAuthStatus.textContent = `Auth failed: ${error.message}`;
-                } finally {
-                    utils.elements.onedriveAuthButton.disabled = false;
-                    utils.elements.onedriveAuthButton.textContent = 'Connect OneDrive';
-                }
-            });
-            
-            utils.elements.onedriveBackButton.addEventListener('click', () => appController.backToProviderSelection());
-            
             // Folder management
             utils.elements.gdriveRefreshFolders.addEventListener('click', () => appController.loadFolders());
             utils.elements.gdriveBackToProvider.addEventListener('click', () => appController.backToProviderSelection());
             utils.elements.gdriveLogout.addEventListener('click', () => {
-                appState.currentProvider.disconnect();
-                appController.backToProviderSelection();
-            });
-            
-            utils.elements.onedriveBackToProvider.addEventListener('click', () => appController.backToProviderSelection());
-            utils.elements.onedriveLogout.addEventListener('click', () => {
                 appState.currentProvider.disconnect();
                 appController.backToProviderSelection();
             });
@@ -4366,6 +3892,12 @@
                 
                 if (e.key === 'Tab') { e.preventDefault(); cycleThroughProxTabs(); }
                 if (e.key === 'Escape') masterController.returnToFolderSelection();
+            });
+
+            window.addEventListener('beforeunload', (e) => {
+                if (appState.currentProvider && appState.currentProvider.metadataManager.log.length > 0) {
+                    appState.currentProvider.metadataManager.commitChanges(true);
+                }
             });
         }
         
