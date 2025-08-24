@@ -1,14 +1,14 @@
-<!-- GitHub-Tablet-Editor-v22-2025-08-24 03:05 AM -->
+<!-- GitHub-Tablet-Editor-v22-2025-08-24 04:01 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>GitHub Tablet Editor — v22</title>
   <style>
     :root {
       --gap: 8px; --pad: 12px; --border: 1px solid #d0d7de; --radius: 8px;
-      --bg: #f6f8fa; --fg: #24292f; --muted: #57606a; --ok: #1a7f37; --err: #d1242f;
+      --bg: #f6f8fa; --fg: #24292f; --muted: #57606a; --accent: #0969da; --ok: #1a7f37; --err: #d1242f;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
     *{box-sizing:border-box}
@@ -35,19 +35,25 @@
 
     /* Main Layout */
     .content-container{display:flex;flex-direction:column;gap:var(--gap);flex:1;min-height:0; overflow-y: auto;}
-    .pane{display:flex;flex-direction:column;min-height:0;flex:1;}
+    .pane{display:flex;flex-direction:column;min-height:0;}
+    .pane.collapsed{flex-grow:0; flex-shrink:0;}
     .pane-header{display:flex;align-items:center;gap:var(--gap);margin-bottom:4px}
     .pane-filename{font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:8px 0;}
     #filenameInput{padding:6px 10px;font-size:13px;font-weight:600;min-height:36px;}
     .textarea-wrap{position:relative;display:flex;flex-direction:column;min-height:0;flex:1;height:100%;}
-    textarea{width:100%;height:100%;min-height: calc(10 * 1.4em + 20px); border:var(--border);border-radius:6px;font-family:var(--mono);font-size:10pt;line-height:1.4;resize:vertical;overflow:auto;padding:10px;padding-top:40px;}
+    textarea{width:100%;height:100%;min-height: calc(9 * 1.4em + 20px); border:var(--border);border-radius:6px;font-family:var(--mono);font-size:10pt;line-height:1.4;resize:vertical;overflow:auto;padding:10px;padding-top:40px;}
+    .pane.collapsed .textarea-wrap, .pane.collapsed .pane-header{display:none}
     .pane-buttons{display:flex;gap:var(--gap);margin-bottom: var(--gap);}
 
     /* Toolbar for Textareas */
-    .textarea-toolbar{position:absolute;top:8px;right:8px;z-index:10;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border-radius:6px;padding:4px;display:flex;gap:4px;border:var(--border);}
+    .textarea-toolbar{position:absolute;top:0;left:0;right:0;z-index:10;background:#f0f3f6;padding:4px;display:flex;gap:var(--gap);border-bottom:var(--border);border-radius:6px 6px 0 0;}
+    .toolbar-group{display:flex;gap:4px;align-items:center;}
+    .toolbar-find{flex:1;}
     .toolbar-btn{padding:4px 8px;font-size:11px;min-height:0;}
-    .toolbar-find{display:flex;gap:4px;}
-    .toolbar-find input{font-size:11px;padding:4px 6px;width:100px;}
+    .toolbar-find input{font-size:12px;padding:4px 6px;width:100%;}
+    .find-nav button{padding:4px;min-height:0;font-size:10px;}
+    .find-results{font-size:11px;color:var(--muted);padding:0 6px;min-width:40px;text-align:center;}
+    #fontSizeSelect{font-size:12px;padding:3px 4px;}
 
     /* Modals */
     .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);padding:12px;z-index:9990}
@@ -110,14 +116,21 @@
       </div>
       <div class="textarea-wrap">
         <div class="textarea-toolbar">
-            <button class="toolbar-btn" id="scrollTopOriginal" title="Scroll to Top">⬆️</button>
-            <div class="toolbar-find">
-                <input type="search" id="findInputOriginal" placeholder="Find…">
+            <div class="toolbar-group toolbar-find">
+                <input type="search" id="findInputOriginal" placeholder="Find in text…">
+                <span id="findResultsOriginal" class="find-results">0/0</span>
+                <div class="find-nav">
+                    <button id="findPrevOriginal" class="toolbar-btn">↑</button>
+                    <button id="findNextOriginal" class="toolbar-btn">↓</button>
+                </div>
             </div>
-            <button class="toolbar-btn" id="fontSmallerOriginal">A-</button>
-            <button class="toolbar-btn" id="fontLargerOriginal">A+</button>
+            <div class="toolbar-group">
+                <select id="fontSizeSelectOriginal" class="toolbar-btn">
+                    <option value="9">9pt</option><option value="10" selected>10pt</option><option value="11">11pt</option><option value="12">12pt</option><option value="14">14pt</option><option value="16">16pt</option><option value="18">18pt</option><option value="24">24pt</option><option value="28">28pt</option>
+                </select>
+            </div>
         </div>
-        <textarea id="originalBox" rows="10" readonly placeholder="Original file content will appear here…"></textarea>
+        <textarea id="originalBox" rows="9" readonly></textarea>
       </div>
     </div>
     <!-- Updated -->
@@ -133,14 +146,21 @@
       </div>
       <div class="textarea-wrap">
          <div class="textarea-toolbar">
-            <button class="toolbar-btn" id="scrollTopUpdated" title="Scroll to Top">⬆️</button>
-            <div class="toolbar-find">
-                <input type="search" id="findInputUpdated" placeholder="Find…">
+            <div class="toolbar-group toolbar-find">
+                <input type="search" id="findInputUpdated" placeholder="Find in text…">
+                <span id="findResultsUpdated" class="find-results">0/0</span>
+                <div class="find-nav">
+                    <button id="findPrevUpdated" class="toolbar-btn">↑</button>
+                    <button id="findNextUpdated" class="toolbar-btn">↓</button>
+                </div>
             </div>
-            <button class="toolbar-btn" id="fontSmallerUpdated">A-</button>
-            <button class="toolbar-btn" id="fontLargerUpdated">A+</button>
+            <div class="toolbar-group">
+                <select id="fontSizeSelectUpdated" class="toolbar-btn">
+                    <option value="9">9pt</option><option value="10" selected>10pt</option><option value="11">11pt</option><option value="12">12pt</option><option value="14">14pt</option><option value="16">16pt</option><option value="18">18pt</option><option value="24">24pt</option><option value="28">28pt</option>
+                </select>
+            </div>
         </div>
-        <textarea id="updatedBox" rows="10" placeholder="Paste updated content here or upload a file above…"></textarea>
+        <textarea id="updatedBox" rows="9"></textarea>
       </div>
     </div>
   </div>
@@ -166,6 +186,10 @@
   let treeCache = [];
   let currentPath = null;
   let currentSha = null;
+  const findState = {
+      original: { matches: [], currentIndex: -1 },
+      updated: { matches: [], currentIndex: -1 }
+  };
 
   // --- Element Cache ---
   const $ = (id) => document.getElementById(id);
@@ -174,12 +198,10 @@
     repoSettingsBtn: $('repoSettingsBtn'), repoSettingsModal: $('repoSettingsModal'), repoSettingsClose: $('repoSettingsClose'),
     paneOriginal: $('paneOriginal'), originalTitle: $('originalTitle'), originalBox: $('originalBox'),
     copyOriginalBtn: $('copyOriginalBtn'), previewOriginalBtn: $('previewOriginalBtn'), reloadOriginalBtn: $('reloadOriginalBtn'),
-    fontSmallerOriginal: $('fontSmallerOriginal'), fontLargerOriginal: $('fontLargerOriginal'), findInputOriginal: $('findInputOriginal'),
-    scrollTopOriginal: $('scrollTopOriginal'),
+    fontSizeSelectOriginal: $('fontSizeSelectOriginal'), findInputOriginal: $('findInputOriginal'), findResultsOriginal: $('findResultsOriginal'), findPrevOriginal: $('findPrevOriginal'), findNextOriginal: $('findNextOriginal'),
     paneUpdated: $('paneUpdated'), updatedBox: $('updatedBox'), filenameInput: $('filenameInput'),
     uploadBtn: $('uploadBtn'), fileInput: $('fileInput'), pasteBtn: $('pasteBtn'), diffBtn: $('diffBtn'), commitBtn: $('commitBtn'),
-    fontSmallerUpdated: $('fontSmallerUpdated'), fontLargerUpdated: $('fontLargerUpdated'), findInputUpdated: $('findInputUpdated'),
-    scrollTopUpdated: $('scrollTopUpdated'),
+    fontSizeSelectUpdated: $('fontSizeSelectUpdated'), findInputUpdated: $('findInputUpdated'), findResultsUpdated: $('findResultsUpdated'), findPrevUpdated: $('findPrevUpdated'), findNextUpdated: $('findNextUpdated'),
     commitModal: $('commitModal'), commitClose: $('commitClose'), commitSteps: $('commitSteps'), commitActions: $('commitActions'), commitInfo: $('commitInfo'),
     diffModal: $('diffModal'), diffClose: $('diffClose'), diffOutput: $('diffOutput'), copyDiffBtn: $('copyDiffBtn'),
     previewModal: $('previewModal'), previewClose: $('previewClose'), previewFrame: $('previewFrame'),
@@ -450,28 +472,70 @@
     return launchLink;
   }
   
-  function setupTextAreaToolbar(textarea, smallerBtn, largerBtn, findInput, scrollTopBtn) {
-      let currentFontSize = 10;
-      textarea.style.fontSize = `${currentFontSize}pt`;
+  function setupTextAreaToolbar(key, textarea, fontSizeSelect, findInput, findResults, findPrev, findNext) {
+      fontSizeSelect.addEventListener('change', () => {
+          textarea.style.fontSize = `${fontSizeSelect.value}pt`;
+      });
 
-      smallerBtn.addEventListener('click', () => {
-          currentFontSize = Math.max(8, currentFontSize - 1);
-          textarea.style.fontSize = `${currentFontSize}pt`;
-      });
-      largerBtn.addEventListener('click', () => {
-          currentFontSize = Math.min(24, currentFontSize + 1);
-          textarea.style.fontSize = `${currentFontSize}pt`;
-      });
-      if (findInput) {
-        findInput.addEventListener('input', () => {
-            // Placeholder for a more complex find implementation
-        });
+      const updateFind = () => {
+          const state = findState[key];
+          const query = findInput.value;
+          if (!query) {
+              state.matches = [];
+              state.currentIndex = -1;
+          } else {
+              const text = textarea.value;
+              const regex = new RegExp(query, 'gi');
+              state.matches = [];
+              let match;
+              while ((match = regex.exec(text)) !== null) {
+                  state.matches.push(match.index);
+              }
+              state.currentIndex = state.matches.length > 0 ? 0 : -1;
+          }
+          updateFindUI(key);
+          navigateToMatch(key);
+      };
+
+      findInput.addEventListener('input', updateFind);
+      findPrev.addEventListener('click', () => navigateToMatch(key, -1));
+      findNext.addEventListener('click', () => navigateToMatch(key, 1));
+  }
+
+  function updateFindUI(key) {
+      const state = findState[key];
+      const resultsEl = elements[`findResults${key.charAt(0).toUpperCase() + key.slice(1)}`];
+      if (state.matches.length > 0) {
+          resultsEl.textContent = `${state.currentIndex + 1}/${state.matches.length}`;
+      } else {
+          resultsEl.textContent = '0/0';
       }
-      if (scrollTopBtn) {
-        scrollTopBtn.addEventListener('click', () => {
-            textarea.scrollTop = 0;
-        });
-      }
+  }
+
+  function navigateToMatch(key, direction = 0) {
+      const state = findState[key];
+      const textarea = elements[`${key}Box`];
+      const findInput = elements[`findInput${key.charAt(0).toUpperCase() + key.slice(1)}`];
+
+      if (state.matches.length === 0) return;
+
+      state.currentIndex += direction;
+
+      if (state.currentIndex >= state.matches.length) state.currentIndex = 0;
+      if (state.currentIndex < 0) state.currentIndex = state.matches.length - 1;
+
+      const pos = state.matches[state.currentIndex];
+      const queryLength = findInput.value.length;
+      
+      textarea.focus();
+      textarea.setSelectionRange(pos, pos + queryLength);
+      
+      // Scroll into view
+      const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight);
+      const lines = textarea.value.substring(0, pos).split('\n').length;
+      textarea.scrollTop = (lines - 5) * lineHeight;
+
+      updateFindUI(key);
   }
 
   function setEventListeners() {
@@ -491,7 +555,6 @@
     elements.uploadBtn.addEventListener('click', () => elements.fileInput.click());
     elements.fileInput.addEventListener('change', (e) => { if (e.target.files[0]) handleFileUpload(e.target.files[0]); });
     elements.pasteBtn.addEventListener('click', async ()=>{
-      elements.updatedBox.focus();
       const text = await robustPaste();
       if(text !== undefined && text !== null){
         elements.updatedBox.value = text;
@@ -606,8 +669,8 @@
     }
 
     setEventListeners();
-    setupTextAreaToolbar(elements.originalBox, elements.fontSmallerOriginal, elements.fontLargerOriginal, elements.findInputOriginal, elements.scrollTopOriginal);
-    setupTextAreaToolbar(elements.updatedBox, elements.fontSmallerUpdated, elements.fontLargerUpdated, elements.findInputUpdated, elements.scrollTopUpdated);
+    setupTextAreaToolbar('original', elements.originalBox, elements.fontSizeSelectOriginal, elements.findInputOriginal, elements.findResultsOriginal, elements.findPrevOriginal, elements.findNextOriginal);
+    setupTextAreaToolbar('updated', elements.updatedBox, elements.fontSizeSelectUpdated, elements.findInputUpdated, elements.findResultsUpdated, elements.findPrevUpdated, elements.findNextUpdated);
     
     try{
       elements.userInput.value = DEFAULT_USER;
