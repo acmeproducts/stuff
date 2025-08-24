@@ -274,10 +274,25 @@
             }
 
             async getFolders() {
-                const response = await this.makeApiCall('/me/drive/special/downloads');
-                const downloadsFolder = { id: response.id, name: response.name };
-                this.breadcrumb = [downloadsFolder];
-                return this.loadFoldersInParent(downloadsFolder.id);
+                try {
+                    const response = await this.makeApiCall('/me/drive/root/children');
+                    const downloadsFolder = response.value.find(item => 
+                        item.folder && 
+                        (item.name.toLowerCase() === 'downloads' || item.name.toLowerCase() === 'download')
+                    );
+                    
+                    if (downloadsFolder) {
+                        this.breadcrumb = [{ id: downloadsFolder.id, name: downloadsFolder.name }];
+                        return this.loadFoldersInParent(downloadsFolder.id);
+                    }
+                    
+                    this.breadcrumb = [{ id: 'root', name: 'Root' }];
+                    return this.loadFoldersInParent('root');
+                } catch (error) {
+                    console.warn('Could not find Downloads folder, using root:', error);
+                    this.breadcrumb = [{ id: 'root', name: 'Root' }];
+                    return this.loadFoldersInParent('root');
+                }
             }
 
             async loadFoldersInParent(parentId) {
