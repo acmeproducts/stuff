@@ -1,4 +1,4 @@
-<!-- orbital8-v23-Aug-536 - 2025-08-23 11:25 PM -->
+<!-- orbital8-v23-Aug-536 - 2025-08-23 11:55 PM -->
 <!-- OneDrive Metadata Refactor: Replaced tags.json with Microsoft Graph Open Extensions -->
 <!-- Functionally identical to v22-Aug-535 with improved metadata handling for OneDrive -->
 <!DOCTYPE html>
@@ -593,7 +593,7 @@
             
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">orbital8-v23-Aug-536 - 2025-08-23 11:25 PM - OneDrive Metadata Refactor</div>
+        <div class="app-footer">orbital8-v23-Aug-536 - 2025-08-23 11:55 PM - OneDrive Metadata Refactor</div>
     </div>
     
     <!-- Google Drive Auth Screen -->
@@ -606,7 +606,7 @@
             <button class="button" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
-        <div class="app-footer">orbital8-v23-Aug-536 - 2025-08-23 11:25 PM - OneDrive Metadata Refactor</div>
+        <div class="app-footer">orbital8-v23-Aug-536 - 2025-08-23 11:55 PM - OneDrive Metadata Refactor</div>
     </div>
     
     <!-- OneDrive Auth Screen -->
@@ -618,7 +618,7 @@
             <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
-        <div class="app-footer">orbital8-v23-Aug-536 - 2025-08-23 11:25 PM - OneDrive Metadata Refactor</div>
+        <div class="app-footer">orbital8-v23-Aug-536 - 2025-08-23 11:55 PM - OneDrive Metadata Refactor</div>
     </div>
     
     <!-- Google Drive Folder Screen -->
@@ -633,7 +633,7 @@
                 <button class="folder-button danger" id="gdrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v23-Aug-536 - 2025-08-23 11:25 PM - OneDrive Metadata Refactor</div>
+        <div class="app-footer">orbital8-v23-Aug-536 - 2025-08-23 11:55 PM - OneDrive Metadata Refactor</div>
     </div>
     
     <!-- OneDrive Folder Screen -->
@@ -648,7 +648,7 @@
                 <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v23-Aug-536 - 2025-08-23 11:25 PM - OneDrive Metadata Refactor</div>
+        <div class="app-footer">orbital8-v23-Aug-536 - 2025-08-23 11:55 PM - OneDrive Metadata Refactor</div>
     </div>
     
     <!-- Loading Screen -->
@@ -662,7 +662,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">orbital8-v23-Aug-536 - 2025-08-23 11:25 PM - OneDrive Metadata Refactor</div>
+        <div class="app-footer">orbital8-v23-Aug-536 - 2025-08-23 11:55 PM - OneDrive Metadata Refactor</div>
     </div>
     
     <!-- Main App Container -->
@@ -703,7 +703,7 @@
         </button>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">orbital8-v23-Aug-536 - 2025-08-23 11:25 PM - OneDrive Metadata Refactor</div>
+        <div class="app-footer">orbital8-v23-Aug-536 - 2025-08-23 11:55 PM - OneDrive Metadata Refactor</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -1082,35 +1082,54 @@
                 }
             },
             
+            async _getAuthenticatedImageUrl(file) {
+                // Use pre-authenticated download URL if available
+                if (file.downloadUrl) {
+                    return file.downloadUrl;
+                }
+
+                // Fallback: Fetch image data with token and create a local blob URL
+                try {
+                    const accessToken = await appState.currentProvider.getAccessToken();
+                    const response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` }
+                    });
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+                    }
+                    const blob = await response.blob();
+                    return URL.createObjectURL(blob);
+                } catch (error) {
+                    console.error('Failed to fetch authenticated image:', error);
+                    // Return a placeholder if the authenticated fetch fails
+                    return 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
+                }
+            },
+
             async setImageSrc(img, file) {
                 const loadId = file.id + '_' + Date.now();
                 appState.currentImageLoadId = loadId;
 
-                let imageUrl = this.generateImageUrl(file);
+                let imageUrl;
+                if (appState.currentProviderType === 'onedrive') {
+                    imageUrl = await this._getAuthenticatedImageUrl(file);
+                } else {
+                    imageUrl = this.generateImageUrl(file);
+                }
                 
                 return new Promise((resolve) => {
                     img.onload = () => {
                         if (appState.currentImageLoadId !== loadId) return;
+                        // For blob URLs, revoke them after load to free up memory
+                        if (imageUrl.startsWith('blob:')) {
+                            URL.revokeObjectURL(imageUrl);
+                        }
                         resolve();
                     };
                     img.onerror = () => {
                         if (appState.currentImageLoadId !== loadId) return;
-
-                        let fallbackUrl;
-                        if (appState.currentProviderType === 'googledrive') {
-                            fallbackUrl = file.thumbnailLink ? 
-                                file.thumbnailLink.replace('=s220', '=s800') :
-                                `https://drive.google.com/thumbnail?id=${file.id}&sz=w800`;
-                        } else {
-                            fallbackUrl = file.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
-                        }
-                        
-                        img.onerror = () => {
-                            if (appState.currentImageLoadId !== loadId) return;
-                            img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
-                            resolve();
-                        };
-                        img.src = fallbackUrl;
+                        img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
+                        resolve();
                     };
                     img.src = imageUrl;
                     img.alt = file.name || 'Image';
@@ -1118,16 +1137,18 @@
             },
             
             generateImageUrl(file) {
+                // This function is now primarily for Google Drive and as a non-authenticated fallback for OneDrive thumbnails
                 if (appState.currentProviderType === 'googledrive') {
                     if (file.thumbnailLink) {
                         return file.thumbnailLink.replace('=s220', '=s1000');
                     }
                     return `https://drive.google.com/thumbnail?id=${file.id}&sz=w1000`;
-                } else {
+                } else { // OneDrive
                     if (file.thumbnails && file.thumbnails.large) {
                         return file.thumbnails.large.url;
                     }
-                    return file.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
+                    // The primary loading is now handled by _getAuthenticatedImageUrl
+                    return file.downloadUrl || ''; 
                 }
             },
             
