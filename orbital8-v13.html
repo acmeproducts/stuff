@@ -1,10 +1,10 @@
-<!-- orbital8-v13-poc - 2025-08-24 03:10 AM -->
+<!-- orbital8-v13.1-poc - 2025-08-24 03:45 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
-    <title>Orbital8 v13 - OneDrive Metadata POC</title>
+    <title>Orbital8 v13.1 - OneDrive Metadata POC</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
         :root {
@@ -56,7 +56,7 @@
         }
         .folder-item:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(245, 158, 11, 0.3); transform: translateY(-1px); }
         .folder-icon { width: 20px; height: 20px; margin-right: 12px; color: var(--app-accent); }
-        .folder-info { flex: 1; }
+        .folder-info { flex: 1; text-align: left; }
         .folder-name { font-weight: 500; margin-bottom: 2px; }
         .folder-date { font-size: 12px; color: rgba(255, 255, 255, 0.6); }
         .folder-actions { display: flex; gap: 8px; }
@@ -112,7 +112,7 @@
             </button>
             <div id="provider-status" class="status info">This is a Proof of Concept to test OneDrive metadata APIs.</div>
         </div>
-        <div class="app-footer">orbital8-v13-poc - 2025-08-24 03:10 AM</div>
+        <div class="app-footer">orbital8-v13.1-poc - 2025-08-24 03:45 AM</div>
     </div>
     
     <!-- OneDrive Auth Screen -->
@@ -124,7 +124,7 @@
             <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
-        <div class="app-footer">orbital8-v13-poc - 2025-08-24 03:10 AM</div>
+        <div class="app-footer">orbital8-v13.1-poc - 2025-08-24 03:45 AM</div>
     </div>
     
     <!-- OneDrive Folder Screen -->
@@ -139,7 +139,7 @@
                 <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v13-poc - 2025-08-24 03:10 AM</div>
+        <div class="app-footer">orbital8-v13.1-poc - 2025-08-24 03:45 AM</div>
     </div>
 
     <!-- POC Log Screen -->
@@ -147,13 +147,16 @@
         <div class="card">
             <h2 class="title">POC - API Test Log</h2>
             <div id="poc-log-output"></div>
-            <button class="button" id="poc-back-button" style="margin-top: 20px;">← Back to Folders</button>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="button" id="poc-copy-button" style="margin-bottom: 0; font-size: 16px; padding: 12px;">Copy Log</button>
+                <button class="button" id="poc-back-button" style="margin-bottom: 0; font-size: 16px; padding: 12px; background: rgba(128,128,128,0.3);">← Back to Folders</button>
+            </div>
         </div>
-        <div class="app-footer">orbital8-v13-poc - 2025-08-24 03:10 AM</div>
+        <div class="app-footer">orbital8-v13.1-poc - 2025-08-24 03:45 AM</div>
     </div>
 
     <script>
-        // ===== ORBITAL8 V13-POC - OneDrive Metadata POC =====
+        // ===== ORBITAL8 V13.1-POC - OneDrive Metadata POC =====
         const appState = {
             currentProvider: null,
         };
@@ -176,6 +179,7 @@
                     onedriveBackToProvider: document.getElementById('onedrive-back-to-provider'),
                     onedriveLogout: document.getElementById('onedrive-logout'),
                     pocLogOutput: document.getElementById('poc-log-output'),
+                    pocCopyButton: document.getElementById('poc-copy-button'),
                     pocBackButton: document.getElementById('poc-back-button'),
                 };
             },
@@ -191,6 +195,16 @@
                 span.textContent = message + '\n';
                 logEl.appendChild(span);
                 logEl.scrollTop = logEl.scrollHeight;
+            },
+            copyLogToClipboard() {
+                const logText = this.elements.pocLogOutput.textContent;
+                navigator.clipboard.writeText(logText).then(() => {
+                    const btn = this.elements.pocCopyButton;
+                    btn.textContent = 'Copied!';
+                    setTimeout(() => { btn.textContent = 'Copy Log'; }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy log: ', err);
+                });
             }
         };
 
@@ -241,32 +255,56 @@
                 const url = `${this.apiBase}${endpoint}`;
                 const headers = { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', ...options.headers };
                 const response = await fetch(url, { ...options, headers });
+                
                 if (!response.ok) {
                     const errorText = await response.text();
-                    throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`);
+                    throw new Error(`API call failed: ${response.status} - ${errorText}`);
                 }
-                if (response.status === 204 || response.status === 201) return response; // Handle no-content responses
+                
+                if (response.status === 204 || (response.status === 201 && options.method === 'POST')) {
+                    return response; // Handle no-content/created responses
+                }
+                
                 return response.json();
             }
 
-            async getInitialFolders() {
-                const response = await this.makeApiCall('/me/drive/root/children');
-                const downloadsFolder = response.value.find(item => item.folder && item.name.toLowerCase().includes('downloads')) || { id: 'root', name: 'Root' };
-                this.breadcrumb = [{ id: downloadsFolder.id, name: downloadsFolder.name }];
+            async getFolders() {
+                const response = await this.makeApiCall('/me/drive/special/downloads');
+                const downloadsFolder = { id: response.id, name: response.name };
+                this.breadcrumb = [downloadsFolder];
                 return this.loadFoldersInParent(downloadsFolder.id);
             }
 
             async loadFoldersInParent(parentId) {
-                const endpoint = parentId === 'root' ? '/me/drive/root/children' : `/me/drive/items/${parentId}/children`;
-                const response = await this.makeApiCall(endpoint);
-                return response.value.filter(item => item.folder).map(folder => ({
-                    id: folder.id, name: folder.name, hasChildren: (folder.folder.childCount || 0) > 0,
-                    modifiedTime: folder.lastModifiedDateTime, itemCount: folder.folder.childCount || 0
-                })).sort((a, b) => a.name.localeCompare(b.name));
+                const endpoint = `/me/drive/items/${parentId}/children`;
+                const data = await this.makeApiCall(endpoint);
+                return data.value
+                    .filter(item => item.folder)
+                    .map(folder => ({
+                        id: folder.id, name: folder.name, type: 'folder',
+                        createdTime: folder.createdDateTime, modifiedTime: folder.lastModifiedDateTime,
+                        itemCount: folder.folder.childCount || 0, hasChildren: (folder.folder.childCount || 0) > 0
+                    }))
+                    .sort((a, b) => a.name.localeCompare(b.name));
+            }
+            
+            async drillIntoFolder(folder) {
+                this.breadcrumb.push({ id: folder.id, name: folder.name });
+                return this.loadFoldersInParent(folder.id);
             }
 
+            async navigateToParent() {
+                if (this.breadcrumb.length <= 1) return this.getFolders();
+                this.breadcrumb.pop();
+                const parentFolder = this.breadcrumb[this.breadcrumb.length - 1];
+                return this.loadFoldersInParent(parentFolder.id);
+            }
+
+            getCurrentPath() { return this.breadcrumb.map(b => b.name).join(' / '); }
+            canGoUp() { return this.breadcrumb.length > 1; }
+
             async getFilesForPoc(folderId) {
-                const endpoint = `/me/drive/items/${folderId}/children?$filter=image ne null`;
+                const endpoint = `/me/drive/items/${folderId}/children`;
                 const response = await this.makeApiCall(endpoint);
                 return response.value;
             }
@@ -353,7 +391,7 @@
             
             try {
                 const files = await appState.currentProvider.getFilesForPoc(folderId);
-                const imageFile = files.find(f => f.image);
+                const imageFile = files.find(f => f.file && f.file.mimeType.startsWith('image/'));
 
                 if (!imageFile) {
                     utils.logToScreen('ERROR: No image files found in the selected folder. Please select another folder.', 'error');
@@ -364,7 +402,6 @@
 
                 const pocManager = new PocMetadataManager(appState.currentProvider);
                 
-                // Sequence of tests
                 await pocManager.testGetExtension(imageFile.id, "Initial Check - Expect Fail");
                 await pocManager.testCreateExtension(imageFile.id);
                 await pocManager.testGetExtension(imageFile.id, "After Create");
@@ -383,38 +420,40 @@
         function setupEventHandlers() {
             utils.elements.onedriveBtn.addEventListener('click', async () => {
                 utils.showScreen('onedrive-auth-screen');
-                utils.elements.onedriveAuthButton.disabled = true;
-                utils.elements.onedriveAuthStatus.textContent = 'Connecting...';
-                try {
-                    const provider = new OneDriveProvider();
-                    await provider.authenticate();
-                    appState.currentProvider = provider;
-                    utils.showScreen('onedrive-folder-screen');
-                    loadOneDriveFolders();
-                } catch (error) {
-                    utils.elements.onedriveAuthStatus.textContent = `Authentication failed: ${error.message}`;
-                } finally {
-                    utils.elements.onedriveAuthButton.disabled = false;
-                }
             });
-            utils.elements.onedriveAuthButton.addEventListener('click', () => utils.elements.onedriveBtn.click());
+            utils.elements.onedriveAuthButton.addEventListener('click', async () => {
+                 utils.elements.onedriveAuthButton.disabled = true;
+                 utils.elements.onedriveAuthStatus.textContent = 'Connecting...';
+                 try {
+                     const provider = new OneDriveProvider();
+                     await provider.authenticate();
+                     appState.currentProvider = provider;
+                     utils.showScreen('onedrive-folder-screen');
+                     loadOneDriveFolders();
+                 } catch (error) {
+                     utils.elements.onedriveAuthStatus.textContent = `Authentication failed: ${error.message}`;
+                 } finally {
+                     utils.elements.onedriveAuthButton.disabled = false;
+                 }
+            });
             utils.elements.onedriveBackButton.addEventListener('click', () => utils.showScreen('provider-screen'));
             utils.elements.onedriveBackToProvider.addEventListener('click', () => utils.showScreen('provider-screen'));
-            utils.elements.onedriveRefreshFolders.addEventListener('click', () => loadOneDriveFolders());
             utils.elements.onedriveLogout.addEventListener('click', async () => {
                 if (appState.currentProvider) await appState.currentProvider.disconnect();
                 utils.showScreen('provider-screen');
             });
             utils.elements.pocBackButton.addEventListener('click', () => utils.showScreen('onedrive-folder-screen'));
+            utils.elements.pocCopyButton.addEventListener('click', () => utils.copyLogToClipboard());
         }
 
         async function loadOneDriveFolders() {
             utils.elements.onedriveFolderList.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);"><div class="spinner"></div><span>Loading folders...</span></div>`;
             try {
-                const folders = await appState.currentProvider.getInitialFolders();
+                const folders = await appState.currentProvider.getFolders();
                 displayOneDriveFolders(folders);
+                updateOneDriveNavigation();
             } catch (error) {
-                // Handle error
+                utils.elements.onedriveFolderList.innerHTML = `<div style="text-align: center; padding: 40px; color: #ef4444;">Failed to load folders: ${error.message}</div>`;
             }
         }
 
@@ -422,23 +461,49 @@
             const listEl = utils.elements.onedriveFolderList;
             listEl.innerHTML = '';
             if (folders.length === 0) {
-                listEl.innerHTML = `<div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);"><span>No folders found.</span></div>`;
-                return;
+                listEl.innerHTML = `<div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);"><span>No sub-folders found.</span></div>`;
             }
             folders.forEach(folder => {
                 const div = document.createElement('div');
                 div.className = 'folder-item';
                 div.innerHTML = `
                     <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
-                    <div class="folder-info"><div class="folder-name">${folder.name}</div><div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()}</div></div>
-                    <div class="folder-actions"><button class="folder-action-btn select-btn" data-folder-id="${folder.id}">Select</button></div>
+                    <div class="folder-info">
+                        <div class="folder-name">${folder.name}</div>
+                        <div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()} • ${folder.itemCount} items</div>
+                    </div>
+                    <div class="folder-actions">
+                        ${folder.hasChildren ? `<button class="folder-action-btn drill-btn" data-folder-id="${folder.id}" data-folder-name="${folder.name}">Browse →</button>` : ''}
+                        <button class="folder-action-btn select-btn" data-folder-id="${folder.id}">Select</button>
+                    </div>
                 `;
-                div.querySelector('.select-btn').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    runPoc(folder.id);
-                });
+                div.querySelector('.select-btn').addEventListener('click', (e) => { e.stopPropagation(); runPoc(folder.id); });
+                if (folder.hasChildren) {
+                    div.querySelector('.drill-btn').addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const subfolders = await appState.currentProvider.drillIntoFolder(folder);
+                        displayOneDriveFolders(subfolders);
+                        updateOneDriveNavigation();
+                    });
+                }
                 listEl.appendChild(div);
             });
+        }
+        
+        function updateOneDriveNavigation() {
+            utils.elements.onedriveFolderSubtitle.textContent = `Current: ${appState.currentProvider.getCurrentPath()}`;
+            const refreshBtn = utils.elements.onedriveRefreshFolders;
+            if (appState.currentProvider.canGoUp()) {
+                refreshBtn.textContent = '← Go Up';
+                refreshBtn.onclick = async () => {
+                    const folders = await appState.currentProvider.navigateToParent();
+                    displayOneDriveFolders(folders);
+                    updateOneDriveNavigation();
+                };
+            } else {
+                refreshBtn.textContent = 'Refresh';
+                refreshBtn.onclick = () => loadOneDriveFolders();
+            }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
