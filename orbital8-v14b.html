@@ -1,6 +1,6 @@
-<!-- orbital8-v24-Aug-538 - 2025-08-24 02:58 AM -->
-<!-- Stable Revert to v22-Aug-535 Functionality -->
-<!-- Functionally identical to baseline v12.3 with improved code organization -->
+<!-- orbital8-v25-Aug-539 - 2025-08-24 05:45 AM -->
+<!-- Phased OneDrive Metadata Implementation: Phase 1 - Read-Only -->
+<!-- This version correctly reads metadata from OneDrive Open Extensions -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,14 +8,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V24-Aug-538 - Stable Revert</title>
+    <title>Orbital8 V25-Aug-539 - Phased Implementation</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V24-Aug-538 - Stable Revert ===== */
+        /* ===== ORBITAL8 V25-Aug-539 - Phased OneDrive Metadata Implementation ===== */
         /* Changes in this version:
-           - Reverted to the codebase of v22-Aug-535 to establish a stable baseline.
-           - All functionality, including the original tags.json method for OneDrive, is restored.
-           - This version serves as the foundation for a new, phased implementation of the OneDrive metadata feature.
+           - Phase 1 (Read-Only): Implemented the logic to correctly read Open Extension metadata from OneDrive files.
+           - Modified OneDriveProvider to fetch extensions via the $select parameter.
+           - Reworked OneDriveMetadataManager to parse metadata directly from the file object's `extensions` property.
+           - Write/save operations for OneDrive still use the legacy tags.json method for now.
         */
         
         :root {
@@ -2402,6 +2403,11 @@
                 try {
                     Utils.elements.loadingMessage.textContent = `Loading images from ${appState.currentProviderType}...`;
                     
+                    // For OneDrive, we need to load the metadata file first
+                    if (appState.currentProviderType === 'onedrive') {
+                        await appState.currentProvider.metadataManager.loadMetadata();
+                    }
+                    
                     const result = await appState.currentProvider.getFiles(appState.currentFolder.id);
                     const files = result.files || [];
                     
@@ -2441,9 +2447,7 @@
                 if (appState.currentProviderType === 'googledrive') {
                     userMetadata = appState.currentProvider.metadataManager.getUserMetadata(file.id, file.appProperties);
                 } else {
-                    userMetadata = appState.currentProvider.metadataManager ? 
-                        appState.currentProvider.metadataManager.getUserMetadata(file) :
-                        { stack: 'in', tags: [], qualityRating: 0, contentRating: 0, notes: '', stackSequence: 0 };
+                    userMetadata = appState.currentProvider.metadataManager.getUserMetadata(file.id);
                 }
                 
                 // Populate the global tags set
