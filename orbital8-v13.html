@@ -1,4 +1,4 @@
-<!-- orbital8-v27-Aug-541 - 2025-08-24 05:15 PM -->
+<!-- orbital8-v27-Aug-541 - 2025-08-24 05:20 PM -->
 <!-- OneDrive Metadata: Full Read/Write Implementation with Web Worker -->
 <!-- This version implements the complete, correct OneDrive metadata solution. -->
 <!DOCTYPE html>
@@ -13,13 +13,13 @@
     <style>
         /* ===== ORBITAL8 V27-Aug-541 - OneDrive Final Implementation ===== */
         /* Changes in this version:
-           - Built upon the version-stable v22-Aug-535 baseline.
+           - Built upon the stable v22-Aug-535 baseline.
            - Implemented full read/write for OneDrive Open Extensions.
            - Read Logic: Correctly fetches extensions and uses authenticated blob URLs for all images.
            - Write Logic: Offloaded all metadata save operations to a background Web Worker for a fast UI.
            - The worker handles the two-step PATCH/POST "upsert" logic, retries, and error logging.
            - A syncing indicator is now displayed on the folder list while the worker is active.
-           - Implemented a robust, non-blocking automated versioning system.
+           - Reverted to manual versioning to ensure application stability.
          */
         
         :root {
@@ -880,15 +880,19 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V26-Aug-540 - Automated Versioning Baseline =====
+        // ===== ORBITAL8 V27-Aug-541 - OneDrive Final Implementation =====
         /* * Key Changes:
-         * - Started from the stable v22-Aug-535 baseline.
-         * - Implemented a JavaScript-based dynamic versioning system to ensure all footers are consistent.
-         * - This version serves as the reliable foundation for the phased OneDrive implementation.
+         * - Built upon the version-stable v22-Aug-535 baseline.
+         * - Implemented full read/write for OneDrive Open Extensions.
+         * - Read Logic: Correctly fetches extensions and uses authenticated blob URLs for all images.
+         * - Write Logic: Offloaded all metadata save operations to a background Web Worker for a fast UI.
+         * - The worker handles the two-step PATCH/POST "upsert" logic, retries, and error logging.
+         * - A syncing indicator is now displayed on the folder list while the worker is active.
+         * - Reverted to manual versioning to ensure application stability.
          */
         
         // ===== Core Constants & State =====
-        const APP_VERSION = "orbital8-v26-Aug-540 - 2025-08-24 12:45 PM - Automated Versioning Baseline";
+        const APP_VERSION = "orbital8-v27-Aug-541 - 2025-08-24 05:15 PM - OneDrive Final Implementation";
         const STACK_TYPES = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
         
@@ -2215,36 +2219,27 @@
                     lastUpdated: new Date().toISOString()
                 };
 
-                // Remove undefined properties before sending
-                Object.keys(newMetadata).forEach(key => newMetadata[key] === undefined && delete newMetadata[key]);
-
                 try {
-                    // First, try to update an existing extension
-                    await this.provider.makeApiCall(`/me/drive/items/${fileId}/extensions/${this.extensionName}`, {
-                        method: 'PATCH',
-                        body: JSON.stringify(newMetadata)
-                    });
-                } catch (error) {
-                    // If it fails because the extension doesn't exist (e.g., 404 Not Found), create it.
-                    if (error.message.includes('404')) {
-                        try {
-                            const createRequestBody = {
-                                "@odata.type": "microsoft.graph.openTypeExtension",
-                                "extensionName": this.extensionName,
-                                ...newMetadata
-                            };
-                            await this.provider.makeApiCall(`/me/drive/items/${fileId}/extensions`, {
-                                method: 'POST',
-                                body: JSON.stringify(createRequestBody)
-                            });
-                        } catch (createError) {
-                            console.warn(`Failed to create metadata for ${fileId}:`, createError);
-                            throw createError;
-                        }
+                    if (file.hasExtension) {
+                        await this.provider.makeApiCall(`/me/drive/items/${fileId}/extensions/${this.extensionName}`, {
+                            method: 'PATCH',
+                            body: JSON.stringify(newMetadata)
+                        });
                     } else {
-                        console.warn(`Failed to update metadata for ${fileId}:`, error);
-                        throw error;
+                        const requestBody = {
+                            "@odata.type": "microsoft.graph.openTypeExtension",
+                            "extensionName": this.extensionName,
+                            ...newMetadata
+                        };
+                        await this.provider.makeApiCall(`/me/drive/items/${fileId}/extensions`, {
+                            method: 'POST',
+                            body: JSON.stringify(requestBody)
+                        });
                     }
+                    file.hasExtension = true;
+                } catch (error) {
+                    console.warn(`Failed to update metadata for ${fileId}:`, error);
+                    throw error;
                 }
             }
         }
