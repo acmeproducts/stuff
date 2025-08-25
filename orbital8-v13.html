@@ -1,13 +1,11 @@
-<!-- orbital8-v57 - 2025-08-25 03:17 PM -->
-<!-- CSP 'eval' fix (worker removed) & label association fix -->
+<!-- orbital8-v58 - 2025-08-25 04:05 PM -->
+<!-- LOC Reduction Refactor of baseline v22-Aug-535 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V57 - Refactored</title>
+    <title>Orbital8 V58 - Refactored</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
         :root {
@@ -55,7 +53,7 @@
         .folder-item { display: flex; align-items: center; padding: 12px 16px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; cursor: pointer; transition: all 0.2s ease; color: white; justify-content: space-between; }
         .folder-item:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(245, 158, 11, 0.3); transform: translateY(-1px); }
         .folder-icon { width: 20px; height: 20px; margin-right: 12px; color: var(--app-accent); }
-        .folder-info { flex: 1; display: flex; align-items: center; gap: 8px; } .folder-name { font-weight: 500; }
+        .folder-info { flex: 1; } .folder-name { font-weight: 500; margin-bottom: 2px; }
         .folder-date { font-size: 12px; color: rgba(255, 255, 255, 0.6); }
         .folder-actions { display: flex; gap: 8px; margin-left: 12px; }
         .folder-action-btn { padding: 6px 12px; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 8px; background: rgba(255, 255, 255, 0.1); color: white; font-size: 12px; cursor: pointer; transition: all 0.2s ease; backdrop-filter: blur(10px); }
@@ -65,7 +63,6 @@
         .folder-action-btn.select-btn { border-color: rgba(16, 185, 129, 0.4); color: #10b981; }
         .folder-action-btn.select-btn:hover { background: rgba(16, 185, 129, 0.2); }
         .spinner { width: 20px; height: 20px; border: 2px solid rgba(245, 158, 11, 0.3); border-radius: 50%; border-top-color: var(--app-accent); animation: spin 1s linear infinite; margin-right: 12px; }
-        .sync-spinner { width: 14px; height: 14px; border-width: 2px; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .loading-counter { color: var(--app-accent); font-size: 48px; font-weight: 700; margin: 20px 0; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8); }
         .loading-message { color: rgba(255, 255, 255, 0.7); font-size: 16px; margin-bottom: 20px; }
@@ -214,7 +211,7 @@
             </div>
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer" id="master-footer">orbital8-v57 - 2025-08-25 03:17 PM</div>
+        <div class="app-footer" id="master-footer">orbital8-v58 - 2025-08-25 03:36 PM</div>
     </div>
     
     <!-- Auth & Folder Screens -->
@@ -381,7 +378,7 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V57 - CSP & Label Fix =====
+        // ===== ORBITAL8 V58 - Refactored Baseline =====
         const $ = (id) => document.getElementById(id);
         const STACK_TYPES = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
@@ -730,13 +727,12 @@
             canGoUp() { return this.breadcrumb.length > 1; }
             async getFiles(folderId = 'root') {
                 const allFiles = []; let nextLink = null;
-                const selectFields = 'id,name,file,size,createdDateTime,lastModifiedDateTime,thumbnails,@microsoft.graph.downloadUrl,extensions';
-                let endpoint = folderId === 'root' ? `/me/drive/root/children?$select=${selectFields}` : `/me/drive/items/${folderId}/children?$select=${selectFields}`;
+                let endpoint = folderId === 'root' ? '/me/drive/root/children' : `/me/drive/items/${folderId}/children`;
                 do {
                     const url = nextLink || endpoint;
                     const response = nextLink ? await this.makeApiCall(nextLink.replace(this.apiBase, '')) : await this.makeApiCall(url);
                     const data = await response.json();
-                    const files = data.value.filter(item => item.file?.mimeType?.startsWith('image/')).map(item => ({ id: item.id, name: item.name, type: 'file', mimeType: item.file.mimeType, size: item.size || 0, createdTime: item.createdDateTime, modifiedTime: item.lastModifiedDateTime, thumbnails: item.thumbnails?.[0] ? { large: item.thumbnails[0].large } : null, downloadUrl: item['@microsoft.graph.downloadUrl'], extensions: item.extensions || [] }));
+                    const files = data.value.filter(item => item.file?.mimeType?.startsWith('image/')).map(item => ({ id: item.id, name: item.name, type: 'file', mimeType: item.file.mimeType, size: item.size || 0, createdTime: item.createdDateTime, modifiedTime: item.lastModifiedDateTime, thumbnails: item.thumbnails?.[0] ? { large: item.thumbnails[0].large } : null, downloadUrl: item['@microsoft.graph.downloadUrl'] }));
                     allFiles.push(...files); nextLink = data['@odata.nextLink'];
                     if (this.onProgressCallback) this.onProgressCallback(allFiles.length);
                 } while (nextLink);
@@ -776,22 +772,37 @@
         }
 
         class OneDriveMetadataManager {
-            constructor(provider) { this.provider = provider; this.extensionName = 'com.orbital8.metadata'; this.dirtyFiles = new Set(); }
-            getUserMetadata(file) {
-                const ext = file.extensions?.find(e => e.id === this.extensionName);
-                return ext ? { stack: ext.stack || 'in', tags: ext.tags || [], qualityRating: ext.qualityRating || 0, contentRating: ext.contentRating || 0, notes: ext.notes || '', stackSequence: ext.stackSequence || 0 } : { stack: 'in', tags: [], qualityRating: 0, contentRating: 0, notes: '', stackSequence: 0 };
+            constructor(provider) { this.provider = provider; this.cache = new Map(); this.cacheTimestamp = 0; this.cacheExpiry = 300000; }
+            async loadMetadata() {
+                try {
+                    const now = Date.now();
+                    if (this.cache.size > 0 && (now - this.cacheTimestamp) < this.cacheExpiry) return this.cache;
+                    const response = await this.provider.makeApiCall('/me/drive/special/approot:/tags.json:/content');
+                    const data = await response.json();
+                    if (data?.files) {
+                        this.cache.clear();
+                        Object.entries(data.files).forEach(([id, meta]) => this.cache.set(id, meta));
+                        this.cacheTimestamp = now;
+                    }
+                    return this.cache;
+                } catch (error) {
+                    if (error.message.includes('404')) { await this.saveMetadata(); return this.cache; }
+                    console.warn('Failed to load metadata:', error); return this.cache;
+                }
             }
-            async updateUserMetadata(fileId, updates) { const file = appState.imageFiles.find(f => f.id === fileId); if (file) { Object.assign(file, updates); this.dirtyFiles.add(fileId); } }
-            async saveMetadataForFile(file) {
-                const metadataPayload = {
-                    '@odata.type': 'microsoft.graph.openTypeExtension', extensionName: this.extensionName,
-                    stack: file.stack, tags: file.tags, qualityRating: file.qualityRating,
-                    contentRating: file.contentRating, notes: file.notes, stackSequence: file.stackSequence
-                };
-                const endpoint = file.hasExtension ? `/me/drive/items/${file.id}/extensions/${this.extensionName}` : `/me/drive/items/${file.id}/extensions`;
-                await this.provider.makeApiCall(endpoint, { method: file.hasExtension ? 'PATCH' : 'POST', body: JSON.stringify(metadataPayload) });
-                if (!file.hasExtension) file.hasExtension = true;
+            async saveMetadata() {
+                try {
+                    const data = { version: 1, lastModified: new Date().toISOString(), files: Object.fromEntries(this.cache) };
+                    await this.provider.makeApiCall('/me/drive/special/approot:/tags.json:/content', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data, null, 2) });
+                    this.cacheTimestamp = Date.now();
+                } catch (error) { console.warn('Failed to save metadata:', error); throw error; }
             }
+            getUserMetadata(fileId) { return this.cache.get(fileId) || { stack: 'in', tags: [], qualityRating: 0, contentRating: 0, notes: '', stackSequence: 0 }; }
+            async setUserMetadata(fileId, metadata) {
+                this.cache.set(fileId, { ...metadata, lastUpdated: new Date().toISOString() });
+                await this.saveMetadata(); return this.cache.get(fileId);
+            }
+            async updateUserMetadata(fileId, updates) { return await this.setUserMetadata(fileId, { ...this.getUserMetadata(fileId), ...updates }); }
         }
 
         class ExportSystem {
@@ -868,6 +879,7 @@
                 appState.currentProvider.onProgressCallback = (count) => Utils.updateLoadingProgress(count, 0);
                 try {
                     Utils.elements.loadingMessage.textContent = `Loading images from ${appState.currentProviderType}...`;
+                    if (appState.currentProviderType === 'onedrive') await appState.currentProvider.metadataManager.loadMetadata();
                     const { files } = await appState.currentProvider.getFiles(appState.currentFolder.id);
                     if (files.length === 0) { Utils.showToast('No images found in this folder', 'info', true); this.returnToFolderSelection(); return; }
                     Utils.updateLoadingProgress(files.length, files.length); Utils.elements.loadingMessage.textContent = 'Processing files...';
@@ -879,21 +891,16 @@
                 finally { if (appState.currentProvider) appState.currentProvider.onProgressCallback = null; }
             },
             processFileWithProviderMetadata(file) {
-                const userMetadata = appState.currentProvider.metadataManager.getUserMetadata(file, file.appProperties);
+                const userMetadata = appState.currentProvider.metadataManager.getUserMetadata(file.id, file.appProperties);
                 return {
                     id: file.id, name: file.name, mimeType: file.mimeType, size: file.size,
                     createdTime: file.createdTime, modifiedTime: file.modifiedTime, thumbnails: file.thumbnails,
-                    downloadUrl: file.downloadUrl, extractedMetadata: {}, metadataStatus: 'pending',
-                    hasExtension: appState.currentProviderType === 'onedrive' && file.extensions?.some(ext => ext.id === 'com.orbital8.metadata'),
-                    ...userMetadata
+                    downloadUrl: file.downloadUrl, extractedMetadata: {}, metadataStatus: 'pending', ...userMetadata
                 };
             },
             setupProviderAwareNavigation() {
                 Utils.elements.backButton.textContent = '← Folders';
-                Utils.elements.backButton.onclick = () => {
-                    if (appState.currentProviderType === 'onedrive' && appState.currentProvider.metadataManager.dirtyFiles.size > 0) MetadataSyncManager.startSync();
-                    this.returnToFolderSelection();
-                };
+                Utils.elements.backButton.onclick = () => this.returnToFolderSelection();
                 this.setupFolderTooltips();
             },
             setupFolderTooltips() {
@@ -907,6 +914,11 @@
             },
             hideTooltip() { document.querySelector('.folder-tooltip')?.remove(); },
             returnToFolderSelection() { Utils.showScreen(appState.currentProviderType === 'googledrive' ? 'gdrive-folder-screen' : 'onedrive-folder-screen'); },
+            async moveFileToStack(fileId, targetStack, sequence) {
+                const file = appState.imageFiles.find(f => f.id === fileId); if (!file) throw new Error('File not found');
+                file.stack = targetStack; file.stackSequence = sequence;
+                await appState.currentProvider.metadataManager.updateUserMetadata(fileId, { stack: targetStack, stackSequence: sequence }); return file;
+            },
             async updateUserMetadata(fileId, updates) {
                 const file = appState.imageFiles.find(f => f.id === fileId); if (!file) throw new Error('File not found');
                 Object.assign(file, updates); await appState.currentProvider.metadataManager.updateUserMetadata(fileId, updates);
@@ -989,7 +1001,7 @@
                     const [item] = stack.splice(appState.currentStackPosition, 1); item.stackSequence = newSequence; stack.push(item);
                 } else {
                     const newSequence = Date.now();
-                    await MasterController.updateUserMetadata(image.id, { stack: targetStack, stackSequence: newSequence });
+                    await MasterController.moveFileToStack(image.id, targetStack, newSequence);
                     const [item] = stack.splice(appState.currentStackPosition, 1); item.stack = targetStack; item.stackSequence = newSequence;
                     appState.stacks[targetStack].unshift(item); appState.stacks[targetStack] = this.sortFiles(appState.stacks[targetStack]);
                 }
@@ -1281,7 +1293,7 @@
                 await this.executeBulkAction(async (fileId) => {
                     const file = appState.imageFiles.find(f => f.id === fileId); if (!file) return;
                     const currentStack = file.stack; const newSequence = Date.now();
-                    await MasterController.updateUserMetadata(fileId, { stack: targetStack, stackSequence: newSequence });
+                    await MasterController.moveFileToStack(fileId, targetStack, newSequence);
                     const idx = appState.stacks[currentStack].findIndex(f => f.id === fileId); if (idx > -1) appState.stacks[currentStack].splice(idx, 1);
                     file.stackSequence = newSequence; appState.stacks[targetStack].unshift(file);
                     appState.stacks[targetStack] = CommonFunctions.sortFiles(appState.stacks[targetStack]);
@@ -1293,7 +1305,7 @@
                 await this.executeBulkAction(async (fileId) => {
                     const file = appState.imageFiles.find(f => f.id === fileId); if (!file) return;
                     const newTags = [...new Set([...(file.tags || []), ...tagsToAdd])];
-                    await MasterController.updateUserMetadata(file.id, { tags: newTags });
+                    await MasterController.updateUserMetadata(fileId, { tags: newTags });
                     tagsToAdd.forEach(tag => appState.tags.add(tag));
                 }, `Tags added to {count} images`, { refreshGrid: false });
             },
@@ -1410,18 +1422,15 @@
                 this.updateOneDriveNavigation();
             },
             createFolderElement(folder, provider) {
-                const div = document.createElement('div'); div.className = 'folder-item'; div.dataset.folderId = folder.id;
+                const div = document.createElement('div'); div.className = 'folder-item';
                 const isOneDrive = provider === 'onedrive';
                 const hasChildren = isOneDrive && folder.hasChildren;
                 const iconColor = hasChildren ? 'var(--app-accent)' : 'rgba(255, 255, 255, 0.6)';
                 const dateInfo = isOneDrive ? `${new Date(folder.modifiedTime).toLocaleDateString()} • ${folder.itemCount} items ${hasChildren ? '• Has subfolders' : ''}` : new Date(folder.modifiedTime).toLocaleDateString();
                 div.innerHTML = `
-                    <div class="folder-info">
-                        ${isOneDrive ? '<div class="spinner sync-spinner hidden" style="margin-right: 8px;"></div>' : ''}
-                        <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: ${iconColor};"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
-                        <div><div class="folder-name">${folder.name}</div><div class="folder-date">${dateInfo}</div></div>
-                    </div>
-                    ${isOneDrive ? `<div class="folder-actions">${hasChildren ? `<button class="folder-action-btn drill-btn">Browse →</button>` : ''}<button class="folder-action-btn select-btn">Select</button></div>` : ''}`;
+                    <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: ${iconColor};"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                    <div class="folder-info"><div class="folder-name">${folder.name}</div><div class="folder-date">${dateInfo}</div></div>
+                    ${isOneDrive ? `<div class="folder-actions">${hasChildren ? `<button class="folder-action-btn drill-btn" data-folder-id="${folder.id}">Browse →</button>` : ''}<button class="folder-action-btn select-btn" data-folder-id="${folder.id}">Select</button></div>` : ''}`;
                 const clickHandler = () => {
                     if (appState.folderMoveMode.active) this.handleFolderMoveSelection(folder.id, folder.name);
                     else MasterController.initializeWithProvider(provider, folder.id, folder.name, appState.currentProvider);
@@ -1553,7 +1562,7 @@
         const EventHandlers = {
             init() {
                 this.setupProviderSelection(); this.setupSettings(); this.setupAuth(); this.setupFolderManagement();
-                this.setupModalsAndUI(); this.setupKeyboardNavigation(); this.setupSyncTriggers();
+                this.setupModalsAndUI(); this.setupKeyboardNavigation();
             },
             setupProviderSelection() {
                 Utils.elements.googleDriveBtn.onclick = () => AppController.selectProvider('googledrive');
@@ -1629,54 +1638,6 @@
                     if (e.key === 'Tab') { e.preventDefault(); UtilityFunctions.cycleThroughProxTabs(); }
                     if (e.key === 'Escape') MasterController.returnToFolderSelection();
                 });
-            },
-            setupSyncTriggers() {
-                const trySync = () => { if (appState.currentProviderType === 'onedrive' && appState.currentProvider?.metadataManager?.dirtyFiles.size > 0) MetadataSyncManager.startSync(); };
-                document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') trySync(); });
-                window.addEventListener('beforeunload', () => trySync());
-            }
-        };
-
-        const MetadataSyncManager = {
-            isSyncing: false,
-            async startSync() {
-                if (this.isSyncing) return;
-                const dirtyFileIds = Array.from(appState.currentProvider.metadataManager.dirtyFiles);
-                if (dirtyFileIds.length === 0) return;
-
-                this.isSyncing = true;
-                Utils.showToast(`Syncing ${dirtyFileIds.length} changes...`, 'info');
-                this.updateFolderSyncStatus(appState.currentFolder.id, true);
-
-                const filesToSync = dirtyFileIds.map(id => appState.imageFiles.find(f => f.id === id)).filter(Boolean);
-                appState.currentProvider.metadataManager.dirtyFiles.clear();
-
-                let successCount = 0;
-                const failedFiles = [];
-
-                for (const file of filesToSync) {
-                    try {
-                        await appState.currentProvider.metadataManager.saveMetadataForFile(file);
-                        successCount++;
-                    } catch (error) {
-                        console.error(`Failed to sync metadata for ${file.id}:`, error);
-                        failedFiles.push(file.id);
-                    }
-                }
-                this.handleSyncCompletion({ successCount, failedFiles });
-            },
-            handleSyncCompletion({ successCount, failedFiles }) {
-                this.isSyncing = false; this.updateFolderSyncStatus(appState.currentFolder.id, false);
-                if (failedFiles.length > 0) { Utils.showToast(`⚠️ ${failedFiles.length} changes failed to sync.`, 'error', true); failedFiles.forEach(id => appState.currentProvider.metadataManager.dirtyFiles.add(id)); }
-                else if (successCount > 0) Utils.showToast(`✅ All ${successCount} changes synced.`, 'success');
-            },
-            updateFolderSyncStatus(folderId, isSyncing) {
-                const folderItem = document.querySelector(`.folder-item[data-folder-id="${folderId}"]`);
-                if (folderItem) {
-                    folderItem.querySelector('.sync-spinner')?.classList.toggle('hidden', !isSyncing);
-                    folderItem.style.pointerEvents = isSyncing ? 'none' : 'auto';
-                    folderItem.style.opacity = isSyncing ? '0.6' : '1';
-                }
             }
         };
 
