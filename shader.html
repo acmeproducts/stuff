@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>TSL Particle Waves — WebGL Points (v4)</title>
+<style>
+  :root{
+    --bg:#000;
+    --fg:#e6e6e6;
+    --muted:#9aa4b2;
+    --panel:#0e1219;
+    --panel2:#121826;
+    --border:#1e2531;
+    --accent:#64a3ff;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Arial; }
+  #app { position: fixed; inset: 0; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+  #readout {
+    position: fixed; left: 8px; top: calc(8px + var(--safe-top));
+    background: rgba(0,0,0,0.55); border: 1px solid var(--border); border-radius: 10px; padding: 6px 8px;
+    font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none;
+  }
+  #bar{
+    position:fixed;left:0;right:0;bottom:0;
+    padding:8px 10px calc(8px + var(--safe-bottom));
+    display:flex;gap:10px;justify-content:center;align-items:center;
+    background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.35) 40%, rgba(0,0,0,0.7) 100%);
+  }
+  .btn{ min-width:72px; min-height:44px; padding:8px 12px; border:1px solid var(--border); background:var(--panel); color:var(--fg); border-radius:14px; font-weight:650; }
+  .btn:active{ transform:translateY(1px); }
+  #drawer{
+    position:fixed; top:0; right:0; height:100%; width:min(92vw, 480px);
+    transform: translateX(100%);
+    transition: transform .25s ease;
+    background: linear-gradient(180deg, var(--panel2), var(--panel));
+    border-left:1px solid var(--border);
+    box-shadow: -10px 0 30px rgba(0,0,0,0.4);
+    padding:12px 12px calc(12px + var(--safe-bottom));
+    overflow:auto;
+  }
+  #drawer.open{ transform: translateX(0%); }
+  .hdr{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+  .hdr h2{ margin:0; font-size:16px; }
+  .grid{ display:grid; grid-template-columns: 1fr auto; gap:8px 10px; align-items:center; }
+  .lbl{ font-size:12px; color:var(--muted); }
+  input[type=number], input[type=text], input[type=color]{ width:100%; background:#0f141e; color:var(--fg); border:1px solid var(--border); border-radius:10px; padding:8px 10px; }
+  input[type=range]{ width:100%; }
+  .row{ display:contents; }
+  .row>div{ grid-column:1 / -1; }
+  .actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .accent{ outline:2px solid var(--accent); }
+  .spacer{ height:12px; border-bottom:1px solid var(--border); margin:6px 0; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="readout"></div>
+<div id="bar" role="toolbar" aria-label="Controls">
+  <button id="menu" class="btn accent">Params</button>
+  <button id="zoomOut" class="btn">Zoom Out</button>
+  <button id="zoomIn"  class="btn">Zoom In</button>
+  <button id="resetCam" class="btn">Reset Cam</button>
+  <button id="snapshot" class="btn">PNG</button>
+</div>
+<div id="drawer" aria-hidden="true">
+  <div class="hdr">
+    <h2>Particle Waves — Parameters</h2>
+    <button id="close" class="btn">Close</button>
+  </div>
+  <div class="grid">
+    <div class="lbl">Particle count</div><input id="particleCount" type="number" min="10" max="800000" step="1000" />
+    <div class="lbl">Separation</div><input id="separation" type="number" min="10" max="500" step="1" />
+    <div class="lbl">Amplitude</div><input id="amplitude" type="number" min="1" max="200" step="1" />
+    <div class="lbl">Frequency X</div><input id="freqX" type="number" min="0.05" max="5.0" step="0.01" />
+    <div class="lbl">Frequency Z</div><input id="freqZ" type="number" min="0.05" max="5.0" step="0.01" />
+    <div class="lbl">Phase X</div><input id="phaseX" type="number" min="-6.283" max="6.283" step="0.001" />
+    <div class="lbl">Phase Z</div><input id="phaseZ" type="number" min="-6.283" max="6.283" step="0.001" />
+    <div class="lbl">Size Scale</div><input id="sizeScale" type="number" min="0.1" max="20" step="0.1" />
+    <div class="lbl">Point Base (px)</div><input id="pointBase" type="number" min="1" max="10" step="0.5" />
+    <div class="lbl">Speed</div><input id="speed" type="range" min="0.05" max="5.0" step="0.01" />
+    <div class="lbl">Hue</div><input id="hue" type="range" min="0" max="360" step="1" />
+    <div class="lbl">Saturation</div><input id="sat" type="range" min="0" max="1" step="0.01" />
+    <div class="lbl">Lightness</div><input id="light" type="range" min="0" max="1" step="0.01" />
+    <div class="lbl">Background</div><input id="bg" type="color" />
+    <div class="lbl">Damping</div><input id="damping" type="range" min="0.01" max="0.25" step="0.01" />
+    <div class="lbl">Min Distance</div><input id="minDist" type="number" min="10" max="1000" step="10" />
+    <div class="lbl">Max Distance</div><input id="maxDist" type="number" min="100" max="20000" step="50" />
+    <div class="spacer"></div><div></div>
+    <div class="row">
+      <div class="actions">
+        <button id="apply" class="btn accent">Apply</button>
+        <button id="resetDefaults" class="btn">Reset to Defaults</button>
+        <button id="savePreset" class="btn">Save Preset</button>
+        <button id="exportPreset" class="btn">Export JSON</button>
+        <input id="importFile" type="file" accept="application/json" style="display:none" />
+        <button id="importPreset" class="btn">Import JSON</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// === Defaults
+const DEFAULTS = {
+  particleCount: 200000,
+  separation: 100,
+  amplitude: 50,
+  freqX: 0.7,
+  freqZ: 0.5,
+  phaseX: 0.0,
+  phaseZ: 0.0,
+  sizeScale: 5,
+  pointBase: 2.5,
+  speed: 1.0,
+  hue: 220,
+  sat: 0.7,
+  light: 0.5,
+  bg: '#000000',
+  damping: 0.08,
+  minDist: 50,
+  maxDist: 5000
+};
+let params = { ...DEFAULTS };
+
+let camera, scene, renderer, controls, points, material, geometry;
+const DPR_CAP = 2;
+
+const ui = Object.fromEntries(Array.from(document.querySelectorAll('[id]')).map(el=>[el.id, el]));
+function populateUI(){
+  ui.particleCount.value = params.particleCount;
+  ui.separation.value = params.separation;
+  ui.amplitude.value = params.amplitude;
+  ui.freqX.value = params.freqX;
+  ui.freqZ.value = params.freqZ;
+  ui.phaseX.value = params.phaseX;
+  ui.phaseZ.value = params.phaseZ;
+  ui.sizeScale.value = params.sizeScale;
+  ui.pointBase.value = params.pointBase;
+  ui.speed.value = params.speed;
+  ui.hue.value = params.hue;
+  ui.sat.value = params.sat;
+  ui.light.value = params.light;
+  ui.bg.value = params.bg;
+  ui.damping.value = params.damping;
+  ui.minDist.value = params.minDist;
+  ui.maxDist.value = params.maxDist;
+}
+populateUI();
+
+ui.menu.onclick = ()=>{ ui.drawer.classList.add('open'); };
+ui.close.onclick = ()=>{ ui.drawer.classList.remove('open'); };
+ui.resetDefaults.onclick = ()=>{ params = { ...DEFAULTS }; populateUI(); applyParams(true); };
+ui.apply.onclick = ()=>{ params = {
+    particleCount: parseInt(ui.particleCount.value),
+    separation: parseFloat(ui.separation.value),
+    amplitude: parseFloat(ui.amplitude.value),
+    freqX: parseFloat(ui.freqX.value),
+    freqZ: parseFloat(ui.freqZ.value),
+    phaseX: parseFloat(ui.phaseX.value),
+    phaseZ: parseFloat(ui.phaseZ.value),
+    sizeScale: parseFloat(ui.sizeScale.value),
+    pointBase: parseFloat(ui.pointBase.value),
+    speed: parseFloat(ui.speed.value),
+    hue: parseFloat(ui.hue.value),
+    sat: parseFloat(ui.sat.value),
+    light: parseFloat(ui.light.value),
+    bg: ui.bg.value,
+    damping: parseFloat(ui.damping.value),
+    minDist: parseFloat(ui.minDist.value),
+    maxDist: parseFloat(ui.maxDist.value)
+  }; applyParams(true); };
+
+ui.zoomIn.onclick  = ()=> dolly(1.5);
+ui.zoomOut.onclick = ()=> dolly(1/1.5);
+ui.resetCam.onclick= ()=>{ controls.reset(); camera.position.set(0,200,500); controls.update(); };
+ui.snapshot.onclick= ()=>{ const url=renderer.domElement.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download='particle_waves.png'; a.click(); };
+
+function init(){
+  camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 10, 100000);
+  camera.position.set(0,200,500);
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(params.bg);
+
+  renderer = new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+  renderer.setPixelRatio(Math.min(DPR_CAP, devicePixelRatio));
+  renderer.setSize(innerWidth, innerHeight);
+  document.getElementById("app").appendChild(renderer.domElement);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = params.damping;
+  controls.minDistance = params.minDist;
+  controls.maxDistance = params.maxDist;
+
+  buildPoints();
+  addEventListener('resize', onResize);
+  renderer.setAnimationLoop(animate);
+}
+
+function buildPoints(){
+  if(points){ scene.remove(points); geometry.dispose(); material.dispose(); }
+  const count = params.particleCount;
+  geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count*3), 3));
+  const amount = Math.floor(Math.sqrt(count));
+  material = new THREE.ShaderMaterial({
+    uniforms: {
+      uAmount: { value: amount },
+      uSeparation: { value: params.separation },
+      uAmplitude: { value: params.amplitude },
+      uFreqX: { value: params.freqX },
+      uFreqZ: { value: params.freqZ },
+      uPhaseX: { value: params.phaseX },
+      uPhaseZ: { value: params.phaseZ },
+      uSizeScale: { value: params.sizeScale },
+      uPointBase: { value: params.pointBase },
+      uTime: { value: 0 },
+      uColor: { value: new THREE.Color().setHSL((params.hue%360)/360, params.sat, params.light) },
+      uPixelRatio: { value: renderer.getPixelRatio() }
+    },
+    vertexShader: `
+      uniform float uAmount, uSeparation, uAmplitude, uFreqX, uFreqZ, uPhaseX, uPhaseZ, uSizeScale, uPointBase, uTime, uPixelRatio;
+      varying float vAlpha;
+      void main(){
+        float idx = float(gl_VertexID);
+        float ax = mod(idx, uAmount) * 0.5;
+        float az = floor(idx / uAmount) * 0.5;
+        float x = (uAmount*0.5 - mod(idx, uAmount)) * uSeparation;
+        float z = (uAmount*0.5 - floor(idx / uAmount)) * uSeparation;
+        float y = sin((ax + uTime)*uFreqX + uPhaseX) * uAmplitude + sin((az + uTime)*uFreqZ + uPhaseZ) * uAmplitude;
+        vec4 mvPosition = modelViewMatrix * vec4(x,y,z,1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        float sX = (sin((ax+uTime)*uFreqX)+1.0)*uSizeScale;
+        float sZ = (sin((az+uTime)*uFreqZ)+1.0)*uSizeScale;
+        gl_PointSize = (sX+sZ)*uPointBase*uPixelRatio;
+        vAlpha = 1.0;
+      }
+    `,
+    fragmentShader: `
+      precision highp float;
+      uniform vec3 uColor;
+      varying float vAlpha;
+      void main(){
+        vec2 p = gl_PointCoord*2.0-1.0;
+        if(dot(p,p)>1.0) discard;
+        gl_FragColor = vec4(uColor, vAlpha);
+      }
+    `,
+    transparent:true,
+    depthWrite:false
+  });
+  points = new THREE.Points(geometry, material);
+  scene.add(points);
+}
+
+function applyParams(rebuild){
+  scene.background.set(params.bg);
+  controls.dampingFactor = params.damping;
+  controls.minDistance = params.minDist;
+  controls.maxDistance = params.maxDist;
+  if(rebuild){ buildPoints(); }
+  if(material){
+    material.uniforms.uSeparation.value = params.separation;
+    material.uniforms.uAmplitude.value = params.amplitude;
+    material.uniforms.uFreqX.value = params.freqX;
+    material.uniforms.uFreqZ.value = params.freqZ;
+    material.uniforms.uPhaseX.value = params.phaseX;
+    material.uniforms.uPhaseZ.value = params.phaseZ;
+    material.uniforms.uSizeScale.value = params.sizeScale;
+    material.uniforms.uPointBase.value = params.pointBase;
+    material.uniforms.uColor.value.setHSL((params.hue%360)/360, params.sat, params.light);
+  }
+}
+
+function onResize(){
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(DPR_CAP, devicePixelRatio));
+  renderer.setSize(innerWidth, innerHeight);
+  if(material){ material.uniforms.uPixelRatio.value = renderer.getPixelRatio(); }
+}
+
+function dolly(f){
+  const v = new THREE.Vector3().subVectors(camera.position, controls.target).multiplyScalar(1/f);
+  camera.position.copy(controls.target).add(v);
+  controls.update();
+}
+
+function animate(){
+  if(material){ material.uniforms.uTime.value = performance.now()*0.001*params.speed; }
+  renderer.render(scene, camera);
+  document.getElementById("readout").textContent = `Particles=${params.particleCount.toLocaleString()}`;
+}
+
+init();
+</script>
+</body>
+</html>
