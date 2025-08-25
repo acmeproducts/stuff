@@ -72,11 +72,12 @@
     .diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);overflow:auto;flex-grow:1;font-size:12px;line-height:1.5; font-family:var(--mono);}
     .diff-col{display:flex;flex-direction:column;}
     .diff-col-header{font-weight:600;padding:4px 8px;border-bottom:1px solid #30363d;margin-bottom:4px;position:sticky;top:0;background:#0d1117;}
-    .diff-line{white-space:pre-wrap;padding:0 8px; word-break:break-all;}
+    .diff-line{white-space:pre-wrap;padding:0 8px; word-break:break-all; display:flex;}
     .diff-line.del{background-color:rgba(248,81,73,0.15); color: #ff7b72;}
     .diff-line.add{background-color:rgba(46,160,67,0.15); color: #56d364;}
     .diff-line.context{color:#8b949e;}
-    .line-num{display:inline-block;width:30px;color:#484f58;text-align:right;margin-right:10px;}
+    .line-num{flex-shrink:0;width:40px;color:#484f58;text-align:right;padding-right:10px;user-select:none;}
+    .line-content{flex-grow:1;}
 
     #previewFrame{width:100%;height:100%;border:none;flex-grow:1}
     .status-ok{color:var(--ok)} .status-err{color:var(--err)}
@@ -318,11 +319,11 @@
   }
 
   // --- Diff Generation ---
-  function renderSideBySideDiff(oldText, newText) {
+  function renderSideBySideDiff(oldText, newText, withLineNumbers = false) {
       const oldLines = canonicalize(oldText || '').split('\n');
       const newLines = canonicalize(newText || '').split('\n');
-      let beforeHTML = '<div class="diff-col-header">Before</div>';
-      let afterHTML = '<div class="diff-col-header">After</div>';
+      let beforeHTML = `<div class="diff-col-header">Before ${withLineNumbers ? '(Code)' : ''}</div>`;
+      let afterHTML = `<div class="diff-col-header">After ${withLineNumbers ? '(Code)' : ''}</div>`;
       const maxLines = Math.max(oldLines.length, newLines.length);
 
       for (let i = 0; i < maxLines; i++) {
@@ -330,42 +331,19 @@
           const newLine = newLines[i];
           const oldLineExists = oldLine !== undefined;
           const newLineExists = newLine !== undefined;
+          
+          const lineNum = withLineNumbers ? `<span class="line-num">${i + 1}</span>` : '';
 
           if (oldLine === newLine) {
-              beforeHTML += `<div class="diff-line context">${oldLineExists ? oldLine : ''}</div>`;
-              afterHTML += `<div class="diff-line context">${newLineExists ? newLine : ''}</div>`;
+              beforeHTML += `<div class="diff-line context">${lineNum}<span class="line-content">${oldLineExists ? oldLine : ''}</span></div>`;
+              afterHTML += `<div class="diff-line context">${lineNum}<span class="line-content">${newLineExists ? newLine : ''}</span></div>`;
           } else {
-              beforeHTML += `<div class="diff-line ${oldLineExists ? 'del' : ''}">${oldLineExists ? oldLine : ''}</div>`;
-              afterHTML += `<div class="diff-line ${newLineExists ? 'add' : ''}">${newLineExists ? newLine : ''}</div>`;
+              beforeHTML += `<div class="diff-line ${oldLineExists ? 'del' : ''}">${lineNum}<span class="line-content">${oldLineExists ? oldLine : ''}</span></div>`;
+              afterHTML += `<div class="diff-line ${newLineExists ? 'add' : ''}">${lineNum}<span class="line-content">${newLineExists ? newLine : ''}</span></div>`;
           }
       }
       return `<div class="diff-col">${beforeHTML}</div><div class="diff-col">${afterHTML}</div>`;
   }
-  
-  function renderCodeDiff(oldText, newText) {
-      const oldLines = canonicalize(oldText || '').split('\n');
-      const newLines = canonicalize(newText || '').split('\n');
-      let diffHTML = '';
-      let lineNum = 1;
-      // This is a simplified diff for code view, a real one is more complex
-      newLines.forEach((line, i) => {
-          const oldLine = oldLines[i];
-          let prefix = '  ';
-          let cls = 'context';
-          if (line !== oldLine) {
-              if (oldLine !== undefined) {
-                  diffHTML += `<div class="diff-line del"><span class="line-num">${i+1}</span>- ${oldLine}</div>`;
-              }
-              if (newLine !== undefined) {
-                  diffHTML += `<div class="diff-line add"><span class="line-num">${i+1}</span>+ ${line}</div>`;
-              }
-          } else {
-             diffHTML += `<div class="diff-line context"><span class="line-num">${i+1}</span>  ${line}</div>`;
-          }
-      });
-      return `<div class="diff-col" style="grid-column: 1 / -1;">${diffHTML}</div>`;
-  }
-
 
   // --- UI and Event Handlers ---
   function hideOmni(){ elements.omniList.style.display='none'; }
@@ -623,7 +601,7 @@
         const view = elements.diffViewSelect.value;
         const oldText = elements.originalBox.value || '';
         const newText = elements.updatedBox.value || '';
-        elements.diffOutput.innerHTML = view === 'visual' ? renderSideBySideDiff(oldText, newText) : renderCodeDiff(oldText, newText);
+        elements.diffOutput.innerHTML = view === 'visual' ? renderSideBySideDiff(oldText, newText) : renderSideBySideDiff(oldText, newText, true);
     });
     elements.diffClose.addEventListener('click',()=> elements.diffModal.classList.remove('open'));
     elements.copyDiffBtn.addEventListener('click', () => robustCopy(elements.diffOutput.innerText));
