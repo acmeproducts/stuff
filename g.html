@@ -1,10 +1,10 @@
-<!-- GitHub-Tablet-Editor-v30-2025-08-25 12:56 AM -->
+<!-- GitHub-Tablet-Editor-v24-2025-08-24 06:00 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <title>GitHub Tablet Editor — v30</title>
+  <title>GitHub Tablet Editor — v24</title>
   <style>
     :root {
       --gap: 8px; --pad: 12px; --border: 1px solid #d0d7de; --radius: 8px;
@@ -36,11 +36,13 @@
     /* Main Layout */
     .content-container{display:flex;flex-direction:column;gap:var(--gap);flex:1;min-height:0; overflow-y: auto;}
     .pane{display:flex;flex-direction:column;min-height:0;}
+    .pane.collapsed{flex-grow:0; flex-shrink:0;}
     .pane-header{display:flex;align-items:center;gap:var(--gap);margin-bottom:4px}
     .pane-filename{font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:8px 0;}
     #filenameInput{padding:6px 10px;font-size:16px;font-weight:600;min-height:36px;}
     .textarea-wrap{position:relative;display:flex;flex-direction:column;min-height:0;flex:1;height:100%;}
     textarea{width:100%;height:100%;min-height: calc(9 * 1.4em + 20px); border:var(--border);border-radius:6px;font-family:var(--mono);font-size:10pt;line-height:1.4;resize:vertical;overflow-y:scroll;padding:10px;padding-top:40px;}
+    .pane.collapsed .textarea-wrap, .pane.collapsed .pane-header{display:none}
     .pane-buttons{display:flex;gap:var(--gap);margin-bottom: var(--gap);}
 
     /* Toolbar for Textareas */
@@ -66,13 +68,14 @@
     #diffPanel{width:95vw;max-width:1400px;height:90vh; background:#0d1117; color:#e6edf3;}
     #diffPanel header{border-bottom:1px solid #30363d;}
     #diffPanel header h2{color:#e6edf3;}
-    #diffPanel header button{color:#e6edf3; background: #21262d; border-color: #30363d;}
+    #diffPanel header button, #diffPanel header select{color:#e6edf3; background: #21262d; border-color: #30363d;}
     .diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);overflow:auto;flex-grow:1;font-size:12px;line-height:1.5; font-family:var(--mono);}
     .diff-col{display:flex;flex-direction:column;}
     .diff-col-header{font-weight:600;padding:4px 8px;border-bottom:1px solid #30363d;margin-bottom:4px;position:sticky;top:0;background:#0d1117;}
     .diff-line{white-space:pre-wrap;padding:0 8px; word-break:break-all; display:flex;}
     .diff-line.del{background-color:rgba(248,81,73,0.15); color: #ff7b72;}
     .diff-line.add{background-color:rgba(46,160,67,0.15); color: #56d364;}
+    .diff-line.context{color:#8b949e;}
     .line-num{flex-shrink:0;width:40px;color:#484f58;text-align:right;padding-right:10px;user-select:none;}
     .line-content{flex-grow:1;}
 
@@ -184,7 +187,7 @@
 <!-- Modals -->
 <div id="repoSettingsModal" class="modal" role="dialog" aria-modal="true" aria-label="Repository Settings"><div class="panel"><header><h2>Repository Settings</h2><button id="repoSettingsClose" title="Close" type="button">✕</button></header><div class="row"><label for="userInput">User / Organization</label><input type="text" id="userInput"><label for="repoSelect">Repository</label><select id="repoSelect" disabled><option>Enter user first</option></select></div></div></div>
 <div id="commitModal" class="modal" role="dialog" aria-modal="true" aria-label="Commit status"><div class="panel"><header><h2>Commit Status</h2><button id="commitClose" title="Close" type="button">✕</button></header><div id="commitInfo"></div><ol id="commitSteps"></ol><div id="commitActions" style="margin-top: 16px;"></div></div></div>
-<div id="diffModal" class="modal" role="dialog" aria-modal="true" aria-label="Diff view"><div class="panel" id="diffPanel"><header><h2>Diff Preview</h2><div class="header-actions"><button id="copyDiffBtn" type="button">Copy Diff</button><button id="diffClose" title="Close" type="button">✕</button></div></header><div id="diffOutput" class="diff-grid"></div></div></div>
+<div id="diffModal" class="modal" role="dialog" aria-modal="true" aria-label="Diff view"><div class="panel" id="diffPanel"><header><h2>Diff Preview</h2><div class="header-actions"><select id="diffViewSelect" class="toolbar-btn"><option value="visual" selected>Visual</option><option value="code">Code</option></select><button id="copyDiffBtn" type="button">Copy Diff</button><button id="diffClose" title="Close" type="button">✕</button></div></header><div id="diffOutput" class="diff-grid"></div></div></div>
 <div id="previewModal" class="modal" role="dialog" aria-modal="true" aria-label="Preview"><div class="panel" style="height:90vh;width:95vw;"><header><h2>Preview</h2><button id="previewClose" title="Close" type="button">✕</button></header><iframe id="previewFrame" sandbox="allow-scripts allow-same-origin"></iframe></div></div>
 <div id="pasteModal" class="modal" role="dialog" aria-modal="true" aria-label="Paste content"><div class="panel"><header><h2>Paste Content</h2><button id="pasteClose" title="Close" type="button">✕</button></header><div class="muted" style="margin-bottom:8px">Clipboard read not permitted. Paste here and confirm.</div><textarea id="pasteArea" style="width:100%;height:40vh;min-height:200px;font-size:16px;"></textarea><div style="margin-top:10px;text-align:right;"><button id="pasteConfirm" class="primary" type="button">Use This Content</button></div></div></div>
 <div class="toast-wrap" id="toasts" aria-live="polite" aria-atomic="true"></div>
@@ -192,7 +195,7 @@
 <script>
 (() => {
   // --- State and Constants ---
-  const APP_VERSION = "v29-2025-08-24 11:55 PM";
+  const APP_VERSION = "v24-2025-08-24 06:00 PM";
   const DEFAULT_USER = "acmeproducts";
   const DEFAULT_REPO_HINT = "stuff";
   let GITHUB_TOKEN = null;
@@ -221,7 +224,7 @@
     fontSizeSelectUpdated: $('fontSizeSelectUpdated'), findInputUpdated: $('findInputUpdated'), findBtnUpdated: $('findBtnUpdated'), findResultsUpdated: $('findResultsUpdated'), findPrevUpdated: $('findPrevUpdated'), findNextUpdated: $('findNextUpdated'),
     scrollTopUpdated: $('scrollTopUpdated'),
     commitModal: $('commitModal'), commitClose: $('commitClose'), commitSteps: $('commitSteps'), commitActions: $('commitActions'), commitInfo: $('commitInfo'),
-    diffModal: $('diffModal'), diffClose: $('diffClose'), diffOutput: $('diffOutput'), copyDiffBtn: $('copyDiffBtn'),
+    diffModal: $('diffModal'), diffClose: $('diffClose'), diffOutput: $('diffOutput'), copyDiffBtn: $('copyDiffBtn'), diffViewSelect: $('diffViewSelect'),
     previewModal: $('previewModal'), previewClose: $('previewClose'), previewFrame: $('previewFrame'),
     pasteModal: $('pasteModal'), pasteClose: $('pasteClose'), pasteArea: $('pasteArea'), pasteConfirm: $('pasteConfirm'),
     toasts: $('toasts'),
@@ -316,24 +319,27 @@
   }
 
   // --- Diff Generation ---
-  function renderChangesOnlyDiff(oldText, newText) {
+  function renderSideBySideDiff(oldText, newText, withLineNumbers = false) {
       const oldLines = canonicalize(oldText || '').split('\n');
       const newLines = canonicalize(newText || '').split('\n');
-      let beforeHTML = '<div class="diff-col-header">Before (Deletions)</div>';
-      let afterHTML = '<div class="diff-col-header">After (Additions)</div>';
+      let beforeHTML = `<div class="diff-col-header">Before ${withLineNumbers ? '(Code)' : ''}</div>`;
+      let afterHTML = `<div class="diff-col-header">After ${withLineNumbers ? '(Code)' : ''}</div>`;
       const maxLines = Math.max(oldLines.length, newLines.length);
 
       for (let i = 0; i < maxLines; i++) {
           const oldLine = oldLines[i];
           const newLine = newLines[i];
+          const oldLineExists = oldLine !== undefined;
+          const newLineExists = newLine !== undefined;
+          
+          const lineNum = withLineNumbers ? `<span class="line-num">${i + 1}</span>` : '';
 
-          if (oldLine !== newLine) {
-              if (oldLine !== undefined) {
-                  beforeHTML += `<div class="diff-line del"><span class="line-num">${i + 1}</span><span class="line-content">${oldLine}</span></div>`;
-              }
-              if (newLine !== undefined) {
-                  afterHTML += `<div class="diff-line add"><span class="line-num">${i + 1}</span><span class="line-content">${newLine}</span></div>`;
-              }
+          if (oldLine === newLine) {
+              beforeHTML += `<div class="diff-line context">${lineNum}<span class="line-content">${oldLineExists ? oldLine : ''}</span></div>`;
+              afterHTML += `<div class="diff-line context">${lineNum}<span class="line-content">${newLineExists ? newLine : ''}</span></div>`;
+          } else {
+              beforeHTML += `<div class="diff-line ${oldLineExists ? 'del' : ''}">${lineNum}<span class="line-content">${oldLineExists ? oldLine : ''}</span></div>`;
+              afterHTML += `<div class="diff-line ${newLineExists ? 'add' : ''}">${lineNum}<span class="line-content">${newLineExists ? newLine : ''}</span></div>`;
           }
       }
       return `<div class="diff-col">${beforeHTML}</div><div class="diff-col">${afterHTML}</div>`;
@@ -588,9 +594,14 @@
     });
     elements.diffBtn.addEventListener('click', ()=>{
       if(!currentPath && !elements.filenameInput.value){ toast('No file selected or named', 2500, 'warn'); return; }
-      const diffHTML = renderChangesOnlyDiff(elements.originalBox.value||'', elements.updatedBox.value||'');
-      elements.diffOutput.innerHTML = diffHTML;
+      elements.diffViewSelect.dispatchEvent(new Event('change')); // Trigger view update
       elements.diffModal.classList.add('open');
+    });
+    elements.diffViewSelect.addEventListener('change', () => {
+        const view = elements.diffViewSelect.value;
+        const oldText = elements.originalBox.value || '';
+        const newText = elements.updatedBox.value || '';
+        elements.diffOutput.innerHTML = view === 'visual' ? renderSideBySideDiff(oldText, newText) : renderSideBySideDiff(oldText, newText, true);
     });
     elements.diffClose.addEventListener('click',()=> elements.diffModal.classList.remove('open'));
     elements.copyDiffBtn.addEventListener('click', () => robustCopy(elements.diffOutput.innerText));
@@ -652,15 +663,6 @@
         deployLink.target = '_blank'; deployLink.rel = 'noopener noreferrer';
         deployLink.textContent = `7. View deployment status →`;
         deployLi.appendChild(deployLink);
-        
-        const accessLi = document.createElement('li'); accessLi.className = 'status-ok';
-        const accessLink = document.createElement('a');
-        accessLink.href = `https://github.com/${currentUser}/${currentRepo}/blob/${repoDefaultBranch}/${newPath}`;
-        accessLink.target = '_blank'; accessLink.rel = 'noopener noreferrer';
-        accessLink.textContent = `8. Access file in repository →`;
-        accessLi.appendChild(accessLink);
-        elements.commitSteps.appendChild(accessLi);
-        
         elements.commitSteps.scrollTop = elements.commitSteps.scrollHeight;
 
         const launchActions = document.createElement('div'); launchActions.className = 'launch-actions';
