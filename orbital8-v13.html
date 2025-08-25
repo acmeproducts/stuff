@@ -1083,35 +1083,54 @@
                 }
             },
             
+            async _getAuthenticatedImageUrl(file) {
+                // Use pre-authenticated download URL if available
+                if (file.downloadUrl) {
+                    return file.downloadUrl;
+                }
+
+                // Fallback: Fetch image data with token and create a local blob URL
+                try {
+                    const accessToken = await appState.currentProvider.getAccessToken();
+                    const response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` }
+                    });
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+                    }
+                    const blob = await response.blob();
+                    return URL.createObjectURL(blob);
+                } catch (error) {
+                    console.error('Failed to fetch authenticated image:', error);
+                    // Return a placeholder if the authenticated fetch fails
+                    return 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
+                }
+            },
+
             async setImageSrc(img, file) {
                 const loadId = file.id + '_' + Date.now();
                 appState.currentImageLoadId = loadId;
 
-                let imageUrl = this.generateImageUrl(file);
+                let imageUrl;
+                if (appState.currentProviderType === 'onedrive') {
+                    imageUrl = await this._getAuthenticatedImageUrl(file);
+                } else {
+                    imageUrl = this.generateImageUrl(file);
+                }
                 
                 return new Promise((resolve) => {
                     img.onload = () => {
                         if (appState.currentImageLoadId !== loadId) return;
+                        // For blob URLs, revoke them after load to free up memory
+                        if (imageUrl.startsWith('blob:')) {
+                            URL.revokeObjectURL(imageUrl);
+                        }
                         resolve();
                     };
                     img.onerror = () => {
                         if (appState.currentImageLoadId !== loadId) return;
-
-                        let fallbackUrl;
-                        if (appState.currentProviderType === 'googledrive') {
-                            fallbackUrl = file.thumbnailLink ? 
-                                file.thumbnailLink.replace('=s220', '=s800') :
-                                `https://drive.google.com/thumbnail?id=${file.id}&sz=w800`;
-                        } else {
-                            fallbackUrl = file.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
-                        }
-                        
-                        img.onerror = () => {
-                            if (appState.currentImageLoadId !== loadId) return;
-                            img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
-                            resolve();
-                        };
-                        img.src = fallbackUrl;
+                        img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
+                        resolve();
                     };
                     img.src = imageUrl;
                     img.alt = file.name || 'Image';
@@ -1119,16 +1138,18 @@
             },
             
             generateImageUrl(file) {
+                // This function is now primarily for Google Drive and as a non-authenticated fallback for OneDrive thumbnails
                 if (appState.currentProviderType === 'googledrive') {
                     if (file.thumbnailLink) {
                         return file.thumbnailLink.replace('=s220', '=s1000');
                     }
                     return `https://drive.google.com/thumbnail?id=${file.id}&sz=w1000`;
-                } else {
+                } else { // OneDrive
                     if (file.thumbnails && file.thumbnails.large) {
                         return file.thumbnails.large.url;
                     }
-                    return file.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
+                    // The primary loading is now handled by _getAuthenticatedImageUrl
+                    return file.downloadUrl || ''; 
                 }
             },
             
@@ -1872,7 +1893,7 @@
                         this.activeAccount = accounts[0];
                     } else {
                         const loginResponse = await this.msalInstance.loginPopup({
-                            scopes: ['Files.ReadWrite.AppFolder', 'User.Read']
+                            scopes: ['Files.ReadWrite.All', 'User.Read']
                         });
                         this.activeAccount = loginResponse.account;
                         this.msalInstance.setActiveAccount(this.activeAccount);
@@ -1895,14 +1916,14 @@
                 
                 try {
                     const response = await this.msalInstance.acquireTokenSilent({
-                        scopes: ['Files.ReadWrite.AppFolder'],
+                        scopes: ['Files.ReadWrite.All'],
                         account: this.activeAccount
                     });
                     return response.accessToken;
                 } catch (silentError) {
                     if (silentError instanceof msal.InteractionRequiredAuthError) {
                         const response = await this.msalInstance.acquireTokenPopup({
-                            scopes: ['Files.ReadWrite.AppFolder'],
+                            scopes: ['Files.ReadWrite.All'],
                             account: this.activeAccount
                         });
                         return response.accessToken;
@@ -2054,9 +2075,12 @@
             async getFiles(folderId = 'root') {
                 const allFiles = [];
                 let nextLink = null;
+                
+                const selectFields = 'id,name,file,size,createdDateTime,lastModifiedDateTime,thumbnails,@microsoft.graph.downloadUrl,extensions';
+                
                 let endpoint = folderId === 'root' ? 
-                    '/me/drive/root/children' : 
-                    `/me/drive/items/${folderId}/children`;
+                    `/me/drive/root/children?$select=${selectFields}` : 
+                    `/me/drive/items/${folderId}/children?$select=${selectFields}`;
                 
                 do {
                     const url = nextLink || endpoint;
@@ -2079,7 +2103,8 @@
                             thumbnails: item.thumbnails && item.thumbnails.length > 0 ? {
                                 large: item.thumbnails[0].large
                             } : null,
-                            downloadUrl: item['@microsoft.graph.downloadUrl']
+                            downloadUrl: item['@microsoft.graph.downloadUrl'],
+                            extensions: item.extensions || []
                         }));
                     
                     allFiles.push(...files);
@@ -2141,67 +2166,28 @@
             }
         }
 
-        // ===== OneDrive Metadata Manager =====
+        // ===== OneDrive Metadata Manager (Refactored for Open Extensions) =====
         class OneDriveMetadataManager {
             constructor(oneDriveProvider) {
                 this.provider = oneDriveProvider;
-                this.cache = new Map();
-                this.cacheTimestamp = 0;
-                this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
+                this.extensionName = 'com.orbital8.metadata';
             }
             
-            async loadMetadata() {
-                try {
-                    const now = Date.now();
-                    if (this.cache.size > 0 && (now - this.cacheTimestamp) < this.cacheExpiry) {
-                        return this.cache;
-                    }
-                    
-                    const response = await this.provider.makeApiCall('/me/drive/special/approot:/tags.json:/content');
-                    const data = await response.json();
-                    
-                    if (data && data.files) {
-                        this.cache.clear();
-                        Object.entries(data.files).forEach(([fileId, metadata]) => {
-                            this.cache.set(fileId, metadata);
-                        });
-                        this.cacheTimestamp = now;
-                    }
-                    
-                    return this.cache;
-                } catch (error) {
-                    if (error.message.includes('404')) {
-                        await this.saveMetadata();
-                        return this.cache;
-                    }
-                    console.warn('Failed to load user metadata:', error);
-                    return this.cache;
-                }
-            }
-            
-            async saveMetadata() {
-                try {
-                    const data = {
-                        version: 1,
-                        lastModified: new Date().toISOString(),
-                        files: Object.fromEntries(this.cache)
+            getUserMetadata(file) {
+                const extension = file.extensions?.find(ext => ext.id === this.extensionName);
+                
+                if (extension) {
+                    return {
+                        stack: extension.stack || 'in',
+                        tags: extension.tags || [],
+                        qualityRating: extension.qualityRating || 0,
+                        contentRating: extension.contentRating || 0,
+                        notes: extension.notes || '',
+                        stackSequence: extension.stackSequence || 0
                     };
-                    
-                    await this.provider.makeApiCall('/me/drive/special/approot:/tags.json:/content', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data, null, 2)
-                    });
-                    
-                    this.cacheTimestamp = Date.now();
-                } catch (error) {
-                    console.warn('Failed to save user metadata:', error);
-                    throw error;
                 }
-            }
-            
-            getUserMetadata(fileId) {
-                return this.cache.get(fileId) || {
+                
+                return {
                     stack: 'in',
                     tags: [],
                     qualityRating: 0,
@@ -2211,21 +2197,54 @@
                 };
             }
             
-            async setUserMetadata(fileId, metadata) {
-                const updated = {
-                    ...metadata,
+            async updateUserMetadata(fileId, updates) {
+                const file = appState.imageFiles.find(f => f.id === fileId);
+                if (!file) {
+                    console.error("File not found in local cache for metadata update:", fileId);
+                    return;
+                }
+
+                const newMetadata = {
+                    stack: updates.stack !== undefined ? updates.stack : file.stack,
+                    tags: updates.tags !== undefined ? updates.tags : file.tags,
+                    notes: updates.notes !== undefined ? updates.notes : file.notes,
+                    qualityRating: updates.qualityRating !== undefined ? updates.qualityRating : file.qualityRating,
+                    contentRating: updates.contentRating !== undefined ? updates.contentRating : file.contentRating,
+                    stackSequence: updates.stackSequence !== undefined ? updates.stackSequence : file.stackSequence,
                     lastUpdated: new Date().toISOString()
                 };
-                
-                this.cache.set(fileId, updated);
-                await this.saveMetadata();
-                return updated;
-            }
-            
-            async updateUserMetadata(fileId, updates) {
-                const current = this.getUserMetadata(fileId);
-                const updated = { ...current, ...updates };
-                return await this.setUserMetadata(fileId, updated);
+
+                // Remove undefined properties before sending
+                Object.keys(newMetadata).forEach(key => newMetadata[key] === undefined && delete newMetadata[key]);
+
+                try {
+                    // First, try to update an existing extension
+                    await this.provider.makeApiCall(`/me/drive/items/${fileId}/extensions/${this.extensionName}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify(newMetadata)
+                    });
+                } catch (error) {
+                    // If it fails because the extension doesn't exist (e.g., 404 Not Found), create it.
+                    if (error.message.includes('404')) {
+                        try {
+                            const createRequestBody = {
+                                "@odata.type": "microsoft.graph.openTypeExtension",
+                                "extensionName": this.extensionName,
+                                ...newMetadata
+                            };
+                            await this.provider.makeApiCall(`/me/drive/items/${fileId}/extensions`, {
+                                method: 'POST',
+                                body: JSON.stringify(createRequestBody)
+                            });
+                        } catch (createError) {
+                            console.warn(`Failed to create metadata for ${fileId}:`, createError);
+                            throw createError;
+                        }
+                    } else {
+                        console.warn(`Failed to update metadata for ${fileId}:`, error);
+                        throw error;
+                    }
+                }
             }
         }
 
@@ -2408,10 +2427,6 @@
                 try {
                     Utils.elements.loadingMessage.textContent = `Loading images from ${appState.currentProviderType}...`;
                     
-                    if (appState.currentProviderType === 'onedrive' && appState.currentProvider.metadataManager) {
-                        await appState.currentProvider.metadataManager.loadMetadata();
-                    }
-                    
                     const result = await appState.currentProvider.getFiles(appState.currentFolder.id);
                     const files = result.files || [];
                     
@@ -2447,15 +2462,23 @@
             
             processFileWithProviderMetadata(file) {
                 let userMetadata;
-                
+                let hasExtension = false;
+
                 if (appState.currentProviderType === 'googledrive') {
                     userMetadata = appState.currentProvider.metadataManager.getUserMetadata(file.id, file.appProperties);
                 } else {
                     userMetadata = appState.currentProvider.metadataManager ? 
-                        appState.currentProvider.metadataManager.getUserMetadata(file.id) :
+                        appState.currentProvider.metadataManager.getUserMetadata(file) :
                         { stack: 'in', tags: [], qualityRating: 0, contentRating: 0, notes: '', stackSequence: 0 };
+                    if (file.extensions?.some(ext => ext.id === 'com.orbital8.metadata')) {
+                        hasExtension = true;
+                    }
                 }
                 
+                if (userMetadata.tags && userMetadata.tags.length > 0) {
+                    userMetadata.tags.forEach(tag => appState.tags.add(tag));
+                }
+
                 return {
                     id: file.id,
                     name: file.name,
@@ -2475,7 +2498,8 @@
                     qualityRating: userMetadata.qualityRating || 0,
                     contentRating: userMetadata.contentRating || 0,
                     notes: userMetadata.notes || '',
-                    stackSequence: userMetadata.stackSequence || 0
+                    stackSequence: userMetadata.stackSequence || 0,
+                    hasExtension: hasExtension
                 };
             },
             
