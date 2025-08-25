@@ -1,5 +1,5 @@
-<!-- orbital8-v56 - 2025-08-25 02:43 PM -->
-<!-- Haptics disabled by default -->
+<!-- orbital8-v57 - 2025-08-25 03:17 PM -->
+<!-- CSP 'eval' fix (worker removed) & label association fix -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V56 - Refactored</title>
+    <title>Orbital8 V57 - Refactored</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
         :root {
@@ -214,7 +214,7 @@
             </div>
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer" id="master-footer">orbital8-v56 - 2025-08-25 02:43 PM</div>
+        <div class="app-footer" id="master-footer">orbital8-v57 - 2025-08-25 03:17 PM</div>
     </div>
     
     <!-- Auth & Folder Screens -->
@@ -381,7 +381,7 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V56 - Haptics Disabled by Default =====
+        // ===== ORBITAL8 V57 - CSP & Label Fix =====
         const $ = (id) => document.getElementById(id);
         const STACK_TYPES = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
@@ -782,6 +782,16 @@
                 return ext ? { stack: ext.stack || 'in', tags: ext.tags || [], qualityRating: ext.qualityRating || 0, contentRating: ext.contentRating || 0, notes: ext.notes || '', stackSequence: ext.stackSequence || 0 } : { stack: 'in', tags: [], qualityRating: 0, contentRating: 0, notes: '', stackSequence: 0 };
             }
             async updateUserMetadata(fileId, updates) { const file = appState.imageFiles.find(f => f.id === fileId); if (file) { Object.assign(file, updates); this.dirtyFiles.add(fileId); } }
+            async saveMetadataForFile(file) {
+                const metadataPayload = {
+                    '@odata.type': 'microsoft.graph.openTypeExtension', extensionName: this.extensionName,
+                    stack: file.stack, tags: file.tags, qualityRating: file.qualityRating,
+                    contentRating: file.contentRating, notes: file.notes, stackSequence: file.stackSequence
+                };
+                const endpoint = file.hasExtension ? `/me/drive/items/${file.id}/extensions/${this.extensionName}` : `/me/drive/items/${file.id}/extensions`;
+                await this.provider.makeApiCall(endpoint, { method: file.hasExtension ? 'PATCH' : 'POST', body: JSON.stringify(metadataPayload) });
+                if (!file.hasExtension) file.hasExtension = true;
+            }
         }
 
         class ExportSystem {
@@ -1237,7 +1247,7 @@
                 document.querySelectorAll('.move-option').forEach(opt => opt.onclick = () => this.executeMove(opt.dataset.stack));
             },
             setupTagAction() {
-                this.show('tag', { title: 'Add Tags', content: `<div><label style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 4px;">Enter tags (comma separated)</label><input type="text" id="modal-tag-input" class="tag-input" placeholder="nature, landscape"><div id="modal-tag-suggestions" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">${Array.from(appState.tags).map(t => `<button class="tag-suggestion" data-tag="${t}" style="background-color: #e5e7eb; color: #374151; padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; border: none;">${t}</button>`).join('')}</div></div>`, confirmText: 'Apply' });
+                this.show('tag', { title: 'Add Tags', content: `<div><label for="modal-tag-input" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 4px;">Enter tags (comma separated)</label><input type="text" id="modal-tag-input" class="tag-input" placeholder="nature, landscape"><div id="modal-tag-suggestions" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">${Array.from(appState.tags).map(t => `<button class="tag-suggestion" data-tag="${t}" style="background-color: #e5e7eb; color: #374151; padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; border: none;">${t}</button>`).join('')}</div></div>`, confirmText: 'Apply' });
                 document.querySelectorAll('.tag-suggestion').forEach(btn => btn.onclick = () => { const input = $('modal-tag-input'); input.value += (input.value ? ', ' : '') + btn.dataset.tag; });
             },
             setupDeleteAction() {
@@ -1283,7 +1293,7 @@
                 await this.executeBulkAction(async (fileId) => {
                     const file = appState.imageFiles.find(f => f.id === fileId); if (!file) return;
                     const newTags = [...new Set([...(file.tags || []), ...tagsToAdd])];
-                    await MasterController.updateUserMetadata(fileId, { tags: newTags });
+                    await MasterController.updateUserMetadata(file.id, { tags: newTags });
                     tagsToAdd.forEach(tag => appState.tags.add(tag));
                 }, `Tags added to {count} images`, { refreshGrid: false });
             },
@@ -1341,7 +1351,7 @@
                 vp.addEventListener('mousedown', this.handleStart.bind(this)); document.addEventListener('mousemove', this.handleMove.bind(this)); document.addEventListener('mouseup', this.handleEnd.bind(this));
                 vp.addEventListener('touchstart', this.handleStart.bind(this), { passive: false }); document.addEventListener('touchmove', this.handleMove.bind(this), { passive: false }); document.addEventListener('touchend', this.handleEnd.bind(this), { passive: false });
             },
-            showEdgeGlow(direction) { ['top', 'bottom', 'left', 'right'].forEach(d => Utils.elements[`edge${d.charAt(0).toUpperCase() + d.slice(1)}`]?.classList.remove('active')); Utils.elements[`edge${direction.charAt(0).toUpperCase() + direction.slice(1)}`]?.classList.add('active'); },
+            showEdgeGlow(direction) { ['top', 'bottom', 'left', 'right'].forEach(d => Utils.elements[`edge${d.charAt(0).toUpperCase() + d.slice(1)}`]?.classList.remove('active')); Utils.elements[`edge${direction.charAt(0).toUpperCase() + d.slice(1)}`]?.classList.add('active'); },
             hideAllEdgeGlows() { ['top', 'bottom', 'left', 'right'].forEach(d => Utils.elements[`edge${d.charAt(0).toUpperCase() + d.slice(1)}`]?.classList.remove('active')); },
             determineSwipeDirection(dx, dy) { return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top'); },
             directionToStack(dir) { return { 'top': 'priority', 'bottom': 'trash', 'left': 'in', 'right': 'out' }[dir]; },
@@ -1621,53 +1631,39 @@
                 });
             },
             setupSyncTriggers() {
-                const trySync = (useBeacon = false) => { if (appState.currentProviderType === 'onedrive' && appState.currentProvider?.metadataManager?.dirtyFiles.size > 0) MetadataSyncManager.startSync(useBeacon); };
+                const trySync = () => { if (appState.currentProviderType === 'onedrive' && appState.currentProvider?.metadataManager?.dirtyFiles.size > 0) MetadataSyncManager.startSync(); };
                 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') trySync(); });
-                window.addEventListener('beforeunload', () => trySync(true));
+                window.addEventListener('beforeunload', () => trySync());
             }
         };
 
-        const workerScript =`let accessToken=null;const apiBase="https://graph.microsoft.com/v1.0",extensionName="com.orbital8.metadata";async function makeApiCall(e,t={}){if(!accessToken)throw postMessage({type:"LOG",message:"Worker: No access token."}),new Error("No access token");const o=\`\${apiBase}\${e}\`,s={Authorization:\`Bearer \${accessToken}\`,"Content-Type":"application/json",...t.headers},n=await fetch(o,{...t,headers:s});if(401===n.status)throw postMessage({type:"LOG",message:"Worker: Token expired, requesting refresh."}),new Error("TOKEN_EXPIRED");if(!n.ok){const e=await n.text();throw postMessage({type:"LOG",message:\`Worker: API Error \${n.status}: \${e}\`}),new Error(\`API Error: \${n.status} \${n.statusText}\`)}return n}async function saveFileMetadata(e){const t={extensionName:extensionName,stack:e.stack,tags:e.tags,qualityRating:e.qualityRating,contentRating:e.contentRating,notes:e.notes,stackSequence:e.stackSequence};if(e.hasExtension){const o=\`/me/drive/items/\${e.id}/extensions/\${extensionName}\`;await makeApiCall(o,{method:"PATCH",body:JSON.stringify(t)})}else{const o=\`/me/drive/items/\${e.id}/extensions\`;await makeApiCall(o,{method:"POST",body:JSON.stringify(t)})}}onmessage=async e=>{const{type:t,payload:o}=e.data;if("START_SYNC"===t){accessToken=o.accessToken;const e=o.files;let t=0;const s=[];for(let n=0;n<e.length;n++){const o=e[n];try{await saveFileMetadata(o),t++,postMessage({type:"PROGRESS",payload:{processed:n+1,total:e.length}})}catch(r){if("TOKEN_EXPIRED"===r.message)return void postMessage({type:"TOKEN_EXPIRED",payload:{remainingFiles:e.slice(n)}});s.push(o.id)}}postMessage({type:"COMPLETE",payload:{successCount:t,failedFiles:s}})}"SET_TOKEN"===t&&(accessToken=o.accessToken)};`;
-
         const MetadataSyncManager = {
-            worker: null, isSyncing: false,
-            init() {
-                if (!window.Worker) return console.error('Web Workers not supported.');
-                const blob = new Blob([workerScript], { type: 'application/javascript' });
-                this.worker = new Worker(URL.createObjectURL(blob));
-                this.worker.onmessage = async (e) => {
-                    const { type, payload } = e.data;
-                    if (type === 'TOKEN_EXPIRED') {
-                        try {
-                            const newAccessToken = await appState.currentProvider.getAccessToken();
-                            this.worker.postMessage({ type: 'SET_TOKEN', payload: { accessToken: newAccessToken } });
-                            this.worker.postMessage({ type: 'START_SYNC', payload: { accessToken: newAccessToken, files: payload.remainingFiles } });
-                        } catch (error) { Utils.showToast('Session expired. Please sign in again.', 'error', true); this.handleSyncCompletion({ successCount: 0, failedFiles: payload.remainingFiles.map(f => f.id) }); }
-                    } else if (type === 'COMPLETE') this.handleSyncCompletion(payload);
-                    else if (type === 'LOG') console.log(payload.message);
-                };
-                this.worker.onerror = (e) => { console.error('Error in metadata worker:', e); Utils.showToast('A background error occurred during sync.', 'error', true); this.isSyncing = false; };
-            },
-            async startSync(useBeacon = false) {
+            isSyncing: false,
+            async startSync() {
                 if (this.isSyncing) return;
                 const dirtyFileIds = Array.from(appState.currentProvider.metadataManager.dirtyFiles);
                 if (dirtyFileIds.length === 0) return;
-                this.isSyncing = true; Utils.showToast(`Syncing ${dirtyFileIds.length} changes...`, 'info');
+
+                this.isSyncing = true;
+                Utils.showToast(`Syncing ${dirtyFileIds.length} changes...`, 'info');
                 this.updateFolderSyncStatus(appState.currentFolder.id, true);
+
                 const filesToSync = dirtyFileIds.map(id => appState.imageFiles.find(f => f.id === id)).filter(Boolean);
                 appState.currentProvider.metadataManager.dirtyFiles.clear();
-                try {
-                    const accessToken = await appState.currentProvider.getAccessToken();
-                    const payload = { accessToken, files: filesToSync };
-                    if (useBeacon && navigator.sendBeacon) {
-                        navigator.sendBeacon('/sync-endpoint-placeholder', new Blob([JSON.stringify({ type: 'START_SYNC', payload })], { type: 'application/json' }));
-                        this.isSyncing = false;
-                    } else this.worker.postMessage({ type: 'START_SYNC', payload });
-                } catch (error) {
-                    Utils.showToast('Could not start sync.', 'error', true); this.isSyncing = false;
-                    this.updateFolderSyncStatus(appState.currentFolder.id, false);
-                    dirtyFileIds.forEach(id => appState.currentProvider.metadataManager.dirtyFiles.add(id));
+
+                let successCount = 0;
+                const failedFiles = [];
+
+                for (const file of filesToSync) {
+                    try {
+                        await appState.currentProvider.metadataManager.saveMetadataForFile(file);
+                        successCount++;
+                    } catch (error) {
+                        console.error(`Failed to sync metadata for ${file.id}:`, error);
+                        failedFiles.push(file.id);
+                    }
                 }
+                this.handleSyncCompletion({ successCount, failedFiles });
             },
             handleSyncCompletion({ successCount, failedFiles }) {
                 this.isSyncing = false; this.updateFolderSyncStatus(appState.currentFolder.id, false);
@@ -1690,7 +1686,7 @@
                 appState.visualCueManager = new VisualCueManager(); appState.hapticManager = new HapticFeedbackManager();
                 appState.exportSystem = new ExportSystem(); appState.fileCache = new EnhancedFileCache();
                 await appState.fileCache.init(); appState.metadataExtractor = new ProgressiveMetadataExtractor();
-                MetadataSyncManager.init(); Utils.showScreen('provider-screen');
+                Utils.showScreen('provider-screen');
                 EventHandlers.init(); GestureSystem.init(); FocusMode.setupGestures(); PinchZoomSystem.init();
                 CommonFunctions.updateActiveProxTab();
             } catch (error) { Utils.showToast('Failed to initialize app', 'error', true); }
