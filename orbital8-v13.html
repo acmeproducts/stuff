@@ -1,6 +1,6 @@
-<!-- orbital8-v51 - 2025-08-25 04:38 AM -->
-<!-- Performance Refactor: Lazy Loading, Caching, and Batch Updates -->
-<!-- Fixes Grid View images and Google Drive performance issues -->
+<!-- orbital8-v53 - 2025-08-25 07:21 AM -->
+<!-- Baseline v22-Aug-535 + OneDrive Write Functionality -->
+<!-- Implements Web Worker for background metadata saving to Open Extensions -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,18 +8,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Orbital8 V51 - Performance Refactor</title>
+    <title>Orbital8 V53 - OneDrive Write Enabled</title>
     <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
     <style>
-        /* ===== ORBITAL8 V51 - Performance Refactor ===== */
+        /* ===== ORBITAL8 V53 - Baseline + OneDrive Write ===== */
         /* Changes in this version:
-           - Progressive Image Loading: Implemented a three-stage loading strategy (low-res -> high-res -> cache) for a lag-free experience in both main and grid views.
-           - Image Caching: High-resolution images are now cached in IndexedDB for instant loads on subsequent views.
-           - Google Drive Batch Updates: Refactored Google Drive metadata saving to use a "dirty" tracking system and a single batch API call on exit, eliminating massive performance bottlenecks.
-           - Grid View Fix: Correctly loads OneDrive images asynchronously in the grid view.
-           - Code Organization: Created GoogleDriveSyncManager and refactored image loading logic into a unified system.
-           - Versioning: Updated to v51.
-        */
+           - Built on stable baseline v22-Aug-535.
+           - OneDrive Metadata Write: Implemented saving metadata to Microsoft Graph Open Extensions.
+           - Background Sync: Added a Web Worker to handle all OneDrive metadata save operations, keeping the UI responsive.
+           - Robust Sync Triggers: Syncing now occurs on folder exit, tab inactivity, and before the page unloads to prevent data loss.
+           - UI Feedback: Added visual cues for background syncing status.
+         */
         
         :root {
             --app-accent: #f59e0b;
@@ -597,7 +596,7 @@
             
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">orbital8-v51 - 2025-08-25 04:38 AM</div>
+        <div class="app-footer">orbital8-v53 - 2025-08-25 07:21 AM</div>
     </div>
     
     <!-- Google Drive Auth Screen -->
@@ -610,7 +609,7 @@
             <button class="button" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
-        <div class="app-footer">orbital8-v51 - 2025-08-25 04:38 AM</div>
+        <div class="app-footer">orbital8-v53 - 2025-08-25 07:21 AM</div>
     </div>
     
     <!-- OneDrive Auth Screen -->
@@ -622,7 +621,7 @@
             <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
-        <div class="app-footer">orbital8-v51 - 2025-08-25 04:38 AM</div>
+        <div class="app-footer">orbital8-v53 - 2025-08-25 07:21 AM</div>
     </div>
     
     <!-- Google Drive Folder Screen -->
@@ -637,7 +636,7 @@
                 <button class="folder-button danger" id="gdrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v51 - 2025-08-25 04:38 AM</div>
+        <div class="app-footer">orbital8-v53 - 2025-08-25 07:21 AM</div>
     </div>
     
     <!-- OneDrive Folder Screen -->
@@ -652,7 +651,7 @@
                 <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">orbital8-v51 - 2025-08-25 04:38 AM</div>
+        <div class="app-footer">orbital8-v53 - 2025-08-25 07:21 AM</div>
     </div>
     
     <!-- Loading Screen -->
@@ -666,7 +665,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">orbital8-v51 - 2025-08-25 04:38 AM</div>
+        <div class="app-footer">orbital8-v53 - 2025-08-25 07:21 AM</div>
     </div>
     
     <!-- Main App Container -->
@@ -707,7 +706,7 @@
         </button>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">orbital8-v51 - 2025-08-25 04:38 AM</div>
+        <div class="app-footer">orbital8-v53 - 2025-08-25 07:21 AM</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -882,13 +881,12 @@
     </div>
 
     <script>
-        // ===== ORBITAL8 V51 - Performance Refactor =====
-        /* * Key Changes in this version:
-         * - Progressive Image Loading: Implemented a three-stage loading strategy (low-res -> high-res -> cache) for a lag-free experience in both main and grid views.
-         * - Image Caching: High-resolution images are now cached in IndexedDB for instant loads on subsequent views.
-         * - Google Drive Batch Updates: Refactored Google Drive metadata saving to use a "dirty" tracking system and a single batch API call on exit, eliminating massive performance bottlenecks.
-         * - Grid View Fix: Correctly loads OneDrive images asynchronously in the grid view.
-         * - Code Organization: Created GoogleDriveSyncManager and refactored image loading logic into a unified system.
+        // ===== ORBITAL8 V53 - Baseline + OneDrive Write =====
+        /* * Built on stable baseline v22-Aug-535.
+         * - OneDrive Metadata Write: Implemented saving metadata to Microsoft Graph Open Extensions.
+         * - Background Sync: Added a Web Worker to handle all OneDrive metadata save operations, keeping the UI responsive.
+         * - Robust Sync Triggers: Syncing now occurs on folder exit, tab inactivity, and before the page unloads to prevent data loss.
+         * - UI Feedback: Added visual cues for background syncing status.
          */
         
         // ===== Core Constants & State =====
@@ -899,7 +897,6 @@
             currentProvider: null,
             currentProviderType: null,
             fileCache: null,
-            imageManager: null, // New Image Manager
             metadataExtractor: null,
             visualCueManager: null,
             hapticManager: null,
@@ -1088,6 +1085,68 @@
                 }
             },
             
+            async _getAuthenticatedImageUrl(file) {
+                if (file.downloadUrl) {
+                    return file.downloadUrl;
+                }
+                try {
+                    const accessToken = await appState.currentProvider.getAccessToken();
+                    const response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` }
+                    });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const blob = await response.blob();
+                    return URL.createObjectURL(blob);
+                } catch (error) {
+                    console.error('Failed to fetch authenticated image:', error);
+                    return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150' fill='none'%3E%3Crect width='150' height='150' fill='%23E5E7EB'/%3E%3Cpath d='M65 60H85V90H65V60Z' fill='%239CA3AF'/%3E%3Ccircle cx='75' cy='45' r='10' fill='%239CA3AF'/%3E%3C/svg%3E";
+                }
+            },
+
+            async setImageSrc(img, file) {
+                const loadId = file.id + '_' + Date.now();
+                appState.currentImageLoadId = loadId;
+
+                let imageUrl;
+                if (appState.currentProviderType === 'onedrive') {
+                    imageUrl = await this._getAuthenticatedImageUrl(file);
+                } else {
+                    imageUrl = this.generateImageUrl(file);
+                }
+
+                return new Promise((resolve) => {
+                    img.onload = () => {
+                        if (appState.currentImageLoadId !== loadId) return;
+                        if (imageUrl.startsWith('blob:')) {
+                            URL.revokeObjectURL(imageUrl);
+                        }
+                        resolve();
+                    };
+                    img.onerror = () => {
+                        if (appState.currentImageLoadId !== loadId) return;
+                        img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150' fill='none'%3E%3Crect width='150' height='150' fill='%23E5E7EB'/%3E%3Cpath d='M65 60H85V90H65V60Z' fill='%239CA3AF'/%3E%3Ccircle cx='75' cy='45' r='10' fill='%239CA3AF'/%3E%3C/svg%3E";
+                        resolve();
+                    };
+                    img.src = imageUrl;
+                    img.alt = file.name || 'Image';
+                });
+            },
+            
+            generateImageUrl(file) {
+                if (appState.currentProviderType === 'googledrive') {
+                    if (file.thumbnailLink) {
+                        return file.thumbnailLink.replace('=s220', '=s1000');
+                    }
+                    return `https://drive.google.com/thumbnail?id=${file.id}&sz=w1000`;
+                } else { // OneDrive
+                    if (file.thumbnails && file.thumbnails.large) {
+                        return file.thumbnails.large.url;
+                    }
+                    // Fallback handled by _getAuthenticatedImageUrl
+                    return ''; 
+                }
+            },
+            
             formatFileSize(bytes) {
                 if (bytes === 0) return '0 Bytes';
                 const k = 1024;
@@ -1187,7 +1246,7 @@
             
             async init() {
                 return new Promise((resolve, reject) => {
-                    const request = indexedDB.open('Orbital8UnifiedCache', 4); // Version bump for new store
+                    const request = indexedDB.open('Orbital8UnifiedCache', 3);
                     request.onerror = () => reject(request.error);
                     request.onsuccess = () => {
                         this.db = request.result;
@@ -1201,9 +1260,6 @@
                         }
                         if (!db.objectStoreNames.contains('metadata')) {
                             db.createObjectStore('metadata', { keyPath: 'id' });
-                        }
-                        if (!db.objectStoreNames.contains('images')) { // New image cache
-                            db.createObjectStore('images', { keyPath: 'id' });
                         }
                     };
                 });
@@ -1305,39 +1361,6 @@
                     });
                 } catch (error) {
                     console.warn('Failed to clear cache:', error);
-                }
-            }
-
-            // New methods for image caching
-            async getCachedImage(fileId) {
-                if (!this.db) return null;
-                try {
-                    const transaction = this.db.transaction(['images'], 'readonly');
-                    const store = transaction.objectStore('images');
-                    const result = await new Promise((resolve, reject) => {
-                        const request = store.get(fileId);
-                        request.onsuccess = () => resolve(request.result);
-                        request.onerror = () => reject(request.error);
-                    });
-                    return result ? result.blob : null;
-                } catch (error) {
-                    console.warn('Failed to get cached image:', error);
-                    return null;
-                }
-            }
-
-            async setCachedImage(fileId, blob) {
-                if (!this.db) return;
-                try {
-                    const transaction = this.db.transaction(['images'], 'readwrite');
-                    const store = transaction.objectStore('images');
-                    await new Promise((resolve, reject) => {
-                        const request = store.put({ id: fileId, blob: blob });
-                        request.onsuccess = () => resolve();
-                        request.onerror = () => reject(request.error);
-                    });
-                } catch (error) {
-                    console.warn('Failed to cache image:', error);
                 }
             }
         }
@@ -1462,7 +1485,21 @@
         class GoogleDriveMetadataManager {
             constructor(googleDriveProvider) {
                 this.provider = googleDriveProvider;
-                this.dirtyFiles = new Set();
+                this.cache = new Map();
+                this.cacheTimestamp = 0;
+                this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
+            }
+
+            async loadMetadata() {
+                // For Google Drive, we load metadata from appProperties during file retrieval
+                // This method exists for consistency with OneDriveMetadataManager
+                return this.cache;
+            }
+
+            async saveMetadata() {
+                // For Google Drive, metadata is saved via updateFileProperties
+                // This method exists for consistency with OneDriveMetadataManager
+                this.cacheTimestamp = Date.now();
             }
 
             getUserMetadata(fileId, fileAppProperties = {}) {
@@ -1477,12 +1514,30 @@
                 };
             }
 
+            async setUserMetadata(fileId, metadata) {
+                const properties = {};
+                if (metadata.stack) properties.slideboxStack = metadata.stack;
+                if (metadata.tags) properties.slideboxTags = metadata.tags.join(',');
+                if (metadata.qualityRating !== undefined) properties.qualityRating = metadata.qualityRating.toString();
+                if (metadata.contentRating !== undefined) properties.contentRating = metadata.contentRating.toString();
+                if (metadata.notes !== undefined) properties.notes = metadata.notes;
+                if (metadata.stackSequence !== undefined) properties.stackSequence = metadata.stackSequence.toString();
+                
+                await this.provider.updateFileProperties(fileId, properties);
+                
+                const updated = {
+                    ...metadata,
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                this.cache.set(fileId, updated);
+                return updated;
+            }
+
             async updateUserMetadata(fileId, updates) {
-                const file = appState.imageFiles.find(f => f.id === fileId);
-                if (file) {
-                    Object.assign(file, updates);
-                    this.dirtyFiles.add(fileId);
-                }
+                const current = this.cache.get(fileId) || {};
+                const updated = { ...current, ...updates };
+                return await this.setUserMetadata(fileId, updated);
             }
         }
 
@@ -1743,6 +1798,13 @@
                 
                 return { folders: [], files: allFiles };
             }
+            
+            async moveFileToStack(fileId, targetStack, sequence) {
+                return await this.metadataManager.updateUserMetadata(fileId, {
+                    stack: targetStack,
+                    stackSequence: sequence
+                });
+            }
 
             async moveFileToFolder(fileId, targetFolderId) {
                 const file = await this.makeApiCall(`/files/${fileId}?fields=parents`);
@@ -1757,6 +1819,16 @@
                 return true;
             }
             
+            async updateFileProperties(fileId, properties) {
+                await this.makeApiCall(`/files/${fileId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        appProperties: properties
+                    })
+                });
+                return true;
+            }
+
             async updateUserMetadata(fileId, updates) {
                 return await this.metadataManager.updateUserMetadata(fileId, updates);
             }
@@ -2021,8 +2093,6 @@
                             createdTime: item.createdDateTime,
                             modifiedTime: item.lastModifiedDateTime,
                             thumbnails: item.thumbnails && item.thumbnails.length > 0 ? {
-                                small: item.thumbnails[0].small,
-                                medium: item.thumbnails[0].medium,
                                 large: item.thumbnails[0].large
                             } : null,
                             downloadUrl: item['@microsoft.graph.downloadUrl'],
@@ -2039,6 +2109,13 @@
                 } while (nextLink);
                 
                 return { folders: [], files: allFiles };
+            }
+
+            async moveFileToStack(fileId, targetStack, sequence) {
+                return await this.metadataManager.updateUserMetadata(fileId, {
+                    stack: targetStack,
+                    stackSequence: sequence
+                });
             }
 
             async moveFileToFolder(fileId, targetFolderId) {
@@ -2354,7 +2431,7 @@
                     downloadUrl: file.downloadUrl,
                     extractedMetadata: {},
                     metadataStatus: 'pending',
-                    hasExtension: hasExtension, // Store for the worker
+                    hasExtension: hasExtension,
                     
                     stack: userMetadata.stack || 'in',
                     tags: userMetadata.tags || [],
@@ -2375,8 +2452,6 @@
                 Utils.elements.backButton.onclick = () => {
                     if (appState.currentProviderType === 'onedrive' && appState.currentProvider.metadataManager.dirtyFiles.size > 0) {
                         MetadataSyncManager.startSync();
-                    } else if (appState.currentProviderType === 'googledrive' && appState.currentProvider.metadataManager.dirtyFiles.size > 0) {
-                        GoogleDriveSyncManager.startSync();
                     }
                     this.returnToFolderSelection();
                 };
@@ -2566,6 +2641,7 @@
                     return;
                 }
                 
+                // Ensure pointer is within bounds
                 if (appState.currentStackPosition >= currentStackArray.length) {
                     appState.currentStackPosition = currentStackArray.length - 1;
                 }
@@ -2581,7 +2657,7 @@
 
                 Utils.elements.detailsButton.style.display = 'flex';
                 
-                await appState.imageManager.setMainImage(Utils.elements.centerImage, currentFile);
+                await Utils.setImageSrc(Utils.elements.centerImage, currentFile);
                 
                 const folderName = appState.currentFolder.name;
                 const truncatedFolder = folderName.length > 12 ? folderName.substring(0, 12) + '...' : folderName;
@@ -2643,6 +2719,7 @@
 
                     await MasterController.updateUserMetadata(currentImage.id, { stackSequence: newSequence });
                     
+                    // Re-order locally by re-sorting the whole array
                     const [item] = currentStackArray.splice(appState.currentStackPosition, 1);
                     item.stackSequence = newSequence;
                     currentStackArray.push(item);
@@ -2652,6 +2729,7 @@
                     const newSequence = Date.now();
                     await MasterController.updateUserMetadata(currentImage.id, { stack: targetStack, stackSequence: newSequence });
 
+                    // Re-order locally
                     const [item] = currentStackArray.splice(appState.currentStackPosition, 1);
                     item.stack = targetStack;
                     item.stackSequence = newSequence;
@@ -2662,6 +2740,7 @@
                 this.updateStackCounts();
                 this.updateActiveProxTab();
                 
+                // Display next image in the original stack
                 await this.displayCurrentImage();
             },
             
@@ -2689,6 +2768,7 @@
                 appState.grid.stack = stack;
                 appState.grid.isDirty = false;
                 
+                // Initialize grid layout correctly
                 const value = Utils.elements.gridSize.value;
                 Utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
                 
@@ -2786,13 +2866,22 @@
                     const img = document.createElement('img');
                     img.className = 'grid-image';
                     img.alt = file.name || 'Image';
+                    img.dataset.src = Utils.generateImageUrl(file);
+
+                    img.onload = () => img.classList.add('loaded');
+                    img.onerror = () => {
+                        img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none"%3E%3Crect width="150" height="150" fill="%23E5E7EB"/%3E%3Cpath d="M65 60H85V90H65V60Z" fill="%239CA3AF"/%3E%3Ccircle cx="75" cy="45" r="10" fill="%239CA3AF"/%3E%3C/svg%3E';
+                        img.classList.add('loaded');
+                    };
                     
                     div.addEventListener('click', e => this.toggleSelection(e, file.id));
                     
                     div.appendChild(img);
                     container.appendChild(div);
+                });
 
-                    appState.imageManager.setGridImage(img, file);
+                container.querySelectorAll('.grid-image:not([src])').forEach(img => {
+                    img.src = img.dataset.src;
                 });
 
                 state.renderedCount += filesToRender.length;
@@ -2922,12 +3011,24 @@
                 const newStack = [...topItems, ...bottomItems];
                 const timestamp = Date.now();
                 
+                // Update sequence numbers for persistence
                 for (let i = 0; i < newStack.length; i++) {
-                    await MasterController.updateUserMetadata(newStack[i].id, { stackSequence: timestamp - i });
+                    newStack[i].stackSequence = timestamp - i;
                 }
 
                 appState.stacks[appState.grid.stack] = newStack;
-                appState.currentStackPosition = 0;
+                appState.currentStackPosition = 0; // Reset pointer to the top of the reordered stack
+
+                // Persist the new order
+                try {
+                    const updatePromises = newStack.map(file => 
+                        MasterController.updateUserMetadata(file.id, { stackSequence: file.stackSequence })
+                    );
+                    await Promise.all(updatePromises);
+                    Utils.showToast('Stack order saved', 'success');
+                } catch (error) {
+                    Utils.showToast('Failed to save new stack order', 'error', true);
+                }
             }
         };
 
@@ -4478,22 +4579,18 @@
                     if (document.visibilityState === 'hidden') {
                         if (appState.currentProviderType === 'onedrive' && appState.currentProvider?.metadataManager?.dirtyFiles.size > 0) {
                             MetadataSyncManager.startSync();
-                        } else if (appState.currentProviderType === 'googledrive' && appState.currentProvider?.metadataManager?.dirtyFiles.size > 0) {
-                            GoogleDriveSyncManager.startSync();
                         }
                     }
                 });
 
                 window.addEventListener('beforeunload', (e) => {
                     if (appState.currentProviderType === 'onedrive' && appState.currentProvider?.metadataManager?.dirtyFiles.size > 0) {
-                        MetadataSyncManager.startSync(true); 
-                    } else if (appState.currentProviderType === 'googledrive' && appState.currentProvider?.metadataManager?.dirtyFiles.size > 0) {
-                        GoogleDriveSyncManager.startSync(true);
+                        MetadataSyncManager.startSync(true); // Attempt a beacon sync
                     }
                 });
             }
         };
-
+        
         // ===== Web Worker Script (for OneDrive) =====
         const workerScript = `
             let accessToken = null;
@@ -4709,13 +4806,10 @@
                 
                 appState.fileCache = new EnhancedFileCache();
                 await appState.fileCache.init();
-
-                appState.imageManager = new ImageManager();
                 
                 appState.metadataExtractor = new ProgressiveMetadataExtractor();
                 
                 MetadataSyncManager.init();
-                GoogleDriveSyncManager.init();
 
                 Utils.showScreen('provider-screen');
                 
