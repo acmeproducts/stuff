@@ -73,6 +73,81 @@
             display: none;
         }
 
+        #playbackControls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: none;
+            gap: 10px;
+            align-items: center;
+            background: var(--modal-bg);
+            padding: 10px 20px;
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-btn {
+            background: var(--accent);
+            color: var(--text);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .control-btn:hover {
+            background: var(--highlight);
+            transform: scale(1.1);
+        }
+
+        .control-btn.active {
+            background: var(--highlight);
+        }
+
+        .control-btn.recording {
+            background: #e53935;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: var(--text);
+            font-size: 12px;
+        }
+
+        .speed-slider {
+            width: 80px;
+            height: 4px;
+            background: var(--accent);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .speed-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--highlight);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
         #canvas {
             flex: 1;
             width: 100%;
@@ -217,13 +292,6 @@
                 opacity: 0;
             }
         }
-
-        .wave-particle {
-            position: absolute;
-            border-radius: 50%;
-            pointer-events: none;
-            transition: transform 0.1s ease-out;
-        }
     </style>
 </head>
 <body>
@@ -248,6 +316,15 @@
             </select>
         </div>
 
+        <div id="playbackControls">
+            <button class="control-btn" id="autoplayBtn" title="Auto Play">▶</button>
+            <div class="speed-control">
+                <span>Speed</span>
+                <input type="range" class="speed-slider" id="speedSlider" min="0.2" max="3" step="0.1" value="1">
+            </div>
+            <button class="control-btn" id="recordBtn" title="Record">●</button>
+        </div>
+
         <canvas id="canvas"></canvas>
     </div>
 
@@ -255,11 +332,22 @@
         <div class="modal-content">
             <h3>Welcome to Your Synesthetic Journey</h3>
             <p>This app responds to touch, device movement, and creates a living ecosystem of sound and color.</p>
-            <p><strong>Physics Mode:</strong> Morph colors with touch and gentle ambient resonance<br>
-            <strong>Music Mode:</strong> Play melodies through color interaction<br>
-            <strong>Wave Mode:</strong> Create flowing particle waves that respond to your touch</p>
+            <p><strong>Physics Mode:</strong> Interactive particles with musical responses and ambient resonance<br>
+            <strong>Music Mode:</strong> Play melodies through color interaction with autoplay and recording<br>
+            <strong>Wave Mode:</strong> Create flowing particle waves with dynamic patterns and harmonies</p>
             <div class="modal-buttons">
                 <button class="modal-btn primary" onclick="closeWelcome()">Start Exploring</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="saveModal" class="modal">
+        <div class="modal-content">
+            <h3>Save Recording?</h3>
+            <p>Would you like to save your performance?</p>
+            <div class="modal-buttons">
+                <button class="modal-btn primary" id="saveYes">Save</button>
+                <button class="modal-btn secondary" id="saveNo">Discard</button>
             </div>
         </div>
     </div>
@@ -312,9 +400,185 @@
         // Wave mode state
         let waveParticles = [];
         let waveDisturbances = [];
-        let waveGridSize = 15;
-        let waveAmplitude = 30;
-        let waveFrequency = 0.02;
+        let waveGridSize = 20; // Optimized for better performance
+        let waveAmplitude = 25;
+        let waveFrequency = 0.015;
+        let wavePattern = 'mixed'; // 'horizontal', 'vertical', 'center', 'mixed'
+        
+        // Invisible Musician state
+        let isAutoplay = false;
+        let autoplaySpeed = 1;
+        let invisibleMusician = null;
+        let musicianTimer = null;
+        
+        // Wave visualization for invisible musician
+        let musicianRipples = [];
+        
+        class MusicianRipple {
+            constructor(x, y, type = 'single') {
+                this.x = x;
+                this.y = y;
+                this.type = type; // 'single', 'strum', 'chord'
+                this.radius = 0;
+                this.maxRadius = type === 'chord' ? 80 : type === 'strum' ? 60 : 40;
+                this.alpha = 1;
+                this.age = 0;
+                this.maxAge = 1500;
+                this.color = `hsl(${200 + Math.random() * 160}, 70%, 65%)`;
+                this.rings = type === 'chord' ? 3 : type === 'strum' ? 2 : 1;
+            }
+            
+            update(deltaTime) {
+                this.age += deltaTime;
+                this.radius += 2;
+                this.alpha = Math.max(0, 1 - (this.age / this.maxAge));
+                return this.age < this.maxAge && this.alpha > 0.01;
+            }
+            
+            draw(ctx) {
+                for (let ring = 0; ring < this.rings; ring++) {
+                    const ringRadius = this.radius + ring * 15;
+                    const ringAlpha = this.alpha * (1 - ring * 0.3);
+                    
+                    if (ringAlpha > 0.01) {
+                        ctx.strokeStyle = this.color.replace(')', `, ${ringAlpha})`).replace('hsl', 'hsla');
+                        ctx.lineWidth = 2 - ring * 0.3;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, ringRadius, 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+        
+        // Invisible Musician class - all the intelligence, no visual representation
+        class InvisibleMusician {
+            constructor() {
+                this.x = canvas.width * 0.3;
+                this.y = canvas.height * 0.5;
+                this.targetX = this.x;
+                this.targetY = this.y;
+                
+                // Musical intelligence (same as before but no visual properties)
+                this.playingStyle = 'pick'; // 'pick', 'strum', 'chord'
+                this.rhythm = 'steady'; // 'steady', 'syncopated', 'flowing'
+                this.movePattern = 'explore'; // 'explore', 'sweep', 'focus'
+                
+                // Timing controls
+                this.lastStyleChange = 0;
+                this.lastPlay = 0;
+                
+                // Movement state
+                this.movePhase = Math.random() * Math.PI * 2;
+                this.focusCenter = { x: canvas.width * 0.5, y: canvas.height * 0.5 };
+            }
+            
+            update(currentTime) {
+                // Evolve musical behavior over time
+                this.evolveMusicalIntelligence(currentTime);
+                
+                // Move according to current pattern
+                this.updateMovement(currentTime);
+            }
+            
+            evolveMusicalIntelligence(time) {
+                // Change musical approach every 4-8 seconds
+                if (time - this.lastStyleChange > 4000 + Math.random() * 4000) {
+                    const styles = ['pick', 'strum', 'chord'];
+                    const rhythms = ['steady', 'syncopated', 'flowing'];
+                    const patterns = ['explore', 'sweep', 'focus'];
+                    
+                    this.playingStyle = styles[Math.floor(Math.random() * styles.length)];
+                    this.rhythm = rhythms[Math.floor(Math.random() * rhythms.length)];
+                    this.movePattern = patterns[Math.floor(Math.random() * patterns.length)];
+                    
+                    // Update focus center when changing to focus mode
+                    if (this.movePattern === 'focus') {
+                        this.focusCenter = {
+                            x: canvas.width * (0.2 + Math.random() * 0.6),
+                            y: canvas.height * (0.2 + Math.random() * 0.6)
+                        };
+                    }
+                    
+                    this.lastStyleChange = time;
+                }
+            }
+            
+            updateMovement(time) {
+                const timeSeconds = time * 0.001;
+                
+                switch(this.movePattern) {
+                    case 'explore':
+                        // Smooth organic exploration
+                        if (Math.hypot(this.x - this.targetX, this.y - this.targetY) < 50) {
+                            // Generate smooth new target
+                            this.targetX = canvas.width * (0.1 + Math.random() * 0.8);
+                            this.targetY = canvas.height * (0.1 + Math.random() * 0.8);
+                        }
+                        break;
+                        
+                    case 'sweep':
+                        // Gentle flowing sweeps
+                        this.movePhase += 0.006 * autoplaySpeed;
+                        this.targetX = (Math.sin(this.movePhase) + 1) * canvas.width * 0.35 + canvas.width * 0.15;
+                        this.targetY = (Math.cos(this.movePhase * 0.7) + 1) * canvas.height * 0.35 + canvas.height * 0.15;
+                        break;
+                        
+                    case 'focus':
+                        // Gentle concentrated movements
+                        this.movePhase += 0.008 * autoplaySpeed;
+                        const radius = 60 + Math.sin(timeSeconds * 0.3) * 30;
+                        this.targetX = this.focusCenter.x + Math.sin(this.movePhase) * radius;
+                        this.targetY = this.focusCenter.y + Math.cos(this.movePhase * 0.8) * radius * 0.6;
+                        break;
+                }
+                
+                // Very smooth movement towards target
+                const moveSpeed = 0.02 + (autoplaySpeed - 1) * 0.01;
+                this.x += (this.targetX - this.x) * moveSpeed;
+                this.y += (this.targetY - this.y) * moveSpeed;
+                
+                // Keep within canvas bounds
+                this.x = Math.max(30, Math.min(canvas.width - 30, this.x));
+                this.y = Math.max(30, Math.min(canvas.height - 30, this.y));
+            }
+            
+            getPlayingInterval() {
+                const baseIntervals = {
+                    'pick': 400,
+                    'strum': 800,
+                    'chord': 1200
+                };
+                
+                const rhythmModifiers = {
+                    'steady': 1.0,
+                    'syncopated': 0.7 + Math.sin(performance.now() * 0.002) * 0.4,
+                    'flowing': 0.5 + Math.sin(performance.now() * 0.0015) * 0.3
+                };
+                
+                const baseInterval = baseIntervals[this.playingStyle] || 400;
+                const rhythmMod = rhythmModifiers[this.rhythm] || 1.0;
+                
+                return (baseInterval * rhythmMod) / autoplaySpeed;
+            }
+            
+            shouldPlay(currentTime) {
+                const interval = this.getPlayingInterval();
+                return (currentTime - this.lastPlay) >= interval;
+            }
+            
+            markPlayed(currentTime) {
+                this.lastPlay = currentTime;
+            }
+        }
+        
+        // Recording state
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+
+        // Pentatonic scale for harmonic ripples (C major pentatonic)
+        const pentatonicScale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00];
 
         // Wave mode classes
         class WaveParticle {
@@ -326,61 +590,78 @@
                 this.x = x;
                 this.y = y;
                 this.z = 0;
-                this.size = 2;
-                this.color = `hsl(${(gridX + gridY) * 8}, 70%, 60%)`;
+                this.size = 1.5 + Math.random() * 2;
+                this.baseColor = (gridX + gridY) * 12;
                 this.velocity = { x: 0, y: 0, z: 0 };
-                this.connections = [];
             }
 
             update(time, disturbances) {
-                // Base wave calculation
-                const waveTime = time * 0.001;
-                const distance = Math.sqrt(this.gridX * this.gridX + this.gridY * this.gridY);
+                const waveTime = time * 0.0008;
+                let targetZ = 0;
                 
-                // Multiple wave components for complexity
-                const wave1 = Math.sin((this.gridX * 0.3 + waveTime * 2)) * waveAmplitude * 0.4;
-                const wave2 = Math.sin((this.gridY * 0.25 + waveTime * 1.5)) * waveAmplitude * 0.3;
-                const wave3 = Math.sin((distance * 0.1 + waveTime * 3)) * waveAmplitude * 0.3;
+                // Different wave patterns
+                switch(wavePattern) {
+                    case 'horizontal':
+                        targetZ = Math.sin((this.gridY * 0.4 + waveTime * 3)) * waveAmplitude;
+                        break;
+                    case 'vertical':
+                        targetZ = Math.sin((this.gridX * 0.4 + waveTime * 3)) * waveAmplitude;
+                        break;
+                    case 'center':
+                        const distance = Math.sqrt(this.gridX * this.gridX + this.gridY * this.gridY);
+                        targetZ = Math.sin((distance * 0.15 + waveTime * 4)) * waveAmplitude * 0.8;
+                        break;
+                    default: // mixed
+                        const wave1 = Math.sin((this.gridX * 0.25 + waveTime * 2.5)) * waveAmplitude * 0.35;
+                        const wave2 = Math.sin((this.gridY * 0.3 + waveTime * 2)) * waveAmplitude * 0.35;
+                        const centerDist = Math.sqrt(this.gridX * this.gridX + this.gridY * this.gridY);
+                        const wave3 = Math.sin((centerDist * 0.1 + waveTime * 3.5)) * waveAmplitude * 0.3;
+                        targetZ = wave1 + wave2 + wave3;
+                }
                 
-                let targetZ = wave1 + wave2 + wave3;
+                // Apply device tilt for sloshing
+                const tiltEffectX = deviceOrientation.gamma * 0.3;
+                const tiltEffectY = deviceOrientation.beta * 0.3;
+                targetZ += (this.gridX * tiltEffectX + this.gridY * tiltEffectY) * 0.1;
                 
                 // Apply disturbances from touch
                 disturbances.forEach(disturbance => {
                     const dist = Math.hypot(this.x - disturbance.x, this.y - disturbance.y);
                     if (dist < disturbance.radius) {
                         const influence = (disturbance.radius - dist) / disturbance.radius;
-                        const waveEffect = Math.sin((dist - waveTime * 400) * 0.02) * disturbance.strength * influence;
+                        const waveEffect = Math.sin((dist - waveTime * 600) * 0.015) * disturbance.strength * influence;
                         targetZ += waveEffect;
                     }
                 });
                 
                 // Smooth interpolation
-                this.z += (targetZ - this.z) * 0.1;
+                this.z += (targetZ - this.z) * 0.08;
                 
                 // Update visual position
-                this.y = this.baseY + this.z * 0.5;
-                
-                // Update color based on height
-                const heightNorm = (this.z + waveAmplitude) / (waveAmplitude * 2);
-                const hue = (this.gridX + this.gridY) * 8 + heightNorm * 60;
-                const lightness = 40 + heightNorm * 40;
-                this.color = `hsl(${hue}, 80%, ${lightness}%)`;
+                this.y = this.baseY + this.z * 0.4;
+                this.x = this.baseX + Math.sin(waveTime * 2 + this.gridY * 0.1) * 1;
                 
                 // Update size based on wave height
-                this.size = 2 + Math.abs(this.z) * 0.05;
+                this.size = 1.5 + Math.abs(this.z) * 0.04;
             }
 
             draw(ctx) {
-                // Draw particle
-                ctx.fillStyle = this.color;
+                // Dynamic color based on height and time
+                const heightNorm = (this.z + waveAmplitude) / (waveAmplitude * 2);
+                const time = performance.now() * 0.001;
+                const hue = (this.baseColor + heightNorm * 80 + time * 20) % 360;
+                const lightness = 35 + heightNorm * 45;
+                const saturation = 60 + heightNorm * 30;
+                
+                ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
                 ctx.fill();
             }
 
             drawConnections(ctx, particles) {
-                // Draw connections to nearby particles
-                const maxDistance = waveGridSize * 1.5;
+                const maxDistance = waveGridSize * 1.6;
+                const time = performance.now() * 0.001;
                 
                 particles.forEach(other => {
                     if (other === this) return;
@@ -389,14 +670,15 @@
                     const dy = this.gridY - other.gridY;
                     const gridDist = Math.sqrt(dx * dx + dy * dy);
                     
-                    if (gridDist <= 1.5) { // Only connect to immediate neighbors
+                    if (gridDist <= 1.5) {
                         const actualDist = Math.hypot(this.x - other.x, this.y - other.y);
                         const alpha = Math.max(0, 1 - actualDist / (maxDistance * 2));
                         const avgZ = (this.z + other.z) / 2;
-                        const heightColor = Math.abs(avgZ) / waveAmplitude;
+                        const heightColor = (avgZ + waveAmplitude) / (waveAmplitude * 2);
+                        const connectionHue = (time * 30 + heightColor * 120) % 360;
                         
-                        ctx.strokeStyle = `rgba(${100 + heightColor * 155}, ${150 + heightColor * 105}, 255, ${alpha * 0.3})`;
-                        ctx.lineWidth = 1 + heightColor;
+                        ctx.strokeStyle = `hsla(${connectionHue}, 70%, 60%, ${alpha * 0.4})`;
+                        ctx.lineWidth = 0.5 + heightColor;
                         ctx.beginPath();
                         ctx.moveTo(this.x, this.y);
                         ctx.lineTo(other.x, other.y);
@@ -407,28 +689,32 @@
         }
 
         class WaveDisturbance {
-            constructor(x, y, strength = 50) {
+            constructor(x, y, strength = 40) {
                 this.x = x;
                 this.y = y;
                 this.strength = strength;
+                this.maxStrength = strength;
                 this.radius = 0;
-                this.maxRadius = 150;
+                this.maxRadius = 120;
                 this.age = 0;
-                this.maxAge = 2000;
-                this.expandSpeed = 3;
+                this.maxAge = 1800;
+                this.expandSpeed = 2.5;
             }
 
             update(deltaTime) {
                 this.age += deltaTime;
                 this.radius += this.expandSpeed;
-                this.strength *= 0.995;
+                // Waning intensity over time
+                this.strength = this.maxStrength * (1 - this.age / this.maxAge) * Math.exp(-this.age / 800);
                 
-                return this.age < this.maxAge && this.strength > 1;
+                return this.age < this.maxAge && this.strength > 0.5;
             }
 
             draw(ctx) {
-                const alpha = Math.max(0, 1 - this.age / this.maxAge);
-                ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.2})`;
+                const alpha = Math.max(0, this.strength / this.maxStrength * 0.3);
+                const time = performance.now() * 0.001;
+                const hue = (time * 50) % 360;
+                ctx.strokeStyle = `hsla(${hue}, 80%, 70%, ${alpha})`;
                 ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
@@ -436,7 +722,7 @@
             }
         }
 
-        // Sound synthesis (Karplus-Strong)
+        // Sound synthesis
         function initAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -450,32 +736,26 @@
         function initPhysicsHum() {
             if (!audioCtx || physicsOscillator) return;
             
-            // Create a warmer, more soothing oscillator setup
             physicsOscillator = audioCtx.createOscillator();
             physicsGain = audioCtx.createGain();
             reverbGain = audioCtx.createGain();
             filterNode = audioCtx.createBiquadFilter();
             
-            // Use triangle wave for warmer tone
             physicsOscillator.type = 'triangle';
-            physicsOscillator.frequency.value = 55; // Lower base frequency (A1)
+            physicsOscillator.frequency.value = 55;
             
-            // Low-pass filter for smoothness
             filterNode.type = 'lowpass';
             filterNode.frequency.value = 800;
             filterNode.Q.value = 1;
             
-            // Gain settings for subtlety
             physicsGain.gain.value = 0;
             reverbGain.gain.value = 0;
             
-            // Create reverb effect with delay
             const delay = audioCtx.createDelay();
             delay.delayTime.value = 0.3;
             const delayGain = audioCtx.createGain();
             delayGain.gain.value = 0.15;
             
-            // Connection chain: oscillator -> filter -> gain -> reverb -> master
             physicsOscillator.connect(filterNode);
             filterNode.connect(physicsGain);
             physicsGain.connect(reverbGain);
@@ -490,30 +770,24 @@
         function updatePhysicsHum(intensity, x, y) {
             if (!physicsOscillator || !physicsGain || !filterNode) return;
             
-            // Map interaction to frequency (40-100 Hz range for soothing bass tones)
-            const baseFreq = 55; // A1 note
+            const baseFreq = 55;
             const freqRange = 45;
             const normalizedX = x / canvas.width;
             const normalizedY = y / canvas.height;
             
-            // Gentler frequency mapping
             const targetFreq = baseFreq + (freqRange * Math.pow(normalizedY, 2)) + (intensity * 20);
-            const targetVolume = Math.min(0.08, intensity * 0.15); // Much quieter
+            const targetVolume = Math.min(0.08, intensity * 0.15);
             
-            // Smoother transitions
             physicsOscillator.frequency.setTargetAtTime(targetFreq, audioCtx.currentTime, 0.3);
             physicsGain.gain.setTargetAtTime(targetVolume, audioCtx.currentTime, 0.2);
             
-            // Adjust filter based on interaction
             const filterFreq = 400 + (intensity * 600) + (normalizedX * 400);
             filterNode.frequency.setTargetAtTime(filterFreq, audioCtx.currentTime, 0.2);
             
-            // Add subtle reverb when interacting
             if (intensity > 0.3) {
                 reverbGain.gain.setTargetAtTime(targetVolume * 0.3, audioCtx.currentTime, 0.1);
             }
             
-            // Very gentle haptic feedback
             if (navigator.vibrate && intensity > 0.5) {
                 navigator.vibrate(Math.floor(intensity * 15));
             }
@@ -530,7 +804,6 @@
             const delayLength = Math.floor(sampleRate / frequency);
             const delayLine = new Float32Array(delayLength);
             
-            // Initialize with noise
             for (let i = 0; i < delayLength; i++) {
                 delayLine[i] = Math.random() * 2 - 1;
             }
@@ -558,7 +831,15 @@
             });
         }
 
-        function playWaveNote(frequency, volume = 0.1, duration = 0.8) {
+        function playPhysicsNote(x, y, intensity) {
+            const normalizedY = y / canvas.height;
+            const scaleIndex = Math.floor(normalizedY * pentatonicScale.length);
+            const freq = pentatonicScale[Math.min(scaleIndex, pentatonicScale.length - 1)];
+            const volume = Math.min(0.15, intensity * 0.25);
+            playNote(freq, 0.4, volume);
+        }
+
+        function playWaveNote(frequency, volume = 0.08, duration = 1.0) {
             if (!audioCtx || !masterGain) return;
             
             const oscillator = audioCtx.createOscillator();
@@ -586,44 +867,86 @@
         // Physics mode functions
         function initPhysicsMode() {
             physicsPoints = [];
+            
+            if (canvas.width === 0 || canvas.height === 0) {
+                console.warn('Canvas not ready, deferring physics initialization');
+                return;
+            }
+            
             const img = new Image();
             img.onload = function() {
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                
-                // Sample the image to create physics points
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const data = imageData.data;
-                
-                for (let x = 0; x < canvas.width; x += 10) {
-                    for (let y = 0; y < canvas.height; y += 10) {
-                        const i = (y * canvas.width + x) * 4;
-                        const r = data[i];
-                        const g = data[i + 1];
-                        const b = data[i + 2];
-                        
-                        physicsPoints.push({
-                            x: x,
-                            y: y,
-                            originalX: x,
-                            originalY: y,
-                            vx: 0,
-                            vy: 0,
-                            color: `rgb(${r},${g},${b})`
-                        });
+                try {
+                    if (canvas.width === 0 || canvas.height === 0) {
+                        console.warn('Canvas still not ready');
+                        return;
                     }
+                    
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+                    
+                    for (let x = 0; x < canvas.width; x += 10) {
+                        for (let y = 0; y < canvas.height; y += 10) {
+                            const i = (y * canvas.width + x) * 4;
+                            const r = data[i];
+                            const g = data[i + 1];
+                            const b = data[i + 2];
+                            
+                            physicsPoints.push({
+                                x: x,
+                                y: y,
+                                originalX: x,
+                                originalY: y,
+                                vx: 0,
+                                vy: 0,
+                                color: `rgb(${r},${g},${b})`,
+                                lastSoundTime: 0
+                            });
+                        }
+                    }
+                    
+                    console.log(`Created ${physicsPoints.length} physics points`);
+                } catch (error) {
+                    console.error('Error initializing physics points:', error);
+                    createFallbackPhysicsPoints();
                 }
+            };
+            img.onerror = function() {
+                console.warn('Failed to load base pattern, using fallback');
+                createFallbackPhysicsPoints();
             };
             img.src = BASE_PATTERN;
             
-            // Initialize soothing physics hum
             initPhysicsHum();
+        }
+        
+        function createFallbackPhysicsPoints() {
+            physicsPoints = [];
+            const colors = ['#4CAF50', '#8BC34A', '#FFEB3B', '#2196F3', '#9C27B0'];
+            
+            for (let x = 0; x < canvas.width; x += 10) {
+                for (let y = 0; y < canvas.height; y += 10) {
+                    const colorIndex = Math.floor((x + y) / 20) % colors.length;
+                    physicsPoints.push({
+                        x: x,
+                        y: y,
+                        originalX: x,
+                        originalY: y,
+                        vx: 0,
+                        vy: 0,
+                        color: colors[colorIndex],
+                        lastSoundTime: 0
+                    });
+                }
+            }
+            console.log(`Created ${physicsPoints.length} fallback physics points`);
         }
 
         function updatePhysicsMode(touches) {
-            // Calculate interaction intensity for audio
             currentInteractionIntensity = 0;
             let avgTouchX = 0;
             let avgTouchY = 0;
+            const now = performance.now();
             
             if (touches.length > 0) {
                 touches.forEach(touch => {
@@ -634,16 +957,16 @@
                 avgTouchY /= touches.length;
             }
             
-            // Apply device orientation effects
+            // Enhanced tilt effects for sloshing
             const tiltForce = {
-                x: deviceOrientation.gamma * 0.01,
-                y: deviceOrientation.beta * 0.01
+                x: deviceOrientation.gamma * 0.02,
+                y: deviceOrientation.beta * 0.02
             };
             
             physicsPoints.forEach(point => {
-                // Touch effects
                 let totalForceX = 0;
                 let totalForceY = 0;
+                let maxIntensity = 0;
                 
                 touches.forEach(touch => {
                     const dx = point.x - touch.x;
@@ -652,18 +975,25 @@
                     
                     if (dist < 100) {
                         const force = (100 - dist) / 100;
+                        maxIntensity = Math.max(maxIntensity, force);
                         currentInteractionIntensity = Math.max(currentInteractionIntensity, force);
                         const angle = Math.atan2(dy, dx);
                         totalForceX += Math.cos(angle) * force * 2;
                         totalForceY += Math.sin(angle) * force * 2;
+                        
+                        // Play physics sound based on interaction
+                        if (force > 0.7 && now - point.lastSoundTime > 150) {
+                            playPhysicsNote(touch.x, touch.y, force);
+                            point.lastSoundTime = now;
+                        }
                     }
                 });
                 
-                // Apply forces
+                // Apply forces including tilt
                 point.vx += totalForceX + tiltForce.x;
                 point.vy += totalForceY + tiltForce.y;
                 
-                // Elastic return to original position
+                // Elastic return
                 const returnX = (point.originalX - point.x) * 0.02;
                 const returnY = (point.originalY - point.y) * 0.02;
                 point.vx += returnX;
@@ -678,11 +1008,10 @@
                 point.vy *= 0.95;
             });
             
-            // Update soothing physics hum
+            // Update physics hum
             if (touches.length > 0) {
                 updatePhysicsHum(currentInteractionIntensity, avgTouchX, avgTouchY);
             } else {
-                // Fade out hum gently when not interacting
                 if (physicsGain && reverbGain) {
                     physicsGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.5);
                     reverbGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.3);
@@ -701,13 +1030,11 @@
             ctx.fillStyle = '#1a1a2e';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Draw physics points
             physicsPoints.forEach(point => {
                 ctx.fillStyle = point.color;
                 ctx.fillRect(point.x - 5, point.y - 5, 10, 10);
             });
             
-            // Draw ripples
             ripples.forEach(ripple => {
                 ctx.strokeStyle = `rgba(255,255,255,${ripple.alpha})`;
                 ctx.lineWidth = 2;
@@ -725,17 +1052,23 @@
             const gridWidth = Math.ceil(canvas.width / waveGridSize);
             const gridHeight = Math.ceil(canvas.height / waveGridSize);
             
-            // Create grid of wave particles
             for (let gridX = 0; gridX < gridWidth; gridX++) {
                 for (let gridY = 0; gridY < gridHeight; gridY++) {
                     const x = (gridX - gridWidth / 2) * waveGridSize + canvas.width / 2;
                     const y = (gridY - gridHeight / 2) * waveGridSize + canvas.height / 2;
                     
-                    if (x >= 0 && x <= canvas.width && y >= 0 && y <= canvas.height) {
+                    if (x >= -waveGridSize && x <= canvas.width + waveGridSize && 
+                        y >= -waveGridSize && y <= canvas.height + waveGridSize) {
                         waveParticles.push(new WaveParticle(gridX - gridWidth / 2, gridY - gridHeight / 2, x, y));
                     }
                 }
             }
+            
+            // Cycle through wave patterns periodically
+            setInterval(() => {
+                const patterns = ['mixed', 'horizontal', 'vertical', 'center'];
+                wavePattern = patterns[Math.floor(Math.random() * patterns.length)];
+            }, 8000);
             
             console.log(`Created ${waveParticles.length} wave particles`);
         }
@@ -744,15 +1077,21 @@
             // Add disturbances from touches
             touches.forEach(touch => {
                 const existingDisturbance = waveDisturbances.find(d => 
-                    Math.hypot(d.x - touch.x, d.y - touch.y) < 30
+                    Math.hypot(d.x - touch.x, d.y - touch.y) < 25
                 );
                 
                 if (!existingDisturbance) {
-                    waveDisturbances.push(new WaveDisturbance(touch.x, touch.y, 80));
+                    waveDisturbances.push(new WaveDisturbance(touch.x, touch.y, 60));
                     
-                    // Play wave sound based on position
-                    const freq = 200 + (touch.y / canvas.height) * 400;
-                    playWaveNote(freq, 0.08, 1.2);
+                    // Harmonized wave sound
+                    const normalizedY = touch.y / canvas.height;
+                    const scaleIndex = Math.floor(normalizedY * pentatonicScale.length);
+                    const baseFreq = pentatonicScale[scaleIndex];
+                    
+                    // Create harmonic chord
+                    playWaveNote(baseFreq, 0.06, 1.5);
+                    setTimeout(() => playWaveNote(baseFreq * 1.5, 0.04, 1.2), 100);
+                    setTimeout(() => playWaveNote(baseFreq * 2, 0.03, 0.8), 200);
                 }
             });
             
@@ -766,14 +1105,17 @@
         }
 
         function drawWaveMode() {
-            // Dark background with subtle gradient
-            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            gradient.addColorStop(0, '#0a0a1a');
-            gradient.addColorStop(1, '#1a1a2e');
+            // Dynamic background
+            const time = performance.now() * 0.001;
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            const hue1 = (time * 10) % 360;
+            const hue2 = (time * 10 + 120) % 360;
+            gradient.addColorStop(0, `hsl(${hue1}, 20%, 8%)`);
+            gradient.addColorStop(1, `hsl(${hue2}, 25%, 12%)`);
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Draw connections first (behind particles)
+            // Draw connections first
             waveParticles.forEach(particle => {
                 particle.drawConnections(ctx, waveParticles);
             });
@@ -787,17 +1129,19 @@
             waveDisturbances.forEach(disturbance => {
                 disturbance.draw(ctx);
             });
+            
+            // Update and draw musician ripples (invisible musician visualization)
+            musicianRipples = musicianRipples.filter(ripple => ripple.update(16));
+            musicianRipples.forEach(ripple => {
+                ripple.draw(ctx);
+            });
         }
 
-        // Music mode state for harmonics
+        // Music mode functions
         let activeRipples = [];
         let lastFlowNote = 0;
         let flowNoteCooldown = 0;
-        
-        // Pentatonic scale for harmonic ripples (C major pentatonic)
-        const pentatonicScale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00];
-        
-        // Music mode functions
+
         function handleMusicInteraction(x, y, isMoving = false) {
             const normalizedX = x / canvas.width;
             const normalizedY = y / canvas.height;
@@ -820,16 +1164,14 @@
                     
                 case 'flow':
                     if (isMoving && flowNoteCooldown <= 0) {
-                        // Use pentatonic scale for smooth flow
                         const scaleIndex = Math.floor(normalizedY * pentatonicScale.length);
                         const freq = pentatonicScale[Math.min(scaleIndex, pentatonicScale.length - 1)];
                         
-                        // Only play if it's a different note or enough time has passed
                         if (Math.abs(freq - lastFlowNote) > 20) {
                             playNote(freq, 0.3, 0.15);
                             visualizeFlow(x, y, freq);
                             lastFlowNote = freq;
-                            flowNoteCooldown = 8; // Prevent too rapid firing
+                            flowNoteCooldown = 8;
                         }
                     }
                     break;
@@ -839,7 +1181,6 @@
                     break;
             }
             
-            // Decrease flow cooldown
             if (flowNoteCooldown > 0) flowNoteCooldown--;
         }
 
@@ -887,12 +1228,10 @@
         }
 
         function createMusicRipple(x, y) {
-            // Use pentatonic scale and ensure harmony
             const normalizedY = y / canvas.height;
             const scaleIndex = Math.floor(normalizedY * pentatonicScale.length);
             const baseFreq = pentatonicScale[scaleIndex];
             
-            // Check for nearby active ripples to create harmony
             const nearbyRipples = activeRipples.filter(ripple => {
                 const dist = Math.hypot(x - ripple.x, y - ripple.y);
                 return dist < 150 && ripple.radius < ripple.maxRadius;
@@ -900,12 +1239,10 @@
             
             let harmonicFreq = baseFreq;
             if (nearbyRipples.length > 0) {
-                // Create harmonious intervals (perfect fifth or octave)
-                const intervals = [1.5, 2, 0.75]; // Perfect fifth, octave, perfect fourth
+                const intervals = [1.5, 2, 0.75];
                 const interval = intervals[Math.floor(Math.random() * intervals.length)];
                 harmonicFreq = baseFreq * interval;
                 
-                // Ensure it stays within our scale range
                 while (harmonicFreq > pentatonicScale[pentatonicScale.length - 1]) {
                     harmonicFreq /= 2;
                 }
@@ -934,7 +1271,6 @@
         }
 
         function drawMusicMode() {
-            // Draw base pattern
             const img = new Image();
             if (img.complete) {
                 ctx.globalAlpha = 0.3;
@@ -949,7 +1285,6 @@
             }
             img.src = BASE_PATTERN;
             
-            // Draw mode-specific overlays
             switch (currentSubMode) {
                 case 'harp':
                     ctx.strokeStyle = 'rgba(255,255,255,0.2)';
@@ -976,7 +1311,6 @@
                     break;
             }
             
-            // Draw ripples
             ripples.forEach(ripple => {
                 ctx.strokeStyle = ripple.color || `rgba(255,255,255,${ripple.alpha})`;
                 ctx.lineWidth = 2;
@@ -986,13 +1320,252 @@
             });
         }
 
+        // Invisible Musician Functions
+        function startAutoplay() {
+            if (isAutoplay) return;
+            isAutoplay = true;
+            
+            // Create the invisible guitarist
+            invisibleMusician = new InvisibleMusician();
+            
+            // Clear any sound blocking artifacts from previous modes
+            flowNoteCooldown = 0;
+            lastFlowNote = 0;
+            
+            // Clear musician ripples
+            musicianRipples = [];
+            
+            // Start the musician's performance loop
+            const performanceLoop = () => {
+                if (!isAutoplay || !invisibleMusician) return;
+                
+                const currentTime = performance.now();
+                invisibleMusician.update(currentTime);
+                
+                // Check if it's time to play
+                if (invisibleMusician.shouldPlay(currentTime)) {
+                    performMusicalAction();
+                    invisibleMusician.markPlayed(currentTime);
+                }
+                
+                // Schedule next update
+                musicianTimer = setTimeout(performanceLoop, 16); // ~60fps updates
+            };
+            
+            // Start the performance
+            performanceLoop();
+            
+            // Update UI
+            document.getElementById('autoplayBtn').classList.add('active');
+            document.getElementById('autoplayBtn').textContent = '⏸';
+        }
+        
+        function performMusicalAction() {
+            if (!invisibleMusician) return;
+            
+            switch (invisibleMusician.playingStyle) {
+                case 'pick':
+                    performPickStyle();
+                    break;
+                case 'strum':
+                    performStrumStyle();
+                    break;
+                case 'chord':
+                    performChordStyle();
+                    break;
+            }
+        }
+        
+        function performPickStyle() {
+            // Single note precision - clear any blocking
+            if (currentMode === 'music' && currentSubMode === 'flow') {
+                flowNoteCooldown = 0; // Allow immediate play
+            }
+            
+            if (currentMode === 'music') {
+                handleMusicInteraction(invisibleMusician.x, invisibleMusician.y, currentSubMode === 'flow');
+            } else if (currentMode === 'waves') {
+                // Single precise touch with ripple visualization
+                window.currentTouches = [{x: invisibleMusician.x, y: invisibleMusician.y}];
+                musicianRipples.push(new MusicianRipple(invisibleMusician.x, invisibleMusician.y, 'single'));
+                setTimeout(() => { window.currentTouches = []; }, 60);
+            } else if (currentMode === 'physics') {
+                window.currentTouches = [{x: invisibleMusician.x, y: invisibleMusician.y}];
+                setTimeout(() => { window.currentTouches = []; }, 80);
+            }
+        }
+        
+        function performStrumStyle() {
+            if (currentMode === 'music' && currentSubMode === 'harp') {
+                // Authentic vertical string strum
+                const strumStartY = Math.max(50, invisibleMusician.y - 120);
+                const strumEndY = Math.min(canvas.height - 50, invisibleMusician.y + 120);
+                const strumSteps = 10;
+                const strumDelay = 25; // ms between string hits
+                
+                for (let i = 0; i < strumSteps; i++) {
+                    setTimeout(() => {
+                        const y = strumStartY + (strumEndY - strumStartY) * (i / (strumSteps - 1));
+                        flowNoteCooldown = 0; // Clear any blocking
+                        handleMusicInteraction(invisibleMusician.x, y, false);
+                    }, i * strumDelay);
+                }
+            } else {
+                // Flowing gesture strum for other modes
+                const gesturePoints = [];
+                const numPoints = 6;
+                const gestureRadius = 80;
+                
+                for (let i = 0; i < numPoints; i++) {
+                    const angle = (i / numPoints) * Math.PI * 2;
+                    gesturePoints.push({
+                        x: invisibleMusician.x + Math.cos(angle) * gestureRadius * (0.5 + Math.random() * 0.5),
+                        y: invisibleMusician.y + Math.sin(angle) * gestureRadius * (0.3 + Math.random() * 0.3)
+                    });
+                }
+                
+                gesturePoints.forEach((point, i) => {
+                    setTimeout(() => {
+                        const constrainedX = Math.max(20, Math.min(canvas.width - 20, point.x));
+                        const constrainedY = Math.max(20, Math.min(canvas.height - 20, point.y));
+                        
+                        if (currentMode === 'music') {
+                            flowNoteCooldown = 0; // Clear blocking for each note
+                            handleMusicInteraction(constrainedX, constrainedY, true);
+                        } else if (currentMode === 'waves') {
+                            // Show strum path on wave net
+                            window.currentTouches = [{x: constrainedX, y: constrainedY}];
+                            if (i === 0) { // First point shows the strum ripple
+                                musicianRipples.push(new MusicianRipple(constrainedX, constrainedY, 'strum'));
+                            }
+                            setTimeout(() => { window.currentTouches = []; }, 50);
+                        } else if (currentMode === 'physics') {
+                            window.currentTouches = [{x: constrainedX, y: constrainedY}];
+                            setTimeout(() => { window.currentTouches = []; }, 70);
+                        }
+                    }, i * 45);
+                });
+            }
+        }
+        
+        function performChordStyle() {
+            if (currentMode === 'music' && currentSubMode === 'pad') {
+                // Single chord in pad mode
+                flowNoteCooldown = 0;
+                handleMusicInteraction(invisibleMusician.x, invisibleMusician.y, false);
+            } else {
+                // Multi-note chord simulation
+                const chordNotes = [];
+                const baseRadius = 60;
+                const numNotes = 3 + Math.floor(Math.random() * 3); // 3-5 notes
+                
+                // Generate chord positions around the musician
+                for (let i = 0; i < numNotes; i++) {
+                    const angle = (i / numNotes) * Math.PI * 2 + Math.random() * 0.5;
+                    const distance = baseRadius * (0.6 + Math.random() * 0.4);
+                    chordNotes.push({
+                        x: invisibleMusician.x + Math.cos(angle) * distance,
+                        y: invisibleMusician.y + Math.sin(angle) * distance * 0.7 // Slightly flattened
+                    });
+                }
+                
+                // Play chord notes in quick succession
+                chordNotes.forEach((note, i) => {
+                    setTimeout(() => {
+                        const constrainedX = Math.max(20, Math.min(canvas.width - 20, note.x));
+                        const constrainedY = Math.max(20, Math.min(canvas.height - 20, note.y));
+                        
+                        if (currentMode === 'music') {
+                            flowNoteCooldown = 0; // Clear blocking for each chord note
+                            handleMusicInteraction(constrainedX, constrainedY, false);
+                        } else if (currentMode === 'waves') {
+                            window.currentTouches = [{x: constrainedX, y: constrainedY}];
+                            if (i === 0) { // Show chord ripple on first note
+                                musicianRipples.push(new MusicianRipple(constrainedX, constrainedY, 'chord'));
+                            }
+                            setTimeout(() => { window.currentTouches = []; }, 40);
+                        } else if (currentMode === 'physics') {
+                            window.currentTouches = [{x: constrainedX, y: constrainedY}];
+                            setTimeout(() => { window.currentTouches = []; }, 60);
+                        }
+                    }, i * 15); // Very rapid succession for chord effect
+                });
+            }
+        }
+
+        function stopAutoplay() {
+            if (!isAutoplay) return;
+            
+            isAutoplay = false;
+            invisibleMusician = null;
+            
+            // Clear musician timer
+            if (musicianTimer) {
+                clearTimeout(musicianTimer);
+                musicianTimer = null;
+            }
+            
+            // Clear any active touches and ripples
+            window.currentTouches = [];
+            musicianRipples = [];
+            
+            // Update UI
+            document.getElementById('autoplayBtn').classList.remove('active');
+            document.getElementById('autoplayBtn').textContent = '▶';
+        }
+
+        // Recording functions
+        function startRecording() {
+            try {
+                const stream = canvas.captureStream(30);
+                const audioStream = audioCtx.createMediaStreamDestination();
+                masterGain.connect(audioStream);
+                
+                if (audioStream.stream.getAudioTracks().length > 0) {
+                    stream.addTrack(audioStream.stream.getAudioTracks()[0]);
+                }
+
+                mediaRecorder = new MediaRecorder(stream, { 
+                    mimeType: 'video/webm; codecs=vp9,opus' 
+                });
+                recordedChunks = [];
+                
+                mediaRecorder.ondataavailable = e => {
+                    if (e.data.size > 0) recordedChunks.push(e.data);
+                };
+                
+                mediaRecorder.start();
+                isRecording = true;
+                
+                const recordBtn = document.getElementById('recordBtn');
+                recordBtn.classList.add('recording');
+                recordBtn.textContent = '⏹';
+                
+            } catch (err) {
+                console.error('Error starting recording:', err);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            isRecording = false;
+            
+            const recordBtn = document.getElementById('recordBtn');
+            recordBtn.classList.remove('recording');
+            recordBtn.textContent = '●';
+            
+            document.getElementById('saveModal').style.display = 'flex';
+        }
+
         // Main render loop
         function render(currentTime) {
             if (!isActive) return;
             
             if (!startTime) startTime = currentTime;
             
-            const deltaTime = 16; // Assume 60fps
+            const deltaTime = 16;
             const touches = window.currentTouches || [];
             
             switch (currentMode) {
@@ -1001,12 +1574,10 @@
                     drawPhysicsMode();
                     break;
                 case 'music':
-                    // Update ripples with harmonic awareness
                     ripples = ripples.filter(ripple => {
                         ripple.radius += ripple.speed;
                         ripple.alpha *= 0.98;
                         
-                        // Remove from activeRipples if finished
                         const maxRadius = ripple.maxRadius || 200;
                         if (ripple.radius >= maxRadius || ripple.alpha <= 0.01) {
                             const index = activeRipples.findIndex(r => r.id === ripple.id);
@@ -1023,6 +1594,8 @@
                     break;
             }
             
+            // No visual cursor needed - invisible musician provides feedback through instrument responses
+            
             animationId = requestAnimationFrame(render);
         }
 
@@ -1030,15 +1603,28 @@
         function setupEventListeners() {
             const modeSelector = document.getElementById('modeSelector');
             const subModeSelector = document.getElementById('subModeSelector');
+            const playbackControls = document.getElementById('playbackControls');
+            const autoplayBtn = document.getElementById('autoplayBtn');
+            const speedSlider = document.getElementById('speedSlider');
+            const recordBtn = document.getElementById('recordBtn');
             
             modeSelector.addEventListener('change', (e) => {
                 currentMode = e.target.value;
                 
-                // Show/hide sub-mode selector
+                // Stop autoplay when switching modes
+                stopAutoplay();
+                
+                // Clear flow mode restrictions and reset music state
+                flowNoteCooldown = 0;
+                lastFlowNote = 0;
+                
+                // Show/hide controls based on mode
                 if (currentMode === 'music') {
                     subModeSelector.style.display = 'block';
+                    playbackControls.style.display = 'flex';
                 } else {
                     subModeSelector.style.display = 'none';
+                    playbackControls.style.display = currentMode === 'waves' ? 'flex' : 'none';
                 }
                 
                 // Initialize mode
@@ -1051,30 +1637,72 @@
                         break;
                 }
                 
-                // Clear ripples and reset music state
+                // Clear state
                 ripples = [];
                 activeRipples = [];
-                lastFlowNote = 0;
-                flowNoteCooldown = 0;
-                
-                // Reset start time for wave mode
                 startTime = 0;
             });
             
             subModeSelector.addEventListener('change', (e) => {
                 currentSubMode = e.target.value;
-                // Clear existing ripples and reset music state
+                stopAutoplay();
+                
+                // Clear flow mode restrictions
+                flowNoteCooldown = 0;
+                lastFlowNote = 0;
+                
                 ripples = [];
                 activeRipples = [];
-                lastFlowNote = 0;
-                flowNoteCooldown = 0;
+            });
+            
+            autoplayBtn.addEventListener('click', () => {
+                if (isAutoplay) {
+                    stopAutoplay();
+                } else {
+                    startAutoplay();
+                }
+            });
+            
+            speedSlider.addEventListener('input', (e) => {
+                autoplaySpeed = parseFloat(e.target.value);
+                // No need to restart - the virtual musician adapts in real-time
+            });
+            
+            recordBtn.addEventListener('click', () => {
+                if (isRecording) {
+                    stopRecording();
+                } else {
+                    startRecording();
+                }
+            });
+            
+            // Save modal handlers
+            document.getElementById('saveYes').addEventListener('click', () => {
+                if (recordedChunks.length > 0) {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = `synesthetic-recording-${new Date().toISOString()}.webm`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                }
+                recordedChunks = [];
+                document.getElementById('saveModal').style.display = 'none';
+            });
+            
+            document.getElementById('saveNo').addEventListener('click', () => {
+                recordedChunks = [];
+                document.getElementById('saveModal').style.display = 'none';
             });
         }
 
         function setupCanvasEvents() {
             window.currentTouches = [];
             
-            // Mouse events
             canvas.addEventListener('mousedown', (e) => {
                 const rect = canvas.getBoundingClientRect();
                 const x = e.clientX - rect.left;
@@ -1107,7 +1735,6 @@
                 window.currentTouches = [];
             });
             
-            // Touch events
             canvas.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 const rect = canvas.getBoundingClientRect();
@@ -1182,21 +1809,18 @@
             
             window.addEventListener('resize', resizeCanvas);
             
-            // Show welcome modal
             document.getElementById('welcomeModal').style.display = 'flex';
             
-            // Start button handler
             document.getElementById('startBtn').addEventListener('click', async () => {
                 await initAudio();
                 isActive = true;
                 document.getElementById('startOverlay').classList.add('hidden');
                 
-                initPhysicsMode(); // Default mode
+                initPhysicsMode();
                 render();
             });
         }
 
-        // Start the app
         document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
