@@ -1,4 +1,4 @@
-<!-- LinkPortal-v2-2025-08-25 17:44 PM -->
+<!-- LinkPortal-v2-2025-08-26 01:34 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -17,7 +17,6 @@
             width: 350px; /* Default width */
             transition: left 0.3s ease; 
             z-index: 40; 
-            resize: horizontal;
         }
         .menu-panel.active { left: 0; }
         .config-panel { position: fixed; right: -100%; top: 0; bottom: 0; width: 100%; max-width: 480px; transition: right 0.3s ease; z-index: 50; }
@@ -32,10 +31,20 @@
             right: 0;
             top: 0;
             bottom: 0;
-            width: 8px;
+            width: 16px; /* Increased width for better touch target */
             cursor: col-resize;
             z-index: 41;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
+        #resizeHandle::after {
+            content: '⋮';
+            color: #cbd5e1; /* gray-300 */
+            font-size: 1.25rem;
+            line-height: 0;
+        }
+
 
         /* Drag and drop styling */
         .link-item.dragging { opacity: 0.5; }
@@ -234,6 +243,7 @@
         elements.closeConfig.addEventListener('click', toggleConfig);
         elements.overlay.addEventListener('click', closeAll);
         elements.resizeHandle.addEventListener('mousedown', startResize);
+        elements.resizeHandle.addEventListener('touchstart', startResize, { passive: false });
         
         document.getElementById('searchRepo').addEventListener('click', fetchRepository);
         document.getElementById('addCustomLink').addEventListener('click', addCustomLink);
@@ -325,22 +335,32 @@
         // --- MENU PANEL RESIZING ---
         function startResize(e) {
             e.preventDefault();
-            document.addEventListener('mousemove', doResize);
-            document.addEventListener('mouseup', stopResize);
+            if (e.type === 'mousedown') {
+                document.addEventListener('mousemove', doResize);
+                document.addEventListener('mouseup', stopResize);
+            } else if (e.type === 'touchstart') {
+                document.addEventListener('touchmove', doResize, { passive: false });
+                document.addEventListener('touchend', stopResize);
+            }
         }
 
         function doResize(e) {
-            const newWidth = Math.max(200, Math.min(e.clientX, 600)); // Min 200px, max 600px
+            const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+            const newWidth = Math.max(200, Math.min(clientX, 600)); // Min 200px, max 600px
             elements.menuPanel.style.width = `${newWidth}px`;
             if (elements.menuPanel.classList.contains('active')) {
                 elements.mainContent.style.marginLeft = `${newWidth}px`;
             }
         }
 
-        function stopResize() {
-            document.removeEventListener('mousemove', doResize);
-            document.removeEventListener('mouseup', stopResize);
-            // Save the new width to settings
+        function stopResize(e) {
+            if (e.type === 'mouseup' || e.type === 'touchend') {
+                document.removeEventListener('mousemove', doResize);
+                document.removeEventListener('mouseup', stopResize);
+                document.removeEventListener('touchmove', doResize);
+                document.removeEventListener('touchend', stopResize);
+            }
+            
             const tx = db.transaction('settings', 'readwrite');
             const store = tx.objectStore('settings');
             store.get('portal').onsuccess = (e) => {
@@ -401,19 +421,21 @@
                 linkEl.draggable = true;
                 linkEl.dataset.id = link.id;
 
-                const linkUrl = link.fileId ? `Embedded File: ${link.title}` : link.url;
+                const linkUrl = link.fileId ? 'Embedded File' : link.url;
 
                 linkEl.innerHTML = `
                     <span class="cursor-move text-gray-400">☰</span>
-                    <div class="flex-1">
-                        <div class="text-sm font-medium text-gray-900 link-title cursor-pointer">${link.title}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-medium text-gray-900 link-title cursor-pointer truncate">${link.title}</div>
                         <div class="text-xs text-gray-600 mt-1 truncate cursor-pointer">${linkUrl}</div>
                     </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" class="link-include-toggle" ${link.included ?? true ? 'checked' : ''}>
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <button class="text-red-600 hover:text-red-800 text-lg font-bold">✕</button>
+                    <div class="flex items-center gap-2">
+                        <label class="toggle-switch">
+                            <input type="checkbox" class="link-include-toggle" ${link.included ?? true ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <button class="text-red-600 hover:text-red-800 text-lg font-bold">✕</button>
+                    </div>
                 `;
 
                 const contentArea = linkEl.querySelector('.flex-1');
@@ -450,8 +472,7 @@
                 if (newTitle && newTitle !== currentTitle) {
                     updateLinkProperty(linkId, 'title', newTitle);
                 } else {
-                    // If no change or empty, revert without saving
-                    input.replaceWith(titleEl);
+                    loadLinks();
                 }
             };
             
@@ -460,7 +481,7 @@
                 if (e.key === 'Enter') {
                     input.blur();
                 } else if (e.key === 'Escape') {
-                    input.value = currentTitle; // Revert changes
+                    input.value = currentTitle;
                     input.blur();
                 }
             });
