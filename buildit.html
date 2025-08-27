@@ -493,12 +493,13 @@
             };
             
             tx.oncomplete = async () => {
+                await updateSettings({ githubOwner: owner, githubRepo: repo });
                 await fetchRepositoryFiles(owner, repo);
                 loadLinks();
             };
         }
         
-        function handleOmniSearch(e) {
+        async function handleOmniSearch(e) {
             const searchTerm = e.target.value.toLowerCase();
             elements.omniList.innerHTML = '';
             if (!searchTerm) {
@@ -509,13 +510,16 @@
             const filteredFiles = repoFileCache.filter(file => file.name.toLowerCase().includes(searchTerm));
             
             if (filteredFiles.length > 0) {
+                const settings = await new Promise(r => db.transaction('settings').objectStore('settings').get('portal').onsuccess = e => r(e.target.result));
+                const owner = settings.githubOwner;
+                const repo = settings.githubRepo;
+
                 filteredFiles.forEach(file => {
                     const item = document.createElement('div');
                     item.className = 'omni-item';
                     item.textContent = file.name;
-                    item.onclick = async () => {
-                        const settings = await new Promise(r => db.transaction('settings').objectStore('settings').get('portal').onsuccess = e => r(e.target.result));
-                        addLink(file.name, `https://${settings.githubOwner}.github.io/${settings.githubRepo}/${file.path}`, null, 'github').then(() => {
+                    item.onclick = () => {
+                        addLink(file.name, `https://${owner}.github.io/${repo}/${file.path}`, null, 'github').then(() => {
                             loadLinks();
                             elements.omniSearch.value = '';
                             elements.omniList.style.display = 'none';
@@ -552,12 +556,12 @@
             index.getAll().onsuccess = (e) => {
                 const links = e.target.result;
                 updateLinkList(links);
-                if (links.length > 0) {
+                if (links.length > 0 && !elements.configPanel.classList.contains('active')) {
                     const firstLinkEl = elements.linkList.querySelector('.link-item');
                     if (firstLinkEl) {
                         selectLinkItem(firstLinkEl, links[0]);
                     }
-                } else {
+                } else if (links.length === 0) {
                     elements.activeItemTitle.textContent = '';
                 }
             };
