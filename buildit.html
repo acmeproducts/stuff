@@ -1,4 +1,4 @@
-<!-- LinkPortal-v2-2025-08-26 04:01 PM -->
+<!-- LinkPortal-v2-2025-08-26 09:26 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,10 +11,10 @@
         /* Basic layout and panel transitions */
         .menu-panel { 
             position: fixed; 
-            left: -600px; /* Default width set to max */
+            left: -350px; /* Default width */
             top: 0; 
             bottom: 0; 
-            width: 600px; /* Default width set to max */
+            width: 350px; /* Default width */
             transition: left 0.3s ease; 
             z-index: 40; 
         }
@@ -47,7 +47,12 @@
 
         /* Drag and drop styling */
         .link-item.dragging { opacity: 0.5; }
-        .link-item.selected { background-color: #DBEAFE; border-left: 4px solid #2563EB; }
+
+        /* Styling for the active link in the menu */
+        .link-item.active-link {
+            background-color: #DBEAFE; /* Tailwind's blue-100 */
+            border-left: 4px solid #2563EB; /* Tailwind's blue-600 */
+        }
 
         /* Include/Exclude toggle switch styling */
         .toggle-switch { position: relative; display: inline-block; width: 34px; height: 20px; }
@@ -68,7 +73,10 @@
         <header class="bg-white border-b h-14 flex items-center px-4 justify-between">
             <div class="flex items-center gap-4 flex-1 min-w-0">
                 <button id="menuBtn" class="text-gray-900 hover:text-gray-600 p-2 text-xl">☰</button>
-                <h1 id="portalTitle" class="text-lg font-semibold text-gray-900 truncate">Link Portal</h1>
+                <h1 id="headerTitleContainer" class="text-lg font-semibold text-gray-900 truncate">
+                    <span id="portalTitle">Link Portal</span>
+                    <span id="activeItemTitle" class="text-gray-500 font-normal ml-2"></span>
+                </h1>
                  <!-- Omni Search Bar - Initially hidden -->
                 <div id="omniSearchContainer" class="hidden ml-4 w-full max-w-md relative">
                     <input type="search" id="omniSearch" placeholder="Search files..." class="w-full pl-4 pr-10 py-2 border rounded-full text-sm">
@@ -78,7 +86,9 @@
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <div id="currentTime" class="text-sm text-gray-600 mr-4" title=""></div>
+                <button id="micPermission" class="text-gray-900 px-3 py-1 rounded hover:bg-gray-100">🎤</button>
+                <div id="micStatus" class="text-sm"></div>
+                <div id="currentTime" class="text-sm text-gray-600 mr-4" title="Current Pacific Time"></div>
             </div>
         </header>
 
@@ -164,7 +174,7 @@
 
                 <!-- Actions -->
                 <div class="flex gap-2 border-t pt-4">
-                    <button id="saveConfig" class="flex-1 py-2 bg-green-600 text-white rounded hover:bg-green-700">Save</button>
+                    <button id="saveAllSettingsBtn" class="flex-1 py-2 bg-green-600 text-white rounded hover:bg-green-700">Save</button>
                     <button id="importConfig" class="flex-1 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">Import</button>
                     <button id="exportConfig" class="flex-1 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">Export</button>
                     <button id="generatePortal" class="flex-1 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Generate</button>
@@ -223,9 +233,6 @@
         const DB_VERSION = 3; 
         const STORES = ['links', 'settings', 'files'];
         const blobUrls = new Map();
-        let portalSettings = {};
-        let currentLinks = [];
-        let selectedLinkId = null;
 
         function initDatabase() {
             return new Promise((resolve, reject) => {
@@ -260,7 +267,6 @@
                 loadSettings();
                 loadLinks();
                 updateTime();
-                setVersionTooltip();
             } catch (error) {
                 console.error('Failed to initialize application:', error);
                 showError('Failed to initialize application. Please refresh the page.');
@@ -279,6 +285,8 @@
             linkList: document.getElementById('linkList'),
             viewer: document.getElementById('viewer'),
             portalTitle: document.getElementById('portalTitle'),
+            activeItemTitle: document.getElementById('activeItemTitle'),
+            micStatus: document.getElementById('micStatus'),
             currentTime: document.getElementById('currentTime'),
             resizeHandle: document.getElementById('resizeHandle'),
             omniSearchContainer: document.getElementById('omniSearchContainer'),
@@ -311,10 +319,11 @@
         document.getElementById('uploadFiles').addEventListener('click', () => document.getElementById('fileUpload').click());
         document.getElementById('fileUpload').addEventListener('change', handleFileUpload);
         document.getElementById('importConfig').addEventListener('click', () => document.getElementById('configImport').click());
-        document.getElementById('configImport').addEventListener('change', importConfig);
+        document.getElementById('importConfig').addEventListener('change', importConfig);
         document.getElementById('exportConfig').addEventListener('click', exportConfig);
         document.getElementById('generatePortal').addEventListener('click', generatePortal);
-        document.getElementById('saveConfig').addEventListener('click', () => saveSettings({ name: document.getElementById('portalName').value }).then(toggleConfig));
+        document.getElementById('saveAllSettingsBtn').addEventListener('click', saveAllSettingsFromPanel);
+        document.getElementById('micPermission').addEventListener('click', requestMicPermission);
         window.addEventListener('beforeunload', () => blobUrls.forEach(URL.revokeObjectURL));
 
         initApp();
@@ -322,7 +331,11 @@
         // --- UI AND STATE MANAGEMENT ---
         function toggleMenu() {
             const isActive = elements.menuPanel.classList.toggle('active');
-            elements.mainContent.style.marginLeft = isActive ? `${elements.menuPanel.offsetWidth}px` : '0px';
+            if (isActive) {
+                elements.mainContent.style.marginLeft = `${elements.menuPanel.offsetWidth}px`;
+            } else {
+                elements.mainContent.style.marginLeft = '0px';
+            }
             elements.overlay.classList.toggle('active', isActive);
         }
 
@@ -338,65 +351,65 @@
 
         function updateTime() {
             const now = new Date();
-            const options = { timeZone: 'America/Los_Angeles', hour: '2-digit', minute: '2-digit', hour12: true };
-            elements.currentTime.textContent = now.toLocaleTimeString('en-US', options);
+            const options = { timeZone: 'America/Los_Angeles', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+            elements.currentTime.textContent = now.toLocaleTimeString('en-US', options) + ' PT';
             setTimeout(updateTime, 1000);
         }
         
-        function setVersionTooltip() {
-            const version = 'LinkPortal-v2 - 2025-08-26 04:01 PM - Made with ❤️ by Team Dojo';
-            elements.currentTime.title = version;
-        }
-
         function showError(message) {
             const errorEl = document.getElementById('error');
             errorEl.textContent = message;
             errorEl.classList.remove('hidden');
             setTimeout(() => errorEl.classList.add('hidden'), 5000);
         }
-        
-        function updateHeaderTitle() {
-            const selectedLink = currentLinks.find(link => link.id === selectedLinkId);
-            if (selectedLink) {
-                elements.portalTitle.textContent = selectedLink.title;
-            } else {
-                elements.portalTitle.textContent = portalSettings.name || 'Link Portal';
-            }
-        }
 
         // --- SETTINGS & REPO UI STATE ---
         function loadSettings() {
             db.transaction('settings').objectStore('settings').get('portal').onsuccess = (e) => {
-                portalSettings = e.target.result || {};
-                document.getElementById('portalName').value = portalSettings.name || '';
-                updateHeaderTitle();
-                const menuWidth = portalSettings.menuWidth || 600;
-                elements.menuPanel.style.width = `${menuWidth}px`;
-                if (elements.menuPanel.classList.contains('active')) {
-                     elements.mainContent.style.marginLeft = `${menuWidth}px`;
+                const settings = e.target.result || {};
+                document.getElementById('portalName').value = settings.name || '';
+                elements.portalTitle.textContent = settings.name || 'Link Portal';
+                if (settings.menuWidth) {
+                    elements.menuPanel.style.width = `${settings.menuWidth}px`;
+                    if (elements.menuPanel.classList.contains('active')) {
+                         elements.mainContent.style.marginLeft = `${settings.menuWidth}px`;
+                    }
                 }
-                updateRepoUIState(portalSettings.githubOwner, portalSettings.githubRepo);
+                updateRepoUIState(settings.githubOwner, settings.githubRepo);
             };
         }
 
-        function saveSettings(settingsToSave) {
+        function saveAllSettingsFromPanel() {
+            const settingsToSave = {
+                name: document.getElementById('portalName').value,
+            };
+            updateSettings(settingsToSave).then(() => {
+                elements.portalTitle.textContent = settingsToSave.name || 'Link Portal';
+                toggleConfig();
+            });
+        }
+
+        function updateSettings(settingsToUpdate) {
             return new Promise(resolve => {
                 const tx = db.transaction('settings', 'readwrite');
                 const store = tx.objectStore('settings');
-                const currentSettings = portalSettings || { id: 'portal' };
-                const newSettings = { ...currentSettings, ...settingsToSave };
-                store.put(newSettings);
-                tx.oncomplete = () => {
-                    portalSettings = newSettings;
-                    updateHeaderTitle();
-                    resolve();
+                store.get('portal').onsuccess = (e) => {
+                    const currentSettings = e.target.result || { id: 'portal' };
+                    const newSettings = { ...currentSettings, ...settingsToUpdate };
+                    store.put(newSettings);
                 };
+                tx.oncomplete = resolve;
             });
         }
         
         function updateRepoUIState(owner, repo) {
-            elements.omniSearchContainer.classList.toggle('hidden', !(owner && repo));
-            elements.repoSetupContainer.classList.toggle('hidden', owner && repo);
+            if (owner && repo) {
+                elements.omniSearchContainer.classList.remove('hidden');
+                elements.repoSetupContainer.classList.add('hidden');
+            } else {
+                elements.omniSearchContainer.classList.add('hidden');
+                elements.repoSetupContainer.classList.remove('hidden');
+            }
         }
 
         // --- MENU PANEL RESIZING ---
@@ -427,7 +440,7 @@
                 document.removeEventListener('touchmove', doResize);
                 document.removeEventListener('touchend', stopResize);
             }
-            saveSettings({ menuWidth: elements.menuPanel.offsetWidth });
+            updateSettings({ menuWidth: elements.menuPanel.offsetWidth });
         }
 
         // --- GITHUB REPOSITORY & SEARCH ---
@@ -441,7 +454,7 @@
                 if (!response.ok) throw new Error('Repository not found or access denied');
                 const data = await response.json();
                 
-                await saveSettings({ githubOwner: owner, githubRepo: repo });
+                await updateSettings({ githubOwner: owner, githubRepo: repo });
                 updateRepoUIState(owner, repo);
 
                 const htmlFiles = data.filter(f => f.name.toLowerCase().endsWith('.html'));
@@ -456,9 +469,13 @@
         }
 
         function openRepoSettings() {
-            document.getElementById('modalOwner').value = portalSettings.githubOwner || '';
-            document.getElementById('modalRepo').value = portalSettings.githubRepo || '';
-            elements.repoSettingsModal.classList.add('active');
+            const store = db.transaction('settings').objectStore('settings');
+            store.get('portal').onsuccess = e => {
+                const settings = e.target.result || {};
+                document.getElementById('modalOwner').value = settings.githubOwner || '';
+                document.getElementById('modalRepo').value = settings.githubRepo || '';
+                elements.repoSettingsModal.classList.add('active');
+            };
         }
 
         async function updateRepository() {
@@ -484,8 +501,18 @@
         
         function handleOmniSearch(e) {
             const searchTerm = e.target.value.toLowerCase();
-            const filteredLinks = currentLinks.filter(link => link.title.toLowerCase().includes(searchTerm));
-            updateLinkList(filteredLinks);
+            const tx = db.transaction('links', 'readonly');
+            const store = tx.objectStore('links');
+            const index = store.index('order');
+            index.getAll().onsuccess = (event) => {
+                const allLinks = event.target.result;
+                if (!searchTerm) {
+                    updateLinkList(allLinks);
+                    return;
+                }
+                const filteredLinks = allLinks.filter(link => link.title.toLowerCase().includes(searchTerm));
+                updateLinkList(filteredLinks);
+            };
         }
 
         // --- LINK AND FILE MANAGEMENT ---
@@ -502,24 +529,46 @@
             const tx = db.transaction('links', 'readwrite');
             const store = tx.objectStore('links');
             const count = await new Promise(r => store.count().onsuccess = e => r(e.target.result));
-            return new Promise(r => store.add({ title, url, fileId, included: true, order: count, source, mic: false }).onsuccess = r);
+            return new Promise(r => store.add({ title, url, fileId, included: true, order: count, source }).onsuccess = r);
         }
 
         function loadLinks() {
             const store = db.transaction('links').objectStore('links');
             const index = store.index('order');
             index.getAll().onsuccess = (e) => {
-                currentLinks = e.target.result;
-                updateLinkList(currentLinks);
+                const links = e.target.result;
+                updateLinkList(links);
+                // Auto-select the first item
+                if (links.length > 0) {
+                    const firstLinkEl = elements.linkList.querySelector('.link-item');
+                    if (firstLinkEl) {
+                        selectLinkItem(firstLinkEl, links[0]);
+                    }
+                } else {
+                    // Clear header if no links
+                    elements.activeItemTitle.textContent = '';
+                }
             };
+        }
+
+        function selectLinkItem(linkEl, link) {
+            // Remove active class from all other items
+            document.querySelectorAll('#linkList .link-item').forEach(el => el.classList.remove('active-link'));
+            // Add active class to the clicked one
+            linkEl.classList.add('active-link');
+            // Update viewer
+            elements.viewer.src = link.fileId ? blobUrls.get(link.fileId) : link.url;
+            // Update header
+            elements.activeItemTitle.textContent = `- ${link.title}`;
+            // Close menu on mobile
+            if (window.innerWidth < 768) closeAll();
         }
         
         function updateLinkList(links) {
             elements.linkList.innerHTML = '';
             links.forEach(link => {
-                const isSelected = link.id === selectedLinkId;
                 const linkEl = document.createElement('div');
-                linkEl.className = `p-3 bg-gray-50 rounded-lg flex items-center gap-3 link-item ${!(link.included ?? true) ? 'opacity-60' : ''} ${isSelected ? 'selected' : ''}`;
+                linkEl.className = `p-3 bg-gray-50 rounded-lg flex items-center gap-3 link-item ${!(link.included ?? true) ? 'opacity-60' : ''}`;
                 linkEl.draggable = true;
                 linkEl.dataset.id = link.id;
 
@@ -531,27 +580,17 @@
                         <div class="text-sm font-medium text-gray-900 link-title cursor-pointer truncate">${link.title}</div>
                         <div class="text-xs text-gray-600 mt-1 truncate cursor-pointer">${linkUrl}</div>
                     </div>
-                    <div class="flex items-center gap-3">
-                        <label class="toggle-switch" title="Enable Microphone">
-                            <input type="checkbox" class="link-mic-toggle" ${link.mic ? 'checked' : ''}>
-                            <span class="toggle-slider"></span>
-                        </label>
-                        <label class="toggle-switch" title="Include in Build">
+                    <div class="flex items-center gap-2">
+                        <label class="toggle-switch">
                             <input type="checkbox" class="link-include-toggle" ${link.included ?? true ? 'checked' : ''}>
                             <span class="toggle-slider"></span>
                         </label>
-                        <button class="text-red-600 hover:text-red-800 text-lg font-bold" title="Delete Item">✕</button>
+                        <button class="text-red-600 hover:text-red-800 text-lg font-bold">✕</button>
                     </div>
                 `;
 
                 const contentArea = linkEl.querySelector('.flex-1');
-                contentArea.addEventListener('click', () => {
-                    selectedLinkId = link.id;
-                    updateHeaderTitle();
-                    loadLinks(); // Redraw to show selection
-                    elements.viewer.src = link.fileId ? blobUrls.get(link.fileId) : link.url;
-                    if (window.innerWidth < 768) closeAll();
-                });
+                contentArea.addEventListener('click', () => selectLinkItem(linkEl, link));
 
                 const titleEl = linkEl.querySelector('.link-title');
                 titleEl.addEventListener('dblclick', (e) => {
@@ -561,7 +600,6 @@
 
                 linkEl.querySelector('button').addEventListener('click', () => removeLink(link.id, link.fileId));
                 linkEl.querySelector('.link-include-toggle').addEventListener('change', (e) => updateLinkProperty(link.id, 'included', e.target.checked));
-                linkEl.querySelector('.link-mic-toggle').addEventListener('change', (e) => updateLinkProperty(link.id, 'mic', e.target.checked));
                 
                 elements.linkList.appendChild(linkEl);
             });
@@ -683,9 +721,18 @@
         
         // --- RESET APPLICATION ---
         function resetApplication() {
-            indexedDB.deleteDatabase(DB_NAME).onsuccess = () => {
+            const tx = db.transaction(STORES, 'readwrite');
+            STORES.forEach(storeName => {
+                tx.objectStore(storeName).clear();
+            });
+            tx.oncomplete = () => {
                 location.reload();
             };
+            tx.onerror = (e) => {
+                console.error("Error resetting database:", e.target.error);
+                elements.resetConfirmModal.classList.remove('active');
+                showError("Could not reset the application data.");
+            }
         }
 
         // --- IMPORT / EXPORT / GENERATE ---
@@ -792,7 +839,6 @@
         #mainContent.with-menu { margin-left: ${settings?.menuWidth || 350}px; }
         .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); opacity: 0; visibility: hidden; transition: 0.3s ease; z-index: 30; }
         .overlay.active { opacity: 1; visibility: visible; }
-        .link-item.selected { background-color: #DBEAFE; border-left: 4px solid #2563EB; }
     </style>
 </head>
 <body class="min-h-screen bg-gray-50">
@@ -800,7 +846,7 @@
         <header class="bg-white border-b h-14 flex items-center px-4 justify-between">
             <div class="flex items-center gap-4">
                 <button id="menuBtn" class="text-xl text-gray-900">☰</button>
-                <h1 id="portalTitle" class="text-lg font-semibold text-gray-900">${settings?.name || 'Generated Portal'}</h1>
+                <h1 class="text-lg font-semibold text-gray-900">${settings?.name || 'Generated Portal'}</h1>
             </div>
             <div id="currentTime" class="text-sm text-gray-600"></div>
         </header>
@@ -820,7 +866,6 @@
         const links = ${JSON.stringify(links)};
         const files = ${JSON.stringify(filesMap)};
         const blobUrls = new Map();
-        let selectedLinkId = null;
 
         const elements = {
             menuBtn: document.getElementById('menuBtn'),
@@ -829,7 +874,6 @@
             overlay: document.getElementById('overlay'),
             linkList: document.getElementById('linkList'),
             viewer: document.getElementById('viewer'),
-            portalTitle: document.getElementById('portalTitle'),
             currentTime: document.getElementById('currentTime')
         };
         
@@ -862,28 +906,18 @@
         function updateLinkList() {
             elements.linkList.innerHTML = '';
             links.forEach((link, index) => {
-                const isSelected = link.id === selectedLinkId;
                 const linkEl = document.createElement('div');
-                linkEl.className = \`p-4 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer link-item \${isSelected ? 'selected' : ''}\`;
+                linkEl.className = 'p-4 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer';
                 const linkUrl = link.fileId ? 'Embedded File' : link.url;
                 linkEl.innerHTML = \`<div class="text-sm font-medium text-gray-900">\${link.title}</div><div class="text-xs text-gray-600 mt-1 truncate">\${linkUrl}</div>\`;
                 
                 linkEl.addEventListener('click', () => {
-                    selectedLinkId = link.id;
-                    elements.portalTitle.textContent = link.title;
-                    updateLinkList(); // Redraw to show selection
-                    
                     const urlToLoad = link.fileId ? getFileUrl(link.fileId) : link.url;
-                    if (urlToLoad) {
-                        elements.viewer.allow = link.mic ? "microphone" : "";
-                        elements.viewer.src = urlToLoad;
-                    }
+                    if (urlToLoad) elements.viewer.src = urlToLoad;
                     if (window.innerWidth < 768) toggleMenu();
                 });
                 elements.linkList.appendChild(linkEl);
-                if (index === 0 && !selectedLinkId) {
-                    setTimeout(() => linkEl.click(), 100);
-                }
+                if (index === 0) setTimeout(() => linkEl.click(), 100);
             });
         }
         
@@ -901,6 +935,19 @@
     <\/script>
 </body>
 </html>`;
+        }
+
+        // --- MICROPHONE PERMISSIONS ---
+        async function requestMicPermission() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                elements.micStatus.textContent = '🎤 Enabled';
+                elements.micStatus.className = 'text-sm text-green-600';
+                stream.getTracks().forEach(track => track.stop());
+            } catch (err) {
+                elements.micStatus.textContent = '🎤 Denied';
+                elements.micStatus.className = 'text-sm text-red-600';
+            }
         }
     </script>
 </body>
