@@ -1,11 +1,10 @@
-
-<!-- GitHub-Tablet-Editor-v25.1-2025-08-24 11:30 PM -->
+<!-- GitHub-Tablet-Editor-v25.2-2025-08-28 08:29 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <title>GitHub Tablet Editor — v25.1</title>
+  <title>GitHub Tablet Editor — v25.2</title>
   <style>
     :root {
       --gap: 8px; --pad: 12px; --border: 1px solid #d0d7de; --radius: 8px;
@@ -69,16 +68,13 @@
     #diffPanel{width:95vw;max-width:1400px;height:90vh; background:#0d1117; color:#e6edf3;}
     #diffPanel header{border-bottom:1px solid #30363d;}
     #diffPanel header h2{color:#e6edf3;}
-    #diffPanel header button, #diffPanel header select{color:#e6edf3; background: #21262d; border-color: #30363d;}
-    .diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);overflow:auto;flex-grow:1;font-size:12px;line-height:1.5; font-family:var(--mono);}
+    #diffPanel header button{color:#e6edf3; background: #21262d; border-color: #30363d;}
+    .diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);overflow:auto;flex-grow:1;}
     .diff-col{display:flex;flex-direction:column;}
     .diff-col-header{font-weight:600;padding:4px 8px;border-bottom:1px solid #30363d;margin-bottom:4px;position:sticky;top:0;background:#0d1117;}
-    .diff-line{white-space:pre-wrap;padding:0 8px; word-break:break-all; display:flex;}
-    .diff-line.del{background-color:rgba(248,81,73,0.15); color: #ff7b72;}
-    .diff-line.add{background-color:rgba(46,160,67,0.15); color: #56d364;}
-    .diff-line.context{color:#8b949e;}
-    .line-num{flex-shrink:0;width:40px;color:#484f58;text-align:right;padding-right:10px;user-select:none;}
-    .line-content{flex-grow:1;}
+    .diff-content{white-space:pre-wrap;word-break:break-all;font-family:var(--mono);padding:8px;border-radius:4px;font-size:12px;}
+    .diff-content.del{background-color:rgba(248,81,73,0.15);color:#ff7b72;}
+    .diff-content.add{background-color:rgba(46,160,67,0.15);color:#56d364;}
 
     #previewFrame{width:100%;height:100%;border:none;flex-grow:1}
     .status-ok{color:var(--ok)} .status-err{color:var(--err)}
@@ -93,6 +89,8 @@
     #repoSettingsModal .panel{max-width:500px;}
     #repoSettingsModal .row{display:flex;flex-direction:column;align-items:stretch;gap:var(--gap);}
     #commitInfo { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 8px; padding-bottom: 8px; border-bottom: var(--border); }
+    #commitSteps a { color: #0969da; text-decoration: none; }
+    #commitSteps a:hover { text-decoration: underline; }
     .footer{font-size:10px;color:var(--muted);text-align:center;padding-top:var(--gap);}
 
     /* Responsive Desktop Layout */
@@ -188,7 +186,7 @@
 <!-- Modals -->
 <div id="repoSettingsModal" class="modal" role="dialog" aria-modal="true" aria-label="Repository Settings"><div class="panel"><header><h2>Repository Settings</h2><button id="repoSettingsClose" title="Close" type="button">✕</button></header><div class="row"><label for="userInput">User / Organization</label><input type="text" id="userInput"><label for="repoSelect">Repository</label><select id="repoSelect" disabled><option>Enter user first</option></select></div></div></div>
 <div id="commitModal" class="modal" role="dialog" aria-modal="true" aria-label="Commit status"><div class="panel"><header><h2>Commit Status</h2><button id="commitClose" title="Close" type="button">✕</button></header><div id="commitInfo"></div><ol id="commitSteps"></ol><div id="commitActions" style="margin-top: 16px;"></div></div></div>
-<div id="diffModal" class="modal" role="dialog" aria-modal="true" aria-label="Diff view"><div class="panel" id="diffPanel"><header><h2>Diff Preview</h2><div class="header-actions"><select id="diffViewSelect" class="toolbar-btn"><option value="visual" selected>Visual</option><option value="code">Code</option></select><button id="copyDiffBtn" type="button">Copy Diff</button><button id="diffClose" title="Close" type="button">✕</button></div></header><div id="diffOutput" class="diff-grid"></div></div></div>
+<div id="diffModal" class="modal" role="dialog" aria-modal="true" aria-label="Diff view"><div class="panel" id="diffPanel"><header><h2>Diff (Changes Only)</h2><div class="header-actions"><button id="copyDiffBtn" type="button">Copy Diff</button><button id="diffClose" title="Close" type="button">✕</button></div></header><div id="diffOutput" class="diff-grid"></div></div></div>
 <div id="previewModal" class="modal" role="dialog" aria-modal="true" aria-label="Preview"><div class="panel" style="height:90vh;width:95vw;"><header><h2>Preview</h2><button id="previewClose" title="Close" type="button">✕</button></header><iframe id="previewFrame" sandbox="allow-scripts allow-same-origin"></iframe></div></div>
 <div id="pasteModal" class="modal" role="dialog" aria-modal="true" aria-label="Paste content"><div class="panel"><header><h2>Paste Content</h2><button id="pasteClose" title="Close" type="button">✕</button></header><div class="muted" style="margin-bottom:8px">Clipboard read not permitted. Paste here and confirm.</div><textarea id="pasteArea" style="width:100%;height:40vh;min-height:200px;font-size:16px;"></textarea><div style="margin-top:10px;text-align:right;"><button id="pasteConfirm" class="primary" type="button">Use This Content</button></div></div></div>
 <div class="toast-wrap" id="toasts" aria-live="polite" aria-atomic="true"></div>
@@ -196,7 +194,7 @@
 <script>
 (() => {
   // --- State and Constants ---
-  const APP_VERSION = "v25.1-2025-08-24 11:30 PM";
+  const APP_VERSION = "v25.2-2025-08-28 08:29 AM";
   const DEFAULT_USER = "acmeproducts";
   const DEFAULT_REPO_HINT = "stuff";
   let GITHUB_TOKEN = null;
@@ -225,7 +223,7 @@
     fontSizeSelectUpdated: $('fontSizeSelectUpdated'), findInputUpdated: $('findInputUpdated'), findBtnUpdated: $('findBtnUpdated'), findResultsUpdated: $('findResultsUpdated'), findPrevUpdated: $('findPrevUpdated'), findNextUpdated: $('findNextUpdated'),
     scrollTopUpdated: $('scrollTopUpdated'),
     commitModal: $('commitModal'), commitClose: $('commitClose'), commitSteps: $('commitSteps'), commitActions: $('commitActions'), commitInfo: $('commitInfo'),
-    diffModal: $('diffModal'), diffClose: $('diffClose'), diffOutput: $('diffOutput'), copyDiffBtn: $('copyDiffBtn'), diffViewSelect: $('diffViewSelect'),
+    diffModal: $('diffModal'), diffClose: $('diffClose'), diffOutput: $('diffOutput'), copyDiffBtn: $('copyDiffBtn'),
     previewModal: $('previewModal'), previewClose: $('previewClose'), previewFrame: $('previewFrame'),
     pasteModal: $('pasteModal'), pasteClose: $('pasteClose'), pasteArea: $('pasteArea'), pasteConfirm: $('pasteConfirm'),
     toasts: $('toasts'),
@@ -320,30 +318,16 @@
   }
 
   // --- Diff Generation ---
-  function renderSideBySideDiff(oldText, newText, withLineNumbers = false) {
-      const oldLines = canonicalize(oldText || '').split('\n');
-      const newLines = canonicalize(newText || '').split('\n');
-      let beforeHTML = `<div class="diff-col-header">Before ${withLineNumbers ? '(Code)' : ''}</div>`;
-      let afterHTML = `<div class="diff-col-header">After ${withLineNumbers ? '(Code)' : ''}</div>`;
-      const maxLines = Math.max(oldLines.length, newLines.length);
+  function generateChangesOnlyDiff(oldText, newText) {
+    const oldLines = canonicalize(oldText || '').split('\n');
+    const newLines = canonicalize(newText || '').split('\n');
+    const oldLinesSet = new Set(oldLines);
+    const newLinesSet = new Set(newLines);
 
-      for (let i = 0; i < maxLines; i++) {
-          const oldLine = oldLines[i];
-          const newLine = newLines[i];
-          const oldLineExists = oldLine !== undefined;
-          const newLineExists = newLine !== undefined;
-          
-          const lineNum = withLineNumbers ? `<span class="line-num">${i + 1}</span>` : '';
+    const deleted = oldLines.filter(line => !newLinesSet.has(line)).join('\n');
+    const added = newLines.filter(line => !oldLinesSet.has(line)).join('\n');
 
-          if (oldLine === newLine) {
-              beforeHTML += `<div class="diff-line context">${lineNum}<span class="line-content">${oldLineExists ? oldLine : ''}</span></div>`;
-              afterHTML += `<div class="diff-line context">${lineNum}<span class="line-content">${newLineExists ? newLine : ''}</span></div>`;
-          } else {
-              beforeHTML += `<div class="diff-line ${oldLineExists ? 'del' : ''}">${lineNum}<span class="line-content">${oldLineExists ? oldLine : ''}</span></div>`;
-              afterHTML += `<div class="diff-line ${newLineExists ? 'add' : ''}">${lineNum}<span class="line-content">${newLineExists ? newLine : ''}</span></div>`;
-          }
-      }
-      return `<div class="diff-col">${beforeHTML}</div><div class="diff-col">${afterHTML}</div>`;
+    return { deleted, added };
   }
 
   // --- UI and Event Handlers ---
@@ -595,14 +579,36 @@
     });
     elements.diffBtn.addEventListener('click', ()=>{
       if(!currentPath && !elements.filenameInput.value){ toast('No file selected or named', 2500, 'warn'); return; }
-      elements.diffViewSelect.dispatchEvent(new Event('change')); // Trigger view update
-      elements.diffModal.classList.add('open');
-    });
-    elements.diffViewSelect.addEventListener('change', () => {
-        const view = elements.diffViewSelect.value;
         const oldText = elements.originalBox.value || '';
         const newText = elements.updatedBox.value || '';
-        elements.diffOutput.innerHTML = view === 'visual' ? renderSideBySideDiff(oldText, newText) : renderSideBySideDiff(oldText, newText, true);
+        const { deleted, added } = generateChangesOnlyDiff(oldText, newText);
+
+        const deletesCol = document.createElement('div');
+        deletesCol.className = 'diff-col';
+        const deletesHead = document.createElement('div');
+        deletesHead.className = 'diff-col-header';
+        deletesHead.textContent = 'Deletes';
+        const deletesPre = document.createElement('pre');
+        deletesPre.className = 'diff-content del';
+        deletesPre.textContent = deleted || '(none)';
+        deletesCol.appendChild(deletesHead);
+        deletesCol.appendChild(deletesPre);
+        
+        const addsCol = document.createElement('div');
+        addsCol.className = 'diff-col';
+        const addsHead = document.createElement('div');
+        addsHead.className = 'diff-col-header';
+        addsHead.textContent = 'Adds';
+        const addsPre = document.createElement('pre');
+        addsPre.className = 'diff-content add';
+        addsPre.textContent = added || '(none)';
+        addsCol.appendChild(addsHead);
+        addsCol.appendChild(addsPre);
+        
+        elements.diffOutput.innerHTML = '';
+        elements.diffOutput.appendChild(deletesCol);
+        elements.diffOutput.appendChild(addsCol);
+        elements.diffModal.classList.add('open');
     });
     elements.diffClose.addEventListener('click',()=> elements.diffModal.classList.remove('open'));
     elements.copyDiffBtn.addEventListener('click', () => robustCopy(elements.diffOutput.innerText));
@@ -624,6 +630,55 @@
   function setStatus(text, cls){
     const li=document.createElement('li'); li.textContent=text; if(cls) li.className=cls;
     elements.commitSteps.appendChild(li); elements.commitSteps.scrollTop = elements.commitSteps.scrollHeight;
+  }
+
+  async function pollDeploymentStatus(user, repo, commitSha) {
+    const li = $('deploymentStatusLi');
+    if (!li) return;
+
+    let attempts = 0;
+    const maxAttempts = 30; // 30 * 5s = 2.5 minutes
+    const interval = 5000;
+
+    const poll = async () => {
+        if (++attempts > maxAttempts) {
+            li.innerHTML = '🔴 Deployment status check timed out.';
+            return;
+        }
+
+        try {
+            const deployments = await githubFetch(`https://api.github.com/repos/${user}/${repo}/deployments?sha=${commitSha}`);
+            if (!deployments.length) {
+                setTimeout(poll, interval);
+                return;
+            }
+
+            const statuses = await githubFetch(deployments[0].statuses_url);
+            if (!statuses.length) {
+                setTimeout(poll, interval);
+                return;
+            }
+
+            const latestStatus = statuses[0];
+            const state = latestStatus.state;
+
+            const pageLink = latestStatus.target_url ? ` <a href="${latestStatus.target_url}" target="_blank" rel="noopener noreferrer">View Page →</a>` : '';
+            const logLink = latestStatus.log_url ? ` <a href="${latestStatus.log_url}" target="_blank" rel="noopener noreferrer">View Log →</a>` : '';
+
+            if (state === 'success') {
+                li.innerHTML = `🟢 Deployment successful!${pageLink}${logLink}`;
+            } else if (['pending', 'in_progress', 'queued'].includes(state)) {
+                li.innerHTML = `🟡 Deployment in progress...${logLink}`;
+                setTimeout(poll, interval);
+            } else { // 'failure', 'error', 'inactive'
+                li.innerHTML = `🔴 Deployment failed (state: ${state}).${logLink}`;
+            }
+        } catch (error) {
+            handleError(error, "Deployment status check failed");
+            li.innerHTML = `🔴 Error checking deployment status.`;
+        }
+    };
+    setTimeout(poll, interval); // Initial delay
   }
 
   async function handleCommit() {
@@ -657,21 +712,19 @@
         a.textContent = `6. Commit succeeded: ${csha}`;
         li.appendChild(a);
         elements.commitSteps.appendChild(li);
-
-        const deployLi = document.createElement('li'); deployLi.className = 'status-ok';
-        const deployLink = document.createElement('a');
-        deployLink.href = `https://github.com/${currentUser}/${currentRepo}/actions/workflows/static.yml`;
-        deployLink.target = '_blank'; deployLink.rel = 'noopener noreferrer';
-        deployLink.textContent = `7. View deployment status →`;
-        deployLi.appendChild(deployLink);
         
         const accessLi = document.createElement('li'); accessLi.className = 'status-ok';
         const accessLink = document.createElement('a');
         accessLink.href = `https://github.com/${currentUser}/${currentRepo}/blob/${repoDefaultBranch}/${newPath}`;
         accessLink.target = '_blank'; accessLink.rel = 'noopener noreferrer';
-        accessLink.textContent = `8. Access file in repository →`;
+        accessLink.textContent = `7. Access file in repository →`;
         accessLi.appendChild(accessLink);
         elements.commitSteps.appendChild(accessLi);
+        
+        const deploymentStatusLi = document.createElement('li');
+        deploymentStatusLi.id = 'deploymentStatusLi';
+        deploymentStatusLi.innerHTML = `🟡 Checking Pages deployment status... <a href="https://github.com/${currentUser}/${currentRepo}/actions" target="_blank" rel="noopener noreferrer">(Actions)</a>`;
+        elements.commitSteps.appendChild(deploymentStatusLi);
         
         elements.commitSteps.scrollTop = elements.commitSteps.scrollHeight;
 
@@ -689,7 +742,8 @@
         currentSha = resp.content.sha;
         elements.originalTitle.textContent = newPath;
         populateFilenameFields(newPath);
-
+        
+        pollDeploymentStatus(currentUser, currentRepo, resp.commit.sha);
         fetchRepoTree(currentUser, currentRepo, repoDefaultBranch).then(tree => treeCache = tree);
         toast('Committed');
     } catch(e) {
