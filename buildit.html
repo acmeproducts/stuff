@@ -1,4 +1,4 @@
-<!-- LinkPortal-v2-2025-08-27 01:12 AM -->
+<!-- LinkPortal-v4-2025-08-27 08:30 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -85,6 +85,9 @@
             padding: 8px 12px;
             cursor: pointer;
             font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         .omni-item:hover {
             background-color: #f3f4f6;
@@ -99,12 +102,10 @@
                 <button id="menuBtn" class="text-gray-900 hover:text-gray-600 p-2 text-xl">☰</button>
                 <h1 id="headerTitleContainer" class="text-lg font-semibold text-gray-900 truncate">
                     <span id="portalTitle">Link Portal</span>
-                    <span id="activeItemTitle" class="text-gray-500 font-normal ml-2"></span>
+                    <span id="activeItemTitle" class="text-gray-500 font-normal ml-2 cursor-pointer" title="Open in new window"></span>
                 </h1>
             </div>
             <div class="flex items-center gap-2">
-                <button id="micPermission" class="text-gray-900 px-3 py-1 rounded hover:bg-gray-100">🎤</button>
-                <div id="micStatus" class="text-sm"></div>
                 <div id="currentTime" class="text-sm text-gray-600 mr-4" title="Current Pacific Time"></div>
             </div>
         </header>
@@ -153,7 +154,7 @@
                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                         </button>
                         <div class="relative flex-1">
-                            <input type="search" id="omniSearch" placeholder="Search repository files..." class="w-full pl-4 pr-4 py-2 border rounded-full text-sm">
+                            <input type="search" id="omniSearch" placeholder="Search repository files..." class="w-full pl-4 pr-4 py-2 border rounded-full text-sm" autocomplete="off">
                             <div id="omniList" class="omni-list"></div>
                         </div>
                     </div>
@@ -197,8 +198,8 @@
         </div>
 
         <!-- Main Content -->
-        <main id="mainContent" class="flex-1 bg-white">
-            <iframe id="viewer" class="w-full h-full border-0" sandbox="allow-scripts allow-same-origin allow-popups allow-modals allow-forms" allow="microphone" loading="lazy"></iframe>
+        <main id="mainContent" class="flex-1 bg-white relative">
+            <!-- Iframe container for state preservation -->
         </main>
 
         <!-- Overlay -->
@@ -242,6 +243,16 @@
     <input type="file" id="configImport" class="hidden" accept="application/json">
 
     <script>
+        /*
+         * NOTE ON EMBEDDING EXTERNAL CONTENT:
+         * Embedding web pages from different domains into an iframe can be blocked by the browser's
+         * Cross-Origin Resource Sharing (CORS) policy. GitHub Pages is configured to allow this,
+         * but many other websites are not. For sites that block embedding, a CORS proxy
+         * like `allorigins.win` can be used to bypass this, but be aware of the privacy and
+         * reliability implications of using a third-party service. The most reliable method is
+         * to upload HTML files directly to this portal.
+         */
+
         // --- DATABASE AND INITIALIZATION ---
         let db;
         const DB_NAME = 'PortalDB';
@@ -299,10 +310,8 @@
             mainContent: document.getElementById('mainContent'),
             overlay: document.getElementById('overlay'),
             linkList: document.getElementById('linkList'),
-            viewer: document.getElementById('viewer'),
             portalTitle: document.getElementById('portalTitle'),
             activeItemTitle: document.getElementById('activeItemTitle'),
-            micStatus: document.getElementById('micStatus'),
             currentTime: document.getElementById('currentTime'),
             resizeHandle: document.getElementById('resizeHandle'),
             omniSearch: document.getElementById('omniSearch'),
@@ -322,6 +331,7 @@
         elements.omniSearch.addEventListener('input', handleOmniSearch);
         elements.resetAppBtn.addEventListener('click', () => elements.resetConfirmModal.classList.add('active'));
         elements.repoSettingsBtn.addEventListener('click', openRepoSettings);
+        elements.activeItemTitle.addEventListener('click', openActiveInNewWindow);
         
         document.getElementById('cancelRepoUpdate').addEventListener('click', () => elements.repoSettingsModal.classList.remove('active'));
         document.getElementById('confirmRepoUpdate').addEventListener('click', updateRepository);
@@ -336,7 +346,6 @@
         document.getElementById('exportConfig').addEventListener('click', exportConfig);
         document.getElementById('generatePortal').addEventListener('click', generatePortal);
         document.getElementById('saveAllSettingsBtn').addEventListener('click', saveAllSettingsFromPanel);
-        document.getElementById('micPermission').addEventListener('click', requestMicPermission);
         window.addEventListener('beforeunload', () => blobUrls.forEach(URL.revokeObjectURL));
         document.addEventListener('click', (e) => { if (!e.target.closest('.relative')) elements.omniList.style.display = 'none'; });
 
@@ -350,17 +359,22 @@
             } else {
                 elements.mainContent.style.marginLeft = '0px';
             }
-            elements.overlay.classList.toggle('active', isActive);
+            updateOverlayState();
         }
 
         function toggleConfig() {
             elements.configPanel.classList.toggle('active');
-            elements.overlay.classList.toggle('active');
+            updateOverlayState();
         }
 
         function closeAll() {
             if (elements.menuPanel.classList.contains('active')) toggleMenu();
             if (elements.configPanel.classList.contains('active')) toggleConfig();
+        }
+
+        function updateOverlayState() {
+            const isActive = elements.menuPanel.classList.contains('active') || elements.configPanel.classList.contains('active');
+            elements.overlay.classList.toggle('active', isActive);
         }
 
         function updateTime() {
@@ -517,16 +531,39 @@
                 filteredFiles.forEach(file => {
                     const item = document.createElement('div');
                     item.className = 'omni-item';
-                    item.textContent = file.name;
-                    item.onclick = () => {
-                        addLink(file.name, `https://${owner}.github.io/${repo}/${file.path}`, null, 'github').then(() => {
-                            loadLinks();
-                            elements.omniSearch.value = '';
-                            elements.omniList.style.display = 'none';
-                        });
-                    };
+                    item.innerHTML = `
+                        <input type="checkbox" class="omni-checkbox mr-2">
+                        <span class="flex-1 truncate">${file.name}</span>
+                    `;
+                    item.addEventListener('click', (e) => {
+                        const checkbox = item.querySelector('.omni-checkbox');
+                        if (e.target !== checkbox) {
+                            checkbox.checked = !checkbox.checked;
+                        }
+                    });
                     elements.omniList.appendChild(item);
                 });
+
+                const addButton = document.createElement('button');
+                addButton.textContent = 'Add Selected';
+                addButton.className = 'w-full bg-blue-500 text-white p-2 mt-2 rounded';
+                addButton.onclick = () => {
+                    const checkedItems = elements.omniList.querySelectorAll('.omni-checkbox:checked');
+                    if (checkedItems.length > 0) {
+                        checkedItems.forEach(checkbox => {
+                            const fileName = checkbox.nextElementSibling.textContent;
+                            const fileData = repoFileCache.find(f => f.name === fileName);
+                            if(fileData) {
+                                addLink(fileData.name, `https://${owner}.github.io/${repo}/${fileData.path}`, null, 'github');
+                            }
+                        });
+                    }
+                    loadLinks();
+                    elements.omniSearch.value = '';
+                    elements.omniList.style.display = 'none';
+                };
+
+                elements.omniList.appendChild(addButton);
                 elements.omniList.style.display = 'block';
             } else {
                 elements.omniList.style.display = 'none';
@@ -547,7 +584,7 @@
             const tx = db.transaction('links', 'readwrite');
             const store = tx.objectStore('links');
             const count = await new Promise(r => store.count().onsuccess = e => r(e.target.result));
-            return new Promise(r => store.add({ title, url, fileId, included: true, order: count, source }).onsuccess = r);
+            return new Promise(r => store.add({ title, url, fileId, included: true, order: count, source, mic: false }).onsuccess = r);
         }
 
         function loadLinks() {
@@ -556,7 +593,7 @@
             index.getAll().onsuccess = (e) => {
                 const links = e.target.result;
                 updateLinkList(links);
-                if (links.length > 0 && !elements.configPanel.classList.contains('active')) {
+                if (links.length > 0 && !document.querySelector('.link-item.active-link')) {
                     const firstLinkEl = elements.linkList.querySelector('.link-item');
                     if (firstLinkEl) {
                         selectLinkItem(firstLinkEl, links[0]);
@@ -567,12 +604,35 @@
             };
         }
 
-        function selectLinkItem(linkEl, link) {
+        function selectLinkItem(linkEl, link, forceReload = false) {
             document.querySelectorAll('#linkList .link-item').forEach(el => el.classList.remove('active-link'));
             linkEl.classList.add('active-link');
-            elements.viewer.src = link.fileId ? blobUrls.get(link.fileId) : link.url;
+            
+            const url = link.fileId ? blobUrls.get(link.fileId) : link.url;
+            
+            document.querySelectorAll('#mainContent iframe').forEach(frame => frame.style.display = 'none');
+            
+            let iframe = document.getElementById(`iframe-${link.id}`);
+            if (!iframe) {
+                iframe = document.createElement('iframe');
+                iframe.id = `iframe-${link.id}`;
+                iframe.className = 'w-full h-full border-0';
+                iframe.sandbox = 'allow-scripts allow-same-origin allow-popups allow-modals allow-forms';
+                if(link.mic) iframe.allow = 'microphone';
+                iframe.src = url;
+                elements.mainContent.appendChild(iframe);
+            } else if (forceReload) {
+                iframe.src = url;
+            }
+            
+            iframe.style.display = 'block';
+
             elements.activeItemTitle.textContent = `- ${link.title}`;
-            if (window.innerWidth < 768) closeAll();
+            elements.activeItemTitle.dataset.url = url;
+            
+            if (window.innerWidth < 768 && !elements.configPanel.classList.contains('active')) {
+                 closeAll();
+            }
         }
         
         function updateLinkList(links) {
@@ -589,10 +649,14 @@
                     <span class="cursor-move text-gray-400">☰</span>
                     <div class="flex-1 min-w-0">
                         <div class="text-sm font-medium text-gray-900 link-title cursor-pointer truncate">${link.title}</div>
-                        <div class="text-xs text-gray-600 mt-1 truncate cursor-pointer">${linkUrl}</div>
+                        <div class="text-xs text-gray-600 mt-1 truncate cursor-pointer link-desc">${linkUrl}</div>
                     </div>
                     <div class="flex items-center gap-2">
-                        <label class="toggle-switch">
+                        <label class="toggle-switch" title="Enable Microphone">
+                            <input type="checkbox" class="link-mic-toggle" ${link.mic ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <label class="toggle-switch" title="Include in Build">
                             <input type="checkbox" class="link-include-toggle" ${link.included ?? true ? 'checked' : ''}>
                             <span class="toggle-slider"></span>
                         </label>
@@ -600,36 +664,45 @@
                     </div>
                 `;
 
-                const contentArea = linkEl.querySelector('.flex-1');
-                contentArea.addEventListener('click', () => selectLinkItem(linkEl, link));
+                linkEl.addEventListener('click', () => selectLinkItem(linkEl, link));
+                linkEl.addEventListener('dblclick', () => selectLinkItem(linkEl, link, true));
+                linkEl.addEventListener('contextmenu', (e) => e.preventDefault());
 
                 const titleEl = linkEl.querySelector('.link-title');
                 titleEl.addEventListener('dblclick', (e) => {
                     e.stopPropagation();
-                    makeTitleEditable(titleEl, link.id);
+                    makeEditable(titleEl, link.id, 'title');
                 });
+                
+                const descEl = linkEl.querySelector('.link-desc');
+                descEl.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    if(!link.fileId) makeEditable(descEl, link.id, 'url');
+                });
+
 
                 linkEl.querySelector('button').addEventListener('click', () => removeLink(link.id, link.fileId));
                 linkEl.querySelector('.link-include-toggle').addEventListener('change', (e) => updateLinkProperty(link.id, 'included', e.target.checked));
+                linkEl.querySelector('.link-mic-toggle').addEventListener('change', (e) => updateLinkProperty(link.id, 'mic', e.target.checked));
                 
                 elements.linkList.appendChild(linkEl);
             });
         }
         
-        function makeTitleEditable(titleEl, linkId) {
-            const currentTitle = titleEl.textContent;
+        function makeEditable(element, linkId, property) {
+            const currentValue = element.textContent;
             const input = document.createElement('input');
             input.type = 'text';
-            input.value = currentTitle;
+            input.value = currentValue;
             input.className = 'w-full text-sm font-medium text-gray-900 border rounded px-1';
             
-            titleEl.replaceWith(input);
+            element.replaceWith(input);
             input.focus();
 
             const save = () => {
-                const newTitle = input.value.trim();
-                if (newTitle && newTitle !== currentTitle) {
-                    updateLinkProperty(linkId, 'title', newTitle);
+                const newValue = input.value.trim();
+                if (newValue && newValue !== currentValue) {
+                    updateLinkProperty(linkId, property, newValue);
                 } else {
                     loadLinks();
                 }
@@ -639,7 +712,7 @@
             input.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') input.blur();
                 else if (e.key === 'Escape') {
-                    input.value = currentTitle;
+                    input.value = currentValue;
                     input.blur();
                 }
             });
@@ -654,6 +727,9 @@
                 if (blobUrl) URL.revokeObjectURL(blobUrl);
                 blobUrls.delete(fileId);
             }
+            const iframe = document.getElementById(`iframe-${linkId}`);
+            if(iframe) iframe.remove();
+            
             tx.oncomplete = loadLinks;
         }
 
@@ -695,6 +771,13 @@
                 blobUrls.set(file.id, URL.createObjectURL(blob));
             });
         }
+        
+        function openActiveInNewWindow() {
+            const url = elements.activeItemTitle.dataset.url;
+            if (url) {
+                window.open(url, '_blank');
+            }
+        }
 
         // --- DRAG AND DROP REORDERING ---
         let draggedItemId = null;
@@ -703,7 +786,8 @@
             e.target.closest('.link-item').classList.add('dragging');
         });
         elements.linkList.addEventListener('dragend', (e) => {
-            e.target.closest('.link-item').classList.remove('dragging');
+            const draggedEl = e.target.closest('.link-item');
+            if(draggedEl) draggedEl.classList.remove('dragging');
         });
         elements.linkList.addEventListener('dragover', (e) => e.preventDefault());
         elements.linkList.addEventListener('drop', (e) => {
@@ -946,19 +1030,6 @@
     <\/script>
 </body>
 </html>`;
-        }
-
-        // --- MICROPHONE PERMISSIONS ---
-        async function requestMicPermission() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                elements.micStatus.textContent = '🎤 Enabled';
-                elements.micStatus.className = 'text-sm text-green-600';
-                stream.getTracks().forEach(track => track.stop());
-            } catch (err) {
-                elements.micStatus.textContent = '🎤 Denied';
-                elements.micStatus.className = 'text-sm text-red-600';
-            }
         }
     </script>
 </body>
