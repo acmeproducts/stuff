@@ -1,0 +1,358 @@
+<!-- InstancedQuilt-v3-2025-08-26 03:12 AM -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Infinite Instanced Quilt v3</title>
+<style>
+  :root{
+    --bg:#000;
+    --fg:#e6e6e6;
+    --muted:#9aa4b2;
+    --panel:#0e1219;
+    --panel2:#121826;
+    --border:#1e2531;
+    --accent:#64a3ff;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Arial; }
+  #app { position: fixed; inset: 0; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+  #readout {
+    position: fixed; left: 8px; top: calc(8px + var(--safe-top));
+    background: rgba(0,0,0,0.55); border: 1px solid var(--border); border-radius: 10px; padding: 6px 8px;
+    font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none;
+  }
+  #bar{
+    position:fixed;left:0;right:0;bottom:0;
+    padding:8px 10px calc(8px + var(--safe-bottom) + 30px); /* Space for footer */
+    display:flex;gap:10px;justify-content:center;align-items:center;
+    background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.35) 40%, rgba(0,0,0,0.7) 100%);
+    z-index: 10;
+  }
+  .btn{ min-width:72px; min-height:44px; padding:8px 12px; border:1px solid var(--border); background:var(--panel); color:var(--fg); border-radius:14px; font-weight:650; cursor: pointer; }
+  .btn:active{ transform:translateY(1px); }
+  #drawer{
+    position:fixed; top:0; right:0; height:100%; width:min(92vw, 480px);
+    transform: translateX(100%);
+    transition: transform .25s ease;
+    background: linear-gradient(180deg, var(--panel2), var(--panel));
+    border-left:1px solid var(--border);
+    box-shadow: -10px 0 30px rgba(0,0,0,0.4);
+    padding:12px 12px calc(12px + var(--safe-bottom) + 30px); /* Space for footer */
+    overflow-y:auto;
+    z-index: 20;
+  }
+  #drawer.open{ transform: translateX(0%); }
+  .hdr{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+  .hdr h2{ margin:0; font-size:16px; }
+  .grid{ display:grid; grid-template-columns: 1fr auto; gap:8px 10px; align-items:center; }
+  .lbl{ font-size:12px; color:var(--muted); }
+  input[type=number], input[type=text], input[type=color], select { width:100%; background:#0f141e; color:var(--fg); border:1px solid var(--border); border-radius:10px; padding:8px 10px; }
+  input[type=range]{ width:100%; }
+  .accent{ outline:2px solid var(--accent); }
+  #master-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: rgba(14, 18, 25, 0.8);
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 10px;
+    text-align: center;
+    padding: 8px 0;
+    z-index: 100;
+    pointer-events: none;
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="readout"></div>
+<div id="bar" role="toolbar" aria-label="Controls">
+  <button id="menu" class="btn accent">Params</button>
+  <button id="zoomOut" class="btn">Zoom Out</button>
+  <button id="zoomIn"  class="btn">Zoom In</button>
+  <button id="resetCam" class="btn">Reset Cam</button>
+</div>
+<div id="drawer" aria-hidden="true">
+  <div class="hdr">
+    <h2>Infinite Quilt — Parameters</h2>
+    <button id="close" class="btn">Close</button>
+  </div>
+  <div class="grid">
+    <div class="lbl">Shape</div>
+    <select id="shape">
+        <option value="box">Cube</option>
+        <option value="sphere">Sphere</option>
+        <option value="icosahedron">Icosahedron</option>
+    </select>
+    <div class="lbl">Color</div><input id="color" type="color" />
+    <div class="lbl">Max Objects</div><input id="maxCubes" type="number" min="1000" max="100000" step="1000" />
+    <div class="lbl">Render Distance</div><input id="renderDist" type="number" min="10" max="200" step="1" />
+    <div class="lbl">Separation</div><input id="separation" type="number" min="1" max="500" step="1" />
+    <div class="lbl">Amplitude</div><input id="amplitude" type="number" min="1" max="200" step="1" />
+    <div class="lbl">Frequency X</div><input id="freqX" type="number" min="0.001" max="1.0" step="0.001" />
+    <div class="lbl">Frequency Z</div><input id="freqZ" type="number" min="0.001" max="1.0" step="0.001" />
+    <div class="lbl">Speed</div><input id="speed" type="range" min="0.0" max="5.0" step="0.01" />
+    <div class="lbl">Background</div><input id="bg" type="color" />
+    <div class="lbl">Damping</div><input id="damping" type="range" min="0.01" max="0.25" step="0.01" />
+    <div class="lbl">Min Distance</div><input id="minDist" type="number" min="10" max="1000" step="10" />
+    <div class="lbl">Max Distance</div><input id="maxDist" type="number" min="100" max="20000" step="50" />
+  </div>
+</div>
+<footer id="master-footer"></footer>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// === Defaults & Parameters
+const DEFAULTS = {
+  shape: 'box',
+  color: '#ffffff',
+  maxCubes: 50000,
+  renderDist: 80,
+  separation: 30,
+  amplitude: 40,
+  freqX: 0.05,
+  freqZ: 0.03,
+  speed: 1.0,
+  bg: '#05050a',
+  damping: 0.08,
+  minDist: 10,
+  maxDist: 15000
+};
+let params = { ...DEFAULTS };
+
+let camera, scene, renderer, controls, instancedMesh;
+let lastCameraGridX = NaN, lastCameraGridZ = NaN;
+let currentMaxCubes = 0;
+let currentShape = '';
+const dummy = new THREE.Object3D();
+const DPR_CAP = 2;
+
+const ui = Object.fromEntries(Array.from(document.querySelectorAll('[id]')).map(el => [el.id, el]));
+
+function populateUI() {
+  for (const key in params) {
+    if (ui[key]) {
+      ui[key].value = params[key];
+    }
+  }
+}
+
+function init() {
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 100000);
+  camera.position.set(0, 500, 1000);
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(params.bg);
+  scene.fog = new THREE.Fog(params.bg, 1000, 10000);
+
+  // Add lighting for materials other than MeshNormalMaterial
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+  scene.add(ambientLight);
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+  directionalLight.position.set(1, 1, 1);
+  scene.add(directionalLight);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(DPR_CAP, devicePixelRatio));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.getElementById("app").appendChild(renderer.domElement);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = params.damping;
+  controls.minDistance = params.minDist;
+  controls.maxDistance = params.maxDist;
+
+  setupInstancedCubes();
+  populateUI();
+  setupEventListeners();
+  
+  renderer.setAnimationLoop(animate);
+  updateFooter();
+}
+
+function setupEventListeners() {
+    ui.menu.onclick = () => { ui.drawer.classList.add('open'); };
+    ui.close.onclick = () => { ui.drawer.classList.remove('open'); };
+    // Fixed zoom buttons
+    ui.zoomIn.onclick = () => dolly(1.5);
+    ui.zoomOut.onclick = () => dolly(1 / 1.5);
+    ui.resetCam.onclick = () => { controls.reset(); camera.position.set(0, 500, 1000); controls.update(); };
+
+    document.querySelectorAll('#drawer input, #drawer select').forEach(input => {
+        input.addEventListener('change', handleParamChange);
+        if (input.type === 'range') {
+            input.addEventListener('input', handleParamChange);
+        }
+    });
+    
+    window.addEventListener('resize', onResize);
+}
+
+function setupInstancedCubes() {
+  if (instancedMesh) {
+    scene.remove(instancedMesh);
+    instancedMesh.geometry.dispose();
+    instancedMesh.material.dispose();
+  }
+
+  let geometry;
+  switch (params.shape) {
+    case 'sphere':
+      geometry = new THREE.SphereGeometry(0.5, 16, 8);
+      break;
+    case 'icosahedron':
+      geometry = new THREE.IcosahedronGeometry(0.5, 0);
+      break;
+    case 'box':
+    default:
+      geometry = new THREE.BoxGeometry(1, 1, 1);
+      break;
+  }
+  
+  const material = new THREE.MeshLambertMaterial({ color: params.color });
+  instancedMesh = new THREE.InstancedMesh(geometry, material, params.maxCubes);
+  instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(instancedMesh);
+  
+  currentMaxCubes = params.maxCubes;
+  currentShape = params.shape;
+
+  lastCameraGridX = NaN;
+  lastCameraGridZ = NaN;
+}
+
+function updateVisibleCubes() {
+    const time = performance.now() * 0.001 * params.speed;
+    let instanceId = 0;
+
+    const cameraGridX = Math.round(camera.position.x / params.separation);
+    const cameraGridZ = Math.round(camera.position.z / params.separation);
+
+    const halfDist = Math.floor(params.renderDist / 2);
+
+    for (let i = -halfDist; i <= halfDist; i++) {
+        for (let j = -halfDist; j <= halfDist; j++) {
+            if (instanceId >= params.maxCubes) break;
+
+            const x = (cameraGridX + i) * params.separation;
+            const z = (cameraGridZ + j) * params.separation;
+
+            const ax = (cameraGridX + i);
+            const az = (cameraGridZ + j);
+            const y = (Math.sin(ax * params.freqX + time) + Math.sin(az * params.freqZ + time)) * params.amplitude;
+
+            dummy.position.set(x, y, z);
+            dummy.scale.setScalar(params.separation * 0.5);
+            dummy.updateMatrix();
+            instancedMesh.setMatrixAt(instanceId, dummy.matrix);
+            instanceId++;
+        }
+        if (instanceId >= params.maxCubes) break;
+    }
+
+    instancedMesh.count = instanceId;
+    instancedMesh.instanceMatrix.needsUpdate = true;
+    if (ui.readout) {
+        ui.readout.textContent = `Objects=${instanceId.toLocaleString()}`;
+    }
+}
+
+function animate() {
+  controls.update();
+
+  const cameraGridX = Math.round(camera.position.x / params.separation);
+  const cameraGridZ = Math.round(camera.position.z / params.separation);
+
+  if (cameraGridX !== lastCameraGridX || cameraGridZ !== lastCameraGridZ || params.speed > 0) {
+      updateVisibleCubes();
+      lastCameraGridX = cameraGridX;
+      lastCameraGridZ = cameraGridZ;
+  }
+
+  renderer.render(scene, camera);
+}
+
+function handleParamChange() {
+    params.shape = ui.shape.value;
+    params.color = ui.color.value;
+    params.maxCubes = parseInt(ui.maxCubes.value);
+    params.renderDist = parseInt(ui.renderDist.value);
+    params.separation = parseFloat(ui.separation.value);
+    params.amplitude = parseFloat(ui.amplitude.value);
+    params.freqX = parseFloat(ui.freqX.value);
+    params.freqZ = parseFloat(ui.freqZ.value);
+    params.speed = parseFloat(ui.speed.value);
+    params.bg = ui.bg.value;
+    params.damping = parseFloat(ui.damping.value);
+    params.minDist = parseFloat(ui.minDist.value);
+    params.maxDist = parseFloat(ui.maxDist.value);
+    
+    applyParams();
+}
+
+function applyParams() {
+  scene.background.set(params.bg);
+  scene.fog.color.set(params.bg);
+  controls.dampingFactor = params.damping;
+  controls.minDistance = params.minDist;
+  controls.maxDistance = params.maxDist;
+
+  if (instancedMesh) {
+    instancedMesh.material.color.set(params.color);
+  }
+
+  if (params.maxCubes !== currentMaxCubes || params.shape !== currentShape) {
+    setupInstancedCubes();
+  }
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(DPR_CAP, devicePixelRatio));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function dolly(factor) {
+  const v = new THREE.Vector3().subVectors(camera.position, controls.target).multiplyScalar(1 / factor);
+  camera.position.copy(controls.target).add(v);
+
+  const distance = camera.position.distanceTo(controls.target);
+  camera.fov = 2 * Math.atan((window.innerHeight / 2) / distance) * (180 / Math.PI);
+  camera.updateProjectionMatrix();
+  
+  controls.update();
+}
+
+function updateFooter() {
+    const footer = ui['master-footer'];
+    if (footer) {
+        const now = new Date();
+        const formattedDate = now.toISOString().slice(0, 10);
+        const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+        footer.textContent = `InstancedQuilt-v3 - ${formattedDate} ${formattedTime}`;
+    }
+}
+
+init();
+</script>
+</body>
+</html>
