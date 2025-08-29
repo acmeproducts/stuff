@@ -1,0 +1,149 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Visual Timer & Clock — Enhanced</title>
+<style>
+  :root{
+    --bg:#0a0a0a; --fg:#e5e5e5; --panel:rgba(0,0,0,0.78); --border:rgba(255,255,255,0.12);
+    --primary:#ffffff; --secondary:#aaaaaa; --accent:#46c2ff;
+  }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif; }
+  #wrap { position: fixed; inset: 0; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #bg { z-index: 0; }
+  #ui { z-index: 1; pointer-events: none; }/* Floating quick timer bar */ #quickTimer { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: rgba(0,0,0,0.7); border:1px solid var(--border); border-radius:999px; display:flex; gap:8px; align-items:center; padding:8px 12px; z-index: 1200; transition: opacity .3s ease, visibility .3s ease; } #quickTimer.hidden { opacity:0; visibility:hidden; } #quickTimer input { width: 3.5rem; background:#111; color:var(--fg); border:1px solid #333; border-radius:6px; padding:6px 8px; font-size:14px; text-align:center; } #quickTimer button { background:#141414; color:var(--fg); border:1px solid #444; border-radius:999px; padding:6px 12px; font-size:14px; cursor:pointer; } #quickTimer .readout { min-width:72px; text-align:center; font-variant-numeric: tabular-nums; }
+
+/* Hover time tooltip */ #timeOverlay { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 14px; display: none; pointer-events: none; }
+
+/* Pull-out drawer (mobile friendly) */ #drawer { position: fixed; z-index: 1100; pointer-events: none; inset: 0; display:flex; flex-direction: column; align-items: center; } #drawer .panel { width: min(100%, 1200px); background: var(--panel); border: 1px solid var(--border); pointer-events: auto; transform: translateY(-100%); transition: transform 200ms ease; max-height: 85vh; overflow: hidden; display:flex; flex-direction: column; } #drawer.open .panel { transform: translateY(0); } #drawer .scroll { overflow-y: auto; padding: 36px 12px 12px; }
+
+#handle { position: fixed; width: 84px; height: 20px; border-radius: 999px; background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.25); cursor: pointer; z-index: 1201; display: flex; align-items: center; justify-content: center; left: 50%; top: 6px; transform: translateX(-50%); } #handle:after{ content: ""; display: block; width: 36px; height: 2px; background: rgba(255,255,255,0.6); border-radius: 2px; }
+
+#hud { display: grid; grid-template-columns: repeat(3, minmax(260px, 1fr)); gap: 16px; } fieldset { border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 12px; min-width: 0; } legend { font-weight: 700; color: #d0d0d0; } label { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; font-size: 12px; margin: 6px 0; } .row { display:flex; gap:10px; align-items:center; flex-wrap: wrap; } input, select, button { background: #111; color: #e5e5e5; border: 1px solid #333; border-radius: 6px; padding: 6px 8px; font-size: 12px; } input[type=range] { width: 160px; } input[type=number] { width: 90px; } button { cursor: pointer; } button:disabled { opacity: 0.55; cursor: not-allowed; } .pill { display:inline-block; padding:2px 8px; border:1px solid #444; border-radius: 999px; font-size: 11px; color:#ddd; } #status { font-size:12px; color:#9ad; }
+
+/* Mobile tweaks */ @media (max-width: 1000px) { #hud { grid-template-columns: 1fr; } #quickTimer{ left: 12px; right: 12px; transform:none; border-radius:14px; justify-content: space-between; } } @media (max-width: 560px) { #quickTimer input{ width:3.2rem; } } </style>
+
+</head>
+<body>
+<div id="wrap">
+  <canvas id="bg"></canvas>
+  <canvas id="ui"></canvas>
+  <div id="timeOverlay"></div>  <!-- Quick Timer Bar (MM:SS default) -->  <div id="quickTimer">
+    <span class="readout" id="qtMode">Timer</span>
+    <input id="qtMin" type="number" min="0" step="1" value="5" aria-label="Minutes">
+    <span>:</span>
+    <input id="qtSec" type="number" min="0" max="59" step="1" value="0" aria-label="Seconds">
+    <button id="qtStart">Start</button>
+    <button id="qtStop" disabled>Stop</button>
+  </div>  <div id="handle" title="Open controls"></div>
+  <div id="drawer" class="open" aria-hidden="false">
+    <div class="panel">
+      <div class="scroll">
+        <div id="hud">
+          <fieldset>
+            <legend>Background</legend>
+            <label>Period (s) <input id="period" type="number" step="0.1" min="0.2" max="120" value="12"></label>
+            <label>Density <input id="density" type="range" min="0.5" max="6.0" step="0.01" value="2.0"></label>
+            <label>Contrast <input id="gamma" type="range" min="0.5" max="2.5" step="0.01" value="1.1"></label>
+            <label>Background Color <input id="bgColor" type="color" value="#0a0a0a"></label>
+          </fieldset><fieldset>
+        <legend>Colors</legend>
+        <label>Primary <input id="colPrimary" type="color" value="#ffffff"></label>
+        <label>Secondary <input id="colSecondary" type="color" value="#aaaaaa"></label>
+        <label>Accent <input id="colAccent" type="color" value="#46c2ff"></label>
+        <label>Show time on hover <input id="showHoverTime" type="checkbox" checked></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Visualization</legend>
+        <label>Use case
+          <select id="mode">
+            <option value="timer" selected>Timer</option>
+            <option value="clock">Clock</option>
+          </select>
+        </label>
+        <label>Model
+          <select id="visModel">
+            <option value="rings" selected>Radial Rings</option>
+            <option value="hourglass">Hourglass</option>
+            <option value="analog">Analog Hands</option>
+            <option value="spiral">Spiral Arcs</option>
+            <option value="teardrop">Sand Teardrop</option>
+            <option value="multizone">Multi‑Zone Clock</option>
+          </select>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Timer Logic</legend>
+        <label>Type
+          <select id="timerType">
+            <option value="countdown" selected>Countdown</option>
+            <option value="countup">Countup</option>
+          </select>
+        </label>
+        <label>On finish sound
+          <select id="tune">
+            <option value="none">None</option>
+            <option value="chime" selected>Subtle Chime</option>
+            <option value="bell">Soft Bell</option>
+            <option value="ping">Ping</option>
+          </select>
+        </label>
+        <label>Volume <input id="tuneVol" type="range" min="0" max="1" step="0.01" value="0.3"></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Config</legend>
+        <div class="row">
+          <button id="saveConfigBtn">Save</button>
+          <button id="exportConfigBtn">Export</button>
+          <label class="row"><button id="importConfigBtn">Import</button><input id="importConfig" type="file" accept=".json" style="display:none;" /></label>
+        </div>
+      </fieldset>
+
+    </div>
+  </div>
+</div>
+
+  </div>
+</div>
+<script>
+// Drawer & handle
+const handle=document.getElementById('handle');
+const drawer=document.getElementById('drawer');
+let drawerOpen=true; handle.addEventListener('click',()=>{drawerOpen=!drawerOpen; drawer.classList.toggle('open',drawerOpen)});// Canvases const bg=document.getElementById('bg'); const bctx=bg.getContext('2d'); const ui=document.getElementById('ui'); const ctx=ui.getContext('2d');
+
+// Controls const bgColor=document.getElementById('bgColor'); const colPrimary=document.getElementById('colPrimary'); const colSecondary=document.getElementById('colSecondary'); const colAccent=document.getElementById('colAccent'); const period=document.getElementById('period'); const density=document.getElementById('density'); const gamma=document.getElementById('gamma'); const modeSel=document.getElementById('mode'); const visModel=document.getElementById('visModel'); const showHoverTime=document.getElementById('showHoverTime');
+
+// Quick timer bar const qt=document.getElementById('quickTimer'); const qtMin=document.getElementById('qtMin'); const qtSec=document.getElementById('qtSec'); const qtStart=document.getElementById('qtStart'); const qtStop=document.getElementById('qtStop'); const qtMode=document.getElementById('qtMode'); qtMode.textContent = (modeSel.value==='clock')? 'Clock' : 'Timer'; modeSel.addEventListener('change',()=>{ qtMode.textContent = (modeSel.value==='clock')? 'Clock' : 'Timer'; });
+
+// Time overlay const overlay=document.getElementById('timeOverlay'); ui.addEventListener('mouseenter',()=> overlay.style.display = showHoverTime.checked ? 'block':'none'); ui.addEventListener('mouseleave',()=> overlay.style.display = 'none'); document.addEventListener('mousemove', e=>{ const r=ui.getBoundingClientRect(); if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom){ overlay.style.display = showHoverTime.checked ? 'block':'none'; overlay.style.left = (e.clientX+12)+'px'; overlay.style.top=(e.clientY+12)+'px'; } });
+
+// Mobile: reveal quick bar on touch let hideQuickTimerTO=null; function revealQuickTimer(){ qt.classList.remove('hidden'); if(hideQuickTimerTO) clearTimeout(hideQuickTimerTO); hideQuickTimerTO=setTimeout(()=> qt.classList.add('hidden'), 2000); } document.addEventListener('mousemove', ()=> { if(isRunning) revealQuickTimer(); }); document.addEventListener('touchstart', ()=> { if(isRunning) revealQuickTimer(); }, {passive:true});
+
+function resize(){ const dpr=Math.min(2, window.devicePixelRatio||1); const w=Math.floor(bg.clientWidthdpr); const h=Math.floor(bg.clientHeightdpr); if(bg.width!==w||bg.height!==h){ bg.width=w; bg.height=h; ui.width=w; ui.height=h; } } window.addEventListener('resize',resize);
+
+// Lightweight background let t0 = performance.now()/1000; function drawBackground(){ const w=bg.width, h=bg.height; const cx=w/2, cy=h/2; bctx.clearRect(0,0,w,h); bctx.fillStyle=bgColor.value; bctx.fillRect(0,0,w,h); // subtle animated rings const time=performance.now()/1000 - t0; const per=Math.max(0.1, +period.value); const phase=(time%per)/per; const dens=Math.max(0.5, +density.value); const maxR=Math.hypot(w,h)/2; const step=Math.max(6, 40/dens); bctx.save(); bctx.translate(cx,cy); bctx.globalAlpha=0.18; bctx.strokeStyle='rgba(255,255,255,0.22)'; bctx.lineWidth=Math.max(1, Math.floor(Math.max(w,h)/900)); const shift=phasestep2; for(let r=step; r<maxR; r+=step){ const rr=r+shift; bctx.beginPath(); bctx.arc(0,0, rr, 0, Math.PI2); bctx.stroke(); } bctx.restore(); const g=Math.max(0.5, +gamma.value); if(g!==1){ const img=bctx.getImageData(0,0,w,h); const d=img.data; const inv=1/g; for(let i=0;i<d.length;i+=4){ d[i]=255Math.pow(d[i]/255,inv); d[i+1]=255Math.pow(d[i+1]/255,inv); d[i+2]=255Math.pow(d[i+2]/255,inv);} bctx.putImageData(img,0,0);} }
+
+// Simple visuals (placeholder): radial ring & hand function drawOverlay(){ ctx.clearRect(0,0,ui.width,ui.height); const cx=ui.width/2, cy=ui.height/2; const R=Math.min(ui.width,ui.height)0.32; // track ctx.strokeStyle=colSecondary.value; ctx.lineWidth=Math.max(2, R0.06); ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI2); ctx.stroke(); // progress const frac = (Date.now()/1000%60)/60; ctx.strokeStyle=colPrimary.value; ctx.lineWidth=Math.max(2, R0.06); ctx.beginPath(); ctx.arc(cx,cy,R,-Math.PI/2,-Math.PI/2+frac2Math.PI); ctx.stroke(); // hand ctx.strokeStyle=colAccent.value; ctx.lineWidth=Math.max(2, R0.02); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx + Math.cos(frac2Math.PI - Math.PI/2)R0.85, cy + Math.sin(frac2*Math.PI - Math.PI/2)R0.85); ctx.stroke(); }
+
+// Timer engine (persists across tab by using wall clock) let isRunning=false, isCountdown=true, startWall=0, endWall=0, targetSeconds=300; // default 5:00 const timerType=document.getElementById('timerType'); function setFromInputs(){ const m=Math.max(0, Math.floor(+qtMin.value||0)); const s=Math.max(0, Math.min(59, Math.floor(+qtSec.value||0))); targetSeconds = m*60 + s; } function fmt(sec){ sec=Math.max(0, Math.floor(sec)); const m=((sec/60)|0); const s=sec%60; return String(m).padStart(2,'0')+":"+String(s).padStart(2,'0'); } function nowSec(){ return Date.now()/1000; } function updateOverlayText(){ if(modeSel.value==='clock'){ overlay.textContent=new Date().toLocaleTimeString(); } else { const remain = isCountdown ? Math.max(0, Math.ceil(endWall - nowSec())) : Math.max(0, Math.ceil(nowSec() - startWall)); overlay.textContent=fmt(remain); } }
+
+// Audio (subtle tune) const tuneSel=document.getElementById('tune'); const tuneVol=document.getElementById('tuneVol'); let audioCtx=null; function playTune(kind){ if(kind==='none') return; if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); const t=audioCtx.currentTime; const seq = (kind==='bell')? [523.25,392,261.63] : (kind==='ping')? [880] : [660, 880, 660]; const dur=0.16; seq.forEach((f,i)=>{ const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type=(kind==='bell')?'sine':'triangle'; o.frequency.value=f; g.gain.value=0; g.gain.linearRampToValueAtTime(+tuneVol.value, t+idur+0.01); g.gain.exponentialRampToValueAtTime(0.001, t+idur+dur); o.connect(g).connect(audioCtx.destination); o.start(t+idur); o.stop(t+idur+dur+0.05); }); }
+
+function startTimer(){ setFromInputs(); isCountdown = (timerType.value==='countdown'); const now=nowSec(); if(isCountdown){ endWall = now + targetSeconds; startWall = now; } else { startWall = now; endWall = now + targetSeconds; } isRunning=true; qtStart.disabled=true; qtStop.disabled=false; qt.classList.add('hidden'); } function stopTimer(){ isRunning=false; qtStart.disabled=false; qtStop.disabled=true; }
+
+qtStart.addEventListener('click', ()=> startTimer()); qtStop.addEventListener('click', ()=> stopTimer());
+
+// Frame loop let lastDone=false; function frame(){ resize(); drawBackground(); drawOverlay(); // overlay readout updateOverlayText(); if(isRunning){ const now=nowSec(); const remaining = isCountdown ? (endWall - now) : (now - startWall); const finished = isCountdown ? (remaining<=0) : ((now - startWall) >= targetSeconds); if(finished && !lastDone){ playTune(tuneSel.value); lastDone=true; } if(!finished){ lastDone=false; } } requestAnimationFrame(frame); } resize(); frame();
+
+// Config save/load/export/import function gatherConfig(){ return { bgColor:bgColor.value, colPrimary:colPrimary.value, colSecondary:colSecondary.value, colAccent:colAccent.value, period:+period.value, density:+density.value, gamma:+gamma.value, mode:modeSel.value, visModel:visModel.value, showHoverTime:showHoverTime.checked, tune:tuneSel.value, tuneVol:+tuneVol.value, qtMin:+qtMin.value, qtSec:+qtSec.value, timerType:timerType.value }; } function applyConfig(cfg){ if(cfg.bgColor) bgColor.value=cfg.bgColor; if(cfg.colPrimary) colPrimary.value=cfg.colPrimary; if(cfg.colSecondary) colSecondary.value=cfg.colSecondary; if(cfg.colAccent) colAccent.value=cfg.colAccent; if(cfg.period!=null) period.value=cfg.period; if(cfg.density!=null) density.value=cfg.density; if(cfg.gamma!=null) gamma.value=cfg.gamma; if(cfg.mode) {modeSel.value=cfg.mode; qtMode.textContent=(cfg.mode==='clock')?'Clock':'Timer';} if(cfg.visModel) visModel.value=cfg.visModel; if(cfg.showHoverTime!=null) showHoverTime.checked=cfg.showHoverTime; if(cfg.tune) tuneSel.value=cfg.tune; if(cfg.tuneVol!=null) tuneVol.value=cfg.tuneVol; if(cfg.qtMin!=null) qtMin.value=cfg.qtMin; if(cfg.qtSec!=null) qtSec.value=cfg.qtSec; if(cfg.timerType) timerType.value=cfg.timerType; }
+
+const saveBtn=document.getElementById('saveConfigBtn'); saveBtn.addEventListener('click',()=>{ localStorage.setItem('infinite_loop_config', JSON.stringify(gatherConfig())); alert('Saved'); }); const exportBtn=document.getElementById('exportConfigBtn'); function filenameForExport(){ const m=(modeSel.value||'mode'); const d=new Date(); const date=${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}; const time=${String(d.getHours()).padStart(2,'0')}-${String(d.getMinutes()).padStart(2,'0')}-${String(d.getSeconds()).padStart(2,'0')}; return infinite_loop_${m}_${date}_${time}.json; } exportBtn.addEventListener('click',()=>{ const blob=new Blob([JSON.stringify(gatherConfig(),null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filenameForExport(); a.click(); }); const importBtn=document.getElementById('importConfigBtn'); const importInput=document.getElementById('importConfig'); importBtn.addEventListener('click',()=> importInput.click()); importInput.addEventListener('change',e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ const cfg=JSON.parse(r.result); applyConfig(cfg); localStorage.setItem('infinite_loop_config', JSON.stringify(cfg)); }catch{ alert('Invalid JSON'); } }; r.readAsText(f); });
+
+// Auto-load last config try{ const last=localStorage.getItem('infinite_loop_config'); if(last) applyConfig(JSON.parse(last)); }catch{} </script>
+
+</body>
+</html>
