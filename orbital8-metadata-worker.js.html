@@ -1,0 +1,51 @@
+// orbital8-metadata-worker.js - Web Worker for PNG Metadata Parsing
+
+self.onmessage = (e) => {
+    const { buffer, fileId } = e.data;
+    const metadata = extract(buffer);
+    self.postMessage({ metadata, fileId });
+};
+
+function extract(buffer) {
+    if (!buffer) return {};
+    const metadata = {};
+    const view = new DataView(buffer);
+    if (buffer.byteLength < 8) return {};
+    let pos = 8; // Skip PNG header
+    try {
+        while (pos < buffer.byteLength - 12) {
+            const chunkLength = view.getUint32(pos, false);
+            pos += 4;
+            let chunkType = '';
+            for (let i = 0; i < 4; i++) {
+                chunkType += String.fromCharCode(view.getUint8(pos + i));
+            }
+            pos += 4;
+            if (chunkType === 'tEXt') {
+                let keyword = '', value = '', nullFound = false;
+                for (let i = 0; i < chunkLength; i++) {
+                    const byte = view.getUint8(pos + i);
+                    if (!nullFound) {
+                        if (byte === 0) {
+                            nullFound = true;
+                        } else {
+                            keyword += String.fromCharCode(byte);
+                        }
+                    } else {
+                        value += String.fromCharCode(byte);
+                    }
+                }
+                metadata[keyword] = value;
+            } else if (chunkType === 'IEND') {
+                break;
+            }
+            pos += chunkLength + 4;
+            if (chunkLength > buffer.byteLength || pos > buffer.byteLength) {
+                break;
+            }
+        }
+    } catch (error) {
+        // Ignore parsing errors and return what was found
+    }
+    return metadata;
+}
