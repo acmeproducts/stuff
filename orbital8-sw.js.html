@@ -1,0 +1,33 @@
+// orbital8-sw.js - Service Worker for Caching
+const CACHE_NAME = 'orbital8-enigma-cache-v1';
+const APP_SHELL_URLS = [
+    './orbital8-enigma-next.html',
+    './orbital8-metadata-worker.js'
+];
+
+self.addEventListener('install', event => {
+    event.waitUntil(
+        caches.open(CACHE_NAME).then(cache => {
+            console.log('Opened cache');
+            return cache.addAll(APP_SHELL_URLS);
+        })
+    );
+});
+
+self.addEventListener('fetch', event => {
+    event.respondWith(
+        caches.match(event.request).then(response => {
+            // Cache first, then network fallback
+            return response || fetch(event.request).then(fetchResponse => {
+                // Cache new responses for future use
+                return caches.open(CACHE_NAME).then(cache => {
+                    // Do not cache API calls to Microsoft Graph to ensure fresh data
+                    if (!event.request.url.includes('graph.microsoft.com')) {
+                        cache.put(event.request, fetchResponse.clone());
+                    }
+                    return fetchResponse;
+                });
+            });
+        })
+    );
+});
