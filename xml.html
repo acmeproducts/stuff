@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RSS Builder — Embeddable, Single-File</title>
+<style>
+  :root{
+    --bg:#0b0b0b; --fg:#e6e6e6; --muted:#bdbdbd; --line:rgba(255,255,255,0.14);
+    --accent:#86aaf0; --ok:#4ade80; --warn:#fb923c;
+    --radius:12px; --shadow:0 10px 30px rgba(0,0,0,0.45);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial}
+  a{color:inherit;text-decoration:none}
+  button{background:#1a1a1b;color:var(--fg);border:1px solid #444;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:12px}
+  button:hover{background:#272729;border-color:#555}
+  input,select,textarea{background:#111;color:var(--fg);border:1px solid #333;border-radius:8px;padding:8px;font-size:12px}
+  textarea{resize:vertical;min-height:82px}
+  .small{font-size:11px;color:var(--muted)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+  /* Drawer + Handle */
+  #rssb-drawer{position:fixed;z-index:999999;pointer-events:none}
+  #rssb-drawer .panel{pointer-events:auto;background:rgba(8,8,8,.92);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);backdrop-filter:blur(6px);transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+  #rssb-drawer[data-side="bottom"]{left:0;right:0;bottom:0}
+  #rssb-drawer[data-side="bottom"] .panel{max-width:1080px;margin:0 auto 10px auto;transform:translateY(120%)}
+  #rssb-drawer.open[data-side="bottom"] .panel{transform:translateY(0)}
+  #rssb-drawer[data-side="top"]{left:0;right:0;top:0}
+  #rssb-drawer[data-side="top"] .panel{max-width:1080px;margin:10px auto 0 auto;transform:translateY(-120%)}
+  #rssb-drawer.open[data-side="top"] .panel{transform:translateY(0)}
+  #rssb-drawer[data-side="left"]{top:0;bottom:0;left:0}
+  #rssb-drawer[data-side="left"] .panel{height:calc(100% - 20px);width:520px;margin:10px;transform:translateX(-120%)}
+  #rssb-drawer.open[data-side="left"] .panel{transform:translateX(0)}
+  #rssb-drawer[data-side="right"]{top:0;bottom:0;right:0}
+  #rssb-drawer[data-side="right"] .panel{height:calc(100% - 20px);width:520px;margin:10px;transform:translateX(120%)}
+  #rssb-drawer.open[data-side="right"] .panel{transform:translateX(0)}
+
+  #rssb-handle{position:fixed;z-index:1000000;display:grid;place-items:center;background:rgba(26,26,28,.95);border:1px solid var(--line);border-radius:10px;cursor:pointer;transition:transform .15s}
+  #rssb-handle:hover{transform:scale(1.06)}
+  #rssb-handle .bar{background:var(--accent);border-radius:3px}
+  #rssb-drawer[data-side="bottom"] ~ #rssb-handle{left:50%;bottom:8px;transform:translateX(-50%);width:64px;height:26px}
+  #rssb-drawer[data-side="bottom"] ~ #rssb-handle .bar{width:26px;height:3px}
+  #rssb-drawer[data-side="top"] ~ #rssb-handle{left:50%;top:8px;transform:translateX(-50%);width:64px;height:26px}
+  #rssb-drawer[data-side="top"] ~ #rssb-handle .bar{width:26px;height:3px}
+  #rssb-drawer[data-side="left"] ~ #rssb-handle{left:8px;top:50%;transform:translateY(-50%);width:26px;height:64px}
+  #rssb-drawer[data-side="left"] ~ #rssb-handle .bar{width:3px;height:26px}
+  #rssb-drawer[data-side="right"] ~ #rssb-handle{right:8px;top:50%;transform:translateY(-50%);width:26px;height:64px}
+  #rssb-drawer[data-side="right"] ~ #rssb-handle .bar{width:3px;height:26px}
+
+  .content{padding:14px;max-height:72vh;overflow:auto}
+  .section{border:1px solid var(--line);border-radius:12px;margin-bottom:12px}
+  .section > .head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.03);font-weight:800}
+  .section > .body{padding:12px}
+  .grid{display:grid;gap:10px}
+  .grid2{grid-template-columns:1fr 1fr}
+  .grid3{grid-template-columns:1fr 1fr 1fr}
+  .row{display:grid;grid-template-columns: 1fr 2fr;gap:10px;align-items:center}
+  .items{display:flex;flex-direction:column;gap:8px}
+  .item-row{display:grid;grid-template-columns: 24px 1.6fr 1.6fr 1fr 28px;gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.02);padding:8px}
+  .item-row .drag{cursor:grab;text-align:center;color:#9b9b9b}
+  .item-row .del{background:none;border:none;color:#aaa;cursor:pointer;font-size:16px}
+  .item-row .del:hover{color:#fff}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .pill{display:inline-flex;align-items:center;gap:6px;background:rgba(134,170,240,.18);color:var(--accent);border:1px solid rgba(134,170,240,.35);padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+
+  .preview{white-space:pre;overflow:auto;background:#0f0f0f;border:1px solid var(--line);border-radius:12px;padding:12px;max-height:50vh}
+  .notice{position:fixed;right:16px;bottom:16px;background:var(--ok);color:#000;padding:10px 14px;border-radius:10px;opacity:0;transform:translateY(8px);transition:.25s}
+  .notice.show{opacity:1;transform:translateY(0)}
+  .danger{background:var(--warn)!important}
+</style>
+</head>
+<body>
+<!-- Drawer + Handle -->
+<div id="rssb-drawer" data-side="bottom">
+  <div class="panel">
+    <div class="content" id="rssb-content"><!-- JS populates UI --></div>
+  </div>
+</div>
+<button id="rssb-handle" title="Open RSS Builder"><div class="bar"></div></button>
+<div class="notice" id="rssb-notice"></div>
+
+<script>
+/* ========= Embeddable RSS Builder =========
+   Use this file standalone, or copy the <script> block into any website and call RSSBuilder.mount().
+*/
+(function(){
+  const RSS_PROXY = 'https://api.allorigins.win/raw?url='; // for Import (optional; not used unless you click Import)
+  const state = loadState() || {
+    handle: 'bottom',
+    channel: {
+      title: document.title || 'My Site',
+      link: location.origin,
+      description: 'RSS feed generated with RSS Builder',
+      language: 'en-us',
+      copyright: '',
+      imageUrl: '',
+      managingEditor: '',
+      webMaster: '',
+      ttl: '60',
+      atomSelf: ''
+    },
+    items: []
+  };
+
+  const drawer = document.getElementById('rssb-drawer');
+  const handle = document.getElementById('rssb-handle');
+  const content = document.getElementById('rssb-content');
+  const notice = document.getElementById('rssb-notice');
+
+  function mount(){
+    applyHandle(state.handle);
+    renderUI();
+    handle.onclick = toggleDrawer;
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') toggleDrawer(false); });
+  }
+
+  function toggleDrawer(force){
+    const willOpen = (typeof force==='boolean') ? force : !drawer.classList.contains('open');
+    drawer.classList.toggle('open', willOpen);
+  }
+
+  function applyHandle(side){
+    state.handle = side;
+    drawer.dataset.side = side;
+    saveState();
+  }
+
+  function renderUI(){
+    content.innerHTML = `
+      <div class="section">
+        <div class="head">
+          <div>Channel</div>
+          <div class="toolbar">
+            <span class="pill">Handle:
+              <select id="rb-handle">
+                <option value="bottom">Bottom</option>
+                <option value="top">Top</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </span>
+            <button id="rb-scan">Scan Page</button>
+            <button id="rb-import">Import RSS</button>
+            <button id="rb-save">Save</button>
+            <button id="rb-clear">Clear</button>
+          </div>
+        </div>
+        <div class="body grid grid3">
+          ${row('Title','rb-title')}
+          ${row('Link','rb-link')}
+          ${row('Description','rb-desc')}
+          ${row('Language','rb-lang')}
+          ${row('Copyright','rb-cr')}
+          ${row('Image URL','rb-img')}
+          ${row('Managing Editor','rb-me')}
+          ${row('WebMaster','rb-wm')}
+          ${row('TTL (minutes)','rb-ttl')}
+          ${row('Atom self link','rb-atom')}
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="head">
+          <div>Items</div>
+          <div class="toolbar">
+            <button id="rb-add">Add Item</button>
+            <span class="small">Drag ⋮⋮ to reorder</span>
+          </div>
+        </div>
+        <div class="body">
+          <div id="rb-items" class="items"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="head">Output</div>
+        <div class="body">
+          <div class="toolbar" style="margin-bottom:8px;">
+            <button id="rb-preview">Preview</button>
+            <button id="rb-copy">Copy XML</button>
+            <button id="rb-download">Download XML</button>
+            <span class="small">Minimum required: Channel Title, Link, Description; each Item needs Title + Link (or GUID).</span>
+          </div>
+          <div id="rb-out" class="preview mono" aria-label="RSS XML preview"></div>
+        </div>
+      </div>
+    `;
+
+    // Populate channel fields
+    setVal('rb-title', state.channel.title);
+    setVal('rb-link', state.channel.link);
+    setVal('rb-desc', state.channel.description);
+    setVal('rb-lang', state.channel.language);
+    setVal('rb-cr', state.channel.copyright);
+    setVal('rb-img', state.channel.imageUrl);
+    setVal('rb-me', state.channel.managingEditor);
+    setVal('rb-wm', state.channel.webMaster);
+    setVal('rb-ttl', state.channel.ttl);
+    setVal('rb-atom', state.channel.atomSelf);
+    byId('rb-handle').value = state.handle;
+
+    // Bind channel changes
+    bindInput('rb-title', v=>state.channel.title=v);
+    bindInput('rb-link', v=>state.channel.link=v);
+    bindInput('rb-desc', v=>state.channel.description=v);
+    bindInput('rb-lang', v=>state.channel.language=v);
+    bindInput('rb-cr', v=>state.channel.copyright=v);
+    bindInput('rb-img', v=>state.channel.imageUrl=v);
+    bindInput('rb-me', v=>state.channel.managingEditor=v);
+    bindInput('rb-wm', v=>state.channel.webMaster=v);
+    bindInput('rb-ttl', v=>state.channel.ttl=v);
+    bindInput('rb-atom', v=>state.channel.atomSelf=v);
+    byId('rb-handle').onchange = e => applyHandle(e.target.value);
+
+    // Item list
+    renderItems();
+
+    // Top toolbar actions
+    byId('rb-add').onclick = addItem;
+    byId('rb-scan').onclick = quickScan;
+    byId('rb-import').onclick = importRSS;
+    byId('rb-save').onclick = () => { saveState(); toast('Saved'); };
+    byId('rb-clear').onclick = () => { localStorage.removeItem('rss-builder-state'); toast('Cleared saved state'); };
+
+    // Output actions
+    byId('rb-preview').onclick = () => { byId('rb-out').textContent = buildXML(); };
+    byId('rb-copy').onclick = async () => {
+      const xml = buildXML(); await navigator.clipboard.writeText(xml); toast('Copied XML');
+    };
+    byId('rb-download').onclick = () => {
+      const xml = buildXML();
+      const blob = new Blob([xml], {type:'application/rss+xml;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (state.channel.title || 'feed').toLowerCase().replace(/[^a-z0-9]+/g,'-') + '.xml';
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+    };
+  }
+
+  function row(label, id){
+    return `
+      <div class="row">
+        <label for="${id}">${label}</label>
+        <input id="${id}" />
+      </div>
+    `;
+  }
+
+  function renderItems(){
+    const wrap = byId('rb-items');
+    wrap.innerHTML = '';
+    state.items.forEach((it, idx)=>{
+      wrap.appendChild(itemRow(it, idx));
+    });
+  }
+
+  function itemRow(it, idx){
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.draggable = true;
+    row.dataset.index = String(idx);
+    row.innerHTML = `
+      <div class="drag" title="Drag to reorder">⋮⋮</div>
+      <input placeholder="Item title" value="${escAttr(it.title||'')}" />
+      <input placeholder="Item link (https://...)" value="${escAttr(it.link||'')}" />
+      <input placeholder="PubDate (RFC822)" value="${escAttr(it.pubDate||'')}" />
+      <button class="del" title="Delete">×</button>
+      <div style="grid-column: 2 / span 4; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px;">
+        <input placeholder="GUID (blank = use link)" value="${escAttr(it.guid||'')}" />
+        <input placeholder="Categories (comma-separated)" value="${escAttr((it.categories||[]).join(', '))}" />
+        <input placeholder="Author (email or name)" value="${escAttr(it.author||'')}" />
+      </div>
+      <div style="grid-column: 2 / span 4; display:grid; grid-template-columns: 1.3fr 1fr 1fr; gap:8px;">
+        <input placeholder="Enclosure URL" value="${escAttr((it.enclosure&&it.enclosure.url)||'')}" />
+        <input placeholder="Enclosure Length" value="${escAttr((it.enclosure&&it.enclosure.length)||'')}" />
+        <input placeholder="Enclosure Type (e.g., audio/mpeg)" value="${escAttr((it.enclosure&&it.enclosure.type)||'')}" />
+      </div>
+      <div style="grid-column: 2 / span 4;">
+        <textarea placeholder="Description (HTML allowed; will be CDATA)">${escHtml(it.description||'')}</textarea>
+      </div>
+      <div style="grid-column: 2 / span 4; display:flex; gap:8px; align-items:center;">
+        <label class="small"><input type="checkbox" ${it.permalink!==false ? 'checked':''}/> GUID isPermaLink (use link)</label>
+        <button class="small" data-action="now">Now</button>
+        <button class="small" data-action="gen-guid">Gen GUID</button>
+      </div>
+    `;
+
+    const inputs = row.querySelectorAll('input, textarea');
+    const [titleEl, linkEl, dateEl, guidEl, catEl, authorEl, encUrlEl, encLenEl, encTypeEl, descEl, isPermEl] = (function(){
+      const arr = Array.from(inputs);
+      // order: title, link, pubdate, delete btn (not input), guid, categories, author, encURL, encLength, encType, textarea (desc) then checkbox
+      const checkbox = row.querySelector('input[type="checkbox"]');
+      const textarea = row.querySelector('textarea');
+      return [arr[0],arr[1],arr[2],arr[3],arr[4],arr[5],arr[6],arr[7],arr[8],textarea,checkbox];
+    })();
+
+    titleEl.oninput = e => it.title = e.target.value.trim();
+    linkEl.oninput = e => it.link = e.target.value.trim();
+    dateEl.oninput = e => it.pubDate = e.target.value.trim();
+    guidEl.oninput = e => it.guid = e.target.value.trim();
+    catEl.oninput = e => it.categories = e.target.value.split(',').map(s=>s.trim()).filter(Boolean);
+    authorEl.oninput = e => it.author = e.target.value.trim();
+    encUrlEl.oninput = e => { it.enclosure = it.enclosure||{}; it.enclosure.url = e.target.value.trim(); };
+    encLenEl.oninput = e => { it.enclosure = it.enclosure||{}; it.enclosure.length = e.target.value.trim(); };
+    encTypeEl.oninput = e => { it.enclosure = it.enclosure||{}; it.enclosure.type = e.target.value.trim(); };
+    descEl.oninput = e => it.description = e.target.value;
+
+    isPermEl.onchange = e => it.permalink = e.target.checked;
+
+    row.querySelector('.del').onclick = () => {
+      const i = Number(row.dataset.index);
+      state.items.splice(i,1);
+      renderItems(); saveState();
+    };
+
+    row.querySelector('[data-action="now"]').onclick = () => {
+      const now = new Date().toUTCString();
+      dateEl.value = now; it.pubDate = now;
+    };
+    row.querySelector('[data-action="gen-guid"]').onclick = () => {
+      const g = cryptoRandom();
+      guidEl.value = g; it.guid = g; isPermEl.checked = false; it.permalink = false;
+    };
+
+    // Drag & drop
+    row.addEventListener('dragstart', (e)=>{ row.style.opacity='.5'; e.dataTransfer.effectAllowed='move'; window.__rb_drag=row; });
+    row.addEventListener('dragend', ()=>{ row.style.opacity='1'; window.__rb_drag=null; saveState(); });
+    row.addEventListener('dragover', (e)=>{ e.preventDefault(); e.dataTransfer.dropEffect='move'; });
+    row.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      const dragging = window.__rb_drag; if(!dragging || dragging===row) return;
+      const list = row.parentElement; const nodes = Array.from(list.children);
+      const from = nodes.indexOf(dragging); const to = nodes.indexOf(row);
+      if (from < to) list.insertBefore(dragging, row.nextSibling); else list.insertBefore(dragging, row);
+      const moved = state.items.splice(from,1)[0]; state.items.splice(to,0,moved);
+      renderItems(); // rebind indices
+    });
+
+    return row;
+  }
+
+  function addItem(){
+    state.items.push({
+      title:'', link:'', description:'', author:'', categories:[], guid:'', pubDate:new Date().toUTCString(),
+      enclosure:null, permalink:true
+    });
+    renderItems(); saveState();
+  }
+
+  async function importRSS(){
+    const url = prompt('Enter RSS URL to import:');
+    if(!url) return;
+    try{
+      const res = await fetch(RSS_PROXY + encodeURIComponent(url));
+      const text = await res.text();
+      const xml = new DOMParser().parseFromString(text, 'text/xml');
+      const ch = xml.querySelector('channel');
+      if (ch){
+        state.channel.title = textContent(ch,'title',state.channel.title);
+        state.channel.link = textContent(ch,'link',state.channel.link);
+        state.channel.description = textContent(ch,'description',state.channel.description);
+        state.channel.language = textContent(ch,'language',state.channel.language);
+        state.channel.imageUrl = ch.querySelector('image > url')?.textContent?.trim() || state.channel.imageUrl;
+        state.channel.ttl = textContent(ch,'ttl',state.channel.ttl);
+        state.channel.atomSelf = xml.querySelector('link[rel="self"][type="application/rss+xml"]')?.getAttribute('href') || state.channel.atomSelf;
+      }
+      const nodes = Array.from(xml.querySelectorAll('item'));
+      state.items = nodes.map(n=>{
+        const enclosure = n.querySelector('enclosure');
+        return {
+          title: n.querySelector('title')?.textContent?.trim() || '',
+          link: n.querySelector('link')?.textContent?.trim() || '',
+          description: n.querySelector('description')?.textContent || '',
+          author: n.querySelector('author')?.textContent?.trim() || '',
+          categories: Array.from(n.querySelectorAll('category')).map(x=>x.textContent.trim()).filter(Boolean),
+          guid: n.querySelector('guid')?.textContent?.trim() || '',
+          permalink: (n.querySelector('guid')?.getAttribute('isPermaLink') !== 'false'),
+          pubDate: n.querySelector('pubDate')?.textContent?.trim() || '',
+          enclosure: enclosure ? {
+            url: enclosure.getAttribute('url')||'',
+            length: enclosure.getAttribute('length')||'',
+            type: enclosure.getAttribute('type')||''
+          } : null
+        };
+      });
+      renderUI(); saveState(); toast('Imported RSS');
+    }catch(e){
+      console.error(e); toast('Import failed (CORS or invalid feed)', true);
+    }
+  }
+
+  function quickScan(){
+    // Heuristic: try <article> h1/h2 a, or main content anchors with rel=bookmark, or top-level list of links.
+    const items = [];
+    const roots = [document.querySelector('main')] .concat(Array.from(document.querySelectorAll('article')));
+    const seen = new Set();
+    function add(title, link){
+      if(!title || !link) return;
+      const abs = new URL(link, location.href).href;
+      if (seen.has(abs)) return; seen.add(abs);
+      items.push({ title: title.trim(), link: abs, description:'', author:'', categories:[], guid:'', pubDate:new Date().toUTCString(), enclosure:null, permalink:true });
+    }
+    roots.filter(Boolean).forEach(r=>{
+      r.querySelectorAll('article h1 a, article h2 a, h1 a, h2 a, [rel="bookmark"]').forEach(a=> add(a.textContent, a.getAttribute('href')));
+    });
+    if (!items.length){
+      document.querySelectorAll('a[href]').forEach(a=>{
+        const text=a.textContent.trim();
+        const href=a.getAttribute('href');
+        if (text.length>24 && href && !href.startsWith('#') && !href.startsWith('mailto:') && !href.startsWith('javascript:')){
+          add(text, href);
+        }
+      });
+    }
+    if (!items.length){ toast('No obvious articles found', true); return; }
+    state.items = items;
+    renderItems(); saveState(); toast(`Scanned ${items.length} links`);
+  }
+
+  function buildXML(){
+    // Basic validation
+    if (!state.channel.title || !state.channel.link || !state.channel.description){
+      toast('Channel Title, Link, and Description are required', true);
+    }
+    const esc = xmlEscape, cdata = xmlCdata;
+    const atomNS = state.channel.atomSelf ? ' xmlns:atom="http://www.w3.org/2005/Atom"' : '';
+    let out = `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"${atomNS}>\n<channel>\n`;
+    out += tag('title', esc(state.channel.title));
+    out += tag('link', esc(state.channel.link));
+    out += tag('description', cdata(state.channel.description));
+    if (state.channel.language) out += tag('language', esc(state.channel.language));
+    if (state.channel.copyright) out += tag('copyright', esc(state.channel.copyright));
+    if (state.channel.ttl) out += tag('ttl', String(state.channel.ttl));
+    if (state.channel.atomSelf) out += `  <atom:link href="${esc(state.channel.atomSelf)}" rel="self" type="application/rss+xml"/>\n`;
+    if (state.channel.managingEditor) out += tag('managingEditor', esc(state.channel.managingEditor));
+    if (state.channel.webMaster) out += tag('webMaster', esc(state.channel.webMaster));
+    if (state.channel.imageUrl){
+      out += '  <image>\n';
+      out += tag('url', esc(state.channel.imageUrl), 4);
+      out += tag('title', esc(state.channel.title), 4);
+      out += tag('link', esc(state.channel.link), 4);
+      out += '  </image>\n';
+    }
+
+    // Items
+    for (const it of state.items){
+      out += '  <item>\n';
+      if (it.title) out += tag('title', esc(it.title), 4);
+      if (it.link) out += tag('link', esc(it.link), 4);
+      if (it.description) out += tag('description', cdata(it.description), 4);
+      if (it.author) out += tag('author', esc(it.author), 4);
+      if (it.categories && it.categories.length){
+        for (const c of it.categories){ out += tag('category', esc(c), 4); }
+      }
+      const guid = it.guid || (it.permalink!==false ? (it.link || '') : '');
+      if (guid){
+        const isPerm = (it.permalink!==false && !it.guid) ? 'true' : (it.permalink===false ? 'false' : 'true');
+        out += `    <guid isPermaLink="${isPerm}">${esc(guid)}</guid>\n`;
+      }
+      out += tag('pubDate', esc(it.pubDate || new Date().toUTCString()), 4);
+      if (it.enclosure && (it.enclosure.url||it.enclosure.length||it.enclosure.type)){
+        const u = esc(it.enclosure.url||''); const L = esc(it.enclosure.length||''); const t = esc(it.enclosure.type||'');
+        out += `    <enclosure url="${u}"${L?` length="${L}"`:''}${t?` type="${t}"`:''} />\n`;
+      }
+      out += '  </item>\n';
+    }
+
+    out += '</channel>\n</rss>\n';
+    return out;
+
+    function tag(name, text, indent=2){ return ' '.repeat(indent) + `<${name}>${text}</${name}>\n`; }
+  }
+
+  // Utils
+  function byId(id){ return document.getElementById(id); }
+  function setVal(id,v){ const el=byId(id); if(el) el.value = v ?? ''; }
+  function bindInput(id, fn){ const el = byId(id); if(!el) return; el.oninput = e => fn(e.target.value); }
+  function escAttr(s){ return (s||'').replace(/["'&<>]/g, m => ({'"':'&quot;',"'":'&#39;','&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+  function escHtml(s){ return (s||'').replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+  function xmlEscape(s){ return String(s||'').replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+  function xmlCdata(s){ return '<![CDATA[' + String(s||'').replace(/]]>/g, ']]]]><![CDATA[>') + ']]>'; }
+  function textContent(el, sel, fallback){ return el.querySelector(sel)?.textContent?.trim() || fallback || ''; }
+  function cryptoRandom(){
+    if (window.crypto && crypto.getRandomValues){
+      const a = new Uint32Array(4); crypto.getRandomValues(a);
+      return [...a].map(x=>x.toString(16).padStart(8,'0')).join('');
+    }
+    return 'gid-' + Math.random().toString(16).slice(2);
+  }
+  function toast(msg, danger=false){
+    notice.textContent = msg; notice.className = 'notice' + (danger?' danger':''); notice.classList.add('show');
+    setTimeout(()=>notice.classList.remove('show'), 2200);
+  }
+  function saveState(){ localStorage.setItem('rss-builder-state', JSON.stringify(state)); }
+  function loadState(){
+    try{ const s = localStorage.getItem('rss-builder-state'); return s ? JSON.parse(s) : null; }catch{return null;}
+  }
+
+  // Expose mount for embedding
+  window.RSSBuilder = { mount, open: ()=>toggleDrawer(true), close: ()=>toggleDrawer(false) };
+  // Auto-mount when used as a full page
+  mount();
+})();
+</script>
+</body>
+</html>
