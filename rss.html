@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tiny RSS Maker — URL + Description → RSS</title>
+<style>
+  :root{
+    --bg:#0b0b0b; --fg:#eaeaea; --muted:#bdbdbd; --line:rgba(255,255,255,0.15);
+    --accent:#86aaf0; --ok:#4ade80; --warn:#fb923c; --shadow:0 10px 30px rgba(0,0,0,0.45);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Arial}
+  .app{max-width:780px;margin:40px auto;padding:0 16px}
+  h1{font-size:22px;margin-bottom:8px;color:var(--accent)}
+  p{color:var(--muted);margin-bottom:18px}
+  label{display:block;font-size:13px;color:#cfcfcf;margin:12px 0 6px}
+  input,textarea{width:100%;background:#111;color:var(--fg);border:1px solid #333;border-radius:10px;padding:10px 12px;font-size:14px}
+  textarea{min-height:120px;resize:vertical}
+  .actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+  button{background:#1b1b1b;color:var(--fg);border:1px solid #444;border-radius:10px;padding:10px 14px;cursor:pointer}
+  button:hover{background:#262626;border-color:#555}
+  .preview{white-space:pre-wrap;word-break:break-word;background:#0f0f0f;border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:var(--shadow);min-height:140px}
+  .row{display:grid;grid-template-columns: 1fr 1fr; gap:12px}
+  .note{font-size:12px;color:var(--muted);margin-top:6px}
+  .toast{position:fixed;right:16px;bottom:16px;background:var(--ok);color:#000;padding:10px 14px;border-radius:10px;opacity:0;transform:translateY(8px);transition:.25s}
+  .toast.show{opacity:1;transform:translateY(0)}
+  .danger{background:var(--warn)!important}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Tiny RSS Maker</h1>
+  <p>Enter a URL and a short description. Click **Generate** and paste the XML into your RSS reader (or download it as <code>.xml</code>).</p>
+
+  <label for="url">Article URL *</label>
+  <input id="url" type="url" placeholder="https://example.com/your-article" required>
+
+  <label for="desc">Item Description (HTML allowed) *</label>
+  <textarea id="desc" placeholder="A short summary of the article..."></textarea>
+
+  <div class="row">
+    <div>
+      <label for="title">Item Title (optional)</label>
+      <input id="title" placeholder="If blank, a title is derived from the URL">
+    </div>
+    <div>
+      <label for="date">Publish Date (optional, RFC822)</label>
+      <input id="date" placeholder="Thu, 29 Aug 2025 19:30:00 GMT">
+      <div class="note"><a href="#" id="now">Use now</a></div>
+    </div>
+  </div>
+
+  <details style="margin-top:10px">
+    <summary>Advanced (optional channel fields)</summary>
+    <div class="row" style="margin-top:10px">
+      <div>
+        <label for="chTitle">Channel Title</label>
+        <input id="chTitle" placeholder="Defaults to site host">
+      </div>
+      <div>
+        <label for="chDesc">Channel Description</label>
+        <input id="chDesc" placeholder="Defaults to 'Feed for &lt;host&gt;'">
+      </div>
+    </div>
+  </details>
+
+  <div class="actions">
+    <button id="gen">Generate</button>
+    <button id="copy">Copy XML</button>
+    <button id="download">Download .xml</button>
+  </div>
+
+  <div id="out" class="preview" aria-label="RSS XML output"></div>
+  <div class="note">Minimal RSS 2.0: channel + one item. You can generate more than one file if you need multiple URLs.</div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const out = $('out'), toastEl = $('toast');
+
+  $('now').onclick = (e)=>{ e.preventDefault(); $('date').value = new Date().toUTCString(); };
+
+  $('gen').onclick = ()=>{
+    const url = $('url').value.trim();
+    const desc = $('desc').value.trim();
+    let title = $('title').value.trim();
+    let pub = $('date').value.trim();
+
+    if (!url || !desc){
+      toast('URL and Description are required', true);
+      return;
+    }
+    let host, origin;
+    try{
+      const u = new URL(url);
+      host = u.host;
+      origin = u.origin;
+    }catch{
+      toast('Please enter a valid URL', true);
+      return;
+    }
+
+    if (!title) title = deriveTitleFromURL(url);
+    if (!pub) pub = new Date().toUTCString();
+
+    const chTitle = $('chTitle').value.trim() || host;
+    const chDesc = $('chDesc').value.trim() || `Feed for ${host}`;
+
+    const xml = buildRSS({
+      channel: { title: chTitle, link: origin, description: chDesc },
+      item: { title, link: url, description: desc, pubDate: pub }
+    });
+
+    out.textContent = xml;
+    toast('Generated XML');
+  };
+
+  $('copy').onclick = async ()=>{
+    const xml = out.textContent || '';
+    if (!xml){ toast('Nothing to copy', true); return; }
+    await navigator.clipboard.writeText(xml);
+    toast('Copied XML');
+  };
+
+  $('download').onclick = ()=>{
+    const xml = out.textContent || '';
+    if (!xml){ toast('Nothing to download', true); return; }
+    const blob = new Blob([xml], {type:'application/rss+xml;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'feed.xml';
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  };
+
+  function deriveTitleFromURL(u){
+    try{
+      const url = new URL(u);
+      const parts = url.pathname.split('/').filter(Boolean);
+      const last = parts[parts.length-1] || url.hostname;
+      const name = decodeURIComponent(last.replace(/\.[a-z0-9]+$/i,'')).replace(/[-_]+/g,' ').trim();
+      return name ? capitalize(name) : url.hostname;
+    }catch{ return 'Untitled'; }
+  }
+
+  function capitalize(s){
+    return s.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
+  }
+
+  function xmlEsc(s){ return String(s||'').replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+  function xmlCdata(s){ return '<![CDATA[' + String(s||'').replace(/]]>/g, ']]]]><![CDATA[>') + ']]>'; }
+
+  function buildRSS({channel, item}){
+    const atomNS = ''; // keep minimal; can be added if you later need <atom:link rel="self">
+    let x = `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"${atomNS}>\n<channel>\n`;
+    x += tag('title', xmlEsc(channel.title));
+    x += tag('link', xmlEsc(channel.link));
+    x += tag('description', xmlEsc(channel.description));
+
+    // One item
+    x += '  <item>\n';
+    x += tag('title', xmlEsc(item.title), 4);
+    x += tag('link', xmlEsc(item.link), 4);
+    x += tag('description', xmlCdata(item.description), 4);
+    x += tag('pubDate', xmlEsc(item.pubDate), 4);
+    // Use link as GUID permalink
+    x += `    <guid isPermaLink="true">${xmlEsc(item.link)}</guid>\n`;
+    x += '  </item>\n';
+
+    x += '</channel>\n</rss>\n';
+    return x;
+
+    function tag(name, text, indent=2){ return ' '.repeat(indent) + `<${name}>${text}</${name}>\n`; }
+  }
+
+  function toast(msg, danger=false){
+    toastEl.textContent = msg;
+    toastEl.className = 'toast' + (danger ? ' danger' : '');
+    toastEl.classList.add('show');
+    setTimeout(()=>toastEl.classList.remove('show'), 2000);
+  }
+})();
+</script>
+</body>
+</html>
