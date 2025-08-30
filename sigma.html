@@ -1,0 +1,976 @@
+<!-- Synesthetic Experience-v2-2025-08-28 11:05 AM -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Synesthetic Experience v2</title>
+    <!-- A lightweight MIDI parser library to read .mid files for the Piano Player mode -->
+    <script src="https://cdn.jsdelivr.net/npm/midifile@1.2.2/dist/MidiFile.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap');
+        
+        :root {
+            --primary-bg: #1a1a2e;
+            --secondary-bg: #16213e;
+            --accent: #0f3460;
+            --highlight: #e94560;
+            --text: #eee;
+            --muted: #bdbdbd;
+            --line: rgba(255,255,255,0.14);
+            --panel-bg: rgba(0,0,0,0.85);
+            --radius: 12px;
+            --shadow: 0 10px 30px rgba(0,0,0,0.45);
+            --panel-w: 1100px;
+            --panel-side-w: 420px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: var(--primary-bg);
+            font-family: 'Inter', sans-serif;
+            color: var(--text);
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        #app {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #top-bar {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #modeSelector, #subModeSelector {
+            background: rgba(0,0,0,0.7);
+            color: var(--text);
+            border: 1px solid var(--accent);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+        }
+        #subModeSelector { display: none; }
+
+        /* ====== New Drawer Control Panel ====== */
+        #drawer {
+            position: fixed;
+            z-index: 2000;
+            pointer-events: none;
+        }
+        #drawer .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(8px);
+            pointer-events: auto;
+            transition: transform 300ms cubic-bezier(.2,.8,.2,1);
+        }
+        #drawer[data-side="left"] { top: 0; bottom: 0; left: 0; }
+        #drawer[data-side="left"] .panel {
+            height: 100%;
+            width: var(--panel-side-w);
+            border-top-right-radius: var(--radius);
+            border-bottom-right-radius: var(--radius);
+            transform: translateX(-100%);
+        }
+        #drawer.open[data-side="left"] .panel { transform: translateX(0); }
+
+        #handle {
+            position: fixed;
+            z-index: 2001;
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+            pointer-events: auto;
+            color: var(--text);
+            background: var(--panel-bg);
+            border: 1px solid var(--line);
+            border-left: none;
+            padding: 12px 10px 12px 16px;
+            border-radius: 0 var(--radius) var(--radius) 0;
+            transition: background 0.2s;
+        }
+        #handle:hover { background: var(--accent); }
+        #drawer[data-side="left"] ~ #handle {
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            transition: transform 300ms cubic-bezier(.2,.8,.2,1);
+        }
+        #drawer.open[data-side="left"] ~ #handle {
+            transform: translateY(-50%) translateX(var(--panel-side-w));
+        }
+
+        /* Panel Content & Tabs */
+        .panel-content {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .tab-buttons {
+            display: flex;
+            border-bottom: 1px solid var(--line);
+            flex-shrink: 0;
+        }
+        .tab-button {
+            flex: 1;
+            padding: 14px;
+            background: transparent;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            border-bottom: 2px solid transparent;
+        }
+        .tab-button:hover { color: var(--text); }
+        .tab-button.active {
+            color: var(--highlight);
+            border-bottom-color: var(--highlight);
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        .tab-content.active { display: block; }
+        
+        /* Control Styles */
+        .fieldset {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+        }
+        .legend {
+            padding: 0 8px;
+            color: var(--highlight);
+            font-weight: 600;
+            font-size: 14px;
+            margin-left: -8px;
+        }
+        .control-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 12px;
+            align-items: center;
+            font-size: 13px;
+            margin: 12px 0;
+        }
+        .control-row label { color: var(--text); }
+        .control-row input[type=range] { width: 150px; }
+        .control-row input[type=number], .control-row select {
+            background: var(--primary-bg);
+            color: var(--text);
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            padding: 6px 8px;
+        }
+        .control-button {
+            background: var(--accent);
+            color: var(--text);
+            border: none;
+            border-radius: 8px;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .control-button:hover { background: var(--highlight); }
+        .info-text {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.5;
+            margin-top: 10px;
+        }
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .toggle-switch button {
+            padding: 6px 12px;
+            border: 1px solid var(--accent);
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
+        }
+        .toggle-switch button:first-child { border-radius: 6px 0 0 6px; }
+        .toggle-switch button:last-child { border-radius: 0 6px 6px 0; }
+        .toggle-switch button.active {
+            background: var(--accent);
+            color: var(--text);
+        }
+
+        #canvas {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            touch-action: none;
+        }
+
+        #startOverlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, var(--primary-bg), var(--secondary-bg));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1500;
+            transition: opacity 0.5s ease;
+        }
+        #startOverlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        #startBtn {
+            background: linear-gradient(135deg, var(--highlight), #ff6b7a);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 25px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        #startBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(233, 69, 96, 0.4);
+        }
+        .title {
+            color: var(--text);
+            font-size: 2.5rem;
+            font-weight: 300;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .subtitle {
+            color: var(--text);
+            opacity: 0.7;
+            font-size: 1rem;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        
+        .master-footer {
+            position: fixed;
+            bottom: 5px;
+            right: 10px;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 10px;
+            z-index: 9999;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="startOverlay">
+            <h1 class="title">Synesthetic Experience</h1>
+            <p class="subtitle">Touch, Sound, and Motion in Harmony</p>
+            <button id="startBtn">Begin Journey</button>
+        </div>
+
+        <div id="top-bar">
+            <select id="modeSelector">
+                <option value="physics">Physics</option>
+                <option value="music">Music</option>
+                <option value="waves">Waves</option>
+            </select>
+            <select id="subModeSelector">
+                <option value="harp">Harp</option>
+                <option value="pad">Pad</option>
+                <option value="flow">Flow</option>
+                <option value="ripple">Ripple</option>
+            </select>
+        </div>
+
+        <div id="drawer" data-side="left" aria-hidden="true">
+            <div class="panel">
+                <div class="panel-content">
+                    <div class="tab-buttons">
+                        <button class="tab-button active" data-tab="tab-modes">Mode Controls</button>
+                        <button class="tab-button" data-tab="tab-musician">Auto Musician</button>
+                        <button class="tab-button" data-tab="tab-piano">Piano Player</button>
+                    </div>
+
+                    <!-- Tab 1: Mode Controls -->
+                    <div id="tab-modes" class="tab-content active">
+                        <!-- Physics Mode Settings -->
+                        <div class="fieldset">
+                            <legend class="legend">Physics Mode</legend>
+                            <div class="control-row"><label for="interactionStrength">Interaction Strength</label><input type="range" id="interactionStrength" min="0.5" max="3" step="0.1" value="2"></div>
+                            <div class="control-row"><label for="elasticity">Elasticity</label><input type="range" id="elasticity" min="0.01" max="0.05" step="0.005" value="0.02"></div>
+                            <div class="control-row"><label for="physicsTiltSensitivity">Tilt Response</label><input type="range" id="physicsTiltSensitivity" min="0" max="0.05" step="0.005" value="0.02"></div>
+                            <div class="control-row"><label for="physicsMusic">Musical Response</label><input type="checkbox" id="physicsMusic" checked></div>
+                        </div>
+                        <!-- Wave Mode Settings -->
+                        <div class="fieldset">
+                            <legend class="legend">Wave Mode</legend>
+                            <div class="control-row"><label for="wavePatternType">Pattern Type</label><select id="wavePatternType"><option value="mixed" selected>Mixed</option><option value="horizontal">Horizontal</option><option value="vertical">Vertical</option><option value="center">Center-out</option></select></div>
+                            <div class="control-row"><label for="waveIntensity">Ripple Intensity</label><input type="range" id="waveIntensity" min="0.5" max="3" step="0.1" value="1.5"></div>
+                            <div class="control-row"><label for="particleDensity">Particle Density</label><input type="range" id="particleDensity" min="15" max="35" value="20"></div>
+                            <div class="control-row"><label for="waveTiltSensitivity">Tilt Sensitivity</label><input type="range" id="waveTiltSensitivity" min="0" max="1" step="0.1" value="0.3"></div>
+                        </div>
+                        <!-- Music Mode Settings -->
+                        <div class="fieldset">
+                            <legend class="legend">Music Mode</legend>
+                             <div class="control-row"><label for="instrumentType">Instrument</label><select id="instrumentType"><option value="guzheng" selected>Guzheng</option><option value="koto">Koto</option><option value="nylon-guitar">Nylon Guitar</option></select></div>
+                            <div class="control-row"><label for="scaleType">Scale</label><select id="scaleType"><option value="pentatonic" selected>Pentatonic</option><option value="major">Major</option><option value="minor">Minor</option></select></div>
+                            <div class="control-row"><label for="keyCenter">Key</label><select id="keyCenter"><option value="C">C</option><option value="D" selected>D</option><option value="E">E</option><option value="F">F</option><option value="G">G</option><option value="A">A</option><option value="B">B</option></select></div>
+                            <div class="control-row"><label for="reverbLevel">Reverb</label><input type="range" id="reverbLevel" min="0" max="1" step="0.1" value="0.3"></div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 2: Auto Musician -->
+                    <div id="tab-musician" class="tab-content">
+                        <div class="fieldset">
+                            <legend class="legend">Playback Control</legend>
+                            <button class="control-button" id="autoplayBtn">▶ Start Auto Musician</button>
+                        </div>
+                        <div class="fieldset">
+                            <legend class="legend">Preset Mode</legend>
+                             <div class="toggle-switch">
+                                <button id="presetModeGlobal" class="active">Global</button>
+                                <button id="presetModeLocal">Local</button>
+                            </div>
+                        </div>
+                        <div class="fieldset" id="global-presets-container">
+                            <legend class="legend">Global Presets</legend>
+                            <div class="control-row"><label for="globalPreset">Mood</label><select id="globalPreset"><option value="ambient">Ambient</option><option value="rhythmic">Rhythmic</option><option value="melancholy">Melancholy</option></select></div>
+                        </div>
+                         <div class="fieldset" id="local-presets-container" style="display: none;">
+                            <legend class="legend">Local Presets</legend>
+                             <p class="info-text">Presets are specific to the current mode (e.g., Music/Harp).</p>
+                            <div class="control-row"><label for="localPreset">Style</label><select id="localPreset"><option value="default">Default</option><option value="serene">Serene</option><option value="active">Active</option></select></div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 3: Piano Player -->
+                    <div id="tab-piano" class="tab-content">
+                         <div class="fieldset">
+                            <legend class="legend">MIDI Playback</legend>
+                            <button class="control-button" id="loadMidiBtn">Load MIDI File</button>
+                            <input type="file" id="midiFileInput" accept=".mid,.midi" style="display:none;">
+                             <p id="midiFileInfo" class="info-text">No file loaded.</p>
+                             <div class="control-row"><label for="midiPlaybackSpeed">Speed</label><input type="range" id="midiPlaybackSpeed" min="0.25" max="2" step="0.25" value="1"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button id="handle" aria-controls="drawer" aria-expanded="false" title="Toggle Controls">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+
+        <canvas id="canvas"></canvas>
+    </div>
+    
+    <footer class="master-footer">
+        Synesthetic Experience-v2-2025-08-28 11:05 AM
+    </footer>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM Elements ---
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const startOverlay = document.getElementById('startOverlay');
+        const modeSelector = document.getElementById('modeSelector');
+        const subModeSelector = document.getElementById('subModeSelector');
+        const drawer = document.getElementById('drawer');
+        const handle = document.getElementById('handle');
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const autoplayBtn = document.getElementById('autoplayBtn');
+        const presetModeGlobalBtn = document.getElementById('presetModeGlobal');
+        const presetModeLocalBtn = document.getElementById('presetModeLocal');
+        const globalPresetsContainer = document.getElementById('global-presets-container');
+        const localPresetsContainer = document.getElementById('local-presets-container');
+        const loadMidiBtn = document.getElementById('loadMidiBtn');
+        const midiFileInput = document.getElementById('midiFileInput');
+        const midiFileInfo = document.getElementById('midiFileInfo');
+
+        // --- Global State ---
+        let isActive = false;
+        let animationId;
+        let currentMode = 'physics';
+        let currentSubMode = 'harp';
+        let deviceOrientation = { alpha: 0, beta: 0, gamma: 0 };
+        let audioCtx, masterGain, reverb;
+        
+        // --- App Modules State ---
+        let physicsPoints = [];
+        let ripples = [];
+        let waveParticles = [];
+        let waveDisturbances = [];
+        let isAutoplay = false;
+        let autoMusician = null;
+        let pianoPlayer = null;
+
+        // --- Config State ---
+        let physicsConfig = { interactionStrength: 2, elasticity: 0.02, tiltSensitivity: 0.02, musicEnabled: true };
+        let waveConfig = { patternType: 'mixed', intensity: 1.5, particleDensity: 20, tiltSensitivity: 0.3 };
+        let musicConfig = { instrument: 'guzheng', scale: 'pentatonic', key: 'D', reverb: 0.3 };
+        
+        // --- Karplus-Strong Synthesis Parameters for Different Instruments ---
+        const instrumentParams = {
+            guzheng: { feedback: 0.996, filterCutoff: 5000, filterQ: 1 },
+            koto: { feedback: 0.992, filterCutoff: 7000, filterQ: 0.8 },
+            'nylon-guitar': { feedback: 0.998, filterCutoff: 3500, filterQ: 1.2 }
+        };
+
+        // --- Note Frequencies (C4-B5) ---
+        const noteFrequencies = {
+            'C': [261.63, 523.25], 'C#': [277.18, 554.37], 'D': [293.66, 587.33], 'D#': [311.13, 622.25],
+            'E': [329.63, 659.25], 'F': [349.23, 698.46], 'F#': [369.99, 739.99], 'G': [392.00, 783.99],
+            'G#': [415.30, 830.61], 'A': [440.00, 880.00], 'A#': [466.16, 932.33], 'B': [493.88, 987.77]
+        };
+        const noteNames = Object.keys(noteFrequencies);
+
+        // --- Scales ---
+        const scales = {
+            major: [0, 2, 4, 5, 7, 9, 11],
+            minor: [0, 2, 3, 5, 7, 8, 10],
+            pentatonic: [0, 2, 4, 7, 9]
+        };
+
+        // =================================================================================
+        //                                  AUDIO ENGINE
+        // =================================================================================
+        
+        async function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            await audioCtx.resume();
+            masterGain = audioCtx.createGain();
+            masterGain.gain.value = 0.5;
+            
+            // Create Reverb
+            reverb = audioCtx.createConvolver();
+            const reverbTime = 2;
+            const decay = 0.5;
+            const sampleRate = audioCtx.sampleRate;
+            const length = sampleRate * reverbTime;
+            const impulse = audioCtx.createBuffer(2, length, sampleRate);
+            const impulseL = impulse.getChannelData(0);
+            const impulseR = impulse.getChannelData(1);
+            for (let i = 0; i < length; i++) {
+                impulseL[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+                impulseR[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+            }
+            reverb.buffer = impulse;
+            masterGain.connect(reverb);
+            reverb.connect(audioCtx.destination);
+            masterGain.connect(audioCtx.destination);
+            updateReverb(musicConfig.reverb);
+        }
+
+        function updateReverb(value) {
+            if (!masterGain || !reverb) return;
+            // A simple mix control
+            const gainToReverb = audioCtx.createGain();
+            gainToReverb.gain.value = value;
+            const gainDirect = audioCtx.createGain();
+            gainDirect.gain.value = 1 - value;
+
+            masterGain.disconnect();
+            masterGain.connect(gainToReverb).connect(reverb);
+            masterGain.connect(gainDirect).connect(audioCtx.destination);
+        }
+        
+        function playNote(frequency, duration = 1.0, volume = 0.4) {
+            if (!audioCtx) return;
+            const params = instrumentParams[musicConfig.instrument] || instrumentParams.guzheng;
+            
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+            
+            osc.type = 'sawtooth';
+            osc.frequency.value = frequency;
+            
+            filter.type = 'lowpass';
+            filter.frequency.value = params.filterCutoff;
+            filter.Q.value = params.filterQ;
+
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(volume, audioCtx.currentTime + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+
+            osc.connect(filter).connect(gainNode).connect(masterGain);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + duration);
+        }
+        
+        function getScaleNotes() {
+            const keyIndex = noteNames.indexOf(musicConfig.key);
+            const scaleIntervals = scales[musicConfig.scale];
+            const notes = [];
+            for (let i = -1; i < 2; i++) { // Octaves
+                scaleIntervals.forEach(interval => {
+                    const noteIndex = (keyIndex + interval) % 12;
+                    const freq = noteFrequencies[noteNames[noteIndex]][i > 0 ? 1 : 0];
+                    if (freq) notes.push(freq);
+                });
+            }
+            return notes.sort((a, b) => a - b);
+        }
+
+
+        // =================================================================================
+        //                                  VISUAL MODES
+        // =================================================================================
+
+        // --- Physics Mode ---
+        class PhysicsPoint {
+            constructor(x, y, color) {
+                this.x = x; this.y = y;
+                this.originalX = x; this.originalY = y;
+                this.vx = 0; this.vy = 0;
+                this.color = color;
+                this.lastSoundTime = 0;
+            }
+            update(touches) {
+                let totalForceX = 0, totalForceY = 0;
+                touches.forEach(touch => {
+                    const dx = this.x - touch.x;
+                    const dy = this.y - touch.y;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist < 100) {
+                        const force = (100 - dist) / 100;
+                        const angle = Math.atan2(dy, dx);
+                        totalForceX += Math.cos(angle) * force * physicsConfig.interactionStrength;
+                        totalForceY += Math.sin(angle) * force * physicsConfig.interactionStrength;
+                        if (physicsConfig.musicEnabled && force > 0.7 && performance.now() - this.lastSoundTime > 150) {
+                            const scaleNotes = getScaleNotes();
+                            const note = scaleNotes[Math.floor((this.y / canvas.height) * scaleNotes.length)];
+                            if (note) playNote(note, 0.5, force * 0.5);
+                            this.lastSoundTime = performance.now();
+                        }
+                    }
+                });
+                this.vx += totalForceX + (deviceOrientation.gamma * physicsConfig.tiltSensitivity);
+                this.vy += totalForceY + (deviceOrientation.beta * physicsConfig.tiltSensitivity);
+                this.vx += (this.originalX - this.x) * physicsConfig.elasticity;
+                this.vy += (this.originalY - this.y) * physicsConfig.elasticity;
+                this.x += this.vx; this.y += this.vy;
+                this.vx *= 0.95; this.vy *= 0.95;
+            }
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - 5, this.y - 5, 10, 10);
+            }
+        }
+        function initPhysicsMode() {
+            physicsPoints = [];
+            const colors = ['#4CAF50', '#8BC34A', '#FFEB3B', '#2196F3', '#9C27B0'];
+            for (let x = 0; x < canvas.width; x += 12) {
+                for (let y = 0; y < canvas.height; y += 12) {
+                    const color = colors[Math.floor((x + y) / 24) % colors.length];
+                    physicsPoints.push(new PhysicsPoint(x, y, color));
+                }
+            }
+        }
+        function runPhysicsMode(touches) {
+            ctx.fillStyle = 'rgba(26, 26, 46, 0.8)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            physicsPoints.forEach(p => {
+                p.update(touches);
+                p.draw(ctx);
+            });
+        }
+
+        // --- Wave Mode ---
+        // (Wave mode logic would go here, simplified for brevity in this example)
+        function initWaveMode() { console.log("Wave mode initialized"); }
+        function runWaveMode(touches) {
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.fillText('Wave Mode Active', canvas.width / 2, canvas.height / 2);
+            touches.forEach(touch => {
+                ctx.beginPath();
+                ctx.arc(touch.x, touch.y, 20, 0, Math.PI * 2);
+                ctx.strokeStyle = 'cyan';
+                ctx.stroke();
+            });
+        }
+
+        // --- Music Mode ---
+        class MusicRipple {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.radius = 0;
+                this.alpha = 1; this.color = color;
+            }
+            update() {
+                this.radius += 3;
+                this.alpha *= 0.97;
+                return this.alpha > 0.01;
+            }
+            draw(ctx) {
+                ctx.strokeStyle = `hsla(${this.color}, 80%, 70%, ${this.alpha})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+        function initMusicMode() { ripples = []; }
+        function runMusicMode() {
+            ctx.fillStyle = 'rgba(26, 26, 46, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ripples = ripples.filter(r => r.update());
+            ripples.forEach(r => r.draw(ctx));
+        }
+        function handleMusicInteraction(x, y) {
+            const scaleNotes = getScaleNotes();
+            const noteIndex = Math.floor((y / canvas.height) * scaleNotes.length);
+            const note = scaleNotes[noteIndex];
+            if (note) {
+                playNote(note);
+                const hue = (noteIndex / scaleNotes.length) * 360;
+                ripples.push(new MusicRipple(x, y, hue));
+            }
+        }
+
+        // =================================================================================
+        //                                  AUTO MUSICIAN
+        // =================================================================================
+        class AutoMusician {
+            // ... Full implementation would be complex, this is a simplified conceptual version
+            constructor() {
+                this.isPlaying = false;
+                this.timer = null;
+                this.presetMode = 'global'; // 'global' or 'local'
+                this.globalPreset = 'ambient';
+                this.localPreset = 'default';
+            }
+            start() {
+                if (this.isPlaying) return;
+                this.isPlaying = true;
+                this.loop();
+                autoplayBtn.textContent = '⏹ Stop Auto Musician';
+            }
+            stop() {
+                this.isPlaying = false;
+                clearTimeout(this.timer);
+                autoplayBtn.textContent = '▶ Start Auto Musician';
+            }
+            loop() {
+                if (!this.isPlaying) return;
+                // 1. Get current settings based on preset mode
+                const settings = this.getCurrentSettings();
+                // 2. Generate a musical phrase (e.g., a short arpeggio)
+                const phrase = this.generatePhrase(settings);
+                // 3. Schedule playback of the phrase
+                this.playPhrase(phrase);
+                // 4. Schedule next loop
+                this.timer = setTimeout(() => this.loop(), settings.interval);
+            }
+            getCurrentSettings() {
+                // Simplified logic: returns a settings object
+                if (this.presetMode === 'global') {
+                    if (this.globalPreset === 'ambient') return { interval: 3000, complexity: 0.2 };
+                    if (this.globalPreset === 'rhythmic') return { interval: 1000, complexity: 0.8 };
+                    if (this.globalPreset === 'melancholy') return { interval: 4000, complexity: 0.4 };
+                } else { // Local
+                    // In a real app, this would depend on currentMode and currentSubMode
+                    if (this.localPreset === 'serene') return { interval: 3500, complexity: 0.3 };
+                    if (this.localPreset === 'active') return { interval: 800, complexity: 0.9 };
+                    return { interval: 2000, complexity: 0.5 }; // Default
+                }
+            }
+            generatePhrase(settings) {
+                // Generates an array of {note, time, x, y} objects
+                const scale = getScaleNotes();
+                const phrase = [];
+                const noteCount = 2 + Math.floor(Math.random() * 5 * settings.complexity);
+                for (let i = 0; i < noteCount; i++) {
+                    const noteIndex = Math.floor(Math.random() * scale.length);
+                    phrase.push({
+                        note: scale[noteIndex],
+                        time: i * (settings.interval / (noteCount + 1) / 2),
+                        x: Math.random() * canvas.width,
+                        y: (noteIndex / scale.length) * canvas.height
+                    });
+                }
+                return phrase;
+            }
+            playPhrase(phrase) {
+                phrase.forEach(noteEvent => {
+                    setTimeout(() => {
+                        playNote(noteEvent.note);
+                        // Trigger visual feedback based on current mode
+                        if (currentMode === 'music') ripples.push(new MusicRipple(noteEvent.x, noteEvent.y, (noteEvent.y / canvas.height) * 360));
+                        if (currentMode === 'physics') { /* trigger physics interaction */ }
+                        if (currentMode === 'waves') { /* trigger wave interaction */ }
+                    }, noteEvent.time);
+                });
+            }
+        }
+
+        // =================================================================================
+        //                                  PIANO PLAYER
+        // =================================================================================
+        class PianoPlayer {
+            constructor() {
+                this.midi = null;
+                this.isPlaying = false;
+                this.playbackSpeed = 1;
+                this.noteEvents = [];
+                this.timeouts = [];
+            }
+            loadFile(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        this.midi = new MidiFile(e.target.result);
+                        this.preparePlayback();
+                        midiFileInfo.textContent = `Loaded: ${file.name} (${this.midi.tracks.length} tracks)`;
+                        this.play();
+                    } catch (error) {
+                        midiFileInfo.textContent = `Error: Could not parse MIDI file.`;
+                        console.error(error);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+            preparePlayback() {
+                this.noteEvents = [];
+                let currentTime = 0;
+                this.midi.tracks.forEach(track => {
+                    track.forEach(event => {
+                        currentTime += event.deltaTime * (this.midi.header.ticksPerBeat / 1000);
+                        if (event.type === 'channel' && event.subtype === 'noteOn') {
+                            this.noteEvents.push({
+                                time: currentTime,
+                                pitch: event.noteNumber,
+                                velocity: event.velocity
+                            });
+                        }
+                    });
+                });
+            }
+            play() {
+                if (this.isPlaying || this.noteEvents.length === 0) return;
+                this.isPlaying = true;
+                this.stop(); // Clear any previous timeouts
+                this.noteEvents.forEach(event => {
+                    const timeoutId = setTimeout(() => {
+                        if (!this.isPlaying) return;
+                        const freq = 440 * Math.pow(2, (event.pitch - 69) / 12);
+                        const y = canvas.height - ((event.pitch - 21) / 88) * canvas.height; // Map MIDI note range to canvas height
+                        const x = (performance.now() % 5000 / 5000) * canvas.width; // Simple sweeping x
+                        playNote(freq, 1, event.velocity / 127);
+                        handleMusicInteraction(x, y); // Trigger visuals
+                    }, event.time / this.playbackSpeed);
+                    this.timeouts.push(timeoutId);
+                });
+            }
+            stop() {
+                this.isPlaying = false;
+                this.timeouts.forEach(clearTimeout);
+                this.timeouts = [];
+            }
+            setSpeed(speed) {
+                this.playbackSpeed = speed;
+                if (this.isPlaying) {
+                    this.stop();
+                    this.play();
+                }
+            }
+        }
+
+        // =================================================================================
+        //                                  INITIALIZATION & MAIN LOOP
+        // =================================================================================
+
+        function init() {
+            resizeCanvas();
+            setupEventListeners();
+            autoMusician = new AutoMusician();
+            pianoPlayer = new PianoPlayer();
+            initPhysicsMode();
+        }
+
+        function mainLoop() {
+            if (!isActive) return;
+            const touches = window.currentTouches || [];
+            
+            switch (currentMode) {
+                case 'physics': runPhysicsMode(touches); break;
+                case 'waves': runWaveMode(touches); break;
+                case 'music': runMusicMode(); break;
+            }
+            animationId = requestAnimationFrame(mainLoop);
+        }
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            if (isActive) {
+                if (currentMode === 'physics') initPhysicsMode();
+                if (currentMode === 'waves') initWaveMode();
+            }
+        }
+
+        // =================================================================================
+        //                                  EVENT LISTENERS
+        // =================================================================================
+
+        function setupEventListeners() {
+            window.addEventListener('resize', resizeCanvas);
+
+            startBtn.addEventListener('click', async () => {
+                await initAudio();
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    await DeviceOrientationEvent.requestPermission();
+                }
+                window.addEventListener('deviceorientation', e => {
+                    deviceOrientation.beta = e.beta || 0;
+                    deviceOrientation.gamma = e.gamma || 0;
+                });
+                isActive = true;
+                startOverlay.classList.add('hidden');
+                requestAnimationFrame(mainLoop);
+            });
+
+            // --- Top Bar Controls ---
+            modeSelector.addEventListener('change', e => {
+                currentMode = e.target.value;
+                subModeSelector.style.display = currentMode === 'music' ? 'block' : 'none';
+                if (currentMode === 'physics') initPhysicsMode();
+                else if (currentMode === 'waves') initWaveMode();
+                else if (currentMode === 'music') initMusicMode();
+            });
+            subModeSelector.addEventListener('change', e => { currentSubMode = e.target.value; });
+
+            // --- Drawer & Tabs ---
+            let isDrawerOpen = false;
+            handle.addEventListener('click', () => {
+                isDrawerOpen = !isDrawerOpen;
+                drawer.classList.toggle('open', isDrawerOpen);
+                handle.setAttribute('aria-expanded', String(isDrawerOpen));
+            });
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    button.classList.add('active');
+                    document.getElementById(button.dataset.tab).classList.add('active');
+                });
+            });
+
+            // --- Mode Control Listeners ---
+            document.getElementById('interactionStrength').addEventListener('input', e => physicsConfig.interactionStrength = parseFloat(e.target.value));
+            document.getElementById('elasticity').addEventListener('input', e => physicsConfig.elasticity = parseFloat(e.target.value));
+            document.getElementById('physicsTiltSensitivity').addEventListener('input', e => physicsConfig.tiltSensitivity = parseFloat(e.target.value));
+            document.getElementById('physicsMusic').addEventListener('change', e => physicsConfig.musicEnabled = e.target.checked);
+            document.getElementById('instrumentType').addEventListener('change', e => musicConfig.instrument = e.target.value);
+            document.getElementById('reverbLevel').addEventListener('input', e => {
+                musicConfig.reverb = parseFloat(e.target.value);
+                updateReverb(musicConfig.reverb);
+            });
+
+            // --- Auto Musician Listeners ---
+            autoplayBtn.addEventListener('click', () => {
+                if (autoMusician.isPlaying) autoMusician.stop();
+                else autoMusician.start();
+            });
+            presetModeGlobalBtn.addEventListener('click', () => {
+                autoMusician.presetMode = 'global';
+                presetModeGlobalBtn.classList.add('active');
+                presetModeLocalBtn.classList.remove('active');
+                globalPresetsContainer.style.display = 'block';
+                localPresetsContainer.style.display = 'none';
+            });
+            presetModeLocalBtn.addEventListener('click', () => {
+                autoMusician.presetMode = 'local';
+                presetModeLocalBtn.classList.add('active');
+                presetModeGlobalBtn.classList.remove('active');
+                localPresetsContainer.style.display = 'block';
+                globalPresetsContainer.style.display = 'none';
+            });
+            document.getElementById('globalPreset').addEventListener('change', e => autoMusician.globalPreset = e.target.value);
+            document.getElementById('localPreset').addEventListener('change', e => autoMusician.localPreset = e.target.value);
+            
+            // --- Piano Player Listeners ---
+            loadMidiBtn.addEventListener('click', () => midiFileInput.click());
+            midiFileInput.addEventListener('change', e => {
+                if (e.target.files.length > 0) pianoPlayer.loadFile(e.target.files[0]);
+            });
+            document.getElementById('midiPlaybackSpeed').addEventListener('input', e => pianoPlayer.setSpeed(parseFloat(e.target.value)));
+
+            // --- Canvas Interaction ---
+            window.currentTouches = [];
+            const getTouchCoords = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            };
+            canvas.addEventListener('mousedown', e => {
+                const coords = getTouchCoords(e);
+                window.currentTouches = [coords];
+                if (currentMode === 'music') handleMusicInteraction(coords.x, coords.y);
+            });
+            canvas.addEventListener('mousemove', e => {
+                if (e.buttons === 1) {
+                    const coords = getTouchCoords(e);
+                    window.currentTouches = [coords];
+                    if (currentMode === 'music' && currentSubMode === 'flow') handleMusicInteraction(coords.x, coords.y);
+                }
+            });
+            canvas.addEventListener('mouseup', () => { window.currentTouches = []; });
+            canvas.addEventListener('mouseleave', () => { window.currentTouches = []; });
+            canvas.addEventListener('touchstart', e => {
+                e.preventDefault();
+                const coords = getTouchCoords(e.touches[0]);
+                window.currentTouches = [coords];
+                if (currentMode === 'music') handleMusicInteraction(coords.x, coords.y);
+            }, { passive: false });
+            canvas.addEventListener('touchmove', e => {
+                e.preventDefault();
+                const coords = getTouchCoords(e.touches[0]);
+                window.currentTouches = [coords];
+                 if (currentMode === 'music' && currentSubMode === 'flow') handleMusicInteraction(coords.x, coords.y);
+            }, { passive: false });
+            canvas.addEventListener('touchend', e => {
+                e.preventDefault();
+                window.currentTouches = [];
+            });
+        }
+
+        init();
+    });
+    </script>
+</body>
+</html>
