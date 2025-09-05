@@ -1,4 +1,4 @@
-<!-- orbital8-v17-unified - 2025-09-05 08:38 AM -->
+<!-- orbital8-v17-unified - 2025-09-05 08:48 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1366,8 +1366,6 @@
                     self.onmessage = async (e) => {
                         const { command, payload } = e.data;
                         if (command === 'PROCESS_TASK') {
-                            // The main thread sends the task and the necessary adapter logic
-                            // This keeps the worker generic and avoids duplicating adapter code
                             try {
                                 const result = await executeTask(payload.task, payload.adapterExecution);
                                 self.postMessage({ status: 'TASK_COMPLETE', taskId: payload.task.id });
@@ -1378,7 +1376,6 @@
                     };
 
                     async function executeTask(task, adapterExecution) {
-                        // Re-hydrate the function from its string representation
                         const func = new Function('return ' + adapterExecution)();
                         return await func(task.payload);
                     }
@@ -1392,8 +1389,7 @@
                         this.removeTask(taskId).then(() => this.processNextTask());
                     } else if (status === 'TASK_FAILED') {
                         console.error('Task ' + taskId + ' failed:', error);
-                        // Implement retry logic here if desired
-                        this.isProcessing = false; // Stop processing to avoid loops on fatal errors
+                        this.isProcessing = false; 
                         Utils.showToast('Sync task failed. Check connection.', 'error', true);
                     }
                 };
@@ -1843,22 +1839,23 @@
                     cache: { cacheLocation: 'localStorage' }
                 };
                 this.msalInstance = new msal.PublicClientApplication(msalConfig);
+                const accounts = this.msalInstance.getAllAccounts();
+                if (accounts.length > 0) {
+                    this.msalInstance.setActiveAccount(accounts[0]);
+                    this.activeAccount = accounts[0];
+                    this.isAuthenticated = true;
+                }
             }
             
             async authenticate() {
                 try {
-                    const accounts = this.msalInstance.getAllAccounts();
-                    if (accounts.length > 0) {
-                        this.msalInstance.setActiveAccount(accounts[0]);
-                        this.activeAccount = accounts[0];
-                    } else {
+                    if (!this.activeAccount) {
                         const loginResponse = await this.msalInstance.loginPopup({
                             scopes: ['Files.ReadWrite.AppFolder', 'User.Read', 'Files.ReadWrite.All']
                         });
                         this.activeAccount = loginResponse.account;
                         this.msalInstance.setActiveAccount(this.activeAccount);
                     }
-
                     this.isAuthenticated = true;
                     return true;
                 } catch (error) {
@@ -1906,11 +1903,11 @@
                     throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`);
                 }
                 
-                if (response.status !== 204 && (!options.headers || !options.headers['Content-Type'] || options.headers['Content-Type'].includes('json'))) {
+                if (response.status !== 204 && (!options.method || options.method === 'GET' || options.method === 'POST')) {
                      try {
                         return await response.json();
                     } catch (e) {
-                        return response.text(); // for non-json responses
+                        return response.text();
                     }
                 }
                 return response;
@@ -1946,7 +1943,7 @@
                     ? '/me/drive/root/children' 
                     : `/me/drive/items/${folderId}/children`;
                 
-                let nextLink = `${this.apiBase}${endpoint}`;
+                let nextLink = `${this.apiBase}${endpoint}?$select=id,name,file,size,createdDateTime,lastModifiedDateTime,thumbnails,@microsoft.graph.downloadUrl`;
 
                 while(nextLink) {
                     const data = await this.makeApiCall(nextLink.replace(this.apiBase, ''));
@@ -1985,7 +1982,8 @@
                     const data = await this.makeApiCall('/me/drive/special/approot/children');
                     return data.value.filter(item => item.name.endsWith('.json'));
                 } catch (error) {
-                    console.warn("Could not list metadata files, maybe none exist yet.", error);
+                    if (error.message.includes('404')) return []; // App root may not exist yet
+                    console.warn("Could not list metadata files.", error);
                     return [];
                 }
             }
