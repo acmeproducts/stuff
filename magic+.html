@@ -1,0 +1,2117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Synesthetic Experience</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap');
+        
+        :root {
+            --primary-bg: #1a1a2e;
+            --secondary-bg: #16213e;
+            --accent: #0f3460;
+            --highlight: #e94560;
+            --text: #eee;
+            --modal-bg: rgba(0, 0, 0, 0.9);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: var(--primary-bg);
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        #app {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        #modeSelector, #subModeSelector {
+            background: var(--modal-bg);
+            color: var(--text);
+            border: 1px solid var(--accent);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+
+        #subModeSelector {
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            display: none;
+        }
+
+        #playbackControls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: none;
+            gap: 10px;
+            align-items: center;
+            background: var(--modal-bg);
+            padding: 10px 20px;
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-btn {
+            background: var(--accent);
+            color: var(--text);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .control-btn:hover {
+            background: var(--highlight);
+            transform: scale(1.1);
+        }
+
+        .control-btn.active {
+            background: var(--highlight);
+        }
+
+        .control-btn.recording {
+            background: #e53935;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: var(--text);
+            font-size: 12px;
+        }
+
+        .speed-slider {
+            width: 80px;
+            height: 4px;
+            background: var(--accent);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .speed-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--highlight);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        #canvas {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            touch-action: none;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--modal-bg);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .modal-content {
+            background: var(--secondary-bg);
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 400px;
+            text-align: center;
+            border: 1px solid var(--accent);
+        }
+
+        .modal h3 {
+            color: var(--highlight);
+            margin-bottom: 20px;
+        }
+
+        .modal p {
+            color: var(--text);
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .modal-btn.primary {
+            background: var(--highlight);
+            color: white;
+        }
+
+        .modal-btn.secondary {
+            background: var(--accent);
+            color: var(--text);
+        }
+
+        .modal-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        #startOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, var(--primary-bg), var(--secondary-bg));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1500;
+            transition: opacity 0.5s ease;
+        }
+
+        #startOverlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #startBtn {
+            background: linear-gradient(135deg, var(--highlight), #ff6b7a);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 25px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        #startBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(233, 69, 96, 0.4);
+        }
+
+        .title {
+            color: var(--text);
+            font-size: 2.5rem;
+            font-weight: 300;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: var(--text);
+            opacity: 0.7;
+            font-size: 1rem;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        .ripple {
+            position: absolute;
+            border: 2px solid rgba(255,255,255,0.6);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: ripple-expand 1s ease-out forwards;
+        }
+
+        @keyframes ripple-expand {
+            from {
+                width: 10px;
+                height: 10px;
+                opacity: 1;
+            }
+            to {
+                width: 200px;
+                height: 200px;
+                opacity: 0;
+            }
+        }
+
+        /* Minimal Config Panel */
+        #configToggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1001;
+            background: var(--modal-bg);
+            color: var(--text);
+            border: 1px solid var(--accent);
+            padding: 8px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s;
+        }
+
+        #configToggle:hover {
+            background: var(--accent);
+        }
+
+        #configPanel {
+            position: fixed;
+            top: 60px;
+            left: 20px;
+            z-index: 1000;
+            background: var(--modal-bg);
+            border: 1px solid var(--accent);
+            border-radius: 15px;
+            padding: 15px;
+            backdrop-filter: blur(10px);
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 250px;
+        }
+
+        .config-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--text);
+        }
+
+        .config-row input[type="range"] {
+            width: 80px;
+        }
+
+        .config-row select {
+            background: var(--secondary-bg);
+            color: var(--text);
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            padding: 2px 6px;
+            font-size: 11px;
+        }
+
+        .config-row .toggle {
+            background: var(--secondary-bg);
+            color: var(--text);
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            padding: 2px 8px;
+            cursor: pointer;
+            font-size: 10px;
+            min-width: 35px;
+            text-align: center;
+        }
+
+        .config-row .toggle.active {
+            background: var(--highlight);
+            color: white;
+        }
+
+        /* Mobile Optimizations */
+        @media (max-width: 768px) {
+            #controls {
+                top: 10px;
+                right: 10px;
+                gap: 6px;
+            }
+
+            #configToggle {
+                top: 10px;
+                left: 10px;
+                padding: 6px 10px;
+                font-size: 11px;
+            }
+
+            #configPanel {
+                top: 45px;
+                left: 10px;
+                max-width: 200px;
+                padding: 12px;
+            }
+
+            #playbackControls {
+                bottom: 10px;
+                padding: 8px 16px;
+            }
+
+            .control-btn {
+                width: 36px;
+                height: 36px;
+                font-size: 14px;
+            }
+
+            .speed-slider {
+                width: 60px;
+            }
+
+            #modeSelector, #subModeSelector {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+
+            .title {
+                font-size: 2rem;
+            }
+
+            .subtitle {
+                font-size: 0.9rem;
+            }
+        }
+
+        @media (max-height: 500px) and (orientation: landscape) {
+            #controls {
+                top: 5px;
+                right: 5px;
+                gap: 4px;
+            }
+
+            #configToggle {
+                top: 5px;
+                left: 5px;
+                padding: 4px 8px;
+                font-size: 10px;
+            }
+
+            #configPanel {
+                top: 35px;
+                left: 5px;
+                max-width: 180px;
+                padding: 10px;
+                gap: 8px;
+            }
+
+            #playbackControls {
+                bottom: 5px;
+                padding: 6px 12px;
+            }
+
+            .control-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 12px;
+            }
+
+            .title {
+                font-size: 1.5rem;
+                margin-bottom: 20px;
+            }
+
+            .subtitle {
+                font-size: 0.8rem;
+                margin-bottom: 30px;
+            }
+
+            #startBtn {
+                padding: 12px 30px;
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="startOverlay">
+            <h1 class="title">Synesthetic Experience</h1>
+            <p class="subtitle">Touch, Sound, and Motion in Harmony</p>
+            <button id="startBtn">Begin Journey</button>
+        </div>
+
+        <button id="configToggle">Config</button>
+        
+        <div id="configPanel">
+            <div class="config-row">
+                <label>Tempo (1-10)</label>
+                <input type="range" id="tempoSlider" min="1" max="10" value="5">
+                <span id="tempoValue">5</span>
+            </div>
+            <div class="config-row">
+                <label>Musicality</label>
+                <select id="musicalitySelect">
+                    <option value="melodic" selected>Melodic</option>
+                    <option value="harmonic">Harmonic</option>
+                    <option value="rhythmic">Rhythmic</option>
+                </select>
+            </div>
+            <div class="config-row">
+                <label>Volume</label>
+                <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="0.3">
+            </div>
+            <div class="config-row">
+                <label>Haptics</label>
+                <div class="toggle active" id="hapticToggle">ON</div>
+            </div>
+            <div class="config-row">
+                <label>Record Audio</label>
+                <div class="toggle active" id="audioToggle">ON</div>
+            </div>
+        </div>
+
+        <div id="controls">
+            <select id="modeSelector">
+                <option value="physics">Physics Mode</option>
+                <option value="music">Music Mode</option>
+                <option value="waves">Wave Mode</option>
+            </select>
+            <select id="subModeSelector">
+                <option value="harp">Harp</option>
+                <option value="pad">Pad</option>
+                <option value="flow">Flow</option>
+                <option value="ripple">Ripple</option>
+            </select>
+        </div>
+
+        <div id="playbackControls">
+            <button class="control-btn" id="autoplayBtn" title="Auto Play">▶</button>
+            <div class="speed-control">
+                <span>Speed</span>
+                <input type="range" class="speed-slider" id="speedSlider" min="0.2" max="3" step="0.1" value="1">
+            </div>
+            <button class="control-btn" id="recordBtn" title="Record">●</button>
+        </div>
+
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="welcomeModal" class="modal">
+        <div class="modal-content">
+            <h3>Welcome to Your Synesthetic Journey</h3>
+            <p>This app responds to touch, device movement, and creates a living ecosystem of sound and color.</p>
+            <p><strong>Physics Mode:</strong> Interactive particles with musical responses and ambient resonance<br>
+            <strong>Music Mode:</strong> Play melodies through color interaction with autoplay and recording<br>
+            <strong>Wave Mode:</strong> Create flowing particle waves with dynamic patterns and harmonies</p>
+            <div class="modal-buttons">
+                <button class="modal-btn primary" onclick="closeWelcome()">Start Exploring</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="saveModal" class="modal">
+        <div class="modal-content">
+            <h3>Save Recording?</h3>
+            <p>Would you like to save your performance?</p>
+            <div class="modal-buttons">
+                <button class="modal-btn primary" id="saveYes">Save</button>
+                <button class="modal-btn secondary" id="saveNo">Discard</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const CONFIG = {
+            tempo: 5,
+            musicality: 'melodic',
+            volume: 0.3,
+            haptics: true,
+            recordAudio: true
+        };
+
+        // Base64 encoded colorful stripe pattern
+        const BASE_PATTERN = `data:image/svg+xml;base64,${btoa(`
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+                <defs>
+                    <linearGradient id="stripeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:#4CAF50"/>
+                        <stop offset="25%" style="stop-color:#8BC34A"/>
+                        <stop offset="50%" style="stop-color:#FFEB3B"/>
+                        <stop offset="75%" style="stop-color:#2196F3"/>
+                        <stop offset="100%" style="stop-color:#9C27B0"/>
+                    </linearGradient>
+                </defs>
+                ${Array.from({length: 21}, (_, i) => 
+                    `<rect x="${i * 38}" y="0" width="38" height="600" fill="url(#stripeGrad)" opacity="0.8"/>`
+                ).join('')}
+            </svg>
+        `)}`;
+
+        // Global state
+        let canvas, ctx, animationId;
+        let currentMode = 'physics';
+        let currentSubMode = 'harp';
+        let isActive = false;
+        let deviceOrientation = { alpha: 0, beta: 0, gamma: 0 };
+        let startTime = 0;
+        
+        // Physics mode state
+        let physicsPoints = [];
+        let ripples = [];
+        let physicsHum = null;
+        let physicsOscillator = null;
+        let physicsGain = null;
+        let reverbGain = null;
+        let filterNode = null;
+        let currentInteractionIntensity = 0;
+        
+        // Music system
+        let audioCtx, masterGain;
+        const baseFrequencies = [
+            73.42, 82.41, 98.00, 110.00, 123.47, 146.83, 164.81,
+            196.00, 220.00, 246.94, 293.66, 329.63, 392.00,
+            440.00, 493.88, 587.33, 659.25, 783.99, 880.00, 987.77, 1174.66
+        ];
+        
+        // Wave mode state
+        let waveParticles = [];
+        let waveDisturbances = [];
+        let waveGridSize = 20;
+        let waveAmplitude = 25;
+        let waveFrequency = 0.015;
+        let wavePattern = 'mixed';
+        
+        // Enhanced Auto musician state
+        let isAutoplay = false;
+        let autoplaySpeed = 1;
+        let invisibleMusician = null;
+        let musicianTimer = null;
+        let musicianRipples = [];
+        
+        // Musical scales and progressions for enhanced musicality
+        const musicalScales = {
+            // Pentatonic scales (very pleasant, no bad notes)
+            major_pentatonic: [0, 2, 4, 7, 9],
+            minor_pentatonic: [0, 3, 5, 7, 10],
+            // Major scales
+            major: [0, 2, 4, 5, 7, 9, 11],
+            dorian: [0, 2, 3, 5, 7, 9, 10],
+            // Peaceful modes
+            lydian: [0, 2, 4, 6, 7, 9, 11],
+            mixolydian: [0, 2, 4, 5, 7, 9, 10]
+        };
+        
+        const chordProgressions = {
+            // I-V-vi-IV (very popular)
+            pop: [0, 4, 5, 3],
+            // ii-V-I (jazz standard)
+            jazz: [1, 4, 0],
+            // vi-IV-I-V (emotional)
+            emotional: [5, 3, 0, 4],
+            // I-vi-ii-V (circle)
+            circle: [0, 5, 1, 4]
+        };
+
+        class MusicianRipple {
+            constructor(x, y, type = 'single') {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.radius = 0;
+                this.maxRadius = type === 'chord' ? 60 : type === 'strum' ? 45 : 30;
+                this.alpha = 1;
+                this.age = 0;
+                this.maxAge = 2000;
+                this.color = `hsl(${180 + Math.random() * 120}, 60%, 65%)`;
+                this.rings = type === 'chord' ? 3 : type === 'strum' ? 2 : 1;
+                this.expandSpeed = 1.2;
+            }
+            
+            update(deltaTime) {
+                this.age += deltaTime;
+                this.radius += this.expandSpeed;
+                this.alpha = Math.max(0, 1 - (this.age / this.maxAge));
+                return this.age < this.maxAge && this.alpha > 0.01;
+            }
+            
+            draw(ctx) {
+                for (let ring = 0; ring < this.rings; ring++) {
+                    const ringRadius = this.radius + ring * 12;
+                    const ringAlpha = this.alpha * (1 - ring * 0.25);
+                    
+                    if (ringAlpha > 0.01) {
+                        ctx.strokeStyle = this.color.replace(')', `, ${ringAlpha})`).replace('hsl', 'hsla');
+                        ctx.lineWidth = 1.5 - ring * 0.2;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, ringRadius, 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+        
+        // Enhanced Invisible Musician - based on original but with musical intelligence
+        class InvisibleMusician {
+            constructor() {
+                this.x = canvas.width * 0.3;
+                this.y = canvas.height * 0.5;
+                this.targetX = this.x;
+                this.targetY = this.y;
+                
+                // Musical intelligence
+                this.playingStyle = 'pick'; // 'pick', 'strum', 'chord'
+                this.rhythm = 'steady'; // 'steady', 'syncopated', 'flowing'
+                this.movePattern = 'explore'; // 'explore', 'sweep', 'focus'
+                
+                // Musical state
+                this.currentKey = 'C'; // Root note
+                this.currentScale = 'major_pentatonic';
+                this.currentProgression = 'pop';
+                this.progressionIndex = 0;
+                this.lastProgressionChange = 0;
+                
+                // Timing controls
+                this.lastStyleChange = 0;
+                this.lastPlay = 0;
+                
+                // Movement state
+                this.movePhase = Math.random() * Math.PI * 2;
+                this.focusCenter = { x: canvas.width * 0.5, y: canvas.height * 0.5 };
+                
+                // Initialize musical context
+                this.initMusicalContext();
+            }
+            
+            initMusicalContext() {
+                // Choose a pleasant scale based on musicality setting
+                switch(CONFIG.musicality) {
+                    case 'melodic':
+                        this.currentScale = Math.random() < 0.7 ? 'major_pentatonic' : 'major';
+                        this.currentProgression = 'pop';
+                        break;
+                    case 'harmonic':
+                        this.currentScale = 'major';
+                        this.currentProgression = 'emotional';
+                        break;
+                    case 'rhythmic':
+                        this.currentScale = 'minor_pentatonic';
+                        this.currentProgression = 'circle';
+                        break;
+                }
+            }
+            
+            update(currentTime) {
+                this.evolveMusicalIntelligence(currentTime);
+                this.updateMovement(currentTime);
+            }
+            
+            evolveMusicalIntelligence(time) {
+                // Change musical approach every 6-12 seconds (longer for more cohesive phrases)
+                const changeInterval = 6000 + Math.random() * 6000;
+                
+                if (time - this.lastStyleChange > changeInterval) {
+                    // Evolve playing style more musically
+                    this.evolvePlayingStyle();
+                    
+                    // Change movement pattern
+                    const patterns = ['explore', 'sweep', 'focus'];
+                    this.movePattern = patterns[Math.floor(Math.random() * patterns.length)];
+                    
+                    if (this.movePattern === 'focus') {
+                        this.focusCenter = {
+                            x: canvas.width * (0.2 + Math.random() * 0.6),
+                            y: canvas.height * (0.2 + Math.random() * 0.6)
+                        };
+                    }
+                    
+                    this.lastStyleChange = time;
+                }
+                
+                // Progress through chord progression
+                if (time - this.lastProgressionChange > 2000 + Math.random() * 2000) {
+                    this.progressionIndex = (this.progressionIndex + 1) % chordProgressions[this.currentProgression].length;
+                    this.lastProgressionChange = time;
+                }
+            }
+            
+            evolvePlayingStyle() {
+                // More musical evolution based on current context
+                switch(CONFIG.musicality) {
+                    case 'melodic':
+                        // Favor single notes and gentle arpeggios
+                        this.playingStyle = Math.random() < 0.6 ? 'pick' : 'strum';
+                        this.rhythm = Math.random() < 0.5 ? 'flowing' : 'steady';
+                        break;
+                    case 'harmonic':
+                        // Favor chords and harmonic structures
+                        this.playingStyle = Math.random() < 0.5 ? 'chord' : 'strum';
+                        this.rhythm = 'steady';
+                        break;
+                    case 'rhythmic':
+                        // More varied rhythmic patterns
+                        this.playingStyle = ['pick', 'strum', 'chord'][Math.floor(Math.random() * 3)];
+                        this.rhythm = Math.random() < 0.4 ? 'syncopated' : 'flowing';
+                        break;
+                }
+            }
+            
+            updateMovement(time) {
+                const timeSeconds = time * 0.001;
+                
+                switch(this.movePattern) {
+                    case 'explore':
+                        if (Math.hypot(this.x - this.targetX, this.y - this.targetY) < 50) {
+                            this.targetX = canvas.width * (0.1 + Math.random() * 0.8);
+                            this.targetY = canvas.height * (0.1 + Math.random() * 0.8);
+                        }
+                        break;
+                        
+                    case 'sweep':
+                        this.movePhase += 0.004 * autoplaySpeed;
+                        this.targetX = (Math.sin(this.movePhase) + 1) * canvas.width * 0.35 + canvas.width * 0.15;
+                        this.targetY = (Math.cos(this.movePhase * 0.7) + 1) * canvas.height * 0.35 + canvas.height * 0.15;
+                        break;
+                        
+                    case 'focus':
+                        this.movePhase += 0.006 * autoplaySpeed;
+                        const radius = 60 + Math.sin(timeSeconds * 0.3) * 30;
+                        this.targetX = this.focusCenter.x + Math.sin(this.movePhase) * radius;
+                        this.targetY = this.focusCenter.y + Math.cos(this.movePhase * 0.8) * radius * 0.6;
+                        break;
+                }
+                
+                const moveSpeed = 0.02 + (autoplaySpeed - 1) * 0.01;
+                this.x += (this.targetX - this.x) * moveSpeed;
+                this.y += (this.targetY - this.y) * moveSpeed;
+                
+                this.x = Math.max(30, Math.min(canvas.width - 30, this.x));
+                this.y = Math.max(30, Math.min(canvas.height - 30, this.y));
+            }
+            
+            getPlayingInterval() {
+                // Tempo 1-10 mapping to musically sensible intervals
+                const tempoIntervals = [
+                    2000,  // 1: Very slow
+                    1600,  // 2: Slow  
+                    1300,  // 3: Moderate slow
+                    1000,  // 4: Moderate
+                    800,   // 5: Default
+                    650,   // 6: Moderate fast
+                    500,   // 7: Fast
+                    400,   // 8: Very fast
+                    320,   // 9: Rapid
+                    250    // 10: Very rapid
+                ];
+                
+                const baseInterval = tempoIntervals[CONFIG.tempo - 1] || tempoIntervals[4];
+                
+                // Musical rhythm modifiers
+                const rhythmModifiers = {
+                    'steady': 1.0,
+                    'syncopated': 0.7 + Math.sin(performance.now() * 0.002) * 0.3,
+                    'flowing': 0.8 + Math.sin(performance.now() * 0.0015) * 0.4
+                };
+                
+                const styleModifiers = {
+                    'pick': 1.0,
+                    'strum': 1.5,
+                    'chord': 2.0
+                };
+                
+                const rhythmMod = rhythmModifiers[this.rhythm] || 1.0;
+                const styleMod = styleModifiers[this.playingStyle] || 1.0;
+                
+                return (baseInterval * rhythmMod * styleMod) / autoplaySpeed;
+            }
+            
+            shouldPlay(currentTime) {
+                const interval = this.getPlayingInterval();
+                return (currentTime - this.lastPlay) >= interval;
+            }
+            
+            markPlayed(currentTime) {
+                this.lastPlay = currentTime;
+            }
+            
+            // Get musically appropriate note
+            getMusicalNote(x, y) {
+                const scale = musicalScales[this.currentScale];
+                const progression = chordProgressions[this.currentProgression];
+                
+                // Map position to scale degree
+                const normalizedY = y / canvas.height;
+                const scaleIndex = Math.floor(normalizedY * scale.length);
+                const scaleDegree = scale[scaleIndex];
+                
+                // Add harmonic context based on current progression
+                const chordRoot = progression[this.progressionIndex];
+                const baseNote = 60 + chordRoot; // C4 = 60
+                const noteNumber = baseNote + scaleDegree;
+                
+                // Convert to frequency (A4 = 440Hz at note 69)
+                return 440 * Math.pow(2, (noteNumber - 69) / 12);
+            }
+        }
+        
+        // Recording state
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+        let audioDestination = null;
+
+        // Pentatonic scale for harmonic ripples
+        const pentatonicScale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00];
+
+        // Wave mode classes (simplified)
+        class WaveParticle {
+            constructor(gridX, gridY, x, y) {
+                this.gridX = gridX;
+                this.gridY = gridY;
+                this.baseX = x;
+                this.baseY = y;
+                this.x = x;
+                this.y = y;
+                this.z = 0;
+                this.size = 1.5 + Math.random() * 2;
+                this.baseColor = (gridX + gridY) * 12;
+            }
+
+            update(time, disturbances) {
+                const waveTime = time * 0.0008;
+                let targetZ = 0;
+                
+                switch(wavePattern) {
+                    case 'horizontal':
+                        targetZ = Math.sin((this.gridY * 0.4 + waveTime * 3)) * waveAmplitude;
+                        break;
+                    case 'vertical':
+                        targetZ = Math.sin((this.gridX * 0.4 + waveTime * 3)) * waveAmplitude;
+                        break;
+                    case 'center':
+                        const distance = Math.sqrt(this.gridX * this.gridX + this.gridY * this.gridY);
+                        targetZ = Math.sin((distance * 0.15 + waveTime * 4)) * waveAmplitude * 0.8;
+                        break;
+                    default:
+                        const wave1 = Math.sin((this.gridX * 0.25 + waveTime * 2.5)) * waveAmplitude * 0.35;
+                        const wave2 = Math.sin((this.gridY * 0.3 + waveTime * 2)) * waveAmplitude * 0.35;
+                        const centerDist = Math.sqrt(this.gridX * this.gridX + this.gridY * this.gridY);
+                        const wave3 = Math.sin((centerDist * 0.1 + waveTime * 3.5)) * waveAmplitude * 0.3;
+                        targetZ = wave1 + wave2 + wave3;
+                }
+                
+                const tiltEffectX = deviceOrientation.gamma * 0.3;
+                const tiltEffectY = deviceOrientation.beta * 0.3;
+                targetZ += (this.gridX * tiltEffectX + this.gridY * tiltEffectY) * 0.1;
+                
+                disturbances.forEach(disturbance => {
+                    const dist = Math.hypot(this.x - disturbance.x, this.y - disturbance.y);
+                    if (dist < disturbance.radius) {
+                        const influence = (disturbance.radius - dist) / disturbance.radius;
+                        const waveEffect = Math.sin((dist - waveTime * 600) * 0.015) * disturbance.strength * influence;
+                        targetZ += waveEffect;
+                    }
+                });
+                
+                this.z += (targetZ - this.z) * 0.08;
+                this.y = this.baseY + this.z * 0.4;
+                this.x = this.baseX + Math.sin(waveTime * 2 + this.gridY * 0.1) * 1;
+                this.size = 1.5 + Math.abs(this.z) * 0.04;
+            }
+
+            draw(ctx) {
+                const heightNorm = (this.z + waveAmplitude) / (waveAmplitude * 2);
+                const time = performance.now() * 0.001;
+                const hue = (this.baseColor + heightNorm * 80 + time * 20) % 360;
+                const lightness = 35 + heightNorm * 45;
+                const saturation = 60 + heightNorm * 30;
+                
+                ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            drawConnections(ctx, particles) {
+                const maxDistance = waveGridSize * 1.6;
+                const time = performance.now() * 0.001;
+                
+                particles.forEach(other => {
+                    if (other === this) return;
+                    
+                    const dx = this.gridX - other.gridX;
+                    const dy = this.gridY - other.gridY;
+                    const gridDist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (gridDist <= 1.5) {
+                        const actualDist = Math.hypot(this.x - other.x, this.y - other.y);
+                        const alpha = Math.max(0, 1 - actualDist / (maxDistance * 2));
+                        const avgZ = (this.z + other.z) / 2;
+                        const heightColor = (avgZ + waveAmplitude) / (waveAmplitude * 2);
+                        const connectionHue = (time * 30 + heightColor * 120) % 360;
+                        
+                        ctx.strokeStyle = `hsla(${connectionHue}, 70%, 60%, ${alpha * 0.4})`;
+                        ctx.lineWidth = 0.5 + heightColor;
+                        ctx.beginPath();
+                        ctx.moveTo(this.x, this.y);
+                        ctx.lineTo(other.x, other.y);
+                        ctx.stroke();
+                    }
+                });
+            }
+        }
+
+        class WaveDisturbance {
+            constructor(x, y, strength = 40) {
+                this.x = x;
+                this.y = y;
+                this.strength = strength;
+                this.maxStrength = strength;
+                this.radius = 0;
+                this.maxRadius = 120;
+                this.age = 0;
+                this.maxAge = 1800;
+                this.expandSpeed = 2.5;
+            }
+
+            update(deltaTime) {
+                this.age += deltaTime;
+                this.radius += this.expandSpeed;
+                this.strength = this.maxStrength * (1 - this.age / this.maxAge) * Math.exp(-this.age / 800);
+                return this.age < this.maxAge && this.strength > 0.5;
+            }
+
+            draw(ctx) {
+                const alpha = Math.max(0, this.strength / this.maxStrength * 0.3);
+                const time = performance.now() * 0.001;
+                const hue = (time * 50) % 360;
+                ctx.strokeStyle = `hsla(${hue}, 80%, 70%, ${alpha})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
+        // Sound synthesis
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                masterGain = audioCtx.createGain();
+                masterGain.gain.value = CONFIG.volume;
+                masterGain.connect(audioCtx.destination);
+            }
+            return audioCtx.state === 'running' ? Promise.resolve() : audioCtx.resume();
+        }
+
+        function initPhysicsHum() {
+            if (!audioCtx || physicsOscillator) return;
+            
+            physicsOscillator = audioCtx.createOscillator();
+            physicsGain = audioCtx.createGain();
+            reverbGain = audioCtx.createGain();
+            filterNode = audioCtx.createBiquadFilter();
+            
+            physicsOscillator.type = 'triangle';
+            physicsOscillator.frequency.value = 55;
+            
+            filterNode.type = 'lowpass';
+            filterNode.frequency.value = 800;
+            filterNode.Q.value = 1;
+            
+            physicsGain.gain.value = 0;
+            reverbGain.gain.value = 0;
+            
+            const delay = audioCtx.createDelay();
+            delay.delayTime.value = 0.3;
+            const delayGain = audioCtx.createGain();
+            delayGain.gain.value = 0.15;
+            
+            physicsOscillator.connect(filterNode);
+            filterNode.connect(physicsGain);
+            physicsGain.connect(reverbGain);
+            physicsGain.connect(delay);
+            delay.connect(delayGain);
+            delayGain.connect(reverbGain);
+            reverbGain.connect(masterGain);
+            
+            physicsOscillator.start();
+        }
+
+        function updatePhysicsHum(intensity, x, y) {
+            if (!physicsOscillator || !physicsGain || !filterNode) return;
+            
+            const baseFreq = 55;
+            const freqRange = 45;
+            const normalizedX = x / canvas.width;
+            const normalizedY = y / canvas.height;
+            
+            const targetFreq = baseFreq + (freqRange * Math.pow(normalizedY, 2)) + (intensity * 20);
+            const targetVolume = Math.min(0.08, intensity * 0.15);
+            
+            physicsOscillator.frequency.setTargetAtTime(targetFreq, audioCtx.currentTime, 0.3);
+            physicsGain.gain.setTargetAtTime(targetVolume, audioCtx.currentTime, 0.2);
+            
+            const filterFreq = 400 + (intensity * 600) + (normalizedX * 400);
+            filterNode.frequency.setTargetAtTime(filterFreq, audioCtx.currentTime, 0.2);
+            
+            if (intensity > 0.3) {
+                reverbGain.gain.setTargetAtTime(targetVolume * 0.3, audioCtx.currentTime, 0.1);
+            }
+            
+            if (CONFIG.haptics && navigator.vibrate && intensity > 0.5) {
+                navigator.vibrate(Math.floor(intensity * 15));
+            }
+        }
+
+        function playNote(frequency, duration = 0.5, volume = 0.3) {
+            if (!audioCtx || !masterGain) return;
+            
+            const sampleRate = audioCtx.sampleRate;
+            const bufferSize = sampleRate * duration;
+            const buffer = audioCtx.createBuffer(1, bufferSize, sampleRate);
+            const data = buffer.getChannelData(0);
+            
+            const delayLength = Math.floor(sampleRate / frequency);
+            const delayLine = new Float32Array(delayLength);
+            
+            for (let i = 0; i < delayLength; i++) {
+                delayLine[i] = Math.random() * 2 - 1;
+            }
+            
+            let index = 0;
+            let lastSample = 0;
+            
+            for (let i = 0; i < bufferSize; i++) {
+                const currentSample = (delayLine[index] + lastSample) * 0.5 * 0.996;
+                lastSample = delayLine[index];
+                delayLine[index] = currentSample;
+                data[i] = currentSample * volume;
+                index = (index + 1) % delayLength;
+            }
+            
+            const source = audioCtx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(masterGain);
+            source.start();
+        }
+
+        function playChord(frequencies, duration = 1.0) {
+            frequencies.forEach((freq, i) => {
+                setTimeout(() => playNote(freq, duration, 0.2), i * 50);
+            });
+        }
+
+        function playPhysicsNote(x, y, intensity) {
+            const normalizedY = y / canvas.height;
+            const scaleIndex = Math.floor(normalizedY * pentatonicScale.length);
+            const freq = pentatonicScale[Math.min(scaleIndex, pentatonicScale.length - 1)];
+            const volume = Math.min(0.15, intensity * 0.25);
+            playNote(freq, 0.4, volume);
+        }
+
+        function playWaveNote(frequency, volume = 0.08, duration = 1.0) {
+            if (!audioCtx || !masterGain) return;
+            
+            const oscillator = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.value = frequency;
+            
+            filter.type = 'lowpass';
+            filter.frequency.value = frequency * 2;
+            
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(volume, audioCtx.currentTime + 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            
+            oscillator.connect(filter);
+            filter.connect(gain);
+            gain.connect(masterGain);
+            
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + duration);
+        }
+
+        // Physics mode functions
+        function initPhysicsMode() {
+            physicsPoints = [];
+            
+            if (canvas.width === 0 || canvas.height === 0) return;
+            
+            const img = new Image();
+            img.onload = function() {
+                try {
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+                    
+                    for (let x = 0; x < canvas.width; x += 10) {
+                        for (let y = 0; y < canvas.height; y += 10) {
+                            const i = (y * canvas.width + x) * 4;
+                            const r = data[i];
+                            const g = data[i + 1];
+                            const b = data[i + 2];
+                            
+                            physicsPoints.push({
+                                x: x, y: y, originalX: x, originalY: y,
+                                vx: 0, vy: 0, color: `rgb(${r},${g},${b})`,
+                                lastSoundTime: 0
+                            });
+                        }
+                    }
+                } catch (error) {
+                    createFallbackPhysicsPoints();
+                }
+            };
+            img.onerror = createFallbackPhysicsPoints;
+            img.src = BASE_PATTERN;
+            
+            initPhysicsHum();
+        }
+        
+        function createFallbackPhysicsPoints() {
+            physicsPoints = [];
+            const colors = ['#4CAF50', '#8BC34A', '#FFEB3B', '#2196F3', '#9C27B0'];
+            
+            for (let x = 0; x < canvas.width; x += 10) {
+                for (let y = 0; y < canvas.height; y += 10) {
+                    const colorIndex = Math.floor((x + y) / 20) % colors.length;
+                    physicsPoints.push({
+                        x: x, y: y, originalX: x, originalY: y,
+                        vx: 0, vy: 0, color: colors[colorIndex],
+                        lastSoundTime: 0
+                    });
+                }
+            }
+        }
+
+        function updatePhysicsMode(touches) {
+            currentInteractionIntensity = 0;
+            let avgTouchX = 0;
+            let avgTouchY = 0;
+            const now = performance.now();
+            
+            if (touches.length > 0) {
+                touches.forEach(touch => {
+                    avgTouchX += touch.x;
+                    avgTouchY += touch.y;
+                });
+                avgTouchX /= touches.length;
+                avgTouchY /= touches.length;
+            }
+            
+            const tiltForce = {
+                x: deviceOrientation.gamma * 0.02,
+                y: deviceOrientation.beta * 0.02
+            };
+            
+            physicsPoints.forEach(point => {
+                let totalForceX = 0;
+                let totalForceY = 0;
+                let maxIntensity = 0;
+                
+                touches.forEach(touch => {
+                    const dx = point.x - touch.x;
+                    const dy = point.y - touch.y;
+                    const dist = Math.hypot(dx, dy);
+                    
+                    if (dist < 100) {
+                        const force = (100 - dist) / 100;
+                        maxIntensity = Math.max(maxIntensity, force);
+                        currentInteractionIntensity = Math.max(currentInteractionIntensity, force);
+                        const angle = Math.atan2(dy, dx);
+                        totalForceX += Math.cos(angle) * force * 2;
+                        totalForceY += Math.sin(angle) * force * 2;
+                        
+                        if (force > 0.7 && now - point.lastSoundTime > 150) {
+                            playPhysicsNote(touch.x, touch.y, force);
+                            point.lastSoundTime = now;
+                        }
+                    }
+                });
+                
+                point.vx += totalForceX + tiltForce.x;
+                point.vy += totalForceY + tiltForce.y;
+                
+                const returnX = (point.originalX - point.x) * 0.02;
+                const returnY = (point.originalY - point.y) * 0.02;
+                point.vx += returnX;
+                point.vy += returnY;
+                
+                point.x += point.vx;
+                point.y += point.vy;
+                
+                point.vx *= 0.95;
+                point.vy *= 0.95;
+            });
+            
+            if (touches.length > 0) {
+                updatePhysicsHum(currentInteractionIntensity, avgTouchX, avgTouchY);
+            } else {
+                if (physicsGain && reverbGain) {
+                    physicsGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.5);
+                    reverbGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.3);
+                }
+            }
+            
+            ripples = ripples.filter(ripple => {
+                ripple.radius += ripple.speed;
+                ripple.alpha *= 0.98;
+                return ripple.alpha > 0.01;
+            });
+        }
+
+        function drawPhysicsMode() {
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            physicsPoints.forEach(point => {
+                ctx.fillStyle = point.color;
+                ctx.fillRect(point.x - 5, point.y - 5, 10, 10);
+            });
+            
+            ripples.forEach(ripple => {
+                ctx.strokeStyle = `rgba(255,255,255,${ripple.alpha})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+        }
+
+        // Wave mode functions
+        function initWaveMode() {
+            waveParticles = [];
+            waveDisturbances = [];
+            
+            const gridWidth = Math.ceil(canvas.width / waveGridSize);
+            const gridHeight = Math.ceil(canvas.height / waveGridSize);
+            
+            for (let gridX = 0; gridX < gridWidth; gridX++) {
+                for (let gridY = 0; gridY < gridHeight; gridY++) {
+                    const x = (gridX - gridWidth / 2) * waveGridSize + canvas.width / 2;
+                    const y = (gridY - gridHeight / 2) * waveGridSize + canvas.height / 2;
+                    
+                    if (x >= -waveGridSize && x <= canvas.width + waveGridSize && 
+                        y >= -waveGridSize && y <= canvas.height + waveGridSize) {
+                        waveParticles.push(new WaveParticle(gridX - gridWidth / 2, gridY - gridHeight / 2, x, y));
+                    }
+                }
+            }
+            
+            setInterval(() => {
+                const patterns = ['mixed', 'horizontal', 'vertical', 'center'];
+                wavePattern = patterns[Math.floor(Math.random() * patterns.length)];
+            }, 8000);
+        }
+
+        function updateWaveMode(touches, deltaTime, currentTime) {
+            touches.forEach(touch => {
+                const existingDisturbance = waveDisturbances.find(d => 
+                    Math.hypot(d.x - touch.x, d.y - touch.y) < 25
+                );
+                
+                if (!existingDisturbance) {
+                    waveDisturbances.push(new WaveDisturbance(touch.x, touch.y, 60));
+                    
+                    const normalizedY = touch.y / canvas.height;
+                    const scaleIndex = Math.floor(normalizedY * pentatonicScale.length);
+                    const baseFreq = pentatonicScale[scaleIndex];
+                    
+                    playWaveNote(baseFreq, 0.06, 1.5);
+                    setTimeout(() => playWaveNote(baseFreq * 1.5, 0.04, 1.2), 100);
+                    setTimeout(() => playWaveNote(baseFreq * 2, 0.03, 0.8), 200);
+                }
+            });
+            
+            waveDisturbances = waveDisturbances.filter(disturbance => disturbance.update(deltaTime));
+            waveParticles.forEach(particle => particle.update(currentTime, waveDisturbances));
+        }
+
+        function drawWaveMode() {
+            const time = performance.now() * 0.001;
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            const hue1 = (time * 10) % 360;
+            const hue2 = (time * 10 + 120) % 360;
+            gradient.addColorStop(0, `hsl(${hue1}, 20%, 8%)`);
+            gradient.addColorStop(1, `hsl(${hue2}, 25%, 12%)`);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            waveParticles.forEach(particle => particle.drawConnections(ctx, waveParticles));
+            waveParticles.forEach(particle => particle.draw(ctx));
+            waveDisturbances.forEach(disturbance => disturbance.draw(ctx));
+            
+            musicianRipples = musicianRipples.filter(ripple => ripple.update(16));
+            musicianRipples.forEach(ripple => ripple.draw(ctx));
+        }
+
+        // Music mode functions
+        let activeRipples = [];
+        let lastFlowNote = 0;
+        let flowNoteCooldown = 0;
+
+        function handleMusicInteraction(x, y, isMoving = false) {
+            const normalizedX = x / canvas.width;
+            const normalizedY = y / canvas.height;
+            
+            switch (currentSubMode) {
+                case 'harp':
+                    const stringIndex = Math.floor(normalizedX * 21);
+                    if (stringIndex >= 0 && stringIndex < baseFrequencies.length) {
+                        playNote(baseFrequencies[stringIndex]);
+                        visualizeString(stringIndex);
+                    }
+                    break;
+                    
+                case 'pad':
+                    const chordIndex = Math.floor(normalizedY * 7);
+                    const chordFreqs = getChordFrequencies(chordIndex);
+                    playChord(chordFreqs);
+                    visualizeChord(y);
+                    break;
+                    
+                case 'flow':
+                    if (isMoving && flowNoteCooldown <= 0) {
+                        const scaleIndex = Math.floor(normalizedY * pentatonicScale.length);
+                        const freq = pentatonicScale[Math.min(scaleIndex, pentatonicScale.length - 1)];
+                        
+                        if (Math.abs(freq - lastFlowNote) > 20) {
+                            playNote(freq, 0.3, 0.15);
+                            visualizeFlow(x, y, freq);
+                            lastFlowNote = freq;
+                            flowNoteCooldown = 8;
+                        }
+                    }
+                    break;
+                    
+                case 'ripple':
+                    createMusicRipple(x, y);
+                    break;
+            }
+            
+            if (flowNoteCooldown > 0) flowNoteCooldown--;
+        }
+
+        function getChordFrequencies(chordIndex) {
+            const baseFreq = 200 + chordIndex * 50;
+            return [baseFreq, baseFreq * 1.25, baseFreq * 1.5, baseFreq * 2];
+        }
+
+        function visualizeString(index) {
+            const x = (index / 21) * canvas.width;
+            ripples.push({x: x, y: canvas.height / 2, radius: 0, speed: 3, alpha: 1, color: `hsl(${index * 17}, 70%, 60%)`});
+        }
+
+        function visualizeChord(y) {
+            for (let i = 0; i < 4; i++) {
+                ripples.push({
+                    x: canvas.width / 2 + (i - 1.5) * 50, y: y, radius: 0, speed: 2, alpha: 1,
+                    color: `hsl(${y / canvas.height * 360}, 70%, 60%)`
+                });
+            }
+        }
+
+        function visualizeFlow(x, y, freq) {
+            const hue = (freq - pentatonicScale[0]) / (pentatonicScale[pentatonicScale.length - 1] - pentatonicScale[0]) * 240;
+            ripples.push({x: x, y: y, radius: 0, speed: 1.5, alpha: 0.6, color: `hsl(${hue}, 70%, 60%)`, maxRadius: 30});
+        }
+
+        function createMusicRipple(x, y) {
+            const normalizedY = y / canvas.height;
+            const scaleIndex = Math.floor(normalizedY * pentatonicScale.length);
+            const baseFreq = pentatonicScale[scaleIndex];
+            
+            const nearbyRipples = activeRipples.filter(ripple => {
+                const dist = Math.hypot(x - ripple.x, y - ripple.y);
+                return dist < 150 && ripple.radius < ripple.maxRadius;
+            });
+            
+            let harmonicFreq = baseFreq;
+            if (nearbyRipples.length > 0) {
+                const intervals = [1.5, 2, 0.75];
+                const interval = intervals[Math.floor(Math.random() * intervals.length)];
+                harmonicFreq = baseFreq * interval;
+                
+                while (harmonicFreq > pentatonicScale[pentatonicScale.length - 1]) {
+                    harmonicFreq /= 2;
+                }
+                while (harmonicFreq < pentatonicScale[0]) {
+                    harmonicFreq *= 2;
+                }
+            }
+            
+            playNote(harmonicFreq, 1.2, 0.2);
+            
+            const hue = (harmonicFreq - pentatonicScale[0]) / (pentatonicScale[pentatonicScale.length - 1] - pentatonicScale[0]) * 240;
+            const newRipple = {
+                x: x, y: y, radius: 0, speed: 2, alpha: 1,
+                color: `hsl(${hue}, 80%, 65%)`, maxRadius: 100,
+                frequency: harmonicFreq, id: Date.now() + Math.random()
+            };
+            
+            ripples.push(newRipple);
+            activeRipples.push(newRipple);
+        }
+
+        function drawMusicMode() {
+            const img = new Image();
+            if (img.complete) {
+                ctx.globalAlpha = 0.3;
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                ctx.globalAlpha = 1;
+            } else {
+                img.onload = () => {
+                    ctx.globalAlpha = 0.3;
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    ctx.globalAlpha = 1;
+                };
+            }
+            img.src = BASE_PATTERN;
+            
+            switch (currentSubMode) {
+                case 'harp':
+                    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                    ctx.lineWidth = 1;
+                    for (let i = 0; i <= 21; i++) {
+                        const x = (i / 21) * canvas.width;
+                        ctx.beginPath();
+                        ctx.moveTo(x, 0);
+                        ctx.lineTo(x, canvas.height);
+                        ctx.stroke();
+                    }
+                    break;
+                    
+                case 'pad':
+                    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                    ctx.lineWidth = 1;
+                    for (let i = 0; i <= 7; i++) {
+                        const y = (i / 7) * canvas.height;
+                        ctx.beginPath();
+                        ctx.moveTo(0, y);
+                        ctx.lineTo(canvas.width, y);
+                        ctx.stroke();
+                    }
+                    break;
+            }
+            
+            ripples.forEach(ripple => {
+                ctx.strokeStyle = ripple.color || `rgba(255,255,255,${ripple.alpha})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+        }
+
+        // Enhanced recording with cross-platform support
+        function getSupportedMimeType() {
+            const possibleTypes = [
+                'video/mp4; codecs="avc1.42E01E,mp4a.40.2"',
+                'video/webm; codecs="vp9,opus"',
+                'video/webm; codecs="vp8,opus"',
+                'video/webm',
+                'video/mp4'
+            ];
+            
+            for (const mimeType of possibleTypes) {
+                if (MediaRecorder.isTypeSupported(mimeType)) {
+                    return mimeType;
+                }
+            }
+            return '';
+        }
+
+        function startRecording() {
+            try {
+                const videoStream = canvas.captureStream(60);
+                const combinedStream = new MediaStream();
+                
+                videoStream.getVideoTracks().forEach(track => combinedStream.addTrack(track));
+                
+                if (CONFIG.recordAudio && audioCtx) {
+                    if (!audioDestination) {
+                        audioDestination = audioCtx.createMediaStreamDestination();
+                        masterGain.connect(audioDestination);
+                    }
+                    
+                    audioDestination.stream.getAudioTracks().forEach(track => {
+                        combinedStream.addTrack(track);
+                    });
+                }
+
+                const mimeType = getSupportedMimeType();
+                const options = mimeType ? { mimeType } : {};
+                
+                if (mimeType.includes('mp4')) {
+                    options.videoBitsPerSecond = 5000000;
+                    options.audioBitsPerSecond = 128000;
+                }
+                
+                mediaRecorder = new MediaRecorder(combinedStream, options);
+                recordedChunks = [];
+                
+                mediaRecorder.ondataavailable = e => {
+                    if (e.data.size > 0) recordedChunks.push(e.data);
+                };
+                
+                mediaRecorder.start(1000);
+                isRecording = true;
+                
+                const recordBtn = document.getElementById('recordBtn');
+                recordBtn.classList.add('recording');
+                recordBtn.textContent = '⏹';
+                
+            } catch (err) {
+                console.error('Recording failed:', err);
+                alert('Recording not supported in this browser');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            
+            if (mediaRecorder && mediaRecorder.stream) {
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+            
+            isRecording = false;
+            
+            const recordBtn = document.getElementById('recordBtn');
+            recordBtn.classList.remove('recording');
+            recordBtn.textContent = '●';
+            
+            setTimeout(() => {
+                document.getElementById('saveModal').style.display = 'flex';
+            }, 500);
+        }
+
+        function saveRecording() {
+            if (recordedChunks.length === 0) return;
+            
+            try {
+                const mimeType = getSupportedMimeType();
+                const extension = mimeType && mimeType.includes('mp4') ? 'mp4' : 'webm';
+                const blob = new Blob(recordedChunks, { type: mimeType || 'video/webm' });
+                
+                const url = URL.createObjectURL(blob);
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const filename = `synesthetic-${timestamp}.${extension}`;
+                
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+                
+            } catch (err) {
+                console.error('Save failed:', err);
+            }
+        }
+
+        // Auto musician functions - enhanced with musicality
+        function startAutoplay() {
+            if (isAutoplay) return;
+            isAutoplay = true;
+            
+            invisibleMusician = new InvisibleMusician();
+            
+            flowNoteCooldown = 0;
+            lastFlowNote = 0;
+            musicianRipples = [];
+            
+            const performanceLoop = () => {
+                if (!isAutoplay || !invisibleMusician) return;
+                
+                const currentTime = performance.now();
+                invisibleMusician.update(currentTime);
+                
+                if (invisibleMusician.shouldPlay(currentTime)) {
+                    performMusicalAction();
+                    invisibleMusician.markPlayed(currentTime);
+                }
+                
+                musicianTimer = setTimeout(performanceLoop, 16);
+            };
+            
+            performanceLoop();
+            
+            document.getElementById('autoplayBtn').classList.add('active');
+            document.getElementById('autoplayBtn').textContent = '⏸';
+        }
+        
+        function performMusicalAction() {
+            if (!invisibleMusician) return;
+            
+            switch (invisibleMusician.playingStyle) {
+                case 'pick':
+                    performSingleNote();
+                    break;
+                case 'strum':
+                    performStrumAction();
+                    break;
+                case 'chord':
+                    performChordAction();
+                    break;
+            }
+        }
+        
+        function performSingleNote() {
+            if (currentMode === 'music' && currentSubMode === 'flow') {
+                flowNoteCooldown = 0;
+            }
+            
+            // Use musical note instead of random position
+            const musicalFreq = invisibleMusician.getMusicalNote(invisibleMusician.x, invisibleMusician.y);
+            
+            if (currentMode === 'music') {
+                handleMusicInteraction(invisibleMusician.x, invisibleMusician.y, currentSubMode === 'flow');
+            } else if (currentMode === 'waves') {
+                window.currentTouches = [{x: invisibleMusician.x, y: invisibleMusician.y}];
+                musicianRipples.push(new MusicianRipple(invisibleMusician.x, invisibleMusician.y, 'single'));
+                setTimeout(() => { window.currentTouches = []; }, 60);
+            } else if (currentMode === 'physics') {
+                window.currentTouches = [{x: invisibleMusician.x, y: invisibleMusician.y}];
+                setTimeout(() => { window.currentTouches = []; }, 80);
+            }
+        }
+        
+        function performStrumAction() {
+            if (currentMode === 'music' && currentSubMode === 'harp') {
+                const strumStartY = Math.max(50, invisibleMusician.y - 100);
+                const strumEndY = Math.min(canvas.height - 50, invisibleMusician.y + 100);
+                const strumSteps = 6;
+                
+                for (let i = 0; i < strumSteps; i++) {
+                    setTimeout(() => {
+                        const y = strumStartY + (strumEndY - strumStartY) * (i / (strumSteps - 1));
+                        flowNoteCooldown = 0;
+                        handleMusicInteraction(invisibleMusician.x, y, false);
+                    }, i * 50);
+                }
+            } else {
+                const gesturePoints = [];
+                const numPoints = 4;
+                const gestureRadius = 60;
+                
+                for (let i = 0; i < numPoints; i++) {
+                    const angle = (i / numPoints) * Math.PI * 1.5;
+                    gesturePoints.push({
+                        x: invisibleMusician.x + Math.cos(angle) * gestureRadius,
+                        y: invisibleMusician.y + Math.sin(angle) * gestureRadius * 0.6
+                    });
+                }
+                
+                gesturePoints.forEach((point, i) => {
+                    setTimeout(() => {
+                        const constrainedX = Math.max(20, Math.min(canvas.width - 20, point.x));
+                        const constrainedY = Math.max(20, Math.min(canvas.height - 20, point.y));
+                        
+                        if (currentMode === 'music') {
+                            flowNoteCooldown = 0;
+                            handleMusicInteraction(constrainedX, constrainedY, true);
+                        } else if (currentMode === 'waves') {
+                            window.currentTouches = [{x: constrainedX, y: constrainedY}];
+                            if (i === 0) {
+                                musicianRipples.push(new MusicianRipple(constrainedX, constrainedY, 'strum'));
+                            }
+                            setTimeout(() => { window.currentTouches = []; }, 50);
+                        } else if (currentMode === 'physics') {
+                            window.currentTouches = [{x: constrainedX, y: constrainedY}];
+                            setTimeout(() => { window.currentTouches = []; }, 70);
+                        }
+                    }, i * 80);
+                });
+            }
+        }
+        
+        function performChordAction() {
+            if (currentMode === 'music' && currentSubMode === 'pad') {
+                flowNoteCooldown = 0;
+                handleMusicInteraction(invisibleMusician.x, invisibleMusician.y, false);
+            } else {
+                const chordNotes = [];
+                const baseRadius = 40;
+                const numNotes = 3 + Math.floor(Math.random() * 2);
+                
+                for (let i = 0; i < numNotes; i++) {
+                    const angle = (i / numNotes) * Math.PI * 2;
+                    const distance = baseRadius * (0.8 + Math.random() * 0.4);
+                    chordNotes.push({
+                        x: invisibleMusician.x + Math.cos(angle) * distance,
+                        y: invisibleMusician.y + Math.sin(angle) * distance * 0.7
+                    });
+                }
+                
+                chordNotes.forEach((note, i) => {
+                    setTimeout(() => {
+                        const constrainedX = Math.max(20, Math.min(canvas.width - 20, note.x));
+                        const constrainedY = Math.max(20, Math.min(canvas.height - 20, note.y));
+                        
+                        if (currentMode === 'music') {
+                            flowNoteCooldown = 0;
+                            handleMusicInteraction(constrainedX, constrainedY, false);
+                        } else if (currentMode === 'waves') {
+                            window.currentTouches = [{x: constrainedX, y: constrainedY}];
+                            if (i === 0) {
+                                musicianRipples.push(new MusicianRipple(constrainedX, constrainedY, 'chord'));
+                            }
+                            setTimeout(() => { window.currentTouches = []; }, 40);
+                        } else if (currentMode === 'physics') {
+                            window.currentTouches = [{x: constrainedX, y: constrainedY}];
+                            setTimeout(() => { window.currentTouches = []; }, 60);
+                        }
+                    }, i * 30);
+                });
+            }
+        }
+
+        function stopAutoplay() {
+            if (!isAutoplay) return;
+            
+            isAutoplay = false;
+            invisibleMusician = null;
+            
+            if (musicianTimer) {
+                clearTimeout(musicianTimer);
+                musicianTimer = null;
+            }
+            
+            window.currentTouches = [];
+            musicianRipples = [];
+            
+            document.getElementById('autoplayBtn').classList.remove('active');
+            document.getElementById('autoplayBtn').textContent = '▶';
+        }
+
+        // Main render loop
+        function render(currentTime) {
+            if (!isActive) return;
+            
+            if (!startTime) startTime = currentTime;
+            
+            const deltaTime = 16;
+            const touches = window.currentTouches || [];
+            
+            switch (currentMode) {
+                case 'physics':
+                    updatePhysicsMode(touches);
+                    drawPhysicsMode();
+                    break;
+                case 'music':
+                    ripples = ripples.filter(ripple => {
+                        ripple.radius += ripple.speed;
+                        ripple.alpha *= 0.98;
+                        
+                        const maxRadius = ripple.maxRadius || 200;
+                        if (ripple.radius >= maxRadius || ripple.alpha <= 0.01) {
+                            const index = activeRipples.findIndex(r => r.id === ripple.id);
+                            if (index !== -1) activeRipples.splice(index, 1);
+                            return false;
+                        }
+                        return true;
+                    });
+                    drawMusicMode();
+                    break;
+                case 'waves':
+                    updateWaveMode(touches, deltaTime, currentTime);
+                    drawWaveMode();
+                    break;
+            }
+            
+            animationId = requestAnimationFrame(render);
+        }
+
+        // Event handlers
+        function setupEventListeners() {
+            const modeSelector = document.getElementById('modeSelector');
+            const subModeSelector = document.getElementById('subModeSelector');
+            const playbackControls = document.getElementById('playbackControls');
+            const autoplayBtn = document.getElementById('autoplayBtn');
+            const speedSlider = document.getElementById('speedSlider');
+            const recordBtn = document.getElementById('recordBtn');
+            
+            // Config panel
+            const configToggle = document.getElementById('configToggle');
+            const configPanel = document.getElementById('configPanel');
+            let configOpen = false;
+            
+            configToggle.addEventListener('click', () => {
+                configOpen = !configOpen;
+                configPanel.style.display = configOpen ? 'flex' : 'none';
+            });
+            
+            // Config controls
+            document.getElementById('tempoSlider').addEventListener('input', (e) => {
+                CONFIG.tempo = parseInt(e.target.value);
+                document.getElementById('tempoValue').textContent = CONFIG.tempo;
+            });
+            
+            document.getElementById('musicalitySelect').addEventListener('change', (e) => {
+                CONFIG.musicality = e.target.value;
+                if (invisibleMusician) {
+                    invisibleMusician.initMusicalContext();
+                }
+            });
+            
+            document.getElementById('volumeSlider').addEventListener('input', (e) => {
+                CONFIG.volume = parseFloat(e.target.value);
+                if (masterGain) masterGain.gain.value = CONFIG.volume;
+            });
+            
+            document.getElementById('hapticToggle').addEventListener('click', (e) => {
+                CONFIG.haptics = !CONFIG.haptics;
+                e.target.textContent = CONFIG.haptics ? 'ON' : 'OFF';
+                e.target.classList.toggle('active', CONFIG.haptics);
+            });
+            
+            document.getElementById('audioToggle').addEventListener('click', (e) => {
+                CONFIG.recordAudio = !CONFIG.recordAudio;
+                e.target.textContent = CONFIG.recordAudio ? 'ON' : 'OFF';
+                e.target.classList.toggle('active', CONFIG.recordAudio);
+            });
+            
+            // Mode controls
+            modeSelector.addEventListener('change', (e) => {
+                currentMode = e.target.value;
+                
+                stopAutoplay();
+                
+                flowNoteCooldown = 0;
+                lastFlowNote = 0;
+                
+                if (currentMode === 'music') {
+                    subModeSelector.style.display = 'block';
+                    playbackControls.style.display = 'flex';
+                } else {
+                    subModeSelector.style.display = 'none';
+                    playbackControls.style.display = currentMode === 'waves' ? 'flex' : 'none';
+                }
+                
+                switch (currentMode) {
+                    case 'physics':
+                        initPhysicsMode();
+                        break;
+                    case 'waves':
+                        initWaveMode();
+                        break;
+                }
+                
+                ripples = [];
+                activeRipples = [];
+                startTime = 0;
+            });
+            
+            subModeSelector.addEventListener('change', (e) => {
+                currentSubMode = e.target.value;
+                stopAutoplay();
+                
+                flowNoteCooldown = 0;
+                lastFlowNote = 0;
+                
+                ripples = [];
+                activeRipples = [];
+            });
+            
+            autoplayBtn.addEventListener('click', () => {
+                if (isAutoplay) {
+                    stopAutoplay();
+                } else {
+                    startAutoplay();
+                }
+            });
+            
+            speedSlider.addEventListener('input', (e) => {
+                autoplaySpeed = parseFloat(e.target.value);
+            });
+            
+            recordBtn.addEventListener('click', () => {
+                if (isRecording) {
+                    stopRecording();
+                } else {
+                    startRecording();
+                }
+            });
+            
+            // Save modal handlers
+            document.getElementById('saveYes').addEventListener('click', () => {
+                saveRecording();
+                recordedChunks = [];
+                document.getElementById('saveModal').style.display = 'none';
+            });
+            
+            document.getElementById('saveNo').addEventListener('click', () => {
+                recordedChunks = [];
+                document.getElementById('saveModal').style.display = 'none';
+            });
+        }
+
+        function setupCanvasEvents() {
+            window.currentTouches = [];
+            
+            canvas.addEventListener('mousedown', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                window.currentTouches = [{x, y}];
+                
+                if (currentMode === 'music') {
+                    handleMusicInteraction(x, y);
+                } else if (currentMode === 'physics') {
+                    ripples.push({x, y, radius: 0, speed: 3, alpha: 1});
+                }
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (e.buttons === 1) {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    
+                    window.currentTouches = [{x, y}];
+                    
+                    if (currentMode === 'music') {
+                        handleMusicInteraction(x, y, true);
+                    }
+                }
+            });
+            
+            canvas.addEventListener('mouseup', () => {
+                window.currentTouches = [];
+            });
+            
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                window.currentTouches = Array.from(e.touches).map(touch => ({
+                    x: touch.clientX - rect.left,
+                    y: touch.clientY - rect.top
+                }));
+                
+                if (currentMode === 'music' && window.currentTouches.length > 0) {
+                    const touch = window.currentTouches[0];
+                    handleMusicInteraction(touch.x, touch.y);
+                } else if (currentMode === 'physics' && window.currentTouches.length > 0) {
+                    const touch = window.currentTouches[0];
+                    ripples.push({x: touch.x, y: touch.y, radius: 0, speed: 3, alpha: 1});
+                }
+            });
+            
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                window.currentTouches = Array.from(e.touches).map(touch => ({
+                    x: touch.clientX - rect.left,
+                    y: touch.clientY - rect.top
+                }));
+                
+                if (currentMode === 'music' && window.currentTouches.length > 0) {
+                    const touch = window.currentTouches[0];
+                    handleMusicInteraction(touch.x, touch.y, true);
+                }
+            });
+            
+            canvas.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                window.currentTouches = [];
+            });
+        }
+
+        function setupDeviceOrientation() {
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', (e) => {
+                    deviceOrientation.alpha = e.alpha || 0;
+                    deviceOrientation.beta = e.beta || 0;
+                    deviceOrientation.gamma = e.gamma || 0;
+                });
+            }
+        }
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            if (currentMode === 'physics') {
+                initPhysicsMode();
+            } else if (currentMode === 'waves') {
+                initWaveMode();
+            }
+        }
+
+        function closeWelcome() {
+            document.getElementById('welcomeModal').style.display = 'none';
+        }
+
+        // Initialize app
+        function init() {
+            canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
+            
+            resizeCanvas();
+            setupEventListeners();
+            setupCanvasEvents();
+            setupDeviceOrientation();
+            
+            window.addEventListener('resize', resizeCanvas);
+            
+            document.getElementById('welcomeModal').style.display = 'flex';
+            
+            document.getElementById('startBtn').addEventListener('click', async () => {
+                await initAudio();
+                isActive = true;
+                document.getElementById('startOverlay').classList.add('hidden');
+                
+                initPhysicsMode();
+                render();
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
