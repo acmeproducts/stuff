@@ -1,4 +1,4 @@
-<!-- Release: R2 CenterStage Consolidated (from 14B) 2025-09-06 03:22 AM PDT -->
+<!-- Release: R1b — Google-only (safe disable OneDrive), baseline behavior (2025-09-06 04:28 AM PDT) -->
 <!-- orbital8-goji-2025-08-26 05:07 AM -->
 <!DOCTYPE html>
 <html lang="en">
@@ -444,6 +444,13 @@
             .image-viewport { height: 100dvh; }
         }
     </style>
+
+<style>
+  #onedrive-btn,
+  #onedrive-auth-panel, #onedrive-auth-screen,
+  #onedrive-folder-panel, #onedrive-folder-screen { display: none !important; }
+</style>
+
 </head>
 <body>
     <!-- Provider Selection Screen -->
@@ -3549,7 +3556,7 @@
                     state.haptic.triggerFeedback('swipe');
                 }
                 
-                await CenterStage.moveToStack(targetStack);
+                await Core.moveToStack(targetStack);
                 this.hideAllEdgeGlows();
             },
             
@@ -4032,8 +4039,8 @@
             },
 
             setupProviderSelection() {
-                Utils.elements.googleDriveBtn.addEventListener('click', () => App.selectGoogleDrive());
-                Utils.elements.onedriveBtn.addEventListener('click', () => App.selectOneDrive());
+                const g = Utils.elements.googleDriveBtn;
+                if (g) g.addEventListener('click', () => App.selectGoogleDrive());
             },
 
             setupSettings() {
@@ -4304,7 +4311,7 @@
                         const targetStack = keyMap[e.key];
                         if (state.stacks[state.currentStack].length > 0) {
                             UI.acknowledgePillCounter(targetStack);
-                            CenterStage.moveToStack(targetStack);
+                            Core.moveToStack(targetStack);
                         }
                         return;
                     }
@@ -4561,57 +4568,5 @@
         
         document.addEventListener('DOMContentLoaded', initApp);
     </script>
-
-<script>
-// === CenterStage (Consolidated API) — from 14B behavior, non-invasive ===
-// Purpose: provide a single place for stack mapping & actions without changing existing logic.
-// It delegates to existing 14B functions so behavior is identical for both providers.
-(function() {
-  const STACKS = Object.freeze({ IN: 'in', OUT: 'out', PRIORITY: 'priority', TRASH: 'trash' });
-
-  function classifyFromDeltas(dx, dy) {
-    try {
-      if (typeof determineSwipeDirection === 'function' && typeof directionToStack === 'function') {
-        const dir = determineSwipeDirection(dx, dy);
-        return directionToStack(dir);
-      }
-    } catch (e) {}
-    // fallback: simple axis comparison (shouldn't be used in 14B)
-    if (Math.abs(dx) >= Math.abs(dy)) return dx < 0 ? STACKS.IN : STACKS.OUT;
-    return dy < 0 ? STACKS.PRIORITY : STACKS.TRASH;
-  }
-
-  function moveToStack(stack, opts) {
-    // delegate to 14B's core behavior
-    if (window.Core && typeof Core.moveToStack === 'function') {
-      return CenterStage.moveToStack(stack, opts);
-    }
-  }
-
-  // Optional helpers for focus/details (delegates; no behavior change)
-  function toggleFocus() {
-    if (typeof exitFocus === 'function' && typeof enterFocus === 'function') {
-      // naive toggle if both exist; concrete behavior is unchanged elsewhere
-      try {
-        if (document.body.classList.contains('focus-mode')) return exitFocus();
-      } catch(_) {}
-      return enterFocus();
-    }
-  }
-  function focusNext() { if (typeof nextImage === 'function') return nextImage(); }
-  function focusPrev() { if (typeof prevImage === 'function') return prevImage(); }
-
-  // Expose consolidated API
-  window.CenterStage = Object.freeze({
-    STACKS,
-    classifyFromDeltas,
-    moveToStack,
-    toggleFocus,
-    focusNext,
-    focusPrev
-  });
-})();
-// === End CenterStage ===
-</script>
 </body>
 </html>
