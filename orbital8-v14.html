@@ -1,4 +1,5 @@
-<!-- Release: orbital8-14c-2025-09-05 10:41 PM PDT -->
+<!-- Release: orbital8-14e-2025-09-05 11:27 PM PDT -->
+<!-- Release: orbital8-14d-2025-09-05 11:12 PM PDT -->
 <!-- orbital8-goji-2025-08-26 05:07 AM -->
 <!DOCTYPE html>
 <html lang="en">
@@ -772,13 +773,18 @@
         // ===== ORBITAL8 Goji Version - App Root & Web Worker =====
         
         
-const RELEASE_LABEL = 'orbital8-14c-2025-09-05 10:41 PM PDT';
+
+const RELEASE_LABEL = 'orbital8-14e-2025-09-05 11:27 PM PDT';
+const RELEASE_LABEL = 'orbital8-14d-2025-09-05 11:12 PM PDT';
 const STACKS = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
         
         const state = {
             provider: null, providerType: null, fileCache: null, metadataExtractor: null,
-            syncManager: null, // New: Manages background sync
+            syncManager: null, // New:
+            sessionCache: { onedrive: new Map(), googledrive: new Map() },
+            silentRefresh: false,
+ Manages background sync
             visualCues: null, haptic: null, export: null, currentFolder: { id: null, name: '' },
             imageFiles: [], currentImageLoadId: null, currentStack: 'in', currentStackPosition: 0,
             isFocusMode: false, stacks: { in: [], out: [], priority: [], trash: [] },
@@ -1343,6 +1349,17 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                     const file = state.imageFiles.find(f => f.id === fileId);
                     if(file) Object.assign(file, updates);
 
+                    // 14e: update session cache for current folder (Google Drive)
+                    try {
+                        const cacheMap = state.sessionCache['googledrive'];
+                        if (cacheMap && state.currentFolder && state.currentFolder.id) {
+                            const entry = cacheMap.get(state.currentFolder.id);
+                            if (entry) {
+                                entry.files = entry.files.map(f => f.id === fileId ? ({ ...f, ...updates }) : f);
+                            }
+                        }
+                    } catch(e) { /* ignore */ }
+
                     const properties = {};
                     if (updates.stack) properties.slideboxStack = updates.stack;
                     if (updates.tags) properties.slideboxTags = updates.tags.join(',');
@@ -1358,9 +1375,19 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                     const newMetadata = { ...currentMetadata, ...updates };
                     this.metadataCache.set(fileId, newMetadata);
                     this.dirtyFiles.add(fileId); // Mark as dirty for the sync worker.
-                    
-                    
-                    // 14c: trigger immediate background sync for OneDrive
+
+                    // 14e: update session cache for current folder (OneDrive)
+                    try {
+                        const cacheMap = state.sessionCache['onedrive'];
+                        if (cacheMap && state.currentFolder && state.currentFolder.id) {
+                            const entry = cacheMap.get(state.currentFolder.id);
+                            if (entry) {
+                                entry.metadata[fileId] = { ...(entry.metadata[fileId]||{}), ...(updates||{}) };
+                                entry.files = entry.files.map(f => f.id === fileId ? ({ ...f, ...updates }) : f);
+                            }
+                        }
+                    } catch(e) { /* ignore */ }
+// 14c/14d: trigger immediate background sync for OneDrive
                     if (state.providerType === 'onedrive' && state.syncManager) {
                         state.syncManager.triggerSync();
                     }
@@ -2167,21 +2194,50 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                 state.provider = providerInstance;
                 state.currentFolder.id = folderId;
                 state.currentFolder.name = folderName;
+                // 14e: Fast-path via session cache
+                const cacheMap = state.sessionCache[providerType] || (state.sessionCache[providerType] = new Map());
+                const entry = cacheMap.get(folderId);
+                if (entry) {
+                    // Restore metadata cache and files immediately
+                    if (state.provider && state.provider.metadataCache && entry.metadata) {
+                        try { state.provider.metadataCache = new Map(Object.entries(entry.metadata)); } catch(e) { /* ignore */ }
+                    }
+                    try { state.imageFiles = entry.files.map(f => ({ ...f })); } catch(e) { state.imageFiles = entry.files; }
+                    Core.initializeStacks();
+                    Core.initializeImageDisplay();
+                    
+                    // 14e: Save to session cache for instant re-entry
+                    try {
+                        const key = state.providerType || (state.provider && state.provider.name);
+                        if (key) {
+                            const cacheMap = state.sessionCache[key] || (state.sessionCache[key] = new Map());
+                            const metaObj = (state.provider && state.provider.metadataCache) ? Object.fromEntries(state.provider.metadataCache) : {};
+                            const filesCopy = state.imageFiles.map(f => ({ ...f }));
+                            cacheMap.set(state.currentFolder.id, { files: filesCopy, metadata: metaObj, timestamp: Date.now() });
+                        }
+                    } catch(e) { /* ignore cache errors */ }
+this.switchToCommonUI();
+                    // Background refresh without UI flicker
+                    state.silentRefresh = true;
+                    this.loadImages().finally(() => { state.silentRefresh = false; });
+                    return;
+                }
+
                 
                 await this.loadImages();
                 this.switchToCommonUI();
             },
             
             async loadImages() {
-                Utils.showScreen('loading-screen');
-                Utils.updateLoadingProgress(0, 0);
+                if (!state.silentRefresh) { Utils.showScreen('loading-screen'); }
+                if (!state.silentRefresh) { Utils.updateLoadingProgress(0, 0); }
                 
                 state.provider.onProgressCallback = (count) => {
-                    Utils.updateLoadingProgress(count, 0, `Found ${count} images...`);
+                    if (!state.silentRefresh) { Utils.updateLoadingProgress(count, 0, `Found ${count} images...`); }
                 };
                 
                 try {
-                    Utils.elements.loadingMessage.textContent = `Loading from ${state.currentFolder.name}...`;
+                    if (!state.silentRefresh) { Utils.elements.loadingMessage.textContent = `Loading from ${state.currentFolder.name}...`; }
                     
                     const result = await state.provider.getFilesAndMetadata(state.currentFolder.id);
                     const files = result.files || [];
@@ -2192,10 +2248,10 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                         return;
                     }
                     
-                    Utils.updateLoadingProgress(0, files.length, 'Processing files...');
+                    if (!state.silentRefresh) { Utils.updateLoadingProgress(0, files.length, 'Processing files...'); }
                     
                     state.imageFiles = files.map((file, index) => {
-                        Utils.updateLoadingProgress(index + 1, files.length, 'Processing files...');
+                        if (!state.silentRefresh) { Utils.updateLoadingProgress(index + 1, files.length, 'Processing files...'); }
                         return this.processFileWithProviderMetadata(file);
                     });
                     
@@ -3920,7 +3976,7 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
             async handleFolderMoveSelection(folderId, folderName) {
                 const filesToMove = state.folderMoveMode.files;
                 Utils.showScreen('loading-screen');
-                Utils.updateLoadingProgress(0, filesToMove.length);
+                if (!state.silentRefresh) { Utils.updateLoadingProgress(0, filesToMove.length); }
 
                 try {
                     for(let i = 0; i < filesToMove.length; i++) {
@@ -3935,7 +3991,7 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                                 state.stacks[file.stack].splice(stackIndex, 1);
                             }
                         }
-                        Utils.updateLoadingProgress(i + 1, filesToMove.length);
+                        if (!state.silentRefresh) { Utils.updateLoadingProgress(i + 1, filesToMove.length); }
                     }
 
                     Utils.showToast(`Moved ${filesToMove.length} images to ${folderName}`, 'success', true);
@@ -4336,6 +4392,7 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                 this.worker = null;
                 this.isSyncing = false;
                 this.tokenRequestPending = false;
+                this.rerunAfter = false; // 14d: queue flag for sequential sync
                 this.initWorker();
                 this.addEventListeners();
             }
@@ -4461,6 +4518,11 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                         } else {
                             Utils.showToast('All changes synced to OneDrive.', 'success');
                         }
+                                                // 14d: if more work accumulated during sync, run again sequentially
+                        if (this.provider.dirtyFiles.size > 0 || this.rerunAfter) {
+                            this.rerunAfter = false;
+                            this.triggerSync();
+                        }
                         break;
                     case 'TOKEN_EXPIRED':
                         if (!this.tokenRequestPending) {
@@ -4499,9 +4561,9 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
 
             // The main method to start the sync process
             async triggerSync() {
-                if (this.isSyncing || this.provider.dirtyFiles.size === 0) {
-                    return;
-                }
+                // 14d: sequential guard with pending flag
+                if (this.provider.dirtyFiles.size === 0) { this.rerunAfter = false; return; }
+                if (this.isSyncing) { this.rerunAfter = true; return; }
 
                 try {
                     const accessToken = await this.provider.getAccessToken();
@@ -4546,7 +4608,10 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                 Utils.init();
                 
                 
-                // 14c: Set version footer text across all screens
+                
+                // 14e: Set version footer text across all screens
+                document.querySelectorAll('.app-footer').forEach(el => { el.textContent = RELEASE_LABEL; el.id = 'master-footer'; });
+// 14d: Set version footer text across all screens
                 document.querySelectorAll('.app-footer').forEach(el => { el.textContent = RELEASE_LABEL; el.id = 'master-footer'; });
 state.visualCues = new VisualCueManager();
                 state.haptic = new HapticFeedbackManager();
