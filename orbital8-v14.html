@@ -1,4 +1,4 @@
-<!-- Release: R4 — Pro rewrite: Google-only, structured, 50%+ LoC reduction, faithful UI (2025-09-06 01:19 PM PDT) -->
+<!-- Release: R5 — 14B refactor, Google-only, reduced LOC, faithful UI (2025-09-06 01:31 PM PDT) -->
 <!-- orbital8-goji-2025-08-26 05:07 AM -->
 <!DOCTYPE html>
 <html lang="en">
@@ -444,6 +444,11 @@
             .image-viewport { height: 100dvh; }
         }
     </style>
+
+<style id="o8-r5-css">
+  #onedrive-btn, #onedrive-auth-screen, #onedrive-folder-screen { display:none !important; }
+</style>
+
 </head>
 <body>
     <!-- Provider Selection Screen -->
@@ -772,14 +777,47 @@
 
 <script>
 (function(){'use strict';
-const $=(s,r=document)=>r.querySelector(s);
-const on=(n,e,f,o={ passive:false })=>n&&n.addEventListener(e,f,o);
-const toast=(m)=>{ const t=$('#toast'); if(t){ t.textContent=m; t.classList.remove('hidden'); setTimeout(()=>t.classList.add('hidden'),1600); } };
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+const on=(n,e,f,o={passive:false})=>n&&n.addEventListener(e,f,o);
+const toast=(m)=>{const t=$('#toast'); if(t){t.textContent=m; t.classList.remove('hidden'); setTimeout(()=>t.classList.add('hidden'),1600);}};
 
 class BaseProvider{}
 
+// ===== GoogleDriveProvider =====
 class GoogleDriveProvider extends BaseProvider {
-
+            constructor() {
+                super();
+                this.name = 'googledrive';
+                this.clientId = '567988062464-fa6c1ovesqeudqs5398vv4mbo6q068p9.apps.googleusercontent.com';
+                this.redirectUri = window.location.origin + window.location.pathname;
+                this.scope = 'https://www.googleapis.com/auth/drive';
+                this.apiBase = 'https://www.googleapis.com/drive/v3';
+                this.accessToken = null;
+                this.refreshToken = null;
+                this.clientSecret = null;
+                this.isAuthenticated = false;
+                this.onProgressCallback = null;
+                this.loadStoredCredentials();
+            }
+            
+            loadStoredCredentials() {
+                this.accessToken = localStorage.getItem('google_access_token');
+                this.refreshToken = localStorage.getItem('google_refresh_token');
+                this.clientSecret = localStorage.getItem('google_client_secret');
+                this.isAuthenticated = !!(this.accessToken && this.refreshToken && this.clientSecret);
+            }
+            
+            storeCredentials() {
+                if (this.accessToken) localStorage.setItem('google_access_token', this.accessToken);
+                if (this.refreshToken) localStorage.setItem('google_refresh_token', this.refreshToken);
+                if (this.clientSecret) localStorage.setItem('google_client_secret', this.clientSecret);
+            }
+            
+            clearStoredCredentials() {
+                localStorage.removeItem('google_access_token');
+                localStorage.removeItem('google_refresh_token');
+                localStorage.removeItem('google_client_secret');
+            }
             
             async authenticate(clientSecret) {
                 if (clientSecret) {
@@ -844,26 +882,16 @@ class GoogleDriveProvider extends BaseProvider {
                 });
             }
             
-            storeCredentials() {
-                if (this.accessToken) localStorage.setItem('google_access_token', this.accessToken);
-                if (this.refreshToken) localStorage.setItem('google_refresh_token', this.refreshToken);
-                if (this.clientSecret) localStorage.setItem('google_client_secret', this.clientSecret);
-            }
-            
-            async updateFileProperties(fileId, properties) {
-                await this.makeApiCall(`/files/${fileId}`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({
-                        appProperties: properties
-                    })
+            buildAuthUrl() {
+                const params = new URLSearchParams({
+                    client_id: this.clientId,
+                    redirect_uri: this.redirectUri,
+                    response_type: 'code',
+                    scope: this.scope,
+                    access_type: 'offline',
+                    prompt: 'consent'
                 });
-                return true;
-            }
-            
-            clearStoredCredentials() {
-                localStorage.removeItem('google_access_token');
-                localStorage.removeItem('google_refresh_token');
-                localStorage.removeItem('google_client_secret');
+                return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
             }
             
             async exchangeCodeForTokens(code) {
@@ -887,18 +915,6 @@ class GoogleDriveProvider extends BaseProvider {
                 this.accessToken = tokens.access_token;
                 this.refreshToken = tokens.refresh_token;
                 this.storeCredentials();
-            }
-            
-            buildAuthUrl() {
-                const params = new URLSearchParams({
-                    client_id: this.clientId,
-                    redirect_uri: this.redirectUri,
-                    response_type: 'code',
-                    scope: this.scope,
-                    access_type: 'offline',
-                    prompt: 'consent'
-                });
-                return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
             }
             
             async refreshAccessToken() {
@@ -966,174 +982,191 @@ class GoogleDriveProvider extends BaseProvider {
                 return response;
             }
             
-            loadStoredCredentials() {
-                this.accessToken = localStorage.getItem('google_access_token');
-                this.refreshToken = localStorage.getItem('google_refresh_token');
-                this.clientSecret = localStorage.getItem('google_client_secret');
-                this.isAuthenticated = !!(this.accessToken && this.refreshToken && this.clientSecret);
+            async getFolders() {
+                const response = await this.makeApiCall('/files?q=mimeType%3D%27application/vnd.google-apps.folder%27&fields=files(id,name,createdTime,modifiedTime)&orderBy=modifiedTime%20desc');
+                return response.files.map(folder => ({
+                    id: folder.id,
+                    name: folder.name,
+                    type: 'folder',
+                    createdTime: folder.createdTime,
+                    modifiedTime: folder.modifiedTime
+                }));
             }
-            constructor() {
-                super();
-                this.name = 'googledrive';
-                this.clientId = '567988062464-fa6c1ovesqeudqs5398vv4mbo6q068p9.apps.googleusercontent.com';
-                this.redirectUri = window.location.origin + window.location.pathname;
-                this.scope = 'https://www.googleapis.com/auth/drive';
-                this.apiBase = 'https://www.googleapis.com/drive/v3';
+            
+            async getFilesAndMetadata(folderId = 'root') {
+                const allFiles = [];
+                let nextPageToken = null;
+                
+                do {
+                    const query = `'${folderId}' in parents and trashed=false and (mimeType contains 'image/')`;
+                    let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,appProperties,parents),nextPageToken&pageSize=100`;
+                    
+                    if (nextPageToken) {
+                        url += `&pageToken=${nextPageToken}`;
+                    }
+                    
+                    const response = await this.makeApiCall(url);
+                    
+                    const files = response.files
+                        .filter(file => file.mimeType && file.mimeType.startsWith('image/'))
+                        .map(file => ({
+                            id: file.id,
+                            name: file.name,
+                            type: 'file',
+                            mimeType: file.mimeType,
+                            size: file.size ? parseInt(file.size) : 0,
+                            createdTime: file.createdTime,
+                            modifiedTime: file.modifiedTime,
+                            thumbnailLink: file.thumbnailLink,
+                            downloadUrl: file.webContentLink,
+                            appProperties: file.appProperties || {},
+                            parents: file.parents
+                        }));
+                    
+                    allFiles.push(...files);
+                    nextPageToken = response.nextPageToken;
+                    
+                    if (this.onProgressCallback) {
+                        this.onProgressCallback(allFiles.length);
+                    }
+                    
+                } while (nextPageToken);
+                
+                return { folders: [], files: allFiles };
+            }
+            
+            async moveFileToStack(fileId, targetStack, sequence) {
+                return this.updateUserMetadata(fileId, {
+                    stack: targetStack,
+                    stackSequence: sequence
+                });
+            }
+
+            async moveFileToFolder(fileId, targetFolderId) {
+                const file = await this.makeApiCall(`/files/${fileId}?fields=parents`);
+                const previousParents = file.parents.join(',');
+                await this.makeApiCall(`/files/${fileId}?addParents=${targetFolderId}&removeParents=${previousParents}&fields=id,parents`, {
+                    method: 'PATCH'
+                });
+                await this.updateUserMetadata(fileId, { 
+                    stack: 'in',
+                    stackSequence: Date.now()
+                });
+                return true;
+            }
+            
+            async updateFileProperties(fileId, properties) {
+                await this.makeApiCall(`/files/${fileId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        appProperties: properties
+                    })
+                });
+                return true;
+            }
+            
+            async deleteFile(fileId) {
+                await this.makeApiCall(`/files/${fileId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ trashed: true })
+                });
+                return true;
+            }
+            
+            async disconnect() {
+                this.isAuthenticated = false;
                 this.accessToken = null;
                 this.refreshToken = null;
                 this.clientSecret = null;
-                this.isAuthenticated = false;
-                this.onProgressCallback = null;
-                this.loadStoredCredentials();
+                this.clearStoredCredentials();
             }
-}
+        }
+// ===== App & UI =====
 
-// Deterministic stacks & list field normalization
-function installDeterminism(p){ if(!p||p.__det) return;
-  const orig=p.makeApiCall.bind(p);
-  p.makeApiCall=async (ep,opt={},isJson=true)=>{
-    try{
-      if(typeof ep==='string' && ep.indexOf('/files')===0){
-        const base=p.apiBase||'https://www.googleapis.com/drive/v3';
-        const u=new URL(ep.startsWith('http')?ep:(base+ep));
-        u.searchParams.set('fields','files(id,name,size,mimeType,thumbnailLink,appProperties,md5Checksum,parents,modifiedTime),nextPageToken');
-        if(!u.searchParams.get('pageSize')) u.searchParams.set('pageSize','1000');
-        u.searchParams.set('supportsAllDrives','true');
-        u.searchParams.set('includeItemsFromAllDrives','true');
-        ep = u.pathname + '?' + u.searchParams.toString();
-      }
-    }catch(_){}
-    const res = await orig(ep,opt,isJson);
-    try{
-      if(res && Array.isArray(res.files)){
-        for(const f of res.files){
-          const ap=f.appProperties||{};
-          const s = ap.stack || localStorage.getItem('o8_stack_'+f.id) || 'in';
-          f.stack=s; (f.appProperties||(f.appProperties={})).stack=s;
-        }
-      }
-    }catch(_){}
-    return res;
-  };
-  const names=['writeMetadata','updateFileProperties'];
-  for(const nm of names){
-    if(typeof p[nm]==='function'){
-      const o=p[nm].bind(p);
-      p[nm]=async (id,props)=>{ try{
-        if(props && id){
-          if(props.stack) localStorage.setItem('o8_stack_'+id, String(props.stack));
-          if(props.tags!=null) localStorage.setItem('o8_tags_'+id, String(props.tags));
-          if(props.notes!=null) localStorage.setItem('o8_notes_'+id, String(props.notes));
-        }
-      }catch(_){}
-      return o(id,props); };
-    }
+function installDeterminism(p){
+  if(!p||p.__det) return;
+  if(typeof p.makeApiCall==='function'){ const orig=p.makeApiCall.bind(p);
+    p.makeApiCall=async(ep,opt={},isJson=true)=>{ try{ if(typeof ep==='string'&&ep.indexOf('/files')===0){
+      const base=p.apiBase||'https://www.googleapis.com/drive/v3';
+      const u=new URL(ep.startsWith('http')?ep:(base+ep));
+      u.searchParams.set('fields','files(id,name,size,mimeType,thumbnailLink,appProperties,md5Checksum,parents,modifiedTime),nextPageToken');
+      if(!u.searchParams.get('pageSize')) u.searchParams.set('pageSize','1000');
+      u.searchParams.set('supportsAllDrives','true'); u.searchParams.set('includeItemsFromAllDrives','true');
+      ep=u.pathname+'?'+u.searchParams.toString();
+    } }catch(_){}
+    const res=await orig(ep,opt,isJson);
+    try{ if(res&&Array.isArray(res.files)) res.files.forEach(f=>{const ap=f.appProperties||{}; const s=ap.stack||localStorage.getItem('o8_stack_'+f.id)||'in'; f.stack=s; (f.appProperties||(f.appProperties={})).stack=s;}); }catch(_){}
+    return res; };
   }
+  ['writeMetadata','updateFileProperties'].forEach(n=>{ if(typeof p[n]==='function'){ const o=p[n].bind(p); p[n]=async(id,props)=>{ try{ if(props&&id){ if(props.stack) localStorage.setItem('o8_stack_'+id,String(props.stack)); if(props.tags!=null) localStorage.setItem('o8_tags_'+id,String(props.tags)); if(props.notes!=null) localStorage.setItem('o8_notes_'+id,String(props.notes)); } }catch(_){ } return o(id,props); }; } });
   p.__det=true;
 }
 
-// State
-const Store=(()=>{ const S={
-  provider:null, folderId:null, files:[],
-  stacks:{ in:[], out:[], priority:[], trash:[] },
-  center:{ stack:'in', index:0 }, search:''
-}; const subs=new Set();
-return { get:()=>S, set:(p)=>{ Object.assign(S,p); subs.forEach(fn=>fn(S)); }, sub:(fn)=>subs.add(fn) };
-})();
+const Store=(()=>{ const S={provider:null, folderId:null, files:[], stacks:{in:[],out:[],priority:[],trash:[]}, center:{stack:'in', index:0}, search:''}; const subs=new Set();
+  const get=()=>S, set=(p)=>{Object.assign(S,p); subs.forEach(fn=>fn(S));}, sub=(fn)=>{subs.add(fn); return()=>subs.delete(fn);}; return {get,set,sub}; })();
 
-// UI map
-const UI={
-  screen(name){
-    const map={ provider:'provider-screen', gdriveAuth:'gdrive-auth-screen', gdriveFolder:'gdrive-folder-screen', loading:'loading-screen' };
-    for(const k of Object.values(map)){ const n=$('#'+k); if(n) n.classList.add('hidden'); }
-    const id=map[name]; const tgt=$('#'+id); if(tgt) tgt.classList.remove('hidden');
-  },
-  counters(){ const s=Store.get().stacks; for(const k of ['in','out','priority','trash']){ const n=$('#pill-'+k); if(n) n.textContent=String((s[k]||[]).length); } },
-  center(){
-    const s=Store.get(); const list=s.stacks[s.center.stack]||[]; const f=list[s.center.index];
-    const img=$('#center-image'); if(img) img.src = f ? (f.thumbnailLink||f._blobUrl||'') : '';
-    UI.counters();
-  },
-  details(file){
-    if(!file) return;
-    const map={ 'detail-name': file.name||'', 'detail-size': (file.size||0).toLocaleString()+' bytes', 'detail-tags': file.tags||'', 'detail-notes': file.notes||'' };
-    for(const id in map){ const n=$('#'+id); if(n) n.textContent=map[id]; }
-  }
-};
+function showScreen(id){ ['provider-screen','gdrive-auth-screen','gdrive-folder-screen'].forEach(k=>$('#'+k)?.classList.add('hidden')); $('#app-container')?.classList.add('hidden'); $('#'+id)?.classList.remove('hidden'); }
+function showApp(){ $('#provider-screen')?.classList.add('hidden'); $('#gdrive-auth-screen')?.classList.add('hidden'); $('#gdrive-folder-screen')?.classList.add('hidden'); $('#app-container')?.classList.remove('hidden'); }
 
-// App
-const App={
-  provider:null,
-  async selectGoogleDrive(){
-    UI.screen('gdriveAuth');
-    this.provider=new GoogleDriveProvider();
-    try{
-      await this.provider.authenticate();
-      installDeterminism(this.provider);
-      Store.set({ provider:this.provider });
-      toast('Google Drive connected');
-      await this.showFolders();
-    }catch(e){ toast('Auth failed'); UI.screen('provider'); }
-  },
-  async showFolders(){
-    UI.screen('gdriveFolder');
-    const list=$('#gdrive-folder-list'); if(list) list.innerHTML='<div class="loading">Loading folders…</div>';
-    const data = await this.provider.makeApiCall('/files?q=mimeType%20=%20%27application%2Fvnd.google-apps.folder%27%20and%20%27root%27%20in%20parents&fields=files(id%2Cname)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true');
-    const folders = (data.files||[]);
-    if(list) list.innerHTML = folders.map(f => `<div class="folder-row"><div class="folder-name">${'{'}f.name{'}'}</div><div class="folder-actions"><button class="folder-action-btn select-btn" data-folder-id="${'{'}f.id{'}'}">Select</button></div></div>`).join('');
-    if(list) list.addEventListener('click', (e)=>{ const b=e.target.closest('.select-btn'); if(!b) return; const id=b.getAttribute('data-folder-id'); App.openFolder(id); });
-    const refresh=$('#gdrive-refresh-folders'); if(refresh) refresh.onclick=()=>this.showFolders();
-  },
-  async openFolder(folderId){
-    Store.set({ folderId });
-    UI.screen('loading');
-    let files=[]; let pageToken=null;
-    do{
-      const q = `/files?q='${'{'}folderId{'}'}'%20in%20parents%20and%20(mimeType%20contains%20'image/')&fields=files(id%2Cname%2Csize%2CmimeType%2CthumbnailLink%2CappProperties%2Cmd5Checksum%2Cparents%2CmodifiedTime)%2CnextPageToken&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true` + (pageToken?`&pageToken=${'{'}pageToken{'}'}`:'');
-      const resp = await this.provider.makeApiCall(q);
-      files.push(...(resp.files||[])); pageToken=resp.nextPageToken;
-    }while(pageToken);
-    const stacks={ in:[], out:[], priority:[], trash:[] };
-    for(const f of files){ const s=(f.appProperties&&f.appProperties.stack)||localStorage.getItem('o8_stack_'+f.id)||'in'; f.stack=s; (stacks[s]||stacks.in).push(f); }
-    Store.set({ files, stacks, center:{ stack:'in', index:0 } });
-    UI.screen('provider'); // center is always visible in 14B; if there's a center screen, map it here
-    UI.center(); UI.details((Store.get().stacks['in']||[])[0]);
-  }
-};
-
-// Gestures
-function bindGestures(){
-  let sx=0, sy=0, dx=0, dy=0, active=false;
+function updatePills(stacks){ $('#pill-in').textContent=(stacks.in||[]).length; $('#pill-out').textContent=(stacks.out||[]).length; $('#pill-priority').textContent=(stacks.priority||[]).length; $('#pill-trash').textContent=(stacks.trash||[]).length; }
+function setActivePill(name){ ['in','out','priority','trash'].forEach(k=>$('#pill-'+k)?.classList.toggle('active',k===name)); }
+function currentList(){ const s=Store.get(); const a=s.stacks[s.center.stack]||[]; const q=s.search.toLowerCase(); return q? a.filter(f=> (f.name||'').toLowerCase().includes(q)||(f.tags||'').toLowerCase().includes(q)||(f.notes||'').toLowerCase().includes(q) ): a; }
+function renderCenter(){ const s=Store.get(); const list=currentList(); const idx=Math.max(0,Math.min(s.center.index, list.length-1)); const file=list[idx];
   const img=$('#center-image'); if(!img) return;
-  on(img,'pointerdown',e=>{ active=true; sx=e.clientX; sy=e.clientY; dx=dy=0; });
-  on(window,'pointermove',e=>{ if(!active) return; dx=e.clientX-sx; dy=e.clientY-sy; });
-  on(window,'pointerup', async e=>{
-    if(!active) return; active=false;
-    if(Math.hypot(dx,dy)<24) return; // tap -> handled elsewhere if needed
-    const dir = Math.abs(dx)>Math.abs(dy) ? (dx<0?'in':'out') : (dy<0?'priority':'trash');
-    const s=Store.get(); const list=s.stacks[s.center.stack]||[]; const f=list[s.center.index]; if(!f) return;
-    // optimistic move
-    s.stacks[f.stack] = s.stacks[f.stack].filter(x=>x.id!==f.id);
-    f.stack=dir; (s.stacks[dir]||s.stacks.in).unshift(f);
-    Store.set({ stacks:s.stacks });
-    UI.center();
-    try{ await s.provider.updateFileProperties(f.id, { stack: dir }); }catch(_){ toast('Save failed'); }
-  });
+  if(!file){ img.src=''; $('#empty-state')?.classList.remove('hidden'); } else {
+    $('#empty-state')?.classList.add('hidden'); img.alt=file.name||'';
+    if(file.thumbnailLink) img.src=file.thumbnailLink; else if(file._blobUrl) img.src=file._blobUrl;
+    else s.provider.fetchBinary(file).then(r=>r.blob()).then(b=>{ file._blobUrl=URL.createObjectURL(b); if(currentList()[idx]?.id===file.id) img.src=file._blobUrl; }).catch(()=>{});
+  }
+  updatePills(s.stacks); setActivePill(s.center.stack);
 }
 
-// Bind controls
-document.addEventListener('DOMContentLoaded', ()=>{
-  // Hide OneDrive UI explicitly
-  ['onedrive-btn','onedrive-auth-screen','onedrive-folder-screen'].forEach(id=>{ const n=document.getElementById(id); if(n) n.style.display='none'; });
-  const gbtn=document.getElementById('google-drive-btn'); if(gbtn) gbtn.addEventListener('click', ()=>App.selectGoogleDrive());
-  const back=document.getElementById('gdrive-back-to-provider'); if(back) back.addEventListener('click', ()=>UI.screen('provider'));
-  // Stack pills
-  ['in','out','priority','trash'].forEach(k=>{ const n=document.getElementById('pill-'+k); if(n) n.addEventListener('click', ()=>{ const s=Store.get(); Store.set({ center:{ stack:k, index:0 } }); UI.center(); }); });
-  // Search
-  const search=document.getElementById('omni-search'); if(search) search.addEventListener('input', (e)=>{ Store.set({ search:e.target.value||'' }); UI.center(); });
-  bindGestures();
-  UI.screen('provider'); UI.center();
-});
+async function reclassify(target){ const s=Store.get(); const list=currentList(); const file=list[s.center.index]; if(!file||target===file.stack) return;
+  const stacks=JSON.parse(JSON.stringify(s.stacks)); stacks[file.stack]=stacks[file.stack].filter(x=>x.id!==file.id); file.stack=target; (stacks[target]||stacks.in).unshift(file); Store.set({stacks}); renderCenter();
+  try{ await s.provider.updateFileProperties(file.id, {stack:target}); }catch(e){ toast('Save failed'); }
+}
+
+function bindGestures(){
+  let sx=0,sy=0,dx=0,dy=0,act=false; const vp=$('#image-viewport')||$('#center-image');
+  on(vp,'pointerdown',e=>{act=true; sx=e.clientX; sy=e.clientY; dx=dy=0;});
+  on(window,'pointermove',e=>{ if(!act) return; dx=e.clientX-sx; dy=e.clientY-sy; });
+  on(window,'pointerup',e=>{ if(!act) return; act=false; if(Math.hypot(dx,dy)<24) return; const dir=Math.abs(dx)>Math.abs(dy)? (dx<0?'in':'out') : (dy<0?'priority':'trash'); reclassify(dir); dx=dy=0; });
+}
+
+const App={ provider:null,
+  async selectGoogleDrive(){
+    showScreen('gdrive-auth-screen');
+    this.provider=new GoogleDriveProvider();
+    try{ await this.provider.authenticate(); installDeterminism(this.provider); Store.set({provider:this.provider}); toast('Google Drive connected'); await this.showGDriveFolders(); }
+    catch(e){ toast('Auth failed'); showScreen('provider-screen'); }
+  },
+  async showGDriveFolders(){
+    showScreen('gdrive-folder-screen'); const list=$('#gdrive-folder-list'); if(!list) return; list.innerHTML='<div class="loading">Loading folders…</div>';
+    const data=await this.provider.makeApiCall('/files?q=mimeType%20=%20%27application%2Fvnd.google-apps.folder%27%20and%20%27root%27%20in%20parents&fields=files(id%2Cname)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true');
+    const folders=(data.files||[]); list.innerHTML=folders.map(f=>'<div class="folder-row"><div class="folder-name">'+(f.name||'')+'</div><div class="folder-actions"><button class="folder-action-btn select-btn" data-folder-id="'+f.id+'">Select</button></div></div>').join('');
+    on(list,'click',async(e)=>{ const b=e.target.closest('.select-btn'); if(!b) return; const id=b.getAttribute('data-folder-id'); await App.openFolder(id); });
+    on($('#gdrive-refresh-folders'),'click',()=>this.showGDriveFolders());
+  },
+  async openFolder(folderId){
+    Store.set({folderId}); showApp();
+    const files=[]; let token=null;
+    do{ const resp=await this.provider.makeApiCall("/files?q='"+folderId+"'%20in%20parents%20and%20(mimeType%20contains%20'image/')&fields=files(id%2Cname%2Csize%2CmimeType%2CthumbnailLink%2CappProperties%2Cmd5Checksum%2Cparents%2CmodifiedTime)%2CnextPageToken&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true"+(token?("&pageToken="+token):"")); files.push(...(resp.files||[])); token=resp.nextPageToken; } while(token);
+    const stacks={in:[],out:[],priority:[],trash:[]}; files.forEach(f=>{ const s=(f.appProperties&&f.appProperties.stack)||localStorage.getItem('o8_stack_'+f.id)||'in'; f.stack=s; (stacks[s]||stacks.in).push(f); });
+    Store.set({files, stacks, center:{stack:'in', index:0}}); renderCenter();
+  }
+};
+
+function bindUI(){
+  on($('#google-drive-btn'),'click',()=>App.selectGoogleDrive());
+  on($('#gdrive-back-to-provider'),'click',()=>showScreen('provider-screen'));
+  on($('#details-button'),'click',()=>$('#details-modal')?.classList.remove('hidden'));
+  const detailsClose = $('#details-modal')?.querySelector('.close-button'); if(detailsClose) on(detailsClose,'click',()=>$('#details-modal').classList.add('hidden'));
+  on($('#omni-search'),'input',e=>{ Store.set({search:e.target.value}); renderCenter(); });
+  ['in','out','priority','trash'].forEach(k=> on($('#pill-'+k),'click',()=>{ const s=Store.get(); Store.set({center:{stack:k, index:0}}); renderCenter(); }));
+}
+
+document.addEventListener('DOMContentLoaded',()=>{ showScreen('provider-screen'); bindUI(); bindGestures(); Store.sub(renderCenter); renderCenter(); });
+
 })();</script>
 
 </body>
