@@ -1,4 +1,4 @@
-<!-- Release: orbital8-14e-2025-09-05 11:27 PM PDT -->
+<!-- Release: orbital8-14e-a2-2025-09-05 11:45 PM PDT -->
 <!-- Release: orbital8-14d-2025-09-05 11:12 PM PDT -->
 <!-- orbital8-goji-2025-08-26 05:07 AM -->
 <!DOCTYPE html>
@@ -774,17 +774,16 @@
         
         
 
-const RELEASE_LABEL = 'orbital8-14e-2025-09-05 11:27 PM PDT';
+const RELEASE_LABEL = 'orbital8-14e-a2-2025-09-05 11:45 PM PDT';
 const RELEASE_LABEL = 'orbital8-14d-2025-09-05 11:12 PM PDT';
 const STACKS = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
         
         const state = {
             provider: null, providerType: null, fileCache: null, metadataExtractor: null,
-            syncManager: null, // New:
+            syncManager: null, // New: Manages background sync
             sessionCache: { onedrive: new Map(), googledrive: new Map() },
             silentRefresh: false,
- Manages background sync
             visualCues: null, haptic: null, export: null, currentFolder: { id: null, name: '' },
             imageFiles: [], currentImageLoadId: null, currentStack: 'in', currentStackPosition: 0,
             isFocusMode: false, stacks: { in: [], out: [], priority: [], trash: [] },
@@ -1358,7 +1357,7 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                                 entry.files = entry.files.map(f => f.id === fileId ? ({ ...f, ...updates }) : f);
                             }
                         }
-                    } catch(e) { /* ignore */ }
+                    } catch(e) {}
 
                     const properties = {};
                     if (updates.stack) properties.slideboxStack = updates.stack;
@@ -1375,7 +1374,9 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                     const newMetadata = { ...currentMetadata, ...updates };
                     this.metadataCache.set(fileId, newMetadata);
                     this.dirtyFiles.add(fileId); // Mark as dirty for the sync worker.
-
+                    
+                    
+                    
                     // 14e: update session cache for current folder (OneDrive)
                     try {
                         const cacheMap = state.sessionCache['onedrive'];
@@ -1386,7 +1387,7 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                                 entry.files = entry.files.map(f => f.id === fileId ? ({ ...f, ...updates }) : f);
                             }
                         }
-                    } catch(e) { /* ignore */ }
+                    } catch(e) {}
 // 14c/14d: trigger immediate background sync for OneDrive
                     if (state.providerType === 'onedrive' && state.syncManager) {
                         state.syncManager.triggerSync();
@@ -2198,9 +2199,8 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                 const cacheMap = state.sessionCache[providerType] || (state.sessionCache[providerType] = new Map());
                 const entry = cacheMap.get(folderId);
                 if (entry) {
-                    // Restore metadata cache and files immediately
                     if (state.provider && state.provider.metadataCache && entry.metadata) {
-                        try { state.provider.metadataCache = new Map(Object.entries(entry.metadata)); } catch(e) { /* ignore */ }
+                        try { state.provider.metadataCache = new Map(Object.entries(entry.metadata)); } catch(e) {}
                     }
                     try { state.imageFiles = entry.files.map(f => ({ ...f })); } catch(e) { state.imageFiles = entry.files; }
                     Core.initializeStacks();
@@ -2215,26 +2215,20 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                             const filesCopy = state.imageFiles.map(f => ({ ...f }));
                             cacheMap.set(state.currentFolder.id, { files: filesCopy, metadata: metaObj, timestamp: Date.now() });
                         }
-                    } catch(e) { /* ignore cache errors */ }
+                    } catch(e) {}
 this.switchToCommonUI();
-                    // Background refresh without UI flicker
                     state.silentRefresh = true;
                     this.loadImages().finally(() => { state.silentRefresh = false; });
                     return;
                 }
-
                 
                 await this.loadImages();
                 this.switchToCommonUI();
             },
             
             async loadImages() {
-                if (!state.silentRefresh) { Utils.showScreen('loading-screen'); }
-                if (!state.silentRefresh) { Utils.updateLoadingProgress(0, 0); }
-                
-                state.provider.onProgressCallback = (count) => {
-                    if (!state.silentRefresh) { Utils.updateLoadingProgress(count, 0, `Found ${count} images...`); }
-                };
+                if (!state.silentRefresh) { Utils.showScreen('loading-screen'); Utils.updateLoadingProgress(0, 0); }
+state.provider.onProgressCallback = (count) => { if (!state.silentRefresh) { Utils.updateLoadingProgress(count, 0, `Found ${count} images...`); } };
                 
                 try {
                     if (!state.silentRefresh) { Utils.elements.loadingMessage.textContent = `Loading from ${state.currentFolder.name}...`; }
@@ -2248,7 +2242,7 @@ this.switchToCommonUI();
                         return;
                     }
                     
-                    if (!state.silentRefresh) { Utils.updateLoadingProgress(0, files.length, 'Processing files...'); }
+                    Utils.updateLoadingProgress(0, files.length, 'Processing files...');
                     
                     state.imageFiles = files.map((file, index) => {
                         if (!state.silentRefresh) { Utils.updateLoadingProgress(index + 1, files.length, 'Processing files...'); }
@@ -3976,7 +3970,7 @@ this.switchToCommonUI();
             async handleFolderMoveSelection(folderId, folderName) {
                 const filesToMove = state.folderMoveMode.files;
                 Utils.showScreen('loading-screen');
-                if (!state.silentRefresh) { Utils.updateLoadingProgress(0, filesToMove.length); }
+                Utils.updateLoadingProgress(0, filesToMove.length);
 
                 try {
                     for(let i = 0; i < filesToMove.length; i++) {
@@ -3991,7 +3985,7 @@ this.switchToCommonUI();
                                 state.stacks[file.stack].splice(stackIndex, 1);
                             }
                         }
-                        if (!state.silentRefresh) { Utils.updateLoadingProgress(i + 1, filesToMove.length); }
+                        Utils.updateLoadingProgress(i + 1, filesToMove.length);
                     }
 
                     Utils.showToast(`Moved ${filesToMove.length} images to ${folderName}`, 'success', true);
@@ -4609,7 +4603,6 @@ this.switchToCommonUI();
                 
                 
                 
-                // 14e: Set version footer text across all screens
                 document.querySelectorAll('.app-footer').forEach(el => { el.textContent = RELEASE_LABEL; el.id = 'master-footer'; });
 // 14d: Set version footer text across all screens
                 document.querySelectorAll('.app-footer').forEach(el => { el.textContent = RELEASE_LABEL; el.id = 'master-footer'; });
