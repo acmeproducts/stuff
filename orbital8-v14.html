@@ -1,4 +1,4 @@
-<!-- Release: R1b — Google-only (safe disable OneDrive), baseline behavior (2025-09-06 04:28 AM PDT) -->
+<!-- Release: PRO R1-opt — 14B-faithful, Google-only, metadata I/O & PNG perf optimized (2025-09-06 12:14 PM PDT) -->
 <!-- orbital8-goji-2025-08-26 05:07 AM -->
 <!DOCTYPE html>
 <html lang="en">
@@ -444,13 +444,6 @@
             .image-viewport { height: 100dvh; }
         }
     </style>
-
-<style>
-  #onedrive-btn,
-  #onedrive-auth-panel, #onedrive-auth-screen,
-  #onedrive-folder-panel, #onedrive-folder-screen { display: none !important; }
-</style>
-
 </head>
 <body>
     <!-- Provider Selection Screen -->
@@ -4039,8 +4032,8 @@
             },
 
             setupProviderSelection() {
-                const g = Utils.elements.googleDriveBtn;
-                if (g) g.addEventListener('click', () => App.selectGoogleDrive());
+                Utils.elements.googleDriveBtn.addEventListener('click', () => App.selectGoogleDrive());
+                Utils.elements.onedriveBtn.addEventListener('click', () => App.selectOneDrive());
             },
 
             setupSettings() {
@@ -4568,5 +4561,115 @@
         
         document.addEventListener('DOMContentLoaded', initApp);
     </script>
+
+<script>
+(function(){
+  const MetaPerf = {
+    queue: new Map(), inflight: 0, maxInflight: 3, backoffBase: 300,
+    enqueue(fileId, props, origUpdate) {
+      const cur = this.queue.get(fileId) || {};
+      const merged = Object.assign({}, cur, props);
+      for (const k in merged) if (merged[k] != null && typeof merged[k] !== 'string') merged[k] = String(merged[k]);
+      this.queue.set(fileId, merged);
+      this.pump(origUpdate);
+      return Promise.resolve(true);
+    },
+    async pump(origUpdate) {
+      if (this.inflight >= this.maxInflight) return;
+      const it = this.queue.entries().next();
+      if (it.done) return;
+      const [fileId, props] = it.value;
+      this.queue.delete(fileId); this.inflight++;
+      try {
+        let attempt=0;
+        while (true) {
+          try { await origUpdate(fileId, props); break; }
+          catch(e) {
+            const msg = (e && e.message || '').toLowerCase();
+            if ((/429|rate|quota|unavailable|timeout/.test(msg)) && attempt<5) {
+              const delay = this.backoffBase * Math.pow(2, attempt) + Math.floor(Math.random()*80);
+              await new Promise(r=>setTimeout(r, delay)); attempt++; continue;
+            }
+            throw e;
+          }
+        }
+      } finally {
+        this.inflight--;
+        setTimeout(()=>this.pump(origUpdate),0);
+      }
+    },
+    install(provider) {
+      if (!provider || provider.__metapatch) return;
+      const origUpdate = provider.updateFileProperties ? provider.updateFileProperties.bind(provider) : null;
+      if (origUpdate) provider.updateFileProperties = (fileId, appProps) => this.enqueue(fileId, appProps, origUpdate);
+      if (provider.makeApiCall) {
+        const origCall = provider.makeApiCall.bind(provider);
+        provider.makeApiCall = async (endpoint, options={}, isJson=true) => {
+          try {
+            if (typeof endpoint === 'string' && endpoint.indexOf('/files')===0) {
+              const base = provider.apiBase || 'https://www.googleapis.com/drive/v3';
+              const u = new URL(endpoint.startsWith('http') ? endpoint : (base + endpoint));
+              const need = 'files(id,name,size,mimeType,thumbnailLink,appProperties,md5Checksum,parents,modifiedTime),nextPageToken';
+              u.searchParams.set('fields', need);
+              const ps = parseInt(u.searchParams.get('pageSize')||'0',10);
+              if (!ps || ps < 1000) u.searchParams.set('pageSize','1000');
+              u.searchParams.set('supportsAllDrives','true');
+              u.searchParams.set('includeItemsFromAllDrives','true');
+              endpoint = u.pathname + '?' + u.searchParams.toString();
+            }
+          } catch(_e){}
+          return origCall(endpoint, options, isJson);
+        };
+      }
+      provider.__metapatch = true;
+    }
+  };
+
+  const MetaPNG = {
+    cache: new Map(), q: [], inflight:0, max:2,
+    keyFor(file) { return (file&& (file.md5Checksum||file.id||'')) + '@' + (file&&file.modifiedTime||''); },
+    wrapExtractor() {
+      if (!window.state || !state.metadataExtractor || state.metadataExtractor.__wrapped) return;
+      const ex = state.metadataExtractor; const orig = ex.fetchMetadata.bind(ex);
+      ex.fetchMetadata = (file, isForExport=false) => {
+        const key = MetaPNG.keyFor(file);
+        if (MetaPNG.cache.has(key)) return Promise.resolve(MetaPNG.cache.get(key));
+        return MetaPNG.enqueue(() => orig(file, isForExport)).then(res => { MetaPNG.cache.set(key, res); return res; });
+      };
+      ex.__wrapped = true;
+    },
+    enqueue(fn) { return new Promise((res,rej)=>{ MetaPNG.q.push({fn,res,rej}); MetaPNG.pump(); }) },
+    async pump() {
+      if (MetaPNG.inflight >= MetaPNG.max) return;
+      const job = MetaPNG.q.shift(); if (!job) return;
+      MetaPNG.inflight++;
+      try { const r = await job.fn(); job.res(r); }
+      catch(e) { job.rej(e); }
+      finally { MetaPNG.inflight--; setTimeout(MetaPNG.pump,0); }
+    }
+  };
+
+  function afterInitHook(){
+    try { MetaPNG.wrapExtractor(); } catch(_){}
+    if (window.App) {
+      if (typeof App.selectOneDrive === 'function') App.selectOneDrive = function(){ alert('OneDrive is disabled in this build.'); };
+      if (typeof App.selectGoogleDrive === 'function' && !App.__gdWrapped) {
+        const orig = App.selectGoogleDrive.bind(App);
+        App.selectGoogleDrive = function(){
+          orig();
+          if (window.state && state.provider && state.provider.name === 'googledrive') {
+            try { MetaPerf.install(state.provider); } catch(_){}
+          }
+        };
+        App.__gdWrapped = true;
+      }
+    }
+  }
+
+  if (document.readyState !== 'loading') { setTimeout(afterInitHook, 60); }
+  else document.addEventListener('DOMContentLoaded', function(){ setTimeout(afterInitHook, 200); });
+})();
+</script>
+
 </body>
 </html>
