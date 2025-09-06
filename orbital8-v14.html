@@ -772,7 +772,7 @@
         // ===== ORBITAL8 Goji Version - App Root & Web Worker =====
         
         
-const RELEASE_LABEL = 'orbital8-14e-clean-v2-2025-09-06 12:39 AM PDT';
+const RELEASE_LABEL = 'orbital8-14e-clean-v3-2025-09-06 12:54 AM PDT';
 const STACKS = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
         
@@ -781,6 +781,7 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
             syncManager: null, // New: Manages background sync
             sessionCache: { onedrive: new Map(), googledrive: new Map() },
             silentRefresh: false,
+            loadEpoch: 0,
             visualCues: null, haptic: null, export: null, currentFolder: { id: null, name: '' },
             imageFiles: [], currentImageLoadId: null, currentStack: 'in', currentStackPosition: 0,
             isFocusMode: false, stacks: { in: [], out: [], priority: [], trash: [] },
@@ -2212,7 +2213,10 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
             },
             
             async loadImages() {
-                if (!state.silentRefresh) { Utils.showScreen('loading-screen'); }
+                // 14e-v3: navigation epoch gating
+                const __epoch = ++state.loadEpoch;
+                const __folderAtStart = state.currentFolder && state.currentFolder.id;
+if (!state.silentRefresh) { Utils.showScreen('loading-screen'); }
                 Utils.updateLoadingProgress(0, 0);
                 
                 state.provider.onProgressCallback = (count) => { if (!state.silentRefresh) { Utils.updateLoadingProgress(count, 0, `Found ${count} images...`); } };
@@ -2221,7 +2225,10 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                     if (!state.silentRefresh) { Utils.elements.loadingMessage.textContent = `Loading from ${state.currentFolder.name}...`; }
                     
                     const result = await state.provider.getFilesAndMetadata(state.currentFolder.id);
-                    const files = result.files || [];
+                    
+                    // 14e-v3: drop stale load if user navigated
+                    if (__epoch !== state.loadEpoch || state.currentFolder?.id !== __folderAtStart) { return; }
+const files = result.files || [];
                     
                     if (files.length === 0) {
                         Utils.showToast('No images found in this folder', 'info', true);
@@ -2242,8 +2249,12 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                         this.extractMetadataInBackground(state.imageFiles.filter(f => f.mimeType === 'image/png'));
                     }
                     
+                    if (__epoch !== state.loadEpoch || state.currentFolder?.id !== __folderAtStart) { return; }
                     Core.initializeStacks();
+                    if (__epoch !== state.loadEpoch || state.currentFolder?.id !== __folderAtStart) { return; }
                     Core.initializeImageDisplay();
+                    // 14e-v3: ensure this is still the active folder
+                    if (__epoch !== state.loadEpoch || state.currentFolder?.id !== __folderAtStart) { return; }
                     // 14e: Save to session cache for instant re-entry
                     try {
                         const key = state.providerType || (state.provider && state.provider.name);
