@@ -1,4 +1,3 @@
-<!-- Release: orbital8-14e-a2-2025-09-05 11:45 PM PDT -->
 <!-- Release: orbital8-14d-2025-09-05 11:12 PM PDT -->
 <!-- orbital8-goji-2025-08-26 05:07 AM -->
 <!DOCTYPE html>
@@ -773,9 +772,7 @@
         // ===== ORBITAL8 Goji Version - App Root & Web Worker =====
         
         
-
-const RELEASE_LABEL = 'orbital8-14e-a2-2025-09-05 11:45 PM PDT';
-const RELEASE_LABEL = 'orbital8-14d-2025-09-05 11:12 PM PDT';
+const RELEASE_LABEL = 'orbital8-14e-clean-v2-2025-09-06 12:39 AM PDT';
 const STACKS = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'In', 'out': 'Out', 'priority': 'Priority', 'trash': 'Trash' };
         
@@ -1346,19 +1343,15 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                     // Google Drive still writes directly. This could be refactored to a worker too,
                     // but for now, we follow the plan which focuses on OneDrive performance.
                     const file = state.imageFiles.find(f => f.id === fileId);
-                    if(file) Object.assign(file, updates);
-
+                    if (file) Object.assign(file, updates);
                     // 14e: update session cache for current folder (Google Drive)
                     try {
                         const cacheMap = state.sessionCache['googledrive'];
                         if (cacheMap && state.currentFolder && state.currentFolder.id) {
                             const entry = cacheMap.get(state.currentFolder.id);
-                            if (entry) {
-                                entry.files = entry.files.map(f => f.id === fileId ? ({ ...f, ...updates }) : f);
-                            }
+                            if (entry) { entry.files = entry.files.map(f => f.id === fileId ? ({ ...f, ...updates }) : f); }
                         }
-                    } catch(e) {}
-
+                    } catch (e) { /* ignore */ }
                     const properties = {};
                     if (updates.stack) properties.slideboxStack = updates.stack;
                     if (updates.tags) properties.slideboxTags = updates.tags.join(',');
@@ -1387,7 +1380,7 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
                                 entry.files = entry.files.map(f => f.id === fileId ? ({ ...f, ...updates }) : f);
                             }
                         }
-                    } catch(e) {}
+                    } catch (e) { /* ignore */ }
 // 14c/14d: trigger immediate background sync for OneDrive
                     if (state.providerType === 'onedrive' && state.syncManager) {
                         state.syncManager.triggerSync();
@@ -2191,44 +2184,38 @@ const STACKS = ['in', 'out', 'priority', 'trash'];
             },
 
             async initializeWithProvider(providerType, folderId, folderName, providerInstance) {
+                // 14e: Fast-path via session cache
+                try {
+                    const cacheMap = state.sessionCache[providerType] || (state.sessionCache[providerType] = new Map());
+                    const entry = cacheMap.get(folderId);
+                    if (entry) {
+                        if (state.provider && state.provider.metadataCache && entry.metadata) {
+                            state.provider.metadataCache = new Map(Object.entries(entry.metadata));
+                        }
+                        state.imageFiles = Array.isArray(entry.files) ? entry.files.map(f => ({ ...f })) : [];
+                        Core.initializeStacks();
+                        Core.initializeImageDisplay();
+                        App.switchToCommonUI();
+                        state.silentRefresh = true;
+                        App.loadImages().finally(() => { state.silentRefresh = false; });
+                        return;
+                    }
+                } catch (e) { /* ignore cache restore errors */ }
+
                 state.providerType = providerType;
                 state.provider = providerInstance;
                 state.currentFolder.id = folderId;
                 state.currentFolder.name = folderName;
-                // 14e: Fast-path via session cache
-                const cacheMap = state.sessionCache[providerType] || (state.sessionCache[providerType] = new Map());
-                const entry = cacheMap.get(folderId);
-                if (entry) {
-                    if (state.provider && state.provider.metadataCache && entry.metadata) {
-                        try { state.provider.metadataCache = new Map(Object.entries(entry.metadata)); } catch(e) {}
-                    }
-                    try { state.imageFiles = entry.files.map(f => ({ ...f })); } catch(e) { state.imageFiles = entry.files; }
-                    Core.initializeStacks();
-                    Core.initializeImageDisplay();
-                    
-                    // 14e: Save to session cache for instant re-entry
-                    try {
-                        const key = state.providerType || (state.provider && state.provider.name);
-                        if (key) {
-                            const cacheMap = state.sessionCache[key] || (state.sessionCache[key] = new Map());
-                            const metaObj = (state.provider && state.provider.metadataCache) ? Object.fromEntries(state.provider.metadataCache) : {};
-                            const filesCopy = state.imageFiles.map(f => ({ ...f }));
-                            cacheMap.set(state.currentFolder.id, { files: filesCopy, metadata: metaObj, timestamp: Date.now() });
-                        }
-                    } catch(e) {}
-this.switchToCommonUI();
-                    state.silentRefresh = true;
-                    this.loadImages().finally(() => { state.silentRefresh = false; });
-                    return;
-                }
                 
                 await this.loadImages();
                 this.switchToCommonUI();
             },
             
             async loadImages() {
-                if (!state.silentRefresh) { Utils.showScreen('loading-screen'); Utils.updateLoadingProgress(0, 0); }
-state.provider.onProgressCallback = (count) => { if (!state.silentRefresh) { Utils.updateLoadingProgress(count, 0, `Found ${count} images...`); } };
+                if (!state.silentRefresh) { Utils.showScreen('loading-screen'); }
+                Utils.updateLoadingProgress(0, 0);
+                
+                state.provider.onProgressCallback = (count) => { if (!state.silentRefresh) { Utils.updateLoadingProgress(count, 0, `Found ${count} images...`); } };
                 
                 try {
                     if (!state.silentRefresh) { Utils.elements.loadingMessage.textContent = `Loading from ${state.currentFolder.name}...`; }
@@ -2257,6 +2244,16 @@ state.provider.onProgressCallback = (count) => { if (!state.silentRefresh) { Uti
                     
                     Core.initializeStacks();
                     Core.initializeImageDisplay();
+                    // 14e: Save to session cache for instant re-entry
+                    try {
+                        const key = state.providerType || (state.provider && state.provider.name);
+                        if (key) {
+                            const cacheMap = state.sessionCache[key] || (state.sessionCache[key] = new Map());
+                            const metaObj = (state.provider && state.provider.metadataCache) ? Object.fromEntries(state.provider.metadataCache) : {};
+                            const filesCopy = Array.isArray(state.imageFiles) ? state.imageFiles.map(f => ({ ...f })) : [];
+                            cacheMap.set(state.currentFolder.id, { files: filesCopy, metadata: metaObj, timestamp: Date.now() });
+                        }
+                    } catch (e) { /* ignore cache save errors */ }
                     
                 } catch (error) {
                     Utils.showToast(`Error loading images: ${error.message}`, 'error', true);
@@ -4602,9 +4599,7 @@ state.provider.onProgressCallback = (count) => { if (!state.silentRefresh) { Uti
                 Utils.init();
                 
                 
-                
-                document.querySelectorAll('.app-footer').forEach(el => { el.textContent = RELEASE_LABEL; el.id = 'master-footer'; });
-// 14d: Set version footer text across all screens
+                // 14d: Set version footer text across all screens
                 document.querySelectorAll('.app-footer').forEach(el => { el.textContent = RELEASE_LABEL; el.id = 'master-footer'; });
 state.visualCues = new VisualCueManager();
                 state.haptic = new HapticFeedbackManager();
