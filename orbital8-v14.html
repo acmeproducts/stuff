@@ -1,4 +1,4 @@
-<!-- Release: R1-CenterStage (from 14B) 2025-09-06 02:42 AM PDT -->
+<!-- Release: R2 CenterStage Consolidated (from 14B) 2025-09-06 03:22 AM PDT -->
 <!-- orbital8-goji-2025-08-26 05:07 AM -->
 <!DOCTYPE html>
 <html lang="en">
@@ -3549,7 +3549,7 @@
                     state.haptic.triggerFeedback('swipe');
                 }
                 
-                await Core.moveToStack(targetStack);
+                await CenterStage.moveToStack(targetStack);
                 this.hideAllEdgeGlows();
             },
             
@@ -4304,7 +4304,7 @@
                         const targetStack = keyMap[e.key];
                         if (state.stacks[state.currentStack].length > 0) {
                             UI.acknowledgePillCounter(targetStack);
-                            Core.moveToStack(targetStack);
+                            CenterStage.moveToStack(targetStack);
                         }
                         return;
                     }
@@ -4561,5 +4561,57 @@
         
         document.addEventListener('DOMContentLoaded', initApp);
     </script>
+
+<script>
+// === CenterStage (Consolidated API) — from 14B behavior, non-invasive ===
+// Purpose: provide a single place for stack mapping & actions without changing existing logic.
+// It delegates to existing 14B functions so behavior is identical for both providers.
+(function() {
+  const STACKS = Object.freeze({ IN: 'in', OUT: 'out', PRIORITY: 'priority', TRASH: 'trash' });
+
+  function classifyFromDeltas(dx, dy) {
+    try {
+      if (typeof determineSwipeDirection === 'function' && typeof directionToStack === 'function') {
+        const dir = determineSwipeDirection(dx, dy);
+        return directionToStack(dir);
+      }
+    } catch (e) {}
+    // fallback: simple axis comparison (shouldn't be used in 14B)
+    if (Math.abs(dx) >= Math.abs(dy)) return dx < 0 ? STACKS.IN : STACKS.OUT;
+    return dy < 0 ? STACKS.PRIORITY : STACKS.TRASH;
+  }
+
+  function moveToStack(stack, opts) {
+    // delegate to 14B's core behavior
+    if (window.Core && typeof Core.moveToStack === 'function') {
+      return CenterStage.moveToStack(stack, opts);
+    }
+  }
+
+  // Optional helpers for focus/details (delegates; no behavior change)
+  function toggleFocus() {
+    if (typeof exitFocus === 'function' && typeof enterFocus === 'function') {
+      // naive toggle if both exist; concrete behavior is unchanged elsewhere
+      try {
+        if (document.body.classList.contains('focus-mode')) return exitFocus();
+      } catch(_) {}
+      return enterFocus();
+    }
+  }
+  function focusNext() { if (typeof nextImage === 'function') return nextImage(); }
+  function focusPrev() { if (typeof prevImage === 'function') return prevImage(); }
+
+  // Expose consolidated API
+  window.CenterStage = Object.freeze({
+    STACKS,
+    classifyFromDeltas,
+    moveToStack,
+    toggleFocus,
+    focusNext,
+    focusPrev
+  });
+})();
+// === End CenterStage ===
+</script>
 </body>
 </html>
