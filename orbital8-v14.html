@@ -1,4 +1,4 @@
-<!-- Release: orbital8-refactored-dual — modular single-file (GD+OD), 2025-09-06 07:16 PM PDT -->
+<!-- Release: orbital8-refactored-dual-a5 — correct per-provider wiring (2025-09-06 11:48 PM PDT) -->
 <!-- orbital8-goji-2025-08-26 05:07 AM -->
 <!DOCTYPE html>
 <html lang="en">
@@ -445,12 +445,6 @@
         }
     </style>
 <script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
-
-<style id="o8-refactor-css">
-  .hidden { display: none !important; }
-  .icon { width: 1em; height: 1em; vertical-align: -0.125em; }
-</style>
-
 </head>
 <body>
     <!-- Provider Selection Screen -->
@@ -779,16 +773,7 @@
 
 <script>
 (()=>{'use strict';
-// ===== 1) State & utils =====
-const state={provider:null,providerName:null,folderId:null,files:[],stacks:{in:[],out:[],priority:[],trash:[]},center:{stack:'in',index:0},search:''};
-const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
-const on=(n,e,f,o={passive:false})=>n&&n.addEventListener(e,f,o);
-const toast=(m,ms=1600)=>{const t=$('#toast'); if(!t) return; t.textContent=m; t.classList.remove('hidden'); setTimeout(()=>t.classList.add('hidden'),ms);};
-
-// ===== 2) Provider interface =====
-class ProviderInterface{constructor(name){this.name=name;} async authenticate(){throw 0;} async listFolders(parentId){throw 0;} async listFiles(folderId,pt=null){throw 0;} async updateFileProperties(id,props){throw 0;} async deleteFile(id){throw 0;} async moveFileToFolder(id,fid){throw 0;} getThumbnailUrl(f){return null;} getLargeImageUrl(f){return null;} async fetchBinary(f){throw 0;}}
-
-// ===== 2.1) Base & Providers from baseline =====
+// ===== 14B providers =====
 class BaseProvider {
             constructor() {
                 // Common properties for all providers can go here.
@@ -850,6 +835,7 @@ class BaseProvider {
                 }
             }
         }
+
 class GoogleDriveProvider extends BaseProvider {
             constructor() {
                 super();
@@ -1147,6 +1133,7 @@ class GoogleDriveProvider extends BaseProvider {
                 this.clearStoredCredentials();
             }
         }
+
 class OneDriveProvider extends BaseProvider {
             constructor() {
                 super();
@@ -1487,97 +1474,180 @@ class OneDriveProvider extends BaseProvider {
                 }
             }
         }
-
-// ===== 2.2) Google adapter (adds deterministic listing + local mirror) =====
-class GoogleDriveAdapter extends ProviderInterface{
-  constructor(){ super('googledrive'); this.impl=new GoogleDriveProvider();
-    if(typeof this.impl.makeApiCall==='function'){ const orig=this.impl.makeApiCall.bind(this.impl);
-      this.impl.makeApiCall=async(ep,opt={},isJson=true)=>{ try{ if(typeof ep==='string'&&ep.indexOf('/files')===0){
-        const base=this.impl.apiBase||'https://www.googleapis.com/drive/v3'; const u=new URL(ep.startsWith('http')?ep:(base+ep));
-        u.searchParams.set('fields',"files(id,name,size,mimeType,thumbnailLink,appProperties,md5Checksum,parents,modifiedTime),nextPageToken");
-        if(!u.searchParams.get('pageSize')) u.searchParams.set('pageSize','1000');
-        u.searchParams.set('supportsAllDrives','true'); u.searchParams.set('includeItemsFromAllDrives','true'); ep=u.pathname+'?'+u.searchParams.toString();
-      }}catch(_){}
-      const res=await orig(ep,opt,isJson);
-      try{ if(res&&Array.isArray(res.files)){ for(const f of res.files){ const ap=f.appProperties||{}; const s=ap.stack||localStorage.getItem('o8_stack_'+f.id)||'in'; f.stack=s; (f.appProperties||(f.appProperties={})).stack=s; } } }catch(_){}
-      return res; };
-    }
-    const upd=this.impl.updateFileProperties?.bind(this.impl); if(upd){ this.impl.updateFileProperties=async(id,props)=>{ try{ if(props?.stack) localStorage.setItem('o8_stack_'+id,String(props.stack)); }catch(_){ } return upd(id,props); };}
-  }
-  async authenticate(){ return this.impl.authenticate(); }
-  async listFolders(parentId){ return this.impl.makeApiCall('/files?q=mimeType%20=%20%27application%2Fvnd.google-apps.folder%27%20and%20%27root%27%20in%20parents&fields=files(id%2Cname)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true'); }
-  async listFiles(folderId,pt=null){ const ep="/files?q='"+folderId+"'%20in%20parents%20and%20(mimeType%20contains%20'image/')&fields=files(id%2Cname%2Csize%2CmimeType%2CthumbnailLink%2CappProperties%2Cmd5Checksum%2Cparents%2CmodifiedTime)%2CnextPageToken&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true"+(pt?("&pageToken="+pt):""); return this.impl.makeApiCall(ep); }
-  async updateFileProperties(id,props){ return this.impl.updateFileProperties(id,props); }
-  async deleteFile(id){ return this.impl.makeApiCall('/files/'+id+'?supportsAllDrives=true',{method:'PATCH',body:JSON.stringify({trashed:true})},true); }
-  async moveFileToFolder(id,targetFolderId){ const meta=await this.impl.makeApiCall('/files/'+id+'?fields=parents&supportsAllDrives=true'); const prev=(meta.parents||[]).join(','); const u='/files/'+id+'?addParents='+encodeURIComponent(targetFolderId)+(prev?('&removeParents='+encodeURIComponent(prev)):'')+'&supportsAllDrives=true&fields=id,parents'; return this.impl.makeApiCall(u,{method:'PATCH'},true); }
-  getThumbnailUrl(f){ return f.thumbnailLink||null; } getLargeImageUrl(f){ return f._blobUrl||f.thumbnailLink||null; } async fetchBinary(f){ return this.impl.fetchBinary(f); }
+// ===== Thin adapters =====
+class GoogleAdapter {
+  constructor() { this.impl = new GoogleDriveProvider(); }
+  async authenticate(secret) { return this.impl.authenticate(secret); }
+  async listRootFolders() { return this.impl.getFolders(); }
+  async listFiles(folderId) { const res = await this.impl.getFilesAndMetadata(folderId||'root'); return res.files||[]; }
+  async updateMeta(id, updates) { return this.impl.updateUserMetadata(id, updates); }
+}
+class OneDriveAdapter {
+  constructor() { this.impl = new OneDriveProvider(); }
+  async authenticate() { return this.impl.authenticate(); }
+  async getDownloadsFolder() { return this.impl.getDownloadsFolder(); }
+  async listChildrenOf(parentId) { return this.impl.loadFoldersInParent(parentId); }
+  async listFiles(folderId) { const res = await this.impl.getFilesAndMetadata(folderId||'root'); return res.files||[]; }
+  async updateMeta(id, updates) { return this.impl.updateUserMetadata(id, updates); }
 }
 
-// ===== 2.3) OneDrive adapter (uses baseline OneDriveProvider; requires MSAL/Graph scripts) =====
-class OneDriveAdapter extends ProviderInterface{
-  constructor(){ super('onedrive'); this.impl=new OneDriveProvider(); }
-  async authenticate(){ return this.impl.authenticate?.(); }
-  async listFolders(parentId){ return (await this.impl.listFolders?.(parentId)) || {}; }
-  async listFiles(folderId,pt=null){ return (await this.impl.listFiles?.(folderId,pt)) || {}; }
-  async updateFileProperties(id,props){ return this.impl.updateFileProperties?.(id,props); }
-  async deleteFile(id){ return this.impl.deleteFile?.(id); }                // DELETE -> recycle bin
-  async moveFileToFolder(id,targetFolderId){ return this.impl.moveFileToFolder?.(id,targetFolderId); }
-  getThumbnailUrl(f){ return (this.impl.getThumbnailUrl?.(f)) || f.thumbnail?.large || f.thumbnail || null; }
-  getLargeImageUrl(f){ return (this.impl.getLargeImageUrl?.(f)) || null; }
-  async fetchBinary(f){ return this.impl.fetchBinary?.(f); }
-}
+// ===== State & helpers =====
+const state={ provider:null, providerName:null, folderId:null, files:[], stacks:{in:[],out:[],priority:[],trash:[]}, center:{stack:'in',index:0}, search:'', crumbs:[] };
+const $=(s,r=document)=>r.querySelector(s);
+const on=(n,e,f,o={passive:false})=>n&&n.addEventListener(e,f,o);
+const toast=(m,ms=1600)=>{const t=$('#toast'); if(!t) return; t.textContent=m; t.classList.remove('hidden'); setTimeout(()=>t.classList.add('hidden'),ms);};
 
-// ===== 3) Services =====
-const MetadataService={ getStack:f=> (f.appProperties?.stack)||localStorage.getItem('o8_stack_'+f.id)||'in',
-  async setStack(f,stack){ f.stack=stack; if(state.provider) await state.provider.updateFileProperties(f.id,{stack}); try{ localStorage.setItem('o8_stack_'+f.id,String(stack)); }catch(_){ } }
-};
-const FileService={ buildStacks(files){ const st={in:[],out:[],priority:[],trash:[]}; for(const f of files){ const s=MetadataService.getStack(f); f.stack=s; (st[s]||st.in).push(f);} state.stacks=st; state.center={stack:'in',index:0}; },
-  currentList(){ const a=state.stacks?.[state.center.stack]||[]; const q=(state.search||'').toLowerCase(); return q? a.filter(f=>(f.name||'').toLowerCase().includes(q)||(f.tags||'').toLowerCase().includes(q)||(f.notes||'').toLowerCase().includes(q)) : a; },
-  async reclassify(target){ const list=this.currentList(); const idx=state.center.index||0; const f=list[idx]; if(!f||target===f.stack) return; const s=state.stacks; s[f.stack]=s[f.stack].filter(x=>x.id!==f.id); f.stack=target; (s[target]||s.in).unshift(f); UIService.render(); try{ await MetadataService.setStack(f,target);}catch(_){ toast('Save failed'); } }
-};
-
-const UIService={ showScreen(id){ ['provider-screen','gdrive-auth-screen','gdrive-folder-screen'].forEach(k=>$('#'+k)?.classList.add('hidden')); $('#app-container')?.classList.add('hidden'); $('#'+id)?.classList.remove('hidden'); },
-  showApp(){ $('#provider-screen')?.classList.add('hidden'); $('#gdrive-auth-screen')?.classList.add('hidden'); $('#gdrive-folder-screen')?.classList.add('hidden'); $('#app-container')?.classList.remove('hidden'); },
-  setPills(){ const s=state.stacks||{in:[],out:[],priority:[],trash:[]}; const set=(id,n)=>{ const el=$('#'+id); if(el) el.textContent=String(n); }; set('pill-in',s.in.length); set('pill-out',s.out.length); set('pill-priority',s.priority.length); set('pill-trash',s.trash.length); },
-  setActive(k){ ['in','out','priority','trash'].forEach(x=>$('#pill-'+x)?.classList.toggle('active',x===k)); },
-  setCenterImage(){ const list=FileService.currentList(); const idx=Math.max(0,Math.min(state.center.index||0,list.length-1)); const f=list[idx]; const img=$('#center-image'); const empty=$('#empty-state'); if(!img) return; if(!f){ img.removeAttribute('src'); empty?.classList.remove('hidden'); return;} empty?.classList.add('hidden'); const url=state.provider?.getThumbnailUrl(f)||f.thumbnailLink; if(url) img.src=url; else state.provider?.fetchBinary(f).then(r=>r.blob()).then(b=>{ f._blobUrl=URL.createObjectURL(b); if(FileService.currentList()[idx]?.id===f.id) img.src=f._blobUrl; }).catch(()=>{}); },
-  render(){ this.setPills(); this.setActive(state.center.stack); this.setCenterImage(); }
-};
-
-// ===== 4) Controllers =====
-const App={ async selectGoogleDrive(){ state.provider=new GoogleDriveAdapter(); state.providerName='googledrive'; UIService.showScreen('gdrive-auth-screen');
-    try{ await state.provider.authenticate(); toast('Google Drive connected'); return App.showFolders(); }catch(e){ toast('Authentication failed'); UIService.showScreen('provider-screen'); } },
-  async selectOneDrive(){ state.provider=new OneDriveAdapter(); state.providerName='onedrive'; UIService.showScreen('gdrive-auth-screen');
-    try{ await (state.provider.authenticate?.()); toast('OneDrive connected'); return App.showFolders(); }catch(e){ toast('Authentication failed'); UIService.showScreen('provider-screen'); } },
-  async showFolders(){ UIService.showScreen('gdrive-folder-screen'); const list=$('#gdrive-folder-list'); if(!list) return; list.innerHTML='<div class="loading">Loading folders…</div>';
-    const data=await state.provider.listFolders('root'); const folders=(data&&data.files)||(data&&data.value)||[];
-    list.innerHTML=folders.map(f=>'<div class="folder-row"><div class="folder-name">'+(f.name||f.displayName||'')+'</div><div class="folder-actions"><button class="folder-action-btn select-btn" data-folder-id="'+(f.id||'')+'">Select</button></div></div>').join('');
-    on(list,'click',async(e)=>{ const b=e.target.closest('.select-btn'); if(!b) return; await App.openFolder(b.getAttribute('data-folder-id')); });
-    on($('#gdrive-refresh-folders'),'click',()=>App.showFolders());
+// ===== File service =====
+const FileService={ 
+  hydrate(files){
+    for(const f of files){ if(!f.stack) f.stack='in'; }
+    state.files=files;
+    const s={in:[],out:[],priority:[],trash:[]};
+    for(const f of files){ (s[f.stack]||s.in).push(f); }
+    state.stacks=s; state.center={stack:'in',index:0};
   },
-  async openFolder(folderId){ state.folderId=folderId; UIService.showApp(); const files=[]; let token=null;
-    do{ const resp=await state.provider.listFiles(folderId,token); const L=(resp&&resp.files)||(resp&&resp.value)||[]; files.push(...L); token=resp?.nextPageToken||resp?.['@odata.nextLink']||null; }while(token);
-    state.files=files; FileService.buildStacks(files); UIService.render();
+  current(){
+    const a=state.stacks[state.center.stack]||[];
+    const q=(state.search||'').toLowerCase();
+    return q? a.filter(f=>(f.name||'').toLowerCase().includes(q)) : a;
+  },
+  async reclassify(target){
+    const list=this.current(); const i=Math.max(0,Math.min(state.center.index,list.length-1));
+    const f=list[i]; if(!f||f.stack===target) return;
+    state.stacks[f.stack]=state.stacks[f.stack].filter(x=>x.id!==f.id);
+    f.stack=target; (state.stacks[target]||state.stacks.in).unshift(f);
+    UI.render();
+    try{ await App.updateMetadata(f,{stack:target}); }catch(_){ toast('Save failed'); }
   }
 };
 
-// ===== 5) Gestures =====
-function bindGestures(){ let sx=0,sy=0,dx=0,dy=0,act=false; const vp=$('#image-viewport')||$('#center-image');
-  on(vp,'pointerdown',e=>{act=true; sx=e.clientX; sy=e.clientY; dx=dy=0;}); on(window,'pointermove',e=>{ if(!act) return; dx=e.clientX-sx; dy=e.clientY-sy; });
-  on(window,'pointerup',async e=>{ if(!act) return; act=false; if(Math.hypot(dx,dy)<24) return; const dir=Math.abs(dx)>Math.abs(dy)?(dx<0?'in':'out'):(dy<0?'priority':'trash'); await FileService.reclassify(dir); dx=dy=0; });
+// ===== UI helpers =====
+const UI={ 
+  show(ids){
+    const all=['provider-screen','gdrive-auth-screen','onedrive-auth-screen','gdrive-folder-screen','onedrive-folder-screen','app-container'];
+    for(const id of all){ const el=$('#'+id); if(el) el.classList.add('hidden'); }
+    if(Array.isArray(ids)){ ids.forEach(id=>$('#'+id)?.classList.remove('hidden')); }
+    else { $('#'+ids)?.classList.remove('hidden'); }
+  },
+  render(){
+    const s=state.stacks;
+    const set=(id,n)=>{ const el=$('#'+id); if(el) el.textContent=String(n); };
+    set('pill-in',s.in.length); set('pill-out',s.out.length); set('pill-priority',s.priority.length); set('pill-trash',s.trash.length);
+    ['in','out','priority','trash'].forEach(x=>$('#pill-'+x)?.classList.toggle('active',x===state.center.stack));
+    const list=FileService.current(); const idx=Math.max(0,Math.min(state.center.index,list.length-1));
+    const f=list[idx]; const img=$('#center-image'); const empty=$('#empty-state'); if(!img) return;
+    if(!f){ img.removeAttribute('src'); empty?.classList.remove('hidden'); return; }
+    empty?.classList.add('hidden');
+    const url = f.thumbnailLink || f.thumbnail || f.preview || (f.thumbnails && f.thumbnails[0] && f.thumbnails[0].medium && f.thumbnails[0].medium.url);
+    if(url) img.src=url;
+  }
+};
+
+// ===== Folder UIs =====
+const GDFolders={ 
+  async root(){
+    const list=$('#gdrive-folder-list'); if(!list) return;
+    list.innerHTML='<div class="loading">Loading folders…</div>';
+    try{
+      const folders=await state.provider.listRootFolders();
+      list.innerHTML=(folders||[]).map(f => 
+        "<div class='folder-row'><div class='folder-name'>"+(f.name||'')+"</div><div class='folder-actions'><button class='folder-action-btn select-btn' data-id='"+f.id+"'>Select</button></div></div>"
+      ).join('');
+      list.onclick=async(e)=>{
+        const sel=e.target.closest('.select-btn'); if(!sel) return;
+        await App.openFolder(sel.getAttribute('data-id'));
+      };
+    }catch(err){ list.innerHTML='<div class="error">Failed to list folders</div>'; }
+  }
+};
+
+const ODFolders={
+  async root(){
+    const list=$('#onedrive-folder-list'); if(!list) return; state.crumbs=[];
+    list.innerHTML='<div class="loading">Loading folders…</div>';
+    try{
+      const root=await state.provider.getDownloadsFolder();
+      state.crumbs=[{id:root.id, name:root.name}];
+      const kids=await state.provider.listChildrenOf(root.id);
+      list.innerHTML=this.crumbsHtml()+this.rowsHtml(kids);
+      this.bind(list);
+    }catch(_){ list.innerHTML='<div class="error">Failed to list OneDrive folders</div>'; }
+  },
+  crumbsHtml(){
+    let html='<div class="crumbs"><button data-step="-1">OneDrive</button>';
+    for(let i=0;i<state.crumbs.length;i++) html += ' / <button data-step="'+i+'">'+(state.crumbs[i].name||'')+'</button>';
+    return html + '</div>';
+  },
+  rowsHtml(items){
+    return (items||[]).map(f =>
+      "<div class='folder-row'><div class='folder-name'>"+(f.name||'')+"</div><div class='folder-actions'>"+
+      "<button class='folder-action-btn enter-btn' data-id='"+f.id+"' data-name='"+(f.name||'')+"'>Enter</button>"+
+      "<button class='folder-action-btn select-btn' data-id='"+f.id+"'>Select</button></div></div>"
+    ).join('');
+  },
+  bind(container){
+    const crumbs=container.querySelector('.crumbs');
+    if(crumbs){
+      crumbs.addEventListener('click', async (e)=>{
+        const b=e.target.closest('button'); if(!b) return;
+        const step=parseInt(b.getAttribute('data-step'),10);
+        if(step===-1){ return ODFolders.root(); }
+        state.crumbs=state.crumbs.slice(0, step+1);
+        const parent=state.crumbs[state.crumbs.length-1];
+        const kids=await state.provider.listChildrenOf(parent.id);
+        container.innerHTML=ODFolders.crumbsHtml()+ODFolders.rowsHtml(kids);
+        ODFolders.bind(container);
+      });
+    }
+    container.addEventListener('click', async (e)=>{
+      const enter=e.target.closest('.enter-btn'); const sel=e.target.closest('.select-btn');
+      if(enter){
+        const id=enter.getAttribute('data-id'); const nm=enter.getAttribute('data-name');
+        state.crumbs.push({id, name:nm});
+        const kids=await state.provider.listChildrenOf(id);
+        container.innerHTML=ODFolders.crumbsHtml()+ODFolders.rowsHtml(kids);
+        ODFolders.bind(container);
+      } else if(sel){
+        await App.openFolder(sel.getAttribute('data-id'));
+      }
+    });
+  }
+};
+
+// ===== Controller =====
+const App={ 
+  async selectGoogle(){ state.providerName='googledrive'; state.provider=new GoogleAdapter(); UI.show('gdrive-auth-screen'); },
+  async selectOneDrive(){ state.providerName='onedrive'; state.provider=new OneDriveAdapter(); UI.show('onedrive-auth-screen'); },
+  async connectGoogle(){ const secret=$('#gdrive-client-secret')?.value||''; await state.provider.authenticate(secret); toast('Google Drive connected'); UI.show('gdrive-folder-screen'); await GDFolders.root(); },
+  async connectOneDrive(){ await state.provider.authenticate(); toast('OneDrive connected'); UI.show('onedrive-folder-screen'); await ODFolders.root(); },
+  async openFolder(folderId){ UI.show('app-container'); state.folderId=folderId; const files=await state.provider.listFiles(folderId); FileService.hydrate(files); UI.render(); },
+  async updateMetadata(file, updates){ return state.provider.updateMeta(file.id, updates); }
+};
+
+// ===== Gestures =====
+function bindGestures(){
+  let sx=0,sy=0,dx=0,dy=0,down=false; const vp=$('#image-viewport')||$('#center-image');
+  on(vp,'pointerdown',e=>{down=true; sx=e.clientX; sy=e.clientY; dx=dy=0;});
+  on(window,'pointermove',e=>{ if(!down) return; dx=e.clientX-sx; dy=e.clientY-sy; });
+  on(window,'pointerup',async e=>{ if(!down) return; down=false; if(Math.hypot(dx,dy)<24) return; const dir=Math.abs(dx)>Math.abs(dy)?(dx<0?'in':'out'):(dy<0?'priority':'trash'); await FileService.reclassify(dir); dx=dy=0; });
 }
 
-// ===== 6) Init =====
-document.addEventListener('DOMContentLoaded',()=>{
-  on($('#google-drive-btn'),'click',()=>App.selectGoogleDrive());
+// ===== Wiring =====
+document.addEventListener('DOMContentLoaded', ()=>{ 
+  on($('#google-drive-btn'),'click',()=>App.selectGoogle());
   on($('#onedrive-btn'),'click',()=>App.selectOneDrive());
-  on($('#omni-search'),'input',e=>{ state.search=e.target.value; UIService.render(); });
-  ['in','out','priority','trash'].forEach(k=> on($('#pill-'+k),'click',()=>{ state.center={stack:k,index:0}; UIService.render(); }));
-  bindGestures();
-  // start at provider screen
-  $('#provider-screen')?.classList.remove('hidden'); $('#gdrive-auth-screen')?.classList.add('hidden'); $('#gdrive-folder-screen')?.classList.add('hidden'); $('#app-container')?.classList.add('hidden');
+  on($('#gdrive-auth-button'),'click',()=>App.connectGoogle());
+  on($('#onedrive-auth-button'),'click',()=>App.connectOneDrive());
+  on($('#gdrive-back-button'),'click',()=>UI.show('provider-screen'));
+  on($('#onedrive-back-button'),'click',()=>UI.show('provider-screen'));
+  on($('#gdrive-refresh-folders'),'click',()=>GDFolders.root());
+  on($('#onedrive-refresh-folders'),'click',()=>ODFolders.root());
+  on($('#omni-search'),'input',e=>{ state.search=e.target.value; UI.render(); });
+  ['in','out','priority','trash'].forEach(k=> on($('#pill-'+k),'click',()=>{ state.center={stack:k,index:0}; UI.render(); }));
+  UI.show('provider-screen'); bindGestures();
 });
-})();</script>
+})();
+</script>
 
 </body>
 </html>
