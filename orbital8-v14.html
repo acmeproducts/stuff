@@ -1,4 +1,4 @@
-<!-- Orbital8-M-2025-09-16 03:42 PM -->
+<!-- Orbital8-N-2025-09-16 03:59 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -484,36 +484,6 @@
         .app-container.focus-mode #normal-image-count,
         .app-container.focus-mode #center-trash-btn { display: none; }
 
-        .app-container.focus-mode .focus-mode-ui { display: flex; }
-        
-        .hidden { display: none !important; }
-        
-        @supports (height: 100dvh) {
-            .app-container, .image-viewport { height: 100dvh; }
-        }
-
-        /* NEW: Tap Zones for Navigation */
-        .quick-move-zone, .focus-tap-zone {
-            position: absolute;
-            z-index: 3; /* Above image viewport, below UI buttons */
-             /* For debugging: background: rgba(255, 0, 0, 0.1); */
-        }
-        #quick-move-top { top: 0; left: 0; right: 0; height: 45%; }
-        #quick-move-bottom { bottom: 0; left: 0; right: 0; height: 45%; }
-        #quick-move-left { left: 0; top: 0; bottom: 0; width: 45%; }
-        #quick-move-right { right: 0; top: 0; bottom: 0; width: 45%; }
-
-        .app-container.focus-mode .quick-move-zone {
-            pointer-events: none;
-        }
-        .focus-tap-zone {
-             top: 0; bottom: 0;
-             display: none; /* Hidden by default */
-        }
-        #focus-tap-left { left: 0; width: 40%; }
-        #focus-tap-center { left: 40%; width: 20%; }
-        #focus-tap-right { right: 0; width: 40%; }
-        
         .app-container.focus-mode .focus-tap-zone {
             display: block;
         }
@@ -552,7 +522,7 @@
             </div>
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">Orbital8-M-2025-09-16 03:42 PM</div>
+        <div class="app-footer">Orbital8-N-2025-09-16 03:59 PM</div>
     </div>
     
     <!-- Google Drive Auth Screen -->
@@ -565,7 +535,7 @@
             <button class="button" id="gdrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="gdrive-auth-status" class="status info">Enter your client secret to continue</div>
         </div>
-        <div class="app-footer">Orbital8-M-2025-09-16 03:42 PM</div>
+        <div class="app-footer">Orbital8-N-2025-09-16 03:59 PM</div>
     </div>
     
     <!-- OneDrive Auth Screen -->
@@ -577,7 +547,7 @@
             <button class="button" id="onedrive-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="onedrive-auth-status" class="status info">Click to sign in with your Microsoft account</div>
         </div>
-        <div class="app-footer">Orbital8-M-2025-09-16 03:42 PM</div>
+        <div class="app-footer">Orbital8-N-2025-09-16 03:59 PM</div>
     </div>
     
     <!-- Google Drive Folder Screen -->
@@ -592,7 +562,7 @@
                 <button class="folder-button danger" id="gdrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">Orbital8-M-2025-09-16 03:42 PM</div>
+        <div class="app-footer">Orbital8-N-2025-09-16 03:59 PM</div>
     </div>
     
     <!-- OneDrive Folder Screen -->
@@ -607,7 +577,7 @@
                 <button class="folder-button danger" id="onedrive-logout">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">Orbital8-M-2025-09-16 03:42 PM</div>
+        <div class="app-footer">Orbital8-N-2025-09-16 03:59 PM</div>
     </div>
     
     <!-- Loading Screen -->
@@ -621,7 +591,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">Orbital8-M-2025-09-16 03:42 PM</div>
+        <div class="app-footer">Orbital8-N-2025-09-16 03:59 PM</div>
     </div>
     
     <!-- Main App Container -->
@@ -684,7 +654,7 @@
         </button>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">Orbital8-M-2025-09-16 03:42 PM</div>
+        <div class="app-footer">Orbital8-N-2025-09-16 03:59 PM</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -1169,12 +1139,16 @@
             }
         }
         class SyncManager {
-            constructor() { this.debounceTimer = null; }
+            constructor() { this.debounceTimer = null; this.pollTimer = null; }
             start() {
+                // Start a periodic poll for changes from other devices.
+                this.startPolling();
+                // Initial sync check on app load.
                 this.requestSync();
             }
             stop() {
                 clearTimeout(this.debounceTimer);
+                clearInterval(this.pollTimer);
             }
             requestSync() {
                 clearTimeout(this.debounceTimer);
@@ -1182,26 +1156,35 @@
                     this.pushChanges();
                 }, 5000); // 5-second debounce timer
             }
-            async checkForUpdates() {
-                 try {
-                     const folderMetadata = await state.provider.getFilesAndMetadata(state.currentFolder.id);
-                     const cloudFiles = folderMetadata.files;
-                     const localCache = await state.dbManager.getFolderCache(state.currentFolder.id);
-                     if (!localCache || !localCache.timestamp) {
-                         // No local cache, force a full pull
-                         this.pullChanges();
-                         return;
-                     }
-                     const localTimestamp = localCache.timestamp;
-                     // In a real implementation, you would compare a folder-level timestamp
-                     // For now, we do a quick check on the most recently modified file
-                     const mostRecentCloudFile = cloudFiles.sort((a, b) => new Date(b.modifiedTime) - new Date(a.modifiedTime))[0];
-                     if (mostRecentCloudFile && new Date(mostRecentCloudFile.modifiedTime) > new Date(localTimestamp)) {
-                         this.pullChanges();
-                     }
-                 } catch (error) {
-                     console.warn('Check for updates failed:', error);
-                 }
+            async startPolling() {
+                if (this.pollTimer) {
+                    clearInterval(this.pollTimer);
+                }
+                this.pollTimer = setInterval(() => {
+                    this.pollForChanges();
+                }, 5000); // Poll every 5 seconds.
+            }
+            async stopPolling() {
+                clearInterval(this.pollTimer);
+                this.pollTimer = null;
+            }
+            async pollForChanges() {
+                try {
+                    const folderMetadata = await state.provider.getFilesAndMetadata(state.currentFolder.id);
+                    const cloudFiles = folderMetadata.files;
+                    const localCache = await state.dbManager.getFolderCache(state.currentFolder.id);
+                    if (!localCache || !localCache.timestamp) {
+                        this.pullChanges();
+                        return;
+                    }
+                    const localTimestamp = localCache.timestamp;
+                    const mostRecentCloudFile = cloudFiles.sort((a, b) => new Date(b.modifiedTime) - new Date(a.modifiedTime))[0];
+                    if (mostRecentCloudFile && new Date(mostRecentCloudFile.modifiedTime) > new Date(localTimestamp)) {
+                        this.pullChanges();
+                    }
+                } catch (error) {
+                    console.warn('Background polling failed:', error);
+                }
             }
             async pushChanges() {
                 const fileIds = await state.dbManager.getSyncQueue();
