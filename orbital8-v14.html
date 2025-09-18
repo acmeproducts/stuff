@@ -1,4 +1,4 @@
-<!-- Orbital8-O-2025-09-18 06:10 AM -->
+<!-- Orbital8-P-2025-09-18 06:48 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -766,12 +766,9 @@
     thread free and responsive.
     -->
     <script id="sync-worker" type="javascript/worker">
-        // This script is intentionally left blank for this version.
-        // The logic will be added in subsequent steps.
-        // A placeholder is needed for the Blob creation to work.
-        self.onmessage = (event) => {
-             // console.log("Worker received:", event.data);
-        }
+         self.onmessage = (event) => {
+             console.log("Worker received command:", event.data.type);
+         };
     </script>
 
     <!-- 
@@ -789,7 +786,7 @@
         let syncWorker = null;
 
         const state = {
-            provider: null, providerType: null, dbManager: null, metadataExtractor: null,
+            provider: null, providerType: null, dbManager: null,
             visualCues: null, haptic: null, export: null, currentFolder: { id: null, name: '' },
             imageFiles: [], currentImageLoadId: null, currentStack: 'in', currentStackPosition: 0,
             isFocusMode: false, stacks: { in: [], out: [], priority: [], trash: [] },
@@ -799,6 +796,7 @@
                 lazyLoadState: { allFiles: [], renderedCount: 0, observer: null, batchSize: 20 } },
             tags: new Set(),
         };
+
         const Utils = {
             elements: {},
             
@@ -901,7 +899,7 @@
                     metadataTable: document.getElementById('metadata-table'),
                     masterFooter: document.getElementById('master-footer')
                 };
-                const versionText = "Orbital8-N-2025-09-18 04:10 AM (Fixed)";
+                const versionText = "Orbital8-O-2025-09-18 06:10 AM";
                 this.elements.masterFooter.textContent = versionText;
             },
             showScreen(screenId) {
@@ -1171,18 +1169,8 @@
             }
         }
 
-        class MetadataExtractor {
-             constructor() { this.abortController = null; }
-            abort() {
-                if (this.abortController) {
-                    this.abortController.abort();
-                    this.abortController = null;
-                }
-            }
-        }
-
         class ExportSystem {
-            async exportData(imagesWithMetadata) {
+             async exportData(imagesWithMetadata) {
                 if (imagesWithMetadata.length === 0) {
                     Utils.showToast('No images to export', 'info', true);
                     return;
@@ -1218,7 +1206,8 @@
                 state.dbManager = new DBManager();
                 await state.dbManager.init();
 
-                const workerBlob = new Blob([document.getElementById('sync-worker').textContent], { type: 'application/javascript' });
+                const workerScript = document.getElementById('sync-worker').textContent;
+                const workerBlob = new Blob([workerScript], { type: 'application/javascript' });
                 syncWorker = new Worker(URL.createObjectURL(workerBlob));
                 
                 syncWorker.onmessage = (event) => {
@@ -1229,13 +1218,14 @@
                         Utils.elements.backButtonSpinner.style.display = (data.status !== 'idle') ? 'block' : 'none';
                     } else if (type === 'syncError') {
                         Utils.showToast(`Sync Error: ${data.message}`, 'error', true);
+                    } else if (type === 'folderList') {
+                        Folders.displayGoogleDriveFolders(data);
                     }
                 };
 
                 state.visualCues = new VisualCueManager();
                 state.haptic = new HapticFeedbackManager();
                 state.export = new ExportSystem();
-                state.metadataExtractor = new MetadataExtractor();
                 
                 Events.init();
                 Gestures.init();
@@ -1249,7 +1239,7 @@
                 if (provider.isAuthenticated) {
                     state.provider = provider;
                     Utils.showScreen('gdrive-folder-screen');
-                    Folders.loadGoogleDriveFolders();
+                    Folders.requestGoogleDriveFolders();
                 }
             },
             async selectOneDrive() {
@@ -1257,7 +1247,7 @@
             },
             async initializeWithProvider(providerType, folderId, folderName, providerInstance) {
                 state.providerType = providerType;
-                state.provider = providerInstance; // Provider for auth/folders
+                state.provider = providerInstance;
                 state.currentFolder.id = folderId;
                 state.currentFolder.name = folderName;
                 
@@ -1308,6 +1298,7 @@
                 this.resetViewState();
                 if (state.providerType === 'googledrive') {
                     Utils.showScreen('gdrive-folder-screen');
+                    Folders.requestGoogleDriveFolders();
                 } else if (state.providerType === 'onedrive') {
                     Utils.showScreen('onedrive-folder-screen');
                 }
@@ -1462,7 +1453,6 @@
                 const currentImage = currentStackArray[state.currentStackPosition];
                 if (!currentImage) return;
 
-                const originalStackName = state.currentStack;
                 const newSequence = Date.now();
                 await App.updateUserMetadata(currentImage.id, { stack: targetStack, stackSequence: newSequence });
                 
@@ -1643,16 +1633,42 @@
                 state.currentStackPosition = (state.currentStackPosition - 1 + stack.length) % stack.length;
                 await Core.displayCurrentImage();
             },
-            async deleteCurrentImage() {
-                 Utils.showToast("Delete not implemented in this version", "info");
-            }
         };
 
         const Grid = {};
         const Details = {};
         const Modal = {};
-        const Folders = {};
         const UI = {};
+        
+        const Folders = {
+            requestGoogleDriveFolders() {
+                Utils.elements.gdriveFolderList.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);"><div class="spinner"></div><span>Loading folders...</span></div>`;
+                syncWorker.postMessage({
+                    type: 'getFolders',
+                    data: {
+                        providerType: 'googledrive',
+                        credentials: {
+                            accessToken: state.provider.accessToken,
+                            refreshToken: state.provider.refreshToken,
+                            clientSecret: state.provider.clientSecret,
+                        }
+                    }
+                });
+            },
+            displayGoogleDriveFolders(folders) {
+                 if (folders.length === 0) { Utils.elements.gdriveFolderList.innerHTML = `<div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);"><span>No folders found</span></div>`; return; }
+                 Utils.elements.gdriveFolderList.innerHTML = '';
+                 folders.forEach(folder => {
+                        const div = document.createElement('div'); div.className = 'folder-item';
+                        div.innerHTML = `<svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg><div class="folder-info"><div class="folder-name">${folder.name}</div><div class="folder-date">${new Date(folder.modifiedTime).toLocaleDateString()}</div></div>`;
+                        div.addEventListener('click', () => {
+                             App.initializeWithProvider('googledrive', folder.id, folder.name, state.provider);
+                        });
+                        Utils.elements.gdriveFolderList.appendChild(div);
+                 });
+            }
+        };
+
         const Events = {
              init() {
                 this.setupProviderSelection();
@@ -1682,7 +1698,7 @@
                         if (success) {
                             state.provider = provider;
                             Utils.showScreen('gdrive-folder-screen');
-                            Folders.loadGoogleDriveFolders();
+                            Folders.requestGoogleDriveFolders();
                         }
                     } catch(error) {
                          Utils.elements.gdriveAuthStatus.textContent = `Auth failed: ${error.message}`;
@@ -1694,6 +1710,7 @@
                  Utils.elements.gdriveBackButton.addEventListener('click', () => App.backToProviderSelection());
             },
             setupFolderManagement() {
+                 Utils.elements.gdriveRefreshFolders.addEventListener('click', () => Folders.requestGoogleDriveFolders());
                  Utils.elements.gdriveBackToProvider.addEventListener('click', () => App.backToProviderSelection());
                  Utils.elements.gdriveLogout.addEventListener('click', () => { if(state.provider) state.provider.disconnect(); App.backToProviderSelection(); });
             },
