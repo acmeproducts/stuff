@@ -1,13 +1,4 @@
-<!--
-Release M — Stable Build (Non-invasive integration)
-Build UTC: 2025-09-19 08:38:49Z
-Measures:
-1) 3-tier core via non-invasive worker+queue; 2) Event-driven (boot/online/visibility/queue:changed, debounced);
-3) Idempotent queue with changes_made; 4) Cache-first + cloud→cache merge (calls App.refreshFolderInBackground());
-5) Permanent GDrive thumbnails (ID-based override); 6) Favorite toggle enqueue;
-7) UI untouched; 8) Footer timestamp; 9) No changes to init/provider/auth/folder selection.
--->
-<!-- Orbital8-J-2025-09-16 03:29 AM -->
+<!-- Orbital8-N-2025-09-18 04:40 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -497,17 +488,26 @@ Measures:
             border: none;
             cursor: pointer;
             z-index: 20;
-            padding: 0;
+            padding: 28px;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            min-width: 84px;
+            min-height: 84px;
+            touch-action: manipulation;
             color: #9ca3af; /* Standalone grey outline */
         }
+        #focus-favorite-btn svg { pointer-events: none; }
         #focus-favorite-btn.favorited {
             color: #ef4444; /* Solid red */
         }
-        
+
+        #focus-filename-display,
+        #focus-image-count { display: none !important; }
+
         /* Focus Mode state toggling */
         .app-container.focus-mode .pill-counter,
         .app-container.focus-mode #back-button,
-        .app-container.focus-mode #normal-image-count,
         .app-container.focus-mode #center-trash-btn { display: none; }
 
         .app-container.focus-mode .focus-mode-ui { display: flex; }
@@ -518,30 +518,107 @@ Measures:
             .app-container, .image-viewport { height: 100dvh; }
         }
 
-        /* NEW: Tap Zones for Navigation */
-        .quick-move-zone, .focus-tap-zone {
+        /* Gesture overlay inspired by ui.html */
+        .gesture-layer {
             position: absolute;
-            z-index: 3; /* Above image viewport, below UI buttons */
-             /* For debugging: background: rgba(255, 0, 0, 0.1); */
-        }
-        #quick-move-top { top: 0; left: 0; right: 0; height: 45%; }
-        #quick-move-bottom { bottom: 0; left: 0; right: 0; height: 45%; }
-        #quick-move-left { left: 0; top: 0; bottom: 0; width: 45%; }
-        #quick-move-right { right: 0; top: 0; bottom: 0; width: 45%; }
-
-        .app-container.focus-mode .quick-move-zone {
+            inset: 0;
+            z-index: 3;
             pointer-events: none;
         }
-        .focus-tap-zone {
-             top: 0; bottom: 0;
-             display: none; /* Hidden by default */
+        .gesture-layer .stage {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: none;
+            overflow: hidden;
         }
-        #focus-tap-left { left: 0; width: 40%; }
-        #focus-tap-center { left: 40%; width: 20%; }
-        #focus-tap-right { right: 0; width: 40%; }
-        
-        .app-container.focus-mode .focus-tap-zone {
-            display: block;
+        .gesture-layer .tri,
+        .gesture-layer .half {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .gesture-layer .tri.up { clip-path: polygon(0% 0%, 100% 0%, 50% 50%); background: transparent; }
+        .gesture-layer .tri.right { clip-path: polygon(100% 0%, 100% 100%, 50% 50%); background: transparent; }
+        .gesture-layer .tri.down { clip-path: polygon(0% 100%, 100% 100%, 50% 50%); background: transparent; }
+        .gesture-layer .tri.left { clip-path: polygon(0% 0%, 0% 100%, 50% 50%); background: transparent; }
+        .gesture-layer .half.left {
+            position: absolute;
+            top: 12px;
+            bottom: 12px;
+            left: 12px;
+            right: calc(50% + 6px);
+            border-radius: 16px;
+            background: transparent;
+        }
+        .gesture-layer .half.right {
+            position: absolute;
+            top: 12px;
+            bottom: 12px;
+            left: calc(50% + 6px);
+            right: 12px;
+            border-radius: 16px;
+            background: transparent;
+        }
+        .gesture-layer .hub {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: min(18vw, 18vh);
+            height: min(18vw, 18vh);
+            border-radius: 50%;
+            border: 1px solid transparent;
+            background: transparent;
+            pointer-events: none;
+            z-index: 40;
+        }
+        .gesture-layer .glow {
+            opacity: 0 !important;
+            box-shadow: none;
+        }
+        .gesture-layer .deglow { opacity: 0; }
+        .gesture-layer[hidden] { display: none; }
+
+        .gesture-layer .comet-trail {
+            position: absolute;
+            width: 26px;
+            height: 26px;
+            margin: -13px 0 0 -13px;
+            border-radius: 999px;
+            pointer-events: none;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.28) 45%, rgba(255, 255, 255, 0) 75%);
+            opacity: 0.95;
+            transform: scale(0.85);
+            animation: cometFade 1.05s ease-out forwards;
+            mix-blend-mode: screen;
+            filter: blur(0.4px);
+            z-index: 30;
+        }
+        @keyframes cometFade {
+            0% { opacity: 0.95; transform: scale(0.85); }
+            100% { opacity: 0; transform: scale(2.6); }
+        }
+        .gesture-layer .tap-ripple {
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            margin: -11px 0 0 -11px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            pointer-events: none;
+            opacity: 0.9;
+            animation: rippleExpand 0.55s ease-out forwards;
+            mix-blend-mode: screen;
+            z-index: 30;
+        }
+        @keyframes rippleExpand {
+            0% { transform: scale(0.6); opacity: 0.9; }
+            100% { transform: scale(2.4); opacity: 0; }
         }
 
     </style>
@@ -578,7 +655,7 @@ Measures:
             </div>
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">Orbital8-J-2025-09-16 03:29 AM</div>
+        <div class="app-footer">Unified - 3 Tier Performant - Last Device Wins!</div>
     </div>
     
     <!-- Unified Auth Screen -->
@@ -593,7 +670,7 @@ Measures:
             <button class="button" id="auth-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="auth-status" class="status info"></div>
         </div>
-        <div class="app-footer">Orbital8-J-2025-09-16 03:29 AM</div>
+        <div class="app-footer">Unified - 3 Tier Performant - Last Device Wins!</div>
     </div>
     
     <!-- Unified Folder Screen -->
@@ -608,7 +685,7 @@ Measures:
                 <button class="folder-button danger" id="folder-logout-button">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">Orbital8-J-2025-09-16 03:29 AM</div>
+        <div class="app-footer">Unified - 3 Tier Performant - Last Device Wins!</div>
     </div>
     
     <!-- Loading Screen -->
@@ -622,7 +699,7 @@ Measures:
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">Orbital8-J-2025-09-16 03:29 AM</div>
+        <div class="app-footer">Unified - 3 Tier Performant - Last Device Wins!</div>
     </div>
     
     <!-- Main App Container -->
@@ -636,16 +713,23 @@ Measures:
         <div class="image-viewport" id="image-viewport">
             <img class="center-image zoomable" id="center-image" alt="Select a folder to start" />
         </div>
-         <!-- Quick Move Tap Zones -->
-        <div id="quick-move-top" class="quick-move-zone"></div>
-        <div id="quick-move-bottom" class="quick-move-zone"></div>
-        <div id="quick-move-left" class="quick-move-zone"></div>
-        <div id="quick-move-right" class="quick-move-zone"></div>
-
-        <!-- Focus Mode Tap Zones -->
-        <div id="focus-tap-left" class="focus-tap-zone"></div>
-        <div id="focus-tap-center" class="focus-tap-zone"></div>
-        <div id="focus-tap-right" class="focus-tap-zone"></div>
+        <!-- Gesture overlay (triangular sort zones + focus halves) -->
+        <div class="gesture-layer" id="gesture-layer">
+            <div id="gesture-screen-a" class="stage" role="application"
+                 aria-label="Sort mode. Triangular flick zones. Double-tap center hub to enter focus mode.">
+                <div id="gesture-tri-up" class="tri up"></div>
+                <div id="gesture-tri-right" class="tri right"></div>
+                <div id="gesture-tri-down" class="tri down"></div>
+                <div id="gesture-tri-left" class="tri left"></div>
+                <div class="hub" id="gesture-hub-a"></div>
+            </div>
+            <div id="gesture-screen-b" class="stage" role="application"
+                 aria-label="Focus mode. Left/right review halves. Double-tap center hub to return to sort mode." hidden>
+                <div id="gesture-half-left" class="half left"></div>
+                <div id="gesture-half-right" class="half right"></div>
+                <div class="hub" id="gesture-hub-b"></div>
+            </div>
+        </div>
         
         <div class="edge-glow top" id="edge-top"></div>
         <div class="edge-glow bottom" id="edge-bottom"></div>
@@ -685,7 +769,7 @@ Measures:
         </button>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">Orbital8-J-2025-09-16 03:29 AM</div>
+        <div class="app-footer">Unified - 3 Tier Performant - Last Device Wins!</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -850,7 +934,7 @@ Measures:
     </div>
 
     <script>
-        // ===== ORBITAL8 Goji Version - App Root & Web Worker =====
+        // ===== ORBITAL8 Goji Version - App Root =====
         
         const STACKS = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'Inbox', 'out': 'Maybe', 'priority': 'Keep', 'trash': 'Recycle' };
@@ -865,7 +949,8 @@ Measures:
                 lazyLoadState: { allFiles: [], renderedCount: 0, observer: null, batchSize: 20 } },
             tags: new Set(), loadingProgress: { current: 0, total: 0 },
             folderMoveMode: { active: false, files: [] },
-            activeRequests: new AbortController()
+            activeRequests: new AbortController(),
+            sessionVisitedFolders: new Set()
         };
         const Utils = {
             elements: {},
@@ -925,6 +1010,16 @@ Measures:
                     edgeBottom: document.getElementById('edge-bottom'),
                     edgeLeft: document.getElementById('edge-left'),
                     edgeRight: document.getElementById('edge-right'),
+
+                    gestureLayer: document.getElementById('gesture-layer'),
+                    gestureScreenA: document.getElementById('gesture-screen-a'),
+                    gestureScreenB: document.getElementById('gesture-screen-b'),
+                    gestureTriUp: document.getElementById('gesture-tri-up'),
+                    gestureTriRight: document.getElementById('gesture-tri-right'),
+                    gestureTriDown: document.getElementById('gesture-tri-down'),
+                    gestureTriLeft: document.getElementById('gesture-tri-left'),
+                    gestureHalfLeft: document.getElementById('gesture-half-left'),
+                    gestureHalfRight: document.getElementById('gesture-half-right'),
                     
                     pillPriority: document.getElementById('pill-priority'),
                     pillTrash: document.getElementById('pill-trash'),
@@ -1071,7 +1166,7 @@ Measures:
             constructor() { this.db = null; }
             async init() {
                 return new Promise((resolve, reject) => {
-                    const request = indexedDB.open('Orbital8-Goji-V1', 1);
+                    const request = indexedDB.open('Orbital8-Goji-V1', 2);
                     request.onupgradeneeded = (event) => {
                         const db = event.target.result;
                         if (!db.objectStoreNames.contains('folderCache')) {
@@ -1128,15 +1223,164 @@ Measures:
                     request.onerror = () => reject(request.error);
                 });
             }
-            async addToSyncQueue(operation) { return Promise.resolve(); }
-            async readSyncQueue() { return Promise.resolve([]); }
-            async deleteFromSyncQueue(id) { return Promise.resolve(); }
+            async deleteMetadata(fileId) {
+                if (!this.db) return;
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('metadata', 'readwrite');
+                    const store = transaction.objectStore('metadata');
+                    const request = store.delete(fileId);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            async addToSyncQueue(operation) {
+                if (!this.db) return null;
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('syncQueue', 'readwrite');
+                    const store = transaction.objectStore('syncQueue');
+                    const record = {
+                        ...operation,
+                        enqueuedAt: Date.now(),
+                        attemptCount: operation.attemptCount || 0
+                    };
+                    const request = store.add(record);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            async readSyncQueue(limit = 25) {
+                if (!this.db) return [];
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('syncQueue', 'readonly');
+                    const store = transaction.objectStore('syncQueue');
+                    const results = [];
+                    const request = store.openCursor();
+                    request.onsuccess = (event) => {
+                        const cursor = event.target.result;
+                        if (cursor && results.length < limit) {
+                            results.push({ id: cursor.key, ...cursor.value });
+                            cursor.continue();
+                        } else {
+                            resolve(results);
+                        }
+                    };
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            async deleteFromSyncQueue(id) {
+                if (!this.db) return;
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('syncQueue', 'readwrite');
+                    const store = transaction.objectStore('syncQueue');
+                    const request = store.delete(id);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
+            }
         }
         class SyncManager {
-            constructor() { this.worker = null; this.syncInterval = null; }
-            start() { /* Placeholder */ }
-            stop() { /* Placeholder */ }
-            requestSync() { /* Placeholder */ }
+            constructor() {
+                this.isProcessing = false;
+                this.pollTimer = null;
+                this.pendingRequest = false;
+                this.visibilityHandler = this.handleVisibilityChange.bind(this);
+                this.lastErrorToast = 0;
+            }
+            start() {
+                if (this.pollTimer) return;
+                this.pollTimer = setInterval(() => this.processQueue(), 30000);
+                document.addEventListener('visibilitychange', this.visibilityHandler);
+            }
+            stop() {
+                if (this.pollTimer) {
+                    clearInterval(this.pollTimer);
+                    this.pollTimer = null;
+                }
+                document.removeEventListener('visibilitychange', this.visibilityHandler);
+            }
+            requestSync() {
+                this.processQueue();
+            }
+            handleVisibilityChange() {
+                if (document.visibilityState === 'hidden') {
+                    this.processQueue();
+                }
+            }
+            async processQueue() {
+                if (this.isProcessing) {
+                    this.pendingRequest = true;
+                    return;
+                }
+                if (!state.provider || !state.dbManager) return;
+                if (!navigator.onLine) return;
+
+                this.isProcessing = true;
+                try {
+                    let hasMore = true;
+                    while (hasMore) {
+                        const batch = await state.dbManager.readSyncQueue();
+                        if (!batch || batch.length === 0) {
+                            hasMore = false;
+                            break;
+                        }
+
+                        const latestByFile = new Map();
+                        batch.forEach(entry => {
+                            if (!entry || !entry.fileId) return;
+                            const previous = latestByFile.get(entry.fileId);
+                            if (!previous || previous.id < entry.id) {
+                                latestByFile.set(entry.fileId, entry);
+                            }
+                        });
+
+                        let encounteredError = false;
+                        for (const entry of batch) {
+                            if (entry.providerType && entry.providerType !== state.providerType) {
+                                await state.dbManager.deleteFromSyncQueue(entry.id);
+                                continue;
+                            }
+                            if (!entry.fileId) {
+                                await state.dbManager.deleteFromSyncQueue(entry.id);
+                                continue;
+                            }
+                            const latest = latestByFile.get(entry.fileId);
+                            if (!latest || latest.id !== entry.id) {
+                                await state.dbManager.deleteFromSyncQueue(entry.id);
+                                continue;
+                            }
+                            try {
+                                await this.pushUpdate(entry);
+                                await state.dbManager.deleteFromSyncQueue(entry.id);
+                            } catch (error) {
+                                console.warn('Sync failed for entry', entry.fileId, error);
+                                if (Date.now() - this.lastErrorToast > 5000) {
+                                    Utils.showToast('Sync paused. Will retry when online.', 'error', true);
+                                    this.lastErrorToast = Date.now();
+                                }
+                                encounteredError = true;
+                                break;
+                            }
+                        }
+
+                        if (encounteredError) {
+                            hasMore = false;
+                        }
+                    }
+                } finally {
+                    this.isProcessing = false;
+                    if (this.pendingRequest) {
+                        this.pendingRequest = false;
+                        this.processQueue();
+                    }
+                }
+            }
+            async pushUpdate(entry) {
+                const provider = state.provider;
+                if (!provider || typeof provider.updateFileMetadata !== 'function') {
+                    throw new Error('No provider available for sync');
+                }
+                await provider.updateFileMetadata(entry.fileId, entry.metadata);
+            }
         }
         class VisualCueManager {
             constructor() {
@@ -1382,7 +1626,30 @@ Measures:
                     let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,appProperties,parents),nextPageToken&pageSize=100`;
                     if (nextPageToken) { url += `&pageToken=${nextPageToken}`; }
                     const response = await this.makeApiCall(url, { signal: state.activeRequests.signal });
-                    const files = response.files.filter(file => file.mimeType && file.mimeType.startsWith('image/')).map(file => ({ id: file.id, name: file.name, type: 'file', mimeType: file.mimeType, size: file.size ? parseInt(file.size) : 0, createdTime: file.createdTime, modifiedTime: file.modifiedTime, thumbnailLink: file.thumbnailLink, downloadUrl: file.webContentLink, appProperties: file.appProperties || {}, parents: file.parents }));
+                    const files = response.files
+                        .filter(file => file.mimeType && file.mimeType.startsWith('image/'))
+                        .map(file => {
+                            const mapped = {
+                                id: file.id,
+                                name: file.name,
+                                type: 'file',
+                                mimeType: file.mimeType,
+                                size: file.size ? parseInt(file.size) : 0,
+                                createdTime: file.createdTime,
+                                modifiedTime: file.modifiedTime,
+                                thumbnailLink: file.thumbnailLink,
+                                downloadUrl: file.webContentLink,
+                                appProperties: file.appProperties || {},
+                                parents: file.parents
+                            };
+                            if (file.appProperties && typeof App !== 'undefined' && App.applyMetadataFromProvider) {
+                                App.applyMetadataFromProvider(mapped, file.appProperties);
+                            }
+                            if (!mapped.metadataUpdatedAt) {
+                                mapped.metadataUpdatedAt = null;
+                            }
+                            return mapped;
+                        });
                     allFiles.push(...files);
                     nextPageToken = response.nextPageToken;
                     if (this.onProgressCallback) { this.onProgressCallback(allFiles.length); }
@@ -1475,12 +1742,16 @@ Measures:
                 }
             }
             async makeApiCall(endpoint, options = {}) {
+                const { acceptedStatusCodes = [], headers: customHeaders = {}, ...fetchOptions } = options;
                 const accessToken = await this.getAccessToken();
                 const url = endpoint.startsWith('https://') ? endpoint : `${this.apiBase}${endpoint}`;
-                const headers = { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', ...options.headers };
-                const response = await fetch(url, { ...options, headers });
+                const headers = { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', ...customHeaders };
+                const response = await fetch(url, { ...fetchOptions, headers });
                 if (response.status === 401) { throw new Error('TOKEN_EXPIRED'); }
-                if (!response.ok) { const errorText = await response.text(); throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`); }
+                if (!response.ok && !acceptedStatusCodes.includes(response.status)) {
+                    const errorText = await response.text();
+                    throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`);
+                }
                 return response;
             }
             async getFilesAndMetadata(folderId = 'root') {
@@ -1501,47 +1772,85 @@ Measures:
                     nextLink = data['@odata.nextLink'];
                     if (this.onProgressCallback) { this.onProgressCallback(allFiles.length); }
                 }
+                if (allFiles.length > 0 && typeof App !== 'undefined' && App.applyMetadataFromProvider) {
+                    try {
+                        const metadataMap = await this.fetchMetadataForFiles(allFiles.map(file => file.id));
+                        allFiles.forEach(file => {
+                            const metadata = metadataMap.get(file.id);
+                            if (metadata) {
+                                App.applyMetadataFromProvider(file, metadata);
+                            } else if (!file.metadataUpdatedAt) {
+                                file.metadataUpdatedAt = null;
+                            }
+                        });
+                    } catch (error) {
+                        console.warn('Failed to load metadata from OneDrive:', error.message || error);
+                    }
+                }
                 return { folders: [], files: allFiles };
             }
+            async fetchMetadataForFiles(fileIds) {
+                const results = new Map();
+                if (!fileIds || fileIds.length === 0) { return results; }
+                let index = 0;
+                const concurrency = Math.min(4, fileIds.length);
+                const worker = async () => {
+                    while (true) {
+                        const currentIndex = index++;
+                        if (currentIndex >= fileIds.length) break;
+                        const fileId = fileIds[currentIndex];
+                        try {
+                            const options = { method: 'GET', acceptedStatusCodes: [404] };
+                            if (state.activeRequests && state.activeRequests.signal) {
+                                options.signal = state.activeRequests.signal;
+                            }
+                            const response = await this.makeApiCall(`/me/drive/special/approot:/${fileId}.json:/content`, options);
+                            if (response.status === 404) { continue; }
+                            const metadata = await response.json();
+                            results.set(fileId, metadata);
+                        } catch (error) {
+                            if (error.message === 'TOKEN_EXPIRED') { throw error; }
+                            if (!(error.name === 'AbortError')) {
+                                console.warn(`Metadata fetch failed for ${fileId}:`, error.message || error);
+                            }
+                        }
+                    }
+                };
+                const workers = Array.from({ length: concurrency }, worker);
+                await Promise.all(workers);
+                return results;
+            }
             async getDownloadsFolder() {
-                try {
-                    const response = await this.makeApiCall('/me/drive/root/children');
-                    const data = await response.json();
-                    const downloadsFolder = data.value.find(item => item.folder && (item.name.toLowerCase() === 'downloads' || item.name.toLowerCase() === 'download'));
-                    if (downloadsFolder) { return downloadsFolder; }
-                    return { id: 'root', name: 'Root', folder: true };
-                } catch (error) { console.warn('Could not find Downloads folder, using root:', error); return { id: 'root', name: 'Root', folder: true }; }
+                const response = await this.makeApiCall('/me/drive/root/children');
+                const data = await response.json();
+                const downloadsFolder = data.value.find(item => item.folder && (item.name.toLowerCase() === 'downloads' || item.name.toLowerCase() === 'download'));
+                if (downloadsFolder) { return downloadsFolder; }
+                return { id: 'root', name: 'Root', folder: true };
             }
             async getFolders() {
-                try {
-                    const downloadsFolder = await this.getDownloadsFolder();
-                    this.currentParentId = downloadsFolder.id; this.currentParentPath = downloadsFolder.name;
-                    this.breadcrumb = [{ id: downloadsFolder.id, name: downloadsFolder.name }];
-                    return await this.loadFoldersInParent(downloadsFolder.id);
-                } catch (error) { console.warn('Failed to load initial folders:', error); return []; }
+                const downloadsFolder = await this.getDownloadsFolder();
+                this.currentParentId = downloadsFolder.id; this.currentParentPath = downloadsFolder.name;
+                this.breadcrumb = [{ id: downloadsFolder.id, name: downloadsFolder.name }];
+                return await this.loadFoldersInParent(downloadsFolder.id);
             }
             async loadFoldersInParent(parentId) {
-                try {
-                    const folders = [];
-                    let endpoint = parentId === 'root' ? '/me/drive/root/children' : `/me/drive/items/${parentId}/children`;
-                    let nextLink = `${this.apiBase}${endpoint}`;
-                    do {
-                        const response = await this.makeApiCall(nextLink.replace(this.apiBase, ''));
-                        const data = await response.json();
-                        const folderItems = data.value.filter(item => item.folder).map(folder => ({ id: folder.id, name: folder.name, type: 'folder', createdTime: folder.createdDateTime, modifiedTime: folder.lastModifiedDateTime, itemCount: folder.folder.childCount || 0, hasChildren: (folder.folder.childCount || 0) > 0 }));
-                        folders.push(...folderItems);
-                        nextLink = data['@odata.nextLink'];
-                    } while (nextLink);
-                    return folders.sort((a, b) => a.name.localeCompare(b.name));
-                } catch (error) { console.warn('Failed to load folders:', error); return []; }
+                const folders = [];
+                let endpoint = parentId === 'root' ? '/me/drive/root/children' : `/me/drive/items/${parentId}/children`;
+                let nextLink = `${this.apiBase}${endpoint}`;
+                do {
+                    const response = await this.makeApiCall(nextLink.replace(this.apiBase, ''));
+                    const data = await response.json();
+                    const folderItems = data.value.filter(item => item.folder).map(folder => ({ id: folder.id, name: folder.name, type: 'folder', createdTime: folder.createdDateTime, modifiedTime: folder.lastModifiedDateTime, itemCount: folder.folder.childCount || 0, hasChildren: (folder.folder.childCount || 0) > 0 }));
+                    folders.push(...folderItems);
+                    nextLink = data['@odata.nextLink'];
+                } while (nextLink);
+                return folders.sort((a, b) => a.name.localeCompare(b.name));
             }
             async drillIntoFolder(folder) {
-                try {
-                    this.breadcrumb.push({ id: folder.id, name: folder.name });
-                    this.currentParentId = folder.id;
-                    this.currentParentPath = this.breadcrumb.map(b => b.name).join(' / ');
-                    return await this.loadFoldersInParent(folder.id);
-                } catch (error) { console.warn('Failed to drill into folder:', error); return []; }
+                this.breadcrumb.push({ id: folder.id, name: folder.name });
+                this.currentParentId = folder.id;
+                this.currentParentPath = this.breadcrumb.map(b => b.name).join(' / ');
+                return await this.loadFoldersInParent(folder.id);
             }
             async navigateToParent() {
                 if (this.breadcrumb.length <= 1) { return await this.getFolders(); }
@@ -1558,8 +1867,17 @@ Measures:
                 return true;
             }
             async updateFileMetadata(fileId, metadata) {
-                // Placeholder for Phase 2: Sync metadata to OneDrive
-                return Promise.resolve(true);
+                const sanitized = (typeof App !== 'undefined' && App.sanitizeMetadata) ? App.sanitizeMetadata(metadata) : metadata;
+                const payload = sanitized ? { ...sanitized } : {};
+                if (!payload.metadataUpdatedAt) {
+                    payload.metadataUpdatedAt = new Date().toISOString();
+                }
+                await this.makeApiCall(`/me/drive/special/approot:/${fileId}.json:/content`, {
+                    method: 'PUT',
+                    body: JSON.stringify(payload),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                return true;
             }
             async deleteFile(fileId) {
                 await this.makeApiCall(`/me/drive/items/${fileId}`, { method: 'DELETE' });
@@ -1633,7 +1951,6 @@ Measures:
             selectProvider(type) {
                 state.providerType = type;
                 const isGoogle = type === 'googledrive';
-
                 state.provider = isGoogle ? new GoogleDriveProvider() : new OneDriveProvider();
 
                 if (state.provider.isAuthenticated) {
@@ -1649,11 +1966,9 @@ Measures:
                     Utils.showScreen('auth-screen');
                 }
             },
-
             async authenticateCurrentUser() {
                 const isGoogle = state.providerType === 'googledrive';
                 const provider = state.provider;
-
                 const { authButton, authStatus, gdriveClientSecret } = Utils.elements;
                 authButton.disabled = true;
                 authButton.textContent = 'Connecting...';
@@ -1664,20 +1979,16 @@ Measures:
                     let success;
                     if (isGoogle) {
                         const clientSecret = gdriveClientSecret.value.trim();
-                        if (!clientSecret) {
-                            throw new Error('Please enter client secret');
-                        }
+                        if (!clientSecret) throw new Error('Please enter client secret');
                         success = await provider.authenticate(clientSecret);
                     } else {
                         success = await provider.authenticate();
                     }
-
                     if (success) {
                         state.provider = provider;
                         authStatus.textContent = `✅ Connected to ${isGoogle ? 'Google Drive' : 'OneDrive'}!`;
                         authStatus.className = 'status success';
                         if (isGoogle) gdriveClientSecret.value = '';
-
                         setTimeout(() => {
                             Utils.showScreen('folder-screen');
                             Folders.load();
@@ -1691,59 +2002,159 @@ Measures:
                     authButton.textContent = `Connect ${isGoogle ? 'Drive' : 'OneDrive'}`;
                 }
             },
-            
             backToProviderSelection() {
                 if(state.syncManager) state.syncManager.stop();
                 state.provider = null;
                 state.providerType = null;
                 Utils.showScreen('provider-screen');
             },
-
             async initializeWithProvider(providerType, folderId, folderName, providerInstance) {
-                state.providerType = providerType;
-                state.provider = providerInstance;
-                state.currentFolder.id = folderId;
-                state.currentFolder.name = folderName;
-                state.activeRequests = new AbortController();
-                
-                await this.loadImages();
-                this.switchToCommonUI();
-                if(state.syncManager) state.syncManager.start();
+                try {
+                    state.providerType = providerType;
+                    state.provider = providerInstance;
+                    state.currentFolder.id = folderId;
+                    state.currentFolder.name = folderName;
+                    state.activeRequests = new AbortController();
+                    
+                    await this.loadImages();
+                    this.switchToCommonUI();
+                    if(state.syncManager) state.syncManager.start();
+                } catch (error) {
+                    Utils.showToast(`Initialization failed: ${error.message}`, 'error', true);
+                    this.returnToFolderSelection();
+                }
             },
-
             async loadImages() {
-                const cachedFiles = await state.dbManager.getFolderCache(state.currentFolder.id);
+                const folderId = state.currentFolder.id;
+                const sessionKey = `${state.providerType || 'unknown'}::${folderId}`;
+                const cachedFiles = await state.dbManager.getFolderCache(folderId) || [];
+                const isFirstSessionVisit = !state.sessionVisitedFolders.has(sessionKey);
 
-                if (cachedFiles) {
-                    Utils.showScreen('app-container');
-                    state.imageFiles = cachedFiles;
-                    await this.processAllMetadata(state.imageFiles);
-                    Core.initializeStacks();
-                    Core.initializeImageDisplay();
-                    this.refreshFolderInBackground();
+                if (isFirstSessionVisit || cachedFiles.length === 0) {
+                    await this.syncFolderFromCloud(cachedFiles, sessionKey);
                     return;
                 }
 
+                state.imageFiles = cachedFiles;
+                Utils.showScreen('app-container');
+                Core.initializeStacks();
+                Core.initializeImageDisplay();
+                const pendingPngs = state.imageFiles.filter(file => file.mimeType === 'image/png' && file.metadataStatus === 'pending');
+                if (pendingPngs.length > 0) {
+                    this.extractMetadataInBackground(pendingPngs);
+                }
+            },
+            mergeCloudWithCache(cloudFiles, cachedFiles) {
+                const cachedMap = new Map(cachedFiles.map(file => [file.id, file]));
+                const merged = [];
+                const newIds = [];
+                const updatedIds = [];
+                const removedIds = [];
+
+                for (const cloudFile of cloudFiles) {
+                    const cached = cachedMap.get(cloudFile.id);
+                    if (!cached) {
+                        const newFile = { ...cloudFile };
+                        if (newFile.metadataUpdatedAt === undefined) { newFile.metadataUpdatedAt = null; }
+                        merged.push(newFile);
+                        if (!newIds.includes(cloudFile.id)) { newIds.push(cloudFile.id); }
+                    } else {
+                        const cloudModified = Date.parse(cloudFile.modifiedTime || cloudFile.createdTime || 0);
+                        const cachedModified = Date.parse(cached.modifiedTime || cached.createdTime || 0);
+                        const cloudMetadata = this.sanitizeMetadata(cloudFile);
+                        const cachedMetadata = this.sanitizeMetadata(cached);
+                        const cloudMetaTime = cloudMetadata && cloudMetadata.metadataUpdatedAt ? Date.parse(cloudMetadata.metadataUpdatedAt) : NaN;
+                        const cachedMetaTime = cachedMetadata && cachedMetadata.metadataUpdatedAt ? Date.parse(cachedMetadata.metadataUpdatedAt) : NaN;
+
+                        let metadataChanged = false;
+                        if (cloudMetadata) {
+                            if (!Number.isNaN(cloudMetaTime) && (Number.isNaN(cachedMetaTime) || cloudMetaTime > cachedMetaTime)) {
+                                metadataChanged = true;
+                            } else if (!cloudMetadata.metadataUpdatedAt && !cachedMetadata?.metadataUpdatedAt) {
+                                metadataChanged = this.metadataObjectsDiffer(cloudMetadata, cachedMetadata);
+                            } else if (!cachedMetadata) {
+                                metadataChanged = true;
+                            }
+                        }
+
+                        if ((!Number.isNaN(cloudModified) && cloudModified > cachedModified) || metadataChanged) {
+                            const mergedFile = { ...cached, ...cloudFile };
+                            if (cloudMetadata) {
+                                Object.assign(mergedFile, cloudMetadata);
+                            }
+                            if (mergedFile.metadataUpdatedAt === undefined) {
+                                mergedFile.metadataUpdatedAt = cloudMetadata ? cloudMetadata.metadataUpdatedAt || null : mergedFile.metadataUpdatedAt || null;
+                            }
+                            merged.push(mergedFile);
+                            if (!updatedIds.includes(cloudFile.id)) { updatedIds.push(cloudFile.id); }
+                        } else {
+                            merged.push(cached);
+                        }
+                        cachedMap.delete(cloudFile.id);
+                    }
+                }
+
+                for (const removedId of cachedMap.keys()) {
+                    removedIds.push(removedId);
+                }
+
+                return {
+                    mergedFiles: merged,
+                    newIds,
+                    updatedIds,
+                    removedIds,
+                    hasChanges: newIds.length > 0 || updatedIds.length > 0 || removedIds.length > 0
+                };
+            },
+            async syncFolderFromCloud(cachedFiles, sessionKey) {
+                const folderId = state.currentFolder.id;
+                const hadCached = cachedFiles.length > 0;
                 Utils.showScreen('loading-screen');
-                Utils.updateLoadingProgress(0, 0, 'Fetching from cloud...');
-                
+                Utils.updateLoadingProgress(0, hadCached ? cachedFiles.length : 0, hadCached ? 'Syncing with cloud...' : 'Fetching from cloud...');
+
                 try {
-                    const result = await state.provider.getFilesAndMetadata(state.currentFolder.id);
-                    const files = result.files || [];
-                    
-                    if (files.length === 0) {
+                    const result = await state.provider.getFilesAndMetadata(folderId);
+                    const cloudFiles = result.files || [];
+                    const { mergedFiles, newIds, updatedIds, removedIds, hasChanges } = this.mergeCloudWithCache(cloudFiles, cachedFiles);
+
+                    if (mergedFiles.length === 0) {
+                        await state.dbManager.saveFolderCache(folderId, []);
+                        state.imageFiles = [];
                         Utils.showToast('No images found in this folder', 'info', true);
                         this.returnToFolderSelection();
                         return;
                     }
-                    
-                    state.imageFiles = files;
-                    await this.processAllMetadata(state.imageFiles, true);
-                    await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
-                    
+
+                    for (const updatedId of updatedIds) {
+                        const updatedFile = mergedFiles.find(file => file.id === updatedId);
+                        if (updatedFile) {
+                            await state.dbManager.saveMetadata(updatedId, updatedFile);
+                        }
+                    }
+                    if (removedIds.length > 0) {
+                        await Promise.all(removedIds.map(id => state.dbManager.deleteMetadata(id)));
+                    }
+
+                    state.imageFiles = mergedFiles;
+                    await this.processAllMetadata(state.imageFiles, !hadCached);
+                    if (hasChanges || !hadCached) {
+                        await state.dbManager.saveFolderCache(folderId, state.imageFiles);
+                    }
+
+                    const key = sessionKey || `${state.providerType || 'unknown'}::${folderId}`;
+                    state.sessionVisitedFolders.add(key);
+                    this.switchToCommonUI();
                     Core.initializeStacks();
                     Core.initializeImageDisplay();
-                    
+
+                    if (hadCached && hasChanges) {
+                        const diffSummary = [];
+                        if (newIds.length > 0) diffSummary.push(`${newIds.length} new`);
+                        if (updatedIds.length > 0) diffSummary.push(`${updatedIds.length} updated`);
+                        if (removedIds.length > 0) diffSummary.push(`${removedIds.length} removed`);
+                        const summaryText = diffSummary.length > 0 ? diffSummary.join(', ') : 'changes';
+                        Utils.showToast(`Folder updated with cloud changes (${summaryText})`, 'info');
+                    }
                 } catch (error) {
                     if (error.name !== 'AbortError') {
                         Utils.showToast(`Error loading images: ${error.message}`, 'error', true);
@@ -1751,103 +2162,109 @@ Measures:
                     this.returnToFolderSelection();
                 }
             },
-
             async refreshFolderInBackground() {
                 try {
-                    const result = await state.provider.getFilesAndMetadata(state.currentFolder.id);
+                    const folderId = state.currentFolder.id;
+                    const cachedFiles = await state.dbManager.getFolderCache(folderId) || [];
+                    const result = await state.provider.getFilesAndMetadata(folderId);
                     const cloudFiles = result.files || [];
-                    const localFiles = await state.dbManager.getFolderCache(state.currentFolder.id) || [];
-            
-                    const cloudFileMap = new Map(cloudFiles.map(f => [f.id, f]));
-                    const localFileMap = new Map(localFiles.map(f => [f.id, f]));
-                    let hasChanges = false;
-            
-                    for (const cloudFile of cloudFiles) {
-                        const localFile = localFileMap.get(cloudFile.id);
-                        if (!localFile || new Date(cloudFile.modifiedTime) > new Date(localFile.modifiedTime)) {
-                            hasChanges = true;
-                            localFileMap.set(cloudFile.id, cloudFile);
+                    const { mergedFiles, updatedIds, removedIds, hasChanges } = this.mergeCloudWithCache(cloudFiles, cachedFiles);
+
+                    if (!hasChanges) {
+                        return;
+                    }
+
+                    for (const updatedId of updatedIds) {
+                        const updatedFile = mergedFiles.find(file => file.id === updatedId);
+                        if (updatedFile) {
+                            await state.dbManager.saveMetadata(updatedId, updatedFile);
                         }
                     }
-            
-                    for (const localId of localFileMap.keys()) {
-                        if (!cloudFileMap.has(localId)) {
-                            hasChanges = true;
-                            localFileMap.delete(localId);
-                        }
+                    if (removedIds.length > 0) {
+                        await Promise.all(removedIds.map(id => state.dbManager.deleteMetadata(id)));
                     }
-            
-                    if (hasChanges) {
-                        const newMergedFiles = Array.from(localFileMap.values());
-                        await this.processAllMetadata(newMergedFiles);
-                        await state.dbManager.saveFolderCache(state.currentFolder.id, newMergedFiles);
-                        state.imageFiles = newMergedFiles;
-                        Core.initializeStacks();
-                        Core.updateStackCounts();
-                        if(state.imageFiles.length > 0) Core.displayCurrentImage();
-                        else Core.showEmptyState();
-                        Utils.showToast('Folder updated in background', 'info');
-                    }
+
+                    await this.processAllMetadata(mergedFiles);
+                    await state.dbManager.saveFolderCache(folderId, mergedFiles);
+                    state.imageFiles = mergedFiles;
+                    Core.initializeStacks();
+                    Core.updateStackCounts();
+                    if (state.imageFiles.length > 0) Core.displayCurrentImage();
+                    else Core.showEmptyState();
+                    Utils.showToast('Folder updated in background', 'info');
                 } catch (error) {
                     console.warn("Background refresh failed:", error.message);
                 }
             },
-            
             async processAllMetadata(files, isFirstLoad = false) {
                  if (isFirstLoad) Utils.updateLoadingProgress(0, files.length, 'Processing files...');
-                 for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    const metadata = await state.dbManager.getMetadata(file.id);
-                    if (metadata) {
-                        Object.assign(file, metadata);
-                    } else {
-                        const defaultMetadata = this.generateDefaultMetadata(file);
-                        Object.assign(file, defaultMetadata);
-                        await state.dbManager.saveMetadata(file.id, defaultMetadata);
+                for (let i = 0; i < files.length; i++) {
+                   const file = files[i];
+                   try {
+                        const cachedMetadata = await state.dbManager.getMetadata(file.id);
+                        const cachedSanitized = cachedMetadata ? this.sanitizeMetadata(cachedMetadata) : null;
+                        const fileSanitized = this.sanitizeMetadata(file);
+                        const cachedMetaTime = cachedSanitized && cachedSanitized.metadataUpdatedAt ? Date.parse(cachedSanitized.metadataUpdatedAt) : NaN;
+                        const fileMetaTime = fileSanitized && fileSanitized.metadataUpdatedAt ? Date.parse(fileSanitized.metadataUpdatedAt) : NaN;
+
+                        if (cachedMetadata) {
+                            const preferCached = Number.isNaN(fileMetaTime) || (!Number.isNaN(cachedMetaTime) && cachedMetaTime >= fileMetaTime);
+                            if (preferCached) {
+                                if (Number.isNaN(fileMetaTime) && Number.isNaN(cachedMetaTime) && fileSanitized && cachedSanitized && this.metadataObjectsDiffer(fileSanitized, cachedSanitized)) {
+                                    await state.dbManager.saveMetadata(file.id, file);
+                                } else {
+                                    Object.assign(file, cachedMetadata);
+                                }
+                            } else {
+                                await state.dbManager.saveMetadata(file.id, file);
+                            }
+                        } else {
+                            if (!fileSanitized) {
+                                const defaultMetadata = this.generateDefaultMetadata(file);
+                                Object.assign(file, defaultMetadata);
+                            }
+                            await state.dbManager.saveMetadata(file.id, file);
+                        }
+                    } catch (error) {
+                        console.error(`Failed to process metadata for ${file.name}:`, error);
                     }
                     if(isFirstLoad) Utils.updateLoadingProgress(i + 1, files.length);
                 }
                 this.extractMetadataInBackground(files.filter(f => f.mimeType === 'image/png'));
             },
-
             generateDefaultMetadata(file) {
-                 const baseMetadata = { 
-                    stack: 'in', 
-                    tags: [], 
-                    qualityRating: 0, 
-                    contentRating: 0, 
-                    notes: '', 
-                    stackSequence: 0, 
-                    favorite: false,
-                    extractedMetadata: {}, 
-                    metadataStatus: 'pending' 
+                 const sanitized = this.sanitizeMetadata(file) || null;
+                 const baseMetadata = {
+                    stack: sanitized ? sanitized.stack : 'in',
+                    tags: sanitized ? sanitized.tags : [],
+                    qualityRating: sanitized ? sanitized.qualityRating : 0,
+                    contentRating: sanitized ? sanitized.contentRating : 0,
+                    notes: sanitized ? sanitized.notes : '',
+                    stackSequence: sanitized ? sanitized.stackSequence : 0,
+                    favorite: sanitized ? sanitized.favorite : false,
+                    metadataUpdatedAt: sanitized ? sanitized.metadataUpdatedAt : null,
+                    extractedMetadata: {},
+                    metadataStatus: 'pending'
                 };
-
-                 if (state.providerType === 'googledrive' && file.appProperties) {
-                    baseMetadata.stack = file.appProperties.slideboxStack || 'in';
-                    baseMetadata.tags = file.appProperties.slideboxTags ? file.appProperties.slideboxTags.split(',').map(t => t.trim()) : [];
-                    baseMetadata.qualityRating = parseInt(file.appProperties.qualityRating) || 0;
-                    baseMetadata.contentRating = parseInt(file.appProperties.contentRating) || 0;
-                    baseMetadata.notes = file.appProperties.notes || '';
-                    baseMetadata.stackSequence = parseInt(file.appProperties.stackSequence) || 0;
-                    baseMetadata.favorite = file.appProperties.favorite === 'true';
-                 }
                  return baseMetadata;
             },
-            
             switchToCommonUI() {
                 Utils.showScreen('app-container');
             },
-            
-            returnToFolderSelection() {
-                if (state.syncManager) {
-                    state.syncManager.requestSync();
+            async returnToFolderSelection() {
+                try {
+                    if (state.syncManager) {
+                        state.syncManager.requestSync();
+                    }
+                    state.activeRequests.abort(); 
+                    this.resetViewState();
+                    Utils.showScreen('folder-screen');
+                    await Folders.load();
+                } catch(error) {
+                    Utils.showToast(`Error returning to folders: ${error.message}`, 'error', true);
+                    Utils.showScreen('folder-screen');
                 }
-                state.activeRequests.abort(); 
-                this.resetViewState();
-                Utils.showScreen('folder-screen');
             },
-
             resetViewState() {
                 state.imageFiles = [];
                 state.stacks = { in: [], out: [], priority: [], trash: [] };
@@ -1856,17 +2273,112 @@ Measures:
                 Core.showEmptyState();
                 Utils.elements.emptyState.classList.add('hidden');
             },
-            
-            async updateUserMetadata(fileId, updates) {
-                const file = state.imageFiles.find(f => f.id === fileId);
-                if (!file) return;
-                Object.assign(file, updates);
-                await state.dbManager.saveMetadata(file.id, file);
-                await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
-                // Note: The remote update is now handled by the provider's `updateFileMetadata` method,
-                // which should be called separately by a sync process.
+            normalizeTags(value) {
+                if (Array.isArray(value)) {
+                    return value.map(tag => typeof tag === 'string' ? tag.trim() : '').filter(Boolean);
+                }
+                if (typeof value === 'string') {
+                    return value.split(',').map(tag => tag.trim()).filter(Boolean);
+                }
+                return [];
             },
+            sanitizeMetadata(metadata) {
+                if (!metadata) return null;
+                const stackCandidate = metadata.stack;
+                const qualityCandidate = Number(metadata.qualityRating);
+                const contentCandidate = Number(metadata.contentRating);
+                const sequenceCandidate = Number(metadata.stackSequence);
+                let updatedAt = metadata.metadataUpdatedAt || metadata.updatedAt || null;
+                if (updatedAt) {
+                    const parsed = new Date(updatedAt);
+                    updatedAt = Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+                }
+                return {
+                    stack: STACKS.includes(stackCandidate) ? stackCandidate : 'in',
+                    tags: this.normalizeTags(metadata.tags),
+                    qualityRating: Number.isFinite(qualityCandidate) ? qualityCandidate : 0,
+                    contentRating: Number.isFinite(contentCandidate) ? contentCandidate : 0,
+                    notes: metadata.notes || '',
+                    stackSequence: Number.isFinite(sequenceCandidate) ? sequenceCandidate : 0,
+                    favorite: !!metadata.favorite,
+                    metadataUpdatedAt: updatedAt
+                };
+            },
+            buildMetadataPayloadForProvider(file, baseMetadata = null) {
+                const standard = baseMetadata ? { ...baseMetadata } : (this.sanitizeMetadata(file) || {});
+                if (!standard.metadataUpdatedAt) {
+                    standard.metadataUpdatedAt = new Date().toISOString();
+                    file.metadataUpdatedAt = standard.metadataUpdatedAt;
+                }
+                if (state.providerType === 'googledrive') {
+                    return {
+                        slideboxStack: standard.stack,
+                        slideboxTags: standard.tags.join(','),
+                        qualityRating: String(standard.qualityRating || 0),
+                        contentRating: String(standard.contentRating || 0),
+                        notes: standard.notes || '',
+                        stackSequence: String(standard.stackSequence || 0),
+                        favorite: standard.favorite ? 'true' : 'false',
+                        metadataUpdatedAt: standard.metadataUpdatedAt
+                    };
+                }
+                if (state.providerType === 'onedrive') {
+                    return standard;
+                }
+                return null;
+            },
+            applyMetadataFromProvider(file, metadata) {
+                const sanitized = this.sanitizeMetadata(metadata);
+                if (sanitized) {
+                    Object.assign(file, sanitized);
+                }
+            },
+            metadataObjectsDiffer(a, b) {
+                if (!a && !b) return false;
+                if (!a || !b) return true;
+                const fields = ['stack', 'qualityRating', 'contentRating', 'notes', 'stackSequence', 'favorite'];
+                for (const field of fields) {
+                    if ((a[field] ?? null) !== (b[field] ?? null)) {
+                        return true;
+                    }
+                }
+                const tagsA = Array.isArray(a.tags) ? a.tags : [];
+                const tagsB = Array.isArray(b.tags) ? b.tags : [];
+                if (tagsA.length !== tagsB.length) return true;
+                for (let i = 0; i < tagsA.length; i++) {
+                    if (tagsA[i] !== tagsB[i]) return true;
+                }
+                return false;
+            },
+            async updateUserMetadata(fileId, updates) {
+                try {
+                    const file = state.imageFiles.find(f => f.id === fileId);
+                    if (!file) return;
+                    Object.assign(file, updates);
+                    const sanitized = this.sanitizeMetadata(file) || {};
+                    sanitized.metadataUpdatedAt = new Date().toISOString();
+                    Object.assign(file, sanitized);
+                    if (state.providerType === 'googledrive') {
+                        file.appProperties = this.buildMetadataPayloadForProvider(file, sanitized);
+                    }
+                    await state.dbManager.saveMetadata(file.id, file);
+                    await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
 
+                    const payload = this.buildMetadataPayloadForProvider(file, sanitized);
+                    if (payload) {
+                        await state.dbManager.addToSyncQueue({
+                            fileId: file.id,
+                            metadata: payload,
+                            providerType: state.providerType
+                        });
+                        if (state.syncManager) {
+                            state.syncManager.requestSync();
+                        }
+                    }
+                } catch (error) {
+                    Utils.showToast(`Failed to update metadata: ${error.message}`, 'error', true);
+                }
+            },
             async deleteFile(fileId) {
                 const fileIndex = state.imageFiles.findIndex(f => f.id === fileId);
                 if (fileIndex > -1) {
@@ -1874,16 +2386,13 @@ Measures:
                     const stackIndex = state.stacks[file.stack].findIndex(f => f.id === fileId);
                     if (stackIndex > -1) { state.stacks[file.stack].splice(stackIndex, 1); }
                 }
-                
                 await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
-                
                 try {
                     await state.provider.deleteFile(fileId);
                 } catch (e) {
                     Utils.showToast(`Failed to delete from cloud: ${e.message}`, 'error', true);
                 }
             },
-            
             async extractMetadataInBackground(pngFiles) {
                 const BATCH_SIZE = 5;
                 for (let i = 0; i < pngFiles.length; i += BATCH_SIZE) {
@@ -1898,14 +2407,12 @@ Measures:
                     await Promise.allSettled(promises);
                 }
             },
-            
             async processFileMetadata(file) {
                 if (file.metadataStatus === 'loaded' || file.metadataStatus === 'loading' || file.metadataStatus === 'error') return;
                 file.metadataStatus = 'loading';
                 try {
                     const metadata = await state.metadataExtractor.fetchMetadata(file);
                     let finalMetadata = { ...file };
-                    
                     if (metadata.error) {
                         finalMetadata.metadataStatus = 'error';
                         finalMetadata.extractedMetadata = { 'Error': metadata.error };
@@ -1914,10 +2421,8 @@ Measures:
                         finalMetadata.metadataStatus = 'loaded';
                         finalMetadata.extractedMetadata = metadata;
                     }
-                    
                     await state.dbManager.saveMetadata(file.id, finalMetadata);
                     Object.assign(file, finalMetadata);
-
                 } catch (error) {
                     if (error.name === 'AbortError') return;
                     console.warn(`Background metadata extraction failed for ${file.name}: ${error.message}`);
@@ -1981,18 +2486,22 @@ Measures:
             },
             
             async displayTopImageFromStack(stackName) {
-                const stack = state.stacks[stackName];
-                if (!stack || stack.length === 0) {
-                    this.showEmptyState();
-                    return;
+                try {
+                    const stack = state.stacks[stackName];
+                    if (!stack || stack.length === 0) {
+                        this.showEmptyState();
+                        return;
+                    }
+                    
+                    Utils.elements.emptyState.classList.add('hidden');
+                    state.currentStack = stackName;
+                    state.currentStackPosition = 0;
+                    
+                    await this.displayCurrentImage();
+                    this.updateActiveProxTab();
+                } catch (error) {
+                    Utils.showToast(`Error displaying stack: ${error.message}`, 'error', true);
                 }
-                
-                Utils.elements.emptyState.classList.add('hidden');
-                state.currentStack = stackName;
-                state.currentStackPosition = 0;
-                
-                await this.displayCurrentImage();
-                this.updateActiveProxTab();
             },
             
             async displayCurrentImage() {
@@ -2015,39 +2524,64 @@ Measures:
                     return;
                 }
 
-                Utils.elements.detailsButton.style.display = 'flex';
-                await Utils.setImageSrc(Utils.elements.centerImage, currentFile);
-                
-                const folderName = state.currentFolder.name;
-                const truncatedFolder = folderName.length > 20 ? folderName.substring(0, 20) + '...' : folderName;
-                Utils.elements.focusFilenameDisplay.textContent = `${truncatedFolder} / ${currentFile.name.replace(/\.[^/.]+$/, "")}`;
+                try {
+                    Utils.elements.detailsButton.style.display = 'flex';
+                    await Utils.setImageSrc(Utils.elements.centerImage, currentFile);
+                    
+                    const folderName = state.currentFolder.name;
+                    const truncatedFolder = folderName.length > 20 ? folderName.substring(0, 20) + '...' : folderName;
+                    
+                    state.currentScale = 1;
+                    state.panOffset = { x: 0, y: 0 };
+                    this.applyTransform();
 
-                state.currentScale = 1;
-                state.panOffset = { x: 0, y: 0 };
-                this.applyTransform();
-
-                if (currentFile.metadataStatus === 'pending') {
-                    App.processFileMetadata(currentFile);
+                    if (currentFile.metadataStatus === 'pending') {
+                        App.processFileMetadata(currentFile);
+                    }
+                    
+                    this.updateImageCounters();
+                    this.updateFavoriteButton();
+                } catch (error) {
+                     Utils.showToast(`Error loading image: ${error.message}`, 'error', true);
                 }
-                
-                this.updateImageCounters();
-                this.updateFavoriteButton();
             },
 
             updateImageCounters() {
                 const stack = state.stacks[state.currentStack];
                 const total = stack ? stack.length : 0;
                 const current = total > 0 ? state.currentStackPosition + 1 : 0;
-                const text = `${current} / ${total}`;
-                Utils.elements.focusImageCount.textContent = text;
-                Utils.elements.normalImageCount.textContent = text;
-                Utils.elements.focusStackName.textContent = STACK_NAMES[state.currentStack];
+                const counterText = total > 0 ? `Item ${current} / ${total}` : 'No items';
+                if (Utils.elements.normalImageCount) {
+                    Utils.elements.normalImageCount.textContent = counterText;
+                    Utils.elements.normalImageCount.setAttribute('aria-label', counterText);
+                }
+                if (Utils.elements.focusImageCount) {
+                    Utils.elements.focusImageCount.textContent = counterText;
+                    Utils.elements.focusImageCount.setAttribute('aria-label', counterText);
+                }
+                if (Utils.elements.focusStackName) {
+                    const stackLabel = STACK_NAMES[state.currentStack] || state.currentStack;
+                    Utils.elements.focusStackName.textContent = stackLabel;
+                    Utils.elements.focusStackName.setAttribute('aria-label', `Switch stack (current: ${stackLabel})`);
+                }
             },
 
             updateFavoriteButton() {
                 const currentFile = state.stacks[state.currentStack]?.[state.currentStackPosition];
-                if (!currentFile) return;
-                Utils.elements.focusFavoriteBtn.classList.toggle('favorited', !!currentFile.favorite);
+                if (!currentFile) {
+                    if (Utils.elements.focusFavoriteBtn) {
+                        Utils.elements.focusFavoriteBtn.classList.remove('favorited');
+                        Utils.elements.focusFavoriteBtn.setAttribute('aria-pressed', 'false');
+                    }
+                    return;
+                }
+                const isFavorite = Boolean(currentFile.favorite);
+                if (Utils.elements.focusFavoriteBtn) {
+                    Utils.elements.focusFavoriteBtn.classList.toggle('favorited', isFavorite);
+                    Utils.elements.focusFavoriteBtn.setAttribute('aria-pressed', isFavorite ? 'true' : 'false');
+                    const label = isFavorite ? 'Remove from favorites' : 'Add to favorites';
+                    Utils.elements.focusFavoriteBtn.setAttribute('aria-label', label);
+                }
             },
             
             applyTransform() {
@@ -2072,28 +2606,32 @@ Measures:
                 const currentImage = currentStackArray[state.currentStackPosition];
                 if (!currentImage) return;
 
-                const originalStackName = state.currentStack;
-                if (targetStack === originalStackName) {
-                    const otherImages = currentStackArray.filter(img => img.id !== currentImage.id);
-                    const minSequence = otherImages.length > 0 ? Math.min(...otherImages.map(img => img.stackSequence || 0)) : Date.now();
-                    const newSequence = minSequence - 1;
-                    await App.updateUserMetadata(currentImage.id, { stackSequence: newSequence });
-                    const [item] = currentStackArray.splice(state.currentStackPosition, 1);
-                    item.stackSequence = newSequence;
-                    currentStackArray.push(item);
-                } else {
-                    const newSequence = Date.now();
-                    await App.updateUserMetadata(currentImage.id, { stack: targetStack, stackSequence: newSequence });
-                    const [item] = currentStackArray.splice(state.currentStackPosition, 1);
-                    item.stack = targetStack;
-                    item.stackSequence = newSequence;
-                    state.stacks[targetStack].unshift(item);
-                    state.stacks[targetStack] = this.sortFiles(state.stacks[targetStack]);
+                try {
+                    const originalStackName = state.currentStack;
+                    if (targetStack === originalStackName) {
+                        const otherImages = currentStackArray.filter(img => img.id !== currentImage.id);
+                        const minSequence = otherImages.length > 0 ? Math.min(...otherImages.map(img => img.stackSequence || 0)) : Date.now();
+                        const newSequence = minSequence - 1;
+                        await App.updateUserMetadata(currentImage.id, { stackSequence: newSequence });
+                        const [item] = currentStackArray.splice(state.currentStackPosition, 1);
+                        item.stackSequence = newSequence;
+                        currentStackArray.push(item);
+                    } else {
+                        const newSequence = Date.now();
+                        await App.updateUserMetadata(currentImage.id, { stack: targetStack, stackSequence: newSequence });
+                        const [item] = currentStackArray.splice(state.currentStackPosition, 1);
+                        item.stack = targetStack;
+                        item.stackSequence = newSequence;
+                        state.stacks[targetStack].unshift(item);
+                        state.stacks[targetStack] = this.sortFiles(state.stacks[targetStack]);
+                    }
+                    
+                    this.updateStackCounts();
+                    this.updateActiveProxTab();
+                    await this.displayCurrentImage();
+                } catch (error) {
+                    Utils.showToast(`Error moving image: ${error.message}`, 'error', true);
                 }
-                
-                this.updateStackCounts();
-                this.updateActiveProxTab();
-                await this.displayCurrentImage();
             },
             
             showEmptyState() {
@@ -2126,20 +2664,24 @@ Measures:
             },
             
             async close() {
-                if (state.grid.isDirty) {
-                    await this.reorderStackOnClose();
+                try {
+                    if (state.grid.isDirty) {
+                        await this.reorderStackOnClose();
+                    }
+                    Utils.hideModal('grid-modal');
+                    this.resetSearch(); this.destroyLazyLoad();
+                    const selectedImages = state.grid.selected;
+                    if (selectedImages.length === 1) {
+                        const selectedFileId = selectedImages[0];
+                        const stackArray = state.stacks[state.currentStack];
+                        const selectedIndex = stackArray.findIndex(f => f.id === selectedFileId);
+                        if (selectedIndex !== -1) { state.currentStackPosition = selectedIndex; }
+                    }
+                    await Core.displayCurrentImage();
+                    state.grid.stack = null; state.grid.selected = [];
+                } catch (error) {
+                    Utils.showToast(`Error closing grid: ${error.message}`, 'error', true);
                 }
-                Utils.hideModal('grid-modal');
-                this.resetSearch(); this.destroyLazyLoad();
-                const selectedImages = state.grid.selected;
-                if (selectedImages.length === 1) {
-                    const selectedFileId = selectedImages[0];
-                    const stackArray = state.stacks[state.currentStack];
-                    const selectedIndex = stackArray.findIndex(f => f.id === selectedFileId);
-                    if (selectedIndex !== -1) { state.currentStackPosition = selectedIndex; }
-                }
-                Core.displayCurrentImage();
-                state.grid.stack = null; state.grid.selected = [];
             },
 
             handleIntersection(entries) {
@@ -2363,15 +2905,19 @@ Measures:
         const Details = {
             currentTab: 'info',
             async show() {
-                const currentFile = state.stacks[state.currentStack][state.currentStackPosition];
-                if (!currentFile) return;
-                if (currentFile.metadataStatus !== 'loaded') {
-                    this.populateMetadataTab(currentFile);
-                    await App.processFileMetadata(currentFile);
+                try {
+                    const currentFile = state.stacks[state.currentStack][state.currentStackPosition];
+                    if (!currentFile) return;
+                    if (currentFile.metadataStatus !== 'loaded') {
+                        this.populateMetadataTab(currentFile);
+                        await App.processFileMetadata(currentFile);
+                    }
+                    this.populateAllTabs(currentFile);
+                    Utils.showModal('details-modal');
+                    this.switchTab('info');
+                } catch (error) {
+                    Utils.showToast(`Error showing details: ${error.message}`, 'error', true);
                 }
-                this.populateAllTabs(currentFile);
-                Utils.showModal('details-modal');
-                this.switchTab('info');
             },
             hide() { Utils.hideModal('details-modal'); },
             switchTab(tabName) {
@@ -2601,13 +3147,11 @@ Measures:
             addTagChip(tag) {
                 if (this.taggingState.tags.has(tag)) return;
                 this.taggingState.tags.add(tag);
-                
                 const container = document.getElementById('tag-chip-container');
                 const chip = document.createElement('div');
                 chip.className = 'tag-chip';
                 chip.innerHTML = `<span>${tag}</span><button class="tag-chip-remove" data-tag="${tag}">×</button>`;
                 container.appendChild(chip);
-
                 chip.querySelector('.tag-chip-remove').addEventListener('click', () => {
                     this.removeTagChip(chip, tag);
                 });
@@ -2627,20 +3171,6 @@ Measures:
                     title: 'Export to Spreadsheet',
                     content: `<p style="color: #4b5563; margin-bottom: 16px;">This will start the new Live Export process for ${state.grid.selected.length} selected image(s).</p><p style="color: #4b5563; margin-bottom: 16px;">It will fetch fresh data directly from the cloud to ensure 100% accuracy.</p>`,
                     confirmText: 'Begin Export'
-                });
-            },
-            setupFocusStackSwitch() {
-                const availableStacks = STACKS.filter(s => s !== state.currentStack && state.stacks[s].length > 0);
-                let content = `<div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">`;
-                if (availableStacks.length > 0) { content += availableStacks.map(stack => `<button class="move-option" data-stack="${stack}" style="width: 100%; text-align: left; padding: 8px 16px; border-radius: 6px; border: none; background: transparent; cursor: pointer; transition: background-color 0.2s;">${STACK_NAMES[stack]} (${state.stacks[stack].length})</button>`).join('');
-                } else { content += `<p style="color: #4b5563; text-align: center;">No other stacks have images.</p>`; }
-                content += `</div>`;
-                this.show('focus-stack-switch', { title: 'Switch Stack', content: content, confirmText: 'Cancel' });
-                document.querySelectorAll('.move-option').forEach(option => {
-                    option.addEventListener('click', () => {
-                        const targetStack = option.dataset.stack;
-                        UI.switchToStack(targetStack); Core.updateImageCounters(); this.hide();
-                    });
                 });
             },
             setupFolderMoveAction() {
@@ -2771,10 +3301,26 @@ Measures:
             }
         };
         const Gestures = {
-            startPos: { x: 0, y: 0 }, currentPos: { x: 0, y: 0 }, gestureStarted: false, lastTapTime: 0, edgeElements: [],
+            startPos: { x: 0, y: 0 },
+            currentPos: { x: 0, y: 0 },
+            startTimestamp: 0,
+            gestureStarted: false,
+            edgeElements: [],
+            hubPressActive: false,
+            overlay: null,
+            lastHubTap: { time: 0, x: 0, y: 0 },
+            DOUBLE_TAP_MAX_INTERVAL: 320,
+            DOUBLE_TAP_MAX_DISTANCE: 28,
+            TAP_DISTANCE_THRESHOLD: 26,
+            TAP_DURATION_THRESHOLD: 260,
+            TRAIL_INTERVAL_MS: 12,
+            TRAIL_LIFETIME_MS: 1050,
+            trailThrottle: null,
             init() {
                 this.edgeElements = [Utils.elements.edgeTop, Utils.elements.edgeBottom, Utils.elements.edgeLeft, Utils.elements.edgeRight];
-                this.setupEventListeners(); this.setupPinchZoom(); this.setupTapZones();
+                this.setupEventListeners();
+                this.setupPinchZoom();
+                this.initGestureOverlay();
             },
             setupEventListeners() {
                 Utils.elements.imageViewport.addEventListener('mousedown', this.handleStart.bind(this));
@@ -2783,6 +3329,7 @@ Measures:
                 Utils.elements.imageViewport.addEventListener('touchstart', this.handleStart.bind(this), { passive: false });
                 document.addEventListener('touchmove', this.handleMove.bind(this), { passive: false });
                 document.addEventListener('touchend', this.handleEnd.bind(this), { passive: false });
+                document.addEventListener('touchcancel', this.handleEnd.bind(this), { passive: false });
             },
             setupPinchZoom() {
                 Utils.elements.centerImage.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
@@ -2790,17 +3337,151 @@ Measures:
                 Utils.elements.centerImage.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
                 Utils.elements.centerImage.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
             },
-             setupTapZones() {
-                // Quick Move (Normal Mode) Taps
-                document.getElementById('quick-move-left').addEventListener('click', () => { if (!state.isFocusMode) this.executeFlick(this.directionToStack('left')); });
-                document.getElementById('quick-move-right').addEventListener('click', () => { if (!state.isFocusMode) this.executeFlick(this.directionToStack('right')); });
-                document.getElementById('quick-move-top').addEventListener('click', () => { if (!state.isFocusMode) this.executeFlick(this.directionToStack('top')); });
-                document.getElementById('quick-move-bottom').addEventListener('click', () => { if (!state.isFocusMode) this.executeFlick(this.directionToStack('bottom')); });
-
-                // Focus Mode Taps
-                document.getElementById('focus-tap-left').addEventListener('click', () => { if (state.isFocusMode) this.prevImage(); });
-                document.getElementById('focus-tap-right').addEventListener('click', () => { if (state.isFocusMode) this.nextImage(); });
-                document.getElementById('focus-tap-center').addEventListener('click', () => { if (state.isFocusMode) this.toggleFocusMode(); });
+            initGestureOverlay() {
+                this.overlay = {
+                    layer: Utils.elements.gestureLayer,
+                    screenA: Utils.elements.gestureScreenA,
+                    screenB: Utils.elements.gestureScreenB,
+                    tri: {
+                        up: Utils.elements.gestureTriUp,
+                        right: Utils.elements.gestureTriRight,
+                        down: Utils.elements.gestureTriDown,
+                        left: Utils.elements.gestureTriLeft
+                    },
+                    half: {
+                        left: Utils.elements.gestureHalfLeft,
+                        right: Utils.elements.gestureHalfRight
+                    }
+                };
+                this.updateGestureOverlayMode();
+            },
+            spawnTrail(clientX, clientY) {
+                if (!this.overlay?.layer) return;
+                const rect = this.overlay.layer.getBoundingClientRect();
+                const trail = document.createElement('div');
+                trail.className = 'comet-trail';
+                trail.style.left = `${clientX - rect.left}px`;
+                trail.style.top = `${clientY - rect.top}px`;
+                this.overlay.layer.appendChild(trail);
+                setTimeout(() => trail.remove(), this.TRAIL_LIFETIME_MS);
+            },
+            spawnRipple(clientX, clientY) {
+                if (!this.overlay?.layer) return;
+                const rect = this.overlay.layer.getBoundingClientRect();
+                const ripple = document.createElement('div');
+                ripple.className = 'tap-ripple';
+                ripple.style.left = `${clientX - rect.left}px`;
+                ripple.style.top = `${clientY - rect.top}px`;
+                this.overlay.layer.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 560);
+            },
+            queueTrail(clientX, clientY) {
+                if (this.trailThrottle) return;
+                this.spawnTrail(clientX, clientY);
+                this.trailThrottle = setTimeout(() => { this.trailThrottle = null; }, this.TRAIL_INTERVAL_MS);
+            },
+            flashElement(el) {
+                if (!el) return;
+                if (el._glowTimeout) clearTimeout(el._glowTimeout);
+                if (el._deglowTimeout) clearTimeout(el._deglowTimeout);
+                el.classList.add('glow');
+                el.classList.remove('deglow');
+                el._glowTimeout = setTimeout(() => {
+                    el.classList.remove('glow');
+                    el.classList.add('deglow');
+                    el._deglowTimeout = setTimeout(() => { el.classList.remove('deglow'); }, 260);
+                }, 220);
+            },
+            highlightSortDirection(direction) {
+                if (!this.overlay || !this.overlay.tri) return;
+                this.flashElement(this.overlay.tri[direction]);
+            },
+            highlightFocusDirection(direction) {
+                if (!this.overlay || !this.overlay.half) return;
+                this.flashElement(this.overlay.half[direction]);
+            },
+            updateGestureOverlayMode() {
+                if (!this.overlay) return;
+                const focus = state.isFocusMode;
+                if (this.overlay.screenA) {
+                    this.overlay.screenA.toggleAttribute('hidden', focus);
+                    this.overlay.screenA.setAttribute('aria-hidden', focus ? 'true' : 'false');
+                }
+                if (this.overlay.screenB) {
+                    this.overlay.screenB.toggleAttribute('hidden', !focus);
+                    this.overlay.screenB.setAttribute('aria-hidden', focus ? 'false' : 'true');
+                }
+            },
+            isInHub(clientX, clientY) {
+                const viewport = Utils.elements.imageViewport;
+                if (!viewport) return false;
+                const rect = viewport.getBoundingClientRect();
+                if (!rect.width || !rect.height) return false;
+                const cx = rect.left + rect.width / 2;
+                const cy = rect.top + rect.height / 2;
+                const radius = Math.min(rect.width, rect.height) * 0.12;
+                return Math.hypot(clientX - cx, clientY - cy) <= radius;
+            },
+            pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
+                const v0x = cx - ax, v0y = cy - ay;
+                const v1x = bx - ax, v1y = by - ay;
+                const v2x = px - ax, v2y = py - ay;
+                const dot00 = v0x * v0x + v0y * v0y;
+                const dot01 = v0x * v1x + v0y * v1y;
+                const dot02 = v0x * v2x + v0y * v2y;
+                const dot11 = v1x * v1x + v1y * v1y;
+                const dot12 = v1x * v2x + v1y * v2y;
+                const invDen = 1 / (dot00 * dot11 - dot01 * dot01);
+                const u = (dot11 * dot02 - dot01 * dot12) * invDen;
+                const v = (dot00 * dot12 - dot01 * dot02) * invDen;
+                return (u >= 0) && (v >= 0) && (u + v <= 1);
+            },
+            hitTriangle(clientX, clientY) {
+                const viewport = Utils.elements.imageViewport;
+                if (!viewport) return null;
+                const rect = viewport.getBoundingClientRect();
+                if (!rect.width || !rect.height) return null;
+                const fx = (clientX - rect.left) / rect.width;
+                const fy = (clientY - rect.top) / rect.height;
+                const clamp = (val) => Math.max(0, Math.min(1, val));
+                const px = clamp(fx);
+                const py = clamp(fy);
+                const cx = 0.5, cy = 0.5;
+                const inUp = this.pointInTriangle(px, py, 0, 0, 1, 0, cx, cy);
+                const inRight = this.pointInTriangle(px, py, 1, 0, 1, 1, cx, cy);
+                const inDown = this.pointInTriangle(px, py, 0, 1, 1, 1, cx, cy);
+                const inLeft = this.pointInTriangle(px, py, 0, 0, 0, 1, cx, cy);
+                if (inUp && !inRight && !inDown && !inLeft) return 'up';
+                if (inRight && !inUp && !inDown && !inLeft) return 'right';
+                if (inDown && !inUp && !inRight && !inLeft) return 'down';
+                if (inLeft && !inUp && !inRight && !inDown) return 'left';
+                if (inUp || inRight || inDown || inLeft) {
+                    const dx = px - 0.5;
+                    const dy = py - 0.5;
+                    if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'right' : 'left';
+                    return dy > 0 ? 'down' : 'up';
+                }
+                return null;
+            },
+            handleTap(clientX, clientY) {
+                if (state.isFocusMode) {
+                    const viewport = Utils.elements.imageViewport;
+                    if (!viewport) return;
+                    const rect = viewport.getBoundingClientRect();
+                    if (!rect.width) return;
+                    const fx = (clientX - rect.left) / rect.width;
+                    const direction = fx < 0.5 ? 'left' : 'right';
+                    this.highlightFocusDirection(direction);
+                    if (direction === 'left') { this.prevImage(); }
+                    else { this.nextImage(); }
+                    return;
+                }
+                const dir = this.hitTriangle(clientX, clientY);
+                if (!dir) return;
+                this.highlightSortDirection(dir);
+                const mapped = dir === 'up' ? 'top' : dir === 'down' ? 'bottom' : dir;
+                const targetStack = this.directionToStack(mapped);
+                if (targetStack) this.executeFlick(targetStack);
             },
             showEdgeGlow(direction) {
                 this.edgeElements.forEach(edge => edge.classList.remove('active'));
@@ -2813,34 +3494,40 @@ Measures:
                 if (Math.abs(deltaX) > Math.abs(deltaY)) { return deltaX > 0 ? 'right' : 'left'; } else { return deltaY > 0 ? 'bottom' : 'top'; }
             },
             directionToStack(direction) {
-                const mapping = { 'top': 'priority', 'bottom': 'trash', 'left': 'in', 'right': 'out' };
+                const mapping = { 'top': 'priority', 'bottom': 'trash', 'left': 'in', 'right': 'out', 'up': 'priority', 'down': 'trash' };
                 return mapping[direction];
             },
             async executeFlick(targetStack) {
                 if (state.stacks[state.currentStack].length === 0) return;
-                UI.acknowledgePillCounter(targetStack);
-                if (state.haptic) { state.haptic.triggerFeedback('swipe'); }
-                await Core.moveToStack(targetStack);
-                this.hideAllEdgeGlows();
+                try {
+                    UI.acknowledgePillCounter(targetStack);
+                    if (state.haptic) { state.haptic.triggerFeedback('swipe'); }
+                    await Core.moveToStack(targetStack);
+                    this.hideAllEdgeGlows();
+                } catch(error) {
+                    Utils.showToast(`Flick failed: ${error.message}`, 'error', true);
+                }
             },
             handleStart(e) {
-                const currentTime = Date.now();
-                if (currentTime - this.lastTapTime < 300) { e.preventDefault(); this.toggleFocusMode(); this.lastTapTime = 0; return; }
-                this.lastTapTime = currentTime;
-                
-                if (state.stacks[state.currentStack].length === 0) return;
                 if (e.touches && (e.touches.length > 1 || state.isPinching)) return;
                 if (state.currentScale > 1.1) return;
                 const point = e.touches ? e.touches[0] : e;
+                const hubInteraction = this.isInHub(point.clientX, point.clientY);
+                if (!hubInteraction && state.stacks[state.currentStack].length === 0) return;
                 this.startPos = { x: point.clientX, y: point.clientY };
                 this.currentPos = { x: point.clientX, y: point.clientY };
+                this.startTimestamp = performance.now();
                 this.gestureStarted = false;
                 state.isDragging = true;
-                Utils.elements.centerImage.classList.add('dragging');
+                this.hubPressActive = hubInteraction;
+                if (!hubInteraction) {
+                    Utils.elements.centerImage.classList.add('dragging');
+                }
+                this.spawnRipple(point.clientX, point.clientY);
+                this.queueTrail(point.clientX, point.clientY);
             },
             handleMove(e) {
                 if (!state.isDragging) return;
-                if (state.imageFiles.length === 0) return;
                 if (e.touches && e.touches.length > 1) {
                     state.isDragging = false; Utils.elements.centerImage.classList.remove('dragging');
                     this.hideAllEdgeGlows(); return;
@@ -2848,6 +3535,9 @@ Measures:
                 e.preventDefault();
                 const point = e.touches ? e.touches[0] : e;
                 this.currentPos = { x: point.clientX, y: point.clientY };
+                this.queueTrail(point.clientX, point.clientY);
+                if (this.hubPressActive) { return; }
+                if (state.imageFiles.length === 0) return;
                 const deltaX = this.currentPos.x - this.startPos.x;
                 const deltaY = this.currentPos.y - this.startPos.y;
                 const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
@@ -2857,30 +3547,70 @@ Measures:
                         const direction = this.determineSwipeDirection(deltaX, deltaY);
                         if (direction) { this.hideAllEdgeGlows(); this.showEdgeGlow(direction); }
                     }
-                } else { 
-                    if(!state.isFocusMode) this.hideAllEdgeGlows(); 
+                } else {
+                    if(!state.isFocusMode) this.hideAllEdgeGlows();
                 }
             },
             handleEnd(e) {
                 if (!state.isDragging) return;
-                state.isDragging = false; Utils.elements.centerImage.classList.remove('dragging');
-                if (!this.gestureStarted) { this.hideAllEdgeGlows(); return; }
-                
+                state.isDragging = false;
+                Utils.elements.centerImage.classList.remove('dragging');
+                const point = e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : e;
+                if (point) { this.currentPos = { x: point.clientX, y: point.clientY }; }
+                this.spawnTrail(this.currentPos.x, this.currentPos.y);
                 const deltaX = this.currentPos.x - this.startPos.x;
                 const deltaY = this.currentPos.y - this.startPos.y;
                 const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-                
+                const now = performance.now();
+                const duration = now - this.startTimestamp;
+                const isTap = distance < this.TAP_DISTANCE_THRESHOLD && duration < this.TAP_DURATION_THRESHOLD;
+
+                if (this.hubPressActive) {
+                    if (isTap) {
+                        if (this.lastHubTap.time && (now - this.lastHubTap.time) <= this.DOUBLE_TAP_MAX_INTERVAL) {
+                            const tapDistance = Math.hypot(this.lastHubTap.x - this.currentPos.x, this.lastHubTap.y - this.currentPos.y);
+                            if (tapDistance <= this.DOUBLE_TAP_MAX_DISTANCE) {
+                                this.spawnRipple(this.currentPos.x, this.currentPos.y);
+                                this.toggleFocusMode();
+                                if (state.haptic) { state.haptic.triggerFeedback('buttonPress'); }
+                                this.lastHubTap = { time: 0, x: 0, y: 0 };
+                            } else {
+                                this.lastHubTap = { time: now, x: this.currentPos.x, y: this.currentPos.y };
+                            }
+                        } else {
+                            this.lastHubTap = { time: now, x: this.currentPos.x, y: this.currentPos.y };
+                        }
+                    } else {
+                        this.lastHubTap = { time: 0, x: 0, y: 0 };
+                    }
+                    this.hideAllEdgeGlows();
+                    this.hubPressActive = false;
+                    this.gestureStarted = false;
+                    return;
+                }
+
                 if (distance > 80) {
-                    if(state.isFocusMode){
-                         if (deltaX < 0) { this.nextImage(); } 
-                         else { this.prevImage(); }
+                    if (state.isFocusMode) {
+                        const direction = deltaX < 0 ? 'right' : 'left';
+                        this.highlightFocusDirection(direction);
+                        if (deltaX < 0) { this.nextImage(); }
+                        else { this.prevImage(); }
                     } else {
                         const direction = this.determineSwipeDirection(deltaX, deltaY);
                         const targetStack = this.directionToStack(direction);
-                        if (targetStack && direction) { this.executeFlick(targetStack); return; }
+                        if (targetStack && direction) {
+                            const triDir = direction === 'top' ? 'up' : direction === 'bottom' ? 'down' : direction;
+                            this.highlightSortDirection(triDir);
+                            this.executeFlick(targetStack);
+                        }
                     }
+                } else if (!this.gestureStarted && isTap) {
+                    this.spawnRipple(this.currentPos.x, this.currentPos.y);
+                    this.handleTap(this.currentPos.x, this.currentPos.y);
                 }
                 this.hideAllEdgeGlows();
+                this.hubPressActive = false;
+                this.gestureStarted = false;
             },
             getDistance(touch1, touch2) { const dx = touch1.clientX - touch2.clientX; const dy = touch1.clientY - touch2.clientY; return Math.sqrt(dx * dx + dy * dy); },
             getCenter(touch1, touch2) { return { x: (touch1.clientX + touch2.clientX) / 2, y: (touch1.clientY + touch2.clientY) / 2 }; },
@@ -2924,7 +3654,9 @@ Measures:
             toggleFocusMode() {
                 state.isFocusMode = !state.isFocusMode;
                 Utils.elements.appContainer.classList.toggle('focus-mode', state.isFocusMode);
+                this.updateGestureOverlayMode();
                 Core.updateImageCounters();
+                this.lastHubTap = { time: 0, x: 0, y: 0 };
             },
             async nextImage() {
                 const stack = state.stacks[state.currentStack];
@@ -2958,16 +3690,21 @@ Measures:
                 try {
                     const folders = await state.provider.getFolders();
                     this.display(folders);
-                    if (typeof state.provider.updateNavigation === 'function') {
-                        this.updateNavigation();
-                    }
-                } catch (error) { Utils.showToast(`Error loading folders: ${error.message}`, 'error', true); }
+                    this.updateNavigation();
+                } catch (error) {
+                    Utils.showToast(`Error loading folders: ${error.message}`, 'error', true);
+                    folderList.innerHTML = `<div style="text-align: center; padding: 40px; color: #ef4444;">
+                                                <span>Failed to load folders.</span>
+                                                <button id="retry-folders" class="folder-action-btn" style="margin-top: 15px;">Retry</button>
+                                            </div>`;
+                    document.getElementById('retry-folders').addEventListener('click', () => this.load());
+                }
             },
 
             display(folders) {
                 const { folderList } = Utils.elements;
                 folderList.innerHTML = '';
-                if (folders.length === 0) {
+                if (!folders || folders.length === 0) {
                     folderList.innerHTML = `<div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);"><span>No folders found</span></div>`;
                     return;
                 }
@@ -3005,10 +3742,14 @@ Measures:
                 document.querySelectorAll('#folder-list .drill-btn').forEach(btn => {
                     btn.addEventListener('click', async (e) => {
                         e.stopPropagation();
-                        const { folderId, folderName } = e.target.dataset;
-                        const subfolders = await state.provider.drillIntoFolder({ id: folderId, name: folderName });
-                        this.display(subfolders);
-                        this.updateNavigation();
+                        try {
+                            const { folderId, folderName } = e.target.dataset;
+                            const subfolders = await state.provider.drillIntoFolder({ id: folderId, name: folderName });
+                            this.display(subfolders);
+                            this.updateNavigation();
+                        } catch (error) {
+                             Utils.showToast(`Error browsing folder: ${error.message}`, 'error', true);
+                        }
                     });
                 });
                 document.querySelectorAll('#folder-list .select-btn').forEach(btn => {
@@ -3205,23 +3946,29 @@ Measures:
                 Utils.elements.backButton.addEventListener('click', () => App.returnToFolderSelection());
 
                 Utils.elements.folderBackButton.addEventListener('click', () => App.backToProviderSelection());
-                Utils.elements.folderLogoutButton.addEventListener('click', () => {
-                    if (state.provider) {
-                        state.provider.disconnect();
+                Utils.elements.folderLogoutButton.addEventListener('click', async () => {
+                    try {
+                        if (state.provider) {
+                            await state.provider.disconnect();
+                        }
+                        App.backToProviderSelection();
+                    } catch (error) {
+                        Utils.showToast(`Logout failed: ${error.message}`, 'error', true);
                     }
-                    App.backToProviderSelection();
                 });
 
                 Utils.elements.folderRefreshButton.addEventListener('click', async () => {
-                    const provider = state.provider;
-                    if (typeof provider.canGoUp === 'function' && provider.canGoUp()) {
-                        try {
+                    try {
+                        const provider = state.provider;
+                        if (typeof provider.canGoUp === 'function' && provider.canGoUp()) {
                             const folders = await provider.navigateToParent();
                             Folders.display(folders);
                             Folders.updateNavigation();
-                        } catch (error) { Utils.showToast('Error navigating up', 'error', true); }
-                    } else {
-                        Folders.load();
+                        } else {
+                            await Folders.load();
+                        }
+                    } catch (error) {
+                        Utils.showToast(`Folder navigation failed: ${error.message}`, 'error', true);
                     }
                 });
             },
@@ -3242,11 +3989,15 @@ Measures:
                 Utils.elements.focusStackName.addEventListener('click', () => Modal.setupFocusStackSwitch());
                 Utils.elements.focusDeleteBtn.addEventListener('click', () => Gestures.deleteCurrentImage());
                 Utils.elements.focusFavoriteBtn.addEventListener('click', async () => {
-                    const currentFile = state.stacks[state.currentStack]?.[state.currentStackPosition];
-                    if (!currentFile) return;
-                    const isFavorite = !currentFile.favorite;
-                    await App.updateUserMetadata(currentFile.id, { favorite: isFavorite });
-                    Core.updateFavoriteButton();
+                    try {
+                        const currentFile = state.stacks[state.currentStack]?.[state.currentStackPosition];
+                        if (!currentFile) return;
+                        const isFavorite = !currentFile.favorite;
+                        await App.updateUserMetadata(currentFile.id, { favorite: isFavorite });
+                        Core.updateFavoriteButton();
+                    } catch (error) {
+                         Utils.showToast(`Favorite failed: ${error.message}`, 'error', true);
+                    }
                 });
             },
             setupTabs() { document.querySelectorAll('.tab-button').forEach(btn => { btn.addEventListener('click', () => Details.switchTab(btn.dataset.tab)); }); },
@@ -3321,36 +4072,48 @@ Measures:
                 Utils.elements.exportSelected.addEventListener('click', () => Modal.setupExportAction());
                 Utils.elements.folderSelected.addEventListener('click', () => Modal.setupFolderMoveAction());
                 Utils.elements.actionCancel.addEventListener('click', () => Modal.hide());
-                Utils.elements.actionConfirm.addEventListener('click', () => {
-                    if (Modal.currentAction === 'move') { /* handled by buttons */
-                    } else if (Modal.currentAction === 'tag') { Modal.executeTag();
-                    } else if (Modal.currentAction === 'delete') { Modal.executeDelete();
-                    } else if (Modal.currentAction === 'export') { Modal.executeExport();
-                    } else if (Modal.currentAction === 'folder-move') { Modal.executeFolderMove(); }
+                Utils.elements.actionConfirm.addEventListener('click', async () => {
+                    try {
+                        if (Modal.currentAction === 'move') { /* handled by buttons */
+                        } else if (Modal.currentAction === 'tag') { await Modal.executeTag();
+                        } else if (Modal.currentAction === 'delete') { await Modal.executeDelete();
+                        } else if (Modal.currentAction === 'export') { await Modal.executeExport();
+                        } else if (Modal.currentAction === 'folder-move') { Modal.executeFolderMove(); }
+                    } catch (error) {
+                        Utils.showToast(`Action failed: ${error.message}`, 'error', true);
+                    }
                 });
             },
             setupKeyboardNavigation() {
-                document.addEventListener('keydown', (e) => {
+                document.addEventListener('keydown', async (e) => {
                     if (Utils.elements.appContainer.classList.contains('hidden')) return;
                     if (!Utils.elements.detailsModal.classList.contains('hidden')) { if (e.key === 'Escape') Details.hide(); return; }
                     if (!Utils.elements.gridModal.classList.contains('hidden')) { if (e.key === 'Escape') Grid.close(); return; }
                     if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
-                    if (state.isFocusMode) {
-                        if (e.key === 'ArrowRight') Gestures.nextImage();
-                        if (e.key === 'ArrowLeft') Gestures.prevImage();
-                        if (e.key === 'Escape') Gestures.toggleFocusMode();
-                        return;
-                    }
-                    const keyMap = { 'ArrowUp': 'priority', 'ArrowDown': 'trash', 'ArrowLeft': 'in', 'ArrowRight': 'out' };
-                    if (keyMap[e.key]) {
-                        e.preventDefault();
-                        const targetStack = keyMap[e.key];
-                        if (state.stacks[state.currentStack].length > 0) { UI.acknowledgePillCounter(targetStack); Core.moveToStack(targetStack); }
-                        return;
-                    }
-                    switch (e.key) {
-                        case 'Tab': e.preventDefault(); UI.cycleThroughPills(); break;
-                        case 'Escape': App.returnToFolderSelection(); break;
+                    
+                    try {
+                        if (state.isFocusMode) {
+                            if (e.key === 'ArrowRight') await Gestures.nextImage();
+                            if (e.key === 'ArrowLeft') await Gestures.prevImage();
+                            if (e.key === 'Escape') Gestures.toggleFocusMode();
+                            return;
+                        }
+                        const keyMap = { 'ArrowUp': 'priority', 'ArrowDown': 'trash', 'ArrowLeft': 'in', 'ArrowRight': 'out' };
+                        if (keyMap[e.key]) {
+                            e.preventDefault();
+                            const targetStack = keyMap[e.key];
+                            if (state.stacks[state.currentStack].length > 0) { 
+                                UI.acknowledgePillCounter(targetStack); 
+                                await Core.moveToStack(targetStack); 
+                            }
+                            return;
+                        }
+                        switch (e.key) {
+                            case 'Tab': e.preventDefault(); UI.cycleThroughPills(); break;
+                            case 'Escape': await App.returnToFolderSelection(); break;
+                        }
+                    } catch (error) {
+                        Utils.showToast(`Keyboard command failed: ${error.message}`, 'error', true);
                     }
                 });
             }
@@ -3370,97 +4133,16 @@ Measures:
                 Gestures.init();
                 Core.updateActiveProxTab();
             } catch (error) {
-                Utils.showToast(`Failed to initialize app: ${error.message}`, 'error', true);
+                console.error("Fatal initialization error:", error);
+                const body = document.body;
+                body.innerHTML = `<div style="color: red; padding: 20px; font-family: sans-serif; text-align: center;">
+                                    <h1>Application Failed to Start</h1>
+                                    <p>A critical error occurred: ${error.message}</p>
+                                    <p>Please try refreshing the page or clearing application data.</p>
+                                  </div>`;
             }
         }
         document.addEventListener('DOMContentLoaded', initApp);
     </script>
-
-<script>
-// Release M non-invasive glue — do not modify baseline objects
-(function (global) {
-  'use strict';
-  var state = global.state || (global.state = {});
-
-  // ----- Debounce helper -----
-  function debounce(fn, ms) { var t; return function(){ var self=this, args=arguments; clearTimeout(t); t=setTimeout(function(){ fn.apply(self,args); }, ms); }; }
-
-  // ----- Queue (IndexedDB with localStorage fallback) -----
-  var DB = (function(){ 
-    var useLocal = false, db = null, NAME='ReleaseMDB', STORE='queue';
-    function open(cb){ try{ var req = indexedDB.open(NAME,1); req.onupgradeneeded=function(){ var d=req.result; if(!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE); }; req.onsuccess=function(){ db=req.result; cb(); }; req.onerror=function(){ useLocal=true; cb(); }; }catch(e){ useLocal=true; cb(); } }
-    function getAll(cb){ if(useLocal){ var raw=localStorage.getItem(NAME) || '[]'; try{ cb(JSON.parse(raw)); }catch(_){ cb([]); } return; } var tx=db.transaction(STORE,'readonly'), os=tx.objectStore(STORE), rq=os.getAll(); rq.onsuccess=function(){ cb(rq.result||[]); }; rq.onerror=function(){ cb([]); } }
-    function put(key, val, cb){ if(useLocal){ var arr=JSON.parse(localStorage.getItem(NAME)||'[]'); var idx=arr.findIndex(function(x){return x.key===key;}); if(idx<0) arr.push(val); else arr[idx]=val; localStorage.setItem(NAME, JSON.stringify(arr)); cb&&cb(); return; } var tx=db.transaction(STORE,'readwrite'), os=tx.objectStore(STORE), rq=os.put(val, key); rq.onsuccess=function(){ cb&&cb(); }; rq.onerror=function(){ cb&&cb(); } }
-    function del(key, cb){ if(useLocal){ var arr=JSON.parse(localStorage.getItem(NAME)||'[]').filter(function(x){return x.key!==key;}); localStorage.setItem(NAME, JSON.stringify(arr)); cb&&cb(); return; } var tx=db.transaction(STORE,'readwrite'), os=tx.objectStore(STORE), rq=os.delete(key); rq.onsuccess=function(){ cb&&cb(); }; rq.onerror=function(){ cb&&cb(); } }
-    return { open:open, getAll:getAll, put:put, del:del };
-  })();
-
-  var Queue = (function(){
-    function keyOf(op){ return op.type + ':' + op.id + ':' + (op.field||'favorite'); }
-    function enqueue(op){ DB.open(function(){ DB.getAll(function(arr){ var k=keyOf(op); var exists = arr.some(function(x){return x && x.key===k;}); if(!exists) DB.put(k, { key:k, op:op, ts: Date.now() }, function(){ try{ global.dispatchEvent(new CustomEvent('queue:changed')); }catch(_e){} if(global.state) global.state.changes_made=Date.now(); }); }); }); }
-    function readNext(limit, cb){ DB.open(function(){ DB.getAll(function(arr){ arr = arr.filter(Boolean).sort(function(a,b){return a.ts-b.ts;}); cb(arr.slice(0, limit||50)); }); }); }
-    function ack(keys, cb){ var left = keys.length; if(!left) return cb&&cb(); keys.forEach(function(k){ DB.del(k, function(){ left--; if(left===0) cb&&cb(); }); }); }
-    return { enqueue:enqueue, readNext:readNext, ack:ack };
-  })();
-
-  var Worker = (function(){
-    var running = false;
-    var schedule = debounce(drain, 600);
-    function requestSync(){ schedule(); }
-    function applyOp(item, done){ try{ var op=item.op; var prov = global.state && global.state.provider; if(!prov||!op) return done(); if(op.type==='patchMeta'){ var meta = op.metadata||{}; // Drive provider maps to appProperties itself
-            // coerce boolean -> string for appProperties compatibility
-            var normalized = {}; for(var k in meta) if(Object.prototype.hasOwnProperty.call(meta,k)) normalized[k] = String(meta[k]);
-            prov.updateFileMetadata(op.id, normalized).then(function(){ done(); }).catch(function(){ done(); });
-          } else { done(); } }catch(e){ done(); } }
-    function drain(){ if(running) return; running=true; Queue.readNext(50, function(batch){ if(!batch.length) return finish(); var left=batch.length; batch.forEach(function(row){ applyOp(row, function(){ Queue.ack([row.key], function(){ if(--left===0) finish(); }); }); }); }); }
-    function finish(){ running=false; try{ if(global.App && App.refreshFolderInBackground) App.refreshFolderInBackground(); }catch(_e){} }
-    function start(){ requestSync(); global.addEventListener('online', requestSync); document.addEventListener('visibilitychange', function(){ if(!document.hidden) requestSync(); }); global.addEventListener('queue:changed', requestSync); }
-    return { start:start, requestSync:requestSync };
-  })();
-
-  // Expose shim for existing UI code that calls state.syncManager.requestSync(...)
-  if(!state.syncManager) state.syncManager = { requestSync: function(){ try{ Worker.requestSync(); }catch(_e){} } };
-
-  // Hook favorite button to enqueue cloud update without changing UI handler
-  function hookFavoriteButton(){
-    try{ var btn = (global.Utils && Utils.elements && Utils.elements.focusFavoriteBtn) ? Utils.elements.focusFavoriteBtn : document.getElementById('focus-favorite'); 
-      if(!btn) return;
-      btn.addEventListener('click', function(){
-        try{ var st = global.state || {}; var file = st.stacks && st.stacks[st.currentStack] ? st.stacks[st.currentStack][st.currentStackPosition] : null;
-          if(!file) return;
-          var newFav = !file.favorite;
-          Queue.enqueue({ type:'patchMeta', id:file.id, metadata: { favorite: newFav } });
-        }catch(_e){}
-      }, true);
-    }catch(_e){}
-  }
-
-  // Override thumbnail selection for Google Drive to permanent ID-based URLs, leave others as-is
-  function overrideThumb(){
-    try{
-      if(!global.Utils || typeof Utils.getPreferredImageUrl!=='function') return;
-      var orig = Utils.getPreferredImageUrl;
-      Utils.getPreferredImageUrl = function(file){
-        try{ if(global.state && global.state.providerType==='googledrive') return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(file.id) + '&sz=w1000'; }catch(_e){}
-        return orig.call(Utils, file);
-      };
-    }catch(_e){}
-  }
-
-  // Start worker on load and do overrides
-  function boot(){
-    overrideThumb();
-    hookFavoriteButton();
-    Worker.start();
-    // footer stamp
-    try{ var el=document.querySelector('footer .build-timestamp'); if(el) el.textContent='Last build: 2025-09-19 08:38:49Z'; }catch(_e){}
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
-
-  // Export minimal API for diagnostics
-  global.ReleaseM = { Queue: Queue, Worker: Worker };
-})(window);
-</script>
-
 </body>
 </html>
