@@ -1,11 +1,4 @@
-<!-- Orbital8-R-2025-09-20 01:17 AM
-  Version R Upgrades:
-  * Event-driven flow using a central event bus for decoupled module communication.
-  * Three-tier caching strategy (In-memory LRU, IndexedDB, Cloud) for optimized data access.
-  * Inline worker for synchronous, non-blocking cloud provider API interactions.
-  * Last-device-wins conflict resolution based on remote and local timestamps.
-  * Promise-based, batched IndexedDB transactions for improved performance and reliability.
--->
+<!-- Orbital8-N-2025-09-19 11:15 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -662,7 +655,7 @@
             </div>
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">Version R - Unified, Tier 3 Last Device Wins - UI Optimized</div>
+        <div class="app-footer">Orbital8-M-2025-09-19 11:15 AM</div>
     </div>
     
     <!-- Unified Auth Screen -->
@@ -677,7 +670,7 @@
             <button class="button" id="auth-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="auth-status" class="status info"></div>
         </div>
-        <div class="app-footer">Version R - Unified, Tier 3 Last Device Wins - UI Optimized</div>
+        <div class="app-footer">Orbital8-M-2025-09-19 11:15 AM</div>
     </div>
     
     <!-- Unified Folder Screen -->
@@ -692,7 +685,7 @@
                 <button class="folder-button danger" id="folder-logout-button">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">Version R - Unified, Tier 3 Last Device Wins - UI Optimized</div>
+        <div class="app-footer">Orbital8-M-2025-09-19 11:15 AM</div>
     </div>
     
     <!-- Loading Screen -->
@@ -706,7 +699,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">Version R - Unified, Tier 3 Last Device Wins - UI Optimized</div>
+        <div class="app-footer">Orbital8-M-2025-09-19 11:15 AM</div>
     </div>
     
     <!-- Main App Container -->
@@ -718,7 +711,7 @@
         <button class="ui-button" id="details-button">Details</button>
         
         <div class="image-viewport" id="image-viewport">
-            <img class="center-image zoomable" id="center-image" alt="Select a folder to start" loading="lazy" />
+            <img class="center-image zoomable" id="center-image" alt="Select a folder to start" />
         </div>
         <!-- Gesture overlay (triangular sort zones + focus halves) -->
         <div class="gesture-layer" id="gesture-layer">
@@ -776,7 +769,7 @@
         </button>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">Version R - Unified, Tier 3 Last Device Wins - UI Optimized</div>
+        <div class="app-footer">Orbital8-M-2025-09-19 11:15 AM</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -940,263 +933,11 @@
         </div>
     </div>
 
-    <script type="worker-template" id="sync-worker-script">
-      // ===== SYNC WORKER =====
-      let db = null;
-      const providerAdapters = {};
-
-      // --- IndexedDB ---
-      function openDB() {
-          return new Promise((resolve, reject) => {
-              const request = self.indexedDB.open('Orbital8-Goji-V1', 1);
-              request.onupgradeneeded = (event) => {
-                  const dbInstance = event.target.result;
-                  if (!dbInstance.objectStoreNames.contains('folderCache')) {
-                      dbInstance.createObjectStore('folderCache', { keyPath: ['provider', 'folderId'] });
-                  }
-                  if (!dbInstance.objectStoreNames.contains('metadata')) {
-                      dbInstance.createObjectStore('metadata', { keyPath: 'id' });
-                  }
-                   if (!dbInstance.objectStoreNames.contains('syncQueue')) {
-                        const store = dbInstance.createObjectStore('syncQueue', { keyPath: 'id', autoIncrement: true });
-                        store.createIndex('by_fileId', 'fileId', { unique: false });
-                    }
-              };
-              request.onsuccess = (event) => { db = event.target.result; resolve(db); };
-              request.onerror = (event) => reject(event.target.error);
-          });
-      }
-
-      async function getFolderCache(provider, folderId) {
-          if (!db) return null;
-          return new Promise((resolve, reject) => {
-              const transaction = db.transaction('folderCache', 'readonly');
-              const store = transaction.objectStore('folderCache');
-              const request = store.get([provider, folderId]);
-              request.onsuccess = () => resolve(request.result || null);
-              request.onerror = () => reject(request.error);
-          });
-      }
-      
-      async function saveFolderCache(data) {
-          if (!db) return;
-          return new Promise((resolve, reject) => {
-              const transaction = db.transaction('folderCache', 'readwrite');
-              const store = transaction.objectStore('folderCache');
-              const request = store.put(data);
-              request.onsuccess = () => resolve();
-              request.onerror = () => reject(request.error);
-          });
-      }
-      
-      async function readSyncQueue() {
-          if (!db) return [];
-          return new Promise((resolve, reject) => {
-              const transaction = db.transaction('syncQueue', 'readonly');
-              const store = transaction.objectStore('syncQueue');
-              const request = store.getAll();
-              request.onsuccess = () => resolve(request.result);
-              request.onerror = () => reject(request.error);
-          });
-      }
-      
-      async function markQueueProcessed(ids) {
-          if (!db || ids.length === 0) return;
-           return new Promise((resolve, reject) => {
-                const transaction = db.transaction('syncQueue', 'readwrite');
-                const store = transaction.objectStore('syncQueue');
-                let completed = 0;
-
-                const checkCompletion = () => {
-                    completed++;
-                    if (completed === ids.length) {
-                        resolve();
-                    }
-                };
-
-                ids.forEach(id => {
-                    const request = store.delete(id);
-                    request.onsuccess = checkCompletion;
-                    request.onerror = (e) => {
-                        console.error('Failed to delete from queue:', id, e.target.error);
-                        checkCompletion(); 
-                    };
-                });
-
-                transaction.oncomplete = () => resolve();
-                transaction.onerror = (e) => reject(e.target.error);
-            });
-      }
-
-      // --- Provider Adapters ---
-      providerAdapters.googledrive = {
-          async fetch(endpoint, options, isJson = true) {
-              const url = endpoint.startsWith('https://') ? endpoint : `https://www.googleapis.com/drive/v3${endpoint}`;
-              const headers = { 'Authorization': `Bearer ${options.accessToken}`, ...options.headers };
-              if(isJson) { headers['Content-Type'] = 'application/json'; }
-              
-              const response = await fetch(url, { ...options, headers });
-
-              if (!response.ok) {
-                  const errorText = await response.text();
-                  throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`);
-              }
-              return isJson ? response.json() : response;
-          },
-          
-          async fullFetch(options) {
-              const { folderId, accessToken } = options;
-              let allFiles = []; let nextPageToken = null;
-              
-              do {
-                  const query = `'${folderId}' in parents and trashed=false and (mimeType contains 'image/')`;
-                  let url = `/files?q=${encodeURIComponent(query)}&fields=nextPageToken,files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,parents,appProperties,remoteUpdatedAt)&pageSize=100`;
-                  if (nextPageToken) url += `&pageToken=${nextPageToken}`;
-                  
-                  const response = await this.fetch(url, { accessToken });
-                  
-                  const files = response.files
-                      .filter(file => file.mimeType && file.mimeType.startsWith('image/'))
-                      .map(file => ({ ...file, remoteUpdatedAt: file.modifiedTime, size: parseInt(file.size || 0) }));
-                  allFiles.push(...files);
-                  nextPageToken = response.nextPageToken;
-              } while (nextPageToken);
-
-              return { files: allFiles, changeToken: 'initial_placeholder' }; // Drive API change tokens require more setup
-          },
-          
-          async diffFetch(options) {
-              // Placeholder: Google Drive delta sync is complex and requires setup with startPageToken.
-              // For this implementation, we will re-fetch all for simplicity.
-              return this.fullFetch(options);
-          },
-          
-          async applyChanges(options) {
-              const { accessToken, operations } = options;
-              const results = [];
-              for(const op of operations) {
-                  try {
-                      if (op.operationType === 'metadata-update') {
-                           await this.fetch(`/files/${op.fileId}`, { 
-                              method: 'PATCH',
-                              accessToken,
-                              body: JSON.stringify({ appProperties: op.payload })
-                          });
-                      }
-                      results.push({ id: op.id, success: true });
-                  } catch (error) {
-                      results.push({ id: op.id, success: false, error: error.message });
-                  }
-              }
-              return results;
-          }
-      };
-
-      // --- Message Handling ---
-      self.onmessage = async (event) => {
-          const { type, requestId, payload } = event.data;
-
-          try {
-              if (!db) await openDB();
-
-              switch (type) {
-                  case 'worker:init':
-                      self.postMessage({ type: 'ack', requestId, payload: { ready: true } });
-                      break;
-
-                  case 'worker:full-fetch': {
-                      const { provider, folderId, accessToken } = payload;
-                      const adapter = providerAdapters[provider];
-                      if (!adapter) throw new Error(`Unsupported provider: ${provider}`);
-
-                      const { files, changeToken } = await adapter.fullFetch({ folderId, accessToken });
-                      
-                      const folderData = {
-                          provider, folderId, files, changeToken,
-                          timestamp: Date.now(), version: 1
-                      };
-                      await saveFolderCache(folderData);
-                      
-                      self.postMessage({ type: 'ack', requestId, payload: { files, changeToken } });
-                      break;
-                  }
-                  
-                  case 'worker:diff-request': {
-                      const { provider, folderId, accessToken, changeToken } = payload;
-                      const adapter = providerAdapters[provider];
-                      if (!adapter) throw new Error(`Unsupported provider: ${provider}`);
-                      
-                      // Using fullFetch as a stand-in for real diff-sync
-                      const { files: newFiles, changeToken: newChangeToken } = await adapter.fullFetch({ folderId, accessToken });
-                      
-                      const oldFolderData = await getFolderCache(provider, folderId);
-                      const oldFiles = oldFolderData ? oldFolderData.files : [];
-                      
-                      const oldFileMap = new Map(oldFiles.map(f => [f.id, f]));
-                      const newFileMap = new Map(newFiles.map(f => [f.id, f]));
-                      
-                      const added = [];
-                      const updated = [];
-                      const removed = oldFiles.filter(f => !newFileMap.has(f.id)).map(f => f.id);
-                      
-                      for (const [id, newFile] of newFileMap.entries()) {
-                          const oldFile = oldFileMap.get(id);
-                          if (!oldFile) {
-                              added.push(newFile);
-                          } else {
-                              const remoteIsNewer = new Date(newFile.remoteUpdatedAt) > new Date(oldFile.remoteUpdatedAt);
-                              if(remoteIsNewer) {
-                                  updated.push(newFile);
-                              }
-                          }
-                      }
-                      
-                      const delta = { added, updated, removed };
-
-                      if(added.length > 0 || updated.length > 0 || removed.length > 0) {
-                          const newCacheData = { ...oldFolderData, files: newFiles, changeToken: newChangeToken, timestamp: Date.now() };
-                          await saveFolderCache(newCacheData);
-                      }
-
-                      self.postMessage({ type: 'ack', requestId, payload: { delta, changeToken: newChangeToken } });
-                      break;
-                  }
-
-                  case 'worker:queue-drain': {
-                      const { provider, accessToken } = payload;
-                      const adapter = providerAdapters[provider];
-                      if (!adapter) throw new Error(`Unsupported provider: ${provider}`);
-
-                      const pendingOps = await readSyncQueue();
-                      if (pendingOps.length === 0) {
-                          self.postMessage({ type: 'ack', requestId, payload: { results: [] } });
-                          return;
-                      }
-
-                      const results = await adapter.applyChanges({ accessToken, operations: pendingOps });
-                      const processedIds = results.filter(r => r.success).map(r => r.id);
-                      
-                      if(processedIds.length > 0) {
-                          await markQueueProcessed(processedIds);
-                      }
-                      
-                      self.postMessage({ type: 'ack', requestId, payload: { results } });
-                      break;
-                  }
-              }
-          } catch (error) {
-              console.error(`Worker error on type ${type}:`, error);
-              self.postMessage({ type: 'err', requestId, error: error.message });
-          }
-      };
-    </script>
     <script>
         // ===== ORBITAL8 Goji Version - App Root =====
         
         const STACKS = ['in', 'out', 'priority', 'trash'];
         const STACK_NAMES = { 'in': 'Inbox', 'out': 'Maybe', 'priority': 'Keep', 'trash': 'Recycle' };
-        const bus = new EventTarget();
-
         const state = {
             provider: null, providerType: null, dbManager: null, metadataExtractor: null,
             syncManager: null, visualCues: null, haptic: null, export: null, currentFolder: { id: null, name: '' },
@@ -1205,13 +946,12 @@
             isDragging: false, isPinching: false, initialDistance: 0, currentScale: 1,
             maxScale: 4, minScale: 0.3, panOffset: { x: 0, y: 0 },
             grid: { stack: null, selected: [], filtered: [], isDirty: false,
-                lazyLoadState: { allFiles: [], renderedCount: 0, observer: null, batchSize: 50, sentinel: null } },
+                lazyLoadState: { allFiles: [], renderedCount: 0, observer: null, batchSize: 20 } },
             tags: new Set(), loadingProgress: { current: 0, total: 0 },
             folderMoveMode: { active: false, files: [] },
             activeRequests: new AbortController(),
-            lruFolderCache: new Map(), // Tier 1 cache
+            sessionVisitedFolders: new Set()
         };
-
         const Utils = {
             elements: {},
             
@@ -1358,61 +1098,63 @@
                 const loadId = file.id + '_' + Date.now();
                 state.currentImageLoadId = loadId;
                 let imageUrl = this.getPreferredImageUrl(file);
-                
-                // Delay assigning high-res src
-                const lowResUrl = this.getThumbnailImageUrl(file);
-                img.src = lowResUrl || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
-
                 return new Promise((resolve) => {
-                    const highResImg = new Image();
-                    highResImg.onload = () => {
+                    img.onload = () => {
                         if (state.currentImageLoadId !== loadId) return;
-                        img.src = imageUrl;
-                        img.alt = file.name || 'Image';
                         resolve();
                     };
-                    highResImg.onerror = () => {
+                    img.onerror = () => {
                         if (state.currentImageLoadId !== loadId) return;
                         let fallbackUrl = this.getFallbackImageUrl(file);
+                        
+                        img.onerror = () => {
+                            if (state.currentImageLoadId !== loadId) return;
+                            img.src = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'150\' height=\'150\' viewBox=\'0 0 150 150\' fill=\'none\'%3E%3Crect width=\'150\' height=\'150\' fill=\'%23E5E7EB\'/%3E%3Cpath d=\'M65 60H85V90H65V60Z\' fill=\'%239CA3AF\'/%3E%3Ccircle cx=\'75\' cy=\'45\' r=\'10\' fill=\'%239CA3AF\'/%3E%3C/svg%3E';
+                            resolve();
+                        };
                         img.src = fallbackUrl;
-                         img.alt = file.name || 'Image';
-                        resolve(); // Resolve even on error to not block UI
                     };
-                    highResImg.src = imageUrl;
+                    img.src = imageUrl;
+                    img.alt = file.name || 'Image';
                 });
-            },
-            
-            getThumbnailImageUrl(file) {
-                if (state.providerType === 'googledrive' && file.thumbnailLink) {
-                    return file.thumbnailLink.replace('=s220', '=s400'); // Smaller preview
-                }
-                return file.thumbnails?.large?.url; // OneDrive preview
             },
             
             getPreferredImageUrl(file) {
                 if (state.providerType === 'googledrive') {
                     if (file.thumbnailLink) {
-                        return file.thumbnailLink.replace('=s220', '=s1600');
+                        return file.thumbnailLink.replace('=s220', '=s1000');
                     }
-                    return `https://drive.google.com/thumbnail?id=${file.id}&sz=w1600`;
+                    return this.getPersistentDownloadUrl(file);
                 } else { // OneDrive
                     if (file.thumbnails && file.thumbnails.large) {
                         return file.thumbnails.large.url;
                     }
-                    return file.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
+                    return this.getPersistentDownloadUrl(file);
                 }
             },
 
             getFallbackImageUrl(file) {
-                 if (state.providerType === 'googledrive') {
-                    return file.downloadUrl || `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
-                } else { // OneDrive
-                    return file.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
+                return this.getPersistentDownloadUrl(file);
+            },
+
+            getPersistentDownloadUrl(file) {
+                if (!file || !file.id) { return file?.downloadUrl || ''; }
+                const existingUrl = file.downloadUrl || '';
+                if (state.provider && typeof state.provider.buildDownloadUrl === 'function') {
+                    const built = state.provider.buildDownloadUrl(file);
+                    if (built) { return built; }
                 }
+                if (existingUrl) { return existingUrl; }
+                if (state.providerType === 'googledrive') {
+                    return `https://drive.google.com/uc?export=view&id=${file.id}`;
+                } else if (state.providerType === 'onedrive') {
+                    return `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
+                }
+                return '';
             },
             
             formatFileSize(bytes) {
-                if (!bytes || bytes === 0) return '0 Bytes';
+                if (bytes === 0) return '0 Bytes';
                 const k = 1024;
                 const sizes = ['Bytes', 'KB', 'MB', 'GB'];
                 const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -1429,11 +1171,6 @@
                     const percentage = (current / total) * 100;
                     this.elements.loadingProgressBar.style.width = `${percentage}%`;
                 }
-            },
-            
-            // Microtask batching for UI updates
-            batchDOMUpdate(updateFn) {
-                Promise.resolve().then(updateFn);
             }
         };
 
@@ -1445,208 +1182,79 @@
                     request.onupgradeneeded = (event) => {
                         const db = event.target.result;
                         if (!db.objectStoreNames.contains('folderCache')) {
-                            // Key path includes provider for multi-provider support
-                            db.createObjectStore('folderCache', { keyPath: ['provider', 'folderId'] });
+                            db.createObjectStore('folderCache', { keyPath: 'folderId' });
                         }
                         if (!db.objectStoreNames.contains('metadata')) {
                             db.createObjectStore('metadata', { keyPath: 'id' });
                         }
                         if (!db.objectStoreNames.contains('syncQueue')) {
-                             const store = db.createObjectStore('syncQueue', { keyPath: 'id', autoIncrement: true });
-                             store.createIndex('by_fileId', 'fileId', { unique: false });
+                            db.createObjectStore('syncQueue', { keyPath: 'id', autoIncrement: true });
                         }
                     };
                     request.onsuccess = (event) => { this.db = event.target.result; resolve(); };
                     request.onerror = (event) => reject(event.target.error);
                 });
             }
-
-            _transaction(storeNames, mode) {
-                return new Promise((resolve, reject) => {
-                    if (!this.db) {
-                        reject(new Error("Database not initialized."));
-                        return;
-                    }
-                    const transaction = this.db.transaction(storeNames, mode);
-                    transaction.oncomplete = () => resolve();
-                    transaction.onerror = (event) => reject(event.target.error);
-                    transaction.onabort = (event) => reject(new Error(`Transaction aborted: ${event.target.error}`));
-                });
-            }
-            
-            _request(request) {
-                return new Promise((resolve, reject) => {
-                    request.onsuccess = () => resolve(request.result);
-                    request.onerror = (event) => reject(event.target.error);
-                });
-            }
-
-            async getFolderCache(provider, folderId) {
+            async getFolderCache(folderId) {
                 if (!this.db) return null;
-                const transaction = this.db.transaction('folderCache', 'readonly');
-                const store = transaction.objectStore('folderCache');
-                return await this._request(store.get([provider, folderId]));
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('folderCache', 'readonly');
+                    const store = transaction.objectStore('folderCache');
+                    const request = store.get(folderId);
+                    request.onsuccess = () => resolve(request.result ? request.result.files : null);
+                    request.onerror = () => reject(request.error);
+                });
             }
-
-            async saveFolderCache(data) {
+            async saveFolderCache(folderId, files) {
                 if (!this.db) return;
-                const transaction = this.db.transaction('folderCache', 'readwrite');
-                const store = transaction.objectStore('folderCache');
-                await this._request(store.put(data));
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('folderCache', 'readwrite');
+                    const store = transaction.objectStore('folderCache');
+                    const request = store.put({ folderId, files, timestamp: Date.now() });
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
             }
-            
             async getMetadata(fileId) {
                 if (!this.db) return null;
-                const transaction = this.db.transaction('metadata', 'readonly');
-                const store = transaction.objectStore('metadata');
-                return await this._request(store.get(fileId));
-            }
-            
-            async saveMetadataBatch(records) {
-                 if (!this.db || !records || records.length === 0) return;
-                 const transaction = this.db.transaction('metadata', 'readwrite');
-                 const store = transaction.objectStore('metadata');
-                 for (const record of records) {
-                     store.put(record);
-                 }
-                 await this._transaction(['metadata'], 'readwrite').catch(e => {
-                     // This is needed to get the final result of the transaction
-                 });
-            }
-
-            async enqueueSyncOps(operations) {
-                if (!this.db || !operations || operations.length === 0) return;
-                const transaction = this.db.transaction('syncQueue', 'readwrite');
-                const store = transaction.objectStore('syncQueue');
-                for (const op of operations) {
-                    store.add({ ...op, queuedAt: Date.now() });
-                }
-                 await this._transaction(['syncQueue'], 'readwrite').catch(e => {});
-            }
-            
-            async markQueueProcessed(ids) {
-                if (!this.db || !ids || ids.length === 0) return;
-                const transaction = this.db.transaction('syncQueue', 'readwrite');
-                const store = transaction.objectStore('syncQueue');
-                for (const id of ids) {
-                    store.delete(id);
-                }
-                 await this._transaction(['syncQueue'], 'readwrite').catch(e => {});
-            }
-
-            async deleteMetadata(fileId) {
-                if (!this.db) return;
-                const transaction = this.db.transaction('metadata', 'readwrite');
-                const store = transaction.objectStore('metadata');
-                await this._request(store.delete(fileId));
-            }
-        }
-        
-        class SyncManager {
-            constructor() {
-                this.worker = null;
-                this.isStarted = false;
-                this.watchdogTimer = null;
-                this.pendingRequests = new Map();
-                this.requestIdCounter = 0;
-                this.syncDebounceTimer = null;
-            }
-            
-            start() {
-                if (this.isStarted) return;
-                
-                const workerSource = document.getElementById('sync-worker-script').textContent;
-                const blob = new Blob([workerSource], { type: 'application/javascript' });
-                const workerUrl = URL.createObjectURL(blob);
-                
-                this.worker = new Worker(workerUrl);
-                URL.revokeObjectURL(workerUrl);
-                
-                this.worker.onmessage = this.handleWorkerMessage.bind(this);
-                this.worker.onerror = this.handleWorkerError.bind(this);
-
-                this.isStarted = true;
-                this.sendCommand('worker:init');
-            }
-            
-            stop() {
-                if (!this.isStarted || !this.worker) return;
-                this.worker.terminate();
-                this.worker = null;
-                this.isStarted = false;
-                clearTimeout(this.watchdogTimer);
-                this.pendingRequests.forEach(req => req.reject('SyncManager stopped.'));
-                this.pendingRequests.clear();
-            }
-
-            restart() {
-                console.warn("Sync worker unresponsive, restarting...");
-                this.stop();
-                this.start();
-                // Replay pending commands could be implemented here
-            }
-
-            sendCommand(type, payload = {}) {
                 return new Promise((resolve, reject) => {
-                    if (!this.worker) {
-                        reject(new Error("Worker is not running."));
-                        return;
-                    }
-                    const requestId = this.requestIdCounter++;
-                    this.pendingRequests.set(requestId, { resolve, reject, type });
-                    this.worker.postMessage({ type, requestId, payload });
-
-                    // Set watchdog
-                    this.resetWatchdog();
+                    const transaction = this.db.transaction('metadata', 'readonly');
+                    const store = transaction.objectStore('metadata');
+                    const request = store.get(fileId);
+                    request.onsuccess = () => resolve(request.result ? request.result.metadata : null);
+                    request.onerror = () => reject(request.error);
                 });
             }
-
-            resetWatchdog() {
-                clearTimeout(this.watchdogTimer);
-                this.watchdogTimer = setTimeout(() => {
-                    if (this.pendingRequests.size > 0) {
-                        this.restart();
-                    }
-                }, 30000); // 30-second timeout
+            async saveMetadata(fileId, metadata) {
+                if (!this.db) return;
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('metadata', 'readwrite');
+                    const store = transaction.objectStore('metadata');
+                    const request = store.put({ id: fileId, metadata });
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
             }
-
-            handleWorkerMessage(event) {
-                const { type, requestId, payload, error } = event.data;
-                const request = this.pendingRequests.get(requestId);
-                this.resetWatchdog();
-
-                if (!request) {
-                    // This could be an event from the worker, not a direct response
-                    if (type.startsWith('sync:')) {
-                        bus.dispatchEvent(new CustomEvent(type, { detail: payload }));
-                    }
-                    return;
-                }
-
-                if (type === 'ack') {
-                    request.resolve(payload);
-                    bus.dispatchEvent(new CustomEvent(`${request.type}:ack`, { detail: payload }));
-                } else if (type === 'err') {
-                    request.reject(new Error(error));
-                     bus.dispatchEvent(new CustomEvent(`${request.type}:error`, { detail: { error } }));
-                }
-                this.pendingRequests.delete(requestId);
+            async deleteMetadata(fileId) {
+                if (!this.db) return;
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('metadata', 'readwrite');
+                    const store = transaction.objectStore('metadata');
+                    const request = store.delete(fileId);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
             }
-
-            handleWorkerError(error) {
-                console.error("Sync worker error:", error);
-                bus.dispatchEvent(new CustomEvent('sync:error', { detail: { error: 'Worker crashed' }}));
-                this.restart();
-            }
-
-            requestSync() {
-                clearTimeout(this.syncDebounceTimer);
-                this.syncDebounceTimer = setTimeout(() => {
-                    bus.dispatchEvent(new Event('sync:queue-flush'));
-                }, 3000); // Debounce for 3 seconds
-            }
+            async addToSyncQueue(operation) { return Promise.resolve(); }
+            async readSyncQueue() { return Promise.resolve([]); }
+            async deleteFromSyncQueue(id) { return Promise.resolve(); }
         }
-
+        class SyncManager {
+            constructor() { this.worker = null; this.syncInterval = null; }
+            start() { /* Placeholder */ }
+            stop() { /* Placeholder */ }
+            requestSync() { /* Placeholder */ }
+        }
         class VisualCueManager {
             constructor() {
                 this.currentIntensity = localStorage.getItem('orbital8_visual_intensity') || 'medium';
@@ -1780,6 +1388,7 @@
             async updateFileMetadata(fileId, metadata) { throw new Error("Method 'updateFileMetadata(fileId, metadata)' must be implemented."); }
             async moveFileToFolder(fileId, targetFolderId) { throw new Error("Method 'moveFileToFolder(fileId, targetFolderId)' must be implemented."); }
             async deleteFile(fileId) { throw new Error("Method 'deleteFile(fileId)' must be implemented."); }
+            buildDownloadUrl() { return ''; }
         }
         class GoogleDriveProvider extends BaseProvider {
             constructor() {
@@ -1793,7 +1402,6 @@
                 this.isAuthenticated = false; this.onProgressCallback = null;
                 this.loadStoredCredentials();
             }
-            getAccessToken() { return this.accessToken; }
             loadStoredCredentials() {
                 this.accessToken = localStorage.getItem('google_access_token');
                 this.refreshToken = localStorage.getItem('google_refresh_token');
@@ -1881,19 +1489,30 @@
                     type: 'folder',
                     createdTime: folder.createdTime,
                     modifiedTime: folder.modifiedTime,
-                    itemCount: 0, 
-                    hasChildren: false 
+                    itemCount: 0, // Google Drive API doesn't provide this in the list call
+                    hasChildren: false // Assume false to not show a non-functional 'Browse' button
                 }));
             }
             async getFilesAndMetadata(folderId = 'root') {
-                 // This method is now primarily for the main thread's initial check
-                 // The heavy lifting is done by the worker.
-                 return { folders: [], files: [] };
+                const allFiles = []; let nextPageToken = null;
+                do {
+                    const query = `'${folderId}' in parents and trashed=false and (mimeType contains 'image/')`;
+                    let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,appProperties,parents),nextPageToken&pageSize=100`;
+                    if (nextPageToken) { url += `&pageToken=${nextPageToken}`; }
+                    const response = await this.makeApiCall(url, { signal: state.activeRequests.signal });
+                    const files = response.files.filter(file => file.mimeType && file.mimeType.startsWith('image/')).map(file => ({ id: file.id, name: file.name, type: 'file', mimeType: file.mimeType, size: file.size ? parseInt(file.size) : 0, createdTime: file.createdTime, modifiedTime: file.modifiedTime, thumbnailLink: file.thumbnailLink, downloadUrl: this.buildDownloadUrl(file), appProperties: file.appProperties || {}, parents: file.parents }));
+                    allFiles.push(...files);
+                    nextPageToken = response.nextPageToken;
+                    if (this.onProgressCallback) { this.onProgressCallback(allFiles.length); }
+                } while (nextPageToken);
+                return { folders: [], files: allFiles };
             }
             async drillIntoFolder(folder) {
+                // Not applicable for Google Drive's flat folder structure, but fulfills the interface.
                 return Promise.resolve([]);
             }
             async navigateToParent() {
+                // Not applicable for Google Drive's flat folder structure, returns the root list.
                 return this.getFolders();
             }
             async moveFileToFolder(fileId, targetFolderId) {
@@ -1903,11 +1522,15 @@
                 return true;
             }
             async updateFileMetadata(fileId, metadata) {
-                // This will be handled via the sync queue
-                const op = { fileId, operationType: 'metadata-update', payload: metadata };
-                await state.dbManager.enqueueSyncOps([op]);
-                state.syncManager.requestSync();
+                await this.makeApiCall(`/files/${fileId}`, { method: 'PATCH', body: JSON.stringify({ appProperties: metadata }) });
                 return true;
+            }
+            async updateUserMetadata(fileId, updates) {
+                const file = state.imageFiles.find(f => f.id === fileId);
+                if (!file) return;
+                Object.assign(file, updates);
+                await state.dbManager.saveMetadata(file.id, file);
+                await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
             }
 
             async deleteFile(fileId) {
@@ -1917,6 +1540,11 @@
             async disconnect() {
                 this.isAuthenticated = false; this.accessToken = null; this.refreshToken = null; this.clientSecret = null;
                 this.clearStoredCredentials();
+            }
+            buildDownloadUrl(file) {
+                const fileId = typeof file === 'string' ? file : (file && file.id ? file.id : '');
+                if (!fileId) { return ''; }
+                return `https://drive.google.com/uc?export=view&id=${fileId}`;
             }
         }
         class OneDriveProvider extends BaseProvider {
@@ -1940,11 +1568,6 @@
                     this.isAuthenticated = true;
                 }
             }
-            getAccessToken() {
-                return this.msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite.AppFolder'], account: this.activeAccount })
-                    .then(res => res.accessToken)
-                    .catch(() => this.msalInstance.acquireTokenPopup({ scopes: ['Files.ReadWrite.AppFolder'], account: this.activeAccount }).then(res => res.accessToken));
-            }
             initMSAL() {
                 const msalConfig = {
                     auth: { clientId: 'b407fd45-c551-4dbb-9da5-cab3a2c5a949', authority: 'https://login.microsoftonline.com/common', redirectUri: window.location.origin + window.location.pathname },
@@ -1962,6 +1585,18 @@
                     this.isAuthenticated = true; return true;
                 } catch (error) { this.isAuthenticated = false; throw new Error(`Authentication failed: ${error.message}`); }
             }
+            async getAccessToken() {
+                if (!this.activeAccount) { throw new Error('No active account'); }
+                try {
+                    const response = await this.msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite.AppFolder'], account: this.activeAccount });
+                    return response.accessToken;
+                } catch (silentError) {
+                    if (silentError instanceof msal.InteractionRequiredAuthError) {
+                        const response = await this.msalInstance.acquireTokenPopup({ scopes: ['Files.ReadWrite.AppFolder'], account: this.activeAccount });
+                        return response.accessToken;
+                    } throw silentError;
+                }
+            }
             async makeApiCall(endpoint, options = {}) {
                 const accessToken = await this.getAccessToken();
                 const url = endpoint.startsWith('https://') ? endpoint : `${this.apiBase}${endpoint}`;
@@ -1972,7 +1607,24 @@
                 return response;
             }
             async getFilesAndMetadata(folderId = 'root') {
-                 return { folders: [], files: [] };
+                const allFiles = [];
+                let endpoint = folderId === 'root' ? '/me/drive/root/children' : `/me/drive/items/${folderId}/children`;
+                let nextLink = `${this.apiBase}${endpoint}`;
+                while(nextLink) {
+                    const response = await this.makeApiCall(nextLink.replace(this.apiBase, ''), { signal: state.activeRequests.signal });
+                    const data = await response.json();
+                    const files = data.value.filter(item => item.file && item.file.mimeType && item.file.mimeType.startsWith('image/'))
+                        .map(item => ({
+                            id: item.id, name: item.name, type: 'file', mimeType: item.file.mimeType, size: item.size || 0,
+                            createdTime: item.createdDateTime, modifiedTime: item.lastModifiedDateTime,
+                            thumbnails: item.thumbnails && item.thumbnails.length > 0 ? { large: item.thumbnails[0].large } : null,
+                            downloadUrl: this.buildDownloadUrl(item)
+                        }));
+                    allFiles.push(...files);
+                    nextLink = data['@odata.nextLink'];
+                    if (this.onProgressCallback) { this.onProgressCallback(allFiles.length); }
+                }
+                return { folders: [], files: allFiles };
             }
             async getDownloadsFolder() {
                 const response = await this.makeApiCall('/me/drive/root/children');
@@ -2035,6 +1687,15 @@
                     if (accounts.length > 0) { await this.msalInstance.logoutPopup({ account: accounts[0] }); }
                 }
             }
+            buildDownloadUrl(file) {
+                if (file && typeof file === 'object') {
+                    if (file['@microsoft.graph.downloadUrl']) { return file['@microsoft.graph.downloadUrl']; }
+                    if (file.downloadUrl) { return file.downloadUrl; }
+                }
+                const fileId = typeof file === 'string' ? file : (file && file.id ? file.id : '');
+                if (!fileId) { return ''; }
+                return `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`;
+            }
         }
         class ExportSystem {
             async exportData(imagesWithMetadata) {
@@ -2064,8 +1725,8 @@
                 } return '';
             }
             getDirectImageURL(image) {
-                if (state.providerType === 'googledrive') { return `https://drive.google.com/uc?id=${image.id}&export=view`;
-                } else if (state.providerType === 'onedrive') { return image.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${image.id}/content`; }
+                if (state.providerType === 'googledrive') { return `https://drive.google.com/uc?id=${image.id}&export=view`; }
+                else if (state.providerType === 'onedrive') { return Utils.getPersistentDownloadUrl(image); }
                 return '';
             }
             downloadCSV(data) {
@@ -2154,122 +1815,222 @@
                 Utils.showScreen('provider-screen');
             },
             async initializeWithProvider(providerType, folderId, folderName, providerInstance) {
-                bus.dispatchEvent(new CustomEvent('folder:load-request', { detail: { providerType, folderId, folderName, providerInstance } }));
+                try {
+                    state.providerType = providerType;
+                    state.provider = providerInstance;
+                    state.currentFolder.id = folderId;
+                    state.currentFolder.name = folderName;
+                    state.activeRequests = new AbortController();
+                    
+                    await this.loadImages();
+                    this.switchToCommonUI();
+                    if(state.syncManager) state.syncManager.start();
+                } catch (error) {
+                    Utils.showToast(`Initialization failed: ${error.message}`, 'error', true);
+                    this.returnToFolderSelection();
+                }
             },
-            
-            async loadFolder(detail) {
-                const { providerType, folderId, folderName, providerInstance } = detail;
-                state.providerType = providerType;
-                state.provider = providerInstance;
-                state.currentFolder = { id: folderId, name: folderName };
-                Utils.showScreen('loading-screen');
-                Utils.updateLoadingProgress(0, 0, 'Checking cache...');
+            async loadImages() {
+                const folderId = state.currentFolder.id;
+                const sessionKey = `${state.providerType || 'unknown'}::${folderId}`;
+                const cachedFiles = await state.dbManager.getFolderCache(folderId) || [];
+                const isFirstSessionVisit = !state.sessionVisitedFolders.has(sessionKey);
 
-                // Tier 1: In-memory LRU cache
-                const lruKey = `${state.providerType}::${folderId}`;
-                if (state.lruFolderCache.has(lruKey)) {
-                    const cachedData = state.lruFolderCache.get(lruKey);
-                    state.lruFolderCache.delete(lruKey); // Move to top
-                    state.lruFolderCache.set(lruKey, cachedData);
-
-                    bus.dispatchEvent(new CustomEvent('folder:cache-hit', { detail: { tier: 1, data: cachedData } }));
-                    // Request background diff
-                    bus.dispatchEvent(new CustomEvent('folder:diff-request', { detail: { folderId, changeToken: cachedData.changeToken } }));
+                if (isFirstSessionVisit || cachedFiles.length === 0) {
+                    await this.syncFolderFromCloud(cachedFiles, sessionKey);
                     return;
                 }
 
-                // Tier 2: IndexedDB cache
-                const dbData = await state.dbManager.getFolderCache(state.providerType, folderId);
-                if (dbData && dbData.files && dbData.files.length > 0) {
-                     bus.dispatchEvent(new CustomEvent('folder:cache-hit', { detail: { tier: 2, data: dbData } }));
-                     bus.dispatchEvent(new CustomEvent('folder:diff-request', { detail: { folderId, changeToken: dbData.changeToken } }));
-                     return;
+                state.imageFiles = cachedFiles;
+                Utils.showScreen('app-container');
+                Core.initializeStacks();
+                Core.initializeImageDisplay();
+                const pendingPngs = state.imageFiles.filter(file => file.mimeType === 'image/png' && file.metadataStatus === 'pending');
+                if (pendingPngs.length > 0) {
+                    this.extractMetadataInBackground(pendingPngs);
                 }
-                
-                // Tier 3: Cloud fetch
-                bus.dispatchEvent(new CustomEvent('folder:full-fetch-request', { detail: { folderId } }));
             },
-            
-            async handleCacheHit(detail) {
-                 const { data } = detail;
-                 const lruKey = `${state.providerType}::${state.currentFolder.id}`;
+            mergeCloudWithCache(cloudFiles, cachedFiles) {
+                const cachedMap = new Map(cachedFiles.map(file => [file.id, file]));
+                const merged = [];
+                const newIds = [];
+                const updatedIds = [];
+                const removedIds = [];
 
-                 state.imageFiles = data.files;
-                 Core.initializeStacks();
-                 Utils.showScreen('app-container');
-                 Core.initializeImageDisplay();
-
-                 // Update LRU cache
-                 state.lruFolderCache.set(lruKey, data);
-                 if (state.lruFolderCache.size > 2) {
-                     const oldestKey = state.lruFolderCache.keys().next().value;
-                     state.lruFolderCache.delete(oldestKey);
-                 }
-            },
-            
-            async handleCloudDelta(detail) {
-                const { delta, changeToken } = detail;
-                const { added, updated, removed } = delta;
-
-                if (added.length === 0 && updated.length === 0 && removed.length === 0) {
-                    Utils.showToast('Folder is up to date.', 'info');
-                    return;
-                }
-                
-                let changedCount = 0;
-                // Remove files
-                state.imageFiles = state.imageFiles.filter(f => !removed.includes(f.id));
-                changedCount += removed.length;
-
-                // Add files
-                for (const file of added) {
-                    const defaultMeta = this.generateDefaultMetadata(file);
-                    state.imageFiles.push({ ...file, ...defaultMeta });
-                }
-                changedCount += added.length;
-
-                // Update files
-                for (const updatedFile of updated) {
-                    const localFile = state.imageFiles.find(f => f.id === updatedFile.id);
-                    if (localFile) {
-                        // Last-device-wins check
-                        const remoteModified = new Date(updatedFile.remoteUpdatedAt || 0);
-                        const localModified = new Date(localFile.remoteUpdatedAt || 0);
-
-                        if (remoteModified > localModified) {
-                            Object.assign(localFile, updatedFile);
-                            changedCount++;
+                for (const cloudFile of cloudFiles) {
+                    const cached = cachedMap.get(cloudFile.id);
+                    if (!cached) {
+                        merged.push({ ...cloudFile });
+                        newIds.push(cloudFile.id);
+                    } else {
+                        const cloudModified = Date.parse(cloudFile.modifiedTime || cloudFile.createdTime || 0);
+                        const cachedModified = Date.parse(cached.modifiedTime || cached.createdTime || 0);
+                        if (!isNaN(cloudModified) && cloudModified > cachedModified) {
+                            merged.push({ ...cached, ...cloudFile });
+                            updatedIds.push(cloudFile.id);
+                        } else {
+                            merged.push(cached);
                         }
+                        cachedMap.delete(cloudFile.id);
                     }
                 }
-                
-                await this.processAllMetadata(state.imageFiles);
-                await state.dbManager.saveFolderCache({
-                    provider: state.providerType,
-                    folderId: state.currentFolder.id,
-                    files: state.imageFiles,
-                    changeToken: changeToken,
-                    timestamp: Date.now()
-                });
-                state.lruFolderCache.set(`${state.providerType}::${state.currentFolder.id}`, { files: state.imageFiles, changeToken });
 
-
-                // Incrementally update UI instead of full re-render
-                Core.initializeStacks(); // Re-sort stacks
-                Core.updateStackCounts();
-                if(state.stacks[state.currentStack].length > 0) {
-                    Core.displayCurrentImage();
-                } else {
-                    Core.showEmptyState();
+                for (const removedId of cachedMap.keys()) {
+                    removedIds.push(removedId);
                 }
 
-                Utils.showToast(`Folder updated with ${changedCount} changes`, 'success');
+                return {
+                    mergedFiles: merged,
+                    newIds,
+                    updatedIds,
+                    removedIds,
+                    hasChanges: newIds.length > 0 || updatedIds.length > 0 || removedIds.length > 0
+                };
             },
+            async syncFolderFromCloud(cachedFiles, sessionKey) {
+                const folderId = state.currentFolder.id;
+                const hadCached = cachedFiles.length > 0;
+                Utils.showScreen('loading-screen');
+                Utils.updateLoadingProgress(0, hadCached ? cachedFiles.length : 0, hadCached ? 'Syncing with cloud...' : 'Fetching from cloud...');
 
+                try {
+                    const result = await state.provider.getFilesAndMetadata(folderId);
+                    const cloudFiles = result.files || [];
+                    const { mergedFiles, newIds, updatedIds, removedIds, hasChanges } = this.mergeCloudWithCache(cloudFiles, cachedFiles);
 
+                    if (mergedFiles.length === 0) {
+                        await state.dbManager.saveFolderCache(folderId, []);
+                        state.imageFiles = [];
+                        Utils.showToast('No images found in this folder', 'info', true);
+                        this.returnToFolderSelection();
+                        return;
+                    }
+
+                    for (const updatedId of updatedIds) {
+                        const updatedFile = mergedFiles.find(file => file.id === updatedId);
+                        if (updatedFile) {
+                            await state.dbManager.saveMetadata(updatedId, updatedFile);
+                        }
+                    }
+                    if (removedIds.length > 0) {
+                        await Promise.all(removedIds.map(id => state.dbManager.deleteMetadata(id)));
+                    }
+
+                    state.imageFiles = mergedFiles;
+                    await this.processAllMetadata(state.imageFiles, !hadCached);
+                    if (hasChanges || !hadCached) {
+                        await state.dbManager.saveFolderCache(folderId, state.imageFiles);
+                    }
+
+                    const key = sessionKey || `${state.providerType || 'unknown'}::${folderId}`;
+                    state.sessionVisitedFolders.add(key);
+                    this.switchToCommonUI();
+                    Core.initializeStacks();
+                    Core.initializeImageDisplay();
+
+                    if (hadCached && hasChanges) {
+                        const diffSummary = [];
+                        if (newIds.length > 0) diffSummary.push(`${newIds.length} new`);
+                        if (updatedIds.length > 0) diffSummary.push(`${updatedIds.length} updated`);
+                        if (removedIds.length > 0) diffSummary.push(`${removedIds.length} removed`);
+                        const summaryText = diffSummary.length > 0 ? diffSummary.join(', ') : 'changes';
+                        Utils.showToast(`Folder updated with cloud changes (${summaryText})`, 'info');
+                    }
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        Utils.showToast(`Error loading images: ${error.message}`, 'error', true);
+                    }
+                    this.returnToFolderSelection();
+                }
+            },
+            async refreshFolderInBackground() {
+                try {
+                    const folderId = state.currentFolder.id;
+                    const cachedFiles = await state.dbManager.getFolderCache(folderId) || [];
+                    const result = await state.provider.getFilesAndMetadata(folderId);
+                    const cloudFiles = result.files || [];
+                    const { mergedFiles, updatedIds, removedIds, hasChanges } = this.mergeCloudWithCache(cloudFiles, cachedFiles);
+
+                    if (!hasChanges) {
+                        return;
+                    }
+
+                    for (const updatedId of updatedIds) {
+                        const updatedFile = mergedFiles.find(file => file.id === updatedId);
+                        if (updatedFile) {
+                            await state.dbManager.saveMetadata(updatedId, updatedFile);
+                        }
+                    }
+                    if (removedIds.length > 0) {
+                        await Promise.all(removedIds.map(id => state.dbManager.deleteMetadata(id)));
+                    }
+
+                    await this.processAllMetadata(mergedFiles);
+                    await state.dbManager.saveFolderCache(folderId, mergedFiles);
+                    state.imageFiles = mergedFiles;
+                    Core.initializeStacks();
+                    Core.updateStackCounts();
+                    if (state.imageFiles.length > 0) Core.displayCurrentImage();
+                    else Core.showEmptyState();
+                    Utils.showToast('Folder updated in background', 'info');
+                } catch (error) {
+                    console.warn("Background refresh failed:", error.message);
+                }
+            },
+            async processAllMetadata(files, isFirstLoad = false) {
+                 if (isFirstLoad) Utils.updateLoadingProgress(0, files.length, 'Processing files...');
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    try {
+                        const metadata = await state.dbManager.getMetadata(file.id);
+                        if (metadata) {
+                            Object.assign(file, metadata);
+                        } else {
+                            const defaultMetadata = this.generateDefaultMetadata(file);
+                            Object.assign(file, defaultMetadata);
+                            await state.dbManager.saveMetadata(file.id, defaultMetadata);
+                        }
+                        const persistentUrl = Utils.getPersistentDownloadUrl(file);
+                        if (persistentUrl && state.providerType === 'googledrive') { file.downloadUrl = persistentUrl; }
+                    } catch (error) {
+                        console.error(`Failed to process metadata for ${file.name}:`, error);
+                    }
+                    if(isFirstLoad) Utils.updateLoadingProgress(i + 1, files.length);
+                }
+                this.extractMetadataInBackground(files.filter(f => f.mimeType === 'image/png'));
+            },
+            generateDefaultMetadata(file) {
+                 const baseMetadata = {
+                    stack: 'in',
+                    tags: [],
+                    qualityRating: 0,
+                    contentRating: 0,
+                    notes: '',
+                    stackSequence: 0,
+                    favorite: false,
+                    extractedMetadata: {},
+                    metadataStatus: 'pending',
+                    downloadUrl: state.providerType === 'googledrive' ? Utils.getPersistentDownloadUrl(file) : (file.downloadUrl || '')
+                };
+                 if (state.providerType === 'googledrive' && file.appProperties) {
+                    baseMetadata.stack = file.appProperties.slideboxStack || 'in';
+                    baseMetadata.tags = file.appProperties.slideboxTags ? file.appProperties.slideboxTags.split(',').map(t => t.trim()) : [];
+                    baseMetadata.qualityRating = parseInt(file.appProperties.qualityRating) || 0;
+                    baseMetadata.contentRating = parseInt(file.appProperties.contentRating) || 0;
+                    baseMetadata.notes = file.appProperties.notes || '';
+                    baseMetadata.stackSequence = parseInt(file.appProperties.stackSequence) || 0;
+                    baseMetadata.favorite = file.appProperties.favorite === 'true';
+                 }
+                 return baseMetadata;
+            },
+            switchToCommonUI() {
+                Utils.showScreen('app-container');
+            },
             async returnToFolderSelection() {
                 try {
-                    state.syncManager.requestSync(); // Ensure pending changes are queued before leaving
+                    if (state.syncManager) {
+                        state.syncManager.requestSync();
+                    }
                     state.activeRequests.abort(); 
                     this.resetViewState();
                     Utils.showScreen('folder-screen');
@@ -2287,22 +2048,17 @@
                 Core.showEmptyState();
                 Utils.elements.emptyState.classList.add('hidden');
             },
-            
             async updateUserMetadata(fileId, updates) {
-                const file = state.imageFiles.find(f => f.id === fileId);
-                if (!file) return;
-                
-                const updatedFile = { ...file, ...updates, localUpdatedAt: Date.now() };
-                Object.assign(file, updatedFile);
-
-                bus.dispatchEvent(new CustomEvent('metadata:update-request', { 
-                    detail: { 
-                        fileId: fileId,
-                        updates: updatedFile
-                    }
-                }));
+                try {
+                    const file = state.imageFiles.find(f => f.id === fileId);
+                    if (!file) return;
+                    Object.assign(file, updates);
+                    await state.dbManager.saveMetadata(file.id, file);
+                    await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
+                } catch (error) {
+                    Utils.showToast(`Failed to update metadata: ${error.message}`, 'error', true);
+                }
             },
-
             async deleteFile(fileId) {
                 const fileIndex = state.imageFiles.findIndex(f => f.id === fileId);
                 if (fileIndex > -1) {
@@ -2310,65 +2066,12 @@
                     const stackIndex = state.stacks[file.stack].findIndex(f => f.id === fileId);
                     if (stackIndex > -1) { state.stacks[file.stack].splice(stackIndex, 1); }
                 }
-                 try {
+                await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
+                try {
                     await state.provider.deleteFile(fileId);
                 } catch (e) {
                     Utils.showToast(`Failed to delete from cloud: ${e.message}`, 'error', true);
                 }
-            },
-            async processAllMetadata(files, isFirstLoad = false) {
-                 if (isFirstLoad) Utils.updateLoadingProgress(0, files.length, 'Processing files...');
-                 
-                 const metadataToSave = [];
-
-                 for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    try {
-                        const metadata = await state.dbManager.getMetadata(file.id);
-                        if (metadata) {
-                            Object.assign(file, metadata);
-                        } else {
-                            const defaultMetadata = this.generateDefaultMetadata(file);
-                            Object.assign(file, defaultMetadata);
-                            metadataToSave.push(defaultMetadata);
-                        }
-                    } catch (error) {
-                        console.error(`Failed to process metadata for ${file.name}:`, error);
-                    }
-                    if(isFirstLoad) Utils.updateLoadingProgress(i + 1, files.length);
-                }
-                
-                if (metadataToSave.length > 0) {
-                    await state.dbManager.saveMetadataBatch(metadataToSave);
-                }
-
-                this.extractMetadataInBackground(files.filter(f => f.mimeType === 'image/png'));
-            },
-            generateDefaultMetadata(file) {
-                 const baseMetadata = { 
-                    id: file.id,
-                    stack: 'in', 
-                    tags: [], 
-                    qualityRating: 0, 
-                    contentRating: 0, 
-                    notes: '', 
-                    stackSequence: 0, 
-                    favorite: false,
-                    extractedMetadata: {}, 
-                    metadataStatus: 'pending',
-                    localUpdatedAt: Date.now(),
-                    remoteUpdatedAt: file.modifiedTime || file.createdTime || new Date(0).toISOString()
-                };
-                 if (state.providerType === 'googledrive' && file.appProperties) {
-                    baseMetadata.stack = file.appProperties.slideboxStack || 'in';
-                    baseMetadata.tags = file.appProperties.slideboxTags ? file.appProperties.slideboxTags.split(',').map(t => t.trim()) : [];
-                    baseMetadata.qualityRating = parseInt(file.appProperties.qualityRating) || 0;
-                    baseMetadata.contentRating = parseInt(file.appProperties.contentRating) || 0;
-                    baseMetadata.notes = file.appProperties.notes || '';
-                    baseMetadata.stackSequence = parseInt(file.appProperties.stackSequence) || 0;
-                    baseMetadata.favorite = file.appProperties.favorite === 'true';
-                 }
-                 return baseMetadata;
             },
             async extractMetadataInBackground(pngFiles) {
                 const BATCH_SIZE = 5;
@@ -2398,7 +2101,7 @@
                         finalMetadata.metadataStatus = 'loaded';
                         finalMetadata.extractedMetadata = metadata;
                     }
-                    await state.dbManager.saveMetadataBatch([finalMetadata]);
+                    await state.dbManager.saveMetadata(file.id, finalMetadata);
                     Object.assign(file, finalMetadata);
                 } catch (error) {
                     if (error.name === 'AbortError') return;
@@ -2406,7 +2109,7 @@
                     file.metadataStatus = 'error';
                     file.extractedMetadata = { 'Error': error.message };
                     file.prompt = `Metadata Error: ${error.message}`;
-                    await state.dbManager.saveMetadataBatch([file]);
+                    await state.dbManager.saveMetadata(file.id, file);
                 }
             }
         };
@@ -2439,15 +2142,13 @@
             },
             
             updateStackCounts() {
-                Utils.batchDOMUpdate(() => {
-                    STACKS.forEach(stack => {
-                        const count = state.stacks[stack] ? state.stacks[stack].length : 0;
-                        const pill = document.getElementById(`pill-${stack}`);
-                        if (pill) {
-                            pill.textContent = count > 999 ? ':)' : count;
-                            pill.classList.toggle('visible', count > 0);
-                        }
-                    });
+                STACKS.forEach(stack => {
+                    const count = state.stacks[stack] ? state.stacks[stack].length : 0;
+                    const pill = document.getElementById(`pill-${stack}`);
+                    if (pill) {
+                        pill.textContent = count > 999 ? ':)' : count;
+                        pill.classList.toggle('visible', count > 0);
+                    }
                 });
             },
             
@@ -2526,32 +2227,41 @@
             },
 
             updateImageCounters() {
-                 Utils.batchDOMUpdate(() => {
-                    const stack = state.stacks[state.currentStack];
-                    const total = stack ? stack.length : 0;
-                    const current = total > 0 ? state.currentStackPosition + 1 : 0;
-                    const counterText = total > 0 ? `Item ${current} / ${total}` : 'No items';
-                    if (Utils.elements.normalImageCount) {
-                        Utils.elements.normalImageCount.textContent = counterText;
-                    }
-                    if (Utils.elements.focusImageCount) {
-                        Utils.elements.focusImageCount.textContent = counterText;
-                    }
-                    if (Utils.elements.focusStackName) {
-                        Utils.elements.focusStackName.textContent = STACK_NAMES[state.currentStack] || state.currentStack;
-                    }
-                });
+                const stack = state.stacks[state.currentStack];
+                const total = stack ? stack.length : 0;
+                const current = total > 0 ? state.currentStackPosition + 1 : 0;
+                const counterText = total > 0 ? `Item ${current} / ${total}` : 'No items';
+                if (Utils.elements.normalImageCount) {
+                    Utils.elements.normalImageCount.textContent = counterText;
+                    Utils.elements.normalImageCount.setAttribute('aria-label', counterText);
+                }
+                if (Utils.elements.focusImageCount) {
+                    Utils.elements.focusImageCount.textContent = counterText;
+                    Utils.elements.focusImageCount.setAttribute('aria-label', counterText);
+                }
+                if (Utils.elements.focusStackName) {
+                    const stackLabel = STACK_NAMES[state.currentStack] || state.currentStack;
+                    Utils.elements.focusStackName.textContent = stackLabel;
+                    Utils.elements.focusStackName.setAttribute('aria-label', `Switch stack (current: ${stackLabel})`);
+                }
             },
 
             updateFavoriteButton() {
                 const currentFile = state.stacks[state.currentStack]?.[state.currentStackPosition];
-                 Utils.batchDOMUpdate(() => {
-                    if (!currentFile) {
-                        Utils.elements.focusFavoriteBtn?.classList.remove('favorited');
-                        return;
+                if (!currentFile) {
+                    if (Utils.elements.focusFavoriteBtn) {
+                        Utils.elements.focusFavoriteBtn.classList.remove('favorited');
+                        Utils.elements.focusFavoriteBtn.setAttribute('aria-pressed', 'false');
                     }
-                    Utils.elements.focusFavoriteBtn?.classList.toggle('favorited', !!currentFile.favorite);
-                 });
+                    return;
+                }
+                const isFavorite = Boolean(currentFile.favorite);
+                if (Utils.elements.focusFavoriteBtn) {
+                    Utils.elements.focusFavoriteBtn.classList.toggle('favorited', isFavorite);
+                    Utils.elements.focusFavoriteBtn.setAttribute('aria-pressed', isFavorite ? 'true' : 'false');
+                    const label = isFavorite ? 'Remove from favorites' : 'Add to favorites';
+                    Utils.elements.focusFavoriteBtn.setAttribute('aria-label', label);
+                }
             },
             
             applyTransform() {
@@ -2576,28 +2286,32 @@
                 const currentImage = currentStackArray[state.currentStackPosition];
                 if (!currentImage) return;
 
-                const originalStackName = state.currentStack;
-                if (targetStack === originalStackName) {
-                    const otherImages = currentStackArray.filter(img => img.id !== currentImage.id);
-                    const minSequence = otherImages.length > 0 ? Math.min(...otherImages.map(img => img.stackSequence || 0)) : Date.now();
-                    const newSequence = minSequence - 1;
-                    await App.updateUserMetadata(currentImage.id, { stackSequence: newSequence });
-                    const [item] = currentStackArray.splice(state.currentStackPosition, 1);
-                    item.stackSequence = newSequence;
-                    currentStackArray.push(item);
-                } else {
-                    const newSequence = Date.now();
-                    await App.updateUserMetadata(currentImage.id, { stack: targetStack, stackSequence: newSequence });
-                    const [item] = currentStackArray.splice(state.currentStackPosition, 1);
-                    item.stack = targetStack;
-                    item.stackSequence = newSequence;
-                    state.stacks[targetStack].unshift(item);
-                    state.stacks[targetStack] = this.sortFiles(state.stacks[targetStack]);
+                try {
+                    const originalStackName = state.currentStack;
+                    if (targetStack === originalStackName) {
+                        const otherImages = currentStackArray.filter(img => img.id !== currentImage.id);
+                        const minSequence = otherImages.length > 0 ? Math.min(...otherImages.map(img => img.stackSequence || 0)) : Date.now();
+                        const newSequence = minSequence - 1;
+                        await App.updateUserMetadata(currentImage.id, { stackSequence: newSequence });
+                        const [item] = currentStackArray.splice(state.currentStackPosition, 1);
+                        item.stackSequence = newSequence;
+                        currentStackArray.push(item);
+                    } else {
+                        const newSequence = Date.now();
+                        await App.updateUserMetadata(currentImage.id, { stack: targetStack, stackSequence: newSequence });
+                        const [item] = currentStackArray.splice(state.currentStackPosition, 1);
+                        item.stack = targetStack;
+                        item.stackSequence = newSequence;
+                        state.stacks[targetStack].unshift(item);
+                        state.stacks[targetStack] = this.sortFiles(state.stacks[targetStack]);
+                    }
+                    
+                    this.updateStackCounts();
+                    this.updateActiveProxTab();
+                    await this.displayCurrentImage();
+                } catch (error) {
+                    Utils.showToast(`Error moving image: ${error.message}`, 'error', true);
                 }
-                
-                this.updateStackCounts();
-                this.updateActiveProxTab();
-                await this.displayCurrentImage();
             },
             
             showEmptyState() {
@@ -2664,13 +2378,14 @@
                 lazyState.observer = new IntersectionObserver(this.handleIntersection.bind(this), { 
                     root: Utils.elements.gridContent, rootMargin: "400px"
                 });
-                if(lazyState.sentinel) { lazyState.observer.observe(lazyState.sentinel); }
+                const sentinel = document.getElementById('grid-sentinel');
+                if (sentinel) { lazyState.observer.observe(sentinel); }
             },
 
             destroyLazyLoad() {
                 const lazyState = state.grid.lazyLoadState;
                 if (lazyState.observer) { lazyState.observer.disconnect(); lazyState.observer = null; }
-                lazyState.allFiles = []; lazyState.renderedCount = 0; lazyState.sentinel = null;
+                lazyState.allFiles = []; lazyState.renderedCount = 0;
             },
 
             renderBatch() {
@@ -2678,46 +2393,39 @@
                 const container = Utils.elements.gridContainer;
                 const filesToRender = lazyState.allFiles.slice(lazyState.renderedCount, lazyState.renderedCount + lazyState.batchSize);
 
-                if (lazyState.sentinel && lazyState.observer) {
-                    lazyState.observer.unobserve(lazyState.sentinel); 
-                    lazyState.sentinel.remove();
-                    lazyState.sentinel = null;
+                const oldSentinel = document.getElementById('grid-sentinel');
+                if (oldSentinel && lazyState.observer) {
+                    lazyState.observer.unobserve(oldSentinel); oldSentinel.remove();
                 }
-                
-                const fragment = document.createDocumentFragment();
+
                 filesToRender.forEach(file => {
                     const div = document.createElement('div');
                     div.className = 'grid-item'; div.dataset.fileId = file.id;
                     if (state.grid.selected.includes(file.id)) { div.classList.add('selected'); }
-                    
                     const img = document.createElement('img');
                     img.className = 'grid-image'; img.alt = file.name || 'Image';
-                    img.loading = 'lazy';
-                    img.dataset.src = Utils.getThumbnailImageUrl(file) || Utils.getPreferredImageUrl(file);
+                    img.dataset.src = Utils.getPreferredImageUrl(file);
                     img.onload = () => img.classList.add('loaded');
                     img.onerror = () => {
                         img.src = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'150\' height=\'150\' viewBox=\'0 0 150 150\' fill=\'none\'%3E%3Crect width=\'150\' height=\'150\' fill=\'%23E5E7EB\'/%3E%3Cpath d=\'M65 60H85V90H65V60Z\' fill=\'%239CA3AF\'/%3E%3Ccircle cx=\'75\' cy=\'45\' r=\'10\' fill=\'%239CA3AF\'/%3E%3C/svg%3E';
                         img.classList.add('loaded');
                     };
                     div.addEventListener('click', e => this.toggleSelection(e, file.id));
-                    
                     const overlay = document.createElement('div');
                     overlay.className = 'filename-overlay';
                     overlay.textContent = file.name;
                     div.appendChild(img);
                     div.appendChild(overlay);
-                    fragment.appendChild(div);
+                    container.appendChild(div);
                 });
-                
-                container.appendChild(fragment);
                 container.querySelectorAll('.grid-image:not([src])').forEach(img => { img.src = img.dataset.src; });
-
                 lazyState.renderedCount += filesToRender.length;
 
                 if (lazyState.renderedCount < lazyState.allFiles.length) {
-                    lazyState.sentinel = document.createElement('div');
-                    container.appendChild(lazyState.sentinel);
-                    if (lazyState.observer) { lazyState.observer.observe(lazyState.sentinel); }
+                    const sentinel = document.createElement('div');
+                    sentinel.id = 'grid-sentinel';
+                    container.appendChild(sentinel);
+                    if (lazyState.observer) { lazyState.observer.observe(sentinel); }
                 }
             },
             
@@ -2859,27 +2567,15 @@
                 
                 const newStack = [...topItems, ...bottomItems];
                 const timestamp = Date.now();
-                const metadataToSave = [];
                 
                 newStack.forEach((file, i) => {
-                    const newSequence = timestamp - i;
-                    if (file.stackSequence !== newSequence) {
-                        file.stackSequence = newSequence;
-                        metadataToSave.push(file);
-                    }
+                    file.stackSequence = timestamp - i;
                 });
 
-                if (metadataToSave.length > 0) {
-                    await state.dbManager.saveMetadataBatch(metadataToSave);
-                    await state.dbManager.saveFolderCache({
-                        provider: state.providerType,
-                        folderId: state.currentFolder.id,
-                        files: state.imageFiles,
-                        changeToken: state.lruFolderCache.get(`${state.providerType}::${state.currentFolder.id}`)?.changeToken,
-                        timestamp: Date.now()
-                    });
+                for(const file of newStack) {
+                    await state.dbManager.saveMetadata(file.id, file);
                 }
-
+                await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
 
                 state.stacks[state.grid.stack] = newStack;
                 state.currentStackPosition = 0;
@@ -2916,7 +2612,7 @@
                 const filename = file.name || 'Unknown';
                 Utils.elements.detailFilename.textContent = filename;
                 if (state.providerType === 'googledrive') { Utils.elements.detailFilenameLink.href = `https://drive.google.com/file/d/${file.id}/view`;
-                } else { Utils.elements.detailFilenameLink.href = file.downloadUrl || '#'; }
+                } else { Utils.elements.detailFilenameLink.href = Utils.getPersistentDownloadUrl(file) || '#'; }
                 Utils.elements.detailFilenameLink.style.display = 'inline';
                 const date = file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : file.createdTime ? new Date(file.createdTime).toLocaleString() : 'Unknown';
                 Utils.elements.detailDate.textContent = date;
@@ -3155,6 +2851,25 @@
                     title: 'Export to Spreadsheet',
                     content: `<p style="color: #4b5563; margin-bottom: 16px;">This will start the new Live Export process for ${state.grid.selected.length} selected image(s).</p><p style="color: #4b5563; margin-bottom: 16px;">It will fetch fresh data directly from the cloud to ensure 100% accuracy.</p>`,
                     confirmText: 'Begin Export'
+                });
+            },
+            setupFocusStackSwitch() {
+                const availableStacks = STACKS.filter(stack => stack !== state.currentStack && (state.stacks[stack]?.length || 0) > 0);
+                let content = `<div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">`;
+                if (availableStacks.length > 0) {
+                    content += availableStacks.map(stack => `<button class="move-option" data-stack="${stack}" style="width: 100%; text-align: left; padding: 8px 16px; border-radius: 6px; border: none; background: transparent; cursor: pointer; transition: background-color 0.2s;">${STACK_NAMES[stack]} (${state.stacks[stack].length})</button>`).join('');
+                } else {
+                    content += `<p style="color: #4b5563; text-align: center;">No other stacks have images.</p>`;
+                }
+                content += `</div>`;
+                this.show('focus-stack-switch', { title: 'Switch Stack', content, confirmText: 'Cancel' });
+                document.querySelectorAll('.move-option').forEach(option => {
+                    option.addEventListener('click', () => {
+                        const targetStack = option.dataset.stack;
+                        UI.switchToStack(targetStack);
+                        Core.updateImageCounters();
+                        this.hide();
+                    });
                 });
             },
             setupFolderMoveAction() {
@@ -3783,19 +3498,29 @@
                         Utils.updateLoadingProgress(i + 1, filesToMove.length);
                     }
                     Utils.showToast(`Moved ${filesToMove.length} images to ${folderName}`, 'success', true);
-                    
-                    await state.dbManager.saveFolderCache({
-                        provider: state.providerType,
-                        folderId: state.currentFolder.id,
-                        files: state.imageFiles,
-                        changeToken: state.lruFolderCache.get(`${state.providerType}::${state.currentFolder.id}`)?.changeToken,
-                        timestamp: Date.now()
-                    });
-
+                    await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
                     state.folderMoveMode = { active: false, files: [] };
                     Core.initializeStacks(); Core.updateStackCounts(); App.returnToFolderSelection();
                 } catch (error) { Utils.showToast('Error moving files', 'error', true); App.returnToFolderSelection(); }
             },
+            updateOneDriveNavigation() {
+                const currentPath = state.provider.getCurrentPath();
+                const canGoUp = state.provider.canGoUp();
+                Utils.elements.onedriveFolderSubtitle.textContent = `Current: ${currentPath}`;
+                const refreshBtn = Utils.elements.onedriveRefreshFolders;
+                if (canGoUp) {
+                    refreshBtn.textContent = '← Go Up';
+                    refreshBtn.onclick = async () => {
+                        try {
+                            const folders = await state.provider.navigateToParent();
+                            this.displayOneDriveFolders(folders); this.updateOneDriveNavigation();
+                        } catch (error) { Utils.showToast('Error navigating to parent folder', 'error', true); }
+                    };
+                } else {
+                    refreshBtn.textContent = 'Refresh';
+                    refreshBtn.onclick = () => this.loadOneDriveFolders();
+                }
+            }
         };
         const UI = {
             updateEmptyStateButtons() {
@@ -3897,77 +3622,6 @@
                 this.setupGridControls(); this.setupSearchFunctionality(); this.setupActionButtons();
                 this.setupKeyboardNavigation();
                 this.setupDraggables();
-                this.setupBusListeners();
-            },
-            setupBusListeners() {
-                bus.addEventListener('folder:load-request', (e) => App.loadFolder(e.detail));
-                bus.addEventListener('folder:cache-hit', (e) => App.handleCacheHit(e.detail));
-                bus.addEventListener('folder:cloud-delta', (e) => App.handleCloudDelta(e.detail));
-
-                bus.addEventListener('folder:full-fetch-request', async (e) => {
-                    const { folderId } = e.detail;
-                    const accessToken = await state.provider.getAccessToken();
-                    try {
-                        const { files, changeToken } = await state.syncManager.sendCommand('worker:full-fetch', {
-                            provider: state.providerType, folderId, accessToken
-                        });
-                        bus.dispatchEvent(new CustomEvent('folder:cache-hit', { detail: { tier: 3, data: { files, changeToken } } }));
-                    } catch (error) {
-                        Utils.showToast(`Full fetch failed: ${error.message}`, 'error', true);
-                        App.returnToFolderSelection();
-                    }
-                });
-
-                bus.addEventListener('folder:diff-request', async (e) => {
-                    const { folderId, changeToken } = e.detail;
-                    const accessToken = await state.provider.getAccessToken();
-                    try {
-                         const { delta, changeToken: newChangeToken } = await state.syncManager.sendCommand('worker:diff-request', {
-                            provider: state.providerType, folderId, accessToken, changeToken
-                        });
-                        bus.dispatchEvent(new CustomEvent('folder:cloud-delta', { detail: { delta, changeToken: newChangeToken } }));
-                    } catch (error) {
-                         Utils.showToast(`Background sync failed: ${error.message}`, 'error');
-                    }
-                });
-                
-                bus.addEventListener('metadata:update-request', async (e) => {
-                    const { fileId, updates } = e.detail;
-                    // Tier 1 is already updated optimistically
-                    // Tier 2: Persist to DB and queue for sync
-                    await state.dbManager.saveMetadataBatch([updates]);
-
-                    const appProperties = {
-                        slideboxStack: updates.stack,
-                        slideboxTags: (updates.tags || []).join(','),
-                        qualityRating: String(updates.qualityRating || 0),
-                        contentRating: String(updates.contentRating || 0),
-                        notes: updates.notes || '',
-                        stackSequence: String(updates.stackSequence || 0),
-                        favorite: String(updates.favorite || false)
-                    };
-
-                    await state.dbManager.enqueueSyncOps([{ 
-                        fileId, 
-                        operationType: 'metadata-update', 
-                        payload: appProperties
-                    }]);
-                    state.syncManager.requestSync();
-                });
-                
-                bus.addEventListener('sync:queue-flush', async () => {
-                    const accessToken = await state.provider.getAccessToken();
-                    await state.syncManager.sendCommand('worker:queue-drain', {
-                        provider: state.providerType,
-                        accessToken
-                    });
-                });
-                
-                bus.addEventListener('worker:queue-drain:ack', (e) => {
-                    const { results } = e.detail;
-                    const successCount = results.filter(r => r.success).length;
-                    if(successCount > 0) Utils.showToast(`${successCount} item(s) synced to cloud.`, 'success');
-                });
             },
             setupDraggables() {
                 DraggableResizable.init(Utils.elements.detailsModal.querySelector('.modal-content'), Utils.elements.detailsModalHeader);
@@ -4172,7 +3826,6 @@
                 state.dbManager = new DBManager();
                 await state.dbManager.init();
                 state.syncManager = new SyncManager();
-                state.syncManager.start();
                 state.metadataExtractor = new MetadataExtractor();
                 Utils.showScreen('provider-screen');
                 Events.init();
@@ -4192,4 +3845,3 @@
     </script>
 </body>
 </html>
-
