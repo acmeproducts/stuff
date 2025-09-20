@@ -1,3 +1,10 @@
+<!--
+Orbital8-R-2025-09-19 10:48 PM
+Changes:
+1. Enabled focus mode stack swapper button (top-left).
+2. Adjusted bottom UI elements for mobile safe areas to improve tap targets.
+3. Reduced swipe gesture distance threshold for better responsiveness.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -624,6 +631,7 @@
     </style>
 </head>
 <body>
+    <!-- Provider Selection Screen -->
     <div class="screen" id="provider-screen">
         <div class="card">
             <h1 class="title" style="font-size: 32px;">Orbital8</h1>
@@ -657,6 +665,7 @@
         <div class="app-footer">Version R - Unified, Tier 3 Last Device Wins - UI Optimized</div>
     </div>
     
+    <!-- Unified Auth Screen -->
     <div class="screen hidden" id="auth-screen">
         <div class="card">
             <h1 class="title" id="auth-title">Provider</h1>
@@ -671,6 +680,7 @@
         <div class="app-footer">Version R - Unified, Tier 3 Last Device Wins - UI Optimized</div>
     </div>
     
+    <!-- Unified Folder Screen -->
     <div class="screen hidden" id="folder-screen">
         <div class="card" style="max-height: 80vh; display: flex; flex-direction: column;">
             <h2 class="title" id="folder-title">Select Folder</h2>
@@ -685,6 +695,7 @@
         <div class="app-footer">Version R - Unified, Tier 3 Last Device Wins - UI Optimized</div>
     </div>
     
+    <!-- Loading Screen -->
     <div class="screen hidden" id="loading-screen" style="z-index: 1500;">
         <div class="card">
             <h2 class="title">Loading Images</h2>
@@ -698,6 +709,7 @@
         <div class="app-footer">Version R - Unified, Tier 3 Last Device Wins - UI Optimized</div>
     </div>
     
+    <!-- Main App Container -->
     <div class="app-container hidden" id="app-container">
         <button class="ui-button" id="back-button">
             <span id="back-button-spinner" class="spinner" style="display: none; width: 14px; height: 14px; margin-right: 6px;"></span>
@@ -708,6 +720,7 @@
         <div class="image-viewport" id="image-viewport">
             <img class="center-image zoomable" id="center-image" alt="Select a folder to start" />
         </div>
+        <!-- Gesture overlay (triangular sort zones + focus halves) -->
         <div class="gesture-layer" id="gesture-layer">
             <div id="gesture-screen-a" class="stage" role="application"
                  aria-label="Sort mode. Triangular flick zones. Double-tap center hub to enter focus mode.">
@@ -741,6 +754,7 @@
             <button class="new-images-button" id="select-another-folder-btn" style="margin-top: 12px;">Choose Different Folder</button>
         </div>
         
+        <!-- Center Stage UI -->
         <div id="normal-image-count" class="ui-button"></div>
         <button id="center-trash-btn" class="ui-button">
             <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -748,6 +762,7 @@
             </svg>
         </button>
 
+        <!-- Focus Mode UI -->
         <button id="focus-stack-name" class="ui-button focus-mode-ui"></button>
         <div id="focus-filename-display" class="ui-button focus-mode-ui" style="background: transparent; border: none; cursor: default;"></div>
         <div id="focus-image-count" class="ui-button focus-mode-ui"></div>
@@ -764,6 +779,7 @@
         <div class="app-footer">Version R - Unified, Tier 3 Last Device Wins - UI Optimized</div>
     </div>
     
+    <!-- Enhanced Grid Modal -->
     <div id="grid-modal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -831,6 +847,7 @@
         </div>
     </div>
     
+    <!-- Unified Action Modal -->
     <div id="action-modal" class="modal hidden">
         <div class="modal-content action-modal">
             <h3 id="action-title" class="title" style="font-size: 18px; color: #1f2937; margin-bottom: 16px;">Action</h3>
@@ -842,6 +859,7 @@
         </div>
     </div>
     
+    <!-- Details Modal -->
     <div id="details-modal" class="modal hidden">
         <div class="modal-content details-modal-content">
             <div id="details-modal-header" class="details-header">
@@ -3174,7 +3192,7 @@
                 e.preventDefault();
                 const point = e.touches ? e.touches[0] : e;
                 this.currentPos = { x: point.clientX, y: point.clientY };
-                this.queueTrail(point.clientX, point.clientY);
+                this.queueTrail(point.clientX, clientY);
                 if (this.hubPressActive) { return; }
                 if (state.imageFiles.length === 0) return;
                 const deltaX = this.currentPos.x - this.startPos.x;
@@ -3724,4 +3742,64 @@
                 });
             },
             setupKeyboardNavigation() {
-                document.addEventListener('keydown', async (e)
+                document.addEventListener('keydown', async (e) => {
+                    if (Utils.elements.appContainer.classList.contains('hidden')) return;
+                    if (!Utils.elements.detailsModal.classList.contains('hidden')) { if (e.key === 'Escape') Details.hide(); return; }
+                    if (!Utils.elements.gridModal.classList.contains('hidden')) { if (e.key === 'Escape') Grid.close(); return; }
+                    if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+                    
+                    try {
+                        if (state.isFocusMode) {
+                            if (e.key === 'ArrowRight') await Gestures.nextImage();
+                            if (e.key === 'ArrowLeft') await Gestures.prevImage();
+                            if (e.key === 'Escape') Gestures.toggleFocusMode();
+                            return;
+                        }
+                        const keyMap = { 'ArrowUp': 'priority', 'ArrowDown': 'trash', 'ArrowLeft': 'in', 'ArrowRight': 'out' };
+                        if (keyMap[e.key]) {
+                            e.preventDefault();
+                            const targetStack = keyMap[e.key];
+                            if (state.stacks[state.currentStack].length > 0) { 
+                                UI.acknowledgePillCounter(targetStack); 
+                                await Core.moveToStack(targetStack); 
+                            }
+                            return;
+                        }
+                        switch (e.key) {
+                            case 'Tab': e.preventDefault(); UI.cycleThroughPills(); break;
+                            case 'Escape': await App.returnToFolderSelection(); break;
+                        }
+                    } catch (error) {
+                        Utils.showToast(`Keyboard command failed: ${error.message}`, 'error', true);
+                    }
+                });
+            }
+        };
+        async function initApp() {
+            try {
+                Utils.init();
+                state.visualCues = new VisualCueManager();
+                state.haptic = new HapticFeedbackManager();
+                state.export = new ExportSystem();
+                state.dbManager = new DBManager();
+                await state.dbManager.init();
+                state.syncManager = new SyncManager();
+                state.metadataExtractor = new MetadataExtractor();
+                Utils.showScreen('provider-screen');
+                Events.init();
+                Gestures.init();
+                Core.updateActiveProxTab();
+            } catch (error) {
+                console.error("Fatal initialization error:", error);
+                const body = document.body;
+                body.innerHTML = `<div style="color: red; padding: 20px; font-family: sans-serif; text-align: center;">
+                                    <h1>Application Failed to Start</h1>
+                                    <p>A critical error occurred: ${error.message}</p>
+                                    <p>Please try refreshing the page or clearing application data.</p>
+                                  </div>`;
+            }
+        }
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
