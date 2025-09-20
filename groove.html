@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Enhanced Particle Waves with Config Panel</title>
+<style>
+  /* ====== Base Styles ====== */
+  :root{
+    --bg:#000; --fg:#e6e6e6; --muted:#bdbdbd; --line:rgba(255,255,255,0.14);
+    --accent:#86aaf0; --panel-bg:rgba(0,0,0,0.85); --radius:12px; --shadow:0 10px 30px rgba(0,0,0,0.6);
+    --panel-w: 1200px; --panel-side-w: 420px;
+    --handle-size: 84px;
+  }
+  html, body{height:100%; margin:0; padding:0; overflow:hidden; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial; touch-action:none;}
+  
+  /* ====== Canvas ====== */
+  #viewCanvas{position:absolute; top:0; left:0; width:100%; height:100%; display:block; touch-action:none;}
+  
+  /* ====== Top Icons ====== */
+  .top-icons{position:absolute; top:20px; right:20px; z-index:500; display:flex; gap:10px; align-items:center;}
+  .icon-btn{width:40px; height:40px; background:rgba(0,0,0,0.8); border:1px solid rgba(80,80,80,0.6); border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:14px; transition:all 0.15s ease; backdrop-filter:blur(3px); color:#888;}
+  .icon-btn:hover{background:rgba(20,20,20,0.9); border-color:rgba(120,120,120,0.8); color:#aaa;}
+  .icon-btn.active{background:rgba(40,40,40,0.9); color:#ccc; border-color:rgba(140,140,140,0.8);}
+  .icon-btn.mic-off{opacity:0.5; color:#666;}
+  
+  /* ====== Info Popup ====== */
+  .info-popup{position:absolute; top:70px; right:20px; width:320px; background:var(--panel-bg); border:1px solid var(--line); border-radius:var(--radius); padding:16px; backdrop-filter:blur(8px); z-index:600; transform:translateY(-10px) scale(0.95); opacity:0; visibility:hidden; transition:all 0.2s ease;}
+  .info-popup.show{transform:translateY(0) scale(1); opacity:1; visibility:visible;}
+  .info-popup h3{margin:0 0 12px 0; color:var(--accent); font-size:14px;}
+  .info-popup p{margin:0 0 8px 0; font-size:12px; line-height:1.4;}
+  .info-popup .controls{margin-top:12px; padding-top:12px; border-top:1px solid var(--line);}
+  .info-popup .close{position:absolute; top:8px; right:8px; width:24px; height:24px; background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px;}
+  
+  /* ====== Drawer System ====== */
+  #drawer{position:fixed; z-index:1000; pointer-events:none;}
+  #drawer .panel{background:var(--panel-bg); border:1px solid var(--line); box-shadow:var(--shadow); backdrop-filter:blur(8px); pointer-events:auto; transition:transform 220ms cubic-bezier(.2,.8,.2,1);}
+  
+  /* Top positioned drawer */
+  #drawer[data-side="top"]{left:0; right:0; top:0;}
+  #drawer[data-side="top"] .panel{max-width:var(--panel-w); margin:0 auto; border-bottom-left-radius:var(--radius); border-bottom-right-radius:var(--radius); transform:translateY(-100%);}  
+  #drawer.open[data-side="top"] .panel{transform:translateY(0);}
+  
+  /* Bottom positioned drawer */
+  #drawer[data-side="bottom"]{left:0; right:0; bottom:0;}
+  #drawer[data-side="bottom"] .panel{max-width:var(--panel-w); margin:0 auto; border-top-left-radius:var(--radius); border-top-right-radius:var(--radius); transform:translateY(100%);}  
+  #drawer.open[data-side="bottom"] .panel{transform:translateY(0);}
+  
+  /* Left positioned drawer */
+  #drawer[data-side="left"]{top:0; bottom:0; left:0;}
+  #drawer[data-side="left"] .panel{height:100%; width:var(--panel-side-w); border-top-right-radius:var(--radius); border-bottom-right-radius:var(--radius); transform:translateX(-100%);}  
+  #drawer.open[data-side="left"] .panel{transform:translateX(0);}
+  
+  /* Right positioned drawer */
+  #drawer[data-side="right"]{top:0; bottom:0; right:0;}
+  #drawer[data-side="right"] .panel{height:100%; width:var(--panel-side-w); border-top-left-radius:var(--radius); border-bottom-left-radius:var(--radius); transform:translateX(100%);}  
+  #drawer.open[data-side="right"] .panel{transform:translateX(0);}
+  
+  /* ====== Handle ====== */
+  #handle{position:fixed; z-index:1001; display:grid; place-items:center; cursor:grab; pointer-events:auto; transition:all 0.2s ease; user-select:none;}
+  #handle.dragging{cursor:grabbing;}
+  #handle .bar{background:rgba(160,160,160,0.8); transition:all 0.2s ease;}
+  #handle:hover .bar{background:rgba(200,200,200,0.9);}
+  #handle:focus-visible{outline:2px solid #999; outline-offset:2px; border-radius:999px;}
+  
+  /* Top handle */
+  #drawer[data-side="top"] ~ #handle{left:50%; top:8px; transform:translateX(-50%);}  
+  #drawer[data-side="top"] ~ #handle .bar{width:var(--handle-size); height:3px; border-radius:999px;}
+  
+  /* Bottom handle */
+  #drawer[data-side="bottom"] ~ #handle{left:50%; bottom:12px; transform:translateX(-50%);}  
+  #drawer[data-side="bottom"] ~ #handle .bar{width:var(--handle-size); height:3px; border-radius:999px;}
+  
+  /* Left handle */
+  #drawer[data-side="left"] ~ #handle{left:8px; top:50%; transform:translateY(-50%);}  
+  #drawer[data-side="left"] ~ #handle .bar{width:3px; height:var(--handle-size); border-radius:999px;}
+  
+  /* Right handle */
+  #drawer[data-side="right"] ~ #handle{right:8px; top:50%; transform:translateY(-50%);}  
+  #drawer[data-side="right"] ~ #handle .bar{width:3px; height:var(--handle-size); border-radius:999px;}
+  
+  /* ====== Panel Content ====== */
+  .content{padding:20px; color:var(--fg); max-height:70vh; overflow-y:auto;}  
+  .grid{display:grid; grid-template-columns:repeat(4,minmax(280px,1fr)); gap:16px;}
+  fieldset{border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:rgba(255,255,255,0.03);}
+  legend{padding:0 8px; color:#d0d0d0; font-weight:600; font-size:13px;}
+  label{display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; font-size:12px; margin:8px 0;}
+  .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:8px 0;}
+  input[type=range]{width:120px;}
+  input[type=number], select, input[type=file]{background:#1a1a1a; color:var(--fg); border:1px solid #333; border-radius:6px; padding:6px 8px; font-size:12px;}
+  button{background:#2a2a2a; color:var(--fg); border:1px solid #444; border-radius:6px; padding:8px 12px; cursor:pointer; font-size:12px; transition:all 0.2s ease;}
+  button:hover{background:#3a3a3a; border-color:#555;}
+  button.primary{background:var(--accent); color:#000; border-color:var(--accent);}
+  button.primary:hover{background:#9cb8f2;}
+  input[type=color]{width:40px; height:32px; border:none; border-radius:4px; cursor:pointer;}
+  .value{font-family:monospace; color:#aaa;}
+  .status{font-size:11px; opacity:0.8; margin-top:4px;}
+  
+  /* ====== Mobile Responsive ====== */
+  @media (max-width: 1400px){ .grid{grid-template-columns:repeat(3,minmax(280px,1fr));}}
+  @media (max-width: 1100px){ .grid{grid-template-columns:repeat(2,minmax(280px,1fr));}}
+  @media (max-width: 800px){ 
+    .grid{grid-template-columns:1fr;}
+    .content{padding:16px;}
+    .info-popup{width:280px; right:10px;}
+    .top-icons{top:15px; right:15px; gap:8px;}
+    .icon-btn{width:36px; height:36px; font-size:13px;}
+  }
+  @media (max-width: 480px){ 
+    .info-popup{width:calc(100vw - 20px); right:10px; left:10px;}
+    .top-icons{gap:6px; top:10px; right:10px;}
+    .icon-btn{width:34px; height:34px; font-size:12px;}
+  }
+
+  /* ====== Touch Feedback ====== */
+  .touch-indicator{position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:rgba(255,255,255,0.6); font-size:12px; text-align:center; pointer-events:none; opacity:0; transition:opacity 0.3s ease;}
+  .touch-indicator.show{opacity:1;}
+</style>
+</head>
+<body>
+  <canvas id="viewCanvas"></canvas>
+  
+  <!-- Top Icons -->
+  <div class="top-icons">
+    <div class="icon-btn mic-off" id="micToggle" title="Toggle Microphone">🎤</div>
+    <div class="icon-btn" id="spawnBtn" title="Spawn New Instance">⚡</div>
+    <div class="icon-btn" id="infoBtn" title="Help & Instructions">ℹ️</div>
+  </div>
+
+  <!-- Info Popup -->
+  <div class="info-popup" id="infoPopup">
+    <button class="close" id="closeInfo">×</button>
+    <h3>🎛️ Controls & Instructions</h3>
+    <p><strong>Camera Controls:</strong></p>
+    <p>• Desktop: Click & drag to rotate, scroll to zoom<br>
+    • Mobile: Drag to rotate, pinch to zoom, double-tap to reset</p>
+    
+    <p><strong>Settings:</strong></p>
+    <p>• Use the handle at bottom to open control panel<br>
+    • Adjust visual parameters, colors, and audio settings<br>
+    • Save/load configurations for different looks</p>
+    
+    <div class="controls">
+      <p><strong>Audio Features:</strong></p>
+      <p>• Enable microphone for audio-reactive visuals<br>
+      • Choose FFT mode for frequency-based effects<br>
+      • Use loudness mode for beat-reactive pulses</p>
+      
+      <p><strong>Multi-Instance:</strong></p>
+      <p>• Click ⚡ to spawn new windows with current settings<br>
+      • Each window runs independently</p>
+    </div>
+  </div>
+
+  <!-- Touch Feedback -->
+  <div class="touch-indicator" id="touchIndicator">Double-tap to reset camera</div>
+
+  <!-- Config Drawer -->
+  <div id="drawer" data-side="bottom" aria-hidden="true">
+    <div class="panel">
+      <div class="content">
+        <div class="grid">
+          
+          <!-- Visual Parameters -->
+          <fieldset>
+            <legend>🎨 Visual Parameters</legend>
+            <label>Resolution: <span class="value" id="resVal">150</span>
+              <input type="range" id="res" min="50" max="300" step="10" value="150" />
+            </label>
+            <label>Amplitude: <span class="value" id="ampVal">20</span>
+              <input type="range" id="amp" min="1" max="100" step="1" value="20" />
+            </label>
+            <label>Frequency: <span class="value" id="freqVal">1.5</span>
+              <input type="range" id="freq" min="0.1" max="10" step="0.1" value="1.5" />
+            </label>
+            <label>Point Size: <span class="value" id="sizeVal">2.0</span>
+              <input type="range" id="size" min="1" max="10" step="0.5" value="2.0" />
+            </label>
+            <label>Speed: <span class="value" id="speedVal">1.0</span>
+              <input type="range" id="speed" min="0.1" max="5" step="0.1" value="1.0" />
+            </label>
+            <div class="row">
+              <label style="grid-template-columns:auto 1fr; gap:8px;"><input type="checkbox" id="autorotate" /> Auto Rotate</label>
+              <button id="pauseBtn">Pause</button>
+            </div>
+          </fieldset>
+
+          <!-- Mode & Colors -->
+          <fieldset>
+            <legend>🌈 Mode & Colors</legend>
+            <label>Wave Mode:
+              <select id="mode">
+                <option value="0">Wave</option>
+                <option value="1">Radial</option>
+                <option value="2">Noise</option>
+              </select>
+            </label>
+            <label>Point Shape:
+              <select id="pointShape">
+                <option value="square">Square</option>
+                <option value="circle">Circle</option>
+                <option value="triangle">Triangle</option>
+                <option value="diamond">Diamond</option>
+              </select>
+            </label>
+            <label>Color 1:
+              <input type="color" id="color1" value="#00ffff" />
+            </label>
+            <label>Color 2:
+              <input type="color" id="color2" value="#ff00ff" />
+            </label>
+            <div class="row">
+              <button id="randomColors">🎲 Random Colors</button>
+            </div>
+          </fieldset>
+
+          <!-- Audio Settings -->
+          <fieldset>
+            <legend>🎵 Audio Settings</legend>
+            <div class="row">
+              <button id="enableMicBtn" class="primary">Enable Microphone</button>
+            </div>
+            <label>Audio Mode:
+              <select id="audioMode">
+                <option value="off">Off</option>
+                <option value="fft">Channels (FFT)</option>
+                <option value="loudness">Loudness (dB)</option>
+              </select>
+            </label>
+            <label>Sensitivity: <span class="value" id="sensVal">2.0</span>
+              <input type="range" id="sensitivity" min="0" max="4" step="0.1" value="2.0" />
+            </label>
+            <label>Smoothing: <span class="value" id="smoothVal">0.3</span>
+              <input type="range" id="smoothing" min="0" max="0.95" step="0.05" value="0.3" />
+            </label>
+            <label>Min Freq (Hz): <span class="value" id="minFVal">60</span>
+              <input type="range" id="minFreq" min="20" max="2000" step="10" value="60" />
+            </label>
+            <label>Max Freq (Hz): <span class="value" id="maxFVal">2000</span>
+              <input type="range" id="maxFreq" min="200" max="8000" step="10" value="2000" />
+            </label>
+            <div class="status" id="audioStatus">Microphone: disabled</div>
+            <div class="status" id="audioLevel" style="color: #4a9eff; font-family: monospace;">Audio Level: 0%</div>
+          </fieldset>
+
+          <!-- Configuration Management -->
+          <fieldset>
+            <legend>💾 Configuration</legend>
+            <div class="row">
+              <button id="saveBtn">💾 Save</button>
+              <button id="loadBtn">📂 Load</button>
+            </div>
+            <div class="row">
+              <button id="exportBtn">📤 Export</button>
+              <input type="file" id="importFile" accept=".json" style="display:none">
+              <button id="importBtn">📥 Import</button>
+            </div>
+            <div class="row">
+              <button id="resetBtn">🔄 Reset</button>
+              <button id="presetBtn">🎭 Presets</button>
+            </div>
+            <div class="status" id="configStatus">Ready</div>
+          </fieldset>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Handle -->
+  <button id="handle" aria-controls="drawer" aria-expanded="false" title="Toggle controls">
+    <div class="bar" aria-hidden="true"></div>
+  </button>
+
+<script>
+// ===== Matrix Utilities =====
+const Mat4 = {
+  create() {
+    return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+  },
+  perspective(out, fovy, aspect, near, far) {
+    const f = 1 / Math.tan(fovy / 2);
+    out[0]=f/aspect; out[1]=0; out[2]=0; out[3]=0;
+    out[4]=0; out[5]=f; out[6]=0; out[7]=0;
+    out[8]=0; out[9]=0; out[10]=(far+near)/(near-far); out[11]=-1;
+    out[12]=0; out[13]=0; out[14]=(2*far*near)/(near-far); out[15]=0;
+    return out;
+  },
+  lookAt(out, eye, center, up) {
+    let x0,x1,x2,y0,y1,y2,z0,z1,z2,len;
+    z0=eye[0]-center[0]; z1=eye[1]-center[1]; z2=eye[2]-center[2];
+    len=Math.hypot(z0,z1,z2); if(len===0){z2=1;} else {z0/=len; z1/=len; z2/=len;}
+    x0=up[1]*z2 - up[2]*z1; x1=up[2]*z0 - up[0]*z2; x2=up[0]*z1 - up[1]*z0;
+    len=Math.hypot(x0,x1,x2); if(len!==0){x0/=len; x1/=len; x2/=len;}
+    y0=z1*x2 - z2*x1; y1=z2*x0 - z0*x2; y2=z0*x1 - z1*x0;
+    out[0]=x0; out[1]=y0; out[2]=z0; out[3]=0;
+    out[4]=x1; out[5]=y1; out[6]=z1; out[7]=0;
+    out[8]=x2; out[9]=y2; out[10]=z2; out[11]=0;
+    out[12]=-(x0*eye[0]+x1*eye[1]+x2*eye[2]);
+    out[13]=-(y0*eye[0]+y1*eye[1]+y2*eye[2]);
+    out[14]=-(z0*eye[0]+z1*eye[1]+z2*eye[2]);
+    out[15]=1; return out;
+  },
+  multiply(out,a,b){
+    const a00=a[0],a01=a[1],a02=a[2],a03=a[3];
+    const a10=a[4],a11=a[5],a12=a[6],a13=a[7];
+    const a20=a[8],a21=a[9],a22=a[10],a23=a[11];
+    const a30=a[12],a31=a[13],a32=a[14],a33=a[15];
+    const b00=b[0],b01=b[1],b02=b[2],b03=b[3];
+    const b10=b[4],b11=b[5],b12=b[6],b13=b[7];
+    const b20=b[8],b21=b[9],b22=b[10],b23=b[11];
+    const b30=b[12],b31=b[13],b32=b[14],b33=b[15];
+    out[0]=a00*b00+a01*b10+a02*b20+a03*b30;
+    out[1]=a00*b01+a01*b11+a02*b21+a03*b31;
+    out[2]=a00*b02+a01*b12+a02*b22+a03*b32;
+    out[3]=a00*b03+a01*b13+a02*b23+a03*b33;
+    out[4]=a10*b00+a11*b10+a12*b20+a13*b30;
+    out[5]=a10*b01+a11*b11+a12*b21+a13*b31;
+    out[6]=a10*b02+a11*b12+a12*b22+a13*b32;
+    out[7]=a10*b03+a11*b13+a12*b23+a13*b33;
+    out[8]=a20*b00+a21*b10+a22*b20+a23*b30;
+    out[9]=a20*b01+a21*b11+a22*b21+a23*b31;
+    out[10]=a20*b02+a21*b12+a22*b22+a23*b32;
+    out[11]=a20*b03+a21*b13+a22*b23+a23*b33;
+    out[12]=a30*b00+a31*b10+a32*b20+a33*b30;
+    out[13]=a30*b01+a31*b11+a32*b21+a33*b31;
+    out[14]=a30*b02+a31*b12+a32*b22+a33*b32;
+    out[15]=a30*b03+a31*b13+a32*b23+a33*b33;
+    return out;
+  },
+};
+
+function parseColor(hex){
+  const n=parseInt(hex.substr(1),16);
+  return [((n>>16)&255)/255, ((n>>8)&255)/255, (n&255)/255];
+}
+
+function generateRandomHex() {
+  return '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+}
+
+// ===== UI Elements =====
+const gui = {
+  res: document.getElementById('res'),
+  amp: document.getElementById('amp'),
+  freq: document.getElementById('freq'),
+  size: document.getElementById('size'),
+  speed: document.getElementById('speed'),
+  mode: document.getElementById('mode'),
+  pointShape: document.getElementById('pointShape'),
+  color1: document.getElementById('color1'),
+  color2: document.getElementById('color2'),
+  autorotate: document.getElementById('autorotate'),
+  pauseBtn: document.getElementById('pauseBtn'),
+  resVal: document.getElementById('resVal'),
+  ampVal: document.getElementById('ampVal'),
+  freqVal: document.getElementById('freqVal'),
+  sizeVal: document.getElementById('sizeVal'),
+  speedVal: document.getElementById('speedVal'),
+  enableMicBtn: document.getElementById('enableMicBtn'),
+  audioMode: document.getElementById('audioMode'),
+  sensitivity: document.getElementById('sensitivity'),
+  smoothing: document.getElementById('smoothing'),
+  minFreq: document.getElementById('minFreq'),
+  maxFreq: document.getElementById('maxFreq'),
+  sensVal: document.getElementById('sensVal'),
+  smoothVal: document.getElementById('smoothVal'),
+  minFVal: document.getElementById('minFVal'),
+  maxFVal: document.getElementById('maxFVal'),
+  audioStatus: document.getElementById('audioStatus'),
+  audioLevel: document.getElementById('audioLevel'),
+  saveBtn: document.getElementById('saveBtn'),
+  loadBtn: document.getElementById('loadBtn'),
+  exportBtn: document.getElementById('exportBtn'),
+  importBtn: document.getElementById('importBtn'),
+  importFile: document.getElementById('importFile'),
+  resetBtn: document.getElementById('resetBtn'),
+  presetBtn: document.getElementById('presetBtn'),
+  randomColors: document.getElementById('randomColors'),
+  configStatus: document.getElementById('configStatus'),
+  spawnBtn: document.getElementById('spawnBtn'),
+  micToggle: document.getElementById('micToggle'),
+  infoBtn: document.getElementById('infoBtn'),
+  infoPopup: document.getElementById('infoPopup'),
+  closeInfo: document.getElementById('closeInfo'),
+  touchIndicator: document.getElementById('touchIndicator')
+};
+
+// ===== Drawer System =====
+const drawer = document.getElementById('drawer');
+const handle = document.getElementById('handle');
+let isOpen = false;
+let currentSide = 'bottom';
+
+function setOpen(v){
+  isOpen = v;
+  drawer.classList.toggle('open', v);
+  drawer.setAttribute('aria-hidden', String(!v));
+  handle.setAttribute('aria-expanded', String(v));
+}
+
+function setSide(side) {
+  currentSide = side;
+  drawer.dataset.side = side;
+}
+
+// Handle dragging to reposition drawer
+let handleDragging = false;
+let dragStartX = 0, dragStartY = 0;
+
+handle.addEventListener('mousedown', (e) => {
+  if (e.button === 0) {
+    handleDragging = true;
+    handle.classList.add('dragging');
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    e.preventDefault();
+  }
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!handleDragging) return;
+  
+  const dx = e.clientX - dragStartX;
+  const dy = e.clientY - dragStartY;
+  const dragDistance = Math.sqrt(dx * dx + dy * dy);
+  
+  if (dragDistance > 30) {
+    const distances = {
+      top: e.clientY,
+      bottom: window.innerHeight - e.clientY,
+      left: e.clientX,
+      right: window.innerWidth - e.clientX
+    };
+    
+    const newSide = Object.keys(distances).reduce((a, b) => 
+      distances[a] < distances[b] ? a : b
+    );
+    
+    if (newSide !== currentSide) {
+      setSide(newSide);
+    }
+  }
+});
+
+window.addEventListener('mouseup', (e) => {
+  if (handleDragging) {
+    handleDragging = false;
+    handle.classList.remove('dragging');
+    
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    const dragDistance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (dragDistance < 10) {
+      setOpen(!isOpen);
+    }
+  }
+});
+
+// ===== Info Popup =====
+gui.infoBtn.addEventListener('click', () => {
+  gui.infoPopup.classList.toggle('show');
+});
+
+gui.closeInfo.addEventListener('click', () => {
+  gui.infoPopup.classList.remove('show');
+});
+
+document.addEventListener('click', (e) => {
+  if (!gui.infoPopup.contains(e.target) && !gui.infoBtn.contains(e.target)) {
+    gui.infoPopup.classList.remove('show');
+  }
+});
+
+// ===== Simulation State =====
+let resolution = parseInt(gui.res.value);
+let amplitude = parseFloat(gui.amp.value);
+let frequency = parseFloat(gui.freq.value);
+let pointSize = parseFloat(gui.size.value);
+let speed = parseFloat(gui.speed.value);
+let mode = parseInt(gui.mode.value);
+let pointShape = gui.pointShape.value;
+let color1 = parseColor(gui.color1.value);
+let color2 = parseColor(gui.color2.value);
+let autoRotate = gui.autorotate.checked;
+let paused = false;
+
+// ===== Camera =====
+const initialCamera = { radius: 600, theta: 0, phi: Math.PI/4 };
+let radius = initialCamera.radius;
+let theta = initialCamera.theta;
+let phi = initialCamera.phi;
+let isDragging = false;
+let lastX = 0, lastY = 0;
+
+// ===== Touch Controls =====
+let touches = [];
+let lastTouchTime = 0;
+let touchStartDistance = 0;
+let touchStartRadius = 0;
+
+function getTouchDistance(touch1, touch2) {
+  const dx = touch1.clientX - touch2.clientX;
+  const dy = touch1.clientY - touch2.clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function showTouchIndicator(text) {
+  gui.touchIndicator.textContent = text;
+  gui.touchIndicator.classList.add('show');
+  setTimeout(() => gui.touchIndicator.classList.remove('show'), 1500);
+}
+
+// ===== Canvas =====
+const canvas = document.getElementById('viewCanvas');
+const ctx = canvas.getContext('2d');
+
+// ===== Points =====
+let basePositions;
+let numPoints;
+
+// ===== Audio =====
+let audioEnabled = false;
+let audioCtx = null;
+let analyser = null;
+let sourceNode = null;
+let fftSize = 2048;
+let freqData = null;
+let timeData = null;
+let sampleRate = 48000;
+let audioMode = gui.audioMode.value;
+let sensitivity = parseFloat(gui.sensitivity.value);
+let smoothing = parseFloat(gui.smoothing.value);
+let minFreq = parseFloat(gui.minFreq.value);
+let maxFreq = parseFloat(gui.maxFreq.value);
+let loudness = 0, loudnessEMA = 0, beatPulse = 0;
+
+// ===== Presets =====
+const presets = [
+  {
+    name: "Ocean Waves",
+    mode: 0,
+    frequency: 0.8,
+    amplitude: 30,
+    pointShape: "circle",
+    color1: "#0077be",
+    color2: "#00bfff",
+    speed: 0.7
+  },
+  {
+    name: "Fire Storm",
+    mode: 1,
+    frequency: 2.5,
+    amplitude: 45,
+    pointShape: "triangle",
+    color1: "#ff4500",
+    color2: "#ffd700",
+    speed: 1.8
+  },
+  {
+    name: "Digital Rain",
+    mode: 2,
+    frequency: 3.0,
+    amplitude: 25,
+    pointShape: "square",
+    color1: "#00ff41",
+    color2: "#008f11",
+    speed: 2.2
+  },
+  {
+    name: "Purple Haze",
+    mode: 0,
+    frequency: 1.2,
+    amplitude: 35,
+    pointShape: "diamond",
+    color1: "#8a2be2",
+    color2: "#da70d6",
+    speed: 0.9
+  }
+];
+
+let currentPresetIndex = 0;
+
+// ===== Drawing Functions =====
+function drawPoint(ctx, x, y, size, color) {
+  ctx.fillStyle = color;
+  
+  switch (pointShape) {
+    case 'circle':
+      ctx.beginPath();
+      ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'triangle':
+      ctx.beginPath();
+      ctx.moveTo(x, y - size / 2);
+      ctx.lineTo(x - size / 2, y + size / 2);
+      ctx.lineTo(x + size / 2, y + size / 2);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'diamond':
+      ctx.beginPath();
+      ctx.moveTo(x, y - size / 2);
+      ctx.lineTo(x + size / 2, y);
+      ctx.lineTo(x, y + size / 2);
+      ctx.lineTo(x - size / 2, y);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    default:
+      ctx.fillRect(x - size / 2, y - size / 2, size, size);
+      break;
+  }
+}
+
+function randomizeColors() {
+  const newColor1 = generateRandomHex();
+  const newColor2 = generateRandomHex();
+  gui.color1.value = newColor1;
+  gui.color2.value = newColor2;
+  color1 = parseColor(newColor1);
+  color2 = parseColor(newColor2);
+}
+
+function resetCamera() {
+  radius = initialCamera.radius;
+  theta = initialCamera.theta;
+  phi = initialCamera.phi;
+}
+
+// ===== Configuration Management =====
+function getCurrentConfig() {
+  return {
+    resolution: resolution,
+    amplitude: amplitude,
+    frequency: frequency,
+    pointSize: pointSize,
+    speed: speed,
+    mode: mode,
+    pointShape: pointShape,
+    color1: gui.color1.value,
+    color2: gui.color2.value,
+    autoRotate: autoRotate,
+    audioMode: audioMode,
+    sensitivity: sensitivity,
+    smoothing: smoothing,
+    minFreq: minFreq,
+    maxFreq: maxFreq,
+    drawerSide: currentSide,
+    camera: { radius, theta, phi }
+  };
+}
+
+function applyConfig(config) {
+  if (!config) return;
+  
+  if (config.resolution !== undefined) {
+    resolution = config.resolution;
+    gui.res.value = resolution;
+    gui.resVal.textContent = resolution;
+    generatePoints();
+  }
+  if (config.amplitude !== undefined) {
+    amplitude = config.amplitude;
+    gui.amp.value = amplitude;
+    gui.ampVal.textContent = amplitude;
+  }
+  if (config.frequency !== undefined) {
+    frequency = config.frequency;
+    gui.freq.value = frequency;
+    gui.freqVal.textContent = frequency.toFixed(1);
+  }
+  if (config.pointSize !== undefined) {
+    pointSize = config.pointSize;
+    gui.size.value = pointSize;
+    gui.sizeVal.textContent = pointSize;
+  }
+  if (config.speed !== undefined) {
+    speed = config.speed;
+    gui.speed.value = speed;
+    gui.speedVal.textContent = speed.toFixed(1);
+  }
+  if (config.mode !== undefined) {
+    mode = config.mode;
+    gui.mode.value = mode;
+  }
+  if (config.pointShape) {
+    pointShape = config.pointShape;
+    gui.pointShape.value = pointShape;
+  }
+  if (config.color1) {
+    gui.color1.value = config.color1;
+    color1 = parseColor(config.color1);
+  }
+  if (config.color2) {
+    gui.color2.value = config.color2;
+    color2 = parseColor(config.color2);
+  }
+  if (config.autoRotate !== undefined) {
+    autoRotate = config.autoRotate;
+    gui.autorotate.checked = autoRotate;
+  }
+  if (config.audioMode) {
+    audioMode = config.audioMode;
+    gui.audioMode.value = audioMode;
+  }
+  if (config.sensitivity !== undefined) {
+    sensitivity = config.sensitivity;
+    gui.sensitivity.value = sensitivity;
+    gui.sensVal.textContent = sensitivity.toFixed(1);
+  }
+  if (config.smoothing !== undefined) {
+    smoothing = config.smoothing;
+    gui.smoothing.value = smoothing;
+    gui.smoothVal.textContent = smoothing.toFixed(2);
+    if (analyser) analyser.smoothingTimeConstant = smoothing;
+  }
+  if (config.minFreq !== undefined) {
+    minFreq = config.minFreq;
+    gui.minFreq.value = minFreq;
+    gui.minFVal.textContent = Math.round(minFreq);
+  }
+  if (config.maxFreq !== undefined) {
+    maxFreq = config.maxFreq;
+    gui.maxFreq.value = maxFreq;
+    gui.maxFVal.textContent = Math.round(maxFreq);
+  }
+  if (config.drawerSide) {
+    setSide(config.drawerSide);
+  }
+  if (config.camera) {
+    radius = config.camera.radius || radius;
+    theta = config.camera.theta || theta;
+    phi = config.camera.phi || phi;
+  }
+}
+
+function saveConfig() {
+  try {
+    const config = getCurrentConfig();
+    localStorage.setItem('particleWavesConfig', JSON.stringify(config));
+    gui.configStatus.textContent = 'Configuration saved to browser';
+    setTimeout(() => gui.configStatus.textContent = 'Ready', 2000);
+  } catch (e) {
+    gui.configStatus.textContent = 'Error saving: ' + e.message;
+  }
+}
+
+function loadConfig() {
+  try {
+    const saved = localStorage.getItem('particleWavesConfig');
+    if (saved) {
+      const config = JSON.parse(saved);
+      applyConfig(config);
+      gui.configStatus.textContent = 'Configuration loaded from browser';
+      setTimeout(() => gui.configStatus.textContent = 'Ready', 2000);
+    } else {
+      gui.configStatus.textContent = 'No saved configuration found';
+      setTimeout(() => gui.configStatus.textContent = 'Ready', 2000);
+    }
+  } catch (e) {
+    gui.configStatus.textContent = 'Error loading: ' + e.message;
+  }
+}
+
+function exportConfig() {
+  try {
+    const config = getCurrentConfig();
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'particle-waves-config.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    gui.configStatus.textContent = 'Configuration exported';
+    setTimeout(() => gui.configStatus.textContent = 'Ready', 2000);
+  } catch (e) {
+    gui.configStatus.textContent = 'Error exporting: ' + e.message;
+  }
+}
+
+function importConfig() {
+  gui.importFile.click();
+}
+
+function resetConfig() {
+  const defaults = {
+    resolution: 150,
+    amplitude: 20,
+    frequency: 1.5,
+    pointSize: 2.0,
+    speed: 1.0,
+    mode: 0,
+    pointShape: 'square',
+    color1: '#00ffff',
+    color2: '#ff00ff',
+    autoRotate: false,
+    audioMode: 'off',
+    sensitivity: 2.0,
+    smoothing: 0.3,
+    minFreq: 60,
+    maxFreq: 2000
+  };
+  applyConfig(defaults);
+  resetCamera();
+  gui.configStatus.textContent = 'Reset to defaults';
+  setTimeout(() => gui.configStatus.textContent = 'Ready', 2000);
+}
+
+function cyclePresets() {
+  const preset = presets[currentPresetIndex];
+  applyConfig(preset);
+  currentPresetIndex = (currentPresetIndex + 1) % presets.length;
+  gui.configStatus.textContent = `Applied preset: ${preset.name}`;
+  setTimeout(() => gui.configStatus.textContent = 'Ready', 2000);
+}
+
+// ===== Spawning =====
+function spawnNewInstance() {
+  const config = getCurrentConfig();
+  const configParam = encodeURIComponent(JSON.stringify(config));
+  const currentUrl = window.location.href;
+  const baseUrl = currentUrl.split('?')[0];
+  
+  const newWindow = window.open(
+    `${baseUrl}?config=${configParam}`,
+    '_blank',
+    'width=500,height=500,scrollbars=no,menubar=no,toolbar=no,location=no,status=no'
+  );
+  
+  if (!newWindow) {
+    gui.configStatus.textContent = 'Popup blocked - please allow popups';
+    setTimeout(() => gui.configStatus.textContent = 'Ready', 3000);
+  }
+}
+
+function loadConfigFromUrl() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const configParam = urlParams.get('config');
+  if (configParam) {
+    try {
+      const config = JSON.parse(decodeURIComponent(configParam));
+      applyConfig(config);
+    } catch (e) {
+      console.error('Error loading config from URL:', e);
+    }
+  }
+}
+
+// ===== Audio Functions =====
+function hzToBin(hz){
+  const nyquist = sampleRate / 2;
+  const binCount = analyser ? analyser.frequencyBinCount : fftSize/2;
+  let bin = Math.round((hz / nyquist) * (binCount - 1));
+  if (bin < 0) bin = 0;
+  const maxBin = binCount - 1;
+  if (bin > maxBin) bin = maxBin;
+  return bin;
+}
+
+async function enableMic(){
+  try {
+    gui.audioStatus.textContent = 'Requesting microphone permission...';
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      audio: { 
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+      }, 
+      video: false 
+    });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    sampleRate = audioCtx.sampleRate;
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = fftSize;
+    analyser.smoothingTimeConstant = smoothing;
+    analyser.minDecibels = -90;
+    analyser.maxDecibels = -10;
+    freqData = new Uint8Array(analyser.frequencyBinCount);
+    timeData = new Uint8Array(analyser.fftSize);
+    sourceNode = audioCtx.createMediaStreamSource(stream);
+    sourceNode.connect(analyser);
+    audioEnabled = true;
+    gui.micToggle.classList.add('active');
+    gui.micToggle.classList.remove('mic-off');
+    gui.audioStatus.textContent = 'Microphone: enabled @ ' + Math.round(sampleRate) + ' Hz';
+  } catch (e){
+    gui.audioStatus.textContent = 'Microphone error: ' + (e && e.message ? e.message : e);
+    audioEnabled = false;
+    gui.micToggle.classList.remove('active');
+    gui.micToggle.classList.add('mic-off');
+  }
+}
+
+function toggleMic() {
+  if (!audioEnabled) {
+    enableMic();
+  } else {
+    if (sourceNode) {
+      sourceNode.disconnect();
+      sourceNode = null;
+    }
+    if (audioCtx) {
+      audioCtx.close();
+      audioCtx = null;
+    }
+    audioEnabled = false;
+    gui.micToggle.classList.remove('active');
+    gui.micToggle.classList.add('mic-off');
+    gui.audioStatus.textContent = 'Microphone: disabled';
+  }
+}
+
+function updateAudio(){
+  if (!audioEnabled || !analyser) return { loud:0, pulse:0 };
+  
+  if (audioMode === 'fft') {
+    analyser.getByteFrequencyData(freqData);
+    let sum = 0;
+    for (let i = 0; i < freqData.length; i++) {
+      sum += freqData[i];
+    }
+    const avgLevel = (sum / freqData.length) / 255;
+    return { loud: avgLevel * sensitivity, pulse: 0 };
+  } else if (audioMode === 'loudness') {
+    analyser.getByteTimeDomainData(timeData);
+    
+    let sumSq = 0;
+    for (let i = 0; i < timeData.length; i++){
+      const v = (timeData[i] - 128) / 128;
+      sumSq += v * v;
+    }
+    const rms = Math.sqrt(sumSq / timeData.length);
+    
+    const db = 20 * Math.log10(rms + 1e-6);
+    let loud = Math.max(0, (db + 50) / 50);
+    
+    loud = Math.min(1, loud * sensitivity);
+    
+    const smoothingFactor = 0.3;
+    loudness = smoothingFactor * loud + (1 - smoothingFactor) * loudness;
+    
+    const alpha = 0.05;
+    loudnessEMA = (1 - alpha) * loudnessEMA + alpha * loudness;
+    const dev = loudness - loudnessEMA;
+    
+    if (dev > 0.08) { 
+      beatPulse = Math.min(1.0, dev * 5);
+    }
+    
+    return { loud: loudness, pulse: beatPulse };
+  }
+  
+  beatPulse *= 0.85;
+  if (beatPulse < 0.001) beatPulse = 0;
+  return { loud: 0, pulse: beatPulse };
+}
+
+// ===== Initialize =====
+function generatePoints() {
+  const half = resolution / 2;
+  const spacing = 4;
+  numPoints = resolution * resolution;
+  basePositions = new Float32Array(numPoints * 3);
+  let ptr = 0;
+  for (let i = 0; i < resolution; i++) {
+    for (let j = 0; j < resolution; j++) {
+      const x = (i - half) * spacing;
+      const z = (j - half) * spacing;
+      basePositions[ptr++] = x;
+      basePositions[ptr++] = 0;
+      basePositions[ptr++] = z;
+    }
+  }
+}
+
+function initEvents() {
+  // Core UI
+  gui.res.addEventListener('input', () => { 
+    resolution = parseInt(gui.res.value); 
+    gui.resVal.textContent = resolution; 
+  });
+  gui.res.addEventListener('change', generatePoints);
+  gui.amp.addEventListener('input', () => { 
+    amplitude = parseFloat(gui.amp.value); 
+    gui.ampVal.textContent = amplitude; 
+  });
+  gui.freq.addEventListener('input', () => { 
+    frequency = parseFloat(gui.freq.value); 
+    gui.freqVal.textContent = frequency.toFixed(1); 
+  });
+  gui.size.addEventListener('input', () => { 
+    pointSize = parseFloat(gui.size.value); 
+    gui.sizeVal.textContent = pointSize; 
+  });
+  gui.speed.addEventListener('input', () => { 
+    speed = parseFloat(gui.speed.value); 
+    gui.speedVal.textContent = speed.toFixed(1); 
+  });
+  gui.mode.addEventListener('change', () => { 
+    mode = parseInt(gui.mode.value); 
+  });
+  gui.pointShape.addEventListener('change', () => {
+    pointShape = gui.pointShape.value;
+  });
+  gui.color1.addEventListener('input', () => { 
+    color1 = parseColor(gui.color1.value); 
+  });
+  gui.color2.addEventListener('input', () => { 
+    color2 = parseColor(gui.color2.value); 
+  });
+  gui.autorotate.addEventListener('change', () => { 
+    autoRotate = gui.autorotate.checked; 
+  });
+  gui.pauseBtn.addEventListener('click', () => { 
+    paused = !paused; 
+    gui.pauseBtn.textContent = paused ? 'Resume' : 'Pause'; 
+  });
+  gui.randomColors.addEventListener('click', randomizeColors);
+
+  // Mouse controls
+  canvas.addEventListener('mousedown', (e) => { 
+    isDragging = true; 
+    lastX = e.clientX; 
+    lastY = e.clientY; 
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    lastX = e.clientX; 
+    lastY = e.clientY;
+    theta += dx * 0.005;
+    phi -= dy * 0.005;
+    phi = Math.max(0.1, Math.min(Math.PI - 0.1, phi));
+  });
+  window.addEventListener('mouseup', () => { 
+    isDragging = false; 
+  });
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    radius += e.deltaY * 0.5;
+    radius = Math.max(50, Math.min(3000, radius));
+  }, { passive: false });
+
+  // Touch controls
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    touches = Array.from(e.touches);
+    
+    if (touches.length === 1) {
+      lastX = touches[0].clientX;
+      lastY = touches[0].clientY;
+      isDragging = true;
+    } else if (touches.length === 2) {
+      isDragging = false;
+      touchStartDistance = getTouchDistance(touches[0], touches[1]);
+      touchStartRadius = radius;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    touches = Array.from(e.touches);
+
+    if (touches.length === 1 && isDragging) {
+      const dx = touches[0].clientX - lastX;
+      const dy = touches[0].clientY - lastY;
+      lastX = touches[0].clientX;
+      lastY = touches[0].clientY;
+      theta += dx * 0.008;
+      phi -= dy * 0.008;
+      phi = Math.max(0.1, Math.min(Math.PI - 0.1, phi));
+    } else if (touches.length === 2) {
+      const currentDistance = getTouchDistance(touches[0], touches[1]);
+      const scale = currentDistance / touchStartDistance;
+      radius = touchStartRadius / scale;
+      radius = Math.max(50, Math.min(3000, radius));
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    
+    const now = Date.now();
+    if (now - lastTouchTime < 300) {
+      resetCamera();
+      showTouchIndicator('Camera reset');
+    }
+    lastTouchTime = now;
+    
+    isDragging = false;
+    touches = [];
+  }, { passive: false });
+
+  // Audio UI
+  gui.enableMicBtn.addEventListener('click', () => {
+    if (!audioEnabled) { 
+      enableMic(); 
+    } else { 
+      gui.audioStatus.textContent = 'Microphone already enabled'; 
+    }
+  });
+  gui.micToggle.addEventListener('click', toggleMic);
+  gui.audioMode.addEventListener('change', () => { 
+    audioMode = gui.audioMode.value; 
+  });
+  gui.sensitivity.addEventListener('input', () => { 
+    sensitivity = parseFloat(gui.sensitivity.value); 
+    gui.sensVal.textContent = sensitivity.toFixed(1); 
+  });
+  gui.smoothing.addEventListener('input', () => {
+    smoothing = parseFloat(gui.smoothing.value);
+    gui.smoothVal.textContent = smoothing.toFixed(2);
+    if (analyser) analyser.smoothingTimeConstant = smoothing;
+  });
+  gui.minFreq.addEventListener('input', () => {
+    minFreq = parseFloat(gui.minFreq.value);
+    if (minFreq > maxFreq - 10) { 
+      minFreq = maxFreq - 10; 
+      gui.minFreq.value = minFreq; 
+    }
+    gui.minFVal.textContent = Math.round(minFreq);
+  });
+  gui.maxFreq.addEventListener('input', () => {
+    maxFreq = parseFloat(gui.maxFreq.value);
+    if (maxFreq < minFreq + 10) { 
+      maxFreq = minFreq + 10; 
+      gui.maxFreq.value = maxFreq; 
+    }
+    gui.maxFVal.textContent = Math.round(maxFreq);
+  });
+
+  // Configuration management
+  gui.saveBtn.addEventListener('click', saveConfig);
+  gui.loadBtn.addEventListener('click', loadConfig);
+  gui.exportBtn.addEventListener('click', exportConfig);
+  gui.importBtn.addEventListener('click', importConfig);
+  gui.resetBtn.addEventListener('click', resetConfig);
+  gui.presetBtn.addEventListener('click', cyclePresets);
+  gui.importFile.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const config = JSON.parse(e.target.result);
+          applyConfig(config);
+          gui.configStatus.textContent = 'Configuration imported successfully';
+          setTimeout(() => gui.configStatus.textContent = 'Ready', 2000);
+        } catch (err) {
+          gui.configStatus.textContent = 'Error importing: Invalid file format';
+          setTimeout(() => gui.configStatus.textContent = 'Ready', 3000);
+        }
+      };
+      reader.readAsText(file);
+    }
+  });
+
+  // Spawn new instance
+  gui.spawnBtn.addEventListener('click', spawnNewInstance);
+}
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+function animate(now) {
+  if (!paused) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const timeSec = now * 0.001 * speed;
+    if (autoRotate) theta += 0.001 * speed;
+
+    const view = Mat4.create();
+    const eyeX = radius * Math.sin(phi) * Math.sin(theta);
+    const eyeY = radius * Math.cos(phi);
+    const eyeZ = radius * Math.sin(phi) * Math.cos(theta);
+    Mat4.lookAt(view, [eyeX, eyeY, eyeZ], [0, 0, 0], [0, 1, 0]);
+    const proj = Mat4.create();
+    Mat4.perspective(proj, (Math.PI / 180) * 45, canvas.width / canvas.height, 1, 5000);
+    const mvp = Mat4.create();
+    Mat4.multiply(mvp, proj, view);
+
+    const audioInfo = updateAudio();
+    
+    if (audioEnabled && audioInfo.loud > 0) {
+      const levelPercent = Math.round(audioInfo.loud * 100);
+      gui.audioLevel.textContent = `Audio Level: ${levelPercent}%`;
+      gui.audioLevel.style.color = levelPercent > 30 ? '#4aff4a' : levelPercent > 10 ? '#ffff4a' : '#4a9eff';
+    } else {
+      gui.audioLevel.textContent = 'Audio Level: 0%';
+      gui.audioLevel.style.color = '#666';
+    }
+    
+    let minBin = 0, maxBin = 0, binSpan = 0;
+    if (audioMode === 'fft' && analyser) {
+      minBin = hzToBin(minFreq);
+      maxBin = hzToBin(maxFreq);
+      if (maxBin <= minBin) maxBin = minBin + 1;
+      binSpan = maxBin - minBin;
+    }
+
+    let idx = 0;
+    const cols = resolution;
+    const r1 = color1[0], g1 = color1[1], b1 = color1[2];
+    const r2 = color2[0], g2 = color2[1], b2 = color2[2];
+
+    for (let i = 0; i < numPoints; i++) {
+      const x = basePositions[idx++];
+      idx++;
+      const z = basePositions[idx++];
+
+      let h;
+      if (mode === 0) {
+        h = Math.sin((x + timeSec) * frequency) + Math.sin((z + timeSec * 0.5) * frequency);
+      } else if (mode === 1) {
+        const dist = Math.hypot(x, z);
+        h = Math.sin((dist * 3 - timeSec) * frequency);
+      } else {
+        h = Math.sin((x * 0.1 + timeSec) * frequency) * Math.sin((z * 0.1 + timeSec) * frequency);
+      }
+
+      let audioMod = 0;
+      if (audioMode === 'fft' && analyser && freqData) {
+        const p = i;
+        const row = Math.floor(p / cols);
+        const col = p - row * cols;
+        const tCol = col / (cols - 1);
+        const bin = Math.min(maxBin, Math.max(minBin, Math.floor(minBin + tCol * binSpan)));
+        const v = freqData[bin] / 255;
+        audioMod = v * sensitivity * 2;
+      } else if (audioMode === 'loudness') {
+        audioMod = audioInfo.loud * sensitivity * 3;
+      }
+
+      const y = (h + audioMod) * amplitude;
+
+      const px = x, py = y, pz = z;
+      const outX = mvp[0]*px + mvp[4]*py + mvp[8]*pz + mvp[12];
+      const outY = mvp[1]*px + mvp[5]*py + mvp[9]*pz + mvp[13];
+      const outZ = mvp[2]*px + mvp[6]*py + mvp[10]*pz + mvp[14];
+      const outW = mvp[3]*px + mvp[7]*py + mvp[11]*pz + mvp[15];
+      if (outW <= 0) continue;
+      const ndcX = outX / outW;
+      const ndcY = outY / outW;
+      const screenX = (ndcX * 0.5 + 0.5) * canvas.width;
+      const screenY = (1 - (ndcY * 0.5 + 0.5)) * canvas.height;
+
+      // Simple 2-color blend based on height + audio pulse
+      let t = (y / (amplitude * 2)) + 0.5;
+      if (t < 0) t = 0; if (t > 1) t = 1;
+      const pulseBias = audioInfo.pulse * 0.4;
+      t = Math.min(1, t + pulseBias);
+
+      const r = r1 * (1 - t) + r2 * t;
+      const g = g1 * (1 - t) + g2 * t;
+      const b = b1 * (1 - t) + b2 * t;
+      const color = `rgb(${Math.round(r * 255)},${Math.round(g * 255)},${Math.round(b * 255)})`;
+
+      const size = (pointSize + Math.abs(y) / (amplitude * 0.5)) * (1 + audioInfo.pulse * 0.6);
+      drawPoint(ctx, screenX, screenY, size, color);
+    }
+  }
+  requestAnimationFrame(animate);
+}
+
+// ===== Start Application =====
+loadConfigFromUrl();
+generatePoints();
+initEvents();
+gui.sensVal.textContent = sensitivity.toFixed(1);
+gui.smoothVal.textContent = smoothing.toFixed(2);
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
