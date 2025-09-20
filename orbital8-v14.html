@@ -1,10 +1,13 @@
-<!--
-Orbital8-R-2025-09-20 04:20 AM
-Changes:
-1. Reverted swipe sensitivity to original value (80px).
-2. Fixed bottom UI clickability/visibility by adjusting z-index.
-3. Changed search helper to activate on click to prevent premature closing on desktop.
-4. Implemented authenticated blob fetching for images to prevent expired URLs.
+diff --git a//dev/null b/performance-v2.html
+index 0000000000000000000000000000000000000000..3f14ff07065822cd4575f921b6706c5ea10c55b1 100644
+--- a//dev/null
+ b/performance-v2.html
+@@ -0,0 1,4382 @@
+<!-- Orbital8-R-2025-09-18 06:00 AM
+     - Version R event-driven bus with deterministic acknowledgements
+     - Tiered caching across in-memory LRU, IndexedDB, and provider change tokens
+     - Inline sync worker enabling last-device-wins metadata reconciliation
+     - Progressive media loading and incremental grid diff rendering
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -182,7 +185,7 @@ Changes:
         .center-image.dragging { filter: brightness(0.9); cursor: grabbing; }
         .center-image.zoomable { pointer-events: auto; }
         
-        .edge-glow { position: absolute; opacity: 0; transition: opacity 0.2s ease; z-index: 4; pointer-events: none; }
+        .edge-glow { position: absolute; opacity: 0; transition: opacity 0.2s ease; z-index: 2; pointer-events: none; }
         .edge-glow.top { top: 0; left: 0; right: 0; height: 8px; background: linear-gradient(180deg, rgba(245, 158, 11, var(--glow)) 0%, transparent 100%); }
         .edge-glow.bottom { 
             bottom: 0; left: 0; right: 0; height: 8px; 
@@ -203,7 +206,7 @@ Changes:
         .pill-counter:not(.active) { background: rgba(128, 128, 128, 0.4); border: none; }
         .pill-counter:hover { opacity: 1; transform: scale(1.05); }
         .pill-counter.top { top: 10px; left: 50%; transform: translateX(-50%); }
-        .pill-counter.bottom-center { bottom: calc(20px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 4; }
+        .pill-counter.bottom-center { bottom: 20px; left: 50%; transform: translateX(-50%); }
         .pill-counter.left { left: 10px; top: 50%; transform: translateY(-50%); }
         .pill-counter.right { right: 10px; top: 50%; transform: translateY(-50%); }
         
@@ -330,6 +333,7 @@ Changes:
             background: white; border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             padding: 8px; width: 220px; z-index: 20;
         }
+        .search-helper:hover .search-helper-popup { display: block; }
         .search-helper-popup h4 { font-size: 13px; font-weight: 600; color: #374151; margin: 4px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #f3f4f6; }
         .search-helper-popup a {
             display: block; font-size: 12px; color: #3b82f6; text-decoration: none; padding: 4px 8px;
@@ -449,7 +453,6 @@ Changes:
             position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0, 0, 0, 0.8);
             color: rgba(255, 255, 255, 0.6); text-align: center;
             padding: 4px 8px;
-            padding-bottom: calc(4px + env(safe-area-inset-bottom));
             font-size: 10px; z-index: 5; backdrop-filter: blur(10px);
         }
 
@@ -474,8 +477,8 @@ Changes:
         /* Applying standardized UI styles */
         #back-button { top: 20px; left: 20px; }
         #details-button { top: 20px; right: 20px; }
-        #normal-image-count { bottom: calc(20px + env(safe-area-inset-bottom)); left: 20px; }
-        #center-trash-btn { bottom: calc(20px + env(safe-area-inset-bottom)); right: 20px; }
+        #normal-image-count { bottom: 20px; left: 20px; }
+        #center-trash-btn { bottom: 20px; right: 20px; }
 
         /* Focus Mode UI elements */
         .focus-mode-ui { display: none; }
@@ -484,11 +487,11 @@ Changes:
             top: 20px; left: 50%; transform: translateX(-50%);
             color: #e5e7eb; font-size: 14px;
         }
-        #focus-image-count { bottom: calc(20px + env(safe-area-inset-bottom)); left: 20px; color: #e5e7eb; }
-        #focus-delete-btn { bottom: calc(20px + env(safe-area-inset-bottom)); right: 20px; color: #e5e7eb; }
+        #focus-image-count { bottom: 20px; left: 20px; color: #e5e7eb; }
+        #focus-delete-btn { bottom: 20px; right: 20px; color: #e5e7eb; }
         #focus-favorite-btn {
             position: absolute;
-            bottom: calc(20px + env(safe-area-inset-bottom));
+            bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
             background: transparent;
@@ -498,7 +501,7 @@ Changes:
             padding: 28px;
             align-items: center;
             justify-content: center;
-            border-radius: 9999px;
+            border-radius: 999px;
             min-width: 84px;
             min-height: 84px;
             touch-action: manipulation;
@@ -558,7 +561,7 @@ Changes:
             top: 12px;
             bottom: 12px;
             left: 12px;
-            right: calc(50% + 6px);
+            right: calc(50%  6px);
             border-radius: 16px;
             background: transparent;
         }
@@ -566,7 +569,7 @@ Changes:
             position: absolute;
             top: 12px;
             bottom: 12px;
-            left: calc(50% + 6px);
+            left: calc(50%  6px);
             right: 12px;
             border-radius: 16px;
             background: transparent;
@@ -720,7 +723,7 @@ Changes:
         <div class="image-viewport" id="image-viewport">
             <img class="center-image zoomable" id="center-image" alt="Select a folder to start" />
         </div>
-        <!-- Gesture overlay (triangular sort zones + focus halves) -->
+        <!-- Gesture overlay (triangular sort zones  focus halves) -->
         <div class="gesture-layer" id="gesture-layer">
             <div id="gesture-screen-a" class="stage" role="application"
                  aria-label="Sort mode. Triangular flick zones. Double-tap center hub to enter focus mode.">
@@ -959,6 +962,75 @@ Changes:
             activeRequests: new AbortController(),
             sessionVisitedFolders: new Set()
         };
+        const bus = new EventTarget();
+        let busRequestCounter = 0;
+        const BUS_TIMEOUT = 120000;
+        function busEmit(type, detail = {}) {
+            bus.dispatchEvent(new CustomEvent(type, { detail }));
+        }
+        function busRespond(type, requestId, payload = {}, error = null) {
+            busEmit(`${type}:response`, { requestId, payload, error });
+        }
+        function busRequest(type, payload = {}, timeout = BUS_TIMEOUT) {
+            const requestId = `${type}-${Date.now()}-${busRequestCounter}`;
+            return new Promise((resolve, reject) => {
+                let timer = null;
+                const handler = (event) => {
+                    const detail = event.detail || {};
+                    if (detail.requestId !== requestId) return;
+                    if (timer) clearTimeout(timer);
+                    bus.removeEventListener(`${type}:response`, handler);
+                    if (detail.error) {
+                        const errorMessage = typeof detail.error === 'string' ? detail.error : (detail.error?.message || 'Unknown error');
+                        reject(new Error(errorMessage));
+                    } else {
+                        resolve(detail.payload);
+                    }
+                };
+                if (timeout > 0) {
+                    timer = setTimeout(() => {
+                        bus.removeEventListener(`${type}:response`, handler);
+                        reject(new Error(`${type} request timed out`));
+                    }, timeout);
+                }
+                bus.addEventListener(`${type}:response`, handler);
+                busEmit(type, { requestId, payload });
+            });
+        }
+        const tierOneCache = (() => {
+            const maxSize = 2;
+            const map = new Map();
+            function touch(key, value) {
+                if (map.has(key)) { map.delete(key); }
+                map.set(key, value);
+                while (map.size > maxSize) {
+                    const oldest = map.keys().next().value;
+                    map.delete(oldest);
+                }
+            }
+            return {
+                get(key) {
+                    if (!map.has(key)) return null;
+                    const value = map.get(key);
+                    touch(key, value);
+                    return value;
+                },
+                set(record) {
+                    if (!record || !record.folderId) return;
+                    touch(record.folderId, record);
+                },
+                remove(key) { map.delete(key); },
+                clear() { map.clear(); },
+                snapshot() { return Array.from(map.values()); }
+            };
+        })();
+        const telemetryBuffer = [];
+        function recordTelemetry(entry) {
+            telemetryBuffer.push({ ...entry, at: Date.now() });
+            if (telemetryBuffer.length > 200) {
+                telemetryBuffer.shift();
+            }
+        }
         const Utils = {
             elements: {},
             
@@ -1101,68 +1173,47 @@ Changes:
                 }
             },
             
-            async fetchAuthenticatedImageUrl(file) {
-                try {
-                    const response = await state.provider.makeApiCall(
-                        state.providerType === 'googledrive'
-                            ? `/files/${file.id}?alt=media`
-                            : `/me/drive/items/${file.id}/content`,
-                        {},
-                        false // This flag tells makeApiCall to return the raw response, not JSON
-                    );
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status} ${response.statusText}`);
-                    }
-                    const blob = await response.blob();
-                    if (!blob.type.startsWith('image/')) {
-                        console.warn(`Fetched blob for ${file.name} is not an image type: ${blob.type}`);
-                        return null;
-                    }
-                    return URL.createObjectURL(blob);
-                } catch (error) {
-                    console.error(`Error fetching authenticated image for ${file.name}:`, error.message);
-                    return null;
-                }
-            },
-
             async setImageSrc(img, file) {
-                const loadId = file.id + '_' + Date.now();
+                const loadId = file.id  '_'  Date.now();
                 state.currentImageLoadId = loadId;
-
-                if (img.dataset.objectUrl) {
-                    URL.revokeObjectURL(img.dataset.objectUrl);
-                    delete img.dataset.objectUrl;
-                }
-
-                return new Promise(async (resolve) => {
+                const previewUrl = this.getPreviewImageUrl(file);
+                const fullUrl = this.getPreferredImageUrl(file);
+                const fallbackUrl = this.getFallbackImageUrl(file);
+                return new Promise((resolve) => {
+                    let fullRequested = false;
+                    const finish = () => {
+                        if (state.currentImageLoadId === loadId) {
+                            resolve();
+                        }
+                    };
+                    const requestFullImage = () => {
+                        if (fullRequested || state.currentImageLoadId !== loadId) return;
+                        fullRequested = true;
+                        const highRes = new Image();
+                        highRes.onload = () => {
+                            if (state.currentImageLoadId !== loadId) return;
+                            img.src = fullUrl;
+                            finish();
+                        };
+                        highRes.onerror = () => {
+                            if (state.currentImageLoadId !== loadId) return;
+                            img.src = fallbackUrl;
+                            finish();
+                        };
+                        highRes.src = fullUrl;
+                    };
                     img.onload = () => {
                         if (state.currentImageLoadId !== loadId) return;
-                        resolve();
+                        requestAnimationFrame(requestFullImage);
                     };
-
                     img.onerror = () => {
                         if (state.currentImageLoadId !== loadId) return;
-                        img.src = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'150\' height=\'150\' viewBox=\'0 0 150 150\' fill=\'none\'%3E%3Crect width=\'150\' height=\'150\' fill=\'%23E5E7EB\'/%3E%3Cpath d=\'M65 60H85V90H65V60Z\' fill=\'%239CA3AF\'/%3E%3Ccircle cx=\'75\' cy=\'45\' r=\'10\' fill=\'%239CA3AF\'/%3E%3C/svg%3E';
-                        resolve();
+                        img.src = fallbackUrl;
+                        requestAnimationFrame(requestFullImage);
                     };
-
-                    try {
-                        const blobUrl = await this.fetchAuthenticatedImageUrl(file);
-                        if (state.currentImageLoadId !== loadId) {
-                            if (blobUrl) URL.revokeObjectURL(blobUrl);
-                            return;
-                        }
-                        if (blobUrl) {
-                            img.src = blobUrl;
-                            img.dataset.objectUrl = blobUrl;
-                        } else {
-                            img.src = this.getPreferredImageUrl(file);
-                        }
-                    } catch (e) {
-                        if (state.currentImageLoadId !== loadId) return;
-                        img.onerror();
-                    }
+                    img.loading = 'lazy';
+                    img.src = previewUrl;
+                    img.alt = file.name || 'Image';
                 });
             },
             
@@ -1179,13 +1230,35 @@ Changes:
                     return file.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
                 }
             },
+
+            getPreviewImageUrl(file) {
+                if (state.providerType === 'googledrive') {
+                    if (file.thumbnailLink) {
+                        return file.thumbnailLink.replace('=s220', '=s320');
+                    }
+                    return `https://drive.google.com/thumbnail?id=${file.id}&sz=w320`;
+                }
+                if (file.thumbnails) {
+                    if (file.thumbnails.medium) { return file.thumbnails.medium.url; }
+                    if (file.thumbnails.small) { return file.thumbnails.small.url; }
+                }
+                return this.getFallbackImageUrl(file);
+            },
+
+            getFallbackImageUrl(file) {
+                 if (state.providerType === 'googledrive') {
+                    return file.downloadUrl || `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
+                } else { // OneDrive
+                    return file.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
+                }
+            },
             
             formatFileSize(bytes) {
                 if (bytes === 0) return '0 Bytes';
                 const k = 1024;
                 const sizes = ['Bytes', 'KB', 'MB', 'GB'];
                 const i = Math.floor(Math.log(bytes) / Math.log(k));
-                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2))  ' '  sizes[i];
             },
             
             updateLoadingProgress(current, total, message = '') {
@@ -1202,85 +1275,496 @@ Changes:
         };
 
         class DBManager {
-            constructor() { this.db = null; }
+            constructor() {
+                this.db = null;
+                this.dbName = 'Orbital8-Goji-V2';
+                this.dbVersion = 3;
+            }
             async init() {
-                return new Promise((resolve, reject) => {
-                    const request = indexedDB.open('Orbital8-Goji-V1', 1);
+                if (this.db) { return this.db; }
+                this.db = await new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, this.dbVersion);
                     request.onupgradeneeded = (event) => {
                         const db = event.target.result;
+                        let folderStore;
                         if (!db.objectStoreNames.contains('folderCache')) {
-                            db.createObjectStore('folderCache', { keyPath: 'folderId' });
+                            folderStore = db.createObjectStore('folderCache', { keyPath: 'folderId' });
+                        } else {
+                            folderStore = request.transaction.objectStore('folderCache');
                         }
+                        if (folderStore && !folderStore.indexNames.contains('byProvider')) {
+                            folderStore.createIndex('byProvider', 'provider', { unique: false });
+                        }
+                        if (folderStore && !folderStore.indexNames.contains('byTimestamp')) {
+                            folderStore.createIndex('byTimestamp', 'timestamp', { unique: false });
+                        }
+                        let metadataStore;
                         if (!db.objectStoreNames.contains('metadata')) {
-                            db.createObjectStore('metadata', { keyPath: 'id' });
+                            metadataStore = db.createObjectStore('metadata', { keyPath: 'id' });
+                        } else {
+                            metadataStore = request.transaction.objectStore('metadata');
+                        }
+                        if (metadataStore && !metadataStore.indexNames.contains('byLocalUpdatedAt')) {
+                            metadataStore.createIndex('byLocalUpdatedAt', 'localUpdatedAt', { unique: false });
                         }
                         if (!db.objectStoreNames.contains('syncQueue')) {
-                            db.createObjectStore('syncQueue', { keyPath: 'id', autoIncrement: true });
+                            const queueStore = db.createObjectStore('syncQueue', { keyPath: 'id', autoIncrement: true });
+                            queueStore.createIndex('byProcessedAt', 'processedAt', { unique: false });
+                            queueStore.createIndex('byQueuedAt', 'queuedAt', { unique: false });
+                        } else {
+                            const queueStore = request.transaction.objectStore('syncQueue');
+                            if (queueStore && !queueStore.indexNames.contains('byProcessedAt')) {
+                                queueStore.createIndex('byProcessedAt', 'processedAt', { unique: false });
+                            }
+                            if (queueStore && !queueStore.indexNames.contains('byQueuedAt')) {
+                                queueStore.createIndex('byQueuedAt', 'queuedAt', { unique: false });
+                            }
                         }
                     };
-                    request.onsuccess = (event) => { this.db = event.target.result; resolve(); };
-                    request.onerror = (event) => reject(event.target.error);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
                 });
+                this.db.onversionchange = () => {
+                    if (this.db) {
+                        this.db.close();
+                        this.db = null;
+                    }
+                };
+                return this.db;
             }
-            async getFolderCache(folderId) {
-                if (!this.db) return null;
+            async ensureDb() {
+                return this.db || this.init();
+            }
+            async getFolderCacheRecord(folderId) {
+                if (!folderId) return null;
+                const db = await this.ensureDb();
                 return new Promise((resolve, reject) => {
-                    const transaction = this.db.transaction('folderCache', 'readonly');
-                    const store = transaction.objectStore('folderCache');
+                    const tx = db.transaction('folderCache', 'readonly');
+                    const store = tx.objectStore('folderCache');
                     const request = store.get(folderId);
-                    request.onsuccess = () => resolve(request.result ? request.result.files : null);
+                    request.onsuccess = () => resolve(request.result || null);
                     request.onerror = () => reject(request.error);
                 });
             }
-            async saveFolderCache(folderId, files) {
-                if (!this.db) return;
+            async getFolderCache(folderId) {
+                const record = await this.getFolderCacheRecord(folderId);
+                return record ? (record.files || []) : null;
+            }
+            async saveFolderCache(folderId, files, options = {}) {
+                if (!folderId) return null;
+                const db = await this.ensureDb();
                 return new Promise((resolve, reject) => {
-                    const transaction = this.db.transaction('folderCache', 'readwrite');
-                    const store = transaction.objectStore('folderCache');
-                    const request = store.put({ folderId, files, timestamp: Date.now() });
-                    request.onsuccess = () => resolve();
+                    const tx = db.transaction('folderCache', 'readwrite');
+                    const store = tx.objectStore('folderCache');
+                    const record = {
+                        folderId,
+                        files: Array.isArray(files) ? files : [],
+                        timestamp: Date.now(),
+                        provider: options.provider || state.providerType || null,
+                        changeToken: options.changeToken || null,
+                        deltaLink: options.deltaLink || null,
+                        version: options.version || 1,
+                        lastSyncedAt: options.lastSyncedAt || Date.now()
+                    };
+                    const request = store.put(record);
+                    request.onsuccess = () => {
+                        tierOneCache.set(record);
+                        resolve(record);
+                    };
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            async updateFolderCacheMetadata(folderId, updates = {}) {
+                if (!folderId) return null;
+                const current = await this.getFolderCacheRecord(folderId) || { folderId, files: [] };
+                const merged = { ...current, ...updates, folderId, files: current.files || [] };
+                return this.saveFolderCache(folderId, merged.files, merged);
+            }
+            async getMetadataRecord(fileId) {
+                if (!fileId) return null;
+                const db = await this.ensureDb();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction('metadata', 'readonly');
+                    const store = tx.objectStore('metadata');
+                    const request = store.get(fileId);
+                    request.onsuccess = () => resolve(request.result || null);
                     request.onerror = () => reject(request.error);
                 });
             }
             async getMetadata(fileId) {
-                if (!this.db) return null;
+                const record = await this.getMetadataRecord(fileId);
+                if (!record) return null;
+                return { ...(record.data || record.metadata || {}), localUpdatedAt: record.localUpdatedAt, remoteUpdatedAt: record.remoteUpdatedAt };
+            }
+            async saveMetadata(fileId, metadata, options = {}) {
+                if (!fileId) return null;
+                const db = await this.ensureDb();
                 return new Promise((resolve, reject) => {
-                    const transaction = this.db.transaction('metadata', 'readonly');
-                    const store = transaction.objectStore('metadata');
-                    const request = store.get(fileId);
-                    request.onsuccess = () => resolve(request.result ? request.result.metadata : null);
+                    const tx = db.transaction('metadata', 'readwrite');
+                    const store = tx.objectStore('metadata');
+                    const record = {
+                        id: fileId,
+                        data: metadata,
+                        annotations: options.annotations || metadata?.annotations || metadata?.tags || [],
+                        localUpdatedAt: options.localUpdatedAt || Date.now(),
+                        remoteUpdatedAt: options.remoteUpdatedAt || metadata?.remoteUpdatedAt || null
+                    };
+                    const request = store.put(record);
+                    request.onsuccess = () => resolve(record);
                     request.onerror = () => reject(request.error);
                 });
             }
-            async saveMetadata(fileId, metadata) {
-                if (!this.db) return;
+            async saveMetadataBatch(entries = []) {
+                if (!entries.length) return [];
+                const db = await this.ensureDb();
                 return new Promise((resolve, reject) => {
-                    const transaction = this.db.transaction('metadata', 'readwrite');
-                    const store = transaction.objectStore('metadata');
-                    const request = store.put({ id: fileId, metadata });
-                    request.onsuccess = () => resolve();
-                    request.onerror = () => reject(request.error);
+                    const tx = db.transaction('metadata', 'readwrite');
+                    const store = tx.objectStore('metadata');
+                    const saved = [];
+                    entries.forEach(entry => {
+                        const record = {
+                            id: entry.id,
+                            data: entry.metadata,
+                            annotations: entry.options?.annotations || entry.metadata?.annotations || entry.metadata?.tags || [],
+                            localUpdatedAt: entry.options?.localUpdatedAt || Date.now(),
+                            remoteUpdatedAt: entry.options?.remoteUpdatedAt || entry.metadata?.remoteUpdatedAt || null
+                        };
+                        const request = store.put(record);
+                        request.onsuccess = () => { saved.push(record); };
+                        request.onerror = () => reject(request.error);
+                    });
+                    tx.oncomplete = () => resolve(saved);
+                    tx.onerror = () => reject(tx.error);
+                    tx.onabort = () => reject(tx.error || new Error('Metadata batch aborted'));
                 });
             }
             async deleteMetadata(fileId) {
-                if (!this.db) return;
+                if (!fileId) return;
+                const db = await this.ensureDb();
                 return new Promise((resolve, reject) => {
-                    const transaction = this.db.transaction('metadata', 'readwrite');
-                    const store = transaction.objectStore('metadata');
+                    const tx = db.transaction('metadata', 'readwrite');
+                    const store = tx.objectStore('metadata');
                     const request = store.delete(fileId);
                     request.onsuccess = () => resolve();
                     request.onerror = () => reject(request.error);
                 });
             }
-            async addToSyncQueue(operation) { return Promise.resolve(); }
-            async readSyncQueue() { return Promise.resolve([]); }
-            async deleteFromSyncQueue(id) { return Promise.resolve(); }
+            async enqueueSyncOps(operations = []) {
+                if (!operations.length) return [];
+                const db = await this.ensureDb();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction('syncQueue', 'readwrite');
+                    const store = tx.objectStore('syncQueue');
+                    const inserted = [];
+                    operations.forEach(op => {
+                        const record = {
+                            fileId: op.fileId,
+                            operationType: op.operationType,
+                            payload: op.payload,
+                            provider: op.provider || state.providerType || null,
+                            queuedAt: op.queuedAt || Date.now(),
+                            processedAt: op.processedAt || null,
+                            requestId: op.requestId || null
+                        };
+                        const request = store.add(record);
+                        request.onsuccess = (event) => {
+                            inserted.push({ ...record, id: event.target.result });
+                        };
+                        request.onerror = () => reject(request.error);
+                    });
+                    tx.oncomplete = () => resolve(inserted);
+                    tx.onerror = () => reject(tx.error);
+                    tx.onabort = () => reject(tx.error || new Error('Sync queue transaction aborted'));
+                });
+            }
+            async getSyncQueue(limit = 50) {
+                const db = await this.ensureDb();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction('syncQueue', 'readonly');
+                    const store = tx.objectStore('syncQueue');
+                    const results = [];
+                    const request = store.openCursor();
+                    request.onsuccess = (event) => {
+                        const cursor = event.target.result;
+                        if (!cursor) { resolve(results); return; }
+                        const value = cursor.value;
+                        if (!value.processedAt) {
+                            results.push(value);
+                        }
+                        if (results.length >= limit) {
+                            resolve(results);
+                            return;
+                        }
+                        cursor.continue();
+                    };
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            async markQueueProcessed(ids = [], error = null) {
+                if (!ids.length) return;
+                const db = await this.ensureDb();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction('syncQueue', 'readwrite');
+                    const store = tx.objectStore('syncQueue');
+                    ids.forEach(id => {
+                        const request = store.get(id);
+                        request.onsuccess = (event) => {
+                            const record = event.target.result;
+                            if (!record) return;
+                            record.processedAt = Date.now();
+                            record.error = error ? (typeof error === 'string' ? error : error.message) : null;
+                            store.put(record);
+                        };
+                        request.onerror = () => reject(request.error);
+                    });
+                    tx.oncomplete = () => resolve(true);
+                    tx.onerror = () => reject(tx.error);
+                    tx.onabort = () => reject(tx.error || new Error('Queue update aborted'));
+                });
+            }
+            async purgeProcessed(olderThan = Date.now() - 7 * 24 * 60 * 60 * 1000) {
+                const db = await this.ensureDb();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction('syncQueue', 'readwrite');
+                    const store = tx.objectStore('syncQueue');
+                    const request = store.openCursor();
+                    request.onsuccess = (event) => {
+                        const cursor = event.target.result;
+                        if (!cursor) { resolve(); return; }
+                        const value = cursor.value;
+                        if (value.processedAt && value.processedAt < olderThan) {
+                            cursor.delete();
+                        }
+                        cursor.continue();
+                    };
+                    request.onerror = () => reject(request.error);
+                });
+            }
         }
         class SyncManager {
-            constructor() { this.worker = null; this.syncInterval = null; }
-            start() { /* Placeholder */ }
-            stop() { /* Placeholder */ }
-            requestSync() { /* Placeholder */ }
+            constructor() {
+                this.worker = null;
+                this.workerUrl = null;
+                this.pending = new Map();
+                this.providerSnapshot = null;
+                this.commandSeq = 0;
+                this.watchdog = null;
+                this.watchdogTimeout = 45000;
+                this.boundHandlers = [];
+                this.queueFlushTimer = null;
+            }
+            start(provider = state.provider) {
+                this.providerSnapshot = this.snapshotProvider(provider);
+                this.attachBusHandlers();
+                if (!this.worker) {
+                    this.spawnWorker();
+                } else if (this.providerSnapshot) {
+                    const { promise } = this.postMessage('worker:configure-provider', this.providerSnapshot);
+                    promise.catch(error => recordTelemetry({ type: 'worker-config-error', message: error.message }));
+                }
+            }
+            stop() {
+                this.detachBusHandlers();
+                if (this.watchdog) { clearTimeout(this.watchdog); this.watchdog = null; }
+                this.pending.forEach(entry => entry.reject(new Error('Worker stopped')));
+                this.pending.clear();
+                if (this.worker) {
+                    this.worker.terminate();
+                    this.worker = null;
+                }
+                if (this.workerUrl) {
+                    URL.revokeObjectURL(this.workerUrl);
+                    this.workerUrl = null;
+                }
+            }
+            snapshotProvider(provider) {
+                if (!provider) return null;
+                const base = { type: provider.name || state.providerType || null };
+                if (base.type === 'googledrive') {
+                    base.credentials = {
+                        accessToken: provider.accessToken || null,
+                        refreshToken: provider.refreshToken || null,
+                        clientId: provider.clientId || null,
+                        clientSecret: provider.clientSecret || null,
+                        apiBase: provider.apiBase || null
+                    };
+                } else if (base.type === 'onedrive') {
+                    base.credentials = {
+                        apiBase: provider.apiBase || null
+                    };
+                }
+                return base;
+            }
+            attachBusHandlers() {
+                if (this.boundHandlers.length > 0) return;
+                const diffHandler = async (event) => {
+                    const { requestId, payload } = event.detail || {};
+                    try {
+                        const result = await this.requestDiff(payload || {});
+                        busRespond('sync:diff-request', requestId, result);
+                    } catch (error) {
+                        busRespond('sync:diff-request', requestId, null, error);
+                    }
+                };
+                const queueHandler = async (event) => {
+                    const { requestId, payload } = event.detail || {};
+                    try {
+                        const result = await this.flushQueue(payload || {});
+                        busRespond('sync:queue-drain', requestId, result);
+                    } catch (error) {
+                        busRespond('sync:queue-drain', requestId, null, error);
+                    }
+                };
+                bus.addEventListener('sync:diff-request', diffHandler);
+                bus.addEventListener('sync:queue-drain', queueHandler);
+                this.boundHandlers.push(['sync:diff-request', diffHandler], ['sync:queue-drain', queueHandler]);
+            }
+            detachBusHandlers() {
+                this.boundHandlers.forEach(([type, handler]) => bus.removeEventListener(type, handler));
+                this.boundHandlers = [];
+            }
+            async spawnWorker() {
+                const source = this.buildWorkerSource();
+                const blob = new Blob([source], { type: 'application/javascript' });
+                this.workerUrl = URL.createObjectURL(blob);
+                this.worker = new Worker(this.workerUrl, { type: 'module' });
+                URL.revokeObjectURL(this.workerUrl);
+                this.worker.onmessage = (event) => this.handleWorkerMessage(event.data);
+                this.worker.onerror = (error) => this.handleWorkerError(error);
+                const init = this.postMessage('worker:init', { dbName: state.dbManager.dbName, dbVersion: state.dbManager.dbVersion });
+                init.promise.then(() => recordTelemetry({ type: 'worker-ready' })).catch(error => recordTelemetry({ type: 'worker-init-error', message: error.message }));
+                if (this.providerSnapshot) {
+                    const configure = this.postMessage('worker:configure-provider', this.providerSnapshot);
+                    configure.promise.catch(error => recordTelemetry({ type: 'worker-config-error', message: error.message }));
+                }
+            }
+            handleWorkerError(error) {
+                recordTelemetry({ type: 'worker-error', message: error.message || String(error) });
+                this.restart();
+            }
+            async restart() {
+                this.stop();
+                if (state.provider) {
+                    this.start(state.provider);
+                }
+            }
+            resetWatchdog() {
+                if (this.watchdog) { clearTimeout(this.watchdog); }
+                this.watchdog = setTimeout(() => {
+                    recordTelemetry({ type: 'worker-watchdog-timeout' });
+                    this.restart();
+                }, this.watchdogTimeout);
+            }
+            postMessage(type, payload = {}) {
+                if (!this.worker) {
+                    throw new Error('Sync worker not started');
+                }
+                const requestId = `${type}-${Date.now()}-${this.commandSeq}`;
+                const message = { type, requestId, payload };
+                const promise = new Promise((resolve, reject) => {
+                    this.pending.set(requestId, { resolve, reject, type, startedAt: Date.now() });
+                    this.resetWatchdog();
+                });
+                this.worker.postMessage(message);
+                return { requestId, promise };
+            }
+            async requestFolderSync(options = {}) {
+                const { promise } = this.postMessage('worker:full-fetch', options);
+                return promise;
+            }
+            async requestDiff(options = {}) {
+                const { promise } = this.postMessage('worker:diff-request', options);
+                return promise;
+            }
+            async requestSync() {
+                return this.flushQueue();
+            }
+            async flushQueue(options = {}) {
+                const { promise } = this.postMessage('worker:queue-drain', options);
+                return promise;
+            }
+            scheduleQueueFlush() {
+                if (this.queueFlushTimer) return;
+                this.queueFlushTimer = setTimeout(() => {
+                    this.queueFlushTimer = null;
+                    this.flushQueue().catch(error => recordTelemetry({ type: 'queue-flush-error', message: error.message }));
+                }, 2000);
+            }
+            handleWorkerMessage(message) {
+                if (!message) return;
+                const { type, requestId, payload, error, eventType } = message;
+                if (type === 'provider:fetch' || type === 'provider:mutate') {
+                    this.handleProviderBridge(type, requestId, payload);
+                    return;
+                }
+                if (type === 'telemetry') {
+                    recordTelemetry(payload || {});
+                    return;
+                }
+                if (type === 'event') {
+                    if (eventType) {
+                        busEmit(eventType, payload || {});
+                    }
+                    return;
+                }
+                if (requestId && this.pending.has(requestId)) {
+                    const pending = this.pending.get(requestId);
+                    this.pending.delete(requestId);
+                    if (type === 'err' || error) {
+                        pending.reject(new Error(error || payload?.message || 'Worker error'));
+                    } else {
+                        pending.resolve(payload);
+                    }
+                    return;
+                }
+                if (type && type.startsWith('folder:')) {
+                    busEmit(type, payload || {});
+                }
+            }
+            async handleProviderBridge(type, requestId, payload) {
+                try {
+                    let response;
+                    if (type === 'provider:fetch') {
+                        response = await this.performProviderFetch(payload || {});
+                    } else {
+                        response = await this.performProviderMutate(payload || {});
+                    }
+                    if (this.worker) {
+                        this.worker.postMessage({ type: 'provider:response', requestId, payload: response });
+                    }
+                } catch (error) {
+                    if (this.worker) {
+                        this.worker.postMessage({ type: 'provider:response', requestId, error: error.message || String(error) });
+                    }
+                }
+            }
+            async performProviderFetch(payload) {
+                if (!state.provider) throw new Error('Provider not ready');
+                const folderId = payload.folderId || state.currentFolder.id;
+                recordTelemetry({ type: 'provider-fetch', mode: payload.mode || 'full', folderId });
+                const result = await state.provider.getFilesAndMetadata(folderId);
+                return {
+                    files: result.files || [],
+                    folders: result.folders || [],
+                    changeToken: payload.changeToken || Date.now(),
+                    deltaLink: payload.deltaLink || null
+                };
+            }
+            async performProviderMutate(payload) {
+                if (!state.provider) throw new Error('Provider not ready');
+                const operation = payload.operationType;
+                if (operation === 'metadata-update') {
+                    await state.provider.updateFileMetadata(payload.fileId, payload.payload?.metadata || payload.metadata || {});
+                } else if (operation === 'move') {
+                    await state.provider.moveFileToFolder(payload.fileId, payload.payload?.targetFolderId || payload.targetFolderId);
+                } else if (operation === 'delete') {
+                    await state.provider.deleteFile(payload.fileId);
+                }
+                return { ok: true, operationType: operation };
+            }
+            buildWorkerSource() {
+                return `const WORKER_STATE = {\n  db: null,\n  dbName: 'Orbital8-Goji-V2',\n  dbVersion: 3,\n  provider: null,\n  pendingProvider: new Map(),\n  pendingCounter: 0\n};\n\nfunction respond(type, requestId, payload = null, error = null) {\n  self.postMessage({ type, requestId, payload, error });\n}\n\nfunction logTelemetry(entry) {\n  self.postMessage({ type: 'telemetry', payload: entry });\n}\n\nasync function ensureDb() {\n  if (WORKER_STATE.db) return WORKER_STATE.db;\n  WORKER_STATE.db = await new Promise((resolve, reject) => {\n    const request = indexedDB.open(WORKER_STATE.dbName, WORKER_STATE.dbVersion);\n    request.onupgradeneeded = () => {\n      const db = request.result;\n      if (!db.objectStoreNames.contains('folderCache')) {\n        const store = db.createObjectStore('folderCache', { keyPath: 'folderId' });\n        store.createIndex('byProvider', 'provider', { unique: false });\n        store.createIndex('byTimestamp', 'timestamp', { unique: false });\n      }\n      if (!db.objectStoreNames.contains('metadata')) {\n        const metadata = db.createObjectStore('metadata', { keyPath: 'id' });\n        metadata.createIndex('byLocalUpdatedAt', 'localUpdatedAt', { unique: false });\n      }\n      if (!db.objectStoreNames.contains('syncQueue')) {\n        const queue = db.createObjectStore('syncQueue', { keyPath: 'id', autoIncrement: true });\n        queue.createIndex('byProcessedAt', 'processedAt', { unique: false });\n        queue.createIndex('byQueuedAt', 'queuedAt', { unique: false });\n      }\n    };\n    request.onsuccess = () => resolve(request.result);\n    request.onerror = () => reject(request.error);\n  });\n  WORKER_STATE.db.onversionchange = () => {\n    if (WORKER_STATE.db) {\n      WORKER_STATE.db.close();\n      WORKER_STATE.db = null;\n    }\n  };\n  return WORKER_STATE.db;\n}\n\nfunction providerRequest(type, detail) {\n  const requestId = \`provider-\${Date.now()}-\${WORKER_STATE.pendingCounter}\`;\n  return new Promise((resolve, reject) => {\n    const timeout = setTimeout(() => {\n      if (WORKER_STATE.pendingProvider.has(requestId)) {\n        WORKER_STATE.pendingProvider.delete(requestId);\n        reject(new Error('Provider request timeout'));\n      }\n    }, detail.timeout || 60000);\n    WORKER_STATE.pendingProvider.set(requestId, {\n      resolve: (value) => {\n        clearTimeout(timeout);\n        resolve(value);\n      },\n      reject: (err) => {\n        clearTimeout(timeout);\n        reject(err);\n      }\n    });\n    self.postMessage({ type, requestId, payload: detail });\n  });\n}\n\nfunction computeDiff(oldFiles, newFiles) {\n  const cachedMap = new Map(oldFiles.map(file => [file.id, file]));\n  const merged = [];\n  const newIds = [];\n  const updatedIds = [];\n  const removedIds = [];\n  newFiles.forEach(file => {\n    const existing = cachedMap.get(file.id);\n    if (!existing) {\n      merged.push(file);\n      newIds.push(file.id);\n    } else {\n      const changed = JSON.stringify(existing) !== JSON.stringify(file);\n      merged.push(changed ? Object.assign({}, existing, file) : existing);\n      if (changed) {\n        updatedIds.push(file.id);\n      }\n      cachedMap.delete(file.id);\n    }\n  });\n  cachedMap.forEach((_, key) => removedIds.push(key));\n  return {\n    mergedFiles: merged,\n    newIds,\n    updatedIds,\n    removedIds,\n    hasChanges: newIds.length || updatedIds.length || removedIds.length\n  };\n}\n\nfunction parseList(value) {\n  if (!value) return [];\n  if (Array.isArray(value)) {\n    return value\n      .map(item => typeof item === 'string' ? item.trim() : item)\n      .filter(item => item !== null && item !== undefined && item !== '');\n  }\n  if (typeof value === 'string') {\n    return value\n      .split(',')\n      .map(item => item.trim())\n      .filter(Boolean);\n  }\n  return [];\n}\n\nfunction parseNumber(value, fallback = 0) {\n  if (typeof value === 'number') {\n    return Number.isFinite(value) ? value : fallback;\n  }\n  const parsed = Number(value);\n  return Number.isFinite(parsed) ? parsed : fallback;\n}\n\nfunction deriveRemoteMetadata(file) {\n  if (!file) return null;\n  const source = file.metadata || file.appProperties || file.remoteMetadata || null;\n  if (!source) return null;\n  const tags = parseList(source.tags || source.slideboxTags);\n  const annotations = Array.isArray(source.annotations) ? source.annotations : parseList(source.annotations);\n  const inferredTime = Date.parse(source.updatedAt || source.lastUpdated || file.modifiedTime || file.lastModifiedDateTime || '') || 0;\n  const remoteUpdatedAt = parseNumber(source.remoteUpdatedAt || source.metadataUpdatedAt || source.localUpdatedAt || file.remoteUpdatedAt || file.metadataUpdatedAt, inferredTime) || Date.now();\n  const metadata = {\n    stack: source.stack || source.slideboxStack || file.stack || 'in',\n    tags,\n    qualityRating: parseNumber(source.qualityRating || source.slideboxQualityRating),\n    contentRating: parseNumber(source.contentRating),\n    notes: typeof source.notes === 'string' ? source.notes : '',\n    stackSequence: parseNumber(source.stackSequence || source.sequence || source.slideboxSequence),\n    favorite: source.favorite === true || source.favorite === 'true',\n    metadataStatus: source.metadataStatus || file.metadataStatus || 'remote',\n    extractedMetadata: source.extractedMetadata || file.extractedMetadata || {}\n  };\n  metadata.annotations = annotations;\n  return {\n    data: metadata,\n    annotations,\n    remoteUpdatedAt\n  };\n}\n\nasync function readMetadataMap(ids) {\n  const db = await ensureDb();\n  return new Promise((resolve, reject) => {\n    const map = new Map();\n    if (!ids.length) {\n      resolve(map);\n      return;\n    }\n    const tx = db.transaction('metadata', 'readonly');\n    const store = tx.objectStore('metadata');\n    let pending = ids.length;\n    ids.forEach(id => {\n      const request = store.get(id);\n      request.onsuccess = (event) => {\n        const value = event.target.result;\n        if (value) {\n          map.set(id, value);\n        }\n        pending -= 1;\n        if (pending === 0) {\n          resolve(map);\n        }\n      };\n      request.onerror = () => reject(request.error);\n    });\n  });\n}\n\nasync function writeMetadataRecords(records) {\n  if (!records.length) return;\n  const db = await ensureDb();\n  await new Promise((resolve, reject) => {\n    const tx = db.transaction('metadata', 'readwrite');\n    const store = tx.objectStore('metadata');\n    records.forEach(entry => {\n      const record = {\n        id: entry.id,\n        data: entry.data,\n        annotations: Array.isArray(entry.annotations) ? entry.annotations : [],\n        localUpdatedAt: entry.localUpdatedAt || Date.now(),\n        remoteUpdatedAt: entry.remoteUpdatedAt || null\n      };\n      store.put(record);\n    });\n    tx.oncomplete = () => resolve();\n    tx.onerror = () => reject(tx.error);\n  });\n}\n\nasync function reconcileMetadata(record) {\n  const files = Array.isArray(record?.files) ? record.files : [];\n  if (!files.length) {\n    return { overwrites: [], updated: 0 };\n  }\n  const entries = files\n    .map(file => ({ fileId: file.id, remote: deriveRemoteMetadata(file) }))\n    .filter(entry => entry.fileId && entry.remote);\n  if (!entries.length) {\n    return { overwrites: [], updated: 0 };\n  }\n  const existingMap = await readMetadataMap(entries.map(entry => entry.fileId));\n  const updates = [];\n  const overwrites = [];\n  entries.forEach(entry => {\n    const { fileId, remote } = entry;\n    const existing = existingMap.get(fileId);\n    const remoteUpdatedAt = remote.remoteUpdatedAt || Date.now();\n    const annotations = remote.annotations || [];\n    if (!existing) {\n      updates.push({\n        id: fileId,\n        data: remote.data,\n        annotations,\n        localUpdatedAt: remoteUpdatedAt,\n        remoteUpdatedAt\n      });\n      overwrites.push({ fileId, metadata: remote.data, localUpdatedAt: remoteUpdatedAt, remoteUpdatedAt });\n      return;\n    }\n    const localUpdatedAt = existing.localUpdatedAt || 0;\n    const storedRemote = existing.remoteUpdatedAt || 0;\n    const existingData = existing.data || {};\n    if (remoteUpdatedAt > localUpdatedAt) {\n      const merged = Object.assign({}, existingData, remote.data);\n      updates.push({\n        id: fileId,\n        data: merged,\n        annotations: annotations.length ? annotations : (existing.annotations || []),\n        localUpdatedAt: remoteUpdatedAt,\n        remoteUpdatedAt\n      });\n      overwrites.push({ fileId, metadata: merged, localUpdatedAt: remoteUpdatedAt, remoteUpdatedAt });\n    } else if (remoteUpdatedAt > storedRemote) {\n      updates.push({\n        id: fileId,\n        data: existingData,\n        annotations: existing.annotations || [],\n        localUpdatedAt: existing.localUpdatedAt || 0,\n        remoteUpdatedAt\n      });\n    }\n  });\n  if (updates.length) {\n    await writeMetadataRecords(updates);\n  }\n  return { overwrites, updated: updates.length };\n}\n\nasync function readFolderRecord(folderId) {\n  const db = await ensureDb();\n  return new Promise((resolve, reject) => {\n    const tx = db.transaction('folderCache', 'readonly');\n    const store = tx.objectStore('folderCache');\n    const request = store.get(folderId);\n    request.onsuccess = () => resolve(request.result || null);\n    request.onerror = () => reject(request.error);\n  });\n}\n\nasync function writeFolderRecord(record) {\n  const db = await ensureDb();\n  return new Promise((resolve, reject) => {\n    const tx = db.transaction('folderCache', 'readwrite');\n    const store = tx.objectStore('folderCache');\n    const request = store.put(record);\n    request.onsuccess = () => resolve(record);\n    request.onerror = () => reject(request.error);\n  });\n}\n\nasync function fetchFolder(payload) {\n  const folderId = payload.folderId || 'root';\n  const existing = await readFolderRecord(folderId);\n  const providerPayload = {\n    mode: payload.forceFull ? 'full' : (payload.mode || 'full'),\n    folderId,\n    changeToken: payload.changeToken || existing?.changeToken || null,\n    deltaLink: payload.deltaLink || existing?.deltaLink || null\n  };\n  const response = await providerRequest('provider:fetch', providerPayload);\n  const files = Array.isArray(response.files) ? response.files : [];\n  const diff = computeDiff(existing?.files || [], files);\n  const record = {\n    folderId,\n    files: diff.mergedFiles,\n    timestamp: Date.now(),\n    provider: payload.provider?.type || WORKER_STATE.provider?.type || null,\n    changeToken: response.changeToken || providerPayload.changeToken || Date.now(),\n    deltaLink: response.deltaLink || providerPayload.deltaLink || null,\n    version: (existing?.version || 0)  1,\n    lastSyncedAt: Date.now()\n  };\n  await writeFolderRecord(record);\n  const metadata = await reconcileMetadata(record);\n  return {\n    record,\n    diff,\n    metadata,\n    status: existing ? 'updated' : 'created'\n  };\n}\n\nasync function drainQueue(payload) {\n  const db = await ensureDb();\n  const items = await new Promise((resolve, reject) => {\n    const tx = db.transaction('syncQueue', 'readonly');\n    const store = tx.objectStore('syncQueue');\n    const collected = [];\n    const request = store.openCursor();\n    request.onsuccess = (event) => {\n      const cursor = event.target.result;\n      if (!cursor) {\n        resolve(collected);\n        return;\n      }\n      const value = cursor.value;\n      if (!value.processedAt) {\n        collected.push(value);\n      }\n      if (collected.length >= (payload?.limit || 25)) {\n        resolve(collected);\n        return;\n      }\n      cursor.continue();\n    };\n    request.onerror = () => reject(request.error);\n  });\n  if (!items.length) {\n    return { processed: [], count: 0 };\n  }\n  const processedIds = [];\n  for (const item of items) {\n    try {\n      await providerRequest('provider:mutate', item);\n      processedIds.push(item.id);\n    } catch (error) {\n      logTelemetry({ type: 'queue-item-error', id: item.id, message: error.message || String(error) });\n    }\n  }\n  if (processedIds.length) {\n    await new Promise((resolve, reject) => {\n      const tx = db.transaction('syncQueue', 'readwrite');\n      const store = tx.objectStore('syncQueue');\n      processedIds.forEach(id => {\n        const request = store.get(id);\n        request.onsuccess = (event) => {\n          const record = event.target.result;\n          if (!record) return;\n          record.processedAt = Date.now();\n          record.error = null;\n          store.put(record);\n        };\n      });\n      tx.oncomplete = () => resolve();\n      tx.onerror = () => reject(tx.error);\n    });\n  }\n  return { processed: processedIds, count: processedIds.length };\n}\n\nself.onmessage = async (event) => {\n  const message = event.data || {};\n  const { type, requestId, payload, error } = message;\n  try {\n    if (type === 'provider:response') {\n      const resolver = WORKER_STATE.pendingProvider.get(requestId);\n      if (resolver) {\n        WORKER_STATE.pendingProvider.delete(requestId);\n        if (error) {\n          resolver.reject(new Error(error));\n        } else {\n          resolver.resolve(payload);\n        }\n      }\n      return;\n    }\n    if (type === 'worker:init') {\n      if (payload?.dbName) WORKER_STATE.dbName = payload.dbName;\n      if (payload?.dbVersion) WORKER_STATE.dbVersion = payload.dbVersion;\n      await ensureDb();\n      respond('ack', requestId, { ready: true });\n      return;\n    }\n    if (type === 'worker:configure-provider') {\n      WORKER_STATE.provider = payload || null;\n      respond('ack', requestId, { configured: true });\n      return;\n    }\n    if (type === 'worker:full-fetch') {\n      const result = await fetchFolder(payload || {});\n      respond('ack', requestId, result);\n      if (result.metadata?.overwrites?.length) {\n        self.postMessage({ type: 'event', eventType: 'metadata:remote-overwrite', payload: { folderId: payload?.folderId || null, items: result.metadata.overwrites } });\n      }\n      if (result.diff?.hasChanges) {\n        self.postMessage({ type: 'event', eventType: 'folder:cloud-delta', payload: { folderId: payload?.folderId || null, diff: result.diff, record: result.record } });\n      }\n      return;\n    }\n    if (type === 'worker:diff-request') {\n      const result = await fetchFolder({ ...(payload || {}), mode: 'diff' });\n      respond('ack', requestId, result);\n      if (result.metadata?.overwrites?.length) {\n        self.postMessage({ type: 'event', eventType: 'metadata:remote-overwrite', payload: { folderId: payload?.folderId || null, items: result.metadata.overwrites } });\n      }\n      if (result.diff?.hasChanges) {\n        self.postMessage({ type: 'event', eventType: 'folder:cloud-delta', payload: { folderId: payload?.folderId || null, diff: result.diff, record: result.record } });\n      }\n      return;\n    }\n    if (type === 'worker:queue-drain') {\n      const summary = await drainQueue(payload || {});\n      respond('ack', requestId, summary);\n      return;\n    }\n    respond('err', requestId, null, 'Unknown worker message');\n  } catch (err) {\n    respond('err', requestId, null, err.message || String(err));\n  }\n};\n`;
+            }
         }
         class VisualCueManager {
             constructor() {
@@ -1343,27 +1827,27 @@ Changes:
                 try {
                     while (pos < buffer.byteLength - 12) {
                         const chunkLength = view.getUint32(pos, false);
-                        pos += 4;
+                        pos = 4;
                         let chunkType = '';
-                        for (let i = 0; i < 4; i++) { chunkType += String.fromCharCode(view.getUint8(pos + i)); }
-                        pos += 4;
+                        for (let i = 0; i < 4; i) { chunkType = String.fromCharCode(view.getUint8(pos  i)); }
+                        pos = 4;
                         if (chunkType === 'tEXt') {
                             let keyword = '';
                             let value = '';
                             let nullFound = false;
-                            for (let i = 0; i < chunkLength; i++) {
-                                const byte = view.getUint8(pos + i);
+                            for (let i = 0; i < chunkLength; i) {
+                                const byte = view.getUint8(pos  i);
                                 if (!nullFound) {
-                                    if (byte === 0) { nullFound = true; } else { keyword += String.fromCharCode(byte); }
-                                } else { value += String.fromCharCode(byte); }
+                                    if (byte === 0) { nullFound = true; } else { keyword = String.fromCharCode(byte); }
+                                } else { value = String.fromCharCode(byte); }
                             }
                             metadata[keyword] = value;
                         } else if (chunkType === 'IHDR') {
                             const width = view.getUint32(pos, false);
-                            const height = view.getUint32(pos + 4, false);
+                            const height = view.getUint32(pos  4, false);
                             metadata._dimensions = { width, height };
                         } else if (chunkType === 'IEND') { break; }
-                        pos += chunkLength + 4;
+                        pos = chunkLength  4;
                         if (chunkLength > buffer.byteLength || pos > buffer.byteLength) { break; }
                     }
                 } catch (error) { /* Return what we have so far */ }
@@ -1421,7 +1905,7 @@ Changes:
                 super();
                 this.name = 'googledrive';
                 this.clientId = '567988062464-fa6c1ovesqeudqs5398vv4mbo6q068p9.apps.googleusercontent.com';
-                this.redirectUri = window.location.origin + window.location.pathname;
+                this.redirectUri = window.location.origin  window.location.pathname;
                 this.scope = 'https://www.googleapis.com/auth/drive';
                 this.apiBase = 'https://www.googleapis.com/drive/v3';
                 this.accessToken = null; this.refreshToken = null; this.clientSecret = null;
@@ -1524,7 +2008,7 @@ Changes:
                 do {
                     const query = `'${folderId}' in parents and trashed=false and (mimeType contains 'image/')`;
                     let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,appProperties,parents),nextPageToken&pageSize=100`;
-                    if (nextPageToken) { url += `&pageToken=${nextPageToken}`; }
+                    if (nextPageToken) { url = `&pageToken=${nextPageToken}`; }
                     const response = await this.makeApiCall(url, { signal: state.activeRequests.signal });
                     const files = response.files.filter(file => file.mimeType && file.mimeType.startsWith('image/')).map(file => ({ id: file.id, name: file.name, type: 'file', mimeType: file.mimeType, size: file.size ? parseInt(file.size) : 0, createdTime: file.createdTime, modifiedTime: file.modifiedTime, thumbnailLink: file.thumbnailLink, downloadUrl: file.webContentLink, appProperties: file.appProperties || {}, parents: file.parents }));
                     allFiles.push(...files);
@@ -1591,7 +2075,7 @@ Changes:
             }
             initMSAL() {
                 const msalConfig = {
-                    auth: { clientId: 'b407fd45-c551-4dbb-9da5-cab3a2c5a949', authority: 'https://login.microsoftonline.com/common', redirectUri: window.location.origin + window.location.pathname },
+                    auth: { clientId: 'b407fd45-c551-4dbb-9da5-cab3a2c5a949', authority: 'https://login.microsoftonline.com/common', redirectUri: window.location.origin  window.location.pathname },
                     cache: { cacheLocation: 'localStorage' }
                 };
                 this.msalInstance = new msal.PublicClientApplication(msalConfig);
@@ -1833,165 +2317,53 @@ Changes:
                     state.currentFolder.id = folderId;
                     state.currentFolder.name = folderName;
                     state.activeRequests = new AbortController();
-                    
+
+                    if (state.syncManager) {
+                        state.syncManager.start(state.provider);
+                    }
                     await this.loadImages();
                     this.switchToCommonUI();
-                    if(state.syncManager) state.syncManager.start();
                 } catch (error) {
                     Utils.showToast(`Initialization failed: ${error.message}`, 'error', true);
                     this.returnToFolderSelection();
                 }
             },
-            async loadImages() {
+            async loadImages(options = {}) {
                 const folderId = state.currentFolder.id;
+                if (!folderId) return;
                 const sessionKey = `${state.providerType || 'unknown'}::${folderId}`;
-                const cachedFiles = await state.dbManager.getFolderCache(folderId) || [];
-                const isFirstSessionVisit = !state.sessionVisitedFolders.has(sessionKey);
-
-                if (isFirstSessionVisit || cachedFiles.length === 0) {
-                    await this.syncFolderFromCloud(cachedFiles, sessionKey);
-                    return;
+                const firstVisit = !state.sessionVisitedFolders.has(sessionKey);
+                if (firstVisit || options.forceRefresh) {
+                    Utils.showScreen('loading-screen');
+                    Utils.updateLoadingProgress(0, 0, firstVisit ? 'Fetching from cloud...' : 'Refreshing folder...');
                 }
-
-                state.imageFiles = cachedFiles;
-                Utils.showScreen('app-container');
-                Core.initializeStacks();
-                Core.initializeImageDisplay();
-                const pendingPngs = state.imageFiles.filter(file => file.mimeType === 'image/png' && file.metadataStatus === 'pending');
-                if (pendingPngs.length > 0) {
-                    this.extractMetadataInBackground(pendingPngs);
-                }
-            },
-            mergeCloudWithCache(cloudFiles, cachedFiles) {
-                const cachedMap = new Map(cachedFiles.map(file => [file.id, file]));
-                const merged = [];
-                const newIds = [];
-                const updatedIds = [];
-                const removedIds = [];
-
-                for (const cloudFile of cloudFiles) {
-                    const cached = cachedMap.get(cloudFile.id);
-                    if (!cached) {
-                        merged.push({ ...cloudFile });
-                        newIds.push(cloudFile.id);
-                    } else {
-                        const cloudModified = Date.parse(cloudFile.modifiedTime || cloudFile.createdTime || 0);
-                        const cachedModified = Date.parse(cached.modifiedTime || cached.createdTime || 0);
-                        if (!isNaN(cloudModified) && cloudModified > cachedModified) {
-                            merged.push({ ...cached, ...cloudFile });
-                            updatedIds.push(cloudFile.id);
-                        } else {
-                            merged.push(cached);
-                        }
-                        cachedMap.delete(cloudFile.id);
-                    }
-                }
-
-                for (const removedId of cachedMap.keys()) {
-                    removedIds.push(removedId);
-                }
-
-                return {
-                    mergedFiles: merged,
-                    newIds,
-                    updatedIds,
-                    removedIds,
-                    hasChanges: newIds.length > 0 || updatedIds.length > 0 || removedIds.length > 0
-                };
-            },
-            async syncFolderFromCloud(cachedFiles, sessionKey) {
-                const folderId = state.currentFolder.id;
-                const hadCached = cachedFiles.length > 0;
-                Utils.showScreen('loading-screen');
-                Utils.updateLoadingProgress(0, hadCached ? cachedFiles.length : 0, hadCached ? 'Syncing with cloud...' : 'Fetching from cloud...');
-
                 try {
-                    const result = await state.provider.getFilesAndMetadata(folderId);
-                    const cloudFiles = result.files || [];
-                    const { mergedFiles, newIds, updatedIds, removedIds, hasChanges } = this.mergeCloudWithCache(cloudFiles, cachedFiles);
-
-                    if (mergedFiles.length === 0) {
-                        await state.dbManager.saveFolderCache(folderId, []);
+                    const result = await busRequest('folder:load-request', { folderId, forceRefresh: !!options.forceRefresh });
+                    const record = result?.record;
+                    if (!record || !Array.isArray(record.files) || record.files.length === 0) {
                         state.imageFiles = [];
                         Utils.showToast('No images found in this folder', 'info', true);
                         this.returnToFolderSelection();
                         return;
                     }
-
-                    for (const updatedId of updatedIds) {
-                        const updatedFile = mergedFiles.find(file => file.id === updatedId);
-                        if (updatedFile) {
-                            await state.dbManager.saveMetadata(updatedId, updatedFile);
-                        }
-                    }
-                    if (removedIds.length > 0) {
-                        await Promise.all(removedIds.map(id => state.dbManager.deleteMetadata(id)));
-                    }
-
-                    state.imageFiles = mergedFiles;
-                    await this.processAllMetadata(state.imageFiles, !hadCached);
-                    if (hasChanges || !hadCached) {
-                        await state.dbManager.saveFolderCache(folderId, state.imageFiles);
-                    }
-
-                    const key = sessionKey || `${state.providerType || 'unknown'}::${folderId}`;
-                    state.sessionVisitedFolders.add(key);
-                    this.switchToCommonUI();
+                    state.imageFiles = record.files.map(file => ({ ...file }));
+                    tierOneCache.set(record);
+                    Utils.showScreen('app-container');
+                    state.sessionVisitedFolders.add(sessionKey);
                     Core.initializeStacks();
                     Core.initializeImageDisplay();
-
-                    if (hadCached && hasChanges) {
-                        const diffSummary = [];
-                        if (newIds.length > 0) diffSummary.push(`${newIds.length} new`);
-                        if (updatedIds.length > 0) diffSummary.push(`${updatedIds.length} updated`);
-                        if (removedIds.length > 0) diffSummary.push(`${removedIds.length} removed`);
-                        const summaryText = diffSummary.length > 0 ? diffSummary.join(', ') : 'changes';
-                        Utils.showToast(`Folder updated with cloud changes (${summaryText})`, 'info');
+                    const pendingPngs = state.imageFiles.filter(file => file.mimeType === 'image/png' && file.metadataStatus === 'pending');
+                    if (pendingPngs.length > 0) {
+                        this.extractMetadataInBackground(pendingPngs);
                     }
                 } catch (error) {
-                    if (error.name !== 'AbortError') {
-                        Utils.showToast(`Error loading images: ${error.message}`, 'error', true);
-                    }
+                    Utils.showToast(`Error loading images: ${error.message}`, 'error', true);
                     this.returnToFolderSelection();
-                }
-            },
-            async refreshFolderInBackground() {
-                try {
-                    const folderId = state.currentFolder.id;
-                    const cachedFiles = await state.dbManager.getFolderCache(folderId) || [];
-                    const result = await state.provider.getFilesAndMetadata(folderId);
-                    const cloudFiles = result.files || [];
-                    const { mergedFiles, updatedIds, removedIds, hasChanges } = this.mergeCloudWithCache(cloudFiles, cachedFiles);
-
-                    if (!hasChanges) {
-                        return;
-                    }
-
-                    for (const updatedId of updatedIds) {
-                        const updatedFile = mergedFiles.find(file => file.id === updatedId);
-                        if (updatedFile) {
-                            await state.dbManager.saveMetadata(updatedId, updatedFile);
-                        }
-                    }
-                    if (removedIds.length > 0) {
-                        await Promise.all(removedIds.map(id => state.dbManager.deleteMetadata(id)));
-                    }
-
-                    await this.processAllMetadata(mergedFiles);
-                    await state.dbManager.saveFolderCache(folderId, mergedFiles);
-                    state.imageFiles = mergedFiles;
-                    Core.initializeStacks();
-                    Core.updateStackCounts();
-                    if (state.imageFiles.length > 0) Core.displayCurrentImage();
-                    else Core.showEmptyState();
-                    Utils.showToast('Folder updated in background', 'info');
-                } catch (error) {
-                    console.warn("Background refresh failed:", error.message);
                 }
             },
             async processAllMetadata(files, isFirstLoad = false) {
                  if (isFirstLoad) Utils.updateLoadingProgress(0, files.length, 'Processing files...');
-                 for (let i = 0; i < files.length; i++) {
+                 for (let i = 0; i < files.length; i) {
                     const file = files[i];
                     try {
                         const metadata = await state.dbManager.getMetadata(file.id);
@@ -2005,7 +2377,7 @@ Changes:
                     } catch (error) {
                         console.error(`Failed to process metadata for ${file.name}:`, error);
                     }
-                    if(isFirstLoad) Utils.updateLoadingProgress(i + 1, files.length);
+                    if(isFirstLoad) Utils.updateLoadingProgress(i  1, files.length);
                 }
                 this.extractMetadataInBackground(files.filter(f => f.mimeType === 'image/png'));
             },
@@ -2059,11 +2431,7 @@ Changes:
             },
             async updateUserMetadata(fileId, updates) {
                 try {
-                    const file = state.imageFiles.find(f => f.id === fileId);
-                    if (!file) return;
-                    Object.assign(file, updates);
-                    await state.dbManager.saveMetadata(file.id, file);
-                    await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
+                    await busRequest('metadata:update-request', { fileId, updates });
                 } catch (error) {
                     Utils.showToast(`Failed to update metadata: ${error.message}`, 'error', true);
                 }
@@ -2084,9 +2452,9 @@ Changes:
             },
             async extractMetadataInBackground(pngFiles) {
                 const BATCH_SIZE = 5;
-                for (let i = 0; i < pngFiles.length; i += BATCH_SIZE) {
+                for (let i = 0; i < pngFiles.length; i = BATCH_SIZE) {
                     if (state.activeRequests.signal.aborted) return;
-                    const batch = pngFiles.slice(i, i + BATCH_SIZE);
+                    const batch = pngFiles.slice(i, i  BATCH_SIZE);
                     const promises = batch.map(file => {
                         if (file.metadataStatus === 'pending') {
                             return this.processFileMetadata(file);
@@ -2218,7 +2586,7 @@ Changes:
                     await Utils.setImageSrc(Utils.elements.centerImage, currentFile);
                     
                     const folderName = state.currentFolder.name;
-                    const truncatedFolder = folderName.length > 20 ? folderName.substring(0, 20) + '...' : folderName;
+                    const truncatedFolder = folderName.length > 20 ? folderName.substring(0, 20)  '...' : folderName;
                     
                     state.currentScale = 1;
                     state.panOffset = { x: 0, y: 0 };
@@ -2238,7 +2606,7 @@ Changes:
             updateImageCounters() {
                 const stack = state.stacks[state.currentStack];
                 const total = stack ? stack.length : 0;
-                const current = total > 0 ? state.currentStackPosition + 1 : 0;
+                const current = total > 0 ? state.currentStackPosition  1 : 0;
                 const counterText = total > 0 ? `Item ${current} / ${total}` : 'No items';
                 if (Utils.elements.normalImageCount) {
                     Utils.elements.normalImageCount.textContent = counterText;
@@ -2400,7 +2768,7 @@ Changes:
             renderBatch() {
                 const lazyState = state.grid.lazyLoadState;
                 const container = Utils.elements.gridContainer;
-                const filesToRender = lazyState.allFiles.slice(lazyState.renderedCount, lazyState.renderedCount + lazyState.batchSize);
+                const filesToRender = lazyState.allFiles.slice(lazyState.renderedCount, lazyState.renderedCount  lazyState.batchSize);
 
                 const oldSentinel = document.getElementById('grid-sentinel');
                 if (oldSentinel && lazyState.observer) {
@@ -2411,28 +2779,30 @@ Changes:
                     const div = document.createElement('div');
                     div.className = 'grid-item'; div.dataset.fileId = file.id;
                     if (state.grid.selected.includes(file.id)) { div.classList.add('selected'); }
-                    
                     const img = document.createElement('img');
                     img.className = 'grid-image'; img.alt = file.name || 'Image';
-                    img.src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; // Placeholder
-                    
+                    const previewUrl = Utils.getPreviewImageUrl(file);
+                    const fullUrl = Utils.getPreferredImageUrl(file);
+                    img.dataset.full = fullUrl;
+                    img.dataset.fileId = file.id;
+                    img.loading = 'lazy';
+                    img.src = previewUrl;
                     img.onload = () => img.classList.add('loaded');
                     img.onerror = () => {
-                        img.src = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'150\' height=\'150\' viewBox=\'0 0 150 150\' fill=\'none\'%3E%3Crect width=\'150\' height=\'150\' fill=\'%23E5E7EB\'/%3E%3Cpath d=\'M65 60H85V90H65V60Z\' fill=\'%239CA3AF\'/%3E%3Ccircle cx=\'75\' cy=\'45\' r=\'10\' fill=\'%239CA3AF\'/%3E%3C/svg%3E';
+                        img.src = 'data:image/svgxml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'150\' height=\'150\' viewBox=\'0 0 150 150\' fill=\'none\'%3E%3Crect width=\'150\' height=\'150\' fill=\'%23E5E7EB\'/%3E%3Cpath d=\'M65 60H85V90H65V60Z\' fill=\'%239CA3AF\'/%3E%3Ccircle cx=\'75\' cy=\'45\' r=\'10\' fill=\'%239CA3AF\'/%3E%3C/svg%3E';
                         img.classList.add('loaded');
                     };
-
-                    Utils.fetchAuthenticatedImageUrl(file).then(blobUrl => {
-                        if(blobUrl) {
-                            if (img.dataset.objectUrl) URL.revokeObjectURL(img.dataset.objectUrl);
-                            img.src = blobUrl;
-                            img.dataset.objectUrl = blobUrl;
-                        } else {
-                            img.src = Utils.getPreferredImageUrl(file);
-                        }
+                    const upgrade = () => {
+                        if (img.dataset.upgraded === 'true') return;
+                        img.dataset.upgraded = 'true';
+                        img.src = fullUrl;
+                    };
+                    div.addEventListener('mouseenter', upgrade, { once: true });
+                    div.addEventListener('focus', upgrade, { once: true });
+                    div.addEventListener('click', e => {
+                        upgrade();
+                        this.toggleSelection(e, file.id);
                     });
-
-                    div.addEventListener('click', e => this.toggleSelection(e, file.id));
                     const overlay = document.createElement('div');
                     overlay.className = 'filename-overlay';
                     overlay.textContent = file.name;
@@ -2440,8 +2810,13 @@ Changes:
                     div.appendChild(overlay);
                     container.appendChild(div);
                 });
-
-                lazyState.renderedCount += filesToRender.length;
+                container.querySelectorAll('.grid-image').forEach(img => {
+                    if (!img.dataset.upgraded && state.grid.stack && state.grid.stack === state.currentStack && img.dataset.fileId === state.stacks[state.currentStack]?.[state.currentStackPosition]?.id) {
+                        img.dataset.upgraded = 'true';
+                        img.src = img.dataset.full;
+                    }
+                });
+                lazyState.renderedCount = filesToRender.length;
 
                 if (lazyState.renderedCount < lazyState.allFiles.length) {
                     const sentinel = document.createElement('div');
@@ -2517,7 +2892,7 @@ Changes:
             
             searchImages(query) {
                 const lowerCaseQuery = query.toLowerCase();
-                const terms = lowerCaseQuery.split(/\s+/).filter(t => t);
+                const terms = lowerCaseQuery.split(/\s/).filter(t => t);
 
                 const modifiers = terms.filter(t => t.startsWith('#'));
                 const exclusions = terms.filter(t => t.startsWith('-')).map(t => t.substring(1));
@@ -2594,14 +2969,19 @@ Changes:
                     file.stackSequence = timestamp - i;
                 });
 
-                for(const file of newStack) {
-                    await state.dbManager.saveMetadata(file.id, file);
-                }
-                await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
+                await Promise.all(newStack.map(file => App.updateUserMetadata(file.id, { stackSequence: file.stackSequence })));
 
                 state.stacks[state.grid.stack] = newStack;
                 state.currentStackPosition = 0;
                 Utils.showToast('Stack order updated', 'success');
+            },
+            refreshFromState() {
+                if (!state.grid.stack) return;
+                const activeStack = state.grid.stack;
+                state.grid.lazyLoadState.renderedCount = 0;
+                state.grid.lazyLoadState.allFiles = state.grid.filtered.length > 0 ? state.grid.filtered : state.stacks[activeStack];
+                Utils.elements.gridContainer.innerHTML = '';
+                this.initializeLazyLoad(activeStack);
             }
         };
         const Details = {
@@ -2651,7 +3031,7 @@ Changes:
                     Utils.elements.detailTags.appendChild(tagElement);
                 });
                 const addButton = document.createElement('div');
-                addButton.className = 'add-tag-btn'; addButton.textContent = '+ Add Tag';
+                addButton.className = 'add-tag-btn'; addButton.textContent = ' Add Tag';
                 addButton.addEventListener('click', () => this.showAddTagInput());
                 Utils.elements.detailTags.appendChild(addButton);
                 Utils.elements.detailTags.querySelectorAll('.tag-remove').forEach(btn => {
@@ -2711,9 +3091,9 @@ Changes:
                 const updateVisuals = (r) => { stars.forEach((star, index) => { star.classList.toggle('active', index < r); }); };
                 container.onmouseleave = () => updateVisuals(rating);
                 stars.forEach((star, index) => {
-                    star.onmouseenter = () => updateVisuals(index + 1);
+                    star.onmouseenter = () => updateVisuals(index  1);
                     star.onclick = () => {
-                        const newRating = index + 1;
+                        const newRating = index  1;
                         if (newRating === rating) { rating = 0; } else { rating = newRating; }
                         updateVisuals(rating);
                         const currentFile = state.stacks[state.currentStack][state.currentStackPosition];
@@ -2761,8 +3141,8 @@ Changes:
                 const row = document.createElement('tr');
                 const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                 let formattedValue = String(value);
-                if (formattedValue.length > 200) { formattedValue = formattedValue.replace(/,\s+/g, ',\n').replace(/\.\s+/g, '.\n').replace(/;\s+/g, ';\n').trim();
-                } else if (formattedValue.length > 100) { formattedValue = formattedValue.replace(/\s+/g, ' ').trim(); }
+                if (formattedValue.length > 200) { formattedValue = formattedValue.replace(/,\s/g, ',\n').replace(/\.\s/g, '.\n').replace(/;\s/g, ';\n').trim();
+                } else if (formattedValue.length > 100) { formattedValue = formattedValue.replace(/\s/g, ' ').trim(); }
                 const keyCell = document.createElement('td');
                 keyCell.className = 'key-cell'; keyCell.textContent = formattedKey;
                 const valueCell = document.createElement('td');
@@ -2969,14 +3349,14 @@ Changes:
                 Utils.elements.actionContent.innerHTML = `<div style="background: #111; border: 1px solid #333; color: #eee; font-family: monospace; font-size: 12px; height: 250px; overflow-y: scroll; padding: 8px; white-space: pre-wrap;" id="export-log"></div>`;
                 const logEl = document.getElementById('export-log');
                 Utils.elements.actionConfirm.disabled = true; Utils.elements.actionCancel.textContent = "Close";
-                const log = (message) => { logEl.textContent += message + '\n'; logEl.scrollTop = logEl.scrollHeight; };
+                const log = (message) => { logEl.textContent = message  '\n'; logEl.scrollTop = logEl.scrollHeight; };
                 log(`Starting export for ${total} images...`);
-                for (let i = 0; i < filesToExport.length; i++) {
+                for (let i = 0; i < filesToExport.length; i) {
                     const file = filesToExport[i];
-                    Utils.elements.actionTitle.textContent = `Live Export: ${i + 1} of ${total}`;
-                    log(`\n[${i+1}/${total}] Processing: ${file.name}`);
+                    Utils.elements.actionTitle.textContent = `Live Export: ${i  1} of ${total}`;
+                    log(`\n[${i1}/${total}] Processing: ${file.name}`);
                     let extractedMetadata = {}; let success = false;
-                    for (let attempt = 1; attempt <= 3; attempt++) {
+                    for (let attempt = 1; attempt <= 3; attempt) {
                         try {
                             const metadata = await state.metadataExtractor.fetchMetadata(file, true);
                             if (metadata.error) throw new Error(metadata.error);
@@ -2984,7 +3364,7 @@ Changes:
                         } catch (error) {
                             log(`  ⚠️ Attempt ${attempt} failed: ${error.message}`);
                             if (attempt < 3) { const delay = 1000 * attempt; log(`     Retrying in ${delay / 1000}s...`); await new Promise(res => setTimeout(res, delay));
-                            } else { log(`  ❌ FAILED permanently after 3 attempts.`); failures++; }
+                            } else { log(`  ❌ FAILED permanently after 3 attempts.`); failures; }
                         }
                     }
                     results.push({ ...file, extractedMetadata: extractedMetadata });
@@ -3119,8 +3499,8 @@ Changes:
                 if (!viewport) return false;
                 const rect = viewport.getBoundingClientRect();
                 if (!rect.width || !rect.height) return false;
-                const cx = rect.left + rect.width / 2;
-                const cy = rect.top + rect.height / 2;
+                const cx = rect.left  rect.width / 2;
+                const cy = rect.top  rect.height / 2;
                 const radius = Math.min(rect.width, rect.height) * 0.12;
                 return Math.hypot(clientX - cx, clientY - cy) <= radius;
             },
@@ -3128,15 +3508,15 @@ Changes:
                 const v0x = cx - ax, v0y = cy - ay;
                 const v1x = bx - ax, v1y = by - ay;
                 const v2x = px - ax, v2y = py - ay;
-                const dot00 = v0x * v0x + v0y * v0y;
-                const dot01 = v0x * v1x + v0y * v1y;
-                const dot02 = v0x * v2x + v0y * v2y;
-                const dot11 = v1x * v1x + v1y * v1y;
-                const dot12 = v1x * v2x + v1y * v2y;
+                const dot00 = v0x * v0x  v0y * v0y;
+                const dot01 = v0x * v1x  v0y * v1y;
+                const dot02 = v0x * v2x  v0y * v2y;
+                const dot11 = v1x * v1x  v1y * v1y;
+                const dot12 = v1x * v2x  v1y * v2y;
                 const invDen = 1 / (dot00 * dot11 - dot01 * dot01);
                 const u = (dot11 * dot02 - dot01 * dot12) * invDen;
                 const v = (dot00 * dot12 - dot01 * dot02) * invDen;
-                return (u >= 0) && (v >= 0) && (u + v <= 1);
+                return (u >= 0) && (v >= 0) && (u  v <= 1);
             },
             hitTriangle(clientX, clientY) {
                 const viewport = Utils.elements.imageViewport;
@@ -3187,8 +3567,8 @@ Changes:
             },
             showEdgeGlow(direction) {
                 this.edgeElements.forEach(edge => edge.classList.remove('active'));
-                if (Utils.elements[`edge${direction.charAt(0).toUpperCase() + direction.slice(1)}`]) {
-                    Utils.elements[`edge${direction.charAt(0).toUpperCase() + direction.slice(1)}`].classList.add('active');
+                if (Utils.elements[`edge${direction.charAt(0).toUpperCase()  direction.slice(1)}`]) {
+                    Utils.elements[`edge${direction.charAt(0).toUpperCase()  direction.slice(1)}`].classList.add('active');
                 }
             },
             hideAllEdgeGlows() { this.edgeElements.forEach(edge => edge.classList.remove('active')); },
@@ -3237,12 +3617,12 @@ Changes:
                 e.preventDefault();
                 const point = e.touches ? e.touches[0] : e;
                 this.currentPos = { x: point.clientX, y: point.clientY };
-                this.queueTrail(point.clientX, clientY);
+                this.queueTrail(point.clientX, point.clientY);
                 if (this.hubPressActive) { return; }
                 if (state.imageFiles.length === 0) return;
                 const deltaX = this.currentPos.x - this.startPos.x;
                 const deltaY = this.currentPos.y - this.startPos.y;
-                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                const distance = Math.sqrt(deltaX * deltaX  deltaY * deltaY);
                 if (distance > 30) {
                     this.gestureStarted = true;
                     if(!state.isFocusMode) {
@@ -3262,7 +3642,7 @@ Changes:
                 this.spawnTrail(this.currentPos.x, this.currentPos.y);
                 const deltaX = this.currentPos.x - this.startPos.x;
                 const deltaY = this.currentPos.y - this.startPos.y;
-                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                const distance = Math.sqrt(deltaX * deltaX  deltaY * deltaY);
                 const now = performance.now();
                 const duration = now - this.startTimestamp;
                 const isTap = distance < this.TAP_DISTANCE_THRESHOLD && duration < this.TAP_DURATION_THRESHOLD;
@@ -3314,8 +3694,8 @@ Changes:
                 this.hubPressActive = false;
                 this.gestureStarted = false;
             },
-            getDistance(touch1, touch2) { const dx = touch1.clientX - touch2.clientX; const dy = touch1.clientY - touch2.clientY; return Math.sqrt(dx * dx + dy * dy); },
-            getCenter(touch1, touch2) { return { x: (touch1.clientX + touch2.clientX) / 2, y: (touch1.clientY + touch2.clientY) / 2 }; },
+            getDistance(touch1, touch2) { const dx = touch1.clientX - touch2.clientX; const dy = touch1.clientY - touch2.clientY; return Math.sqrt(dx * dx  dy * dy); },
+            getCenter(touch1, touch2) { return { x: (touch1.clientX  touch2.clientX) / 2, y: (touch1.clientY  touch2.clientY) / 2 }; },
             handleTouchStart(e) {
                 if (e.touches.length === 2) {
                     e.preventDefault(); state.isPinching = true;
@@ -3335,8 +3715,8 @@ Changes:
                     e.preventDefault();
                     const deltaX = e.touches[0].clientX - state.lastTouchPos.x;
                     const deltaY = e.touches[0].clientY - state.lastTouchPos.y;
-                    state.panOffset.x += deltaX / state.currentScale;
-                    state.panOffset.y += deltaY / state.currentScale;
+                    state.panOffset.x = deltaX / state.currentScale;
+                    state.panOffset.y = deltaY / state.currentScale;
                     state.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY }; Core.applyTransform();
                 }
             },
@@ -3363,13 +3743,13 @@ Changes:
             async nextImage() {
                 const stack = state.stacks[state.currentStack];
                 if (stack.length === 0) return;
-                state.currentStackPosition = (state.currentStackPosition + 1) % stack.length;
+                state.currentStackPosition = (state.currentStackPosition  1) % stack.length;
                 await Core.displayCurrentImage();
             },
             async prevImage() {
                 const stack = state.stacks[state.currentStack];
                 if (stack.length === 0) return;
-                state.currentStackPosition = (state.currentStackPosition - 1 + stack.length) % stack.length;
+                state.currentStackPosition = (state.currentStackPosition - 1  stack.length) % stack.length;
                 await Core.displayCurrentImage();
             },
             async deleteCurrentImage() {
@@ -3417,10 +3797,10 @@ Changes:
 
                     let dateInfo = new Date(folder.modifiedTime).toLocaleDateString();
                     if (folder.itemCount > 0) {
-                         dateInfo += ` • ${folder.itemCount} items`;
+                         dateInfo = ` • ${folder.itemCount} items`;
                     }
                     if (folder.hasChildren) {
-                        dateInfo += ` • Has subfolders`;
+                        dateInfo = ` • Has subfolders`;
                     }
 
                     const iconColor = folder.hasChildren ? 'var(--accent)' : 'rgba(255, 255, 255, 0.6)';
@@ -3489,7 +3869,7 @@ Changes:
                 const filesToMove = state.folderMoveMode.files;
                 Utils.showScreen('loading-screen'); Utils.updateLoadingProgress(0, filesToMove.length);
                 try {
-                    for(let i = 0; i < filesToMove.length; i++) {
+                    for(let i = 0; i < filesToMove.length; i) {
                         const fileId = filesToMove[i];
                         await state.provider.moveFileToFolder(fileId, folderId);
                         const fileIndex = state.imageFiles.findIndex(f => f.id === fileId);
@@ -3498,7 +3878,7 @@ Changes:
                             const stackIndex = state.stacks[file.stack].findIndex(f => f.id === fileId);
                             if (stackIndex > -1) { state.stacks[file.stack].splice(stackIndex, 1); }
                         }
-                        Utils.updateLoadingProgress(i + 1, filesToMove.length);
+                        Utils.updateLoadingProgress(i  1, filesToMove.length);
                     }
                     Utils.showToast(`Moved ${filesToMove.length} images to ${folderName}`, 'success', true);
                     await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
@@ -3545,7 +3925,7 @@ Changes:
             cycleThroughPills() {
                 const stackOrder = ['in', 'out', 'priority', 'trash'];
                 const currentIndex = stackOrder.indexOf(state.currentStack);
-                const nextIndex = (currentIndex + 1) % stackOrder.length;
+                const nextIndex = (currentIndex  1) % stackOrder.length;
                 const nextStack = stackOrder[nextIndex];
                 this.switchToStack(nextStack);
             }
@@ -3583,11 +3963,11 @@ Changes:
                     const parent = modal.parentElement;
                     if (newTop < 0) newTop = 0;
                     if (newLeft < 0) newLeft = 0;
-                    if (newTop + modal.offsetHeight > parent.clientHeight) newTop = parent.clientHeight - modal.offsetHeight;
-                    if (newLeft + modal.offsetWidth > parent.clientWidth) newLeft = parent.clientWidth - modal.offsetWidth;
+                    if (newTop  modal.offsetHeight > parent.clientHeight) newTop = parent.clientHeight - modal.offsetHeight;
+                    if (newLeft  modal.offsetWidth > parent.clientWidth) newLeft = parent.clientWidth - modal.offsetWidth;
 
-                    modal.style.top = newTop + "px";
-                    modal.style.left = newLeft + "px";
+                    modal.style.top = newTop  "px";
+                    modal.style.left = newLeft  "px";
                 }
 
                 function closeDragElement() {
@@ -3625,7 +4005,6 @@ Changes:
                 this.setupGridControls(); this.setupSearchFunctionality(); this.setupActionButtons();
                 this.setupKeyboardNavigation();
                 this.setupDraggables();
-                this.setupSearchHelper();
             },
             setupDraggables() {
                 DraggableResizable.init(Utils.elements.detailsModal.querySelector('.modal-content'), Utils.elements.detailsModalHeader);
@@ -3689,7 +4068,7 @@ Changes:
             },
             setupFocusMode() {
                 Utils.elements.centerTrashBtn.addEventListener('click', () => Core.moveToStack('trash'));
-                Utils.elements.focusStackName.addEventListener('click', () => Modal.setupMoveAction());
+                Utils.elements.focusStackName.addEventListener('click', () => Modal.setupFocusStackSwitch());
                 Utils.elements.focusDeleteBtn.addEventListener('click', () => Gestures.deleteCurrentImage());
                 Utils.elements.focusFavoriteBtn.addEventListener('click', async () => {
                     try {
@@ -3754,22 +4133,6 @@ Changes:
                     Utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
                 });
             },
-            setupSearchHelper() {
-                const helperIcon = document.querySelector('.search-helper-icon');
-                const helperPopup = document.querySelector('.search-helper-popup');
-
-                helperIcon.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const isVisible = helperPopup.style.display === 'block';
-                    helperPopup.style.display = isVisible ? 'none' : 'block';
-                });
-
-                document.addEventListener('click', (e) => {
-                    if (!helperPopup.contains(e.target) && !helperIcon.contains(e.target)) {
-                        helperPopup.style.display = 'none';
-                    }
-                });
-            },
             setupSearchFunctionality() {
                 Utils.elements.omniSearch.addEventListener('input', () => Grid.performSearch());
                 Utils.elements.clearSearchBtn.addEventListener('click', () => Grid.resetSearch());
@@ -3778,7 +4141,7 @@ Changes:
                         e.preventDefault();
                         const modifier = e.target.dataset.modifier;
                         const searchInput = Utils.elements.omniSearch;
-                        searchInput.value += ` ${modifier} `;
+                        searchInput.value = ` ${modifier} `;
                         searchInput.focus();
                         Grid.performSearch();
                     });
@@ -3837,6 +4200,162 @@ Changes:
                 });
             }
         };
+        function applyFolderDiff(diff, record) {
+            if (!diff || !Array.isArray(diff.mergedFiles)) return;
+            const reference = record?.files || diff.mergedFiles;
+            const existingMap = new Map(state.imageFiles.map(file => [file.id, file]));
+            reference.forEach(file => {
+                if (existingMap.has(file.id)) {
+                    Object.assign(existingMap.get(file.id), file);
+                } else {
+                    existingMap.set(file.id, { ...file });
+                }
+            });
+            if (Array.isArray(diff.removedIds)) {
+                diff.removedIds.forEach(id => existingMap.delete(id));
+            }
+            state.imageFiles = reference.map(file => existingMap.get(file.id) || { ...file });
+            Core.initializeStacks();
+            Core.updateStackCounts();
+            if (state.stacks[state.currentStack]?.length > 0) {
+                Core.displayCurrentImage().catch(() => {});
+            } else {
+                Core.showEmptyState();
+            }
+            if (state.grid.stack) {
+                Grid.refreshFromState();
+            }
+        }
+        function attachAppBusHandlers() {
+            bus.addEventListener('folder:load-request', async (event) => {
+                const detail = event.detail || {};
+                const requestId = detail.requestId;
+                const payload = detail.payload || {};
+                const folderId = payload.folderId || state.currentFolder.id;
+                const forceRefresh = !!payload.forceRefresh;
+                const shouldDiff = payload.shouldDiff !== false;
+                try {
+                    let record = !forceRefresh ? tierOneCache.get(folderId) : null;
+                    if (record && Array.isArray(record.files) && record.files.length > 0) {
+                        busRespond('folder:load-request', requestId, { status: 'memory', record });
+                        return;
+                    }
+                    const cachedRecord = !forceRefresh ? await state.dbManager.getFolderCacheRecord(folderId) : null;
+                    if (cachedRecord && Array.isArray(cachedRecord.files) && cachedRecord.files.length > 0) {
+                        tierOneCache.set(cachedRecord);
+                        busRespond('folder:load-request', requestId, { status: 'indexeddb', record: cachedRecord });
+                        if (shouldDiff && state.syncManager) {
+                            state.syncManager.requestDiff({ folderId, changeToken: cachedRecord.changeToken || null, deltaLink: cachedRecord.deltaLink || null, provider: { type: state.providerType } }).catch(error => recordTelemetry({ type: 'diff-request-error', folderId, message: error.message }));
+                        }
+                        return;
+                    }
+                    if (!state.syncManager) {
+                        throw new Error('Sync manager unavailable');
+                    }
+                    const result = await state.syncManager.requestFolderSync({ folderId, forceFull: true, provider: { type: state.providerType } });
+                    if (result?.record) {
+                        tierOneCache.set(result.record);
+                    }
+                    busRespond('folder:load-request', requestId, { status: 'worker', record: result?.record || null, diff: result?.diff || null });
+                } catch (error) {
+                    busRespond('folder:load-request', requestId, null, error);
+                }
+            });
+            bus.addEventListener('metadata:update-request', async (event) => {
+                const detail = event.detail || {};
+                const requestId = detail.requestId;
+                const payload = detail.payload || {};
+                try {
+                    const { fileId, updates } = payload;
+                    if (!fileId || !updates) {
+                        throw new Error('Invalid metadata payload');
+                    }
+                    const file = state.imageFiles.find(item => item.id === fileId);
+                    if (!file) {
+                        throw new Error('File not found');
+                    }
+                    const updatedAt = Date.now();
+                    Object.assign(file, updates, { localUpdatedAt: updatedAt });
+                    await state.dbManager.saveMetadata(fileId, file, { localUpdatedAt: updatedAt });
+                    await state.dbManager.enqueueSyncOps([{ fileId, operationType: 'metadata-update', payload: { metadata: updates, fileId, localUpdatedAt: updatedAt }, provider: state.providerType, queuedAt: updatedAt }]);
+                    const tierRecord = tierOneCache.get(state.currentFolder.id);
+                    if (tierRecord && Array.isArray(tierRecord.files)) {
+                        const index = tierRecord.files.findIndex(entry => entry.id === fileId);
+                        if (index !== -1) {
+                            tierRecord.files[index] = { ...tierRecord.files[index], ...file };
+                        }
+                        tierOneCache.set(tierRecord);
+                    }
+                    if (state.syncManager) {
+                        state.syncManager.scheduleQueueFlush();
+                    }
+                    busRespond('metadata:update-request', requestId, { ok: true, fileId });
+                } catch (error) {
+                    busRespond('metadata:update-request', requestId, null, error);
+                }
+            });
+            bus.addEventListener('folder:cloud-delta', async (event) => {
+                const detail = event.detail || {};
+                const folderId = detail.folderId;
+                const diff = detail.diff;
+                const record = detail.record;
+                if (record) {
+                    tierOneCache.set(record);
+                }
+                if (folderId && state.currentFolder.id === folderId && diff) {
+                    applyFolderDiff(diff, record);
+                }
+            });
+            bus.addEventListener('metadata:remote-overwrite', (event) => {
+                const detail = event.detail || {};
+                const folderId = detail.folderId || state.currentFolder.id;
+                const items = Array.isArray(detail.items) ? detail.items : [];
+                if (!items.length) { return; }
+                const isActiveFolder = folderId === state.currentFolder.id;
+                const tierRecord = tierOneCache.get(folderId);
+                items.forEach(item => {
+                    if (!item || !item.fileId || !item.metadata) { return; }
+                    if (isActiveFolder) {
+                        const target = state.imageFiles.find(file => file.id === item.fileId);
+                        if (target) {
+                            Object.assign(target, item.metadata, {
+                                localUpdatedAt: item.localUpdatedAt || target.localUpdatedAt,
+                                remoteUpdatedAt: item.remoteUpdatedAt || item.metadata.remoteUpdatedAt || target.remoteUpdatedAt
+                            });
+                        }
+                    }
+                    if (tierRecord && Array.isArray(tierRecord.files)) {
+                        const index = tierRecord.files.findIndex(file => file.id === item.fileId);
+                        if (index !== -1) {
+                            tierRecord.files[index] = { ...tierRecord.files[index], ...item.metadata, localUpdatedAt: item.localUpdatedAt || tierRecord.files[index].localUpdatedAt, remoteUpdatedAt: item.remoteUpdatedAt || tierRecord.files[index].remoteUpdatedAt };
+                        }
+                    }
+                });
+                if (tierRecord) {
+                    tierOneCache.set(tierRecord);
+                }
+                if (isActiveFolder) {
+                    Core.initializeStacks();
+                    Core.updateStackCounts();
+                    if (state.currentStackPosition >= state.stacks[state.currentStack].length) {
+                        state.currentStackPosition = Math.max(0, state.stacks[state.currentStack].length - 1);
+                    }
+                    Core.displayCurrentImage().catch(() => {});
+                    if (state.grid.stack) {
+                        Grid.refreshFromState();
+                    }
+                    const detailsModal = Utils && Utils.elements ? Utils.elements.detailsModal : null;
+                    if (detailsModal && !detailsModal.classList.contains('hidden') && Details && typeof Details.populateAllTabs === 'function') {
+                        const currentFile = state.stacks[state.currentStack][state.currentStackPosition];
+                        if (currentFile) {
+                            Details.populateAllTabs(currentFile);
+                        }
+                    }
+                    Utils.showToast('Metadata updated from cloud', 'info');
+                }
+            });
+
+        }
         async function initApp() {
             try {
                 Utils.init();
@@ -3846,6 +4365,7 @@ Changes:
                 state.dbManager = new DBManager();
                 await state.dbManager.init();
                 state.syncManager = new SyncManager();
+                attachAppBusHandlers();
                 state.metadataExtractor = new MetadataExtractor();
                 Utils.showScreen('provider-screen');
                 Events.init();
@@ -3865,4 +4385,3 @@ Changes:
     </script>
 </body>
 </html>
-
