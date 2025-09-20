@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Visual MAD v4.0</title>
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      color: white;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    .controls {
+      padding: 10px;
+      background: #222;
+    }
+    .control-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+    .controls button,
+    .controls select,
+    .controls input {
+      padding: 6px 12px;
+      margin-right: 10px;
+      background: #444;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .main-content {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+    .table-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #111;
+      padding: 10px;
+      min-width: 200px;
+    }
+    .scroll-table {
+      flex: 1;
+      overflow-y: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      color: white;
+      font-size: 12px;
+    }
+    th, td {
+      padding: 4px 6px;
+      border: 1px solid #333;
+      text-align: center;
+    }
+    thead th {
+      position: sticky;
+      top: 0;
+      background: #222;
+      z-index: 1;
+    }
+    tfoot {
+      position: sticky;
+      bottom: 0;
+      background: #222;
+      font-weight: bold;
+    }
+    .divider {
+      width: 5px;
+      background: #555;
+      cursor: col-resize;
+      z-index: 2;
+    }
+    .visualizer-container {
+      flex: 1;
+      height: 100%;
+      position: relative;
+      background: black;
+      min-width: 200px;
+    }
+    .canvas-fullscreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="controls">
+      <div class="control-row">
+        <button onclick="startStream()">Start</button>
+        <button onclick="pauseStream()">Pause</button>
+        <button onclick="clearAll()">Clear</button>
+        <button onclick="downloadData()">Download</button>
+        <label for="vizSelect">Visualization:</label>
+        <select id="vizSelect" onchange="changeViz(this.value)">
+          <option value="1">VIZ1</option>
+          <option value="2">VIZ2</option>
+          <option value="3">VIZ3</option>
+          <option value="4">VIZ4</option>
+          <option value="5">VIZ5</option>
+          <option value="6">VIZ6</option>
+          <option value="7">VIZ7</option>
+          <option value="8">VIZ8</option>
+          <option value="9">VIZ9</option>
+          <option value="10">VIZ10</option>
+          <option value="11">VIZ11</option>
+          <option value="12">VIZ12</option>
+          <option value="13">VIZ13</option>
+          <option value="14">VIZ14</option>
+          <option value="15">VIZ15</option>
+          <option value="16">VIZ16</option>
+        </select>
+        <label>Interval (ms):</label>
+        <input id="intervalInput" type="number" value="1000" min="100" step="100" />
+      </div>
+    </div>
+    <div class="main-content">
+      <div class="table-container" id="leftPanel">
+        <div class="scroll-table" id="scrollTable">
+          <table id="madFlatTable">
+            <thead>
+              <tr>
+                <th>Date</th><th>Day</th><th>Hour</th><th>Min</th><th>Sec</th>
+                <th>CH1</th><th>CH2</th><th>CH3</th><th>CH4</th><th>CH5</th>
+                <th>CH6</th><th>CH7</th><th>CH8</th><th>CH9</th><th>CH10</th>
+                <th>Sum</th><th>Avg</th>
+              </tr>
+            </thead>
+            <tbody id="madFlatBody"></tbody>
+            <tfoot>
+              <tr id="footerRow">
+                <td colspan="5">TOTAL</td>
+                <td id="fCH1">0</td><td id="fCH2">0</td><td id="fCH3">0</td><td id="fCH4">0</td><td id="fCH5">0</td>
+                <td id="fCH6">0</td><td id="fCH7">0</td><td id="fCH8">0</td><td id="fCH9">0</td><td id="fCH10">0</td>
+                <td id="fSum">0</td><td id="fAvg">0</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+      <div class="divider" id="dragbar"></div>
+      <div class="visualizer-container" id="rightPanel">
+        <canvas id="micVisualizer" class="canvas-fullscreen"></canvas>
+      </div>
+    </div>
+<script>
+const canvas = document.getElementById('micVisualizer');
+const ctx = canvas.getContext('2d');
+canvas.width = canvas.offsetWidth;
+canvas.height = canvas.offsetHeight;
+
+const tableBody = document.getElementById('madFlatBody');
+const scrollTable = document.getElementById('scrollTable');
+const footerCells = Array.from({ length: 10 }, (_, i) => document.getElementById(`fCH${i + 1}`));
+const footerSum = document.getElementById('fSum');
+const footerAvg = document.getElementById('fAvg');
+
+const vizSelect = document.getElementById('vizSelect');
+const intervalInput = document.getElementById('intervalInput');
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const analyser = audioCtx.createAnalyser();
+analyser.fftSize = 2048;
+const bufferLength = analyser.frequencyBinCount;
+const dataArray = new Uint8Array(bufferLength);
+
+let streamSource, currentViz = 1, animFrame, madInterval;
+let intervalMs = 1000;
+let sampleHistory = [];
+let cumulativeSums = new Array(10).fill(0);
+let totalSum = 0, totalAvg = 0;
+let autoScrollEnabled = true;
+let lastViz = 1;
+let cumulativeTotal = 0;
+
+function startStream() {
+  intervalMs = parseInt(intervalInput.value) || 1000;
+  audioCtx.resume().then(() => {
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+      streamSource = audioCtx.createMediaStreamSource(stream);
+      streamSource.connect(analyser);
+      draw();
+      updateMAD();
+    });
+  });
+}
+
+function pauseStream() {
+  cancelAnimationFrame(animFrame);
+  clearInterval(madInterval);
+  if (streamSource) streamSource.disconnect();
+}
+
+function clearAll() {
+  pauseStream();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  tableBody.innerHTML = "";
+  footerCells.forEach(cell => cell.textContent = 0);
+  footerSum.textContent = "0";
+  footerAvg.textContent = "0";
+  cumulativeSums.fill(0);
+  totalSum = 0;
+  totalAvg = 0;
+  cumulativeTotal = 0;
+  sampleHistory = [];
+  clearVIZ11Charts();
+}
+
+function changeViz(v) {
+  const newViz = parseInt(v);
+  if (lastViz === 11 && newViz !== 11) clearVIZ11Charts();
+  currentViz = newViz;
+  lastViz = newViz;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function draw() {
+  animFrame = requestAnimationFrame(draw);
+  analyser.getByteFrequencyData(dataArray);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const vizMap = {
+    1: drawVIZ1, 2: drawVIZ2, 3: drawVIZ3, 4: drawVIZ4, 5: drawVIZ5,
+    6: drawVIZ6, 7: drawVIZ7, 8: drawVIZ8, 9: drawVIZ9, 10: drawVIZ10,
+    11: () => {}, 12: drawVIZ12, 13: drawVIZ13, 14: drawVIZ14, 15: drawVIZ15, 16: drawVIZ16
+  };
+  if (vizMap[currentViz]) vizMap[currentViz]();
+}
+
+function updateMAD() {
+  madInterval = setInterval(() => {
+    analyser.getByteFrequencyData(dataArray);
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
+    const day = now.toLocaleDateString(undefined, { weekday: 'short' });
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+
+    const bands = 10;
+    const bandData = Array.from({ length: bands }, (_, i) => {
+      const start = Math.floor(i * bufferLength / bands);
+      const end = Math.floor((i + 1) * bufferLength / bands);
+      const slice = dataArray.slice(start, end);
+      const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+      return Math.round(avg);
+    });
+
+    const sum = bandData.reduce((a, b) => a + b, 0);
+    const avg = Math.round(sum / 10);
+    const delta = sampleHistory.length > 0 ? sum - sampleHistory[sampleHistory.length - 1].sum : 0;
+    cumulativeTotal += sum;
+
+    const sample = { h, m, s, bandData, sum, avg, delta, cumulative: cumulativeTotal };
+    sampleHistory.push(sample);
+    if (sampleHistory.length > 300) sampleHistory.shift();
+
+    const row = document.createElement('tr');
+    row.innerHTML = `<td>${date}</td><td>${day}</td><td>${h}</td><td>${m}</td><td>${s}</td>` +
+      bandData.map(v => `<td>${v}</td>`).join('') +
+      `<td>${sum}</td><td>${avg}</td>`;
+    tableBody.appendChild(row);
+    if (tableBody.children.length > 1000) tableBody.removeChild(tableBody.firstChild);
+    if (autoScrollEnabled) scrollTable.scrollTop = scrollTable.scrollHeight;
+
+    for (let i = 0; i < 10; i++) {
+      cumulativeSums[i] += bandData[i];
+      footerCells[i].textContent = cumulativeSums[i];
+    }
+    totalSum += sum;
+    totalAvg += avg;
+    footerSum.textContent = totalSum;
+    footerAvg.textContent = Math.round(totalAvg);
+
+    if (currentViz === 11) updateVIZ11Charts(sample);
+  }, intervalMs);
+}
+
+// Drag functionality
+const dragbar = document.getElementById("dragbar");
+const leftPanel = document.getElementById("leftPanel");
+const rightPanel = document.getElementById("rightPanel");
+
+dragbar.addEventListener("mousedown", function (e) {
+  e.preventDefault();
+  document.addEventListener("mousemove", resize, false);
+  document.addEventListener("mouseup", stopResize, false);
+});
+
+function resize(e) {
+  const percent = (e.clientX / window.innerWidth) * 100;
+  leftPanel.style.flex = "none";
+  leftPanel.style.width = percent + "%";
+  rightPanel.style.flex = "1";
+}
+
+function stopResize() {
+  document.removeEventListener("mousemove", resize, false);
+  document.removeEventListener("mouseup", stopResize, false);
+}
+</script>
+<script>
+function drawVIZ1() {
+  const bw = canvas.width / bufferLength;
+  for (let i = 0; i < bufferLength; i++) {
+    const v = dataArray[i];
+    ctx.fillStyle = `rgb(${v},${v / 2},${255 - v})`;
+    ctx.fillRect(i * bw, canvas.height - v, bw, v);
+  }
+}
+
+function drawVIZ2() {
+  ctx.beginPath();
+  for (let i = 0; i < bufferLength; i++) {
+    const y = canvas.height - dataArray[i];
+    ctx.lineTo(i * canvas.width / bufferLength, y);
+  }
+  ctx.strokeStyle = 'cyan';
+  ctx.stroke();
+}
+
+function drawVIZ3() {
+  for (let i = 0; i < bufferLength; i++) {
+    const radius = dataArray[i] / 5;
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, canvas.height / 2, radius, 0, 2 * Math.PI);
+    ctx.strokeStyle = `hsl(${i * 3.6}, 100%, 50%)`;
+    ctx.stroke();
+  }
+}
+
+let ribbonBuffer = Array.from({ length: 60 }, () => new Array(10).fill(0));
+function drawVIZ4() {
+  const last = sampleHistory[sampleHistory.length - 1];
+  if (!last) return;
+  ribbonBuffer.push(last.bandData || new Array(10).fill(0));
+  if (ribbonBuffer.length > 60) ribbonBuffer.shift();
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const rowHeight = canvas.height / ribbonBuffer.length;
+  const colWidth = canvas.width / 10;
+
+  for (let t = 0; t < ribbonBuffer.length; t++) {
+    for (let ch = 0; ch < 10; ch++) {
+      const value = ribbonBuffer[t][ch];
+      const thickness = Math.max(1, value / 16);
+      const x = colWidth * ch + colWidth / 2;
+      const y = rowHeight * t + rowHeight / 2;
+      ctx.beginPath();
+      ctx.arc(x, y, thickness, 0, 2 * Math.PI);
+      ctx.fillStyle = `hsl(${ch * 36}, 100%, ${Math.min(90, value / 2)}%)`;
+      ctx.fill();
+    }
+  }
+}
+
+function drawVIZ5() {
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < bufferLength; i++) {
+    const angle = (i / bufferLength) * 2 * Math.PI;
+    const radius = dataArray[i];
+    const x = canvas.width / 2 + radius * Math.cos(angle);
+    const y = canvas.height / 2 + radius * Math.sin(angle);
+    ctx.fillStyle = `hsl(${angle * 180 / Math.PI}, 100%, 50%)`;
+    ctx.beginPath();
+    ctx.arc(x, y, 2, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+}
+
+function drawVIZ6() {
+  const grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
+  grad.addColorStop(0, "red");
+  grad.addColorStop(1, "blue");
+  ctx.fillStyle = grad;
+  for (let i = 0; i < bufferLength; i++) {
+    ctx.fillRect(i * 2, canvas.height - dataArray[i], 2, dataArray[i]);
+  }
+}
+
+function drawVIZ7() {
+  ctx.font = "12px monospace";
+  ctx.fillStyle = "lime";
+  for (let i = 0; i < 20; i++) {
+    ctx.fillText(dataArray[i], 10, 15 * (i + 1));
+  }
+}
+
+function drawVIZ8() {
+  const img = ctx.createImageData(canvas.width, canvas.height);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = dataArray[(i / 4) % bufferLength];
+    img.data[i] = v;
+    img.data[i + 1] = 0;
+    img.data[i + 2] = 255 - v;
+    img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function drawVIZ9() {
+  ctx.strokeStyle = "white";
+  ctx.beginPath();
+  for (let i = 0; i < bufferLength; i++) {
+    ctx.lineTo(i, Math.sin(dataArray[i] / 255 * 2 * Math.PI) * canvas.height / 2 + canvas.height / 2);
+  }
+  ctx.stroke();
+}
+
+let angle10 = 0;
+function drawVIZ10() {
+  ctx.fillStyle = "rgba(0,0,0,0.08)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.beginPath();
+  for (let i = 0; i < bufferLength; i += 2) {
+    const radius = dataArray[i];
+    const a = angle10 + i * 0.05;
+    const x = canvas.width / 2 + radius * Math.cos(a);
+    const y = canvas.height / 2 + radius * Math.sin(a);
+    ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = "lime";
+  ctx.stroke();
+  angle10 += 0.05;
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+<script>
+let viz11Charts = {};
+const chartLabels = [];
+const maxPoints = 60;
+
+function buildVIZ11Charts() {
+  clearVIZ11Charts();
+
+  const container = document.createElement("div");
+  container.id = "viz11Charts";
+  container.style = `
+    position:absolute;top:0;left:0;width:100%;height:100%;
+    background:black;overflow-y:auto;padding:10px;z-index:10`;
+  document.querySelector('.visualizer-container').appendChild(container);
+
+  // AGGREGATE chart (Sum + Delta)
+  const aggCanvas = document.createElement("canvas");
+  aggCanvas.style = "height:100px;width:100%";
+  container.appendChild(aggCanvas);
+
+  viz11Charts.agg = new Chart(aggCanvas.getContext("2d"), {
+    type: "line",
+    data: {
+      labels: chartLabels,
+      datasets: [
+        { label: "Cumulative Sum", data: [], borderColor: "cyan", fill: false },
+        { label: "Delta", data: [], borderColor: "orange", fill: false }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: { display: true },
+        tooltip: { mode: "nearest", intersect: false },
+        zoom: {
+          pan: { enabled: true, mode: "x" },
+          zoom: {
+            wheel: { enabled: true },
+            pinch: { enabled: true },
+            mode: "x"
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { maxTicksLimit: 12 } },
+        y: { beginAtZero: true }
+      }
+    }
+  });
+
+  // Channel CH1–CH10
+  for (let i = 0; i < 10; i++) {
+    const chCanvas = document.createElement("canvas");
+    chCanvas.id = `viz11_ch${i+1}`;
+    chCanvas.style = "height:80px;width:100%";
+    container.appendChild(chCanvas);
+
+    viz11Charts[`ch${i+1}`] = new Chart(chCanvas.getContext("2d"), {
+      type: "line",
+      data: {
+        labels: chartLabels,
+        datasets: [{
+          label: `CH${i+1}`,
+          data: [],
+          borderColor: `hsl(${i * 36}, 100%, 50%)`,
+          fill: false
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { mode: "nearest", intersect: false },
+          zoom: {
+            pan: { enabled: true, mode: "x" },
+            zoom: {
+              wheel: { enabled: true },
+              pinch: { enabled: true },
+              mode: "x"
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { maxTicksLimit: 10 } },
+          y: { beginAtZero: true }
+        }
+      }
+    });
+  }
+}
+
+function updateVIZ11Charts(sample) {
+  if (!viz11Charts.agg) buildVIZ11Charts();
+
+  if (chartLabels.length >= maxPoints) {
+    chartLabels.shift();
+    Object.values(viz11Charts).forEach(chart => {
+      chart.data.labels.shift();
+      chart.data.datasets[0].data.shift();
+    });
+    if (viz11Charts.agg.data.datasets[1]) {
+      viz11Charts.agg.data.datasets[1].data.shift(); // Delta
+    }
+  }
+
+  const label = `${sample.h}:${sample.m}:${sample.s}`;
+  chartLabels.push(label);
+
+  viz11Charts.agg.data.labels = chartLabels;
+  viz11Charts.agg.data.datasets[0].data.push(sample.cumulative);
+  viz11Charts.agg.data.datasets[1].data.push(sample.delta);
+  viz11Charts.agg.update();
+
+  for (let i = 0; i < 10; i++) {
+    const chart = viz11Charts[`ch${i+1}`];
+    chart.data.labels = chartLabels;
+    chart.data.datasets[0].data.push(sample.bandData[i]);
+    chart.update();
+  }
+}
+
+function clearVIZ11Charts() {
+  const el = document.getElementById("viz11Charts");
+  if (el) el.remove();
+  Object.values(viz11Charts).forEach(chart => chart.destroy());
+  viz11Charts = {};
+  chartLabels.length = 0;
+}
+</script>
+<script>
+let theta12 = 0;
+function drawVIZ12() {
+  ctx.fillStyle = "rgba(0,0,0,0.15)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < 60; i++) {
+    const r = dataArray[i] * 0.7;
+    const x = canvas.width / 2 + Math.sin(theta12 + i * 0.1) * r;
+    const y = canvas.height / 2 + Math.cos(theta12 + i * 0.1) * r;
+    ctx.fillStyle = `hsl(${i * 6}, 100%, 50%)`;
+    ctx.beginPath();
+    ctx.arc(x, y, 2, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+  theta12 += 0.02;
+}
+
+let history13 = [];
+function drawVIZ13() {
+  history13.push([...dataArray]);
+  if (history13.length > 30) history13.shift();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  history13.forEach((frame, i) => {
+    const alpha = (i + 1) / history13.length;
+    ctx.beginPath();
+    for (let j = 0; j < frame.length; j++) {
+      const angle = j * 2 * Math.PI / frame.length;
+      const r = frame[j] * 0.5;
+      const x = canvas.width / 2 + Math.cos(angle) * r;
+      const y = canvas.height / 2 + Math.sin(angle) * r;
+      ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.25})`;
+    ctx.stroke();
+  });
+}
+
+let spectrogramRows = [];
+function drawVIZ14() {
+  const row = sampleHistory[sampleHistory.length - 1]?.bandData || new Array(10).fill(0);
+  spectrogramRows.push(row);
+  if (spectrogramRows.length > canvas.height) spectrogramRows.shift();
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const rowHeight = canvas.height / spectrogramRows.length;
+  const colWidth = canvas.width / 10;
+
+  spectrogramRows.forEach((row, i) => {
+    row.forEach((val, j) => {
+      ctx.fillStyle = `hsl(${j * 36}, 100%, ${val / 2}%)`;
+      ctx.fillRect(j * colWidth, i * rowHeight, colWidth, rowHeight);
+    });
+  });
+}
+
+let angle15 = 0;
+function drawVIZ15() {
+  ctx.fillStyle = "rgba(0,0,0,0.1)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < bufferLength; i += 4) {
+    const radius = dataArray[i];
+    const a = angle15 + i * 0.1;
+    const x = canvas.width / 2 + radius * Math.cos(a);
+    const y = canvas.height / 2 + radius * Math.sin(a);
+    ctx.beginPath();
+    ctx.arc(x, y, 1.5, 0, 2 * Math.PI);
+    ctx.fillStyle = `hsl(${i}, 100%, 50%)`;
+    ctx.fill();
+  }
+  angle15 += 0.01;
+}
+
+let trail16 = [];
+function drawVIZ16() {
+  trail16.push([...dataArray]);
+  if (trail16.length > 100) trail16.shift();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  trail16.forEach((frame, idx) => {
+    const yBase = idx * (canvas.height / trail16.length);
+    frame.forEach((v, j) => {
+      const x = j * (canvas.width / frame.length);
+      ctx.fillStyle = `hsl(${v}, 80%, 60%)`;
+      ctx.fillRect(x, yBase, 2, 2);
+    });
+  });
+}
+</script>
+</body>
+</html>

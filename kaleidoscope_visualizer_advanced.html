@@ -1,0 +1,145 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Advanced Audio Reactive Visualizer</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: black; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.9/dat.gui.min.js"></script>
+<script id="fragShader" type="x-shader/x-fragment">
+    precision highp float;
+    uniform float u_time;
+    uniform float u_bass;
+    uniform float u_mid;
+    uniform float u_treble;
+    uniform vec2 u_resolution;
+    uniform float u_pattern;
+    uniform float u_speed;
+
+    vec3 hsl2rgb(vec3 hsl) {
+        vec3 rgb = clamp( abs(mod(hsl.x * 6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0 );
+        return hsl.z + hsl.y * (rgb - 0.5) * (1.0 - abs(2.0 * hsl.z - 1.0));
+    }
+
+    void main() {
+        vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+        vec2 p = uv - 0.5;
+        float angle = atan(p.y, p.x);
+        float radius = length(p);
+
+        float pattern = sin(u_pattern * angle + u_time * u_speed) + cos(u_pattern * log(radius + 0.01) - u_time * 0.5);
+
+        float bassPulse = smoothstep(0.2, 0.5, u_bass);
+        float midPulse = smoothstep(0.2, 0.5, u_mid);
+        float treblePulse = smoothstep(0.1, 0.3, u_treble);
+
+        vec3 bassColor = hsl2rgb(vec3(0.05 + 0.05 * u_bass, 0.8, 0.5));
+        vec3 midColor = hsl2rgb(vec3(0.2 + 0.1 * u_mid, 0.8, 0.5));
+        vec3 trebleColor = hsl2rgb(vec3(0.6 + 0.1 * u_treble, 0.8, 0.5));
+
+        vec3 color = mix(bassColor, midColor, midPulse);
+        color = mix(color, trebleColor, treblePulse);
+
+        float edge = step(0.0, pattern);
+        gl_FragColor = vec4(color * edge, 1.0);
+    }
+</script>
+<script>
+    let scene, camera, renderer, uniforms, analyser, dataArray, source;
+    let lowFreq = 0, midFreq = 0, highFreq = 0;
+
+    const settings = {
+        pattern: 12.0,
+        speed: 0.4
+    };
+
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(function(stream) {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        source = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        source.connect(analyser);
+        init();
+        animate();
+    }).catch(function(err) {
+        alert('Microphone access denied: ' + err);
+    });
+
+    function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        uniforms = {
+            u_time: { value: 0.0 },
+            u_bass: { value: 0.0 },
+            u_mid: { value: 0.0 },
+            u_treble: { value: 0.0 },
+            u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+            u_pattern: { value: settings.pattern },
+            u_speed: { value: settings.speed }
+        };
+
+        const material = new THREE.ShaderMaterial({
+            fragmentShader: document.getElementById('fragShader').textContent,
+            uniforms: uniforms
+        });
+
+        const plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+        scene.add(plane);
+
+        window.addEventListener('resize', onWindowResize, false);
+
+        const gui = new dat.GUI();
+        gui.add(settings, 'pattern', 4.0, 30.0).name('Pattern Detail');
+        gui.add(settings, 'speed', 0.1, 2.0).name('Pattern Speed');
+    }
+
+    function onWindowResize() {
+        uniforms.u_resolution.value.set(window.innerWidth, window.innerHeight);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        uniforms.u_time.value += 0.01;
+
+        if (analyser) {
+            analyser.getByteFrequencyData(dataArray);
+            lowFreq = getFrequencyRange(dataArray, 0, 100);
+            midFreq = getFrequencyRange(dataArray, 101, 1000);
+            highFreq = getFrequencyRange(dataArray, 1001, 5000);
+
+            uniforms.u_bass.value = lowFreq;
+            uniforms.u_mid.value = midFreq;
+            uniforms.u_treble.value = highFreq;
+        }
+
+        uniforms.u_pattern.value = settings.pattern;
+        uniforms.u_speed.value = settings.speed;
+
+        renderer.render(scene, camera);
+    }
+
+    function getFrequencyRange(data, from, to) {
+        let nyquist = 22050;
+        let lowIndex = Math.floor(from / nyquist * data.length);
+        let highIndex = Math.floor(to / nyquist * data.length);
+        let sum = 0;
+        for (let i = lowIndex; i <= highIndex; i++) {
+            sum += data[i] / 255.0;
+        }
+        return sum / (highIndex - lowIndex + 1);
+    }
+</script>
+</body>
+</html>

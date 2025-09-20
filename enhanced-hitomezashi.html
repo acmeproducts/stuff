@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enhanced Hitomezashi</title>
+  <style type="text/css">
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; background: #002b36; color: #DDD; }
+  
+  /* Layout */
+  #app { display: flex; height: 100vh; overflow: hidden; position: relative; }
+  
+  /* Tab System */
+  .tab-buttons { 
+    display: flex;
+    margin-bottom: 10px;
+  }
+  .tab-button {
+    padding: 8px 15px;
+    background: #073642;
+    color: #DDD;
+    border: none;
+    cursor: pointer;
+    margin-right: 5px;
+    border-radius: 5px 5px 0 0;
+  }
+  .tab-button.active {
+    background: #268bd2;
+    color: white;
+  }
+  .tab-content {
+    display: none;
+  }
+  .tab-content.active {
+    display: block;
+  }
+  
+  /* Control Panel */
+  #panel { 
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 300px;
+    height: 100vh;
+    background: rgba(7, 54, 66, 0.85);
+    backdrop-filter: blur(10px);
+    padding: 15px;
+    overflow-y: auto;
+    transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+    z-index: 90;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  }
+  #panel.collapsed { transform: translateX(-100%); }
+  
+  /* Toggle Button */
+  #toggle-panel {
+    position: fixed;
+    left: 15px;
+    top: 15px;
+    background: rgba(0, 0, 0, 0.4);
+    color: white;
+    border: none;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+    z-index: 100;
+    border-radius: 50%;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(5px);
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  }
+  #toggle-panel:hover {
+    background: rgba(38, 139, 210, 0.8);
+  }
+  
+  /* Canvas Container */
+  #canvas-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+  }
+  
+  /* Form Elements */
+  .control-group { margin-bottom: 15px; }
+  label { display: block; margin-bottom: 5px; }
+  input, select, button { width: 100%; padding: 5px; margin-bottom: 10px; }
+  input[type="range"] { margin-top: 5px; }
+  
+  h1 { text-align: center; margin-bottom: 15px; color: #268bd2; }
+  
+  /* Canvas styling */
+  canvas { position: absolute; transform-origin: 0 0; }
+  
+  /* Zoom controls */
+  .zoom-controls {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 8px;
+    border-radius: 20px;
+    backdrop-filter: blur(5px);
+    transition: opacity 0.3s ease;
+    opacity: 0.7;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  }
+  .zoom-controls:hover {
+    opacity: 1;
+  }
+  .zoom-controls button {
+    width: 30px;
+    height: 30px;
+    margin: 0 3px;
+    background: rgba(38, 139, 210, 0.6);
+    color: white;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 50%;
+    font-size: 16px;
+  }
+  .zoom-controls button:hover {
+    background: rgba(38, 139, 210, 1);
+  }
+  .zoom-level {
+    margin: 0 10px;
+    color: white;
+  }
+  
+  /* Status indicator */
+  #status {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.4);
+    color: white;
+    padding: 8px 15px;
+    border-radius: 20px;
+    backdrop-filter: blur(5px);
+    transition: opacity 0.3s ease;
+    opacity: 0.7;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  }
+  #status:hover {
+    opacity: 1;
+  }
+  
+  /* Auto-hide elements */
+  .auto-hide {
+    transition: opacity 0.5s ease;
+    opacity: 0.7;
+  }
+  .auto-hide:hover {
+    opacity: 1;
+  }
+  
+  /* Freeform Tab */
+  .stitch-controls {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 5px;
+    margin-bottom: 10px;
+  }
+  .stitch-cell {
+    display: flex;
+    flex-direction: column;
+  }
+  .stitch-cell select {
+    width: 100%;
+    margin-bottom: 5px;
+  }
+  .color-box {
+    width: 20px;
+    height: 20px;
+    border: 1px solid #ccc;
+    display: inline-block;
+    margin-right: 5px;
+    cursor: pointer;
+  }
+  .color-picker-row {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+</style>
+</head>
+<body>
+  <div id="app">
+    <button id="toggle-panel">&#9664;</button>
+    
+    <div id="panel">
+      <h1>Hitomezashi</h1>
+      
+      <div class="tab-buttons">
+        <button class="tab-button active" data-tab="standard">Standard</button>
+        <button class="tab-button" data-tab="freeform">Freeform</button>
+      </div>
+      
+      <div id="standard-tab" class="tab-content active">
+        <div class="control-group">
+          <label for="size">Size (10-100):</label>
+          <input type="number" id="size" min="10" max="100" value="30">
+        </div>
+        
+        <div class="control-group">
+          <label for="count">Count (2-200):</label>
+          <input type="number" id="count" min="2" max="200" value="50">
+        </div>
+        
+        <div class="control-group">
+          <label for="style">Style:</label>
+          <select id="style">
+            <option value="classic">Classic</option>
+            <option value="isometric" selected>Isometric</option>
+            <option value="rotated">Rotated</option>
+          </select>
+        </div>
+        
+        <div class="control-group">
+          <label for="horizontal-pattern">Horizontal Pattern:</label>
+          <select id="horizontal-pattern">
+            <option value="odds">Odds</option>
+            <option value="evens" selected>Evens</option>
+            <option value="vowels">Vowels</option>
+            <option value="consonants">Consonants</option>
+            <option value="random">Random</option>
+          </select>
+          <input type="text" id="horizontal-data" value="3.1415926535 8979323846" placeholder="Input data">
+        </div>
+        
+        <div class="control-group">
+          <label for="vertical-pattern">Vertical Pattern:</label>
+          <select id="vertical-pattern">
+            <option value="odds" selected>Odds</option>
+            <option value="evens">Evens</option>
+            <option value="vowels">Vowels</option>
+            <option value="consonants">Consonants</option>
+            <option value="random">Random</option>
+          </select>
+          <input type="text" id="vertical-data" value="2.7182818284 5904523536" placeholder="Input data">
+        </div>
+        
+        <div class="control-group">
+          <label for="horizontal-color">Horizontal Color:</label>
+          <select id="horizontal-color">
+            <option value="white" selected>White</option>
+            <option value="red">Red</option>
+            <option value="green">Green</option>
+            <option value="blue">Blue</option>
+            <option value="yellow">Yellow</option>
+            <option value="aqua">Aqua</option>
+            <option value="fuchsia">Fuchsia</option>
+            <option value="purple">Purple</option>
+            <option value="orange">Orange</option>
+            <option value="lime">Lime</option>
+            <option value="gold">Gold</option>
+          </select>
+        </div>
+        
+        <div class="control-group">
+          <label for="vertical-color">Vertical Color:</label>
+          <select id="vertical-color">
+            <option value="white">White</option>
+            <option value="red">Red</option>
+            <option value="green">Green</option>
+            <option value="blue" selected>Blue</option>
+            <option value="yellow">Yellow</option>
+            <option value="aqua">Aqua</option>
+            <option value="fuchsia">Fuchsia</option>
+            <option value="purple">Purple</option>
+            <option value="orange">Orange</option>
+            <option value="lime">Lime</option>
+            <option value="gold">Gold</option>
+          </select>
+        </div>
+        
+        <div class="control-group">
+          <label for="background">Background Color:</label>
+          <select id="background">
+            <option value="black" selected>Black</option>
+            <option value="navy">Navy</option>
+            <option value="maroon">Maroon</option>
+            <option value="green">Green</option>
+            <option value="teal">Teal</option>
+            <option value="purple">Purple</option>
+            <option value="gray">Gray</option>
+            <option value="darkslategray">Dark Slate Gray</option>
+          </select>
+        </div>
+        
+        <div class="control-group">
+          <label for="draw-speed">Drawing Speed: <span id="speed-value">3</span></label>
+          <input type="range" id="draw-speed" min="1" max="10" value="3">
+        </div>
+        
+        <div class="control-group">
+          <button id="draw-button">Draw Pattern</button>
+          <button id="pause-button">Pause Drawing</button>
+        </div>
+      </div>
+      
+      <div id="freeform-tab" class="tab-content">
+        <div class="control-group">
+          <label for="freeform-cell-size">Cell Size (5-30):</label>
+          <input type="number" id="freeform-cell-size" min="5" max="30" value="15">
+        </div>
+        
+        <div class="control-group">
+          <label for="freeform-speed">Animation Speed: <span id="freeform-speed-value">50</span>ms</label>
+          <input type="range" id="freeform-speed" min="10" max="500" value="50">
+        </div>
+        
+        <div class="control-group">
+          <label for="freeform-line-width">Line Width (1-5):</label>
+          <input type="number" id="freeform-line-width" min="1" max="5" value="2">
+        </div>
+        
+        <div class="control-group">
+          <label for="freeform-pattern">Pattern Variation:</label>
+          <select id="freeform-pattern">
+            <option value="random" selected>Random</option>
+            <option value="alternating">Alternating</option>
+          </select>
+        </div>
+        
+        <div class="control-group">
+          <label>
+            <input type="checkbox" id="freeform-continuous"> Continuous Mode
+          </label>
+        </div>
+        
+        <div class="control-group">
+          <p>Stitch Directions and Colors:</p>
+          <div class="stitch-controls" id="stitch-controls"></div>
+        </div>
+
+        <div class="control-group">
+          <label for="freeform-background">Background Color:</label>
+          <input type="color" id="freeform-background" value="#002b36">
+        </div>
+        
+        <div class="control-group">
+          <button id="freeform-go-button">Go</button>
+          <button id="freeform-clear-button">Clear</button>
+        </div>
+      </div>
+    </div>
+    
+    <div id="canvas-container">
+      <div class="zoom-controls">
+        <button id="zoom-in">+</button>
+        <span class="zoom-level" id="zoom-level">100%</span>
+        <button id="zoom-out">-</button>
+        <button id="zoom-reset">Reset</button>
+      </div>
+      <div id="status">Ready</div>
+    </div>
+  </div>
+  
+  <script>
+    // Colors
+    const colors = {
+      white: [255, 255, 255],
+      red: [255, 0, 0],
+      green: [0, 128, 0],
+      blue: [0, 0, 255],
+      yellow: [255, 255, 0],
+      aqua: [0, 255, 255],
+      fuchsia: [255, 0, 255],
+      purple: [128, 0, 128],
+      orange: [255, 165, 0],
+      lime: [0, 255, 0],
+      gold: [255, 215, 0],
+      black: [0, 0, 0],
+      navy: [0, 0, 128],
+      maroon: [128, 0, 0],
+      teal: [0, 128, 128],
+      gray: [128, 128, 128],
+      darkslategray: [47, 79, 79]
+    };
+    
+    // Pattern processors
+    const processors = {
+      evens: (text) => text.split("").filter(c => /\d/.test(c)).map(c => ["0", "2", "4", "6", "8"].includes(c)),
+      odds: (text) => text.split("").filter(c => /\d/.test(c)).map(c => ["1", "3", "5", "7", "9"].includes(c)),
+      vowels: (text) => text.split("").map(c => /[aeiouAEIOU]/.test(c)),
+      consonants: (text) => text.split("").map(c => /[a-zA-Z]/.test(c) && !/[aeiouAEIOU]/.test(c)),
+      random: () => Array(100).fill().map(() => Math.random() < 0.5)
+    };
+    
+    // Style functions
+    const styles = {
+      classic: {
+        horizontal: (i, n) => ({ x1: n, y1: i, x2: n+1, y2: i }),
+        vertical: (i, n) => ({ x1: i, y1: n, x2: i, y2: n+1 })
+      },
+      isometric: {
+        horizontal: (i, n) => ({ x1: n-i, y1: (n+i)*0.5, x2: (n+1)-i, y2: ((n+1)+i)*0.5 }),
+        vertical: (i, n) => ({ x1: i-n, y1: (i+n)*0.5, x2: i-(n+1), y2: (i+(n+1))*0.5 })
+      },
+      rotated: {
+        horizontal: (i, n) => ({ x1: n-i, y1: n+i, x2: (n+1)-i, y2: (n+1)+i }),
+        vertical: (i, n) => ({ x1: i-n, y1: i+n, x2: i-(n+1), y2: i+(n+1) })
+      }
+    };
+    
+    // Animation state for standard mode
+    const standardAnim = {
+      lines: [],
+      currentLine: 0,
+      isDrawing: false,
+      requestId: null
+    };
+    
+    // Animation state for freeform mode
+    const freeformAnim = {
+      x: 0,
+      y: 0,
+      dirIndex: 0,
+      isAnimating: false
+    };
+    
+    // Current settings
+    const settings = {
+      // Standard mode settings
+      size: 30,
+      count: 50,
+      style: "isometric",
+      horizontalPattern: "evens",
+      verticalPattern: "odds",
+      horizontalData: "3.1415926535 8979323846",
+      verticalData: "2.7182818284 5904523536",
+      horizontalColor: "white",
+      verticalColor: "blue",
+      background: "black",
+      drawSpeed: 3,
+      zoom: 1.0,
+      
+      // Freeform mode settings
+      freeformCellSize: 15,
+      freeformSpeed: 50,
+      freeformLineWidth: 2,
+      freeformPattern: "random",
+      freeformContinuous: false,
+      freeformBackground: "#002b36"
+    };
+    
+    // DOM Elements
+    const elements = {
+      panel: document.getElementById("panel"),
+      togglePanel: document.getElementById("toggle-panel"),
+      canvasContainer: document.getElementById("canvas-container"),
+      status: document.getElementById("status"),
+      zoomIn: document.getElementById("zoom-in"),
+      zoomOut: document.getElementById("zoom-out"),
+      zoomReset: document.getElementById("zoom-reset"),
+      zoomLevel: document.getElementById("zoom-level"),
+      
+      // Tab elements
+      tabButtons: document.querySelectorAll(".tab-button"),
+      standardTab: document.getElementById("standard-tab"),
+      freeformTab: document.getElementById("freeform-tab"),
+      
+      // Standard mode elements
+      sizeInput: document.getElementById("size"),
+      countInput: document.getElementById("count"),
+      styleSelect: document.getElementById("style"),
+      horizontalPatternSelect: document.getElementById("horizontal-pattern"),
+      verticalPatternSelect: document.getElementById("vertical-pattern"),
+      horizontalDataInput: document.getElementById("horizontal-data"),
+      verticalDataInput: document.getElementById("vertical-data"),
+      horizontalColorSelect: document.getElementById("horizontal-color"),
+      verticalColorSelect: document.getElementById("vertical-color"),
+      backgroundSelect: document.getElementById("background"),
+      drawSpeedInput: document.getElementById("draw-speed"),
+      speedValue: document.getElementById("speed-value"),
+      drawButton: document.getElementById("draw-button"),
+      pauseButton: document.getElementById("pause-button"),
+      
+      // Freeform mode elements
+      freeformCellSizeInput: document.getElementById("freeform-cell-size"),
+      freeformSpeedInput: document.getElementById("freeform-speed"),
+      freeformSpeedValue: document.getElementById("freeform-speed-value"),
+      freeformLineWidthInput: document.getElementById("freeform-line-width"),
+      freeformPatternSelect: document.getElementById("freeform-pattern"),
+      freeformContinuousCheck: document.getElementById("freeform-continuous"),
+      stitchControls: document.getElementById("stitch-controls"),
+      freeformBackgroundInput: document.getElementById("freeform-background"),
+      freeformGoButton: document.getElementById("freeform-go-button"),
+      freeformClearButton: document.getElementById("freeform-clear-button")
+    };
+    
+/*
+    // Setup tab system
+    function setupTabs() {
+      elements.tabButtons.forEach(button => {
+        button.addEventListener("click", () => {
+          // Remove active class from all tabs
+          elements.tabButtons.forEach(btn => btn.classList.remove("active"));
+          document.querySelectorAll(".tab-content").forEach(tab => tab.classList.remove("active"));
+          
+          // Add active class to clicked tab
+          button.classList.add("active");
+          const tabId = button.getAttribute("data-tab");
+          document.getElementById(`${tabId}-tab`).classList.add("active");
+          
+          // Setup the appropriate canvas
+          if (tabId === "standard") {
+            setupStandardCanvas();
+          } else {
+            setupFreeformCanvas();
+          }
+        });
+      });
+    }
+    
+*/
+
+// Setup tab system
+function setupTabs() {
+  elements.tabButtons.forEach(button => {
+    button.addEventListener("click", () => {
+      const tabId = button.getAttribute("data-tab");
+      switchTab(tabId);
+    });
+  });
+}
+    
+
+// New code
+// Enhanced tab switching function
+function switchTab(tabId) {
+  // Stop any ongoing animations
+  if (standardAnim.requestId) {
+    cancelAnimationFrame(standardAnim.requestId);
+    standardAnim.requestId = null;
+    standardAnim.isDrawing = false;
+  }
+  
+  if (freeformAnim.isAnimating) {
+    freeformAnim.isAnimating = false;
+    elements.freeformGoButton.textContent = "Go";
+  }
+  
+  // Remove any existing canvas
+  const existingCanvas = document.getElementById('hitomezashi-canvas') || 
+                         document.getElementById('freeform-canvas');
+  if (existingCanvas) {
+    elements.canvasContainer.removeChild(existingCanvas);
+  }
+  
+  // Update tab UI
+  elements.tabButtons.forEach(btn => btn.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach(tab => tab.classList.remove("active"));
+  
+  const activeButton = document.querySelector(`.tab-button[data-tab="${tabId}"]`);
+  activeButton.classList.add("active");
+  document.getElementById(`${tabId}-tab`).classList.add("active");
+  
+  // Setup the appropriate canvas
+  if (tabId === "standard") {
+    setupStandardCanvas();
+  } else {
+    setupFreeformCanvas();
+  }
+  
+  updateStatus(`Switched to ${tabId} mode`);
+}
+    // -------------------- STANDARD MODE --------------------
+    
+    // Initialize settings from inputs
+    function initStandardSettings() {
+      settings.size = parseInt(elements.sizeInput.value);
+      settings.count = parseInt(elements.countInput.value);
+      settings.style = elements.styleSelect.value;
+      settings.horizontalPattern = elements.horizontalPatternSelect.value;
+      settings.verticalPattern = elements.verticalPatternSelect.value;
+      settings.horizontalData = elements.horizontalDataInput.value;
+      settings.verticalData = elements.verticalDataInput.value;
+      settings.horizontalColor = elements.horizontalColorSelect.value;
+      settings.verticalColor = elements.verticalColorSelect.value;
+      settings.background = elements.backgroundSelect.value;
+      settings.drawSpeed = parseInt(elements.drawSpeedInput.value);
+    }
+    
+    // Calculate pattern lines
+    function calculatePattern() {
+      updateStatus("Calculating pattern...");
+      
+      const horizontalSequence = processors[settings.horizontalPattern](settings.horizontalData);
+      const verticalSequence = processors[settings.verticalPattern](settings.verticalData);
+      
+      const styleFunc = styles[settings.style];
+      const lines = [];
+      
+      // Bounds for scaling
+      let minX = Infinity, minY = Infinity;
+      let maxX = -Infinity, maxY = -Infinity;
+      
+      // Generate horizontal lines
+      for (let i = 0; i < settings.count; i++) {
+        const sequence = horizontalSequence[i % horizontalSequence.length];
+        for (let n = (sequence ? 0 : 1); n < settings.count; n += 2) {
+          const line = styleFunc.horizontal(i, n);
+          line.isHorizontal = true;  // Mark as horizontal for coloring
+          
+          // Update bounds
+          minX = Math.min(minX, line.x1, line.x2);
+          minY = Math.min(minY, line.y1, line.y2);
+          maxX = Math.max(maxX, line.x1, line.x2);
+          maxY = Math.max(maxY, line.y1, line.y2);
+          
+          lines.push(line);
+        }
+      }
+      
+      // Generate vertical lines
+      for (let i = 0; i < settings.count; i++) {
+        const sequence = verticalSequence[i % verticalSequence.length];
+        for (let n = (sequence ? 0 : 1); n < settings.count; n += 2) {
+          const line = styleFunc.vertical(i, n);
+          line.isHorizontal = false;  // Mark as vertical for coloring
+          
+          // Update bounds
+          minX = Math.min(minX, line.x1, line.x2);
+          minY = Math.min(minY, line.y1, line.y2);
+          maxX = Math.max(maxX, line.x1, line.x2);
+          maxY = Math.max(maxY, line.y1, line.y2);
+          
+          lines.push(line);
+        }
+      }
+      
+      // Calculate offsets to ensure all coordinates are positive
+      const offsetX = minX < 0 ? -minX : 0;
+      const offsetY = minY < 0 ? -minY : 0;
+      
+      // Apply offsets to all lines
+      lines.forEach(line => {
+        line.x1 += offsetX;
+        line.y1 += offsetY;
+        line.x2 += offsetX;
+        line.y2 += offsetY;
+      });
+      
+      // Calculate canvas dimensions
+      const width = (maxX + offsetX + 1) * settings.size;
+      const height = (maxY + offsetY + 1) * settings.size;
+      
+      updateStatus("Pattern calculated!");
+      return { lines, width, height };
+    }
+    
+    // Draw the pattern progressively
+    function drawStandardPattern() {
+      // Stop any ongoing animation
+      if (standardAnim.requestId) {
+        cancelAnimationFrame(standardAnim.requestId);
+        standardAnim.requestId = null;
+      }
+      
+      // Reset animation state
+      standardAnim.isDrawing = true;
+      standardAnim.currentLine = 0;
+      
+      // Calculate pattern
+      initStandardSettings();
+      const pattern = calculatePattern();
+      standardAnim.lines = pattern.lines;
+      
+      // Create canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = pattern.width;
+      canvas.height = pattern.height;
+      canvas.id = 'hitomezashi-canvas';
+      
+      // Clear previous canvas if exists
+      const oldCanvas = document.getElementById('hitomezashi-canvas');
+      if (oldCanvas) {
+        elements.canvasContainer.removeChild(oldCanvas);
+      }
+      
+      elements.canvasContainer.appendChild(canvas);
+      
+      // Set position and apply zoom
+      centerCanvas();
+      
+      // Get context and set background
+      const ctx = canvas.getContext('2d');
+      const bgColor = colors[settings.background];
+      ctx.fillStyle = `rgb(${bgColor[0]}, ${bgColor[1]}, ${bgColor[2]})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Start drawing animation
+      drawNextBatch();
+    }
+    
+    // Draw the next batch of lines
+    function drawNextBatch() {
+      if (!standardAnim.isDrawing) return;
+      
+      const canvas = document.getElementById('hitomezashi-canvas');
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      const lines = standardAnim.lines;
+      
+      // MUCH slower speed for animation - only 1-3 lines per frame
+      const batchSize = Math.max(1, Math.ceil(settings.drawSpeed / 3));
+      
+      const endIndex = Math.min(lines.length, standardAnim.currentLine + batchSize);
+      
+      for (let i = standardAnim.currentLine; i < endIndex; i++) {
+        const line = lines[i];
+        const colorName = line.isHorizontal ? settings.horizontalColor : settings.verticalColor;
+        const colorValues = colors[colorName];
+        
+        ctx.strokeStyle = `rgb(${colorValues[0]}, ${colorValues[1]}, ${colorValues[2]})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(line.x1 * settings.size, line.y1 * settings.size);
+        ctx.lineTo(line.x2 * settings.size, line.y2 * settings.size);
+        ctx.stroke();
+      }
+      
+      standardAnim.currentLine = endIndex;
+      
+      // Update status
+      updateStatus(`Drawing: ${Math.round((standardAnim.currentLine / lines.length) * 100)}%`);
+      
+      // Continue or finish
+      if (standardAnim.currentLine < lines.length) {
+        standardAnim.requestId = requestAnimationFrame(drawNextBatch);
+      } else {
+        standardAnim.isDrawing = false;
+        updateStatus("Drawing complete!");
+      }
+    }
+    
+    // Pause standard drawing
+    function pauseStandardDrawing() {
+      if (standardAnim.requestId) {
+        cancelAnimationFrame(standardAnim.requestId);
+        standardAnim.requestId = null;
+      }
+      standardAnim.isDrawing = false;
+      updateStatus("Drawing paused");
+    }
+    
+    // -------------------- FREEFORM MODE --------------------
+    
+    // Setup freeform stitch controls
+    function setupStitchControls() {
+      const directions = ["null", "R", "D", "L", "U"];
+      const controlsContainer = elements.stitchControls;
+      
+      // Clear previous controls
+      controlsContainer.innerHTML = '';
+      
+      // Create 10 stitch controls
+      for (let i = 0; i < 10; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'stitch-cell';
+        
+        // Direction select
+        const dirSelect = document.createElement('select');
+        dirSelect.className = 'stitch-direction';
+        directions.forEach(dir => {
+          const option = document.createElement('option');
+          option.value = dir;
+          option.textContent = dir;
+          dirSelect.appendChild(option);
+        });
+        
+        // Color select
+        const colorSelect = document.createElement('select');
+        colorSelect.className = 'stitch-color';
+        Object.keys(colors).forEach(color => {
+          const option = document.createElement('option');
+          option.value = color;
+          option.textContent = color;
+          colorSelect.appendChild(option);
+          
+          // Select some default colors
+          if ((i % 5 === 0 && color === "blue") || 
+              (i % 5 === 1 && color === "red") ||
+              (i % 5 === 2 && color === "green") ||
+              (i % 5 === 3 && color === "yellow") ||
+              (i % 5 === 4 && color === "fuchsia")) {
+            option.selected = true;
+          }
+        });
+        
+        cell.appendChild(dirSelect);
+        cell.appendChild(colorSelect);
+        controlsContainer.appendChild(cell);
+      }
+    }
+    
+    // Setup freeform canvas
+    function setupFreeformCanvas() {
+      const canvas = document.createElement('canvas');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      canvas.id = 'freeform-canvas';
+      
+      // Clear previous canvas if exists
+      const oldCanvas = document.getElementById('freeform-canvas');
+      if (oldCanvas) {
+        elements.canvasContainer.removeChild(oldCanvas);
+      }
+      
+      elements.canvasContainer.appendChild(canvas);
+      
+      // Set background
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = settings.freeformBackground;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Reset animation state
+      freeformAnim.x = 0;
+      freeformAnim.y = 0;
+      freeformAnim.dirIndex = 0;
+      
+      updateStatus("Freeform mode ready");
+    }
+    
+    // Draw a stitch in freeform mode
+    function drawFreeformStitch() {
+      if (!freeformAnim.isAnimating) return;
+      
+      const canvas = document.getElementById('freeform-canvas');
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      const width = canvas.width;
+      const height = canvas.height;
+      
+      // Get cell size and line width from settings
+      const cellSize = settings.freeformCellSize;
+      const lineWidth = settings.freeformLineWidth;
+      
+      // Check if we need to wrap or reset
+      if (freeformAnim.x >= width) {
+        freeformAnim.x = 0;
+        freeformAnim.y += cellSize;
+        if (settings.freeformPattern === "alternating") {
+          // Toggle horizontal/vertical
+          freeformAnim.isHorizontal = !freeformAnim.isHorizontal;
+        } else {
+          // Random direction
+          freeformAnim.isHorizontal = Math.random() < 0.5;
+        }
+      }
+      
+      if (freeformAnim.y >= height && !settings.freeformContinuous) {
+        freeformAnim.isAnimating = false;
+        elements.freeformGoButton.textContent = "Go";
+        updateStatus("Freeform animation completed");
+        return;
+      }
+      
+      if (freeformAnim.y >= height) {
+        freeformAnim.y = 0;
+      }
+      
+      // Get direction and color selections
+      const directionSelects = document.querySelectorAll('.stitch-direction');
+      const colorSelects = document.querySelectorAll('.stitch-color');
+      
+      const direction = directionSelects[freeformAnim.dirIndex % 10].value;
+      const colorName = colorSelects[freeformAnim.dirIndex % 10].value;
+      
+      // Only draw if direction is not "null"
+      if (direction !== "null" && colorName !== "null") {
+        let newX = freeformAnim.x, newY = freeformAnim.y;
+        
+        // Calculate new position based on direction
+        switch (direction) {
+          case 'R': newX += cellSize; break;
+          case 'D': newY += cellSize; break;
+          case 'L': newX -= cellSize; break;
+          case 'U': newY -= cellSize; break;
+        }
+        
+        // Wrap around if needed
+        newX = (newX + width) % width;
+        newY = (newY + height) % height;
+        
+        // Draw the line
+        const colorValue = colors[colorName] || [255, 255, 255];
+        
+        ctx.strokeStyle = `rgb(${colorValue[0]}, ${colorValue[1]}, ${colorValue[2]})`;
+        ctx.lineWidth = lineWidth;
+        ctx.beginPath();
+        ctx.moveTo(freeformAnim.x, freeformAnim.y);
+        ctx.lineTo(newX, newY);
+        ctx.stroke();
+        
+        // Update position
+        freeformAnim.x = newX;
+        freeformAnim.y = newY;
+      }
+      
+      // Move to next direction
+      freeformAnim.dirIndex++;
+      
+      // Schedule next stitch
+      setTimeout(drawFreeformStitch, settings.freeformSpeed);
+    }
+    
+    // Toggle freeform animation
+    function toggleFreeformAnimation() {
+      freeformAnim.isAnimating = !freeformAnim.isAnimating;
+      elements.freeformGoButton.textContent = freeformAnim.isAnimating ? "Stop" : "Go";
+      
+      if (freeformAnim.isAnimating) {
+        // Update settings
+        settings.freeformCellSize = parseInt(elements.freeformCellSizeInput.value);
+        settings.freeformSpeed = parseInt(elements.freeformSpeedInput.value);
+        settings.freeformLineWidth = parseInt(elements.freeformLineWidthInput.value);
+        settings.freeformPattern = elements.freeformPatternSelect.value;
+        settings.freeformContinuous = elements.freeformContinuousCheck.checked;
+        settings.freeformBackground = elements.freeformBackgroundInput.value;
+        
+        // Reset animation state
+        freeformAnim.x = 0;
+        freeformAnim.y = 0;
+        freeformAnim.dirIndex = 0;
+        
+        // Start animation
+        updateStatus("Freeform animation started");
+        drawFreeformStitch();
+      } else {
+        updateStatus("Freeform animation stopped");
+      }
+    }
+    
+    // Clear the freeform canvas
+    function clearFreeformCanvas() {
+      const canvas = document.getElementById('freeform-canvas');
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = settings.freeformBackground;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      updateStatus("Canvas cleared");
+    }
+    
+    // -------------------- SHARED FUNCTIONS --------------------
+    
+    // Center canvas in the container
+    function centerCanvas() {
+      const canvas = document.getElementById('hitomezashi-canvas') || document.getElementById('freeform-canvas');
+      if (!canvas) return;
+      
+      const container = elements.canvasContainer;
+      const rect = container.getBoundingClientRect();
+      
+      canvas.style.left = `${rect.width / 2 - (canvas.width * settings.zoom) / 2}px`;
+      canvas.style.top = `${rect.height / 2 - (canvas.height * settings.zoom) / 2}px`;
+      canvas.style.transform = `scale(${settings.zoom})`;
+    }
+    
+    // Update status message
+    function updateStatus(message) {
+      elements.status.textContent = message;
+    }
+    
+    /*
+    Toggle control panel
+    function togglePanel() {
+      elements.panel.classList.toggle('collapsed');
+      elements.togglePanel.classList.toggle('collapsed');
+      
+      if (elements.panel.classList.contains('collapsed')) {
+        elements.togglePanel.innerHTML = '&#9654;'; // Right arrow
+      } else {
+        elements.togglePanel.innerHTML = '&#9664;'; // Left arrow
+      }
+    }
+    */
+    
+    
+// Toggle control panel
+function togglePanel() {
+  elements.panel.classList.toggle('collapsed');
+  
+  if (elements.panel.classList.contains('collapsed')) {
+    elements.togglePanel.innerHTML = '⚙️'; // Gear emoji
+  } else {
+    elements.togglePanel.innerHTML = '✕'; // Close/X emoji
+  }
+}
+    
+// Zoom functions
+function zoomIn(e) {
+  zoomAtPoint(1.2, e);
+}
+    
+function zoomOut(e) {
+  zoomAtPoint(0.8, e);
+}
+    
+function resetZoom() {
+  const canvas = document.getElementById('hitomezashi-canvas') || document.getElementById('freeform-canvas');
+  if (!canvas) return;
+  
+  // Save original dimensions
+  const originalWidth = canvas.width;
+  const originalHeight = canvas.height;
+  
+  // Reset zoom
+  settings.zoom = 1.0;
+  
+  // Center the canvas
+  const container = elements.canvasContainer;
+  const rect = container.getBoundingClientRect();
+  
+  canvas.style.left = `${rect.width / 2 - originalWidth / 2}px`;
+  canvas.style.top = `${rect.height / 2 - originalHeight / 2}px`;
+  canvas.style.transform = `scale(${settings.zoom})`;
+  
+  // Update zoom level display
+  elements.zoomLevel.textContent = `${Math.round(settings.zoom * 100)}%`;
+}
+
+function applyZoom() {
+  const canvas = document.getElementById('hitomezashi-canvas') || document.getElementById('freeform-canvas');
+  if (canvas) {
+    canvas.style.transform = `scale(${settings.zoom})`;
+    elements.zoomLevel.textContent = `${Math.round(settings.zoom * 100)}%`;
+    
+    // Also adjust the position to keep the zoom centered
+    const container = elements.canvasContainer;
+    const containerRect = container.getBoundingClientRect();
+    
+    canvas.style.left = `${containerRect.width / 2 - (canvas.width * settings.zoom) / 2}px`;
+    canvas.style.top = `${containerRect.height / 2 - (canvas.height * settings.zoom) / 2}px`;
+  }
+}
+    
+function zoomAtPoint(factor, event) {
+  const canvas = document.getElementById('hitomezashi-canvas') || document.getElementById('freeform-canvas');
+  if (!canvas) return;
+  
+  const container = elements.canvasContainer;
+  const rect = container.getBoundingClientRect();
+  
+  // Get current position
+  const currentLeft = parseInt(canvas.style.left) || 0;
+  const currentTop = parseInt(canvas.style.top) || 0;
+  
+  // Calculate the point to zoom at (mouse position or center)
+  let zoomX, zoomY;
+  
+  if (event && event.clientX) {
+    // Use mouse position if available
+    zoomX = event.clientX - rect.left;
+    zoomY = event.clientY - rect.top;
+  } else {
+    // Otherwise use center of container
+    zoomX = rect.width / 2;
+    zoomY = rect.height / 2;
+  }
+  
+  // Calculate the position of the zoom point relative to the canvas
+  const canvasRelativeX = zoomX - currentLeft;
+  const canvasRelativeY = zoomY - currentTop;
+  
+  // Calculate the position in unzoomed coordinates
+  const unzoomedX = canvasRelativeX / settings.zoom;
+  const unzoomedY = canvasRelativeY / settings.zoom;
+  
+  // Apply zoom factor
+  const oldZoom = settings.zoom;
+  settings.zoom = Math.min(10, Math.max(0.1, settings.zoom * factor));
+  
+  // Calculate new position so that the point under the mouse stays in place
+  const newLeft = zoomX - unzoomedX * settings.zoom;
+  const newTop = zoomY - unzoomedY * settings.zoom;
+  
+  // Update canvas position and transform
+  canvas.style.left = `${newLeft}px`;
+  canvas.style.top = `${newTop}px`;
+  canvas.style.transform = `scale(${settings.zoom})`;
+  
+  // Update zoom level display
+  elements.zoomLevel.textContent = `${Math.round(settings.zoom * 100)}%`;
+}
+    
+// Set up panning (dragging)
+function setupPanning() {
+  const container = elements.canvasContainer;
+  let isDragging = false;
+  let lastX, lastY;
+  
+  container.addEventListener('mousedown', function(e) {
+    isDragging = true;
+    container.style.cursor = 'grabbing';
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+  
+  container.addEventListener('mousemove', function(e) {
+    if (!isDragging) return;
+    
+    const canvas = document.getElementById('hitomezashi-canvas') || document.getElementById('freeform-canvas');
+    if (!canvas) return;
+    
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    
+    const currentLeft = parseInt(canvas.style.left) || 0;
+    const currentTop = parseInt(canvas.style.top) || 0;
+    
+    canvas.style.left = `${currentLeft + dx}px`;
+    canvas.style.top = `${currentTop + dy}px`;
+    
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+  
+  window.addEventListener('mouseup', function() {
+    if (isDragging) {
+      isDragging = false;
+      container.style.cursor = 'grab';
+    }
+  });
+  
+  // Touch support
+  container.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 1) {
+      isDragging = true;
+      lastX = e.touches[0].clientX;
+      lastY = e.touches[0].clientY;
+      e.preventDefault();
+    }
+  });
+  
+  container.addEventListener('touchmove', function(e) {
+    if (!isDragging || e.touches.length !== 1) return;
+    
+    const canvas = document.getElementById('hitomezashi-canvas') || document.getElementById('freeform-canvas');
+    if (!canvas) return;
+    
+    const dx = e.touches[0].clientX - lastX;
+    const dy = e.touches[0].clientY - lastY;
+    
+    const currentLeft = parseInt(canvas.style.left) || 0;
+    const currentTop = parseInt(canvas.style.top) || 0;
+    
+    canvas.style.left = `${currentLeft + dx}px`;
+    canvas.style.top = `${currentTop + dy}px`;
+    
+    lastX = e.touches[0].clientX;
+    lastY = e.touches[0].clientY;
+    
+    e.preventDefault();
+  });
+  
+  container.addEventListener('touchend', function() {
+    isDragging = false;
+  });
+  
+  // Set initial cursor
+  container.style.cursor = 'grab';
+}
+    
+// -------------------- SETUP & INITIALIZATION --------------------
+    
+// Set up standard mode canvas
+function setupStandardCanvas() {
+  drawStandardPattern();
+}
+    
+// Set up event listeners
+function setupEventListeners() {
+  // Panel toggle
+  elements.togglePanel.addEventListener('click', togglePanel);
+  
+  // Standard mode listeners
+  elements.drawButton.addEventListener('click', drawStandardPattern);
+  elements.pauseButton.addEventListener('click', pauseStandardDrawing);
+  
+  elements.drawSpeedInput.addEventListener('input', function() {
+    settings.drawSpeed = parseInt(this.value);
+    elements.speedValue.textContent = this.value;
+  });
+  
+  // Freeform mode listeners
+  elements.freeformGoButton.addEventListener('click', toggleFreeformAnimation);
+  elements.freeformClearButton.addEventListener('click', clearFreeformCanvas);
+  
+  elements.freeformSpeedInput.addEventListener('input', function() {
+    settings.freeformSpeed = parseInt(this.value);
+    elements.freeformSpeedValue.textContent = this.value;
+  });
+  
+  // Zoom controls (REMOVED DUPLICATES)
+  elements.zoomIn.addEventListener('click', zoomIn);
+  elements.zoomOut.addEventListener('click', zoomOut);
+  elements.zoomReset.addEventListener('click', resetZoom);
+
+  // Wheel zoom in canvas container
+  elements.canvasContainer.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    
+    if (e.deltaY < 0) {
+      // Zoom in at mouse position
+      zoomAtPoint(1.1, e);
+    } else {
+      // Zoom out at mouse position
+      zoomAtPoint(0.9, e);
+    }
+  });
+} // ADDED MISSING CLOSING BRACE HERE
+    
+// Function to auto-hide UI controls after a period of inactivity
+function setupAutoHideControls() {
+  const controls = document.querySelectorAll('.auto-hide');
+  let hideTimeout;
+  
+  function showControls() {
+    controls.forEach(control => {
+      control.style.opacity = '1';
+    });
+    
+    clearTimeout(hideTimeout);
+    hideTimeout = setTimeout(() => {
+      controls.forEach(control => {
+        control.style.opacity = '0.4';
+      });
+    }, 3000); // Hide after 3 seconds of inactivity
+  }
+  
+  // Show controls on mouse movement
+  document.addEventListener('mousemove', showControls);
+  
+  // Show controls on touch
+  document.addEventListener('touchstart', showControls);
+  
+  // Initial hide
+  hideTimeout = setTimeout(() => {
+    controls.forEach(control => {
+      control.style.opacity = '0.4';
+    });
+  }, 3000);
+  
+  // Add class to UI elements
+  elements.togglePanel.classList.add('auto-hide');
+  elements.status.classList.add('auto-hide');
+  document.querySelector('.zoom-controls').classList.add('auto-hide');
+}
+ 
+// Initialize
+function init() {
+  setupTabs();
+  setupStitchControls();
+  setupEventListeners();
+  setupPanning();
+  
+  // Initialize with the active tab
+  const activeTabId = document.querySelector('.tab-button.active').getAttribute('data-tab');
+  switchTab(activeTabId);
+  
+  setupAutoHideControls();
+}
+    
+    // Start the app when DOM is loaded
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
