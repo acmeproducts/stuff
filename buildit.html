@@ -1,4 +1,4 @@
-<!-- LinkPortal-v5-2025-08-28 01:03 AM -->
+<!-- LinkPortal-v6-2025-09-20 06:20 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -52,7 +52,6 @@
             background-color: #2563EB;
             margin: -1px 0;
         }
-
 
         /* Styling for the active link in the menu */
         .link-item.active-link {
@@ -194,11 +193,16 @@
                 <div id="error" class="hidden text-sm text-red-600 bg-red-50 p-3 rounded"></div>
 
                 <!-- Actions -->
-                <div class="flex gap-2 border-t pt-4">
-                    <button id="saveAllSettingsBtn" class="flex-1 py-2 bg-green-600 text-white rounded hover:bg-green-700">Save</button>
-                    <button id="importConfig" class="flex-1 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">Import</button>
-                    <button id="exportConfig" class="flex-1 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">Export</button>
-                    <button id="generatePortal" class="flex-1 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Generate</button>
+                <div class="flex flex-col gap-2 border-t pt-4">
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="saveAllSettingsBtn" class="w-full py-2 bg-green-600 text-white rounded hover:bg-green-700">Save</button>
+                        <button id="generatePortal" class="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Generate</button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button id="importConfig" class="w-full py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs">Import Config</button>
+                        <button id="importPortalBtn" class="w-full py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs">Import Portal</button>
+                        <button id="exportConfig" class="w-full py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs">Export Config</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -216,18 +220,19 @@
     <div id="repoSettingsModal" class="modal fixed inset-0 bg-gray-900 bg-opacity-50 items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm space-y-4">
             <h3 class="text-lg font-semibold">Set Repository</h3>
-            <p class="text-sm text-gray-600">This will remove existing GitHub links and fetch new ones.</p>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Repository Owner</label>
                 <input type="text" id="modalOwner" class="w-full px-3 py-2 border rounded">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Repository Name</label>
-                <input type="text" id="modalRepo" class="w-full px-3 py-2 border rounded">
+                <select id="modalRepoSelect" class="w-full px-3 py-2 border rounded bg-gray-100" disabled>
+                    <option>Enter owner to see repositories</option>
+                </select>
             </div>
             <div class="flex justify-end gap-2">
                 <button id="cancelRepoUpdate" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
-                <button id="confirmRepoUpdate" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Fetch and Set</button>
+                <button id="confirmRepoUpdate" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Set and Fetch Files</button>
             </div>
         </div>
     </div>
@@ -247,18 +252,11 @@
     <!-- Hidden File Inputs -->
     <input type="file" id="fileUpload" class="hidden" multiple>
     <input type="file" id="configImport" class="hidden" accept="application/json">
+    <input type="file" id="portalImport" class="hidden" accept=".html">
+
+    <footer id="masterFooter" class="fixed bottom-0 right-0 bg-gray-800 text-white text-xs px-2 py-1 rounded-tl-lg z-50"></footer>
 
     <script>
-        /*
-         * NOTE ON EMBEDDING EXTERNAL CONTENT:
-         * Embedding web pages from different domains into an iframe can be blocked by the browser's
-         * Cross-Origin Resource Sharing (CORS) policy. GitHub Pages is configured to allow this,
-         * but many other websites are not. For sites that block embedding, a CORS proxy
-         * like `allorigins.win` can be used to bypass this, but be aware of the privacy and
-         * reliability implications of using a third-party service. The most reliable method is
-         * to upload HTML files directly to this portal.
-         */
-
         // --- DATABASE AND INITIALIZATION ---
         let db;
         const DB_NAME = 'PortalDB';
@@ -300,6 +298,7 @@
                 await loadSettingsAndDefaults();
                 loadLinks();
                 updateTime();
+                updateFooter();
             } catch (error) {
                 console.error('Failed to initialize application:', error);
                 showError('Failed to initialize application. Please refresh the page.');
@@ -326,6 +325,9 @@
             repoSettingsModal: document.getElementById('repoSettingsModal'),
             resetConfirmModal: document.getElementById('resetConfirmModal'),
             repoSettingsBtn: document.getElementById('repoSettingsBtn'),
+            masterFooter: document.getElementById('masterFooter'),
+            modalOwner: document.getElementById('modalOwner'),
+            modalRepoSelect: document.getElementById('modalRepoSelect'),
         };
 
         elements.menuBtn.addEventListener('click', toggleMenu);
@@ -338,7 +340,8 @@
         elements.resetAppBtn.addEventListener('click', () => elements.resetConfirmModal.classList.add('active'));
         elements.repoSettingsBtn.addEventListener('click', openRepoSettings);
         elements.activeItemTitle.addEventListener('click', openActiveInNewWindow);
-        
+        elements.modalOwner.addEventListener('change', () => populateRepoSelect(elements.modalOwner.value));
+
         document.getElementById('cancelRepoUpdate').addEventListener('click', () => elements.repoSettingsModal.classList.remove('active'));
         document.getElementById('confirmRepoUpdate').addEventListener('click', updateRepository);
         document.getElementById('cancelReset').addEventListener('click', () => elements.resetConfirmModal.classList.remove('active'));
@@ -348,7 +351,9 @@
         document.getElementById('uploadFiles').addEventListener('click', () => document.getElementById('fileUpload').click());
         document.getElementById('fileUpload').addEventListener('change', handleFileUpload);
         document.getElementById('importConfig').addEventListener('click', () => document.getElementById('configImport').click());
-        document.getElementById('importConfig').addEventListener('change', importConfig);
+        document.getElementById('configImport').addEventListener('change', importConfig);
+        document.getElementById('importPortalBtn').addEventListener('click', () => document.getElementById('portalImport').click());
+        document.getElementById('portalImport').addEventListener('change', importGeneratedPortal);
         document.getElementById('exportConfig').addEventListener('click', exportConfig);
         document.getElementById('generatePortal').addEventListener('click', generatePortal);
         document.getElementById('saveAllSettingsBtn').addEventListener('click', saveAllSettingsFromPanel);
@@ -388,6 +393,12 @@
             const options = { timeZone: 'America/Los_Angeles', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
             elements.currentTime.textContent = now.toLocaleTimeString('en-US', options) + ' PT';
             setTimeout(updateTime, 1000);
+        }
+
+        function updateFooter() {
+            const version = 'LinkPortal-v6';
+            elements.masterFooter.textContent = `${version} - ${new Date().toLocaleString()}`;
+            setTimeout(updateFooter, 60000); // Update every minute
         }
         
         function showError(message) {
@@ -446,6 +457,7 @@
         // --- MENU PANEL RESIZING ---
         function startResize(e) {
             e.preventDefault();
+            document.body.style.userSelect = 'none';
             if (e.type === 'mousedown') {
                 document.addEventListener('mousemove', doResize);
                 document.addEventListener('mouseup', stopResize);
@@ -465,6 +477,7 @@
         }
 
         function stopResize(e) {
+            document.body.style.userSelect = '';
             if (e.type === 'mouseup' || e.type === 'touchend') {
                 document.removeEventListener('mousemove', doResize);
                 document.removeEventListener('mouseup', stopResize);
@@ -475,6 +488,37 @@
         }
 
         // --- GITHUB REPOSITORY & SEARCH ---
+        async function fetchReposForUser(owner) {
+            if (!owner) return [];
+            try {
+                const response = await fetch(`https://api.github.com/users/${owner}/repos?sort=updated&per_page=100`);
+                if (!response.ok) throw new Error('User not found or API limit reached');
+                return await response.json();
+            } catch (error) {
+                showError(error.message);
+                return [];
+            }
+        }
+        
+        async function populateRepoSelect(owner) {
+            const select = elements.modalRepoSelect;
+            select.disabled = true;
+            select.innerHTML = '<option>Loading...</option>';
+            const repos = await fetchReposForUser(owner);
+            select.innerHTML = '';
+            if (repos.length > 0) {
+                repos.forEach(repo => {
+                    const option = document.createElement('option');
+                    option.value = repo.name;
+                    option.textContent = repo.name;
+                    select.appendChild(option);
+                });
+                select.disabled = false;
+            } else {
+                select.innerHTML = '<option>No repositories found</option>';
+            }
+        }
+
         async function fetchRepositoryFiles(owner, repo) {
              if (!owner || !repo) return;
             try {
@@ -488,35 +532,22 @@
             }
         }
 
-        function openRepoSettings() {
-            const store = db.transaction('settings').objectStore('settings');
-            store.get('portal').onsuccess = e => {
-                const settings = e.target.result || {};
-                document.getElementById('modalOwner').value = settings.githubOwner || 'acmeproducts';
-                document.getElementById('modalRepo').value = settings.githubRepo || 'stuff';
-                elements.repoSettingsModal.classList.add('active');
-            };
+        async function openRepoSettings() {
+            const settings = await new Promise(r => db.transaction('settings').objectStore('settings').get('portal').onsuccess = e => r(e.target.result || {}));
+            elements.modalOwner.value = settings.githubOwner || 'acmeproducts';
+            await populateRepoSelect(elements.modalOwner.value);
+            elements.modalRepoSelect.value = settings.githubRepo || 'stuff';
+            elements.repoSettingsModal.classList.add('active');
         }
 
         async function updateRepository() {
-            const owner = document.getElementById('modalOwner').value.trim();
-            const repo = document.getElementById('modalRepo').value.trim();
+            const owner = elements.modalOwner.value.trim();
+            const repo = elements.modalRepoSelect.value;
             
             elements.repoSettingsModal.classList.remove('active');
 
-            const tx = db.transaction('links', 'readwrite');
-            const store = tx.objectStore('links');
-            const index = store.index('source');
-            const request = index.getAll('github');
-            request.onsuccess = () => {
-                request.result.forEach(link => store.delete(link.id));
-            };
-            
-            tx.oncomplete = async () => {
-                await updateSettings({ githubOwner: owner, githubRepo: repo });
-                await fetchRepositoryFiles(owner, repo);
-                loadLinks();
-            };
+            await updateSettings({ githubOwner: owner, githubRepo: repo });
+            await fetchRepositoryFiles(owner, repo);
         }
         
         async function handleOmniSearch(e) {
@@ -556,17 +587,17 @@
                 addButton.onclick = () => {
                     const checkedItems = elements.omniList.querySelectorAll('.omni-checkbox:checked');
                     if (checkedItems.length > 0) {
+                        const promises = [];
                         checkedItems.forEach(checkbox => {
                             const fileName = checkbox.nextElementSibling.textContent;
                             const fileData = repoFileCache.find(f => f.name === fileName);
                             if(fileData) {
-                                addLink(fileData.name, `https://${owner}.github.io/${repo}/${fileData.path}`, null, 'github');
+                                promises.push(addLink(fileData.name, `https://${owner}.github.io/${repo}/${fileData.path}`, null, 'github'));
                             }
                         });
+                        Promise.all(promises).then(loadLinks);
                     }
-                    loadLinks();
-                    elements.omniList.style.display = 'none';
-                    elements.omniSearch.value = '';
+                    // Do not clear search term, let user do it
                 };
 
                 elements.omniList.appendChild(addButton);
@@ -636,8 +667,8 @@
             elements.activeItemTitle.textContent = `- ${link.title}`;
             elements.activeItemTitle.dataset.url = url;
             
-            if (window.innerWidth < 768 && !elements.configPanel.classList.contains('active')) {
-                 closeAll();
+            if (window.innerWidth < 768 && elements.menuPanel.classList.contains('active')) {
+                 toggleMenu();
             }
         }
         
@@ -670,8 +701,8 @@
                     </div>
                 `;
 
-                linkEl.addEventListener('click', () => selectLinkItem(linkEl, link));
-                linkEl.addEventListener('dblclick', () => selectLinkItem(linkEl, link, true));
+                linkEl.addEventListener('click', (e) => { if(!e.target.closest('label, button')) selectLinkItem(linkEl, link); });
+                linkEl.addEventListener('dblclick', (e) => { if(!e.target.closest('label, button')) selectLinkItem(linkEl, link, true); });
                 linkEl.addEventListener('contextmenu', (e) => e.preventDefault());
 
                 const titleEl = linkEl.querySelector('.link-title');
@@ -686,7 +717,6 @@
                     if(!link.fileId) makeEditable(descEl, link.id, 'url');
                 });
 
-
                 linkEl.querySelector('button').addEventListener('click', () => removeLink(link.id, link.fileId));
                 linkEl.querySelector('.link-include-toggle').addEventListener('change', (e) => updateLinkProperty(link.id, 'included', e.target.checked));
                 linkEl.querySelector('.link-mic-toggle').addEventListener('change', (e) => updateLinkProperty(link.id, 'mic', e.target.checked));
@@ -700,7 +730,7 @@
             const input = document.createElement('input');
             input.type = 'text';
             input.value = currentValue;
-            input.className = 'w-full text-sm font-medium text-gray-900 border rounded px-1';
+            input.className = 'w-full text-sm border rounded px-1';
             
             element.replaceWith(input);
             input.focus();
@@ -743,8 +773,10 @@
             const store = db.transaction('links', 'readwrite').objectStore('links');
             store.get(id).onsuccess = e => {
                 const link = e.target.result;
-                link[property] = value;
-                store.put(link).onsuccess = loadLinks;
+                if(link) {
+                    link[property] = value;
+                    store.put(link).onsuccess = loadLinks;
+                }
             };
         }
 
@@ -787,53 +819,78 @@
 
         // --- DRAG AND DROP REORDERING ---
         let draggedItemId = null;
+        let dropIndicator = null;
+        
+        function createDropIndicator() {
+            if (!dropIndicator) {
+                dropIndicator = document.createElement('div');
+                dropIndicator.className = 'drop-indicator';
+            }
+            return dropIndicator;
+        }
+
         elements.linkList.addEventListener('dragstart', (e) => {
-            draggedItemId = parseInt(e.target.closest('.link-item').dataset.id);
-            e.target.closest('.link-item').classList.add('dragging');
+            if(e.target.classList.contains('link-item')) {
+                draggedItemId = parseInt(e.target.dataset.id);
+                setTimeout(() => e.target.classList.add('dragging'), 0);
+            }
         });
+
         elements.linkList.addEventListener('dragend', (e) => {
-            const draggedEl = e.target.closest('.link-item');
-            if(draggedEl) draggedEl.classList.remove('dragging');
+            if(e.target.classList.contains('link-item')) {
+                e.target.classList.remove('dragging');
+            }
+            draggedItemId = null;
+            if (dropIndicator && dropIndicator.parentNode) {
+                dropIndicator.parentNode.removeChild(dropIndicator);
+            }
         });
-        elements.linkList.addEventListener('dragover', (e) => e.preventDefault());
+
+        elements.linkList.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const target = e.target.closest('.link-item');
+            if (target && draggedItemId !== parseInt(target.dataset.id)) {
+                const rect = target.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                const indicator = createDropIndicator();
+                if (e.clientY < midY) {
+                    target.parentNode.insertBefore(indicator, target);
+                } else {
+                    target.parentNode.insertBefore(indicator, target.nextSibling);
+                }
+            }
+        });
+        
         elements.linkList.addEventListener('drop', (e) => {
             e.preventDefault();
-            const targetEl = e.target.closest('.link-item');
-            if (!targetEl || draggedItemId === null) return;
-            const targetId = parseInt(targetEl.dataset.id);
-            if (draggedItemId === targetId) return;
+            if (dropIndicator && dropIndicator.parentNode) {
+                const siblings = Array.from(elements.linkList.children);
+                const dropIndex = siblings.indexOf(dropIndicator);
+                
+                dropIndicator.parentNode.removeChild(dropIndicator);
 
-            const tx = db.transaction('links', 'readwrite');
-            const store = tx.objectStore('links');
-            const index = store.index('order');
-            index.getAll().onsuccess = e => {
-                const links = e.target.result;
-                const draggedIndex = links.findIndex(l => l.id === draggedItemId);
-                const targetIndex = links.findIndex(l => l.id === targetId);
-                const [draggedItem] = links.splice(draggedIndex, 1);
-                links.splice(targetIndex, 0, draggedItem);
-                links.forEach((link, i) => {
-                    link.order = i;
-                    store.put(link);
-                });
-            };
-            tx.oncomplete = loadLinks;
+                const tx = db.transaction('links', 'readwrite');
+                const store = tx.objectStore('links');
+                store.index('order').getAll().onsuccess = (event) => {
+                    let links = event.target.result;
+                    const draggedItemIndex = links.findIndex(l => l.id === draggedItemId);
+                    const [draggedItem] = links.splice(draggedItemIndex, 1);
+                    links.splice(dropIndex, 0, draggedItem);
+                    
+                    links.forEach((link, i) => {
+                        link.order = i;
+                        store.put(link);
+                    });
+                };
+                tx.oncomplete = loadLinks;
+            }
         });
         
         // --- RESET APPLICATION ---
         function resetApplication() {
-            const tx = db.transaction(STORES, 'readwrite');
-            STORES.forEach(storeName => {
-                tx.objectStore(storeName).clear();
-            });
-            tx.oncomplete = () => {
+            indexedDB.deleteDatabase(DB_NAME).onsuccess = () => {
                 location.reload();
             };
-            tx.onerror = (e) => {
-                console.error("Error resetting database:", e.target.error);
-                elements.resetConfirmModal.classList.remove('active');
-                showError("Could not reset the application data.");
-            }
         }
 
         // --- IMPORT / EXPORT / GENERATE ---
@@ -897,6 +954,45 @@
             event.target.value = '';
         }
 
+        async function importGeneratedPortal(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            try {
+                const html = await file.text();
+                const linksMatch = html.match(/const links = (\[.*?\]);/s);
+                const filesMatch = html.match(/const files = (\{.*?\});/s);
+
+                if (!linksMatch || !filesMatch) {
+                    throw new Error("Could not find portal data in the HTML file.");
+                }
+
+                const links = JSON.parse(linksMatch[1]);
+                const files = JSON.parse(filesMatch[1]);
+                
+                const filesForDB = Object.entries(files).map(([id, fileData]) => ({
+                    id: parseInt(id), // Assuming file IDs are numbers in the generated portal
+                    type: fileData.type,
+                    content: base64ToArrayBuffer(fileData.content)
+                }));
+                
+                // Clear and repopulate DB
+                const clearTx = db.transaction(STORES, 'readwrite');
+                await Promise.all(STORES.map(s => new Promise(r => clearTx.objectStore(s).clear().onsuccess = r)));
+                
+                const writeTx = db.transaction(['links', 'files'], 'readwrite');
+                links.forEach(l => writeTx.objectStore('links').add(l));
+                filesForDB.forEach(f => writeTx.objectStore('files').add(f));
+
+                writeTx.oncomplete = initApp;
+
+            } catch(e) {
+                showError(`Failed to import portal: ${e.message}`);
+            }
+
+            event.target.value = '';
+        }
+
         async function generatePortal() {
             const settings = await new Promise(r => db.transaction('settings').objectStore('settings').get('portal').onsuccess = e => r(e.target.result));
             const allLinks = await new Promise(r => db.transaction('links').objectStore('links').index('order').getAll().onsuccess = e => r(e.target.result));
@@ -915,7 +1011,7 @@
             const template = generatePortalTemplate(settings, includedLinks, includedFiles);
             const blob = new Blob([template], { type: 'text/html' });
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
+a.href = URL.createObjectURL(blob);
             a.download = `${settings?.name?.replace(/\s/g, '-') || 'portal'}.html`;
             a.click();
             URL.revokeObjectURL(a.href);
@@ -957,7 +1053,7 @@
         </div>
 
         <main id="mainContent" class="flex-1 bg-white transition-all duration-300">
-            <iframe id="viewer" class="w-full h-full border-0" sandbox="allow-scripts allow-same-origin allow-popups allow-modals allow-forms" loading="lazy"></iframe>
+            <!-- iframe container -->
         </main>
 
         <div id="overlay" class="overlay"></div>
@@ -974,7 +1070,6 @@
             mainContent: document.getElementById('mainContent'),
             overlay: document.getElementById('overlay'),
             linkList: document.getElementById('linkList'),
-            viewer: document.getElementById('viewer'),
             currentTime: document.getElementById('currentTime')
         };
         
@@ -1000,8 +1095,27 @@
 
         function toggleMenu() {
             const isActive = elements.menuPanel.classList.toggle('active');
-            elements.mainContent.classList.toggle('with-menu', isActive);
+            elements.mainContent.style.marginLeft = isActive ? '${settings?.menuWidth || 350}px' : '0px';
             elements.overlay.classList.toggle('active', isActive);
+        }
+
+        function selectLink(link, forceReload = false) {
+             document.querySelectorAll('#mainContent iframe').forEach(frame => frame.style.display = 'none');
+            
+            let iframe = document.getElementById(\`iframe-\${link.id}\`);
+            if (!iframe) {
+                iframe = document.createElement('iframe');
+                iframe.id = \`iframe-\${link.id}\`;
+                iframe.className = 'w-full h-full border-0';
+                iframe.sandbox = 'allow-scripts allow-same-origin allow-popups allow-modals allow-forms';
+                if(link.mic) iframe.allow = 'microphone';
+                iframe.src = link.fileId ? getFileUrl(link.fileId) : link.url;
+                elements.mainContent.appendChild(iframe);
+            } else if (forceReload) {
+                iframe.src = link.fileId ? getFileUrl(link.fileId) : link.url;
+            }
+            
+            iframe.style.display = 'block';
         }
 
         function updateLinkList() {
@@ -1013,12 +1127,11 @@
                 linkEl.innerHTML = \`<div class="text-sm font-medium text-gray-900">\${link.title}</div><div class="text-xs text-gray-600 mt-1 truncate">\${linkUrl}</div>\`;
                 
                 linkEl.addEventListener('click', () => {
-                    const urlToLoad = link.fileId ? getFileUrl(link.fileId) : link.url;
-                    if (urlToLoad) elements.viewer.src = urlToLoad;
+                    selectLink(link);
                     if (window.innerWidth < 768) toggleMenu();
                 });
                 elements.linkList.appendChild(linkEl);
-                if (index === 0) setTimeout(() => linkEl.click(), 100);
+                if (index === 0) setTimeout(() => selectLink(link), 100);
             });
         }
         
