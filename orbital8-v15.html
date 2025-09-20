@@ -2158,7 +2158,9 @@
             },
             
             async loadFolder(detail) {
-                const { folderId, folderName } = detail;
+                const { providerType, folderId, folderName, providerInstance } = detail;
+                state.providerType = providerType;
+                state.provider = providerInstance;
                 state.currentFolder = { id: folderId, name: folderName };
                 Utils.showScreen('loading-screen');
                 Utils.updateLoadingProgress(0, 0, 'Checking cache...');
@@ -3934,10 +3936,21 @@
                     // Tier 1 is already updated optimistically
                     // Tier 2: Persist to DB and queue for sync
                     await state.dbManager.saveMetadataBatch([updates]);
+
+                    const appProperties = {
+                        slideboxStack: updates.stack,
+                        slideboxTags: (updates.tags || []).join(','),
+                        qualityRating: String(updates.qualityRating || 0),
+                        contentRating: String(updates.contentRating || 0),
+                        notes: updates.notes || '',
+                        stackSequence: String(updates.stackSequence || 0),
+                        favorite: String(updates.favorite || false)
+                    };
+
                     await state.dbManager.enqueueSyncOps([{ 
                         fileId, 
                         operationType: 'metadata-update', 
-                        payload: updates.appProperties // Assuming metadata is stored here for Drive
+                        payload: appProperties
                     }]);
                     state.syncManager.requestSync();
                 });
@@ -4179,3 +4192,4 @@
     </script>
 </body>
 </html>
+
