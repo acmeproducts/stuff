@@ -1,4 +1,4 @@
-<!-- LinkPortal-v17-2025-09-21 05:15 AM -->
+<!-- LinkPortal-v18-2025-09-21 06:11 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -47,15 +47,7 @@
             font-size: 1.5rem;
             line-height: 0;
         }
-
-        /* Drag and drop styling */
-        .link-item.dragging { opacity: 0.5; }
-        .drop-indicator {
-            height: 2px;
-            background-color: #2563EB;
-            margin: -1px 0;
-        }
-
+        
         /* Styling for the active link in the menu */
         .link-item.active-link {
             background-color: #DBEAFE; /* Tailwind's blue-100 */
@@ -151,6 +143,14 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Portal Name</label>
                         <input type="text" id="portalName" class="w-full px-3 py-2 border rounded text-gray-900" placeholder="My Portal">
+                    </div>
+                </div>
+
+                 <!-- Icon Pasting -->
+                <div class="border-t pt-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Set Custom Icon</h3>
+                    <div id="iconPasteZone" class="mt-2 p-4 border-2 border-dashed rounded-lg text-center text-gray-500">
+                        Click an item in the menu, then paste an image here.
                     </div>
                 </div>
 
@@ -254,11 +254,12 @@
     </div>
 
 
-    <!-- Hidden File Inputs -->
+    <!-- Hidden File Inputs and Paste Target -->
     <input type="file" id="fileUpload" class="hidden" multiple>
-    <input type="file" id="iconUpload" class="hidden" accept="image/*">
     <input type="file" id="configImport" class="hidden" accept="application/json">
     <input type="file" id="portalImport" class="hidden" accept=".html">
+    <div id="pasteTarget" contenteditable="true" class="opacity-0 fixed -top-96 -left-96"></div>
+
 
     <footer id="masterFooter" class="fixed bottom-0 right-0 bg-gray-800 text-white text-xs px-2 py-1 rounded-tl-lg z-50"></footer>
 
@@ -270,7 +271,7 @@
         const STORES = ['links', 'settings', 'files'];
         const blobUrls = new Map();
         let repoFileCache = [];
-        let currentLinkIdForIconUpload = null;
+        let activeLinkIdForIcon = null;
         const DEFAULT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12.378 1.602a.75.75 0 00-.756 0L3.366 6.126A.75.75 0 003 6.828v10.344a.75.75 0 00.366.646l8.256 4.524a.75.75 0 00.756 0l8.256-4.524a.75.75 0 00.366-.646V6.828a.75.75 0 00-.366-.646L12.378 1.602zM12 15.25a3.25 3.25 0 100-6.5 3.25 3.25 0 000 6.5z" /><path d="M12 3.84a8.753 8.753 0 014.28 1.255l-3.72 2.035a3.253 3.253 0 00-1.12 0L7.72 5.095A8.753 8.753 0 0112 3.84zM4.5 7.331l3.72 2.035a3.25 3.25 0 000 5.268l-3.72 2.035V7.331zm15 0v7.338l-3.72-2.035a3.25 3.25 0 000-5.268l3.72-2.035zM8.44 16.905l3.56-1.945a.75.75 0 10-.75-1.3l-3.56 1.945a8.753 8.753 0 01-1.28-.695l3.72-2.035a3.25 3.25 0 000-5.268L7.16 5.095a8.753 8.753 0 01-1.28.695L9.6 7.735a.75.75 0 10.75 1.3l-3.72-2.035a8.753 8.753 0 010 8.598l3.72-2.035a.75.75 0 10.75 1.3l-3.72 2.035zm7.12-11.81a8.753 8.753 0 011.28.695l-3.72 2.035a.75.75 0 10-.75 1.3l3.72-2.035a8.753 8.753 0 010 8.598l-3.72-2.035a.75.75 0 10-.75 1.3l3.72 2.035a8.753 8.753 0 01-1.28.695l-3.72-2.035a3.25 3.25 0 000-5.268l3.72-2.035z" /></svg>`;
         const DEFAULT_ICON_DATA_URI = `data:image/svg+xml;base64,${btoa(DEFAULT_ICON_SVG)}`;
 
@@ -338,6 +339,7 @@
             masterFooter: document.getElementById('masterFooter'),
             modalOwner: document.getElementById('modalOwner'),
             modalRepoSelect: document.getElementById('modalRepoSelect'),
+            iconPasteZone: document.getElementById('iconPasteZone'),
             welcomeMessage: document.getElementById('welcomeMessage'),
         };
 
@@ -357,11 +359,12 @@
         document.getElementById('confirmRepoUpdate').addEventListener('click', updateRepository);
         document.getElementById('cancelReset').addEventListener('click', () => elements.resetConfirmModal.classList.remove('active'));
         document.getElementById('confirmReset').addEventListener('click', resetApplication);
+        
+        document.addEventListener('paste', handleImagePaste);
 
         document.getElementById('addCustomLink').addEventListener('click', addCustomLink);
         document.getElementById('uploadFiles').addEventListener('click', () => document.getElementById('fileUpload').click());
         document.getElementById('fileUpload').addEventListener('change', handleFileUpload);
-        document.getElementById('iconUpload').addEventListener('change', handleIconUpload);
         document.getElementById('importConfig').addEventListener('click', () => document.getElementById('configImport').click());
         document.getElementById('configImport').addEventListener('change', importConfig);
         document.getElementById('importPortalBtn').addEventListener('click', () => document.getElementById('portalImport').click());
@@ -409,7 +412,7 @@
         }
 
         function updateFooter() {
-            const version = 'LinkPortal-v16';
+            const version = 'LinkPortal-v17';
             elements.masterFooter.textContent = `${version} - ${new Date().toLocaleString()}`;
             setTimeout(updateFooter, 60000); // Update every minute
         }
@@ -648,6 +651,9 @@
             document.querySelectorAll('#linkList .link-item').forEach(el => el.classList.remove('active-link'));
             linkEl.classList.add('active-link');
             
+            activeLinkIdForIcon = link.id;
+            elements.iconPasteZone.innerHTML = `Paste an icon for: <strong class="text-gray-700">${link.title}</strong>`;
+            
             const url = link.fileId ? blobUrls.get(link.fileId) : link.url;
             
             document.querySelectorAll('#mainContent iframe').forEach(frame => frame.style.display = 'none');
@@ -699,11 +705,11 @@
                 const iconUrl = link.iconUrl || '';
 
                 linkEl.innerHTML = `
-                    <span class="cursor-move text-gray-400 self-center">☰</span>
-                    <div class="flex-shrink-0 text-center">
-                        <img src="${iconUrl}" onerror="this.onerror=null; this.src='${DEFAULT_ICON_DATA_URI}';" class="w-12 h-12 rounded object-cover mx-auto">
-                        <button class="text-xs text-blue-600 hover:underline upload-icon-btn" data-link-id="${link.id}">Change</button>
+                    <div class="flex flex-col items-center gap-1 self-start">
+                        <button class="reorder-btn up-btn p-1 text-gray-400 hover:text-black">▲</button>
+                        <button class="reorder-btn down-btn p-1 text-gray-400 hover:text-black">▼</button>
                     </div>
+                    <img src="${iconUrl}" onerror="this.onerror=null; this.src='${DEFAULT_ICON_DATA_URI}';" class="w-12 h-12 rounded object-cover flex-shrink-0">
                     <div class="flex-1 min-w-0">
                         <div class="text-sm font-medium text-gray-900 link-title cursor-pointer truncate">${link.title}</div>
                         <div class="text-xs text-gray-600 mt-1 truncate cursor-pointer link-desc">${linkUrl}</div>
@@ -729,17 +735,14 @@
                 const descEl = linkEl.querySelector('.link-desc');
                 descEl.addEventListener('dblclick', (e) => { e.stopPropagation(); if(!link.fileId) makeEditable(descEl, link.id, 'url'); });
 
-                linkEl.querySelector('.upload-icon-btn').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    currentLinkIdForIconUpload = e.currentTarget.dataset.linkId;
-                    document.getElementById('iconUpload').click();
-                });
-
                 linkEl.querySelector('.new-window-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
                     const urlToOpen = link.fileId ? blobUrls.get(link.id) : link.url;
                     if(urlToOpen) window.open(urlToOpen, '_blank');
                 });
+                
+                linkEl.querySelector('.up-btn').addEventListener('click', (e) => { e.stopPropagation(); reorderLink(link.id, 'up'); });
+                linkEl.querySelector('.down-btn').addEventListener('click', (e) => { e.stopPropagation(); reorderLink(link.id, 'down'); });
 
                 linkEl.querySelector('button:last-child').addEventListener('click', () => removeLink(link.id, link.fileId));
                 linkEl.querySelector('.link-mic-toggle').addEventListener('change', (e) => updateLinkProperty(link.id, 'mic', e.target.checked));
@@ -808,17 +811,31 @@
             event.target.value = '';
         }
 
-        async function handleIconUpload(event) {
-            const file = event.target.files[0];
-            if (!file || !currentLinkIdForIconUpload) return;
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                updateLinkProperty(parseInt(currentLinkIdForIconUpload), 'iconUrl', e.target.result);
-                currentLinkIdForIconUpload = null;
-            };
-            reader.readAsDataURL(file);
-            event.target.value = '';
+        async function handleImagePaste(event) {
+            if (!activeLinkIdForIcon) {
+                return;
+            }
+            
+            const items = event.clipboardData.items;
+            for (const item of items) {
+                if (item.type.indexOf("image") !== -1) {
+                    const blob = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        updateLinkProperty(parseInt(activeLinkIdForIcon), 'iconUrl', e.target.result);
+                        activeLinkIdForIcon = null;
+                        elements.iconPasteZone.innerHTML = 'Icon updated! Select another item to change its icon.';
+                         setTimeout(() => {
+                           if (!activeLinkIdForIcon) {
+                                elements.iconPasteZone.innerHTML = 'Click an item in the menu, then paste an image here.';
+                           }
+                        }, 2000);
+                    };
+                    reader.readAsDataURL(blob);
+                    event.preventDefault();
+                    return;
+                }
+            }
         }
 
         function addFileToPortal(fileData) {
@@ -850,81 +867,53 @@
         }
 
         // --- DRAG AND DROP REORDERING ---
-        let draggedItemId = null;
-        let dropIndicator = null;
-        
-        function createDropIndicator() {
-            if (!dropIndicator) {
-                dropIndicator = document.createElement('div');
-                dropIndicator.className = 'drop-indicator';
-            }
-            return dropIndicator;
-        }
-
-        elements.linkList.addEventListener('dragstart', (e) => {
-            if(e.target.classList.contains('link-item')) {
-                draggedItemId = parseInt(e.target.dataset.id);
-                setTimeout(() => e.target.classList.add('dragging'), 0);
-            }
-        });
-
-        elements.linkList.addEventListener('dragend', (e) => {
-            if(e.target.classList.contains('link-item')) {
-                e.target.classList.remove('dragging');
-            }
-            draggedItemId = null;
-            if (dropIndicator && dropIndicator.parentNode) {
-                dropIndicator.parentNode.removeChild(dropIndicator);
-            }
-        });
-
-        elements.linkList.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            const target = e.target.closest('.link-item');
-            if (target && draggedItemId !== parseInt(target.dataset.id)) {
-                const rect = target.getBoundingClientRect();
-                const midY = rect.top + rect.height / 2;
-                const indicator = createDropIndicator();
-                if (e.clientY < midY) {
-                    target.parentNode.insertBefore(indicator, target);
-                } else {
-                    target.parentNode.insertBefore(indicator, target.nextSibling);
-                }
-            }
-        });
-        
-        elements.linkList.addEventListener('drop', (e) => {
-            e.preventDefault();
-            if (!draggedItemId || !dropIndicator || !dropIndicator.parentNode) return;
-            
-            const children = Array.from(elements.linkList.children);
-            let dropIndex = children.indexOf(dropIndicator);
-            if (dropIndex === -1) return;
-
-            dropIndicator.parentNode.removeChild(dropIndicator);
-
+        async function reorderLink(linkId, direction) {
             const tx = db.transaction('links', 'readwrite');
             const store = tx.objectStore('links');
-            store.index('order').getAll().onsuccess = (event) => {
-                let links = event.target.result;
-                const draggedItemIndex = links.findIndex(l => l.id === draggedItemId);
-                if (draggedItemIndex === -1) return;
-                
-                const [draggedItem] = links.splice(draggedItemIndex, 1);
-                links.splice(dropIndex, 0, draggedItem);
-                
-                links.forEach((link, i) => {
-                    link.order = i;
-                    store.put(link);
-                });
-            };
-            tx.oncomplete = loadLinks;
-        });
+            const index = store.index('order');
+            const links = await new Promise(r => index.getAll().onsuccess = e => r(e.target.result));
+            
+            const currentIndex = links.findIndex(l => l.id === linkId);
+            if (currentIndex === -1) return;
+
+            const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+            if (targetIndex < 0 || targetIndex >= links.length) return;
+
+            // Swap order values
+            [links[currentIndex].order, links[targetIndex].order] = [links[targetIndex].order, links[currentIndex].order];
+
+            await Promise.all([
+                new Promise(r => store.put(links[currentIndex]).onsuccess = r),
+                new Promise(r => store.put(links[targetIndex]).onsuccess = r)
+            ]);
+
+            loadLinks();
+        }
         
         // --- RESET APPLICATION ---
         function resetApplication() {
-            indexedDB.deleteDatabase(DB_NAME).onsuccess = () => {
-                location.reload();
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            request.onsuccess = (e) => {
+                const db = e.target.result;
+                const tx = db.transaction(STORES, 'readwrite');
+                const promises = STORES.map(storeName => {
+                    return new Promise((resolve, reject) => {
+                        const req = tx.objectStore(storeName).clear();
+                        req.onsuccess = resolve;
+                        req.onerror = reject;
+                    });
+                });
+
+                Promise.all(promises).then(() => { 
+                    console.log('All stores cleared');
+                    location.reload(); 
+                }).catch(err => {
+                     console.error("Error clearing stores", err);
+                     showError("Could not reset application."); 
+                });
+            };
+            request.onerror = (e) => {
+                 showError("Database error during reset.");
             };
         }
 
@@ -1153,9 +1142,7 @@
                 iframe.src = link.fileId ? getFileUrl(link.fileId) : link.url;
                 elements.mainContent.appendChild(iframe);
             } else if (forceReload) {
-                const newSrc = link.fileId ? getFileUrl(link.fileId) : link.url;
-                if (iframe.src !== newSrc) iframe.src = newSrc;
-                else iframe.contentWindow.location.reload();
+                iframe.src = link.fileId ? getFileUrl(link.fileId) : link.url;
             }
             
             iframe.style.display = 'block';
