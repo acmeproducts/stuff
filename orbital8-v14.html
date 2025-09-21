@@ -1096,58 +1096,27 @@
             },
             
             async setImageSrc(img, file) {
-                return this.setImageSrcAuthenticated(img, file);
-            },
-
-            async setImageSrcAuthenticated(img, file) {
-                const loadId = `${file.id}_${Date.now()}`;
-                const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150' fill='none'%3E%3Crect width='150' height='150' fill='%23E5E7EB'/%3E%3Cpath d='M65 60H85V90H65V60Z' fill='%239CA3AF'/%3E%3Ccircle cx='75' cy='45' r='10' fill='%239CA3AF'/%3E%3C/svg%3E";
+                const loadId = file.id + '_' + Date.now();
                 state.currentImageLoadId = loadId;
-                try {
-                    const blobUrl = await this.getAuthenticatedImageBlob(file);
-                    return new Promise((resolve) => {
-                        img.onload = () => {
-                            if (state.currentImageLoadId !== loadId) return;
-                            resolve();
-                        };
+                let imageUrl = this.getPreferredImageUrl(file);
+                return new Promise((resolve) => {
+                    img.onload = () => {
+                        if (state.currentImageLoadId !== loadId) return;
+                        resolve();
+                    };
+                    img.onerror = () => {
+                        if (state.currentImageLoadId !== loadId) return;
+                        let fallbackUrl = this.getFallbackImageUrl(file);
                         img.onerror = () => {
                             if (state.currentImageLoadId !== loadId) return;
-                            img.src = placeholder;
+                            img.src = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'150\' height=\'150\' viewBox=\'0 0 150 150\' fill=\'none\'%3E%3Crect width=\'150\' height=\'150\' fill=\'%23E5E7EB\'/%3E%3Cpath d=\'M65 60H85V90H65V60Z\' fill=\'%239CA3AF\'/%3E%3Ccircle cx=\'75\' cy=\'45\' r=\'10\' fill=\'%239CA3AF\'/%3E%3C/svg%3E';
                             resolve();
                         };
-                        img.alt = file.name || 'Image';
-                        img.src = blobUrl;
-                    });
-                } catch (error) {
-                    if (state.currentImageLoadId !== loadId) { return Promise.resolve(); }
+                        img.src = fallbackUrl;
+                    };
+                    img.src = imageUrl;
                     img.alt = file.name || 'Image';
-                    img.src = placeholder;
-                    return Promise.resolve();
-                }
-            },
-
-            async getAuthenticatedImageBlob(file) {
-                if (!file || !file.id) { throw new Error('Invalid file reference'); }
-                let response;
-
-                if (state.providerType === 'googledrive') {
-                    response = await state.provider.makeApiCall(`/files/${file.id}?alt=media`, {}, false);
-                } else if (state.providerType === 'onedrive') {
-                    const accessToken = await state.provider.getAccessToken();
-                    response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`, {
-                        headers: { 'Authorization': `Bearer ${accessToken}` }
-                    });
-                } else {
-                    throw new Error('Unsupported provider type');
-                }
-
-                if (!response || !response.ok) {
-                    const status = response ? response.status : 'unknown';
-                    throw new Error(`Failed to load image: ${status}`);
-                }
-
-                const blob = await response.blob();
-                return URL.createObjectURL(blob);
+                });
             },
             
             getPreferredImageUrl(file) {
@@ -1155,33 +1124,21 @@
                     if (file.thumbnailLink) {
                         return file.thumbnailLink.replace('=s220', '=s1000');
                     }
-                    return this.getPersistentDownloadUrl(file);
+                    return `https://drive.google.com/thumbnail?id=${file.id}&sz=w1000`;
                 } else { // OneDrive
                     if (file.thumbnails && file.thumbnails.large) {
                         return file.thumbnails.large.url;
                     }
-                    return this.getPersistentDownloadUrl(file);
+                    return file.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
                 }
             },
 
             getFallbackImageUrl(file) {
-                return this.getPersistentDownloadUrl(file);
-            },
-
-            getPersistentDownloadUrl(file) {
-                if (!file || !file.id) { return file?.downloadUrl || ''; }
-                const existingUrl = file.downloadUrl || '';
-                if (state.provider && typeof state.provider.buildDownloadUrl === 'function') {
-                    const built = state.provider.buildDownloadUrl(file);
-                    if (built) { return built; }
-                }
-                if (existingUrl) { return existingUrl; }
                 if (state.providerType === 'googledrive') {
-                    return `https://drive.google.com/uc?export=view&id=${file.id}`;
-                } else if (state.providerType === 'onedrive') {
-                    return `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
+                    return file.downloadUrl || `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
+                } else { // OneDrive
+                    return file.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
                 }
-                return '';
             },
             
             formatFileSize(bytes) {
@@ -1518,7 +1475,6 @@
             async updateFileMetadata(fileId, metadata) { throw new Error("Method 'updateFileMetadata(fileId, metadata)' must be implemented."); }
             async moveFileToFolder(fileId, targetFolderId) { throw new Error("Method 'moveFileToFolder(fileId, targetFolderId)' must be implemented."); }
             async deleteFile(fileId) { throw new Error("Method 'deleteFile(fileId)' must be implemented."); }
-            buildDownloadUrl() { return ''; }
         }
         class GoogleDriveProvider extends BaseProvider {
             constructor() {
@@ -1630,7 +1586,7 @@
                     let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,appProperties,parents),nextPageToken&pageSize=100`;
                     if (nextPageToken) { url += `&pageToken=${nextPageToken}`; }
                     const response = await this.makeApiCall(url, { signal: state.activeRequests.signal });
-                    const files = response.files.filter(file => file.mimeType && file.mimeType.startsWith('image/')).map(file => ({ id: file.id, name: file.name, type: 'file', mimeType: file.mimeType, size: file.size ? parseInt(file.size) : 0, createdTime: file.createdTime, modifiedTime: file.modifiedTime, thumbnailLink: file.thumbnailLink, downloadUrl: this.buildDownloadUrl(file), appProperties: file.appProperties || {}, parents: file.parents }));
+                    const files = response.files.filter(file => file.mimeType && file.mimeType.startsWith('image/')).map(file => ({ id: file.id, name: file.name, type: 'file', mimeType: file.mimeType, size: file.size ? parseInt(file.size) : 0, createdTime: file.createdTime, modifiedTime: file.modifiedTime, thumbnailLink: file.thumbnailLink, downloadUrl: file.webContentLink, appProperties: file.appProperties || {}, parents: file.parents }));
                     allFiles.push(...files);
                     nextPageToken = response.nextPageToken;
                     if (this.onProgressCallback) { this.onProgressCallback(allFiles.length); }
@@ -1684,11 +1640,6 @@
             async disconnect() {
                 this.isAuthenticated = false; this.accessToken = null; this.refreshToken = null; this.clientSecret = null;
                 this.clearStoredCredentials();
-            }
-            buildDownloadUrl(file) {
-                const fileId = typeof file === 'string' ? file : (file && file.id ? file.id : '');
-                if (!fileId) { return ''; }
-                return `https://drive.google.com/uc?export=view&id=${fileId}`;
             }
         }
         class OneDriveProvider extends BaseProvider {
@@ -1769,7 +1720,7 @@
                                 id: item.id, name: item.name, type: 'file', mimeType: item.file.mimeType, size: item.size || 0,
                                 createdTime: item.createdDateTime, modifiedTime: item.lastModifiedDateTime,
                                 thumbnails: item.thumbnails && item.thumbnails.length > 0 ? { large: item.thumbnails[0].large } : null,
-                                downloadUrl: this.buildDownloadUrl(item),
+                                downloadUrl: item['@microsoft.graph.downloadUrl'],
                                 metadataExtension
                             };
                         });
@@ -1870,15 +1821,6 @@
                     if (accounts.length > 0) { await this.msalInstance.logoutPopup({ account: accounts[0] }); }
                 }
             }
-            buildDownloadUrl(file) {
-                if (file && typeof file === 'object') {
-                    if (file['@microsoft.graph.downloadUrl']) { return file['@microsoft.graph.downloadUrl']; }
-                    if (file.downloadUrl) { return file.downloadUrl; }
-                }
-                const fileId = typeof file === 'string' ? file : (file && file.id ? file.id : '');
-                if (!fileId) { return ''; }
-                return `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`;
-            }
         }
         class ExportSystem {
             async exportData(imagesWithMetadata) {
@@ -1909,7 +1851,7 @@
             }
             getDirectImageURL(image) {
                 if (state.providerType === 'googledrive') { return `https://drive.google.com/uc?id=${image.id}&export=view`; }
-                else if (state.providerType === 'onedrive') { return Utils.getPersistentDownloadUrl(image); }
+                else if (state.providerType === 'onedrive') { return image.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${image.id}/content`; }
                 return '';
             }
             downloadCSV(data) {
@@ -2021,10 +1963,11 @@
 
                 if (hasCached) {
                     state.imageFiles = cachedFiles;
+                    await this.hydrateFilesWithMetadata(state.imageFiles);
                     Utils.showScreen('app-container');
                     Core.initializeStacks();
                     Core.initializeImageDisplay();
-                    const pendingPngs = cachedFiles.filter(file => file.mimeType === 'image/png' && file.metadataStatus === 'pending');
+                    const pendingPngs = state.imageFiles.filter(file => file.mimeType === 'image/png' && file.metadataStatus === 'pending');
                     if (pendingPngs.length > 0) {
                         this.extractMetadataInBackground(pendingPngs);
                     }
@@ -2220,8 +2163,9 @@
                     console.warn('Background refresh failed:', error.message);
                 }
             },
-            async processAllMetadata(files, isFirstLoad = false) {
-                 if (isFirstLoad) Utils.updateLoadingProgress(0, files.length, 'Processing files...');
+            async hydrateFilesWithMetadata(files, options = {}) {
+                const { showProgress = false, progressMessage = 'Processing files...' } = options;
+                if (showProgress) { Utils.updateLoadingProgress(0, files.length, progressMessage); }
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
                     try {
@@ -2233,13 +2177,14 @@
                             Object.assign(file, defaultMetadata);
                             await state.dbManager.saveMetadata(file.id, defaultMetadata);
                         }
-                        const persistentUrl = Utils.getPersistentDownloadUrl(file);
-                        if (persistentUrl && state.providerType === 'googledrive') { file.downloadUrl = persistentUrl; }
                     } catch (error) {
                         console.error(`Failed to process metadata for ${file.name}:`, error);
                     }
-                    if(isFirstLoad) Utils.updateLoadingProgress(i + 1, files.length);
+                    if (showProgress) { Utils.updateLoadingProgress(i + 1, files.length); }
                 }
+            },
+            async processAllMetadata(files, isFirstLoad = false) {
+                await this.hydrateFilesWithMetadata(files, { showProgress: isFirstLoad, progressMessage: 'Processing files...' });
                 this.extractMetadataInBackground(files.filter(f => f.mimeType === 'image/png'));
             },
             generateDefaultMetadata(file) {
@@ -2252,8 +2197,7 @@
                     stackSequence: 0,
                     favorite: false,
                     extractedMetadata: {},
-                    metadataStatus: 'pending',
-                    downloadUrl: state.providerType === 'googledrive' ? Utils.getPersistentDownloadUrl(file) : (file.downloadUrl || '')
+                    metadataStatus: 'pending'
                 };
                  if (state.providerType === 'googledrive' && file.appProperties) {
                     baseMetadata.stack = file.appProperties.slideboxStack || 'in';
@@ -2435,6 +2379,7 @@
             async processFileMetadata(file) {
                 if (file.metadataStatus === 'loaded' || file.metadataStatus === 'loading' || file.metadataStatus === 'error') return;
                 file.metadataStatus = 'loading';
+                let shouldPersistFolderCache = false;
                 try {
                     const metadata = await state.metadataExtractor.fetchMetadata(file);
                     let finalMetadata = { ...file };
@@ -2448,6 +2393,7 @@
                     }
                     await state.dbManager.saveMetadata(file.id, finalMetadata);
                     Object.assign(file, finalMetadata);
+                    shouldPersistFolderCache = file.metadataStatus === 'loaded' || file.metadataStatus === 'error';
                 } catch (error) {
                     if (error.name === 'AbortError') return;
                     console.warn(`Background metadata extraction failed for ${file.name}: ${error.message}`);
@@ -2455,6 +2401,15 @@
                     file.extractedMetadata = { 'Error': error.message };
                     file.prompt = `Metadata Error: ${error.message}`;
                     await state.dbManager.saveMetadata(file.id, file);
+                    shouldPersistFolderCache = true;
+                } finally {
+                    if (shouldPersistFolderCache && state.currentFolder && state.currentFolder.id) {
+                        try {
+                            await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
+                        } catch (cacheError) {
+                            console.warn(`Failed to persist metadata status for ${file.name}: ${cacheError.message}`);
+                        }
+                    }
                 }
             }
         };
@@ -2551,10 +2506,6 @@
 
                 try {
                     Utils.elements.detailsButton.style.display = 'flex';
-                    const existingSrc = Utils.elements.centerImage.src;
-                    if (existingSrc && existingSrc.startsWith('blob:')) {
-                        URL.revokeObjectURL(existingSrc);
-                    }
                     await Utils.setImageSrc(Utils.elements.centerImage, currentFile);
                     
                     const folderName = state.currentFolder.name;
@@ -2755,16 +2706,9 @@
                     img.className = 'grid-image'; img.alt = file.name || 'Image';
                     img.dataset.src = Utils.getPreferredImageUrl(file);
                     img.onload = () => img.classList.add('loaded');
-                    img.onerror = async () => {
-                        img.onerror = null;
-                        try {
-                            const blobUrl = await Utils.getAuthenticatedImageBlob(file);
-                            img.src = blobUrl;
-                        } catch (authError) {
-                            img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150' fill='none'%3E%3Crect width='150' height='150' fill='%23E5E7EB'/%3E%3Cpath d='M65 60H85V90H65V60Z' fill='%239CA3AF'/%3E%3Ccircle cx='75' cy='45' r='10' fill='%239CA3AF'/%3E%3C/svg%3E";
-                        } finally {
-                            img.classList.add('loaded');
-                        }
+                    img.onerror = () => {
+                        img.src = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'150\' height=\'150\' viewBox=\'0 0 150 150\' fill=\'none\'%3E%3Crect width=\'150\' height=\'150\' fill=\'%23E5E7EB\'/%3E%3Cpath d=\'M65 60H85V90H65V60Z\' fill=\'%239CA3AF\'/%3E%3Ccircle cx=\'75\' cy=\'45\' r=\'10\' fill=\'%239CA3AF\'/%3E%3C/svg%3E';
+                        img.classList.add('loaded');
                     };
                     div.addEventListener('click', e => this.toggleSelection(e, file.id));
                     const overlay = document.createElement('div');
@@ -2968,7 +2912,7 @@
                 const filename = file.name || 'Unknown';
                 Utils.elements.detailFilename.textContent = filename;
                 if (state.providerType === 'googledrive') { Utils.elements.detailFilenameLink.href = `https://drive.google.com/file/d/${file.id}/view`;
-                } else { Utils.elements.detailFilenameLink.href = Utils.getPersistentDownloadUrl(file) || '#'; }
+                } else { Utils.elements.detailFilenameLink.href = file.downloadUrl || '#'; }
                 Utils.elements.detailFilenameLink.style.display = 'inline';
                 const date = file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : file.createdTime ? new Date(file.createdTime).toLocaleString() : 'Unknown';
                 Utils.elements.detailDate.textContent = date;
