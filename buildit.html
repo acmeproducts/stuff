@@ -406,7 +406,7 @@
         }
 
         function updateFooter() {
-            const version = 'LinkPortal-v14';
+            const version = 'LinkPortal-v15';
             elements.masterFooter.textContent = `${version} - ${new Date().toLocaleString()}`;
             setTimeout(updateFooter, 60000); // Update every minute
         }
@@ -629,7 +629,8 @@
             index.getAll().onsuccess = (e) => {
                 const links = e.target.result;
                 updateLinkList(links);
-                if (links.length > 0 && !document.querySelector('.link-item.active-link')) {
+                const activeItem = document.querySelector('.link-item.active-link');
+                if (links.length > 0 && !activeItem) {
                     const firstLinkEl = elements.linkList.querySelector('.link-item');
                     if (firstLinkEl) {
                         selectLinkItem(firstLinkEl, links[0]);
@@ -654,7 +655,7 @@
                 iframe.id = `iframe-${link.id}`;
                 iframe.className = 'w-full h-full border-0';
                 iframe.sandbox = 'allow-scripts allow-same-origin allow-popups allow-modals allow-forms';
-                iframe.src = url; // Set src at creation
+                iframe.src = url;
                 elements.mainContent.appendChild(iframe);
             }
             
@@ -677,25 +678,22 @@
 
             elements.activeItemTitle.textContent = `- ${link.title}`;
             elements.activeItemTitle.dataset.url = url;
-            
-            if (window.innerWidth < 768 && elements.menuPanel.classList.contains('active')) {
-                 toggleMenu();
-            }
         }
         
         function updateLinkList(links) {
+            const activeLinkId = document.querySelector('.link-item.active-link')?.dataset.id;
             elements.linkList.innerHTML = '';
             links.forEach(link => {
                 const linkEl = document.createElement('div');
                 linkEl.className = `p-3 bg-gray-50 rounded-lg flex gap-3 link-item ${!(link.included ?? true) ? 'opacity-60' : ''}`;
+                if(link.id == activeLinkId) {
+                    linkEl.classList.add('active-link');
+                }
                 linkEl.draggable = true;
                 linkEl.dataset.id = link.id;
 
                 const linkUrl = link.fileId ? 'Embedded File' : (link.url || '');
                 const iconUrl = link.iconUrl || '';
-                const iconUrlPlaceholder = '[No icon set, double-click to add]';
-                const iconUrlText = iconUrl ? iconUrl : iconUrlPlaceholder;
-                const iconUrlColor = iconUrl ? 'text-blue-600' : 'text-gray-400 italic';
 
                 linkEl.innerHTML = `
                     <span class="cursor-move text-gray-400 self-center">☰</span>
@@ -708,15 +706,13 @@
                     <div class="flex-1 min-w-0">
                         <div class="text-sm font-medium text-gray-900 link-title cursor-pointer truncate">${link.title}</div>
                         <div class="text-xs text-gray-600 mt-1 truncate cursor-pointer link-desc">${linkUrl}</div>
-                        <div class="text-xs ${iconUrlColor} mt-1 truncate cursor-pointer link-icon-url">${iconUrlText}</div>
                     </div>
                     <div class="flex flex-col items-center gap-2 self-center">
-                        <label class="toggle-switch" title="Enable Microphone">
+                         <button class="text-gray-400 hover:text-blue-600 new-window-btn" title="Open in new window">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                         </button>
+                        <label class="toggle-switch" title="Mic">
                             <input type="checkbox" class="link-mic-toggle" ${link.mic ? 'checked' : ''}>
-                            <span class="toggle-slider"></span>
-                        </label>
-                        <label class="toggle-switch" title="Include in Build">
-                            <input type="checkbox" class="link-include-toggle" ${link.included ?? true ? 'checked' : ''}>
                             <span class="toggle-slider"></span>
                         </label>
                         <button class="text-red-600 hover:text-red-800 text-lg font-bold">✕</button>
@@ -725,16 +721,12 @@
 
                 linkEl.addEventListener('click', (e) => { if(!e.target.closest('label, button, input')) selectLinkItem(linkEl, link); });
                 linkEl.addEventListener('dblclick', (e) => { if(!e.target.closest('label, button, input')) selectLinkItem(linkEl, link, true); });
-                linkEl.addEventListener('contextmenu', (e) => e.preventDefault());
 
                 const titleEl = linkEl.querySelector('.link-title');
                 titleEl.addEventListener('dblclick', (e) => { e.stopPropagation(); makeEditable(titleEl, link.id, 'title'); });
                 
                 const descEl = linkEl.querySelector('.link-desc');
                 descEl.addEventListener('dblclick', (e) => { e.stopPropagation(); if(!link.fileId) makeEditable(descEl, link.id, 'url'); });
-                
-                const iconUrlEl = linkEl.querySelector('.link-icon-url');
-                iconUrlEl.addEventListener('dblclick', (e) => { e.stopPropagation(); makeEditable(iconUrlEl, link.id, 'iconUrl', iconUrlPlaceholder); });
 
                 linkEl.querySelector('.upload-icon-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -742,20 +734,21 @@
                     document.getElementById('iconUpload').click();
                 });
 
-                linkEl.querySelector('button').addEventListener('click', () => removeLink(link.id, link.fileId));
-                linkEl.querySelector('.link-include-toggle').addEventListener('change', (e) => updateLinkProperty(link.id, 'included', e.target.checked));
+                linkEl.querySelector('.new-window-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const urlToOpen = link.fileId ? blobUrls.get(link.id) : link.url;
+                    if(urlToOpen) window.open(urlToOpen, '_blank');
+                });
+
+                linkEl.querySelector('button:last-child').addEventListener('click', () => removeLink(link.id, link.fileId));
                 linkEl.querySelector('.link-mic-toggle').addEventListener('change', (e) => updateLinkProperty(link.id, 'mic', e.target.checked));
                 
                 elements.linkList.appendChild(linkEl);
             });
         }
         
-        function makeEditable(element, linkId, property, placeholder = '') {
-            let currentValue = element.textContent;
-            if (currentValue === placeholder) {
-                currentValue = '';
-            }
-            
+        function makeEditable(element, linkId, property) {
+            const currentValue = element.textContent;
             const input = document.createElement('input');
             input.type = 'text';
             input.value = currentValue;
@@ -820,7 +813,7 @@
 
             const reader = new FileReader();
             reader.onload = (e) => {
-                updateLinkProperty(currentLinkIdForIconUpload, 'iconUrl', e.target.result);
+                updateLinkProperty(parseInt(currentLinkIdForIconUpload), 'iconUrl', e.target.result);
                 currentLinkIdForIconUpload = null;
             };
             reader.readAsDataURL(file);
@@ -901,27 +894,30 @@
         
         elements.linkList.addEventListener('drop', (e) => {
             e.preventDefault();
-            if (dropIndicator && dropIndicator.parentNode) {
-                const children = Array.from(elements.linkList.children);
-                const dropIndex = children.indexOf(dropIndicator);
+            if (!draggedItemId || !dropIndicator || !dropIndicator.parentNode) return;
+            
+            const children = Array.from(elements.linkList.children);
+            let dropIndex = children.indexOf(dropIndicator);
+            if (dropIndex === -1) return;
 
-                dropIndicator.parentNode.removeChild(dropIndicator);
+            dropIndicator.parentNode.removeChild(dropIndicator);
 
-                const tx = db.transaction('links', 'readwrite');
-                const store = tx.objectStore('links');
-                store.index('order').getAll().onsuccess = (event) => {
-                    let links = event.target.result;
-                    const draggedItemIndex = links.findIndex(l => l.id === draggedItemId);
-                    const [draggedItem] = links.splice(draggedItemIndex, 1);
-                    links.splice(dropIndex, 0, draggedItem);
-                    
-                    links.forEach((link, i) => {
-                        link.order = i;
-                        store.put(link);
-                    });
-                };
-                tx.oncomplete = loadLinks;
-            }
+            const tx = db.transaction('links', 'readwrite');
+            const store = tx.objectStore('links');
+            store.index('order').getAll().onsuccess = (event) => {
+                let links = event.target.result;
+                const draggedItemIndex = links.findIndex(l => l.id === draggedItemId);
+                if (draggedItemIndex === -1) return;
+                
+                const [draggedItem] = links.splice(draggedItemIndex, 1);
+                links.splice(dropIndex, 0, draggedItem);
+                
+                links.forEach((link, i) => {
+                    link.order = i;
+                    store.put(link);
+                });
+            };
+            tx.oncomplete = loadLinks;
         });
         
         // --- RESET APPLICATION ---
@@ -1249,9 +1245,12 @@
         </div>
         
         <div id="app-wrapper" class="absolute inset-0 flex-col">
-            <div id="appTitleBar" class="bg-gray-100 p-2 text-center text-sm font-semibold flex-shrink-0"></div>
+            <div id="appTitleBar" class="bg-gray-100 p-2 text-center text-sm font-semibold flex-shrink-0 flex items-center justify-between">
+                 <span class="flex-1 text-center"></span>
+                 <button id="closeAppBtn" class="text-gray-500 font-bold text-lg leading-none p-1">✕</button>
+            </div>
             <div id="appContainer" class="flex-1">
-                 <iframe id="appFrame" class="w-full h-full border-0"></iframe>
+                 <!-- iframes for each app will be added here -->
             </div>
         </div>
     </main>
@@ -1289,14 +1288,15 @@
     const files = ${JSON.stringify(filesMap)};
     const blobUrls = new Map();
     
-    let runningApps = [];
+    let runningApps = []; // Stores link.id of running apps
     let currentAppIndex = -1;
     let lastLaunchedId = null;
 
     const homeScreen = document.getElementById('homeScreen');
     const appWrapper = document.getElementById('app-wrapper');
-    const appFrame = document.getElementById('appFrame');
-    const appTitleBar = document.getElementById('appTitleBar');
+    const appContainer = document.getElementById('appContainer');
+    const appTitleSpan = document.querySelector('#appTitleBar span');
+    const closeAppBtn = document.getElementById('closeAppBtn');
     const iconGrid = document.getElementById('iconGrid');
     const homeButton = document.getElementById('homeButton');
     const cycleButton = document.getElementById('cycleButton');
@@ -1326,32 +1326,50 @@
         return url;
     }
 
+    function showApp(link) {
+        document.querySelectorAll('#appContainer iframe').forEach(frame => frame.style.display = 'none');
+        const frame = document.getElementById(\`iframe-\${link.id}\`);
+        if(frame) {
+            frame.style.display = 'block';
+            appTitleSpan.textContent = link.title;
+            homeScreen.style.display = 'none';
+            appWrapper.classList.add('active');
+            lastLaunchedId = link.id;
+        }
+    }
+    
     function launchApp(link) {
-        if (!runningApps.includes(link.id)) {
+        let frame = document.getElementById(\`iframe-\${link.id}\`);
+        if (!frame) { // Create if it doesn't exist (lazy load)
+            frame = document.createElement('iframe');
+            frame.id = \`iframe-\${link.id}\`;
+            frame.className = 'w-full h-full border-0';
+            const url = link.fileId ? getFileUrl(link.fileId) : link.url;
+            frame.src = url;
+            if(link.mic) frame.allow = 'microphone';
+            appContainer.appendChild(frame);
             runningApps.push(link.id);
         }
         currentAppIndex = runningApps.indexOf(link.id);
-        
-        const url = link.fileId ? getFileUrl(link.fileId) : link.url;
-        
-        if (link.mic) {
-            appFrame.setAttribute('allow', 'microphone');
-        } else {
-            appFrame.removeAttribute('allow');
-        }
-        
-        appTitleBar.textContent = link.title;
-        appFrame.src = url;
-        homeScreen.style.display = 'none';
-        appWrapper.classList.add('active');
-        lastLaunchedId = link.id;
+        showApp(link);
     }
 
     function goHome() {
-        appFrame.src = 'about:blank';
         homeScreen.style.display = 'block';
         appWrapper.classList.remove('active');
         highlightLastLaunched();
+    }
+    
+    function closeCurrentApp() {
+        const appIdToClose = runningApps[currentAppIndex];
+        if (appIdToClose === undefined) return goHome();
+
+        const frame = document.getElementById(\`iframe-\${appIdToClose}\`);
+        if (frame) frame.remove();
+        
+        runningApps.splice(currentAppIndex, 1);
+        currentAppIndex = -1;
+        goHome();
     }
     
     function highlightLastLaunched() {
@@ -1366,16 +1384,11 @@
 
     function cycleApps() {
         if (runningApps.length === 0) return;
-        if (runningApps.length === 1 && appWrapper.classList.contains('active')) return;
-
-        if (appWrapper.classList.contains('active')) {
-            currentAppIndex = (currentAppIndex + 1) % runningApps.length;
-        }
-
+        currentAppIndex = (currentAppIndex + 1) % runningApps.length;
         const nextAppId = runningApps[currentAppIndex];
         const nextAppLink = links.find(l => l.id === nextAppId);
         if (nextAppLink) {
-            launchApp(nextAppLink);
+            showApp(nextAppLink);
         }
     }
     
@@ -1389,7 +1402,7 @@
         iconEl.className = 'app-icon app-icon-container bg-gray-100 rounded-xl shadow-md overflow-hidden cursor-pointer';
         
         if (link.iconUrl) {
-            iconEl.innerHTML = \`<img src="\${link.iconUrl}" alt="\${link.title}" class="w-full h-full object-cover">\`;
+            iconEl.innerHTML = \`<img src="\${link.iconUrl}" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,${btoa(defaultIconSvg)}'" alt="\${link.title}" class="w-full h-full object-cover">\`;
         } else {
             iconEl.innerHTML = \`${defaultIconSvg}\`;
         }
@@ -1437,9 +1450,13 @@
 
     // --- Event Listeners ---
     homeButton.addEventListener('click', goHome);
+    closeAppBtn.addEventListener('click', closeCurrentApp);
     cycleButton.addEventListener('click', cycleApps);
     backButton.addEventListener('click', () => {
-        try { if(appWrapper.classList.contains('active')) appFrame.contentWindow.history.back(); } catch (e) { console.warn("Can't go back.", e); }
+        try { 
+            const activeFrame = document.querySelector('#appContainer iframe[style*="display: block"]');
+            if(activeFrame) activeFrame.contentWindow.history.back();
+        } catch (e) { console.warn("Can't go back.", e); }
     });
 
     // --- Initial Load ---
@@ -1453,3 +1470,4 @@
     </script>
 </body>
 </html>
+
