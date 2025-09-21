@@ -1286,10 +1286,104 @@
             async deleteFromSyncQueue(id) { return Promise.resolve(); }
         }
         class SyncManager {
-            constructor() { this.worker = null; this.syncInterval = null; }
-            start() { /* Placeholder */ }
-            stop() { /* Placeholder */ }
-            requestSync() { /* Placeholder */ }
+            constructor() {
+                this.worker = null;
+                this.syncInterval = 45000;
+                this.initialDelay = 15000;
+                this.timerId = null;
+                this.isRunning = false;
+                this.syncInFlight = false;
+                this.pendingImmediate = false;
+                this.visibilityHandler = this.handleVisibilityChange.bind(this);
+                this.focusHandler = this.handleWindowFocus.bind(this);
+            }
+            start() {
+                if (this.isRunning) return;
+                this.isRunning = true;
+                this.pendingImmediate = false;
+                document.addEventListener('visibilitychange', this.visibilityHandler);
+                window.addEventListener('focus', this.focusHandler);
+                this.scheduleNext(this.initialDelay);
+            }
+            stop() {
+                if (!this.isRunning && !this.timerId && !this.syncInFlight) return;
+                this.isRunning = false;
+                this.pendingImmediate = false;
+                this.clearTimer();
+                document.removeEventListener('visibilitychange', this.visibilityHandler);
+                window.removeEventListener('focus', this.focusHandler);
+            }
+            requestSync() {
+                if (this.syncInFlight) {
+                    this.pendingImmediate = true;
+                    return;
+                }
+                this.pendingImmediate = false;
+                this.runSync(true);
+            }
+            clearTimer() {
+                if (this.timerId) {
+                    clearTimeout(this.timerId);
+                    this.timerId = null;
+                }
+            }
+            scheduleNext(delay) {
+                if (!this.isRunning) return;
+                this.clearTimer();
+                if (document.hidden) return;
+                this.timerId = setTimeout(() => this.runSync(), delay);
+            }
+            async runSync(force = false) {
+                if (!force && !this.isRunning) return;
+                this.clearTimer();
+
+                if (this.syncInFlight) {
+                    this.pendingImmediate = true;
+                    return;
+                }
+
+                const hasActiveFolder = state.currentFolder && state.currentFolder.id;
+                if (!hasActiveFolder) {
+                    if (this.isRunning) {
+                        this.scheduleNext(this.syncInterval);
+                    }
+                    return;
+                }
+
+                if (!force && document.hidden) {
+                    this.scheduleNext(this.syncInterval);
+                    return;
+                }
+
+                this.syncInFlight = true;
+                try {
+                    await App.refreshFolderInBackground();
+                } catch (error) {
+                    console.warn('Background sync failed:', error);
+                } finally {
+                    this.syncInFlight = false;
+                    if (this.pendingImmediate) {
+                        this.pendingImmediate = false;
+                        this.runSync(true);
+                        return;
+                    }
+                    if (this.isRunning) {
+                        this.scheduleNext(this.syncInterval);
+                    }
+                }
+            }
+            handleVisibilityChange() {
+                if (!this.isRunning) return;
+                if (document.hidden) {
+                    this.clearTimer();
+                    return;
+                }
+                this.requestSync();
+            }
+            handleWindowFocus() {
+                if (!this.isRunning) return;
+                this.requestSync();
+            }
         }
         class VisualCueManager {
             constructor() {
@@ -2202,9 +2296,9 @@
             async returnToFolderSelection() {
                 try {
                     if (state.syncManager) {
-                        state.syncManager.requestSync();
+                        state.syncManager.stop();
                     }
-                    state.activeRequests.abort(); 
+                    state.activeRequests.abort();
                     this.resetViewState();
                     Utils.showScreen('folder-screen');
                     await Folders.load();
