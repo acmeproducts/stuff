@@ -1,4 +1,4 @@
-<!-- LinkPortal-v16-2025-09-21 01:45 AM -->
+<!-- LinkPortal-v15-2025-09-21 03:45 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -154,14 +154,6 @@
                     </div>
                 </div>
 
-                 <!-- Icon Pasting -->
-                <div class="border-t pt-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Set Custom Icon</h3>
-                    <div id="iconPasteZone" class="mt-2 p-4 border-2 border-dashed rounded-lg text-center text-gray-500">
-                        Click an item in the menu, then paste an image here.
-                    </div>
-                </div>
-
                 <!-- GitHub Repository -->
                 <div class="border-t pt-4">
                     <h3 class="text-lg font-semibold text-gray-900">GitHub Repository</h3>
@@ -260,12 +252,11 @@
     </div>
 
 
-    <!-- Hidden File Inputs and Paste Target -->
+    <!-- Hidden File Inputs -->
     <input type="file" id="fileUpload" class="hidden" multiple>
+    <input type="file" id="iconUpload" class="hidden" accept="image/*">
     <input type="file" id="configImport" class="hidden" accept="application/json">
     <input type="file" id="portalImport" class="hidden" accept=".html">
-    <div id="pasteTarget" contenteditable="true" class="opacity-0 fixed -top-96 -left-96"></div>
-
 
     <footer id="masterFooter" class="fixed bottom-0 right-0 bg-gray-800 text-white text-xs px-2 py-1 rounded-tl-lg z-50"></footer>
 
@@ -277,7 +268,7 @@
         const STORES = ['links', 'settings', 'files'];
         const blobUrls = new Map();
         let repoFileCache = [];
-        let activeLinkIdForIcon = null;
+        let currentLinkIdForIconUpload = null;
         const DEFAULT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12.378 1.602a.75.75 0 00-.756 0L3.366 6.126A.75.75 0 003 6.828v10.344a.75.75 0 00.366.646l8.256 4.524a.75.75 0 00.756 0l8.256-4.524a.75.75 0 00.366-.646V6.828a.75.75 0 00-.366-.646L12.378 1.602zM12 15.25a3.25 3.25 0 100-6.5 3.25 3.25 0 000 6.5z" /><path d="M12 3.84a8.753 8.753 0 014.28 1.255l-3.72 2.035a3.253 3.253 0 00-1.12 0L7.72 5.095A8.753 8.753 0 0112 3.84zM4.5 7.331l3.72 2.035a3.25 3.25 0 000 5.268l-3.72 2.035V7.331zm15 0v7.338l-3.72-2.035a3.25 3.25 0 000-5.268l3.72-2.035zM8.44 16.905l3.56-1.945a.75.75 0 10-.75-1.3l-3.56 1.945a8.753 8.753 0 01-1.28-.695l3.72-2.035a3.25 3.25 0 000-5.268L7.16 5.095a8.753 8.753 0 01-1.28.695L9.6 7.735a.75.75 0 10.75 1.3l-3.72-2.035a8.753 8.753 0 010 8.598l3.72-2.035a.75.75 0 10.75 1.3l-3.72 2.035zm7.12-11.81a8.753 8.753 0 011.28.695l-3.72 2.035a.75.75 0 10-.75 1.3l3.72-2.035a8.753 8.753 0 010 8.598l-3.72-2.035a.75.75 0 10-.75 1.3l3.72 2.035a8.753 8.753 0 01-1.28.695l-3.72-2.035a3.25 3.25 0 000-5.268l3.72-2.035z" /></svg>`;
         const DEFAULT_ICON_DATA_URI = `data:image/svg+xml;base64,${btoa(DEFAULT_ICON_SVG)}`;
 
@@ -345,7 +336,6 @@
             masterFooter: document.getElementById('masterFooter'),
             modalOwner: document.getElementById('modalOwner'),
             modalRepoSelect: document.getElementById('modalRepoSelect'),
-            iconPasteZone: document.getElementById('iconPasteZone'),
         };
 
         elements.menuBtn.addEventListener('click', toggleMenu);
@@ -364,12 +354,11 @@
         document.getElementById('confirmRepoUpdate').addEventListener('click', updateRepository);
         document.getElementById('cancelReset').addEventListener('click', () => elements.resetConfirmModal.classList.remove('active'));
         document.getElementById('confirmReset').addEventListener('click', resetApplication);
-        
-        document.addEventListener('paste', handleImagePaste);
 
         document.getElementById('addCustomLink').addEventListener('click', addCustomLink);
         document.getElementById('uploadFiles').addEventListener('click', () => document.getElementById('fileUpload').click());
         document.getElementById('fileUpload').addEventListener('change', handleFileUpload);
+        document.getElementById('iconUpload').addEventListener('change', handleIconUpload);
         document.getElementById('importConfig').addEventListener('click', () => document.getElementById('configImport').click());
         document.getElementById('configImport').addEventListener('change', importConfig);
         document.getElementById('importPortalBtn').addEventListener('click', () => document.getElementById('portalImport').click());
@@ -417,7 +406,7 @@
         }
 
         function updateFooter() {
-            const version = 'LinkPortal-v15';
+            const version = 'LinkPortal-v14';
             elements.masterFooter.textContent = `${version} - ${new Date().toLocaleString()}`;
             setTimeout(updateFooter, 60000); // Update every minute
         }
@@ -655,9 +644,6 @@
             document.querySelectorAll('#linkList .link-item').forEach(el => el.classList.remove('active-link'));
             linkEl.classList.add('active-link');
             
-            activeLinkIdForIcon = link.id;
-            elements.iconPasteZone.innerHTML = `Paste an icon for: <strong class="text-gray-700">${link.title}</strong>`;
-            
             const url = link.fileId ? blobUrls.get(link.fileId) : link.url;
             
             document.querySelectorAll('#mainContent iframe').forEach(frame => frame.style.display = 'none');
@@ -707,13 +693,22 @@
 
                 const linkUrl = link.fileId ? 'Embedded File' : (link.url || '');
                 const iconUrl = link.iconUrl || '';
+                const iconUrlPlaceholder = '[No icon set, double-click to add]';
+                const iconUrlText = iconUrl ? iconUrl : iconUrlPlaceholder;
+                const iconUrlColor = iconUrl ? 'text-blue-600' : 'text-gray-400 italic';
 
                 linkEl.innerHTML = `
                     <span class="cursor-move text-gray-400 self-center">☰</span>
-                    <img src="${iconUrl}" onerror="this.onerror=null; this.src='${DEFAULT_ICON_DATA_URI}';" class="w-12 h-12 rounded object-cover flex-shrink-0">
+                    <div class="relative flex-shrink-0 group">
+                        <img src="${iconUrl}" onerror="this.onerror=null; this.src='${DEFAULT_ICON_DATA_URI}';" class="w-12 h-12 rounded object-cover">
+                        <button class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity upload-icon-btn" data-link-id="${link.id}" title="Upload Icon">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        </button>
+                    </div>
                     <div class="flex-1 min-w-0">
                         <div class="text-sm font-medium text-gray-900 link-title cursor-pointer truncate">${link.title}</div>
                         <div class="text-xs text-gray-600 mt-1 truncate cursor-pointer link-desc">${linkUrl}</div>
+                        <div class="text-xs ${iconUrlColor} mt-1 truncate cursor-pointer link-icon-url">${iconUrlText}</div>
                     </div>
                     <div class="flex flex-col items-center gap-2 self-center">
                         <label class="toggle-switch" title="Enable Microphone">
@@ -738,6 +733,15 @@
                 const descEl = linkEl.querySelector('.link-desc');
                 descEl.addEventListener('dblclick', (e) => { e.stopPropagation(); if(!link.fileId) makeEditable(descEl, link.id, 'url'); });
                 
+                const iconUrlEl = linkEl.querySelector('.link-icon-url');
+                iconUrlEl.addEventListener('dblclick', (e) => { e.stopPropagation(); makeEditable(iconUrlEl, link.id, 'iconUrl', iconUrlPlaceholder); });
+
+                linkEl.querySelector('.upload-icon-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    currentLinkIdForIconUpload = e.currentTarget.dataset.linkId;
+                    document.getElementById('iconUpload').click();
+                });
+
                 linkEl.querySelector('button').addEventListener('click', () => removeLink(link.id, link.fileId));
                 linkEl.querySelector('.link-include-toggle').addEventListener('change', (e) => updateLinkProperty(link.id, 'included', e.target.checked));
                 linkEl.querySelector('.link-mic-toggle').addEventListener('change', (e) => updateLinkProperty(link.id, 'mic', e.target.checked));
@@ -746,8 +750,12 @@
             });
         }
         
-        function makeEditable(element, linkId, property) {
-            const currentValue = element.textContent;
+        function makeEditable(element, linkId, property, placeholder = '') {
+            let currentValue = element.textContent;
+            if (currentValue === placeholder) {
+                currentValue = '';
+            }
+            
             const input = document.createElement('input');
             input.type = 'text';
             input.value = currentValue;
@@ -806,31 +814,17 @@
             event.target.value = '';
         }
 
-        async function handleImagePaste(event) {
-            if (!activeLinkIdForIcon) {
-                return; // Only handle paste if an item is selected for icon update
-            }
-            
-            const items = event.clipboardData.items;
-            for (const item of items) {
-                if (item.type.indexOf("image") !== -1) {
-                    const blob = item.getAsFile();
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        updateLinkProperty(activeLinkIdForIcon, 'iconUrl', e.target.result);
-                        activeLinkIdForIcon = null;
-                        elements.iconPasteZone.innerHTML = 'Icon updated! Select another item to change its icon.';
-                         setTimeout(() => {
-                           if (!activeLinkIdForIcon) {
-                                elements.iconPasteZone.innerHTML = 'Click an item in the menu, then paste an image here.';
-                           }
-                        }, 2000);
-                    };
-                    reader.readAsDataURL(blob);
-                    event.preventDefault();
-                    return;
-                }
-            }
+        async function handleIconUpload(event) {
+            const file = event.target.files[0];
+            if (!file || !currentLinkIdForIconUpload) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                updateLinkProperty(currentLinkIdForIconUpload, 'iconUrl', e.target.result);
+                currentLinkIdForIconUpload = null;
+            };
+            reader.readAsDataURL(file);
+            event.target.value = '';
         }
 
         function addFileToPortal(fileData) {
