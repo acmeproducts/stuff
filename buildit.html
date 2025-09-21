@@ -1,4 +1,4 @@
-<!-- LinkPortal-v7-2025-09-20 09:30 PM -->
+<!-- LinkPortal-v11-2025-09-20 11:26 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -185,6 +185,10 @@
                         <label class="block text-sm font-medium text-gray-700 mb-1">Link URL</label>
                         <input type="url" id="linkUrl" class="w-full px-3 py-2 border rounded text-gray-900" placeholder="https://example.com">
                     </div>
+                     <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Icon URL (Optional)</label>
+                        <input type="url" id="linkIconUrl" class="w-full px-3 py-2 border rounded text-gray-900" placeholder="https://example.com/icon.png">
+                    </div>
                     <button id="addCustomLink" class="w-full py-2 bg-gray-900 text-white rounded hover:bg-gray-800">
                         Add Custom Link
                     </button>
@@ -195,10 +199,10 @@
                 <!-- Actions -->
                 <div class="flex flex-col gap-2 border-t pt-4">
                     <div class="grid grid-cols-2 gap-2">
-                        <button id="saveAllSettingsBtn" class="w-full py-2 bg-green-600 text-white rounded hover:bg-green-700">Save</button>
-                        <button id="generatePortal" class="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Generate</button>
+                        <button id="generatePortal" class="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Generate Portal</button>
+                        <button id="generateMobile" class="w-full py-2 bg-purple-600 text-white rounded hover:bg-purple-700">Generate Mobile</button>
                     </div>
-                    <div class="grid grid-cols-3 gap-2">
+                    <div class="grid grid-cols-3 gap-2 mt-2">
                         <button id="importConfig" class="w-full py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs">Import Config</button>
                         <button id="importPortalBtn" class="w-full py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs">Import Portal</button>
                         <button id="exportConfig" class="w-full py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs">Export Config</button>
@@ -355,8 +359,8 @@
         document.getElementById('importPortalBtn').addEventListener('click', () => document.getElementById('portalImport').click());
         document.getElementById('portalImport').addEventListener('change', importGeneratedPortal);
         document.getElementById('exportConfig').addEventListener('click', exportConfig);
-        document.getElementById('generatePortal').addEventListener('click', generatePortal);
-        document.getElementById('saveAllSettingsBtn').addEventListener('click', saveAllSettingsFromPanel);
+        document.getElementById('generatePortal').addEventListener('click', () => generatePortal(false));
+        document.getElementById('generateMobile').addEventListener('click', () => generatePortal(true));
         window.addEventListener('beforeunload', () => blobUrls.forEach(URL.revokeObjectURL));
         document.addEventListener('click', (e) => { if (!e.target.closest('.relative')) elements.omniList.style.display = 'none'; });
 
@@ -397,7 +401,7 @@
         }
 
         function updateFooter() {
-            const version = 'LinkPortal-v7';
+            const version = 'LinkPortal-v10';
             elements.masterFooter.textContent = `${version} - ${new Date().toLocaleString()}`;
             setTimeout(updateFooter, 60000); // Update every minute
         }
@@ -430,16 +434,6 @@
                 await updateSettings({ githubOwner: owner, githubRepo: repo });
             }
             await fetchRepositoryFiles(owner, repo);
-        }
-
-        function saveAllSettingsFromPanel() {
-            const settingsToSave = {
-                name: document.getElementById('portalName').value,
-            };
-            updateSettings(settingsToSave).then(() => {
-                elements.portalTitle.textContent = settingsToSave.name || 'Link Portal';
-                toggleConfig();
-            });
         }
 
         function updateSettings(settingsToUpdate) {
@@ -611,17 +605,19 @@
         function addCustomLink() {
             const title = document.getElementById('linkTitle').value.trim();
             const url = document.getElementById('linkUrl').value.trim();
+            const iconUrl = document.getElementById('linkIconUrl').value.trim();
             if (!title || !url) return showError('Please enter both title and URL.');
-            addLink(title, url, null, 'custom').then(loadLinks);
+            addLink(title, url, null, 'custom', iconUrl).then(loadLinks);
             document.getElementById('linkTitle').value = '';
             document.getElementById('linkUrl').value = '';
+            document.getElementById('linkIconUrl').value = '';
         }
 
-        async function addLink(title, url = null, fileId = null, source = 'custom') {
+        async function addLink(title, url = null, fileId = null, source = 'custom', iconUrl = null) {
             const tx = db.transaction('links', 'readwrite');
             const store = tx.objectStore('links');
             const count = await new Promise(r => store.count().onsuccess = e => r(e.target.result));
-            return new Promise(r => store.add({ title, url, fileId, included: true, order: count, source, mic: false }).onsuccess = r);
+            return new Promise(r => store.add({ title, url, fileId, included: true, order: count, source, mic: false, iconUrl }).onsuccess = r);
         }
 
         function loadLinks() {
@@ -659,17 +655,19 @@
                 elements.mainContent.appendChild(iframe);
             }
             
-            // Always update permissions and reload if forced
             if (link.mic) {
                 iframe.setAttribute('allow', 'microphone');
             } else {
                 iframe.removeAttribute('allow');
             }
 
-            if (forceReload && iframe.src !== url) {
-                iframe.src = url;
-            } else if (forceReload) {
-                iframe.contentWindow.location.reload();
+            if (forceReload) {
+                const newSrc = link.fileId ? blobUrls.get(link.fileId) : link.url;
+                if (iframe.src !== newSrc) {
+                     iframe.src = newSrc;
+                } else {
+                     iframe.contentWindow.location.reload();
+                }
             }
             
             iframe.style.display = 'block';
@@ -697,6 +695,7 @@
                     <div class="flex-1 min-w-0">
                         <div class="text-sm font-medium text-gray-900 link-title cursor-pointer truncate">${link.title}</div>
                         <div class="text-xs text-gray-600 mt-1 truncate cursor-pointer link-desc">${linkUrl}</div>
+                        ${link.iconUrl ? `<div class="text-xs text-blue-600 mt-1 truncate">Icon: ${link.iconUrl}</div>` : ''}
                     </div>
                     <div class="flex items-center gap-2">
                         <label class="toggle-switch" title="Enable Microphone">
@@ -874,10 +873,9 @@
         elements.linkList.addEventListener('drop', (e) => {
             e.preventDefault();
             if (dropIndicator && dropIndicator.parentNode) {
-                const siblings = Array.from(elements.linkList.children).filter(c => c.classList.contains('link-item'));
-                let dropIndex = siblings.indexOf(dropIndicator.nextElementSibling);
-                if (dropIndex === -1) dropIndex = siblings.length;
-                
+                const children = Array.from(elements.linkList.children);
+                const dropIndex = children.indexOf(dropIndicator);
+
                 dropIndicator.parentNode.removeChild(dropIndicator);
 
                 const tx = db.transaction('links', 'readwrite');
@@ -1009,7 +1007,7 @@
             event.target.value = '';
         }
 
-        async function generatePortal() {
+        async function generatePortal(isMobile = false) {
             const settings = await new Promise(r => db.transaction('settings').objectStore('settings').get('portal').onsuccess = e => r(e.target.result));
             const allLinks = await new Promise(r => db.transaction('links').objectStore('links').index('order').getAll().onsuccess = e => r(e.target.result));
             const includedLinks = allLinks.filter(l => l.included ?? true);
@@ -1024,15 +1022,15 @@
                 .filter(f => neededFileIds.has(f.id))
                 .map(f => ({ id: f.id, type: f.type, content: arrayBufferToBase64(f.content) }));
 
-            const template = generatePortalTemplate(settings, includedLinks, includedFiles);
+            const template = isMobile ? generateMobileTemplate(settings, includedLinks, includedFiles) : generatePortalTemplate(settings, includedLinks, includedFiles);
             const blob = new Blob([template], { type: 'text/html' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = `${settings?.name?.replace(/\s/g, '-') || 'portal'}.html`;
+            a.download = isMobile ? `mobweb.html` : `${settings?.name?.replace(/\s/g, '-') || 'portal'}.html`;
             a.click();
             URL.revokeObjectURL(a.href);
         }
-
+        
         function generatePortalTemplate(settings, links, files) {
             const filesMap = files.reduce((acc, file) => {
                 acc[file.id] = { type: file.type, content: file.content };
@@ -1164,6 +1162,262 @@
         updateLinkList();
         updateTime();
     <\/script>
+</body>
+</html>`;
+        }
+
+        function generateMobileTemplate(settings, links, files) {
+            const filesMap = files.reduce((acc, file) => {
+                acc[file.id] = { type: file.type, content: file.content };
+                return acc;
+            }, {});
+            const defaultIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M12.378 1.602a.75.75 0 00-.756 0L3.366 6.126A.75.75 0 003 6.828v10.344a.75.75 0 00.366.646l8.256 4.524a.75.75 0 00.756 0l8.256-4.524a.75.75 0 00.366-.646V6.828a.75.75 0 00-.366-.646L12.378 1.602zM12 15.25a3.25 3.25 0 100-6.5 3.25 3.25 0 000 6.5z" /><path d="M12 3.84a8.753 8.753 0 014.28 1.255l-3.72 2.035a3.253 3.253 0 00-1.12 0L7.72 5.095A8.753 8.753 0 0112 3.84zM4.5 7.331l3.72 2.035a3.25 3.25 0 000 5.268l-3.72 2.035V7.331zm15 0v7.338l-3.72-2.035a3.25 3.25 0 000-5.268l3.72-2.035zM8.44 16.905l3.56-1.945a.75.75 0 10-.75-1.3l-3.56 1.945a8.753 8.753 0 01-1.28-.695l3.72-2.035a3.25 3.25 0 000-5.268L7.16 5.095a8.753 8.753 0 01-1.28.695L9.6 7.735a.75.75 0 10.75 1.3l-3.72-2.035a8.753 8.753 0 010 8.598l3.72-2.035a.75.75 0 10.75 1.3l-3.72 2.035zm7.12-11.81a8.753 8.753 0 011.28.695l-3.72 2.035a.75.75 0 10-.75 1.3l3.72-2.035a8.753 8.753 0 010 8.598l-3.72-2.035a.75.75 0 10-.75 1.3l3.72 2.035a8.753 8.753 0 01-1.28.695l-3.72-2.035a3.25 3.25 0 000-5.268l3.72-2.035z" /></svg>`;
+            return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Mobile Web</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f3f4f6;
+            --icon-size: 4rem; /* 64px */
+        }
+        body { 
+            background-color: var(--bg-color);
+            touch-action: manipulation; 
+        }
+        .mobile-shell {
+            width: 100vw; height: 100vh;
+            display: flex; flex-direction: column;
+            overflow: hidden; position: relative;
+        }
+        #app-wrapper {
+            display: none;
+        }
+        #app-wrapper.active {
+            display: flex;
+        }
+        .app-icon-container { width: var(--icon-size); height: var(--icon-size); }
+        .app-icon img, .app-icon svg { width: 100%; height: 100%; object-fit: cover; }
+        .last-launched { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.5); }
+        #configPanel { transition: transform 0.3s ease; transform: translateY(100%); }
+        #configPanel.active { transform: translateY(0); }
+    </style>
+</head>
+<body class="flex items-center justify-center">
+
+<div class="mobile-shell bg-white">
+    <main class="flex-1 relative">
+        <div id="homeScreen" class="absolute inset-0 p-4 pt-8 overflow-y-auto">
+            <button id="configBtn" class="absolute top-4 right-4 text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </button>
+            <div id="iconGrid" class="grid grid-cols-4 gap-y-6 gap-x-4">
+                <!-- Icons will be injected here -->
+            </div>
+        </div>
+        
+        <div id="app-wrapper" class="absolute inset-0 flex-col">
+            <div id="appTitleBar" class="bg-gray-100 p-2 text-center text-sm font-semibold flex-shrink-0"></div>
+            <div id="appContainer" class="flex-1">
+                 <iframe id="appFrame" class="w-full h-full border-0"></iframe>
+            </div>
+        </div>
+    </main>
+    
+    <div id="configPanel" class="absolute bottom-0 left-0 right-0 bg-white p-4 border-t-2 rounded-t-lg z-10 shadow-lg">
+        <h3 class="font-bold text-center mb-4">Settings</h3>
+        <div class="space-y-4">
+            <div>
+                <label for="bgColor" class="block text-sm">Background Color</label>
+                <input type="color" id="bgColor" class="w-full h-8 p-0 border-none rounded">
+            </div>
+            <div>
+                <label for="iconSize" class="block text-sm">Icon Size: <span id="iconSizeLabel">64</span>px</label>
+                <input type="range" id="iconSize" min="48" max="96" value="64" class="w-full">
+            </div>
+        </div>
+        <button id="closeConfigBtn" class="absolute top-2 right-2 text-gray-500">✕</button>
+    </div>
+    
+    <nav class="bg-white border-t h-12 flex items-center justify-around flex-shrink-0">
+         <button id="cycleButton" class="w-12 h-12 flex items-center justify-center text-gray-600 rounded-full hover:bg-gray-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+         </button>
+         <button id="homeButton" class="w-12 h-12 flex items-center justify-center text-gray-600 rounded-full hover:bg-gray-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+         </button>
+         <button id="backButton" class="w-12 h-12 flex items-center justify-center text-gray-600 rounded-full hover:bg-gray-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+         </button>
+    </nav>
+</div>
+
+<script>
+    const links = ${JSON.stringify(links)};
+    const files = ${JSON.stringify(filesMap)};
+    const blobUrls = new Map();
+    
+    let runningApps = [];
+    let currentAppIndex = -1;
+    let lastLaunchedId = null;
+
+    const homeScreen = document.getElementById('homeScreen');
+    const appWrapper = document.getElementById('app-wrapper');
+    const appFrame = document.getElementById('appFrame');
+    const appTitleBar = document.getElementById('appTitleBar');
+    const iconGrid = document.getElementById('iconGrid');
+    const homeButton = document.getElementById('homeButton');
+    const cycleButton = document.getElementById('cycleButton');
+    const backButton = document.getElementById('backButton');
+    const configBtn = document.getElementById('configBtn');
+    const closeConfigBtn = document.getElementById('closeConfigBtn');
+    const configPanel = document.getElementById('configPanel');
+
+    // --- Core App Logic ---
+    function base64ToArrayBuffer(base64) {
+        const binary_string = window.atob(base64);
+        const bytes = new Uint8Array(binary_string.length);
+        for (let i = 0; i < binary_string.length; i++) {
+            bytes[i] = binary_string.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    function getFileUrl(fileId) {
+        if (blobUrls.has(fileId)) return blobUrls.get(fileId);
+        const fileData = files[fileId];
+        if (!fileData) return null;
+        const buffer = base64ToArrayBuffer(fileData.content);
+        const blob = new Blob([buffer], { type: fileData.type });
+        const url = URL.createObjectURL(blob);
+        blobUrls.set(fileId, url);
+        return url;
+    }
+
+    function launchApp(link) {
+        if (!runningApps.includes(link.id)) {
+            runningApps.push(link.id);
+        }
+        currentAppIndex = runningApps.indexOf(link.id);
+        
+        const url = link.fileId ? getFileUrl(link.fileId) : link.url;
+        
+        if (link.mic) {
+            appFrame.setAttribute('allow', 'microphone');
+        } else {
+            appFrame.removeAttribute('allow');
+        }
+        
+        appTitleBar.textContent = link.title;
+        appFrame.src = url;
+        homeScreen.style.display = 'none';
+        appWrapper.classList.add('active');
+        lastLaunchedId = link.id;
+    }
+
+    function goHome() {
+        appFrame.src = 'about:blank';
+        homeScreen.style.display = 'block';
+        appWrapper.classList.remove('active');
+        highlightLastLaunched();
+    }
+    
+    function highlightLastLaunched() {
+        document.querySelectorAll('.app-icon').forEach(icon => icon.classList.remove('last-launched'));
+        if(lastLaunchedId) {
+            const iconToHighlight = document.querySelector(\`[data-link-id="\${lastLaunchedId}"] .app-icon\`);
+            if (iconToHighlight) {
+                iconToHighlight.classList.add('last-launched');
+            }
+        }
+    }
+
+    function cycleApps() {
+        if (runningApps.length === 0) return;
+        if (runningApps.length === 1 && appWrapper.classList.contains('active')) return;
+
+        if (appWrapper.classList.contains('active')) {
+            currentAppIndex = (currentAppIndex + 1) % runningApps.length;
+        }
+
+        const nextAppId = runningApps[currentAppIndex];
+        const nextAppLink = links.find(l => l.id === nextAppId);
+        if (nextAppLink) {
+            launchApp(nextAppLink);
+        }
+    }
+    
+    // --- UI Setup ---
+    links.forEach(link => {
+        const iconContainer = document.createElement('div');
+        iconContainer.className = 'flex flex-col items-center gap-1';
+        iconContainer.dataset.linkId = link.id;
+        
+        const iconEl = document.createElement('div');
+        iconEl.className = 'app-icon app-icon-container bg-gray-100 rounded-xl shadow-md overflow-hidden cursor-pointer';
+        
+        if (link.iconUrl) {
+            iconEl.innerHTML = \`<img src="\${link.iconUrl}" alt="\${link.title}" class="w-full h-full object-cover">\`;
+        } else {
+            iconEl.innerHTML = \`${defaultIconSvg}\`;
+        }
+        
+        iconEl.addEventListener('click', () => launchApp(link));
+        
+        const titleEl = document.createElement('span');
+        titleEl.className = 'text-xs text-center truncate w-full px-1';
+        titleEl.textContent = link.title;
+
+        iconContainer.appendChild(iconEl);
+        iconContainer.appendChild(titleEl);
+        iconGrid.appendChild(iconContainer);
+    });
+
+    // --- Settings Logic ---
+    const bgColorInput = document.getElementById('bgColor');
+    const iconSizeInput = document.getElementById('iconSize');
+    const iconSizeLabel = document.getElementById('iconSizeLabel');
+
+    function applySettings() {
+        const bgColor = localStorage.getItem('mobweb_bgColor') || '#ffffff';
+        const iconSize = localStorage.getItem('mobweb_iconSize') || '64';
+        
+        document.querySelector('.mobile-shell').style.backgroundColor = bgColor;
+        document.documentElement.style.setProperty('--icon-size', \`\${iconSize}px\`);
+
+        bgColorInput.value = bgColor;
+        iconSizeInput.value = iconSize;
+        iconSizeLabel.textContent = iconSize;
+    }
+
+    bgColorInput.addEventListener('input', (e) => {
+        localStorage.setItem('mobweb_bgColor', e.target.value);
+        applySettings();
+    });
+
+    iconSizeInput.addEventListener('input', (e) => {
+        localStorage.setItem('mobweb_iconSize', e.target.value);
+        applySettings();
+    });
+
+    configBtn.addEventListener('click', () => configPanel.classList.add('active'));
+    closeConfigBtn.addEventListener('click', () => configPanel.classList.remove('active'));
+
+    // --- Event Listeners ---
+    homeButton.addEventListener('click', goHome);
+    cycleButton.addEventListener('click', cycleApps);
+    backButton.addEventListener('click', () => {
+        try { if(appWrapper.classList.contains('active')) appFrame.contentWindow.history.back(); } catch (e) { console.warn("Can't go back.", e); }
+    });
+
+    // --- Initial Load ---
+    applySettings();
+
+<\/script>
+
 </body>
 </html>`;
         }
