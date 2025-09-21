@@ -1,4 +1,4 @@
-<!-- LinkPortal-v6-2025-09-20 06:20 AM -->
+<!-- LinkPortal-v7-2025-09-20 09:30 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -384,8 +384,9 @@
         }
 
         function updateOverlayState() {
-            const isActive = elements.menuPanel.classList.contains('active') || elements.configPanel.classList.contains('active');
-            elements.overlay.classList.toggle('active', isActive);
+            const isMenuOpen = elements.menuPanel.classList.contains('active');
+            const isConfigOpen = elements.configPanel.classList.contains('active');
+            elements.overlay.classList.toggle('active', isMenuOpen || isConfigOpen);
         }
 
         function updateTime() {
@@ -396,7 +397,7 @@
         }
 
         function updateFooter() {
-            const version = 'LinkPortal-v6';
+            const version = 'LinkPortal-v7';
             elements.masterFooter.textContent = `${version} - ${new Date().toLocaleString()}`;
             setTimeout(updateFooter, 60000); // Update every minute
         }
@@ -597,7 +598,6 @@
                         });
                         Promise.all(promises).then(loadLinks);
                     }
-                    // Do not clear search term, let user do it
                 };
 
                 elements.omniList.appendChild(addButton);
@@ -655,11 +655,21 @@
                 iframe.id = `iframe-${link.id}`;
                 iframe.className = 'w-full h-full border-0';
                 iframe.sandbox = 'allow-scripts allow-same-origin allow-popups allow-modals allow-forms';
-                if(link.mic) iframe.allow = 'microphone';
-                iframe.src = url;
+                iframe.src = url; // Set src at creation
                 elements.mainContent.appendChild(iframe);
-            } else if (forceReload) {
+            }
+            
+            // Always update permissions and reload if forced
+            if (link.mic) {
+                iframe.setAttribute('allow', 'microphone');
+            } else {
+                iframe.removeAttribute('allow');
+            }
+
+            if (forceReload && iframe.src !== url) {
                 iframe.src = url;
+            } else if (forceReload) {
+                iframe.contentWindow.location.reload();
             }
             
             iframe.style.display = 'block';
@@ -701,8 +711,8 @@
                     </div>
                 `;
 
-                linkEl.addEventListener('click', (e) => { if(!e.target.closest('label, button')) selectLinkItem(linkEl, link); });
-                linkEl.addEventListener('dblclick', (e) => { if(!e.target.closest('label, button')) selectLinkItem(linkEl, link, true); });
+                linkEl.addEventListener('click', (e) => { if(!e.target.closest('label, button, input')) selectLinkItem(linkEl, link); });
+                linkEl.addEventListener('dblclick', (e) => { if(!e.target.closest('label, button, input')) selectLinkItem(linkEl, link, true); });
                 linkEl.addEventListener('contextmenu', (e) => e.preventDefault());
 
                 const titleEl = linkEl.querySelector('.link-title');
@@ -864,8 +874,9 @@
         elements.linkList.addEventListener('drop', (e) => {
             e.preventDefault();
             if (dropIndicator && dropIndicator.parentNode) {
-                const siblings = Array.from(elements.linkList.children);
-                const dropIndex = siblings.indexOf(dropIndicator);
+                const siblings = Array.from(elements.linkList.children).filter(c => c.classList.contains('link-item'));
+                let dropIndex = siblings.indexOf(dropIndicator.nextElementSibling);
+                if (dropIndex === -1) dropIndex = siblings.length;
                 
                 dropIndicator.parentNode.removeChild(dropIndicator);
 
@@ -960,18 +971,23 @@
 
             try {
                 const html = await file.text();
-                const linksMatch = html.match(/const links = (\[.*?\]);/s);
-                const filesMatch = html.match(/const files = (\{.*?\});/s);
+                const scriptContentMatch = html.match(/<script>([\s\S]*?)<\/script>/s);
+                if (!scriptContentMatch) throw new Error("Could not find script block in the HTML file.");
+                const scriptContent = scriptContentMatch[1];
+                
+                const linksMatch = scriptContent.match(/const links = (\[.*?\]);/s);
+                const filesMatch = scriptContent.match(/const files = (\{.*?\});/s);
 
                 if (!linksMatch || !filesMatch) {
                     throw new Error("Could not find portal data in the HTML file.");
                 }
 
                 const links = JSON.parse(linksMatch[1]);
-                const files = JSON.parse(filesMatch[1]);
+                const filesData = JSON.parse(filesMatch[1]);
                 
-                const filesForDB = Object.entries(files).map(([id, fileData]) => ({
+                const filesForDB = Object.entries(filesData).map(([id, fileData]) => ({
                     id: parseInt(id), // Assuming file IDs are numbers in the generated portal
+                    name: links.find(l => l.fileId == id)?.title || 'imported-file',
                     type: fileData.type,
                     content: base64ToArrayBuffer(fileData.content)
                 }));
@@ -982,7 +998,7 @@
                 
                 const writeTx = db.transaction(['links', 'files'], 'readwrite');
                 links.forEach(l => writeTx.objectStore('links').add(l));
-                filesForDB.forEach(f => writeTx.objectStore('files').add(f));
+                filesForDB.forEach(f => writeTx.objectStore('files').put(f));
 
                 writeTx.oncomplete = initApp;
 
@@ -1006,12 +1022,12 @@
 
             const includedFiles = allFiles
                 .filter(f => neededFileIds.has(f.id))
-                .map(f => ({ ...f, content: arrayBufferToBase64(f.content) }));
+                .map(f => ({ id: f.id, type: f.type, content: arrayBufferToBase64(f.content) }));
 
             const template = generatePortalTemplate(settings, includedLinks, includedFiles);
             const blob = new Blob([template], { type: 'text/html' });
             const a = document.createElement('a');
-a.href = URL.createObjectURL(blob);
+            a.href = URL.createObjectURL(blob);
             a.download = `${settings?.name?.replace(/\s/g, '-') || 'portal'}.html`;
             a.click();
             URL.revokeObjectURL(a.href);
@@ -1033,6 +1049,7 @@ a.href = URL.createObjectURL(blob);
     <style>
         .menu-panel { position: fixed; left: -${settings?.menuWidth || 350}px; top: 0; bottom: 0; width: ${settings?.menuWidth || 350}px; transition: left 0.3s ease; z-index: 40; }
         .menu-panel.active { left: 0; }
+        #mainContent { margin-left: 0; transition: margin-left 0.3s ease; }
         #mainContent.with-menu { margin-left: ${settings?.menuWidth || 350}px; }
         .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); opacity: 0; visibility: hidden; transition: 0.3s ease; z-index: 30; }
         .overlay.active { opacity: 1; visibility: visible; }
@@ -1095,7 +1112,7 @@ a.href = URL.createObjectURL(blob);
 
         function toggleMenu() {
             const isActive = elements.menuPanel.classList.toggle('active');
-            elements.mainContent.style.marginLeft = isActive ? '${settings?.menuWidth || 350}px' : '0px';
+            elements.mainContent.classList.toggle('with-menu', isActive);
             elements.overlay.classList.toggle('active', isActive);
         }
 
