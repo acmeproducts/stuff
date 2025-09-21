@@ -1,4 +1,4 @@
-<!-- LinkPortal-v11-2025-09-20 11:26 PM -->
+<!-- LinkPortal-v13-2025-09-20 11:44 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -37,11 +37,14 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            opacity: 0.2;
+            transition: opacity 0.2s;
         }
+        #resizeHandle:hover { opacity: 1; }
         #resizeHandle::after {
             content: '⋮';
-            color: #cbd5e1; /* gray-300 */
-            font-size: 1.25rem;
+            color: #9ca3af; /* gray-400 */
+            font-size: 1.5rem;
             line-height: 0;
         }
 
@@ -268,6 +271,9 @@
         const STORES = ['links', 'settings', 'files'];
         const blobUrls = new Map();
         let repoFileCache = [];
+        const DEFAULT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12.378 1.602a.75.75 0 00-.756 0L3.366 6.126A.75.75 0 003 6.828v10.344a.75.75 0 00.366.646l8.256 4.524a.75.75 0 00.756 0l8.256-4.524a.75.75 0 00.366-.646V6.828a.75.75 0 00-.366-.646L12.378 1.602zM12 15.25a3.25 3.25 0 100-6.5 3.25 3.25 0 000 6.5z" /><path d="M12 3.84a8.753 8.753 0 014.28 1.255l-3.72 2.035a3.253 3.253 0 00-1.12 0L7.72 5.095A8.753 8.753 0 0112 3.84zM4.5 7.331l3.72 2.035a3.25 3.25 0 000 5.268l-3.72 2.035V7.331zm15 0v7.338l-3.72-2.035a3.25 3.25 0 000-5.268l3.72-2.035zM8.44 16.905l3.56-1.945a.75.75 0 10-.75-1.3l-3.56 1.945a8.753 8.753 0 01-1.28-.695l3.72-2.035a3.25 3.25 0 000-5.268L7.16 5.095a8.753 8.753 0 01-1.28.695L9.6 7.735a.75.75 0 10.75 1.3l-3.72-2.035a8.753 8.753 0 010 8.598l3.72-2.035a.75.75 0 10.75 1.3l-3.72 2.035zm7.12-11.81a8.753 8.753 0 011.28.695l-3.72 2.035a.75.75 0 10-.75 1.3l3.72-2.035a8.753 8.753 0 010 8.598l-3.72-2.035a.75.75 0 10-.75 1.3l3.72 2.035a8.753 8.753 0 01-1.28.695l-3.72-2.035a3.25 3.25 0 000-5.268l3.72-2.035z" /></svg>`;
+        const DEFAULT_ICON_DATA_URI = `data:image/svg+xml;base64,${btoa(DEFAULT_ICON_SVG)}`;
+
 
         function initDatabase() {
             return new Promise((resolve, reject) => {
@@ -401,7 +407,7 @@
         }
 
         function updateFooter() {
-            const version = 'LinkPortal-v10';
+            const version = 'LinkPortal-v12';
             elements.masterFooter.textContent = `${version} - ${new Date().toLocaleString()}`;
             setTimeout(updateFooter, 60000); // Update every minute
         }
@@ -684,20 +690,25 @@
             elements.linkList.innerHTML = '';
             links.forEach(link => {
                 const linkEl = document.createElement('div');
-                linkEl.className = `p-3 bg-gray-50 rounded-lg flex items-center gap-3 link-item ${!(link.included ?? true) ? 'opacity-60' : ''}`;
+                linkEl.className = `p-3 bg-gray-50 rounded-lg flex gap-3 link-item ${!(link.included ?? true) ? 'opacity-60' : ''}`;
                 linkEl.draggable = true;
                 linkEl.dataset.id = link.id;
 
-                const linkUrl = link.fileId ? 'Embedded File' : link.url;
+                const linkUrl = link.fileId ? 'Embedded File' : (link.url || '');
+                const iconUrl = link.iconUrl || '';
+                const iconUrlPlaceholder = '[Double-click to add icon URL]';
+                const iconUrlText = iconUrl || iconUrlPlaceholder;
+                const iconUrlColor = iconUrl ? 'text-blue-600' : 'text-gray-400 italic';
 
                 linkEl.innerHTML = `
-                    <span class="cursor-move text-gray-400">☰</span>
+                    <span class="cursor-move text-gray-400 self-center">☰</span>
+                    <img src="${iconUrl}" onerror="this.onerror=null; this.src='${DEFAULT_ICON_DATA_URI}';" class="w-10 h-10 rounded object-cover flex-shrink-0">
                     <div class="flex-1 min-w-0">
                         <div class="text-sm font-medium text-gray-900 link-title cursor-pointer truncate">${link.title}</div>
                         <div class="text-xs text-gray-600 mt-1 truncate cursor-pointer link-desc">${linkUrl}</div>
-                        ${link.iconUrl ? `<div class="text-xs text-blue-600 mt-1 truncate">Icon: ${link.iconUrl}</div>` : ''}
+                        <div class="text-xs ${iconUrlColor} mt-1 truncate cursor-pointer link-icon-url">${iconUrlText}</div>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-col items-center gap-2 self-center">
                         <label class="toggle-switch" title="Enable Microphone">
                             <input type="checkbox" class="link-mic-toggle" ${link.mic ? 'checked' : ''}>
                             <span class="toggle-slider"></span>
@@ -715,16 +726,13 @@
                 linkEl.addEventListener('contextmenu', (e) => e.preventDefault());
 
                 const titleEl = linkEl.querySelector('.link-title');
-                titleEl.addEventListener('dblclick', (e) => {
-                    e.stopPropagation();
-                    makeEditable(titleEl, link.id, 'title');
-                });
+                titleEl.addEventListener('dblclick', (e) => { e.stopPropagation(); makeEditable(titleEl, link.id, 'title'); });
                 
                 const descEl = linkEl.querySelector('.link-desc');
-                descEl.addEventListener('dblclick', (e) => {
-                    e.stopPropagation();
-                    if(!link.fileId) makeEditable(descEl, link.id, 'url');
-                });
+                descEl.addEventListener('dblclick', (e) => { e.stopPropagation(); if(!link.fileId) makeEditable(descEl, link.id, 'url'); });
+                
+                const iconUrlEl = linkEl.querySelector('.link-icon-url');
+                iconUrlEl.addEventListener('dblclick', (e) => { e.stopPropagation(); makeEditable(iconUrlEl, link.id, 'iconUrl', iconUrlPlaceholder); });
 
                 linkEl.querySelector('button').addEventListener('click', () => removeLink(link.id, link.fileId));
                 linkEl.querySelector('.link-include-toggle').addEventListener('change', (e) => updateLinkProperty(link.id, 'included', e.target.checked));
@@ -734,8 +742,12 @@
             });
         }
         
-        function makeEditable(element, linkId, property) {
-            const currentValue = element.textContent;
+        function makeEditable(element, linkId, property, placeholder = '') {
+            let currentValue = element.textContent;
+            if (currentValue === placeholder) {
+                currentValue = '';
+            }
+            
             const input = document.createElement('input');
             input.type = 'text';
             input.value = currentValue;
@@ -746,11 +758,7 @@
 
             const save = () => {
                 const newValue = input.value.trim();
-                if (newValue && newValue !== currentValue) {
-                    updateLinkProperty(linkId, property, newValue);
-                } else {
-                    loadLinks();
-                }
+                updateLinkProperty(linkId, property, newValue);
             };
             
             input.addEventListener('blur', save);
