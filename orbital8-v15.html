@@ -1,4 +1,4 @@
-<!-- Orbital8-N-2025-09-19 11:15 AM -->
+<!-- Orbital8-N-2025-09-21 04:30 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -655,7 +655,7 @@
             </div>
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">Orbital8-M-2025-09-19 11:15 AM</div>
+        <div class="app-footer">Orbital8-M-2025-09-21 04:30 PM</div>
     </div>
     
     <!-- Unified Auth Screen -->
@@ -670,7 +670,7 @@
             <button class="button" id="auth-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="auth-status" class="status info"></div>
         </div>
-        <div class="app-footer">Orbital8-M-2025-09-19 11:15 AM</div>
+        <div class="app-footer">Orbital8-M-2025-09-21 04:30 PM</div>
     </div>
     
     <!-- Unified Folder Screen -->
@@ -685,7 +685,7 @@
                 <button class="folder-button danger" id="folder-logout-button">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">Orbital8-M-2025-09-19 11:15 AM</div>
+        <div class="app-footer">Orbital8-M-2025-09-21 04:30 PM</div>
     </div>
     
     <!-- Loading Screen -->
@@ -699,7 +699,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">Orbital8-M-2025-09-19 11:15 AM</div>
+        <div class="app-footer">Orbital8-M-2025-09-21 04:30 PM</div>
     </div>
     
     <!-- Main App Container -->
@@ -769,7 +769,7 @@
         </button>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">Orbital8-M-2025-09-19 11:15 AM</div>
+        <div class="app-footer">Orbital8-M-2025-09-21 04:30 PM</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -1095,28 +1095,58 @@
             },
             
             async setImageSrc(img, file) {
-                const loadId = file.id + '_' + Date.now();
+                return this.setImageSrcAuthenticated(img, file);
+            },
+
+            async setImageSrcAuthenticated(img, file) {
+                const loadId = `${file.id}_${Date.now()}`;
+                const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150' fill='none'%3E%3Crect width='150' height='150' fill='%23E5E7EB'/%3E%3Cpath d='M65 60H85V90H65V60Z' fill='%239CA3AF'/%3E%3Ccircle cx='75' cy='45' r='10' fill='%239CA3AF'/%3E%3C/svg%3E";
                 state.currentImageLoadId = loadId;
-                let imageUrl = this.getPreferredImageUrl(file);
-                return new Promise((resolve) => {
-                    img.onload = () => {
-                        if (state.currentImageLoadId !== loadId) return;
-                        resolve();
-                    };
-                    img.onerror = () => {
-                        if (state.currentImageLoadId !== loadId) return;
-                        let fallbackUrl = this.getFallbackImageUrl(file);
-                        
-                        img.onerror = () => {
+                try {
+                    const blobUrl = await this.getAuthenticatedImageBlob(file);
+                    return new Promise((resolve) => {
+                        img.onload = () => {
                             if (state.currentImageLoadId !== loadId) return;
-                            img.src = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'150\' height=\'150\' viewBox=\'0 0 150 150\' fill=\'none\'%3E%3Crect width=\'150\' height=\'150\' fill=\'%23E5E7EB\'/%3E%3Cpath d=\'M65 60H85V90H65V60Z\' fill=\'%239CA3AF\'/%3E%3Ccircle cx=\'75\' cy=\'45\' r=\'10\' fill=\'%239CA3AF\'/%3E%3C/svg%3E';
                             resolve();
                         };
-                        img.src = fallbackUrl;
-                    };
-                    img.src = imageUrl;
+                        img.onerror = () => {
+                            if (state.currentImageLoadId !== loadId) return;
+                            img.src = placeholder;
+                            resolve();
+                        };
+                        img.alt = file.name || 'Image';
+                        img.src = blobUrl;
+                    });
+                } catch (error) {
+                    if (state.currentImageLoadId !== loadId) { return Promise.resolve(); }
                     img.alt = file.name || 'Image';
-                });
+                    img.src = placeholder;
+                    return Promise.resolve();
+                }
+            },
+
+            async getAuthenticatedImageBlob(file) {
+                if (!file || !file.id) { throw new Error('Invalid file reference'); }
+                let response;
+
+                if (state.providerType === 'googledrive') {
+                    response = await state.provider.makeApiCall(`/files/${file.id}?alt=media`, {}, false);
+                } else if (state.providerType === 'onedrive') {
+                    const accessToken = await state.provider.getAccessToken();
+                    response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` }
+                    });
+                } else {
+                    throw new Error('Unsupported provider type');
+                }
+
+                if (!response || !response.ok) {
+                    const status = response ? response.status : 'unknown';
+                    throw new Error(`Failed to load image: ${status}`);
+                }
+
+                const blob = await response.blob();
+                return URL.createObjectURL(blob);
             },
             
             getPreferredImageUrl(file) {
@@ -1834,21 +1864,23 @@
                 const folderId = state.currentFolder.id;
                 const sessionKey = `${state.providerType || 'unknown'}::${folderId}`;
                 const cachedFiles = await state.dbManager.getFolderCache(folderId) || [];
-                const isFirstSessionVisit = !state.sessionVisitedFolders.has(sessionKey);
+                const hasCached = cachedFiles.length > 0;
 
-                if (isFirstSessionVisit || cachedFiles.length === 0) {
-                    await this.syncFolderFromCloud(cachedFiles, sessionKey);
-                    return;
+                if (hasCached) {
+                    state.imageFiles = cachedFiles;
+                    Utils.showScreen('app-container');
+                    Core.initializeStacks();
+                    Core.initializeImageDisplay();
+                    const pendingPngs = cachedFiles.filter(file => file.mimeType === 'image/png' && file.metadataStatus === 'pending');
+                    if (pendingPngs.length > 0) {
+                        this.extractMetadataInBackground(pendingPngs);
+                    }
                 }
 
-                state.imageFiles = cachedFiles;
-                Utils.showScreen('app-container');
-                Core.initializeStacks();
-                Core.initializeImageDisplay();
-                const pendingPngs = state.imageFiles.filter(file => file.mimeType === 'image/png' && file.metadataStatus === 'pending');
-                if (pendingPngs.length > 0) {
-                    this.extractMetadataInBackground(pendingPngs);
-                }
+                await this.syncFolderFromCloud(cachedFiles, sessionKey, {
+                    background: hasCached,
+                    preserveSelection: hasCached
+                });
             },
             mergeCloudWithCache(cloudFiles, cachedFiles) {
                 const cachedMap = new Map(cachedFiles.map(file => [file.id, file]));
@@ -1887,11 +1919,26 @@
                     hasChanges: newIds.length > 0 || updatedIds.length > 0 || removedIds.length > 0
                 };
             },
-            async syncFolderFromCloud(cachedFiles, sessionKey) {
+            async syncFolderFromCloud(cachedFiles, sessionKey, options = {}) {
+                const { background = false, preserveSelection = false, silent = false, allowRetry = true } = options;
                 const folderId = state.currentFolder.id;
                 const hadCached = cachedFiles.length > 0;
-                Utils.showScreen('loading-screen');
-                Utils.updateLoadingProgress(0, hadCached ? cachedFiles.length : 0, hadCached ? 'Syncing with cloud...' : 'Fetching from cloud...');
+                const key = sessionKey || `${state.providerType || 'unknown'}::${folderId}`;
+
+                if (!state.activeRequests || state.activeRequests.signal.aborted) {
+                    state.activeRequests = new AbortController();
+                }
+
+                const previousSelection = preserveSelection ? {
+                    stack: state.currentStack,
+                    index: state.currentStackPosition,
+                    fileId: (state.stacks[state.currentStack] || [])[state.currentStackPosition]?.id || null
+                } : null;
+
+                if (!background) {
+                    Utils.showScreen('loading-screen');
+                    Utils.updateLoadingProgress(0, hadCached ? cachedFiles.length : 0, hadCached ? 'Syncing with cloud...' : 'Fetching from cloud...');
+                }
 
                 try {
                     const result = await state.provider.getFilesAndMetadata(folderId);
@@ -1901,8 +1948,15 @@
                     if (mergedFiles.length === 0) {
                         await state.dbManager.saveFolderCache(folderId, []);
                         state.imageFiles = [];
-                        Utils.showToast('No images found in this folder', 'info', true);
-                        this.returnToFolderSelection();
+                        if (!background) {
+                            Utils.showToast('No images found in this folder', 'info', true);
+                            this.returnToFolderSelection();
+                        } else {
+                            Core.showEmptyState();
+                            if (!silent) {
+                                Utils.showToast('No images remain in this folder', 'info');
+                            }
+                        }
                         return;
                     }
 
@@ -1917,18 +1971,55 @@
                     }
 
                     state.imageFiles = mergedFiles;
-                    await this.processAllMetadata(state.imageFiles, !hadCached);
+                    await this.processAllMetadata(state.imageFiles, !background && !hadCached);
                     if (hasChanges || !hadCached) {
                         await state.dbManager.saveFolderCache(folderId, state.imageFiles);
                     }
 
-                    const key = sessionKey || `${state.providerType || 'unknown'}::${folderId}`;
                     state.sessionVisitedFolders.add(key);
-                    this.switchToCommonUI();
-                    Core.initializeStacks();
-                    Core.initializeImageDisplay();
 
-                    if (hadCached && hasChanges) {
+                    if (!background) {
+                        this.switchToCommonUI();
+                        Core.initializeStacks();
+                        Core.initializeImageDisplay();
+                    } else {
+                        Core.initializeStacks();
+                        Core.updateStackCounts();
+
+                        if (previousSelection) {
+                            let targetStack = previousSelection.stack;
+                            if (!state.stacks[targetStack] || state.stacks[targetStack].length === 0) {
+                                const fallback = STACKS.find(stack => state.stacks[stack]?.length > 0);
+                                if (fallback) {
+                                    targetStack = fallback;
+                                }
+                            }
+                            state.currentStack = targetStack;
+                            const currentStackArray = state.stacks[targetStack] || [];
+                            if (previousSelection.fileId) {
+                                const foundIndex = currentStackArray.findIndex(f => f.id === previousSelection.fileId);
+                                state.currentStackPosition = foundIndex !== -1 ? foundIndex : 0;
+                            } else {
+                                state.currentStackPosition = Math.min(previousSelection.index || 0, Math.max(currentStackArray.length - 1, 0));
+                            }
+                        }
+
+                        if (!state.stacks[state.currentStack] || state.stacks[state.currentStack].length === 0) {
+                            const fallback = STACKS.find(stack => state.stacks[stack]?.length > 0);
+                            if (fallback) {
+                                state.currentStack = fallback;
+                                state.currentStackPosition = 0;
+                            }
+                        }
+
+                        if (state.stacks[state.currentStack] && state.stacks[state.currentStack].length > 0) {
+                            await Core.displayCurrentImage();
+                        } else {
+                            Core.showEmptyState();
+                        }
+                    }
+
+                    if ((background || hadCached) && hasChanges && !silent) {
                         const diffSummary = [];
                         if (newIds.length > 0) diffSummary.push(`${newIds.length} new`);
                         if (updatedIds.length > 0) diffSummary.push(`${updatedIds.length} updated`);
@@ -1937,44 +2028,43 @@
                         Utils.showToast(`Folder updated with cloud changes (${summaryText})`, 'info');
                     }
                 } catch (error) {
-                    if (error.name !== 'AbortError') {
+                    if (error.name === 'AbortError') {
+                        return;
+                    }
+
+                    if (allowRetry && error.message && error.message.includes('TOKEN_EXPIRED')) {
+                        try {
+                            await state.provider.authenticate();
+                            await this.syncFolderFromCloud(cachedFiles, sessionKey, { ...options, allowRetry: false });
+                            return;
+                        } catch (authError) {
+                            if (!silent) {
+                                const message = authError && authError.message ? authError.message : 'Reauthentication required';
+                                Utils.showToast(`Authentication failed: ${message}`, 'error', true);
+                            }
+                        }
+                    } else if (!silent) {
                         Utils.showToast(`Error loading images: ${error.message}`, 'error', true);
                     }
-                    this.returnToFolderSelection();
+
+                    if (!background) {
+                        this.returnToFolderSelection();
+                    }
                 }
             },
             async refreshFolderInBackground() {
                 try {
                     const folderId = state.currentFolder.id;
+                    if (!folderId) { return; }
                     const cachedFiles = await state.dbManager.getFolderCache(folderId) || [];
-                    const result = await state.provider.getFilesAndMetadata(folderId);
-                    const cloudFiles = result.files || [];
-                    const { mergedFiles, updatedIds, removedIds, hasChanges } = this.mergeCloudWithCache(cloudFiles, cachedFiles);
-
-                    if (!hasChanges) {
-                        return;
-                    }
-
-                    for (const updatedId of updatedIds) {
-                        const updatedFile = mergedFiles.find(file => file.id === updatedId);
-                        if (updatedFile) {
-                            await state.dbManager.saveMetadata(updatedId, updatedFile);
-                        }
-                    }
-                    if (removedIds.length > 0) {
-                        await Promise.all(removedIds.map(id => state.dbManager.deleteMetadata(id)));
-                    }
-
-                    await this.processAllMetadata(mergedFiles);
-                    await state.dbManager.saveFolderCache(folderId, mergedFiles);
-                    state.imageFiles = mergedFiles;
-                    Core.initializeStacks();
-                    Core.updateStackCounts();
-                    if (state.imageFiles.length > 0) Core.displayCurrentImage();
-                    else Core.showEmptyState();
-                    Utils.showToast('Folder updated in background', 'info');
+                    const sessionKey = `${state.providerType || 'unknown'}::${folderId}`;
+                    await this.syncFolderFromCloud(cachedFiles, sessionKey, {
+                        background: true,
+                        preserveSelection: true,
+                        silent: true
+                    });
                 } catch (error) {
-                    console.warn("Background refresh failed:", error.message);
+                    console.warn('Background refresh failed:', error.message);
                 }
             },
             async processAllMetadata(files, isFirstLoad = false) {
@@ -2206,6 +2296,10 @@
 
                 try {
                     Utils.elements.detailsButton.style.display = 'flex';
+                    const existingSrc = Utils.elements.centerImage.src;
+                    if (existingSrc && existingSrc.startsWith('blob:')) {
+                        URL.revokeObjectURL(existingSrc);
+                    }
                     await Utils.setImageSrc(Utils.elements.centerImage, currentFile);
                     
                     const folderName = state.currentFolder.name;
@@ -2406,9 +2500,16 @@
                     img.className = 'grid-image'; img.alt = file.name || 'Image';
                     img.dataset.src = Utils.getPreferredImageUrl(file);
                     img.onload = () => img.classList.add('loaded');
-                    img.onerror = () => {
-                        img.src = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'150\' height=\'150\' viewBox=\'0 0 150 150\' fill=\'none\'%3E%3Crect width=\'150\' height=\'150\' fill=\'%23E5E7EB\'/%3E%3Cpath d=\'M65 60H85V90H65V60Z\' fill=\'%239CA3AF\'/%3E%3Ccircle cx=\'75\' cy=\'45\' r=\'10\' fill=\'%239CA3AF\'/%3E%3C/svg%3E';
-                        img.classList.add('loaded');
+                    img.onerror = async () => {
+                        img.onerror = null;
+                        try {
+                            const blobUrl = await Utils.getAuthenticatedImageBlob(file);
+                            img.src = blobUrl;
+                        } catch (authError) {
+                            img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150' fill='none'%3E%3Crect width='150' height='150' fill='%23E5E7EB'/%3E%3Cpath d='M65 60H85V90H65V60Z' fill='%239CA3AF'/%3E%3Ccircle cx='75' cy='45' r='10' fill='%239CA3AF'/%3E%3C/svg%3E";
+                        } finally {
+                            img.classList.add('loaded');
+                        }
                     };
                     div.addEventListener('click', e => this.toggleSelection(e, file.id));
                     const overlay = document.createElement('div');
