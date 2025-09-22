@@ -1,4 +1,4 @@
-<!-- LinkPortal-v20-2025-09-21 05:48 PM -->
+<!-- LinkPortal-v20-2025-09-21 08:05 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -92,10 +92,6 @@
         .omni-item:hover {
             background-color: #f3f4f6;
         }
-        #iconPasteZone.dragover {
-            border-color: #2563EB;
-            background-color: #eff6ff;
-        }
     </style>
 </head>
 <body class="min-h-screen bg-gray-50">
@@ -153,11 +149,8 @@
                  <!-- Icon Pasting -->
                 <div class="border-t pt-4">
                     <h3 class="text-lg font-semibold text-gray-900">Set Custom Icon</h3>
-                    <div id="iconPasteZone" class="mt-2 p-4 border-2 border-dashed rounded-lg text-center text-gray-500 transition-colors">
-                        <div class="pointer-events-none">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            <p id="iconPasteText" class="mt-1 text-sm">Select an item, then paste or drop an image here.</p>
-                        </div>
+                    <div id="iconPasteZone" class="mt-2 p-4 border-2 border-dashed rounded-lg text-center text-gray-500">
+                        Click an item in the menu, then paste an image here.
                     </div>
                 </div>
 
@@ -368,17 +361,6 @@
         document.getElementById('confirmReset').addEventListener('click', resetApplication);
         
         document.addEventListener('paste', handleImagePaste);
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            elements.iconPasteZone.addEventListener(eventName, preventDefaults, false);
-            document.body.addEventListener(eventName, preventDefaults, false);
-        });
-        ['dragenter', 'dragover'].forEach(eventName => {
-            elements.iconPasteZone.addEventListener(eventName, () => elements.iconPasteZone.classList.add('dragover'), false);
-        });
-        ['dragleave', 'drop'].forEach(eventName => {
-            elements.iconPasteZone.addEventListener(eventName, () => elements.iconPasteZone.classList.remove('dragover'), false);
-        });
-        elements.iconPasteZone.addEventListener('drop', handleIconDrop, false);
 
         document.getElementById('addCustomLink').addEventListener('click', addCustomLink);
         document.getElementById('uploadFiles').addEventListener('click', () => document.getElementById('fileUpload').click());
@@ -430,7 +412,7 @@
         }
 
         function updateFooter() {
-            const version = 'LinkPortal-v20';
+            const version = 'LinkPortal-v17';
             elements.masterFooter.textContent = `${version} - ${new Date().toLocaleString()}`;
             setTimeout(updateFooter, 60000); // Update every minute
         }
@@ -448,7 +430,7 @@
                 db.transaction('settings').objectStore('settings').get('portal').onsuccess = e => resolve(e.target.result || {})
             );
             
-            document.getElementById('portalName').value = settings.name || 'My Portal';
+            document.getElementById('portalName').value = settings.name || '';
             elements.portalTitle.textContent = settings.name || 'Link Portal';
             if (settings.menuWidth) {
                 elements.menuPanel.style.width = `${settings.menuWidth}px`;
@@ -670,7 +652,7 @@
             linkEl.classList.add('active-link');
             
             activeLinkIdForIcon = link.id;
-            elements.iconPasteZone.innerHTML = `<div class="pointer-events-none"><svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg><p id="iconPasteText" class="mt-1 text-sm">Paste or drop icon for: <strong class="text-gray-700">${link.title}</strong></p></div>`;
+            elements.iconPasteZone.innerHTML = `Paste an icon for: <strong class="text-gray-700">${link.title}</strong>`;
             
             const url = link.fileId ? blobUrls.get(link.fileId) : link.url;
             
@@ -693,12 +675,8 @@
             }
 
             if (forceReload) {
-                const newSrc = link.fileId ? blobUrls.get(link.fileId) : link.url;
-                if (iframe.src !== newSrc) {
-                     iframe.src = newSrc;
-                } else {
-                     iframe.contentWindow.location.reload();
-                }
+                // Safely reload cross-origin iframes by resetting src
+                iframe.src = iframe.src;
             }
             
             iframe.style.display = 'block';
@@ -827,49 +805,28 @@
             loadLinks();
             event.target.value = '';
         }
-        
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        function handleIconDrop(e) {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            if (files.length > 0) {
-                handleIconFile(files[0]);
-            }
-        }
-
-        function handleIconFile(file) {
-            if (!activeLinkIdForIcon) {
-                showError("Please select an item from the menu first.");
-                return;
-            }
-            if (!file.type.startsWith('image/')) {
-                showError("Only image files can be used for icons.");
-                return;
-            }
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                updateLinkProperty(parseInt(activeLinkIdForIcon), 'iconUrl', e.target.result);
-                elements.iconPasteZone.querySelector('p').textContent = 'Icon updated!';
-                setTimeout(() => {
-                    const activeLink = document.querySelector(`.link-item[data-id="${activeLinkIdForIcon}"] .link-title`);
-                    const defaultText = 'Select an item, then paste or drop an image here.';
-                    elements.iconPasteZone.querySelector('p').innerHTML = activeLink ? `Paste or drop icon for: <strong class="text-gray-700">${activeLink.textContent}</strong>` : defaultText;
-                }, 2000);
-            };
-            reader.readAsDataURL(file);
-        }
 
         async function handleImagePaste(event) {
-            if (!activeLinkIdForIcon) return;
+            if (!activeLinkIdForIcon) {
+                return;
+            }
+            
             const items = event.clipboardData.items;
             for (const item of items) {
                 if (item.type.indexOf("image") !== -1) {
                     const blob = item.getAsFile();
-                    handleIconFile(blob);
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        updateLinkProperty(parseInt(activeLinkIdForIcon), 'iconUrl', e.target.result);
+                        activeLinkIdForIcon = null;
+                        elements.iconPasteZone.innerHTML = 'Icon updated! Select another item to change its icon.';
+                         setTimeout(() => {
+                           if (!activeLinkIdForIcon) {
+                                elements.iconPasteZone.innerHTML = 'Click an item in the menu, then paste an image here.';
+                           }
+                        }, 2000);
+                    };
+                    reader.readAsDataURL(blob);
                     event.preventDefault();
                     return;
                 }
@@ -904,7 +861,7 @@
             }
         }
 
-        // --- REORDERING LOGIC ---
+        // --- NEW REORDERING LOGIC ---
         async function reorderLink(linkId, direction) {
             const tx = db.transaction('links', 'readwrite');
             const store = tx.objectStore('links');
@@ -1075,10 +1032,7 @@
             const blob = new Blob([template], { type: 'text/html' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            
-            const portalName = (document.getElementById('portalName').value || 'portal').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-            a.download = isMobile ? `${portalName}-mobile.html` : `${portalName}-portal.html`;
-            
+            a.download = isMobile ? `mobweb.html` : `${settings?.name?.replace(/\s/g, '-') || 'portal'}.html`;
             a.click();
             URL.revokeObjectURL(a.href);
         }
@@ -1199,7 +1153,7 @@
                 });
                 
                 if (index === 0 && !document.querySelector('#mainContent iframe')) {
-                    // Lazy load first item
+                    selectLink(link);
                 }
             });
         }
@@ -1225,7 +1179,7 @@
                 acc[file.id] = { type: file.type, content: file.content };
                 return acc;
             }, {});
-            const creatorScript = document.scripts[document.scripts.length - 1].textContent;
+            const defaultIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M12.378 1.602a.75.75 0 00-.756 0L3.366 6.126A.75.75 0 003 6.828v10.344a.75.75 0 00.366.646l8.256 4.524a.75.75 0 00.756 0l8.256-4.524a.75.75 0 00.366-.646V6.828a.75.75 0 00-.366-.646L12.378 1.602zM12 15.25a3.25 3.25 0 100-6.5 3.25 3.25 0 000 6.5z" /><path d="M12 3.84a8.753 8.753 0 014.28 1.255l-3.72 2.035a3.253 3.253 0 00-1.12 0L7.72 5.095A8.753 8.753 0 0112 3.84zM4.5 7.331l3.72 2.035a3.25 3.25 0 000 5.268l-3.72 2.035V7.331zm15 0v7.338l-3.72-2.035a3.25 3.25 0 000-5.268l3.72-2.035zM8.44 16.905l3.56-1.945a.75.75 0 10-.75-1.3l-3.56 1.945a8.753 8.753 0 01-1.28-.695l3.72-2.035a3.25 3.25 0 000-5.268L7.16 5.095a8.753 8.753 0 01-1.28.695L9.6 7.735a.75.75 0 10.75 1.3l-3.72-2.035a8.753 8.753 0 010 8.598l3.72-2.035a.75.75 0 10.75 1.3l-3.72 2.035zm7.12-11.81a8.753 8.753 0 011.28.695l-3.72 2.035a.75.75 0 10-.75 1.3l3.72-2.035a8.753 8.753 0 010 8.598l-3.72-2.035a.75.75 0 10-.75 1.3l3.72 2.035a8.753 8.753 0 01-1.28.695l-3.72-2.035a3.25 3.25 0 000-5.268l3.72-2.035z" /></svg>`;
             return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1315,8 +1269,7 @@
 <script>
     const links = ${JSON.stringify(links)};
     const files = ${JSON.stringify(filesMap)};
-    const defaultIconSvg = \`${DEFAULT_ICON_SVG}\`;
-    const portalCreatorScript = \`${creatorScript.replace(/`/g, '\\`')}\`;
+    const blobUrls = new Map();
     
     let runningApps = []; // Stores link.id of running apps
     let currentAppIndex = -1;
@@ -1336,22 +1289,161 @@
     const configPanel = document.getElementById('configPanel');
 
     // --- Core App Logic ---
+    function base64ToArrayBuffer(base64) {
+        const binary_string = window.atob(base64);
+        const bytes = new Uint8Array(binary_string.length);
+        for (let i = 0; i < binary_string.length; i++) {
+            bytes[i] = binary_string.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    function getFileUrl(fileId) {
+        if (blobUrls.has(fileId)) return blobUrls.get(fileId);
+        const fileData = files[fileId];
+        if (!fileData) return null;
+        const buffer = base64ToArrayBuffer(fileData.content);
+        const blob = new Blob([buffer], { type: fileData.type });
+        const url = URL.createObjectURL(blob);
+        blobUrls.set(fileId, url);
+        return url;
+    }
+
+    function showApp(link) {
+        document.querySelectorAll('#appContainer iframe').forEach(frame => frame.style.display = 'none');
+        const frame = document.getElementById(\`iframe-\${link.id}\`);
+        if(frame) {
+            frame.style.display = 'block';
+            appTitleSpan.textContent = link.title;
+            homeScreen.style.display = 'none';
+            appWrapper.classList.add('active');
+            lastLaunchedId = link.id;
+        }
+    }
+    
     function launchApp(link) {
-        // ... (app launching logic)
+        let frame = document.getElementById(\`iframe-\${link.id}\`);
+        if (!frame) { // Create if it doesn't exist (lazy load)
+            frame = document.createElement('iframe');
+            frame.id = \`iframe-\${link.id}\`;
+            frame.className = 'w-full h-full border-0';
+            const url = link.fileId ? getFileUrl(link.fileId) : link.url;
+            frame.src = url;
+            if(link.mic) frame.allow = 'microphone';
+            appContainer.appendChild(frame);
+            runningApps.push(link.id);
+        }
+        currentAppIndex = runningApps.indexOf(link.id);
+        showApp(link);
+    }
+
+    function goHome() {
+        homeScreen.style.display = 'block';
+        appWrapper.classList.remove('active');
+        highlightLastLaunched();
+    }
+    
+    function closeCurrentApp() {
+        const appIdToClose = runningApps[currentAppIndex];
+        if (appIdToClose === undefined) return goHome();
+
+        const frame = document.getElementById(\`iframe-\${appIdToClose}\`);
+        if (frame) frame.remove();
+        
+        runningApps.splice(currentAppIndex, 1);
+        currentAppIndex = -1;
+        goHome();
+    }
+    
+    function highlightLastLaunched() {
+        document.querySelectorAll('.app-icon').forEach(icon => icon.classList.remove('last-launched'));
+        if(lastLaunchedId) {
+            const iconToHighlight = document.querySelector(\`[data-link-id="\${lastLaunchedId}"] .app-icon\`);
+            if (iconToHighlight) {
+                iconToHighlight.classList.add('last-launched');
+            }
+        }
+    }
+
+    function cycleApps() {
+        if (runningApps.length === 0) return;
+        currentAppIndex = (currentAppIndex + 1) % runningApps.length;
+        const nextAppId = runningApps[currentAppIndex];
+        const nextAppLink = links.find(l => l.id === nextAppId);
+        if (nextAppLink) {
+            showApp(nextAppLink);
+        }
     }
     
     // --- UI Setup ---
     links.forEach(link => {
-        // ... (icon grid generation)
+        const iconContainer = document.createElement('div');
+        iconContainer.className = 'flex flex-col items-center gap-1';
+        iconContainer.dataset.linkId = link.id;
+        
+        const iconEl = document.createElement('div');
+        iconEl.className = 'app-icon app-icon-container bg-gray-100 rounded-xl shadow-md overflow-hidden cursor-pointer';
+        
+        if (link.iconUrl) {
+            iconEl.innerHTML = \`<img src="\${link.iconUrl}" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,${btoa(defaultIconSvg)}'" alt="\${link.title}" class="w-full h-full object-cover">\`;
+        } else {
+            iconEl.innerHTML = \`${defaultIconSvg}\`;
+        }
+        
+        iconEl.addEventListener('click', () => launchApp(link));
+        
+        const titleEl = document.createElement('span');
+        titleEl.className = 'text-xs text-center truncate w-full px-1';
+        titleEl.textContent = link.title;
+
+        iconContainer.appendChild(iconEl);
+        iconContainer.appendChild(titleEl);
+        iconGrid.appendChild(iconContainer);
     });
 
-    const settingsApp = {
-        id: 'settings-app',
-        title: 'Settings',
-        iconUrl: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>')
-    };
+    // --- Settings Logic ---
+    const bgColorInput = document.getElementById('bgColor');
+    const iconSizeInput = document.getElementById('iconSize');
+    const iconSizeLabel = document.getElementById('iconSizeLabel');
 
-    // ... (rest of mobile app logic)
+    function applySettings() {
+        const bgColor = localStorage.getItem('mobweb_bgColor') || '#ffffff';
+        const iconSize = localStorage.getItem('mobweb_iconSize') || '64';
+        
+        document.querySelector('.mobile-shell').style.backgroundColor = bgColor;
+        document.documentElement.style.setProperty('--icon-size', \`\${iconSize}px\`);
+
+        bgColorInput.value = bgColor;
+        iconSizeInput.value = iconSize;
+        iconSizeLabel.textContent = iconSize;
+    }
+
+    bgColorInput.addEventListener('input', (e) => {
+        localStorage.setItem('mobweb_bgColor', e.target.value);
+        applySettings();
+    });
+
+    iconSizeInput.addEventListener('input', (e) => {
+        localStorage.setItem('mobweb_iconSize', e.target.value);
+        applySettings();
+    });
+
+    configBtn.addEventListener('click', () => configPanel.classList.add('active'));
+    closeConfigBtn.addEventListener('click', () => configPanel.classList.remove('active'));
+
+    // --- Event Listeners ---
+    homeButton.addEventListener('click', goHome);
+    closeAppBtn.addEventListener('click', closeCurrentApp);
+    cycleButton.addEventListener('click', cycleApps);
+    backButton.addEventListener('click', () => {
+        try { 
+            const activeFrame = document.querySelector('#appContainer iframe[style*="display: block"]');
+            if(activeFrame) activeFrame.contentWindow.history.back();
+        } catch (e) { console.warn("Can't go back.", e); }
+    });
+
+    // --- Initial Load ---
+    applySettings();
 
 <\/script>
 
@@ -1361,4 +1453,3 @@
     </script>
 </body>
 </html>
-
