@@ -2048,7 +2048,10 @@
                     localUpdatedAt: operation.localUpdatedAt || Date.now(),
                     pendingFlush: Boolean(operation.pendingFlush),
                     metadataSnapshot: operation.metadataSnapshot || null,
-                    retryCount: operation.retryCount || 0
+                    retryCount: operation.retryCount || 0,
+                    folderId: operation.folderId || null,
+                    providerType: operation.providerType || null,
+                    folderKey: operation.folderKey || null
                 };
                 return new Promise((resolve, reject) => {
                     const transaction = this.db.transaction('syncQueue', 'readwrite');
@@ -2476,11 +2479,92 @@
                 const existing = await this.dbManager.getFolderManifest(context);
                 await this.dbManager.saveFolderManifest({ ...existing, ...context, requiresFullResync: true });
             }
+            async applyLocalManifestUpdates(folderId, files = [], options = {}) {
+                if (!this.dbManager || !Array.isArray(files) || files.length === 0) {
+                    return null;
+                }
+                const providerType = options.providerType || this.providerType || state.providerType || null;
+                const context = { providerType, folderId };
+                const manifestRecord = await this.dbManager.getFolderManifest(context) || { ...context, folderId, entries: {}, requiresFullResync: false };
+                const entries = { ...(manifestRecord.entries || {}) };
+                const timestamp = options.timestamp || Date.now();
+                const isoTimestamp = new Date(timestamp).toISOString();
+                const updatedIds = [];
+                files.forEach(file => {
+                    if (!file || !file.id) return;
+                    const existing = entries[file.id] || {};
+                    const notesValue = file.notes ?? file.appProperties?.notes ?? '';
+                    const stackValue = file.stack || file.appProperties?.slideboxStack || existing.stack || 'in';
+                    const changeNumber = Number(file.localUpdatedAt || file.changeNumber || existing.changeNumber || timestamp);
+                    entries[file.id] = {
+                        ...existing,
+                        changeNumber,
+                        stack: stackValue,
+                        notesHash: this.hashString(notesValue),
+                        lastCloudUpdate: file.modifiedTime || existing.lastCloudUpdate || isoTimestamp,
+                        flags: this.computeFlags({ ...file, stack: stackValue })
+                    };
+                    updatedIds.push(file.id);
+                });
+                const manifestPayload = {
+                    ...manifestRecord,
+                    ...context,
+                    folderId,
+                    entries,
+                    requiresFullResync: Boolean(manifestRecord.requiresFullResync),
+                    cloudVersion: options.targetVersion ?? manifestRecord.cloudVersion ?? null,
+                    localVersion: options.targetVersion ?? manifestRecord.localVersion ?? null,
+                    manifestFileId: manifestRecord.manifestFileId || options.manifestFileId || null,
+                    lastRemoteUpdate: timestamp,
+                    lastDiffSummary: manifestRecord.lastDiffSummary || null
+                };
+                await this.dbManager.saveFolderManifest(manifestPayload);
+                let remoteResponse = null;
+                if (this.provider && typeof this.provider.saveFolderManifest === 'function') {
+                    try {
+                        remoteResponse = await this.provider.saveFolderManifest(folderId, {
+                            entries,
+                            requiresFullResync: manifestPayload.requiresFullResync,
+                            cloudVersion: options.targetVersion ?? manifestPayload.cloudVersion ?? Date.now(),
+                            localVersion: options.targetVersion ?? manifestPayload.localVersion ?? null,
+                            manifestFileId: manifestPayload.manifestFileId
+                        }, { manifestFileId: manifestPayload.manifestFileId });
+                        if (remoteResponse?.manifestFileId) {
+                            manifestPayload.manifestFileId = remoteResponse.manifestFileId;
+                        }
+                        if (remoteResponse?.cloudVersion != null) {
+                            manifestPayload.cloudVersion = remoteResponse.cloudVersion;
+                        } else if (options.targetVersion != null) {
+                            manifestPayload.cloudVersion = options.targetVersion;
+                        }
+                        if (remoteResponse?.localVersion != null) {
+                            manifestPayload.localVersion = remoteResponse.localVersion;
+                        } else if (options.targetVersion != null) {
+                            manifestPayload.localVersion = options.targetVersion;
+                        }
+                        await this.dbManager.saveFolderManifest(manifestPayload);
+                        this.logger?.log({ event: 'manifest:update', level: 'info', details: `Updated manifest entries for ${updatedIds.length} item(s) in ${folderId}.`, data: { updatedIds } });
+                    } catch (error) {
+                        this.logger?.log({ event: 'manifest:update:error', level: 'error', details: `Failed to update manifest for ${folderId}: ${error.message}` });
+                        await this.dbManager.saveFolderManifest({ ...manifestPayload, requiresFullResync: true });
+                        throw error;
+                    }
+                } else {
+                    this.logger?.log({ event: 'manifest:update:local', level: 'info', details: `Cached manifest update for ${updatedIds.length} item(s) in ${folderId}.`, data: { updatedIds } });
+                }
+                return { manifestFileId: manifestPayload.manifestFileId, cloudVersion: manifestPayload.cloudVersion };
+            }
             async recordLocalFlush(folderId, options = {}) {
                 const timestamp = options.timestamp || Date.now();
                 const context = this.buildContext(folderId);
                 const existing = await this.dbManager.getFolderState(context) || { ...context, folderId, localVersion: 0, cloudVersion: 0 };
-                const nextVersion = Number(existing.localVersion || 0) + 1;
+                let nextVersion = Number(existing.localVersion || 0) + 1;
+                if (options.targetVersion != null) {
+                    const numericTarget = Number(options.targetVersion);
+                    if (!Number.isNaN(numericTarget) && numericTarget > Number(existing.localVersion || 0)) {
+                        nextVersion = numericTarget;
+                    }
+                }
                 await this.dbManager.saveFolderState({ ...existing, ...context, folderId, localVersion: nextVersion, cloudVersion: nextVersion, lastLocalMutation: timestamp, lastCloudAck: timestamp });
                 let manifestRecord = null;
                 if ((!options.remoteContext || !options.remoteContext.manifestFileId) && this.dbManager) {
@@ -2511,6 +2595,7 @@
                 this.hasPendingWork = false;
                 this.provider = null;
                 this.providerType = null;
+                this.pendingManifestUpdates = new Map();
                 this.lifecycleHandlers = {
                     visibility: () => this.handleVisibilityChange(),
                     pagehide: (event) => this.handlePageHide(event),
@@ -2545,6 +2630,7 @@
                 this.isActive = false;
                 this.provider = null;
                 this.providerType = null;
+                this.pendingManifestUpdates.clear();
             }
             async resumePendingQueue() {
                 if (!this.dbManager) return;
@@ -2576,6 +2662,12 @@
                     operationType: change.operationType || 'metadata:update',
                     origin: change.origin || 'ui'
                 };
+                const resolvedFolderId = change.folderId || buffer.folderId || state.currentFolder?.id || null;
+                const resolvedProviderType = change.providerType || buffer.providerType || this.providerType || state.providerType || null;
+                const resolvedFolderKey = change.folderKey || buffer.folderKey || (resolvedFolderId && resolvedProviderType ? `${resolvedProviderType}::${resolvedFolderId}` : null);
+                buffer.folderId = resolvedFolderId;
+                buffer.providerType = resolvedProviderType;
+                buffer.folderKey = resolvedFolderKey;
                 buffer.updates = { ...buffer.updates, ...(change.updates || {}) };
                 buffer.operationType = change.operationType || buffer.operationType;
                 buffer.origin = change.origin || buffer.origin;
@@ -2619,13 +2711,19 @@
                     this.debounceTimers.delete(fileId);
                 }
                 if (!this.dbManager) return null;
+                const effectiveProviderType = buffer.providerType || this.providerType || state.providerType || null;
+                const effectiveFolderId = buffer.folderId || state.currentFolder?.id || null;
+                const effectiveFolderKey = buffer.folderKey || (effectiveProviderType && effectiveFolderId ? `${effectiveProviderType}::${effectiveFolderId}` : null);
                 const entry = {
                     fileId,
                     updates: buffer.updates,
                     operationType: buffer.operationType,
                     origin: buffer.origin,
                     localUpdatedAt: buffer.localUpdatedAt,
-                    metadataSnapshot: buffer.metadataSnapshot
+                    metadataSnapshot: buffer.metadataSnapshot,
+                    folderId: effectiveFolderId,
+                    providerType: effectiveProviderType,
+                    folderKey: effectiveFolderKey
                 };
                 try {
                     const id = await this.dbManager.addToSyncQueue(entry);
@@ -2700,6 +2798,9 @@
                     existing.updates = { ...existing.updates, ...(item.updates || {}) };
                     existing.localUpdatedAt = Math.max(existing.localUpdatedAt || 0, item.localUpdatedAt || 0);
                     existing.pendingFlush = existing.pendingFlush || item.pendingFlush;
+                    existing.folderId = existing.folderId || item.folderId || null;
+                    existing.providerType = existing.providerType || item.providerType || null;
+                    existing.folderKey = existing.folderKey || item.folderKey || null;
                     if (item.metadataSnapshot) {
                         existing.metadataSnapshot = { ...(existing.metadataSnapshot || {}), ...item.metadataSnapshot };
                     }
@@ -2708,7 +2809,7 @@
             }
             async processEntry(entry) {
                 const provider = this.provider || state.provider;
-                const providerType = this.providerType || state.providerType;
+                const providerType = entry.providerType || this.providerType || state.providerType;
                 if (!provider || !providerType) {
                     await this.dbManager.markPendingFlush(entry.queueIds, true);
                     this.logger?.log({ event: 'sync:deferred', level: 'warn', fileId: entry.fileId, details: 'No provider bound. Marked pending flush.' });
@@ -2716,7 +2817,9 @@
                 }
                 const updates = entry.updates || {};
                 const metadataRecord = state.imageFiles.find(file => file.id === entry.fileId) || entry.metadataSnapshot || {};
+                const folderContext = this.resolveEntryFolderContext(entry, metadataRecord);
                 const payload = { ...metadataRecord, ...updates, localUpdatedAt: entry.localUpdatedAt };
+                payload.id = entry.fileId;
                 const stackLabel = updates.stack ? (STACK_NAMES[updates.stack] || updates.stack) : null;
                 const stackFragment = stackLabel ? ` (${stackLabel})` : '';
                 try {
@@ -2727,13 +2830,110 @@
                     } else if (typeof provider.updateFileMetadata === 'function') {
                         await provider.updateFileMetadata(entry.fileId, payload);
                     }
+                    if (metadataRecord && metadataRecord !== entry.metadataSnapshot) {
+                        Object.assign(metadataRecord, updates, { localUpdatedAt: entry.localUpdatedAt });
+                    }
                     await this.dbManager.deleteFromSyncQueue(entry.queueIds);
                     this.logger?.log({ event: 'sync:success', level: 'success', fileId: entry.fileId, details: `Applied ${entry.operationType}${stackFragment} to ${providerType}.`, data: { updates, stackLabel } });
+                    this.collectManifestUpdate(folderContext, payload);
                     return true;
                 } catch (error) {
                     await this.dbManager.markPendingFlush(entry.queueIds, true);
                     this.logger?.log({ event: 'sync:error', level: 'error', fileId: entry.fileId, details: `Failed to sync ${entry.operationType}: ${error.message}`, data: { updates, stackLabel } });
                     return false;
+                }
+            }
+            resolveEntryFolderContext(entry, metadataRecord = {}) {
+                let providerType = entry?.providerType || metadataRecord.providerType || this.providerType || state.providerType || null;
+                let folderId = entry?.folderId || metadataRecord.folderId || null;
+                if (!folderId && entry?.metadataSnapshot?.folderId) {
+                    folderId = entry.metadataSnapshot.folderId;
+                }
+                if (!folderId && Array.isArray(metadataRecord.parents) && metadataRecord.parents.length > 0) {
+                    folderId = metadataRecord.parents[0];
+                }
+                if (!folderId && metadataRecord.parentReference?.id) {
+                    folderId = metadataRecord.parentReference.id;
+                }
+                if (!folderId && entry?.folderKey) {
+                    const parts = entry.folderKey.split('::');
+                    if (!providerType && parts.length > 0) {
+                        providerType = parts[0] || providerType;
+                    }
+                    folderId = parts.length > 1 ? parts.slice(1).join('::') : parts[0];
+                }
+                if (!folderId && state.currentFolder?.id) {
+                    folderId = state.currentFolder.id;
+                }
+                const folderKey = entry?.folderKey || (providerType && folderId ? `${providerType}::${folderId}` : null);
+                return { folderId, providerType, folderKey };
+            }
+            collectManifestUpdate(context, file) {
+                if (!context || !context.folderId || !context.providerType || !file?.id) {
+                    return;
+                }
+                const folderKey = context.folderKey || `${context.providerType}::${context.folderId}`;
+                const existing = this.pendingManifestUpdates.get(folderKey) || { folderId: context.folderId, providerType: context.providerType, folderKey, files: new Map() };
+                const snapshot = { ...file };
+                snapshot.id = snapshot.id || file.fileId;
+                snapshot.localUpdatedAt = snapshot.localUpdatedAt || file.localUpdatedAt || Date.now();
+                if (snapshot.notes == null && snapshot.appProperties?.notes != null) {
+                    snapshot.notes = snapshot.appProperties.notes;
+                }
+                if (snapshot.stack == null && snapshot.appProperties?.slideboxStack) {
+                    snapshot.stack = snapshot.appProperties.slideboxStack;
+                }
+                if (snapshot.favorite == null && snapshot.appProperties?.favorite != null) {
+                    snapshot.favorite = snapshot.appProperties.favorite === 'true';
+                }
+                existing.files.set(snapshot.id, snapshot);
+                this.pendingManifestUpdates.set(folderKey, existing);
+            }
+            async persistPendingManifestUpdates(timestamp = Date.now()) {
+                if (!state.folderSyncCoordinator || this.pendingManifestUpdates.size === 0) {
+                    this.pendingManifestUpdates.clear();
+                    return;
+                }
+                const coordinator = state.folderSyncCoordinator;
+                try {
+                    for (const [folderKey, payload] of this.pendingManifestUpdates.entries()) {
+                        const files = Array.from(payload.files?.values() || []);
+                        if (!payload.folderId || !payload.providerType || files.length === 0) {
+                            continue;
+                        }
+                        const providerType = payload.providerType || this.providerType || state.providerType || null;
+                        const folderId = payload.folderId;
+                        if (!providerType) continue;
+                        let folderState = null;
+                        try {
+                            folderState = await state.dbManager?.getFolderState({ providerType, folderId });
+                        } catch (error) {
+                            folderState = null;
+                        }
+                        const baseVersion = Number(folderState?.localVersion || 0);
+                        const nextVersion = baseVersion + 1;
+                        let manifestResult = null;
+                        try {
+                            manifestResult = await coordinator.applyLocalManifestUpdates(folderId, files, {
+                                providerType,
+                                targetVersion: nextVersion,
+                                timestamp
+                            });
+                        } catch (error) {
+                            this.logger?.log({ event: 'manifest:update:error', level: 'error', details: `Failed to update manifest for ${folderId}: ${error.message}` });
+                            await coordinator.markRequiresFullResync(folderId, 'manifest-update-failed');
+                            continue;
+                        }
+                        const versionForRecord = manifestResult?.cloudVersion != null ? manifestResult.cloudVersion : nextVersion;
+                        const remoteContext = manifestResult?.manifestFileId ? { manifestFileId: manifestResult.manifestFileId } : {};
+                        await coordinator.recordLocalFlush(folderId, {
+                            timestamp,
+                            targetVersion: versionForRecord,
+                            remoteContext
+                        });
+                    }
+                } finally {
+                    this.pendingManifestUpdates.clear();
                 }
             }
             serializeGoogleMetadata(payload) {
@@ -2802,8 +3002,13 @@
                     return 'beacon';
                 }
                 const result = await this.processQueue(reason);
-                if (this.lastSyncAppliedCount > 0 && state.folderSyncCoordinator && state.currentFolder?.id) {
-                    await state.folderSyncCoordinator.recordLocalFlush(state.currentFolder.id, { timestamp: Date.now() });
+                if (this.lastSyncAppliedCount > 0 && state.folderSyncCoordinator) {
+                    const timestamp = Date.now();
+                    if (this.pendingManifestUpdates.size > 0) {
+                        await this.persistPendingManifestUpdates(timestamp);
+                    } else if (state.currentFolder?.id) {
+                        await state.folderSyncCoordinator.recordLocalFlush(state.currentFolder.id, { timestamp });
+                    }
                 }
                 return result;
             }
@@ -4030,7 +4235,9 @@
                             operationType,
                             origin,
                             localUpdatedAt: timestamp,
-                            metadataSnapshot: { name: file.name, stack: file.stack, stackSequence: file.stackSequence }
+                            folderId: state.currentFolder.id,
+                            providerType: state.providerType,
+                            metadataSnapshot: { name: file.name, stack: file.stack, stackSequence: file.stackSequence, folderId: state.currentFolder.id }
                         }, { debounce: !skipDebounce });
                     }
                 } catch (error) {
