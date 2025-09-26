@@ -1,4 +1,10 @@
-<!-- Orbital8-N-2025-09-18 04:40 AM -->
+<!--
+    Orbital8-O-2025-09-24 03:00 PM
+    v7 Updates:
+    - Added folder version handshake and manifest coordination for cross-device sync
+    - Implemented targeted metadata delta retrieval for Google Drive and OneDrive
+    - Enhanced logging and introduced in-app folder reset workflow
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -315,21 +321,39 @@
         #clear-search-btn:hover { color: #6b7280; }
         
         /* NEW: Search Helper */
-        .search-helper { position: relative; }
-        .search-helper-icon { color: #9ca3af; cursor: pointer; display: flex; align-items: center; }
-        .search-helper-icon:hover { color: #6b7280; }
+        .search-helper { position: relative; display: flex; align-items: center; }
+        .search-helper-icon {
+            color: #9ca3af; cursor: pointer; display: flex; align-items: center; justify-content: center;
+            background: transparent; border: none; padding: 4px; border-radius: 9999px;
+        }
+        .search-helper-icon:hover, .search-helper-icon:focus-visible { color: #6b7280; }
+        .search-helper-icon:focus-visible {
+            outline: 2px solid #3b82f6; outline-offset: 2px;
+        }
         .search-helper-popup {
             display: none; position: absolute; right: 0; top: 100%; margin-top: 8px;
             background: white; border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            padding: 8px; width: 220px; z-index: 20;
+            padding: 8px; width: 240px; z-index: 20;
         }
-        .search-helper:hover .search-helper-popup { display: block; }
-        .search-helper-popup h4 { font-size: 13px; font-weight: 600; color: #374151; margin: 4px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #f3f4f6; }
+        .search-helper.is-open .search-helper-popup { display: block; }
+        .search-helper-header {
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+            margin-bottom: 8px;
+        }
+        .search-helper-popup h4 {
+            font-size: 13px; font-weight: 600; color: #374151; margin: 0; padding-bottom: 4px; border-bottom: 1px solid #f3f4f6;
+            flex: 1;
+        }
+        .search-helper-close {
+            background: none; border: none; color: #9ca3af; cursor: pointer; padding: 2px; border-radius: 4px;
+        }
+        .search-helper-close:hover, .search-helper-close:focus-visible { color: #6b7280; }
+        .search-helper-close:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
         .search-helper-popup a {
             display: block; font-size: 12px; color: #3b82f6; text-decoration: none; padding: 4px 8px;
             border-radius: 4px; cursor: pointer;
         }
-        .search-helper-popup a:hover { background: #f3f4f6; }
+        .search-helper-popup a:hover, .search-helper-popup a:focus-visible { background: #f3f4f6; }
 
 
         .grid-row-4 {
@@ -393,31 +417,33 @@
         .tab-content { display: none; padding: 20px; height: 100%; }
         .tab-content.active { display: block; }
         
-        .tags-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; min-height: 40px; }
-        .tag-item { display: inline-flex; align-items: center; background: #dbeafe; color: #1e40af; padding: 4px 8px; border-radius: 12px; font-size: 12px; gap: 6px; }
-        .tag-remove {
-            background: transparent; border: none; color: #1e40af; cursor: pointer; font-size: 14px; line-height: 1; padding: 0;
-            width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background-color 0.2s;
+        .tags-container { margin-bottom: 16px; }
+        .tag-editor-container { display: flex; flex-direction: column; gap: 12px; }
+        .tag-section { display: flex; flex-direction: column; gap: 6px; }
+        .tag-section-title {
+            font-size: 12px; font-weight: 600; color: #4b5563; text-transform: uppercase; letter-spacing: 0.04em;
         }
-        .tag-remove:hover { background: rgba(59, 130, 246, 0.1); }
-        .add-tag-btn {
-            background: #f3f4f6; border: 1px dashed #d1d5db; border-radius: 12px; padding: 4px 12px;
-            font-size: 12px; color: #6b7280; cursor: pointer; transition: all 0.2s;
-        }
-        .add-tag-btn:hover { background: #e5e7eb; color: #374151; }
-        
-        /* NEW: Action Modal Tag Chips */
-        #tag-chip-container { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+        .tag-chip-list { display: flex; flex-wrap: wrap; gap: 6px; min-height: 32px; }
         .tag-chip {
             display: inline-flex; align-items: center; background: #e0e7ff; color: #3730a3; padding: 4px 8px;
             border-radius: 12px; font-size: 13px; font-weight: 500; gap: 6px;
         }
+        .tag-chip--recent { background: #e5e7eb; color: #374151; }
+        .tag-chip-button {
+            background: transparent; border: none; color: inherit; cursor: pointer; font-size: inherit; padding: 0; display: flex;
+            align-items: center; gap: 6px;
+        }
+        .tag-chip-button:focus-visible {
+            outline: 2px solid #3b82f6; outline-offset: 2px;
+        }
         .tag-chip-remove {
-            background: transparent; border: none; color: #4338ca; cursor: pointer; font-size: 14px; line-height: 1; padding: 0;
+            background: transparent; border: none; color: inherit; cursor: pointer; font-size: 14px; line-height: 1; padding: 0;
             width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border-radius: 50%;
             transition: background-color 0.2s;
         }
-        .tag-chip-remove:hover { background: rgba(99, 102, 241, 0.1); }
+        .tag-chip-remove:hover { background: rgba(99, 102, 241, 0.12); }
+        .tag-chip--recent .tag-chip-remove:hover { background: rgba(107, 114, 128, 0.12); }
+        .tag-editor-note { font-size: 12px; color: #6b7280; }
 
 
         .star-rating { display: flex; gap: 4px; }
@@ -444,6 +470,25 @@
             color: rgba(255, 255, 255, 0.6); text-align: center;
             padding: 4px 8px;
             font-size: 10px; z-index: 5; backdrop-filter: blur(10px);
+        }
+        .app-footer .footer-link {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.65);
+            cursor: pointer;
+            font: inherit;
+            margin-left: 8px;
+            padding: 0;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        .app-footer .footer-link:hover,
+        .app-footer .footer-link:focus-visible {
+            color: #f59e0b;
+            text-decoration: underline;
+        }
+        .app-footer .footer-link:focus-visible {
+            outline: none;
         }
 
         /* NEW: Standardized UI Button */
@@ -655,7 +700,7 @@
             </div>
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">Orbital8-M-2025-09-18 04:16 AM</div>
+        <div class="app-footer">Orbital8-O-v7-2025-09-24 03:00 PM</div>
     </div>
     
     <!-- Unified Auth Screen -->
@@ -670,7 +715,7 @@
             <button class="button" id="auth-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="auth-status" class="status info"></div>
         </div>
-        <div class="app-footer">Orbital8-M-2025-09-18 04:16 AM</div>
+        <div class="app-footer">Orbital8-O-v7-2025-09-24 03:00 PM</div>
     </div>
     
     <!-- Unified Folder Screen -->
@@ -685,7 +730,7 @@
                 <button class="folder-button danger" id="folder-logout-button">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">Orbital8-M-2025-09-18 04:16 AM</div>
+        <div class="app-footer">Orbital8-O-v7-2025-09-24 03:00 PM</div>
     </div>
     
     <!-- Loading Screen -->
@@ -699,7 +744,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">Orbital8-M-2025-09-18 04:16 AM</div>
+        <div class="app-footer">Orbital8-O-v7-2025-09-24 03:00 PM</div>
     </div>
     
     <!-- Main App Container -->
@@ -709,7 +754,8 @@
             Folders
         </button>
         <button class="ui-button" id="details-button">Details</button>
-        
+        <button class="ui-button" id="reset-folder-button">Reset Folder</button>
+
         <div class="image-viewport" id="image-viewport">
             <img class="center-image zoomable" id="center-image" alt="Select a folder to start" />
         </div>
@@ -769,7 +815,7 @@
         </button>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">Orbital8-M-2025-09-18 04:16 AM</div>
+        <div class="app-footer">Orbital8-O-2025-09-24 12:00 PM</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -805,12 +851,17 @@
                 
                 <div class="grid-row-3">
                     <input type="text" id="omni-search" class="input" placeholder="Search with terms, -exclusions, #modifiers..." style="margin-bottom: 0;">
-                    <div class="search-helper">
-                        <div class="search-helper-icon">
+                    <div class="search-helper" id="search-helper">
+                        <button type="button" class="search-helper-icon" id="search-helper-icon" aria-label="Search modifiers" aria-haspopup="true" aria-expanded="false">
                             <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        </div>
-                        <div class="search-helper-popup">
-                            <h4>Special Modifiers</h4>
+                        </button>
+                        <div class="search-helper-popup" id="search-helper-popup" aria-hidden="true">
+                            <div class="search-helper-header">
+                                <h4>Special Modifiers</h4>
+                                <button type="button" class="search-helper-close" id="search-helper-close" aria-label="Close modifier helper">
+                                    <svg style="width: 14px; height: 14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                </button>
+                            </div>
                             <a class="modifier-link" data-modifier="#favorite">#favorite</a>
                             <a class="modifier-link" data-modifier="#quality:5">#quality:1-5</a>
                             <a class="modifier-link" data-modifier="#content:5">#content:1-5</a>
@@ -824,6 +875,7 @@
                 <div class="grid-row-4">
                     <div class="bulk-actions">
                         <button id="tag-selected" class="btn btn-primary">Tag</button>
+                        <button id="notes-selected" class="btn btn-primary">Notes</button>
                         <button id="move-selected" class="btn btn-primary">Move</button>
                         <button id="delete-selected" class="btn btn-danger">Delete</button>
                         <button id="export-selected" class="btn btn-primary">Export</button>
@@ -905,7 +957,7 @@
                     
                     <div style="margin-bottom: 20px;">
                         <div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">Quality Rating:</div>
-                        <div class="star-rating" id="quality-rating">
+                        <div class="star-rating" id="quality-rating" data-rating-type="quality">
                             <svg class="star" data-rating="1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                             <svg class="star" data-rating="2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                             <svg class="star" data-rating="3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
@@ -916,7 +968,7 @@
                     
                     <div style="margin-bottom: 20px;">
                         <div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">Content Rating:</div>
-                        <div class="star-rating" id="content-rating">
+                        <div class="star-rating" id="content-rating" data-rating-type="content">
                             <svg class="star" data-rating="1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                             <svg class="star" data-rating="2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                             <svg class="star" data-rating="3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
@@ -940,7 +992,8 @@
         const STACK_NAMES = { 'in': 'Inbox', 'out': 'Maybe', 'priority': 'Keep', 'trash': 'Recycle' };
         const state = {
             provider: null, providerType: null, dbManager: null, metadataExtractor: null,
-            syncManager: null, visualCues: null, haptic: null, export: null, currentFolder: { id: null, name: '' },
+            folderSync: null,
+            syncManager: null, syncLog: null, visualCues: null, haptic: null, export: null, currentFolder: { id: null, name: '' },
             imageFiles: [], currentImageLoadId: null, currentStack: 'in', currentStackPosition: 0,
             isFocusMode: false, stacks: { in: [], out: [], priority: [], trash: [] },
             isDragging: false, isPinching: false, initialDistance: 0, currentScale: 1,
@@ -950,7 +1003,8 @@
             tags: new Set(), loadingProgress: { current: 0, total: 0 },
             folderMoveMode: { active: false, files: [] },
             activeRequests: new AbortController(),
-            sessionVisitedFolders: new Set()
+            sessionVisitedFolders: new Set(),
+            isImageTransitioning: false
         };
         const Utils = {
             elements: {},
@@ -985,6 +1039,7 @@
                     backButton: document.getElementById('back-button'),
                     backButtonSpinner: document.getElementById('back-button-spinner'),
                     detailsButton: document.getElementById('details-button'),
+                    resetFolderButton: document.getElementById('reset-folder-button'),
                     imageViewport: document.getElementById('image-viewport'),
                     centerImage: document.getElementById('center-image'),
                     emptyState: document.getElementById('empty-state'),
@@ -1040,8 +1095,13 @@
                     
                     omniSearch: document.getElementById('omni-search'),
                     clearSearchBtn: document.getElementById('clear-search-btn'),
+                    searchHelper: document.getElementById('search-helper'),
+                    searchHelperIcon: document.getElementById('search-helper-icon'),
+                    searchHelperPopup: document.getElementById('search-helper-popup'),
+                    searchHelperClose: document.getElementById('search-helper-close'),
                     
                     tagSelected: document.getElementById('tag-selected'),
+                    notesSelected: document.getElementById('notes-selected'),
                     moveSelected: document.getElementById('move-selected'),
                     deleteSelected: document.getElementById('delete-selected'),
                     exportSelected: document.getElementById('export-selected'),
@@ -1162,21 +1222,699 @@
             }
         };
 
+        const TagService = {
+            normalizeIds(ids = []) {
+                return Array.from(new Set((ids || []).map(id => (id != null ? String(id) : '')).filter(Boolean)));
+            },
+            normalizeTagValue(tag) {
+                const trimmed = (tag || '').trim();
+                if (!trimmed) return '';
+                return trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+            },
+            normalizeTagList(tags = []) {
+                const normalized = [];
+                (tags || []).forEach(tag => {
+                    const value = this.normalizeTagValue(tag);
+                    if (value && !normalized.includes(value)) {
+                        normalized.push(value);
+                    }
+                });
+                return normalized;
+            },
+            getFiles(ids = []) {
+                const normalized = this.normalizeIds(ids);
+                return normalized.map(id => state.imageFiles.find(file => file.id === id)).filter(Boolean);
+            },
+            getDisplayTags(ids = []) {
+                const files = this.getFiles(ids);
+                const seen = new Set();
+                files.forEach(file => {
+                    const normalizedTags = this.normalizeTagList(file.tags || []);
+                    file.tags = normalizedTags;
+                    normalizedTags.forEach(tag => {
+                        seen.add(tag);
+                        state.tags.add(tag);
+                    });
+                });
+                return Array.from(seen).sort((a, b) => a.localeCompare(b));
+            },
+            async addTag(tag, ids = []) {
+                const normalizedTag = this.normalizeTagValue(tag);
+                const targetIds = this.normalizeIds(ids);
+                if (!normalizedTag || targetIds.length === 0) {
+                    return this.getDisplayTags(targetIds);
+                }
+                const files = this.getFiles(targetIds);
+                let changed = false;
+                const tasks = files.map(file => {
+                    const currentTags = this.normalizeTagList(file.tags || []);
+                    if (!currentTags.includes(normalizedTag)) {
+                        changed = true;
+                        const newTags = [...currentTags, normalizedTag];
+                        file.tags = newTags;
+                        return App.updateUserMetadata(file.id, { tags: newTags });
+                    }
+                    return null;
+                }).filter(Boolean);
+                if (tasks.length > 0) {
+                    await Promise.all(tasks);
+                }
+                if (changed) {
+                    state.tags.add(normalizedTag);
+                }
+                return this.getDisplayTags(targetIds);
+            },
+            async removeTag(tag, ids = []) {
+                const normalizedTag = this.normalizeTagValue(tag);
+                const targetIds = this.normalizeIds(ids);
+                if (!normalizedTag || targetIds.length === 0) {
+                    return this.getDisplayTags(targetIds);
+                }
+                const files = this.getFiles(targetIds);
+                const tasks = files.map(file => {
+                    const currentTags = this.normalizeTagList(file.tags || []);
+                    if (currentTags.includes(normalizedTag)) {
+                        const newTags = currentTags.filter(t => t !== normalizedTag);
+                        file.tags = newTags;
+                        return App.updateUserMetadata(file.id, { tags: newTags });
+                    }
+                    return null;
+                }).filter(Boolean);
+                if (tasks.length > 0) {
+                    await Promise.all(tasks);
+                }
+                return this.getDisplayTags(targetIds);
+            },
+            getSessionTags() {
+                return Array.from(state.tags).sort((a, b) => a.localeCompare(b));
+            },
+            removeSessionTag(tag) {
+                const normalized = this.normalizeTagValue(tag);
+                if (!normalized) return;
+                state.tags.delete(normalized);
+            }
+        };
+
+        class TagEditorInstance {
+            constructor(options) {
+                const { container, input, recentContainer, targetIds = [], placeholder } = options;
+                this.container = container;
+                this.input = input;
+                this.recentContainer = recentContainer;
+                this.targetIds = TagService.normalizeIds(targetIds);
+                this.placeholder = placeholder || 'Enter tags separated by commas - non-# tags are auto-prefixed when you press Enter';
+                this.isProcessing = false;
+                this.handleKeydown = this.handleKeydown.bind(this);
+            }
+
+            init() {
+                if (this.input) {
+                    this.input.value = '';
+                    this.input.placeholder = this.placeholder;
+                    this.input.addEventListener('keydown', this.handleKeydown);
+                }
+                this.refresh();
+                this.renderRecents();
+            }
+
+            setTargetIds(ids = []) {
+                this.targetIds = TagService.normalizeIds(ids);
+                this.refresh();
+                this.renderRecents();
+            }
+
+            getTags() {
+                return TagService.getDisplayTags(this.targetIds);
+            }
+
+            async handleKeydown(event) {
+                if (!this.input) return;
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    const value = this.input.value.trim();
+                    if (!value) return;
+                    this.input.value = '';
+                    const values = value.split(',').map(v => v.trim()).filter(Boolean);
+                    if (values.length === 0) return;
+                    await this.addTag(values);
+                }
+            }
+
+            async addTag(tag) {
+                if (this.isProcessing) return;
+                this.isProcessing = true;
+                try {
+                    const tagsToAdd = Array.isArray(tag) ? tag : [tag];
+                    for (const rawTag of tagsToAdd) {
+                        await TagService.addTag(rawTag, this.targetIds);
+                    }
+                    this.refresh();
+                    this.renderRecents();
+                } catch (error) {
+                    Utils.showToast(`Failed to add tag: ${error.message}`, 'error', true);
+                } finally {
+                    this.isProcessing = false;
+                    if (this.input) this.input.focus();
+                }
+            }
+
+            async removeTag(tag) {
+                if (this.isProcessing) return;
+                this.isProcessing = true;
+                try {
+                    await TagService.removeTag(tag, this.targetIds);
+                    this.refresh();
+                    this.renderRecents();
+                } catch (error) {
+                    Utils.showToast(`Failed to remove tag: ${error.message}`, 'error', true);
+                } finally {
+                    this.isProcessing = false;
+                    if (this.input) this.input.focus();
+                }
+            }
+
+            refresh() {
+                if (!this.container) return;
+                const tags = this.getTags();
+                this.container.innerHTML = '';
+                tags.forEach(tag => {
+                    const chip = document.createElement('div');
+                    chip.className = 'tag-chip';
+                    const label = document.createElement('span');
+                    label.textContent = tag;
+                    const removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.className = 'tag-chip-remove';
+                    removeBtn.dataset.tag = tag;
+                    removeBtn.textContent = '×';
+                    removeBtn.addEventListener('click', () => this.removeTag(tag));
+                    chip.appendChild(label);
+                    chip.appendChild(removeBtn);
+                    this.container.appendChild(chip);
+                });
+            }
+
+            renderRecents() {
+                if (!this.recentContainer) return;
+                const assigned = new Set(this.getTags());
+                const tags = TagService.getSessionTags().filter(tag => !assigned.has(tag));
+                this.recentContainer.innerHTML = '';
+                const section = this.recentContainer.closest('.tag-section');
+                if (tags.length === 0) {
+                    this.recentContainer.style.display = 'none';
+                    if (section) section.style.display = 'none';
+                    return;
+                }
+                this.recentContainer.style.display = '';
+                if (section) section.style.display = '';
+                tags.forEach(tag => {
+                    const chip = document.createElement('div');
+                    chip.className = 'tag-chip tag-chip--recent';
+
+                    const applyButton = document.createElement('button');
+                    applyButton.type = 'button';
+                    applyButton.className = 'tag-chip-button';
+                    applyButton.textContent = tag;
+                    applyButton.addEventListener('click', () => this.addTag(tag));
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.className = 'tag-chip-remove';
+                    removeBtn.dataset.tag = tag;
+                    removeBtn.textContent = '×';
+                    removeBtn.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        TagService.removeSessionTag(tag);
+                        this.renderRecents();
+                    });
+
+                    chip.appendChild(applyButton);
+                    chip.appendChild(removeBtn);
+                    this.recentContainer.appendChild(chip);
+                });
+            }
+
+            destroy() {
+                if (this.input) {
+                    this.input.removeEventListener('keydown', this.handleKeydown);
+                }
+                if (this.container) {
+                    this.container.innerHTML = '';
+                }
+                if (this.recentContainer) {
+                    this.recentContainer.innerHTML = '';
+                    this.recentContainer.style.display = '';
+                    const section = this.recentContainer.closest('.tag-section');
+                    if (section) section.style.display = '';
+                }
+            }
+        }
+
+        const TagEditor = {
+            create(options) {
+                const instance = new TagEditorInstance(options);
+                instance.init();
+                return instance;
+            }
+        };
+
+        class NotesEditorInstance {
+            constructor(options) {
+                const { root, targetIds = [], mode = 'immediate' } = options;
+                this.root = root;
+                this.targetIds = TagService.normalizeIds(targetIds);
+                this.mode = mode;
+                this.textarea = this.root ? this.root.querySelector('.notes-textarea') : null;
+                this.starContainers = {
+                    quality: this.root ? this.root.querySelector('.star-rating[data-rating-type="quality"]') : null,
+                    content: this.root ? this.root.querySelector('.star-rating[data-rating-type="content"]') : null
+                };
+                this.values = { notes: '', qualityRating: 0, contentRating: 0 };
+                this.lastCommitted = { notes: '', qualityRating: 0, contentRating: 0 };
+                this.isProcessing = false;
+                this.starHandlers = { quality: [], content: [] };
+                this.handleNotesInput = this.handleNotesInput.bind(this);
+                this.handleNotesBlur = this.handleNotesBlur.bind(this);
+            }
+
+            initialize(initialValues = {}) {
+                this.setValues(initialValues);
+                this.attachEvents();
+            }
+
+            setTargetIds(ids = []) {
+                this.targetIds = TagService.normalizeIds(ids);
+            }
+
+            setValues(values = {}) {
+                const normalized = {
+                    notes: values.notes ?? '',
+                    qualityRating: values.qualityRating ?? 0,
+                    contentRating: values.contentRating ?? 0
+                };
+                this.values = { ...normalized };
+                this.lastCommitted = { ...normalized };
+                if (this.textarea) {
+                    this.textarea.value = normalized.notes;
+                }
+                this.updateStarVisuals('quality', normalized.qualityRating);
+                this.updateStarVisuals('content', normalized.contentRating);
+            }
+
+            attachEvents() {
+                if (this.textarea) {
+                    this.textarea.addEventListener('input', this.handleNotesInput);
+                    this.textarea.addEventListener('blur', this.handleNotesBlur);
+                }
+                this.setupStars('quality');
+                this.setupStars('content');
+            }
+
+            handleNotesInput() {
+                if (!this.textarea) return;
+                this.values.notes = this.textarea.value;
+            }
+
+            async handleNotesBlur() {
+                if (this.mode !== 'immediate') return;
+                if (this.values.notes === this.lastCommitted.notes) return;
+                await this.commitImmediate({ notes: this.values.notes });
+            }
+
+            async commitImmediate(updates) {
+                if (this.isProcessing || this.targetIds.length === 0) return;
+                this.isProcessing = true;
+                try {
+                    const applied = await this.applyUpdates(updates);
+                    if (applied) {
+                        Object.entries(updates).forEach(([key, value]) => {
+                            this.lastCommitted[key] = value;
+                        });
+                    }
+                } finally {
+                    this.isProcessing = false;
+                }
+            }
+
+            setupStars(type) {
+                const container = this.starContainers[type];
+                if (!container) return;
+                const leaveHandler = () => this.updateStarVisuals(type, this.values[`${type}Rating`]);
+                container.addEventListener('mouseleave', leaveHandler);
+                this.starHandlers[type].push({ element: container, type: 'mouseleave', handler: leaveHandler });
+                const stars = Array.from(container.querySelectorAll('.star'));
+                stars.forEach(star => {
+                    const ratingValue = parseInt(star.dataset.rating, 10) || 0;
+                    const enterHandler = () => this.updateStarVisuals(type, ratingValue);
+                    const clickHandler = async () => {
+                        const current = this.values[`${type}Rating`];
+                        const newValue = current === ratingValue ? 0 : ratingValue;
+                        if (current === newValue) return;
+                        this.values[`${type}Rating`] = newValue;
+                        this.updateStarVisuals(type, newValue);
+                        if (this.mode === 'immediate') {
+                            await this.commitImmediate({ [`${type}Rating`]: newValue });
+                        }
+                    };
+                    star.addEventListener('mouseenter', enterHandler);
+                    star.addEventListener('click', clickHandler);
+                    this.starHandlers[type].push({ element: star, type: 'mouseenter', handler: enterHandler });
+                    this.starHandlers[type].push({ element: star, type: 'click', handler: clickHandler });
+                });
+                this.updateStarVisuals(type, this.values[`${type}Rating`]);
+            }
+
+            updateStarVisuals(type, rating) {
+                const container = this.starContainers[type];
+                if (!container) return;
+                const stars = container.querySelectorAll('.star');
+                stars.forEach((star, index) => {
+                    star.classList.toggle('active', index < rating);
+                });
+            }
+
+            async applyUpdates(updates) {
+                const files = TagService.getFiles(this.targetIds);
+                if (files.length === 0) return false;
+                const tasks = [];
+                files.forEach(file => {
+                    const payload = {};
+                    let changed = false;
+                    if ('notes' in updates) {
+                        const incomingNotes = updates.notes ?? '';
+                        if ((file.notes || '') !== incomingNotes) {
+                            payload.notes = incomingNotes;
+                            changed = true;
+                        }
+                    }
+                    if ('qualityRating' in updates) {
+                        const incomingQuality = updates.qualityRating ?? 0;
+                        if ((file.qualityRating || 0) !== incomingQuality) {
+                            payload.qualityRating = incomingQuality;
+                            changed = true;
+                        }
+                    }
+                    if ('contentRating' in updates) {
+                        const incomingContent = updates.contentRating ?? 0;
+                        if ((file.contentRating || 0) !== incomingContent) {
+                            payload.contentRating = incomingContent;
+                            changed = true;
+                        }
+                    }
+                    if (changed) {
+                        tasks.push(App.updateUserMetadata(file.id, payload));
+                    }
+                });
+                if (tasks.length === 0) return false;
+                try {
+                    await Promise.all(tasks);
+                    return true;
+                } catch (error) {
+                    Utils.showToast(`Failed to update notes: ${error.message}`, 'error', true);
+                    return false;
+                }
+            }
+
+            getPendingUpdates() {
+                const changes = {};
+                if (this.values.notes !== this.lastCommitted.notes) {
+                    changes.notes = this.values.notes;
+                }
+                if (this.values.qualityRating !== this.lastCommitted.qualityRating) {
+                    changes.qualityRating = this.values.qualityRating;
+                }
+                if (this.values.contentRating !== this.lastCommitted.contentRating) {
+                    changes.contentRating = this.values.contentRating;
+                }
+                return changes;
+            }
+
+            async commit() {
+                if (this.mode !== 'deferred') return false;
+                if (this.isProcessing || this.targetIds.length === 0) return false;
+                const updates = this.getPendingUpdates();
+                if (Object.keys(updates).length === 0) return false;
+                this.isProcessing = true;
+                try {
+                    const applied = await this.applyUpdates(updates);
+                    if (applied) {
+                        this.lastCommitted = { ...this.values };
+                    }
+                    return applied;
+                } finally {
+                    this.isProcessing = false;
+                }
+            }
+
+            destroy() {
+                if (this.textarea) {
+                    this.textarea.removeEventListener('input', this.handleNotesInput);
+                    this.textarea.removeEventListener('blur', this.handleNotesBlur);
+                }
+                Object.values(this.starHandlers).forEach(handlers => {
+                    handlers.forEach(({ element, type, handler }) => {
+                        element.removeEventListener(type, handler);
+                    });
+                });
+                this.starHandlers = { quality: [], content: [] };
+            }
+        }
+
+        const NotesEditor = {
+            create(options) {
+                const instance = new NotesEditorInstance(options);
+                instance.initialize(options.initialValues || {});
+                return instance;
+            }
+        };
+
+        function createNotesEditorElement({ textareaId } = {}) {
+            const wrapper = document.createElement('div');
+            const labelAttr = textareaId ? `for="${textareaId}"` : '';
+            const textareaAttr = textareaId ? `id="${textareaId}"` : '';
+            wrapper.innerHTML = `
+                <div style="margin-bottom: 24px;">
+                    <label ${labelAttr} style="font-size: 14px; color: #6b7280; min-width: 80px; font-weight: 500;">Notes:</label>
+                    <textarea ${textareaAttr} class="notes-textarea" placeholder="Add your notes here..."></textarea>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">Quality Rating:</div>
+                    <div class="star-rating" data-rating-type="quality">
+                        <svg class="star" data-rating="1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        <svg class="star" data-rating="2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        <svg class="star" data-rating="3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        <svg class="star" data-rating="4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        <svg class="star" data-rating="5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">Content Rating:</div>
+                    <div class="star-rating" data-rating-type="content">
+                        <svg class="star" data-rating="1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        <svg class="star" data-rating="2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        <svg class="star" data-rating="3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        <svg class="star" data-rating="4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        <svg class="star" data-rating="5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                </div>
+            `;
+            return wrapper;
+        }
+
+        class SyncActivityLogger {
+            constructor() {
+                this.entries = [];
+                this.maxEntries = 800;
+                this.logWindow = null;
+                this.footerLinks = [];
+            }
+            init() {
+                window.__orbitalSyncLogger = this;
+                this.attachFooterLinks();
+                this.log({ event: 'logger:init', level: 'info', details: 'Sync activity logger ready.' });
+            }
+            attachFooterLinks() {
+                const footers = document.querySelectorAll('.app-footer');
+                footers.forEach(footer => {
+                    if (footer.querySelector('.footer-link')) return;
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'footer-link';
+                    button.textContent = 'Sync Log';
+                    button.setAttribute('aria-label', 'Open sync activity log window');
+                    button.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        this.openWindow();
+                    });
+                    footer.appendChild(button);
+                    this.footerLinks.push(button);
+                });
+            }
+            openWindow() {
+                if (this.logWindow && !this.logWindow.closed) {
+                    this.logWindow.focus();
+                    this.renderWindow();
+                    return;
+                }
+                const features = 'width=520,height=720,resizable=yes,scrollbars=yes';
+                this.logWindow = window.open('', 'orbital8-sync-log', features);
+                if (!this.logWindow) {
+                    alert('Popup blocked. Allow popups to view the sync activity log.');
+                    return;
+                }
+                const doc = this.logWindow.document;
+                doc.open();
+                doc.write(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Sync Activity Log</title><style>
+                    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;}
+                    header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#111827;border-bottom:1px solid rgba(148,163,184,0.2);position:sticky;top:0;z-index:10;}
+                    header h1{font-size:16px;margin:0;letter-spacing:0.02em;}
+                    header .actions{display:flex;gap:8px;align-items:center;}
+                    header button{background:#f59e0b;border:none;color:#111827;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;box-shadow:0 4px 12px rgba(245,158,11,0.35);}
+                    header button.secondary{background:transparent;color:#e2e8f0;border:1px solid rgba(148,163,184,0.4);box-shadow:none;}
+                    header button:focus-visible{outline:2px solid #fbbf24;outline-offset:2px;}
+                    #sync-log-entries{padding:16px;display:flex;flex-direction:column;gap:12px;height:calc(100vh - 64px);overflow:auto;background:linear-gradient(180deg,#0f172a,#020617);}
+                    #sync-log-entries::-webkit-scrollbar{width:8px;}
+                    #sync-log-entries::-webkit-scrollbar-thumb{background:rgba(148,163,184,0.4);border-radius:6px;}
+                    .log-entry{padding:12px 14px;border-radius:10px;background:rgba(30,41,59,0.7);border:1px solid rgba(148,163,184,0.2);box-shadow:0 8px 24px rgba(2,6,23,0.35);}
+                    .log-entry.log-success{border-color:rgba(34,197,94,0.5);background:rgba(22,101,52,0.35);}
+                    .log-entry.log-warn{border-color:rgba(251,191,36,0.5);background:rgba(120,53,15,0.4);}
+                    .log-entry.log-error{border-color:rgba(248,113,113,0.5);background:rgba(127,29,29,0.35);}
+                    .log-meta{font-size:12px;color:rgba(148,163,184,0.9);margin-bottom:6px;}
+                    .log-message{font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word;}
+                    .log-data{margin-top:8px;background:rgba(15,23,42,0.8);padding:8px;border-radius:6px;font-size:12px;color:#cbd5f5;overflow:auto;}
+                </style></head><body><header><h1>Sync Activity Log</h1><div class="actions"><button id="sync-log-copy">Copy Log</button><button id="sync-log-clear" class="secondary">Clear</button></div></header><main id="sync-log-entries" role="log" aria-live="polite"></main></body></html>`);
+                doc.close();
+                this.bindWindowControls();
+                this.renderWindow();
+            }
+            bindWindowControls() {
+                if (!this.logWindow) return;
+                this.logWindow.addEventListener('beforeunload', () => { this.logWindow = null; });
+                const doc = this.logWindow.document;
+                const copyBtn = doc.getElementById('sync-log-copy');
+                if (copyBtn) { copyBtn.addEventListener('click', () => this.copyEntries()); }
+                const clearBtn = doc.getElementById('sync-log-clear');
+                if (clearBtn) { clearBtn.addEventListener('click', () => this.clear()); }
+            }
+            log(entry) {
+                const normalized = {
+                    id: entry.id || (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : `log-${Date.now()}-${Math.random().toString(16).slice(2)}`),
+                    timestamp: entry.timestamp ? new Date(entry.timestamp) : new Date(),
+                    level: entry.level || 'info',
+                    event: entry.event || 'log',
+                    direction: entry.direction || '',
+                    details: entry.details || '',
+                    fileId: entry.fileId || null,
+                    data: entry.data || null
+                };
+                this.entries.push(normalized);
+                if (this.entries.length > this.maxEntries) {
+                    this.entries.splice(0, this.entries.length - this.maxEntries);
+                }
+                this.renderWindow();
+            }
+            renderWindow() {
+                if (!this.logWindow || this.logWindow.closed) return;
+                const container = this.logWindow.document.getElementById('sync-log-entries');
+                if (!container) return;
+                container.innerHTML = '';
+                const fragment = this.logWindow.document.createDocumentFragment();
+                this.entries.slice().reverse().forEach(entry => {
+                    const row = this.logWindow.document.createElement('section');
+                    row.className = `log-entry log-${entry.level}`;
+                    const meta = this.logWindow.document.createElement('div');
+                    meta.className = 'log-meta';
+                    const parts = [entry.timestamp.toLocaleTimeString(), entry.event];
+                    if (entry.fileId) parts.push(`file:${entry.fileId}`);
+                    if (entry.direction) parts.push(entry.direction);
+                    meta.textContent = parts.join(' · ');
+                    const message = this.logWindow.document.createElement('div');
+                    message.className = 'log-message';
+                    message.innerHTML = this.escapeHtml(entry.details || '');
+                    row.appendChild(meta);
+                    row.appendChild(message);
+                    if (entry.data) {
+                        const pre = this.logWindow.document.createElement('pre');
+                        pre.className = 'log-data';
+                        pre.textContent = JSON.stringify(entry.data, null, 2);
+                        row.appendChild(pre);
+                    }
+                    fragment.appendChild(row);
+                });
+                container.appendChild(fragment);
+            }
+            copyEntries() {
+                const text = this.entries.map(entry => this.formatEntry(entry)).join('\n');
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).catch(() => this.fallbackCopy(text));
+                } else {
+                    this.fallbackCopy(text);
+                }
+            }
+            formatEntry(entry) {
+                const iso = entry.timestamp.toISOString();
+                const meta = [iso, entry.event];
+                if (entry.fileId) meta.push(`file:${entry.fileId}`);
+                if (entry.direction) meta.push(entry.direction);
+                const detail = entry.details || '';
+                const data = entry.data ? `\n${JSON.stringify(entry.data)}` : '';
+                return `${meta.join(' ')} :: ${detail}${data}`;
+            }
+            fallbackCopy(text) {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try { document.execCommand('copy'); } catch (_) { /* ignored */ }
+                textarea.remove();
+            }
+            clear() {
+                this.entries = [];
+                this.renderWindow();
+            }
+            escapeHtml(value) {
+                if (value == null) return '';
+                return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] || char));
+            }
+        }
         class DBManager {
             constructor() { this.db = null; }
             async init() {
                 return new Promise((resolve, reject) => {
-                    const request = indexedDB.open('Orbital8-Goji-V1', 1);
+                    const request = indexedDB.open('Orbital8-Goji-V1', 4);
                     request.onupgradeneeded = (event) => {
                         const db = event.target.result;
-                        if (!db.objectStoreNames.contains('folderCache')) {
+                        const oldVersion = event.oldVersion || 0;
+
+                        if (oldVersion < 1 && !db.objectStoreNames.contains('folderCache')) {
                             db.createObjectStore('folderCache', { keyPath: 'folderId' });
                         }
-                        if (!db.objectStoreNames.contains('metadata')) {
-                            db.createObjectStore('metadata', { keyPath: 'id' });
+
+                        if (oldVersion < 2) {
+                            if (!db.objectStoreNames.contains('metadata')) {
+                                db.createObjectStore('metadata', { keyPath: 'id' });
+                            }
+                            if (!db.objectStoreNames.contains('syncQueue')) {
+                                db.createObjectStore('syncQueue', { keyPath: 'id', autoIncrement: true });
+                            }
                         }
-                        if (!db.objectStoreNames.contains('syncQueue')) {
-                            db.createObjectStore('syncQueue', { keyPath: 'id', autoIncrement: true });
+                        if (oldVersion < 3) {
+                            if (!db.objectStoreNames.contains('folderState')) {
+                                db.createObjectStore('folderState', { keyPath: 'key' });
+                            }
+                            if (!db.objectStoreNames.contains('folderManifests')) {
+                                db.createObjectStore('folderManifests', { keyPath: 'key' });
+                            }
+                        }
+                        if (oldVersion < 4) {
+                            if (!db.objectStoreNames.contains('folderState')) {
+                                db.createObjectStore('folderState', { keyPath: 'key' });
+                            }
+                            if (!db.objectStoreNames.contains('folderManifests')) {
+                                db.createObjectStore('folderManifests', { keyPath: 'key' });
+                            }
                         }
                     };
                     request.onsuccess = (event) => { this.db = event.target.result; resolve(); };
@@ -1199,6 +1937,77 @@
                     const transaction = this.db.transaction('folderCache', 'readwrite');
                     const store = transaction.objectStore('folderCache');
                     const request = store.put({ folderId, files, timestamp: Date.now() });
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            async deleteFolderCache(folderId) {
+                if (!this.db) return;
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('folderCache', 'readwrite');
+                    const store = transaction.objectStore('folderCache');
+                    const request = store.delete(folderId);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            async getFolderState(key) {
+                if (!this.db) return null;
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('folderState', 'readonly');
+                    const store = transaction.objectStore('folderState');
+                    const request = store.get(key);
+                    request.onsuccess = () => resolve(request.result || null);
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            async saveFolderState(key, state) {
+                if (!this.db) return;
+                const payload = { key, ...(state || {}) };
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('folderState', 'readwrite');
+                    const store = transaction.objectStore('folderState');
+                    const request = store.put(payload);
+                    request.onsuccess = () => resolve(payload);
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            async deleteFolderState(key) {
+                if (!this.db) return;
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('folderState', 'readwrite');
+                    const store = transaction.objectStore('folderState');
+                    const request = store.delete(key);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            async getFolderManifest(key) {
+                if (!this.db) return null;
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('folderManifests', 'readonly');
+                    const store = transaction.objectStore('folderManifests');
+                    const request = store.get(key);
+                    request.onsuccess = () => resolve(request.result ? request.result.manifest : null);
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            async saveFolderManifest(key, manifest) {
+                if (!this.db) return;
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('folderManifests', 'readwrite');
+                    const store = transaction.objectStore('folderManifests');
+                    const request = store.put({ key, manifest });
+                    request.onsuccess = () => resolve(manifest);
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            async deleteFolderManifest(key) {
+                if (!this.db) return;
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('folderManifests', 'readwrite');
+                    const store = transaction.objectStore('folderManifests');
+                    const request = store.delete(key);
                     request.onsuccess = () => resolve();
                     request.onerror = () => reject(request.error);
                 });
@@ -1233,15 +2042,662 @@
                     request.onerror = () => reject(request.error);
                 });
             }
-            async addToSyncQueue(operation) { return Promise.resolve(); }
-            async readSyncQueue() { return Promise.resolve([]); }
-            async deleteFromSyncQueue(id) { return Promise.resolve(); }
+            async addToSyncQueue(operation) {
+                if (!this.db) return null;
+                const entry = {
+                    fileId: operation.fileId,
+                    updates: operation.updates || {},
+                    operationType: operation.operationType || 'metadata:update',
+                    origin: operation.origin || 'ui',
+                    localUpdatedAt: operation.localUpdatedAt || Date.now(),
+                    pendingFlush: Boolean(operation.pendingFlush),
+                    metadataSnapshot: operation.metadataSnapshot || null,
+                    retryCount: operation.retryCount || 0
+                };
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('syncQueue', 'readwrite');
+                    const store = transaction.objectStore('syncQueue');
+                    const request = store.add(entry);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            async readSyncQueue() {
+                if (!this.db) return [];
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('syncQueue', 'readonly');
+                    const store = transaction.objectStore('syncQueue');
+                    const request = store.getAll();
+                    request.onsuccess = () => {
+                        const results = request.result || [];
+                        results.sort((a, b) => (a.localUpdatedAt || 0) - (b.localUpdatedAt || 0));
+                        resolve(results);
+                    };
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            async deleteFromSyncQueue(ids) {
+                if (!this.db) return;
+                const targetIds = Array.isArray(ids) ? ids : [ids];
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('syncQueue', 'readwrite');
+                    const store = transaction.objectStore('syncQueue');
+                    targetIds.forEach(id => { store.delete(id); });
+                    transaction.oncomplete = () => resolve();
+                    transaction.onerror = () => reject(transaction.error);
+                });
+            }
+            async updateSyncQueueEntry(id, updates) {
+                if (!this.db) return false;
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction('syncQueue', 'readwrite');
+                    const store = transaction.objectStore('syncQueue');
+                    const getRequest = store.get(id);
+                    getRequest.onsuccess = () => {
+                        const entry = getRequest.result;
+                        if (!entry) { resolve(false); return; }
+                        Object.assign(entry, updates);
+                        const putRequest = store.put(entry);
+                        putRequest.onsuccess = () => resolve(true);
+                        putRequest.onerror = () => reject(putRequest.error);
+                    };
+                    getRequest.onerror = () => reject(getRequest.error);
+                });
+            }
+            async markPendingFlush(ids, pending = true) {
+                if (!this.db) return;
+                const targetIds = Array.isArray(ids) ? ids : [ids];
+                await Promise.all(targetIds.map(id => this.updateSyncQueueEntry(id, { pendingFlush: pending })));
+            }
+        }
+        class FolderSyncCoordinator {
+            constructor({ dbManager, logger } = {}) {
+                this.dbManager = dbManager || null;
+                this.logger = logger || null;
+            }
+            setDbManager(dbManager) { this.dbManager = dbManager; }
+            setLogger(logger) { this.logger = logger; }
+            getKey(providerType, folderId) { return `${providerType || 'unknown'}::${folderId}`; }
+            getDefaultState(providerType, folderId) {
+                return {
+                    key: this.getKey(providerType, folderId),
+                    providerType: providerType || 'unknown',
+                    folderId,
+                    localVersion: 0,
+                    remoteVersion: 0,
+                    remoteManifestId: null,
+                    lastSyncAt: 0
+                };
+            }
+            sanitizeManifest(manifest = {}) {
+                const items = manifest.items && typeof manifest.items === 'object' ? manifest.items : {};
+                const removed = manifest.removed && typeof manifest.removed === 'object' ? manifest.removed : {};
+                return {
+                    version: Number.isFinite(manifest.version) ? manifest.version : 0,
+                    updatedAt: manifest.updatedAt || Date.now(),
+                    items,
+                    removed
+                };
+            }
+            async getState(providerType, folderId) {
+                if (!this.dbManager) return this.getDefaultState(providerType, folderId);
+                const key = this.getKey(providerType, folderId);
+                const record = await this.dbManager.getFolderState(key);
+                return record ? { ...this.getDefaultState(providerType, folderId), ...record } : this.getDefaultState(providerType, folderId);
+            }
+            async saveState(providerType, folderId, updates = {}) {
+                if (!this.dbManager) return this.getDefaultState(providerType, folderId);
+                const key = this.getKey(providerType, folderId);
+                const current = await this.getState(providerType, folderId);
+                const next = { ...current, ...updates, key };
+                await this.dbManager.saveFolderState(key, next);
+                return next;
+            }
+            async clearState(providerType, folderId) {
+                if (!this.dbManager) return;
+                const key = this.getKey(providerType, folderId);
+                await this.dbManager.deleteFolderState(key);
+                await this.dbManager.deleteFolderManifest(key);
+            }
+            async getLocalManifest(providerType, folderId) {
+                if (!this.dbManager) return this.sanitizeManifest();
+                const key = this.getKey(providerType, folderId);
+                const manifest = await this.dbManager.getFolderManifest(key);
+                return manifest ? this.sanitizeManifest(manifest) : this.sanitizeManifest();
+            }
+            async saveLocalManifest(providerType, folderId, manifest) {
+                if (!this.dbManager) return this.sanitizeManifest(manifest);
+                const key = this.getKey(providerType, folderId);
+                const sanitized = this.sanitizeManifest(manifest);
+                await this.dbManager.saveFolderManifest(key, sanitized);
+                return sanitized;
+            }
+            createMetadataSnapshot(file) {
+                if (!file) {
+                    return { stack: 'in', tags: [], notes: '', qualityRating: 0, contentRating: 0, stackSequence: 0, favorite: false };
+                }
+                const tags = Array.isArray(file.tags) ? [...file.tags] : [];
+                tags.sort();
+                return {
+                    stack: file.stack || 'in',
+                    tags,
+                    notes: file.notes || '',
+                    qualityRating: Number.isFinite(file.qualityRating) ? file.qualityRating : 0,
+                    contentRating: Number.isFinite(file.contentRating) ? file.contentRating : 0,
+                    stackSequence: Number.isFinite(file.stackSequence) ? file.stackSequence : 0,
+                    favorite: Boolean(file.favorite)
+                };
+            }
+            buildEntry(file, version) {
+                return {
+                    version: version || 1,
+                    updatedAt: Date.now(),
+                    metadata: this.createMetadataSnapshot(file)
+                };
+            }
+            applyEntryToFile(file, entry) {
+                if (!file || !entry) return file;
+                const metadata = entry.metadata || {};
+                const updated = { ...file };
+                Object.assign(updated, metadata);
+                updated.manifestVersion = entry.version || 0;
+                updated.localUpdatedAt = entry.updatedAt || Date.now();
+                return updated;
+            }
+            async fetchRemoteManifest(provider, providerType, folderId, state) {
+                if (!provider || typeof provider.fetchFolderManifest !== 'function') {
+                    return { manifest: null, context: {} };
+                }
+                const context = {};
+                if (state?.remoteManifestId) { context.remoteId = state.remoteManifestId; }
+                try {
+                    const result = await provider.fetchFolderManifest(folderId, context);
+                    if (result?.manifest) {
+                        this.logger?.log?.({ event: 'manifest:fetch', level: 'info', details: `Fetched remote manifest v${result.manifest.version || 0} for ${providerType}.` });
+                        const remoteContext = result.context || {};
+                        if (!remoteContext.remoteId && result.remoteId) { remoteContext.remoteId = result.remoteId; }
+                        return { manifest: this.sanitizeManifest(result.manifest), context: remoteContext };
+                    }
+                    return { manifest: null, context: result?.context || {} };
+                } catch (error) {
+                    this.logger?.log?.({ event: 'manifest:fetch:error', level: 'warn', details: error.message });
+                    return { manifest: null, context: {} };
+                }
+            }
+            async persistManifest(providerType, folderId, manifest, context = {}) {
+                const sanitized = this.sanitizeManifest(manifest);
+                await this.saveLocalManifest(providerType, folderId, sanitized);
+                const updates = { localVersion: sanitized.version || 0, remoteVersion: sanitized.version || 0, lastSyncAt: Date.now() };
+                if (context.remoteId) { updates.remoteManifestId = context.remoteId; }
+                await this.saveState(providerType, folderId, updates);
+                return sanitized;
+            }
+            async applyRemoteManifest({ providerType, folderId, remoteManifest, cachedFiles = [], remoteContext = {} }) {
+                if (!remoteManifest) {
+                    return { files: cachedFiles, changed: false, updatedIds: [], removedIds: [], manifest: null };
+                }
+                const localManifest = await this.getLocalManifest(providerType, folderId);
+                const sanitized = this.sanitizeManifest(remoteManifest);
+                if ((sanitized.version || 0) <= (localManifest.version || 0)) {
+                    await this.persistManifest(providerType, folderId, sanitized, remoteContext);
+                    return { files: cachedFiles, changed: false, updatedIds: [], removedIds: [], manifest: sanitized };
+                }
+                const fileMap = new Map((cachedFiles || []).map(file => [file.id, { ...file }]));
+                const updatedIds = [];
+                const missingIds = [];
+                for (const [fileId, entry] of Object.entries(sanitized.items || {})) {
+                    const cached = fileMap.get(fileId);
+                    if (!cached) { missingIds.push(fileId); continue; }
+                    const cachedEntry = localManifest.items?.[fileId] || { version: 0 };
+                    if ((entry.version || 0) > (cachedEntry.version || 0)) {
+                        const updated = this.applyEntryToFile(cached, entry);
+                        fileMap.set(fileId, updated);
+                        updatedIds.push(fileId);
+                        if (this.dbManager) { await this.dbManager.saveMetadata(fileId, updated); }
+                    }
+                }
+                const removedIds = Object.keys(sanitized.removed || {}).filter(id => fileMap.has(id));
+                for (const removedId of removedIds) {
+                    fileMap.delete(removedId);
+                    if (this.dbManager) { await this.dbManager.deleteMetadata(removedId); }
+                }
+                const files = Array.from(fileMap.values());
+                await this.persistManifest(providerType, folderId, sanitized, remoteContext);
+                return { files, changed: updatedIds.length > 0 || removedIds.length > 0 || missingIds.length > 0, updatedIds, removedIds, missingIds, manifest: sanitized };
+            }
+            async recordMutationSuccess({ provider, providerType, folderId, file, metadata = {}, remoteContext = {} }) {
+                if (!this.dbManager) return null;
+                const manifest = await this.getLocalManifest(providerType, folderId);
+                const entryVersion = ((manifest.items?.[file.id]?.version) || 0) + 1;
+                const folderVersion = (manifest.version || 0) + 1;
+                const snapshot = { ...file, ...metadata };
+                const entry = this.buildEntry(snapshot, entryVersion);
+                const nextManifest = {
+                    ...manifest,
+                    version: folderVersion,
+                    updatedAt: Date.now(),
+                    items: { ...(manifest.items || {}), [file.id]: entry },
+                    removed: { ...(manifest.removed || {}) }
+                };
+                delete nextManifest.removed[file.id];
+                if (file) { file.manifestVersion = entryVersion; }
+                await this.saveLocalManifest(providerType, folderId, nextManifest);
+                await this.saveState(providerType, folderId, { localVersion: nextManifest.version });
+                if (provider && typeof provider.saveFolderManifest === 'function') {
+                    const result = await provider.saveFolderManifest(folderId, nextManifest, remoteContext);
+                    const manifestResult = result?.manifest ? this.sanitizeManifest(result.manifest) : nextManifest;
+                    const remoteId = result?.remoteId || result?.context?.remoteId || remoteContext.remoteId || null;
+                    await this.persistManifest(providerType, folderId, manifestResult, remoteId ? { remoteId } : {});
+                    return manifestResult;
+                }
+                return nextManifest;
+            }
+            async recordRemoval({ provider, providerType, folderId, fileId, remoteContext = {} }) {
+                if (!this.dbManager) return null;
+                const manifest = await this.getLocalManifest(providerType, folderId);
+                const folderVersion = (manifest.version || 0) + 1;
+                const removed = { ...(manifest.removed || {}), [fileId]: Date.now() };
+                const nextManifest = {
+                    ...manifest,
+                    version: folderVersion,
+                    updatedAt: Date.now(),
+                    items: { ...(manifest.items || {}) },
+                    removed
+                };
+                delete nextManifest.items[fileId];
+                await this.saveLocalManifest(providerType, folderId, nextManifest);
+                await this.saveState(providerType, folderId, { localVersion: nextManifest.version });
+                if (provider && typeof provider.saveFolderManifest === 'function') {
+                    const result = await provider.saveFolderManifest(folderId, nextManifest, remoteContext);
+                    const manifestResult = result?.manifest ? this.sanitizeManifest(result.manifest) : nextManifest;
+                    const remoteId = result?.remoteId || result?.context?.remoteId || remoteContext.remoteId || null;
+                    await this.persistManifest(providerType, folderId, manifestResult, remoteId ? { remoteId } : {});
+                    return manifestResult;
+                }
+                return nextManifest;
+            }
+            async rebuildManifestFromFiles({ provider, providerType, folderId, files = [], remoteContext = {}, baseVersion = null }) {
+                if (!this.dbManager) return null;
+                const manifest = await this.getLocalManifest(providerType, folderId);
+                const versionBase = baseVersion == null ? (manifest.version || 0) : baseVersion;
+                const nextManifest = {
+                    version: versionBase + 1,
+                    updatedAt: Date.now(),
+                    items: {},
+                    removed: {}
+                };
+                for (const file of files) {
+                    if (!file?.id) continue;
+                    const entryVersion = Number.isFinite(file.manifestVersion) && file.manifestVersion > 0 ? file.manifestVersion : 1;
+                    nextManifest.items[file.id] = this.buildEntry(file, entryVersion);
+                }
+                await this.saveLocalManifest(providerType, folderId, nextManifest);
+                await this.saveState(providerType, folderId, { localVersion: nextManifest.version });
+                if (provider && typeof provider.saveFolderManifest === 'function') {
+                    const result = await provider.saveFolderManifest(folderId, nextManifest, remoteContext);
+                    const manifestResult = result?.manifest ? this.sanitizeManifest(result.manifest) : nextManifest;
+                    const remoteId = result?.remoteId || result?.context?.remoteId || remoteContext.remoteId || null;
+                    await this.persistManifest(providerType, folderId, manifestResult, remoteId ? { remoteId } : {});
+                    return manifestResult;
+                }
+                await this.persistManifest(providerType, folderId, nextManifest, remoteContext);
+                return nextManifest;
+            }
         }
         class SyncManager {
-            constructor() { this.worker = null; this.syncInterval = null; }
-            start() { /* Placeholder */ }
-            stop() { /* Placeholder */ }
-            requestSync() { /* Placeholder */ }
+            constructor({ dbManager, logger } = {}) {
+                this.dbManager = dbManager || null;
+                this.logger = logger || null;
+                this.pendingMutations = new Map();
+                this.debounceTimers = new Map();
+                this.debounceDelay = 750;
+                this.syncTimer = null;
+                this.isProcessing = false;
+                this.isActive = false;
+                this.hasPendingWork = false;
+                this.provider = null;
+                this.providerType = null;
+                this.lifecycleHandlers = {
+                    visibility: () => this.handleVisibilityChange(),
+                    pagehide: (event) => this.handlePageHide(event),
+                    beforeUnload: (event) => this.handleBeforeUnload(event)
+                };
+            }
+            setLogger(logger) { this.logger = logger; }
+            setDbManager(dbManager) { this.dbManager = dbManager; }
+            setProviderContext({ provider, providerType }) {
+                this.provider = provider || null;
+                this.providerType = providerType || null;
+                this.logger?.log({
+                    event: 'provider:context',
+                    level: 'info',
+                    details: this.provider ? `Bound to provider ${this.providerType}` : 'Cleared provider context.'
+                });
+            }
+            start() {
+                if (this.isActive) return;
+                document.addEventListener('visibilitychange', this.lifecycleHandlers.visibility);
+                window.addEventListener('pagehide', this.lifecycleHandlers.pagehide);
+                window.addEventListener('beforeunload', this.lifecycleHandlers.beforeUnload);
+                this.isActive = true;
+                this.resumePendingQueue();
+            }
+            stop() {
+                this.flush({ reason: 'stop' }).catch(() => {});
+                if (!this.isActive) return;
+                document.removeEventListener('visibilitychange', this.lifecycleHandlers.visibility);
+                window.removeEventListener('pagehide', this.lifecycleHandlers.pagehide);
+                window.removeEventListener('beforeunload', this.lifecycleHandlers.beforeUnload);
+                this.isActive = false;
+                this.provider = null;
+                this.providerType = null;
+            }
+            async resumePendingQueue() {
+                if (!this.dbManager) return;
+                try {
+                    const queue = await this.dbManager.readSyncQueue();
+                    if (queue.length > 0) {
+                        const pending = queue.filter(item => item.pendingFlush);
+                        if (pending.length > 0) {
+                            await this.dbManager.markPendingFlush(pending.map(item => item.id), false);
+                            this.logger?.log({ event: 'queue:resume', level: 'warn', details: `Resuming ${pending.length} pending flush entries.` });
+                        } else {
+                            this.logger?.log({ event: 'queue:resume', level: 'info', details: `Sync queue contains ${queue.length} entries.` });
+                        }
+                        this.hasPendingWork = true;
+                        this.scheduleProcess('resume');
+                    } else {
+                        this.hasPendingWork = this.pendingMutations.size > 0;
+                    }
+                } catch (error) {
+                    this.logger?.log({ event: 'queue:resume:error', level: 'error', details: `Failed to resume queue: ${error.message}` });
+                }
+            }
+            queueLocalChange(change, options = {}) {
+                if (!change || !change.fileId) return Promise.resolve();
+                const { debounce = true } = options;
+                const fileId = change.fileId;
+                const buffer = this.pendingMutations.get(fileId) || {
+                    updates: {},
+                    operationType: change.operationType || 'metadata:update',
+                    origin: change.origin || 'ui'
+                };
+                buffer.updates = { ...buffer.updates, ...(change.updates || {}) };
+                buffer.operationType = change.operationType || buffer.operationType;
+                buffer.origin = change.origin || buffer.origin;
+                buffer.localUpdatedAt = change.localUpdatedAt || Date.now();
+                if (change.metadataSnapshot) {
+                    buffer.metadataSnapshot = { ...(buffer.metadataSnapshot || {}), ...change.metadataSnapshot };
+                }
+                this.pendingMutations.set(fileId, buffer);
+                this.hasPendingWork = true;
+                const updateKeys = Object.keys(change.updates || {});
+                const descriptorParts = [];
+                if (change.operationType) descriptorParts.push(change.operationType);
+                if (change.updates?.stack) descriptorParts.push(`stack→${change.updates.stack}`);
+                if (change.updates?.stackSequence) descriptorParts.push(`seq=${change.updates.stackSequence}`);
+                if (descriptorParts.length === 0 && updateKeys.length > 0) {
+                    descriptorParts.push(updateKeys.join(', '));
+                }
+                const descriptor = descriptorParts.join(' · ') || 'update';
+                this.logger?.log({
+                    event: 'queue:buffer',
+                    level: 'info',
+                    fileId,
+                    details: `Buffered ${descriptor} (${debounce ? 'debounced' : 'immediate'})`,
+                    data: change
+                });
+
+                if (debounce) {
+                    clearTimeout(this.debounceTimers.get(fileId));
+                    this.debounceTimers.set(fileId, setTimeout(() => this.commitBufferedChange(fileId), this.debounceDelay));
+                    return Promise.resolve();
+                }
+                return this.commitBufferedChange(fileId);
+            }
+            async commitBufferedChange(fileId) {
+                const buffer = this.pendingMutations.get(fileId);
+                if (!buffer) return null;
+                this.pendingMutations.delete(fileId);
+                const timer = this.debounceTimers.get(fileId);
+                if (timer) {
+                    clearTimeout(timer);
+                    this.debounceTimers.delete(fileId);
+                }
+                if (!this.dbManager) return null;
+                const entry = {
+                    fileId,
+                    updates: buffer.updates,
+                    operationType: buffer.operationType,
+                    origin: buffer.origin,
+                    localUpdatedAt: buffer.localUpdatedAt,
+                    metadataSnapshot: buffer.metadataSnapshot
+                };
+                try {
+                    const id = await this.dbManager.addToSyncQueue(entry);
+                    const persistDescriptorParts = [];
+                    if (entry.operationType) persistDescriptorParts.push(entry.operationType);
+                    if (entry.updates?.stack) persistDescriptorParts.push(`stack→${entry.updates.stack}`);
+                    if (entry.updates?.stackSequence) persistDescriptorParts.push(`seq=${entry.updates.stackSequence}`);
+                    const persistDescriptor = persistDescriptorParts.join(' · ') || 'mutation';
+                    this.logger?.log({ event: 'queue:persist', level: 'info', fileId, details: `Persisted ${persistDescriptor} to syncQueue (#${id}).`, data: entry });
+                    this.scheduleProcess('buffer-commit');
+                    return id;
+                } catch (error) {
+                    this.logger?.log({ event: 'queue:error', level: 'error', fileId, details: `Failed to persist mutation: ${error.message}` });
+                    return null;
+                }
+            }
+            scheduleProcess(reason = 'auto') {
+                if (this.syncTimer) return;
+                this.syncTimer = setTimeout(() => {
+                    this.syncTimer = null;
+                    this.processQueue(reason);
+                }, 300);
+            }
+            async processQueue(reason = 'auto') {
+                if (!this.dbManager) return 'no-db';
+                if (this.isProcessing) {
+                    this.logger?.log({ event: 'sync:busy', level: 'warn', details: 'Sync loop already in progress.' });
+                    return 'busy';
+                }
+                this.isProcessing = true;
+                try {
+                    const queue = await this.dbManager.readSyncQueue();
+                    if (queue.length === 0) {
+                        this.hasPendingWork = this.pendingMutations.size > 0;
+                        this.logger?.log({ event: 'sync:idle', level: 'info', details: `Queue empty (${reason}).` });
+                        return 'empty';
+                    }
+                    this.logger?.log({ event: 'sync:start', level: 'info', details: `Processing ${queue.length} queued entries (${reason}).` });
+                    const merged = this.mergeQueue(queue);
+                    for (const entry of merged) {
+                        await this.processEntry(entry);
+                    }
+                    const remaining = await this.dbManager.readSyncQueue();
+                    this.hasPendingWork = remaining.length > 0 || this.pendingMutations.size > 0;
+                    const result = remaining.length > 0 ? 'partial' : 'done';
+                    if (result === 'done') {
+                        this.logger?.log({ event: 'sync:complete', level: 'success', details: `Sync loop complete (${reason}).` });
+                    } else {
+                        this.logger?.log({ event: 'sync:partial', level: 'warn', details: `Sync loop finished with ${remaining.length} entries remaining.` });
+                    }
+                    return result;
+                } catch (error) {
+                    this.logger?.log({ event: 'sync:error', level: 'error', details: `Queue processing failed: ${error.message}` });
+                    return 'error';
+                } finally {
+                    this.isProcessing = false;
+                }
+            }
+            mergeQueue(entries) {
+                const map = new Map();
+                entries.forEach(item => {
+                    const existing = map.get(item.fileId);
+                    if (!existing) {
+                        map.set(item.fileId, { ...item, queueIds: [item.id] });
+                        return;
+                    }
+                    existing.queueIds.push(item.id);
+                    existing.updates = { ...existing.updates, ...(item.updates || {}) };
+                    existing.localUpdatedAt = Math.max(existing.localUpdatedAt || 0, item.localUpdatedAt || 0);
+                    existing.pendingFlush = existing.pendingFlush || item.pendingFlush;
+                    if (item.metadataSnapshot) {
+                        existing.metadataSnapshot = { ...(existing.metadataSnapshot || {}), ...item.metadataSnapshot };
+                    }
+                });
+                return Array.from(map.values());
+            }
+            async processEntry(entry) {
+                const provider = this.provider || state.provider;
+                const providerType = this.providerType || state.providerType;
+                if (!provider || !providerType) {
+                    await this.dbManager.markPendingFlush(entry.queueIds, true);
+                    this.logger?.log({ event: 'sync:deferred', level: 'warn', fileId: entry.fileId, details: 'No provider bound. Marked pending flush.' });
+                    return;
+                }
+                const updates = entry.updates || {};
+                const metadataRecord = state.imageFiles.find(file => file.id === entry.fileId) || entry.metadataSnapshot || {};
+                const payload = { ...metadataRecord, ...updates, localUpdatedAt: entry.localUpdatedAt };
+                const stackLabel = updates.stack ? (STACK_NAMES[updates.stack] || updates.stack) : null;
+                const stackFragment = stackLabel ? ` (${stackLabel})` : '';
+                try {
+                    if (providerType === 'googledrive') {
+                        await provider.updateFileMetadata(entry.fileId, this.serializeGoogleMetadata(payload), { logContext: entry.operationType || 'metadata:update' });
+                    } else if (providerType === 'onedrive') {
+                        await this.upsertOneDriveMetadata(entry.fileId, payload);
+                    } else if (typeof provider.updateFileMetadata === 'function') {
+                        await provider.updateFileMetadata(entry.fileId, payload, { logContext: entry.operationType || 'metadata:update' });
+                    }
+                    const folderId = state.currentFolder?.id;
+                    if (folderId && state.folderSync) {
+                        const folderState = await state.folderSync.getState(providerType, folderId);
+                        await state.folderSync.recordMutationSuccess({
+                            provider,
+                            providerType,
+                            folderId,
+                            file: metadataRecord,
+                            metadata: updates,
+                            remoteContext: { remoteId: folderState.remoteManifestId }
+                        });
+                    }
+                    await this.dbManager.deleteFromSyncQueue(entry.queueIds);
+                    this.logger?.log({ event: 'sync:success', level: 'success', fileId: entry.fileId, details: `Applied ${entry.operationType}${stackFragment} to ${providerType}.`, data: { updates, stackLabel } });
+                } catch (error) {
+                    await this.dbManager.markPendingFlush(entry.queueIds, true);
+                    this.logger?.log({ event: 'sync:error', level: 'error', fileId: entry.fileId, details: `Failed to sync ${entry.operationType}: ${error.message}`, data: { updates, stackLabel } });
+                }
+            }
+            serializeGoogleMetadata(payload) {
+                const tags = Array.isArray(payload.tags) ? payload.tags : [];
+                return {
+                    slideboxStack: payload.stack || 'in',
+                    slideboxTags: tags.join(','),
+                    qualityRating: String(payload.qualityRating ?? 0),
+                    contentRating: String(payload.contentRating ?? 0),
+                    notes: payload.notes || '',
+                    stackSequence: String(payload.stackSequence ?? 0),
+                    favorite: payload.favorite ? 'true' : 'false'
+                };
+            }
+            serializeGenericMetadata(payload) {
+                return {
+                    stack: payload.stack || 'in',
+                    tags: Array.isArray(payload.tags) ? payload.tags : [],
+                    notes: payload.notes || '',
+                    qualityRating: payload.qualityRating ?? 0,
+                    contentRating: payload.contentRating ?? 0,
+                    stackSequence: payload.stackSequence ?? 0,
+                    favorite: Boolean(payload.favorite),
+                    localUpdatedAt: payload.localUpdatedAt || Date.now()
+                };
+            }
+            async upsertOneDriveMetadata(fileId, payload) {
+                const provider = this.provider || state.provider;
+                if (!provider || typeof provider.getAccessToken !== 'function') {
+                    throw new Error('Active provider missing access token helper');
+                }
+                const token = await provider.getAccessToken();
+                const endpoint = `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${fileId}.json:/content`;
+                const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+                let existing = null;
+                try {
+                    const response = await fetch(endpoint, { method: 'GET', headers });
+                    if (response.ok) {
+                        existing = await response.json();
+                        this.logger?.log({ event: 'onedrive:metadata:get', level: 'info', fileId, details: 'Fetched existing metadata file.' });
+                    } else if (response.status !== 404) {
+                        const text = await response.text();
+                        throw new Error(`GET ${response.status}: ${text}`);
+                    }
+                } catch (error) {
+                    if (!/404/.test(error.message)) {
+                        throw error;
+                    }
+                }
+                const merged = { ...(existing || {}), ...this.serializeGenericMetadata(payload) };
+                const putResponse = await fetch(endpoint, { method: 'PUT', headers, body: JSON.stringify(merged) });
+                if (!putResponse.ok) {
+                    const text = await putResponse.text();
+                    throw new Error(`PUT ${putResponse.status}: ${text}`);
+                }
+                this.logger?.log({ event: 'onedrive:metadata:upsert', level: 'info', fileId, details: 'Upserted OneDrive metadata document.' });
+            }
+            async flush({ reason = 'manual', useBeacon = false } = {}) {
+                this.logger?.log({ event: 'flush:request', level: 'info', details: `Flush requested (${reason}).` });
+                const bufferedIds = Array.from(this.pendingMutations.keys());
+                if (bufferedIds.length > 0) {
+                    await Promise.all(bufferedIds.map(id => this.commitBufferedChange(id)));
+                }
+                if (!this.dbManager) return 'no-db';
+                if (useBeacon && await this.sendBeaconSnapshot(reason)) {
+                    return 'beacon';
+                }
+                return this.processQueue(reason);
+            }
+            requestSync(reason = 'manual-request') {
+                this.logger?.log({ event: 'sync:request', level: 'info', details: `Manual sync requested (${reason}).` });
+                this.scheduleProcess(reason);
+            }
+            handleVisibilityChange() {
+                if (document.visibilityState === 'hidden') {
+                    this.flush({ reason: 'visibilitychange', useBeacon: true });
+                }
+            }
+            handlePageHide() {
+                this.flush({ reason: 'pagehide', useBeacon: true });
+            }
+            handleBeforeUnload() {
+                if (!this.hasPendingWork) return;
+                this.flush({ reason: 'beforeunload', useBeacon: true });
+            }
+            async sendBeaconSnapshot(reason) {
+                if (!navigator.sendBeacon) return false;
+                try {
+                    const queue = await this.dbManager.readSyncQueue();
+                    if (queue.length === 0) return false;
+                    const payload = JSON.stringify({
+                        reason,
+                        timestamp: Date.now(),
+                        providerType: this.providerType || state.providerType || null,
+                        entries: this.mergeQueue(queue).map(entry => ({
+                            fileId: entry.fileId,
+                            updates: entry.updates,
+                            operationType: entry.operationType,
+                            localUpdatedAt: entry.localUpdatedAt
+                        }))
+                    });
+                    const ok = navigator.sendBeacon('/orbital8/sync-flush', payload);
+                    if (ok) {
+                        await this.dbManager.markPendingFlush(queue.map(item => item.id), true);
+                        this.logger?.log({ event: 'flush:beacon', level: 'warn', details: `Dispatching ${queue.length} entries via navigator.sendBeacon (${reason}).` });
+                        return true;
+                    }
+                } catch (error) {
+                    this.logger?.log({ event: 'flush:beacon:error', level: 'error', details: `Beacon fallback failed: ${error.message}` });
+                }
+                return false;
+            }
         }
         class VisualCueManager {
             constructor() {
@@ -1508,8 +2964,11 @@
                 await this.makeApiCall(`/files/${fileId}?addParents=${targetFolderId}&removeParents=${previousParents}&fields=id,parents`, { method: 'PATCH' });
                 return true;
             }
-            async updateFileMetadata(fileId, metadata) {
+            async updateFileMetadata(fileId, metadata, options = {}) {
                 await this.makeApiCall(`/files/${fileId}`, { method: 'PATCH', body: JSON.stringify({ appProperties: metadata }) });
+                if (options?.logContext) {
+                    state.syncLog?.log({ event: 'googledrive:metadata:update', level: 'info', fileId, details: options.logContext });
+                }
                 return true;
             }
             async updateUserMetadata(fileId, updates) {
@@ -1518,6 +2977,78 @@
                 Object.assign(file, updates);
                 await state.dbManager.saveMetadata(file.id, file);
                 await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
+            }
+
+            async fetchFolderManifest(folderId, context = {}) {
+                const fileName = `o8-manifest-${folderId}.json`;
+                let remoteId = context.remoteId || null;
+                try {
+                    if (!remoteId) {
+                        const query = `name='${fileName}' and trashed=false`;
+                        const response = await this.makeApiCall(`/files?q=${encodeURIComponent(query)}&spaces=appDataFolder&fields=files(id,name,modifiedTime)&pageSize=1`);
+                        if (response.files && response.files.length > 0) {
+                            remoteId = response.files[0].id;
+                        }
+                    }
+                    if (!remoteId) { return { manifest: null, context: {} }; }
+                    const manifest = await this.makeApiCall(`/files/${remoteId}?alt=media`);
+                    return { manifest, context: { remoteId } };
+                } catch (error) {
+                    if (/404/.test(error.message)) {
+                        return { manifest: null, context: {} };
+                    }
+                    throw error;
+                }
+            }
+
+            async saveFolderManifest(folderId, manifest, context = {}) {
+                const fileName = `o8-manifest-${folderId}.json`;
+                let remoteId = context.remoteId || null;
+                if (!remoteId) {
+                    const existing = await this.fetchFolderManifest(folderId, context);
+                    remoteId = existing?.context?.remoteId || null;
+                }
+                if (!remoteId) {
+                    const createResponse = await this.makeApiCall('/files', {
+                        method: 'POST',
+                        body: JSON.stringify({ name: fileName, parents: ['appDataFolder'], mimeType: 'application/json' })
+                    });
+                    remoteId = createResponse.id;
+                }
+                await this.makeApiCall(`https://www.googleapis.com/upload/drive/v3/files/${remoteId}?uploadType=media`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(manifest)
+                }, false);
+                const savedManifest = await this.makeApiCall(`/files/${remoteId}?alt=media`);
+                return { manifest: savedManifest, remoteId, context: { remoteId } };
+            }
+
+            async fetchFilesByIds(ids = []) {
+                const files = [];
+                for (const fileId of ids) {
+                    try {
+                        const data = await this.makeApiCall(`/files/${fileId}?fields=id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,appProperties,parents`);
+                        if (data && data.mimeType && data.mimeType.startsWith('image/')) {
+                            files.push({
+                                id: data.id,
+                                name: data.name,
+                                type: 'file',
+                                mimeType: data.mimeType,
+                                size: data.size ? parseInt(data.size) : 0,
+                                createdTime: data.createdTime,
+                                modifiedTime: data.modifiedTime,
+                                thumbnailLink: data.thumbnailLink,
+                                downloadUrl: data.webContentLink,
+                                appProperties: data.appProperties || {},
+                                parents: data.parents || []
+                            });
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to fetch Google Drive file ${fileId}:`, error.message);
+                    }
+                }
+                return files;
             }
 
             async deleteFile(fileId) {
@@ -1654,9 +3185,62 @@
                 await this.makeApiCall(`/me/drive/items/${fileId}`, { method: 'PATCH', body: JSON.stringify({ parentReference: { id: targetFolderId } }) });
                 return true;
             }
-            async updateFileMetadata(fileId, metadata) {
-                // Placeholder for Phase 2: Sync metadata to OneDrive
+            async updateFileMetadata(fileId, metadata, options = {}) {
+                if (options?.logContext) {
+                    state.syncLog?.log({ event: 'onedrive:metadata:update', level: 'info', fileId, details: options.logContext });
+                }
                 return Promise.resolve(true);
+            }
+            async fetchFolderManifest(folderId, context = {}) {
+                const fileKey = `o8-manifest-${folderId}.json`;
+                const endpoint = `/me/drive/special/approot:/${fileKey}:/content`;
+                try {
+                    const response = await this.makeApiCall(endpoint, { method: 'GET' });
+                    const manifest = await response.json();
+                    return { manifest, context: { remoteId: fileKey } };
+                } catch (error) {
+                    if (/404/.test(error.message)) {
+                        return { manifest: null, context: {} };
+                    }
+                    throw error;
+                }
+            }
+            async saveFolderManifest(folderId, manifest) {
+                const fileKey = `o8-manifest-${folderId}.json`;
+                const endpoint = `/me/drive/special/approot:/${fileKey}:/content`;
+                const response = await this.makeApiCall(endpoint, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(manifest)
+                });
+                let savedManifest = manifest;
+                try { savedManifest = await response.json(); } catch (_) { /* keep manifest */ }
+                return { manifest: savedManifest, remoteId: fileKey, context: { remoteId: fileKey } };
+            }
+            async fetchFilesByIds(ids = []) {
+                const files = [];
+                for (const fileId of ids) {
+                    try {
+                        const response = await this.makeApiCall(`/me/drive/items/${fileId}?$select=id,name,size,createdDateTime,lastModifiedDateTime,file,@microsoft.graph.downloadUrl&$expand=thumbnails`);
+                        const data = await response.json();
+                        if (data?.file?.mimeType && data.file.mimeType.startsWith('image/')) {
+                            files.push({
+                                id: data.id,
+                                name: data.name,
+                                type: 'file',
+                                mimeType: data.file.mimeType,
+                                size: data.size || 0,
+                                createdTime: data.createdDateTime,
+                                modifiedTime: data.lastModifiedDateTime,
+                                thumbnails: data.thumbnails && data.thumbnails.length > 0 ? { large: data.thumbnails[0].large } : null,
+                                downloadUrl: data['@microsoft.graph.downloadUrl']
+                            });
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to fetch OneDrive file ${fileId}:`, error.message);
+                    }
+                }
+                return files;
             }
             async deleteFile(fileId) {
                 await this.makeApiCall(`/me/drive/items/${fileId}`, { method: 'DELETE' });
@@ -1782,7 +3366,11 @@
                 }
             },
             backToProviderSelection() {
-                if(state.syncManager) state.syncManager.stop();
+                if (state.syncManager) {
+                    state.syncManager.flush({ reason: 'provider-screen' });
+                    state.syncManager.setProviderContext({ provider: null, providerType: null });
+                    state.syncManager.stop();
+                }
                 state.provider = null;
                 state.providerType = null;
                 Utils.showScreen('provider-screen');
@@ -1797,7 +3385,10 @@
                     
                     await this.loadImages();
                     this.switchToCommonUI();
-                    if(state.syncManager) state.syncManager.start();
+                    if (state.syncManager) {
+                        state.syncManager.setProviderContext({ provider: state.provider, providerType: state.providerType });
+                        state.syncManager.start();
+                    }
                 } catch (error) {
                     Utils.showToast(`Initialization failed: ${error.message}`, 'error', true);
                     this.returnToFolderSelection();
@@ -1805,20 +3396,55 @@
             },
             async loadImages() {
                 const folderId = state.currentFolder.id;
+                const providerType = state.providerType || 'unknown';
                 const sessionKey = `${state.providerType || 'unknown'}::${folderId}`;
                 const cachedFiles = await state.dbManager.getFolderCache(folderId) || [];
-                const isFirstSessionVisit = !state.sessionVisitedFolders.has(sessionKey);
+                const folderState = state.folderSync ? await state.folderSync.getState(providerType, folderId) : null;
+                const remoteManifestResult = state.folderSync ? await state.folderSync.fetchRemoteManifest(state.provider, providerType, folderId, folderState) : { manifest: null, context: {} };
+                const remoteManifest = remoteManifestResult?.manifest || null;
+                const remoteContext = remoteManifestResult?.context || {};
+                let effectiveFiles = cachedFiles;
 
-                if (isFirstSessionVisit || cachedFiles.length === 0) {
-                    await this.syncFolderFromCloud(cachedFiles, sessionKey);
+                if (remoteManifest && state.folderSync) {
+                    const applied = await state.folderSync.applyRemoteManifest({
+                        providerType,
+                        folderId,
+                        remoteManifest,
+                        cachedFiles,
+                        remoteContext
+                    });
+                    effectiveFiles = applied.files;
+                    if (applied.missingIds && applied.missingIds.length > 0 && typeof state.provider.fetchFilesByIds === 'function') {
+                        const fetched = await state.provider.fetchFilesByIds(applied.missingIds);
+                        if (fetched.length > 0) {
+                            const existingIds = new Set(effectiveFiles.map(file => file.id));
+                            const merged = [...effectiveFiles];
+                            for (const item of fetched) {
+                                if (item && item.id && !existingIds.has(item.id)) {
+                                    merged.push(item);
+                                    existingIds.add(item.id);
+                                }
+                            }
+                            effectiveFiles = merged;
+                        }
+                    }
+                    if (applied.changed) {
+                        await state.dbManager.saveFolderCache(folderId, effectiveFiles);
+                        state.syncLog?.log({ event: 'manifest:apply', level: 'info', details: `Applied manifest delta for ${effectiveFiles.length} files.` });
+                    }
+                }
+
+                const isFirstSessionVisit = !state.sessionVisitedFolders.has(sessionKey);
+                if (effectiveFiles.length > 0 && !isFirstSessionVisit) {
+                    state.imageFiles = effectiveFiles;
+                    await this.processAllMetadata(state.imageFiles);
+                    Utils.showScreen('app-container');
+                    Core.initializeStacks();
+                    Core.initializeImageDisplay();
                     return;
                 }
 
-                state.imageFiles = cachedFiles;
-                await this.processAllMetadata(state.imageFiles);
-                Utils.showScreen('app-container');
-                Core.initializeStacks();
-                Core.initializeImageDisplay();
+                await this.syncFolderFromCloud(effectiveFiles, sessionKey, { remoteManifest, remoteContext });
             },
             mergeCloudWithCache(cloudFiles, cachedFiles) {
                 const cachedMap = new Map(cachedFiles.map(file => [file.id, file]));
@@ -1857,7 +3483,7 @@
                     hasChanges: newIds.length > 0 || updatedIds.length > 0 || removedIds.length > 0
                 };
             },
-            async syncFolderFromCloud(cachedFiles, sessionKey) {
+            async syncFolderFromCloud(cachedFiles, sessionKey, manifestContext = {}) {
                 const folderId = state.currentFolder.id;
                 const hadCached = cachedFiles.length > 0;
                 Utils.showScreen('loading-screen');
@@ -1892,6 +3518,20 @@
                         await state.dbManager.saveFolderCache(folderId, state.imageFiles);
                     }
 
+                    if (state.folderSync) {
+                        const providerType = state.providerType || 'unknown';
+                        const folderState = await state.folderSync.getState(providerType, folderId);
+                        const baseVersion = manifestContext?.remoteManifest?.version || folderState.remoteVersion || 0;
+                        await state.folderSync.rebuildManifestFromFiles({
+                            provider: state.provider,
+                            providerType,
+                            folderId,
+                            files: state.imageFiles,
+                            remoteContext: manifestContext?.remoteContext || { remoteId: folderState.remoteManifestId },
+                            baseVersion
+                        });
+                    }
+
                     const key = sessionKey || `${state.providerType || 'unknown'}::${folderId}`;
                     state.sessionVisitedFolders.add(key);
                     this.switchToCommonUI();
@@ -1911,6 +3551,31 @@
                         Utils.showToast(`Error loading images: ${error.message}`, 'error', true);
                     }
                     this.returnToFolderSelection();
+                }
+            },
+            async resetFolderState() {
+                if (!state.currentFolder?.id) {
+                    Utils.showToast('No active folder to reset', 'info', true);
+                    return;
+                }
+                try {
+                    const folderId = state.currentFolder.id;
+                    const providerType = state.providerType || 'unknown';
+                    const sessionKey = `${providerType}::${folderId}`;
+                    state.syncLog?.log({ event: 'folder:reset:request', level: 'warn', details: `Manual reset requested for ${sessionKey}.` });
+                    await state.syncManager?.flush({ reason: 'folder-reset' });
+                    await state.dbManager.deleteFolderCache(folderId);
+                    if (state.folderSync) {
+                        await state.folderSync.clearState(providerType, folderId);
+                    }
+                    state.sessionVisitedFolders.delete(sessionKey);
+                    state.activeRequests.abort();
+                    state.activeRequests = new AbortController();
+                    Utils.showToast('Folder cache cleared. Reloading from cloud…', 'info', true);
+                    await this.syncFolderFromCloud([], sessionKey, {});
+                } catch (error) {
+                    Utils.showToast(`Reset failed: ${error.message}`, 'error', true);
+                    state.syncLog?.log({ event: 'folder:reset:error', level: 'error', details: error.message });
                 }
             },
             async refreshFolderInBackground() {
@@ -1938,6 +3603,18 @@
                     await this.processAllMetadata(mergedFiles);
                     await state.dbManager.saveFolderCache(folderId, mergedFiles);
                     state.imageFiles = mergedFiles;
+                    if (state.folderSync) {
+                        const providerType = state.providerType || 'unknown';
+                        const folderState = await state.folderSync.getState(providerType, folderId);
+                        await state.folderSync.rebuildManifestFromFiles({
+                            provider: state.provider,
+                            providerType,
+                            folderId,
+                            files: mergedFiles,
+                            remoteContext: { remoteId: folderState.remoteManifestId },
+                            baseVersion: folderState.remoteVersion || folderState.localVersion || 0
+                        });
+                    }
                     Core.initializeStacks();
                     Core.updateStackCounts();
                     if (state.imageFiles.length > 0) Core.displayCurrentImage();
@@ -1996,7 +3673,7 @@
             async returnToFolderSelection() {
                 try {
                     if (state.syncManager) {
-                        state.syncManager.requestSync();
+                        await state.syncManager.flush({ reason: 'folder-switch' });
                     }
                     state.activeRequests.abort(); 
                     this.resetViewState();
@@ -2015,29 +3692,131 @@
                 Core.showEmptyState();
                 Utils.elements.emptyState.classList.add('hidden');
             },
-            async updateUserMetadata(fileId, updates) {
+            async updateUserMetadata(fileId, updates, options = {}) {
+                const { skipDebounce = false, operationType = 'metadata:update', origin = 'ui' } = options;
                 try {
                     const file = state.imageFiles.find(f => f.id === fileId);
                     if (!file) return;
-                    Object.assign(file, updates);
+                    const timestamp = Date.now();
+                    Object.assign(file, updates, { localUpdatedAt: timestamp });
                     await state.dbManager.saveMetadata(file.id, file);
                     await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
+                    if (state.syncManager) {
+                        await state.syncManager.queueLocalChange({
+                            fileId,
+                            updates,
+                            operationType,
+                            origin,
+                            localUpdatedAt: timestamp,
+                            metadataSnapshot: { name: file.name, stack: file.stack, stackSequence: file.stackSequence }
+                        }, { debounce: !skipDebounce });
+                    }
                 } catch (error) {
                     Utils.showToast(`Failed to update metadata: ${error.message}`, 'error', true);
                 }
             },
-            async deleteFile(fileId) {
+            async deleteFile(fileId, options = {}) {
+                const { source = 'ui', originStack = null, name = null } = options;
                 const fileIndex = state.imageFiles.findIndex(f => f.id === fileId);
+                let file = null;
+                let stackRemoval = null;
                 if (fileIndex > -1) {
-                    const [file] = state.imageFiles.splice(fileIndex, 1);
-                    const stackIndex = state.stacks[file.stack].findIndex(f => f.id === fileId);
-                    if (stackIndex > -1) { state.stacks[file.stack].splice(stackIndex, 1); }
+                    const removed = state.imageFiles.splice(fileIndex, 1);
+                    file = removed && removed.length ? removed[0] : null;
+                    if (file && file.stack && state.stacks[file.stack]) {
+                        const stackArray = state.stacks[file.stack];
+                        const stackIndex = stackArray.findIndex(f => f.id === fileId);
+                        if (stackIndex > -1) {
+                            stackRemoval = { name: file.stack, index: stackIndex };
+                            stackArray.splice(stackIndex, 1);
+                        }
+                    }
                 }
-                await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
+                const stackBefore = originStack || file?.stack || null;
+                const stackLabel = stackBefore ? (STACK_NAMES[stackBefore] || stackBefore) : null;
+                const fileName = name || file?.name || '';
+                const persistState = async () => {
+                    await state.dbManager.saveFolderCache(state.currentFolder.id, state.imageFiles);
+                };
+                const restoreState = async (reason) => {
+                    if (!file) { return false; }
+                    if (fileIndex > -1) {
+                        state.imageFiles.splice(fileIndex, 0, file);
+                    } else {
+                        state.imageFiles.push(file);
+                    }
+                    if (stackRemoval && state.stacks[stackRemoval.name]) {
+                        state.stacks[stackRemoval.name].splice(stackRemoval.index, 0, file);
+                    } else if (file.stack && state.stacks[file.stack] && !stackRemoval) {
+                        state.stacks[file.stack].push(file);
+                    }
+                    await persistState();
+                    state.syncLog?.log({
+                        event: 'provider:trash:rollback',
+                        level: 'warn',
+                        fileId,
+                        details: `Restored ${fileName || fileId} after ${reason}.`,
+                        data: { source, stack: stackBefore, stackLabel }
+                    });
+                    return true;
+                };
+                await persistState();
+
+                const provider = state.provider;
+                const providerName = state.providerType === 'onedrive' ? 'OneDrive' : state.providerType === 'googledrive' ? 'Google Drive' : 'provider';
+                if (!provider || typeof provider.deleteFile !== 'function') {
+                    state.syncLog?.log({
+                        event: 'provider:trash:error',
+                        level: 'error',
+                        fileId,
+                        details: `Provider recycle bin unavailable for ${fileName || fileId} (${providerName}).`,
+                        data: { source, stack: stackBefore }
+                    });
+                    await restoreState('missing provider recycle support');
+                    Utils.showToast('Provider recycle bin unavailable. Item restored locally.', 'error', true);
+                    return false;
+                }
+
+                state.syncLog?.log({
+                    event: 'provider:trash:request',
+                    level: 'warn',
+                    fileId,
+                    details: `Moving ${fileName || fileId} from ${stackLabel || 'unknown stack'} into the ${providerName} recycle bin (${source}).`,
+                    data: { source, stack: stackBefore, stackLabel }
+                });
+
                 try {
-                    await state.provider.deleteFile(fileId);
+                    await provider.deleteFile(fileId);
+                    await state.dbManager.deleteMetadata(fileId);
+                    if (state.folderSync && state.currentFolder?.id) {
+                        const folderState = await state.folderSync.getState(state.providerType, state.currentFolder.id);
+                        await state.folderSync.recordRemoval({
+                            provider,
+                            providerType: state.providerType,
+                            folderId: state.currentFolder.id,
+                            fileId,
+                            remoteContext: { remoteId: folderState.remoteManifestId }
+                        });
+                    }
+                    state.syncLog?.log({
+                        event: 'provider:trash:success',
+                        level: 'success',
+                        fileId,
+                        details: `${providerName} recycle bin accepted ${fileName || fileId} (from ${stackLabel || 'unknown stack'}). File is not permanently deleted.`,
+                        data: { source, stack: stackBefore, stackLabel }
+                    });
+                    return true;
                 } catch (e) {
-                    Utils.showToast(`Failed to delete from cloud: ${e.message}`, 'error', true);
+                    state.syncLog?.log({
+                        event: 'provider:trash:error',
+                        level: 'error',
+                        fileId,
+                        details: `Provider recycle move failed: ${e.message}`,
+                        data: { source, stack: stackBefore, stackLabel }
+                    });
+                    await restoreState('provider recycle failure');
+                    Utils.showToast(`Failed to move to recycle bin: ${e.message}`, 'error', true);
+                    return false;
                 }
             },
             async extractMetadataInBackground(pngFiles) {
@@ -2246,26 +4025,49 @@
                 if (currentPill) currentPill.classList.add('active');
             },
             
-            async moveToStack(targetStack) {
+            async moveToStack(targetStack, options = {}) {
+                const { source = 'ui:direct' } = options;
+                if (state.isImageTransitioning) return;
                 const currentStackArray = state.stacks[state.currentStack];
                 if (!currentStackArray || currentStackArray.length === 0) return;
-                
+
                 const currentImage = currentStackArray[state.currentStackPosition];
                 if (!currentImage) return;
 
                 try {
+                    state.isImageTransitioning = true;
                     const originalStackName = state.currentStack;
+                    const movedFileId = currentImage.id;
+                    const stackLabel = STACK_NAMES[targetStack] || targetStack;
+                    const originalStackLabel = STACK_NAMES[originalStackName] || originalStackName;
                     if (targetStack === originalStackName) {
                         const otherImages = currentStackArray.filter(img => img.id !== currentImage.id);
                         const minSequence = otherImages.length > 0 ? Math.min(...otherImages.map(img => img.stackSequence || 0)) : Date.now();
                         const newSequence = minSequence - 1;
-                        await App.updateUserMetadata(currentImage.id, { stackSequence: newSequence });
+                        state.syncLog?.log({
+                            event: 'ui:stack-resequence',
+                            level: 'info',
+                            fileId: movedFileId,
+                            details: `Re-sequencing ${currentImage.name || movedFileId} within ${originalStackLabel} (${source}).`,
+                            data: { stack: originalStackName, stackSequence: newSequence, source }
+                        });
+                        await App.updateUserMetadata(currentImage.id, { stackSequence: newSequence }, { skipDebounce: true, operationType: 'stack:resequence' });
                         const [item] = currentStackArray.splice(state.currentStackPosition, 1);
                         item.stackSequence = newSequence;
                         currentStackArray.push(item);
                     } else {
                         const newSequence = Date.now();
-                        await App.updateUserMetadata(currentImage.id, { stack: targetStack, stackSequence: newSequence });
+                        const isRecycleStackMove = targetStack === 'trash';
+                        state.syncLog?.log({
+                            event: isRecycleStackMove ? 'ui:stack-recycle' : 'ui:stack-move',
+                            level: 'info',
+                            fileId: movedFileId,
+                            details: isRecycleStackMove
+                                ? `Moved ${currentImage.name || movedFileId} from ${originalStackLabel} to ${stackLabel} (${source}). Metadata only—cloud file stays put until the recycle-bin action is used.`
+                                : `Moving ${currentImage.name || movedFileId} from ${originalStackLabel} to ${stackLabel} (${source}).`,
+                            data: { from: originalStackName, to: targetStack, stackSequence: newSequence, source, scope: isRecycleStackMove ? 'metadata-only' : 'stack-move' }
+                        });
+                        await App.updateUserMetadata(currentImage.id, { stack: targetStack, stackSequence: newSequence }, { skipDebounce: true, operationType: 'stack:move' });
                         const [item] = currentStackArray.splice(state.currentStackPosition, 1);
                         item.stack = targetStack;
                         item.stackSequence = newSequence;
@@ -2276,11 +4078,73 @@
                     this.updateStackCounts();
                     this.updateActiveProxTab();
                     await this.displayCurrentImage();
+                    if (targetStack === originalStackName) {
+                        Grid.syncWithStack(originalStackName, { preselectFirst: true });
+                    } else {
+                        Grid.syncWithStack(originalStackName, { removedIds: [movedFileId], preselectFirst: true });
+                        Grid.syncWithStack(targetStack, { preselectFirst: false });
+                    }
                 } catch (error) {
                     Utils.showToast(`Error moving image: ${error.message}`, 'error', true);
+                } finally {
+                    state.isImageTransitioning = false;
                 }
             },
-            
+
+            async deleteCurrentImage(options = {}) {
+                const { exitFocusIfEmpty = true, source = 'ui:direct' } = options;
+                if (state.isImageTransitioning) return;
+                const currentStackName = state.currentStack;
+                const currentStackArray = state.stacks[currentStackName];
+                if (!currentStackArray || currentStackArray.length === 0) return;
+                const currentFile = currentStackArray[state.currentStackPosition];
+                if (!currentFile) return;
+
+                state.isImageTransitioning = true;
+                const fileId = currentFile.id;
+                const originalStack = currentFile.stack || currentStackName;
+
+                try {
+                    state.syncLog?.log({
+                        event: 'ui:provider-trash-request',
+                        level: 'warn',
+                        fileId,
+                        details: `User requested moving ${currentFile.name || fileId} from ${STACK_NAMES[originalStack] || originalStack} into the provider recycle bin (${source}). No permanent deletion occurs.`,
+                        data: { from: originalStack, source }
+                    });
+                    const movedToRecycle = await App.deleteFile(fileId, { source, originStack: originalStack, name: currentFile.name });
+                    if (!movedToRecycle) {
+                        state.syncLog?.log({
+                            event: 'ui:provider-trash-abort',
+                            level: 'error',
+                            fileId,
+                            details: `Provider recycle move failed for ${currentFile.name || fileId}; item restored in ${STACK_NAMES[originalStack] || originalStack}.`,
+                            data: { from: originalStack, source }
+                        });
+                        await this.displayCurrentImage();
+                        return;
+                    }
+                    this.updateStackCounts();
+                    const updatedStack = state.stacks[currentStackName] || [];
+                    if (updatedStack.length === 0) {
+                        state.currentStackPosition = 0;
+                        if (state.isFocusMode && exitFocusIfEmpty) {
+                            Gestures.toggleFocusMode();
+                        }
+                        this.showEmptyState();
+                    } else {
+                        state.currentStackPosition = 0;
+                        await this.displayCurrentImage();
+                    }
+                    Utils.showToast('Moved to provider recycle bin. Restore it from your cloud trash if needed.', 'info', true);
+                    Grid.syncWithStack(originalStack, { removedIds: [fileId], preselectFirst: true });
+                } catch (error) {
+                    Utils.showToast(`Failed to delete ${currentFile.name}`, 'error', true);
+                } finally {
+                    state.isImageTransitioning = false;
+                }
+            },
+
             showEmptyState() {
                 state.currentImageLoadId = null;
                 Utils.elements.centerImage.style.opacity = '0';
@@ -2335,14 +4199,17 @@
                 if (entries[0].isIntersecting) { this.renderBatch(); }
             },
 
-            initializeLazyLoad(stack) {
+            initializeLazyLoad(stack, filesOverride = null) {
                 const lazyState = state.grid.lazyLoadState;
-                lazyState.allFiles = state.grid.filtered.length > 0 ? state.grid.filtered : state.stacks[stack];
+                const sourceFiles = Array.isArray(filesOverride)
+                    ? filesOverride
+                    : (state.grid.filtered.length > 0 ? state.grid.filtered : state.stacks[stack]);
+                lazyState.allFiles = sourceFiles;
                 lazyState.renderedCount = 0;
-                Utils.elements.selectAllBtn.textContent = lazyState.allFiles.length;
+                Utils.elements.selectAllBtn.textContent = sourceFiles.length;
                 this.renderBatch();
                 if (lazyState.observer) lazyState.observer.disconnect();
-                lazyState.observer = new IntersectionObserver(this.handleIntersection.bind(this), { 
+                lazyState.observer = new IntersectionObserver(this.handleIntersection.bind(this), {
                     root: Utils.elements.gridContent, rootMargin: "400px"
                 });
                 const sentinel = document.getElementById('grid-sentinel');
@@ -2407,8 +4274,8 @@
             
             updateSelectionUI() {
                 const count = state.grid.selected.length;
-                const buttons = [Utils.elements.tagSelected, Utils.elements.moveSelected, Utils.elements.deleteSelected, 
-                               Utils.elements.exportSelected, Utils.elements.folderSelected];
+                const buttons = [Utils.elements.tagSelected, Utils.elements.notesSelected, Utils.elements.moveSelected,
+                               Utils.elements.deleteSelected, Utils.elements.exportSelected, Utils.elements.folderSelected];
                 Utils.elements.selectionText.textContent = `${count} selected`;
                 buttons.forEach(btn => { if (btn) btn.disabled = (count === 0); });
             },
@@ -2432,19 +4299,22 @@
             performSearch() {
                 const query = Utils.elements.omniSearch.value.trim();
                 Utils.elements.clearSearchBtn.style.display = query ? 'block' : 'none';
-                state.grid.selected = [];
                 if (!query) { this.resetSearch(); return; }
-                state.grid.filtered = this.searchImages(query);
-                
-                Utils.elements.gridContainer.innerHTML = '';
-                if (state.grid.filtered.length === 0) {
+
+                const results = this.searchImages(query);
+                state.grid.filtered = results;
+
+                if (results.length === 0) {
+                    state.grid.selected = [];
                     Utils.elements.gridEmptyState.classList.remove('hidden');
                     Utils.elements.selectAllBtn.textContent = '0';
                 } else {
+                    state.grid.selected = results.map(file => file.id);
                     Utils.elements.gridEmptyState.classList.add('hidden');
                 }
 
-                this.initializeLazyLoad(state.grid.stack);
+                Utils.elements.gridContainer.innerHTML = '';
+                this.initializeLazyLoad(state.grid.stack, results);
                 this.updateSelectionUI();
                 state.grid.isDirty = true;
             },
@@ -2459,7 +4329,38 @@
                 Core.updateStackCounts();
                 this.deselectAll();
             },
-            
+
+            syncWithStack(stackName, options = {}) {
+                if (!stackName) return;
+                const { removedIds = [], preselectFirst = true } = options;
+
+                if (removedIds.length > 0) {
+                    state.grid.selected = state.grid.selected.filter(id => !removedIds.includes(id));
+                    state.grid.filtered = state.grid.filtered.filter(file => !removedIds.includes(file.id));
+                }
+
+                if (state.grid.stack !== stackName) {
+                    return;
+                }
+
+                const activeFiles = state.grid.filtered.length > 0
+                    ? state.grid.filtered
+                    : (state.stacks[stackName] || []);
+
+                if (preselectFirst) {
+                    if (activeFiles.length > 0) {
+                        state.grid.selected = [activeFiles[0].id];
+                    } else {
+                        state.grid.selected = [];
+                    }
+                }
+
+                Utils.elements.gridContainer.innerHTML = '';
+                this.initializeLazyLoad(stackName, activeFiles);
+                this.updateSelectionUI();
+                state.grid.isDirty = true;
+            },
+
             searchImages(query) {
                 const lowerCaseQuery = query.toLowerCase();
                 const terms = lowerCaseQuery.split(/\s+/).filter(t => t);
@@ -2471,6 +4372,7 @@
                 let results = [...state.stacks[state.grid.stack]];
 
                 // 1. Pass: Modifiers
+                const tagFilters = [];
                 modifiers.forEach(mod => {
                     if (mod === '#favorite') {
                         results = results.filter(file => file.favorite === true);
@@ -2484,8 +4386,19 @@
                         if (!isNaN(rating)) {
                             results = results.filter(file => file.contentRating === rating);
                         }
+                    } else if (mod.length > 1) {
+                        const normalizedTag = TagService.normalizeTagValue(mod);
+                        if (normalizedTag.length > 1) {
+                            tagFilters.push(normalizedTag.toLowerCase());
+                        }
                     }
                 });
+                if (tagFilters.length > 0) {
+                    results = results.filter(file => {
+                        const tags = TagService.normalizeTagList(file.tags || []).map(tag => tag.toLowerCase());
+                        return tagFilters.every(tag => tags.includes(tag));
+                    });
+                }
 
                 // 2. Pass: Inclusions
                 inclusions.forEach(term => {
@@ -2550,6 +4463,8 @@
             }
         };
         const Details = {
+            tagEditor: null,
+            notesEditor: null,
             currentTab: 'info',
             async show() {
                 try {
@@ -2586,89 +4501,93 @@
                 const size = file.size ? Utils.formatFileSize(file.size) : 'Unknown';
                 Utils.elements.detailSize.textContent = size;
             },
+            getTargetFileIds(baseId) {
+                const selected = state.grid.selected && state.grid.selected.length > 0 ? [...state.grid.selected] : [];
+                if (baseId && !selected.includes(baseId)) {
+                    selected.push(baseId);
+                }
+                return TagService.normalizeIds(selected);
+            },
             populateTagsTab(file) {
-                const tags = file.tags || [];
-                Utils.elements.detailTags.innerHTML = '';
-                tags.forEach(tag => {
-                    const tagElement = document.createElement('div');
-                    tagElement.className = 'tag-item';
-                    tagElement.innerHTML = `<span>${tag}</span><button class="tag-remove" data-tag="${tag}">×</button>`;
-                    Utils.elements.detailTags.appendChild(tagElement);
-                });
-                const addButton = document.createElement('div');
-                addButton.className = 'add-tag-btn'; addButton.textContent = '+ Add Tag';
-                addButton.addEventListener('click', () => this.showAddTagInput());
-                Utils.elements.detailTags.appendChild(addButton);
-                Utils.elements.detailTags.querySelectorAll('.tag-remove').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const tagToRemove = e.target.dataset.tag;
-                        this.removeTag(file, tagToRemove);
-                    });
-                });
-            },
-            showAddTagInput() {
+                const container = Utils.elements.detailTags;
+                if (!container) return;
+                if (this.tagEditor) {
+                    this.tagEditor.destroy();
+                    this.tagEditor = null;
+                }
+                const targetIds = this.getTargetFileIds(file?.id);
+                container.classList.add('tag-editor-container');
+                container.innerHTML = '';
+
+                const assignedSection = document.createElement('div');
+                assignedSection.className = 'tag-section';
+                const assignedTitle = document.createElement('div');
+                assignedTitle.className = 'tag-section-title';
+                assignedTitle.textContent = 'Assigned Tags';
+                const chipList = document.createElement('div');
+                chipList.className = 'tag-chip-list';
+                assignedSection.appendChild(assignedTitle);
+                assignedSection.appendChild(chipList);
+
                 const input = document.createElement('input');
-                input.type = 'text'; input.className = 'tag-input';
-                input.placeholder = 'Enter tag name'; input.style.marginLeft = '8px';
-                const addButton = Utils.elements.detailTags.querySelector('.add-tag-btn');
-                addButton.parentNode.insertBefore(input, addButton);
-                input.focus();
-                input.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') {
-                        const tagName = input.value.trim();
-                        if (tagName) {
-                            const currentFile = state.stacks[state.currentStack][state.currentStackPosition];
-                            const currentTags = currentFile.tags || [];
-                            const newTags = [...new Set([...currentTags, tagName])];
-                            App.updateUserMetadata(currentFile.id, { tags: newTags });
-                            state.tags.add(tagName);
-                            this.populateTagsTab(currentFile);
-                            input.remove();
-                        }
-                    } else if (e.key === 'Escape') { input.remove(); }
+                input.type = 'text';
+                input.className = 'tag-input';
+                input.placeholder = 'Enter tags separated by commas - non-# tags are auto-prefixed when you press Enter';
+
+                const recentSection = document.createElement('div');
+                recentSection.className = 'tag-section';
+                const recentTitle = document.createElement('div');
+                recentTitle.className = 'tag-section-title';
+                recentTitle.textContent = 'Recently Used Tags';
+                const recentList = document.createElement('div');
+                recentList.className = 'tag-chip-list';
+                recentSection.appendChild(recentTitle);
+                recentSection.appendChild(recentList);
+
+                const message = document.createElement('div');
+                message.className = 'tag-editor-note';
+                message.textContent = targetIds.length > 1 ? `Changes apply to ${targetIds.length} selected images.` : 'Changes apply to this image.';
+
+                container.appendChild(assignedSection);
+                container.appendChild(input);
+                container.appendChild(recentSection);
+                container.appendChild(message);
+
+                this.tagEditor = TagEditor.create({
+                    container: chipList,
+                    input,
+                    recentContainer: recentList,
+                    targetIds,
+                    placeholder: input.placeholder
                 });
-                input.addEventListener('blur', () => { setTimeout(() => input.remove(), 100); });
-            },
-            removeTag(file, tagToRemove) {
-                const currentTags = file.tags || [];
-                const newTags = currentTags.filter(tag => tag !== tagToRemove);
-                App.updateUserMetadata(file.id, { tags: newTags });
-                this.populateTagsTab(file);
+                input.focus();
             },
             populateNotesTab(file) {
-                Utils.elements.detailNotes.value = file.notes || '';
-                const newNotesTextarea = Utils.elements.detailNotes.cloneNode(true);
-                Utils.elements.detailNotes.parentNode.replaceChild(newNotesTextarea, Utils.elements.detailNotes);
-                Utils.elements.detailNotes = newNotesTextarea;
-                Utils.elements.detailNotes.addEventListener('blur', () => {
-                    const currentFile = state.stacks[state.currentStack][state.currentStackPosition];
-                    if (currentFile.notes !== Utils.elements.detailNotes.value) {
-                        App.updateUserMetadata(currentFile.id, { notes: Utils.elements.detailNotes.value });
+                const tab = document.getElementById('tab-notes');
+                if (!tab) return;
+                if (this.notesEditor) {
+                    this.notesEditor.destroy();
+                    this.notesEditor = null;
+                }
+                const targetIds = this.getTargetFileIds(file?.id);
+                let message = tab.querySelector('.tag-editor-note');
+                if (!message) {
+                    message = document.createElement('div');
+                    message.className = 'tag-editor-note';
+                    message.style.marginBottom = '12px';
+                    tab.insertBefore(message, tab.firstChild);
+                }
+                message.textContent = targetIds.length > 1 ? `Changes apply to ${targetIds.length} selected images.` : 'Changes apply to this image.';
+                this.notesEditor = NotesEditor.create({
+                    root: tab,
+                    targetIds,
+                    mode: 'immediate',
+                    initialValues: {
+                        notes: file.notes || '',
+                        qualityRating: file.qualityRating || 0,
+                        contentRating: file.contentRating || 0
                     }
                 });
-                this.setupStarRating('quality', file.qualityRating || 0);
-                this.setupStarRating('content', file.contentRating || 0);
-            },
-            setupStarRating(type, currentRating) {
-                const container = Utils.elements[`${type}Rating`]; if (!container) return;
-                let rating = currentRating;
-                const stars = container.querySelectorAll('.star');
-                const updateVisuals = (r) => { stars.forEach((star, index) => { star.classList.toggle('active', index < r); }); };
-                container.onmouseleave = () => updateVisuals(rating);
-                stars.forEach((star, index) => {
-                    star.onmouseenter = () => updateVisuals(index + 1);
-                    star.onclick = () => {
-                        const newRating = index + 1;
-                        if (newRating === rating) { rating = 0; } else { rating = newRating; }
-                        updateVisuals(rating);
-                        const currentFile = state.stacks[state.currentStack][state.currentStackPosition];
-                        if (!currentFile) return;
-                        const updatePayload = {};
-                        if (type === 'quality') { updatePayload.qualityRating = rating; } else { updatePayload.contentRating = rating; }
-                        App.updateUserMetadata(currentFile.id, updatePayload);
-                    };
-                });
-                updateVisuals(rating);
             },
             populateMetadataTab(file) {
                 Utils.elements.metadataTable.innerHTML = '';
@@ -2737,21 +4656,33 @@
         };
         const Modal = {
             currentAction: null,
-            taggingState: {
-                tags: new Set()
-            },
+            tagEditor: null,
+            notesEditor: null,
             show(type, options = {}) {
                 this.currentAction = type;
-                const { title, content, confirmText = 'Confirm', confirmClass = 'btn-primary' } = options;
+                const {
+                    title,
+                    content,
+                    confirmText = 'Confirm',
+                    confirmClass = 'btn-primary',
+                    cancelText = 'Cancel',
+                    hideConfirm = false
+                } = options;
                 Utils.elements.actionTitle.textContent = title || 'Action';
                 Utils.elements.actionContent.innerHTML = content || '';
                 Utils.elements.actionConfirm.textContent = confirmText;
                 Utils.elements.actionConfirm.className = `btn ${confirmClass}`;
                 Utils.elements.actionConfirm.disabled = false;
-                Utils.elements.actionCancel.textContent = "Cancel";
+                Utils.elements.actionConfirm.style.display = hideConfirm ? 'none' : 'inline-flex';
+                Utils.elements.actionCancel.textContent = cancelText;
                 Utils.showModal('action-modal');
             },
-            hide() { Utils.hideModal('action-modal'); this.currentAction = null; },
+            hide() {
+                Utils.hideModal('action-modal');
+                this.currentAction = null;
+                if (this.tagEditor) { this.tagEditor.destroy(); this.tagEditor = null; }
+                if (this.notesEditor) { this.notesEditor.destroy(); this.notesEditor = null; }
+            },
             setupMoveAction() {
                 this.show('move', {
                     title: 'Move to Stack',
@@ -2762,56 +4693,107 @@
                     option.addEventListener('click', () => { this.executeMove(option.dataset.stack); });
                 });
             },
+            setupFocusStackSwitch() {
+                const availableStacks = STACKS.filter(stack => stack !== state.currentStack && state.stacks[stack].length > 0);
+                let content = `<div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">`;
+                if (availableStacks.length > 0) {
+                    content += availableStacks.map(stack => `<button class="move-option" data-stack="${stack}" style="width: 100%; text-align: left; padding: 8px 16px; border-radius: 6px; border: none; background: transparent; cursor: pointer; transition: background-color 0.2s;">${STACK_NAMES[stack]} (${state.stacks[stack].length})</button>`).join('');
+                } else {
+                    content += `<p style="color: #4b5563; text-align: center;">No other stacks have images.</p>`;
+                }
+                content += `</div>`;
+                this.show('focus-stack-switch', { title: 'Switch Stack', content, confirmText: 'Cancel' });
+                document.querySelectorAll('.move-option').forEach(option => {
+                    option.addEventListener('click', () => {
+                        const targetStack = option.dataset.stack;
+                        UI.switchToStack(targetStack);
+                        Core.updateImageCounters();
+                        this.hide();
+                    });
+                });
+            },
             setupTagAction() {
-                this.taggingState.tags.clear();
+                const selectedIds = state.grid.selected.length > 0 ? [...state.grid.selected] : [];
+                const total = selectedIds.length;
+                const scopeText = total > 1 ? `Changes apply to ${total} selected images.` : 'Changes apply to the selected image.';
                 this.show('tag', {
-                    title: 'Add Tags',
-                    content: `<div style="margin-bottom: 16px;">
-                                <label style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 4px;">Enter tags</label>
-                                <div id="tag-chip-container"></div>
-                                <input type="text" id="modal-tag-input" class="tag-input" placeholder="nature, landscape, vacation">
-                             </div>
-                             <div id="modal-tag-suggestions" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
-                                ${Array.from(state.tags).map(tag => `<button class="tag-suggestion" data-tag="${tag}" style="background-color: #e5e7eb; color: #374151; padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: background-color 0.2s; border: none;">${tag}</button>`).join('')}
+                    title: 'Edit Tags',
+                    content: `<div class="tag-editor-container">
+                                <div class="tag-section">
+                                    <div class="tag-section-title">Assigned Tags</div>
+                                    <div id="bulk-tag-chips" class="tag-chip-list"></div>
+                                </div>
+                                <input type="text" id="bulk-tag-input" class="tag-input" placeholder="Enter tags separated by commas - non-# tags are auto-prefixed when you press Enter">
+                                <div class="tag-section">
+                                    <div class="tag-section-title">Recently Used Tags</div>
+                                    <div id="bulk-tag-recents" class="tag-chip-list"></div>
+                                </div>
+                                <div class="tag-editor-note">${scopeText}</div>
                              </div>`,
-                    confirmText: 'Apply'
+                    hideConfirm: true,
+                    cancelText: 'Close'
                 });
-                const tagInput = document.getElementById('modal-tag-input');
-                tagInput.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const tagValue = tagInput.value.trim();
-                        if (tagValue) {
-                            this.addTagChip(tagValue);
-                            tagInput.value = '';
-                        }
-                    }
+                const chipsContainer = document.getElementById('bulk-tag-chips');
+                const input = document.getElementById('bulk-tag-input');
+                const recents = document.getElementById('bulk-tag-recents');
+                if (this.tagEditor) {
+                    this.tagEditor.destroy();
+                    this.tagEditor = null;
+                }
+                this.tagEditor = TagEditor.create({
+                    container: chipsContainer,
+                    input,
+                    recentContainer: recents,
+                    targetIds: selectedIds,
+                    placeholder: input ? input.placeholder : undefined
                 });
-                document.querySelectorAll('.tag-suggestion').forEach(btn => {
-                    btn.addEventListener('click', () => this.addTagChip(btn.dataset.tag));
-                });
-            },
-            addTagChip(tag) {
-                if (this.taggingState.tags.has(tag)) return;
-                this.taggingState.tags.add(tag);
-                const container = document.getElementById('tag-chip-container');
-                const chip = document.createElement('div');
-                chip.className = 'tag-chip';
-                chip.innerHTML = `<span>${tag}</span><button class="tag-chip-remove" data-tag="${tag}">×</button>`;
-                container.appendChild(chip);
-                chip.querySelector('.tag-chip-remove').addEventListener('click', () => {
-                    this.removeTagChip(chip, tag);
-                });
-            },
-            removeTagChip(chipElement, tag) {
-                this.taggingState.tags.delete(tag);
-                chipElement.remove();
+                if (input) input.focus();
             },
             setupDeleteAction() {
                 const selectedCount = state.grid.selected.length;
                 const providerName = state.providerType === 'googledrive' ? 'Google Drive' : 'OneDrive';
                 const message = `Are you sure you want to move ${selectedCount} image(s) to your ${providerName} trash? This can be recovered from the provider's website.`;
                 this.show('delete', { title: 'Confirm Delete', content: `<p style="color: #4b5563; margin-bottom: 16px;">${message}</p>`, confirmText: `Move to ${providerName} Trash`, confirmClass: 'btn-danger' });
+            },
+            setupNotesAction() {
+                const selectedIds = state.grid.selected.length > 0 ? [...state.grid.selected] : [];
+                const total = selectedIds.length;
+                if (total === 0) return;
+                const files = TagService.getFiles(selectedIds);
+                const sharedNotes = files.length && files.every(file => (file.notes || '') === (files[0].notes || '')) ? (files[0].notes || '') : '';
+                const sharedQuality = files.length && files.every(file => (file.qualityRating || 0) === (files[0].qualityRating || 0)) ? (files[0].qualityRating || 0) : 0;
+                const sharedContent = files.length && files.every(file => (file.contentRating || 0) === (files[0].contentRating || 0)) ? (files[0].contentRating || 0) : 0;
+                const scopeText = total > 1 ? `Changes apply to ${total} selected images.` : 'Changes apply to the selected image.';
+                this.show('notes', {
+                    title: 'Edit Notes & Ratings',
+                    content: `<div class="tag-editor-container">
+                                <div class="tag-editor-note">${scopeText}</div>
+                                <div id="bulk-notes-editor"></div>
+                              </div>`,
+                    confirmText: 'Save',
+                    cancelText: 'Cancel'
+                });
+                const mount = document.getElementById('bulk-notes-editor');
+                if (!mount) return;
+                mount.innerHTML = '';
+                const editorElement = createNotesEditorElement({ textareaId: 'bulk-notes-input' });
+                mount.appendChild(editorElement);
+                if (this.notesEditor) {
+                    this.notesEditor.destroy();
+                    this.notesEditor = null;
+                }
+                this.notesEditor = NotesEditor.create({
+                    root: editorElement,
+                    targetIds: selectedIds,
+                    mode: 'deferred',
+                    initialValues: {
+                        notes: sharedNotes,
+                        qualityRating: sharedQuality,
+                        contentRating: sharedContent
+                    }
+                });
+                const textarea = editorElement.querySelector('.notes-textarea');
+                if (textarea) textarea.focus();
             },
             setupExportAction() {
                 this.show('export', {
@@ -2835,18 +4817,22 @@
                 confirmBtn.textContent = 'Processing...';
 
                 try {
-                    const promises = state.grid.selected.map(fileId => action(fileId));
+                    const affectedIds = [...state.grid.selected];
+                    const promises = affectedIds.map(fileId => action(fileId));
                     await Promise.all(promises);
 
                     Utils.showToast(successMessage.replace('{count}', promises.length), 'success', true);
                     this.hide();
                     Core.updateStackCounts();
+                    await Core.displayCurrentImage();
 
-                    if (updateGridOnSuccess) {
-                        Utils.elements.gridContainer.innerHTML = '';
-                        Grid.initializeLazyLoad(state.grid.stack);
+                    if (updateGridOnSuccess && state.grid.stack) {
+                        Grid.syncWithStack(state.grid.stack, { removedIds: affectedIds, preselectFirst: true });
+                    } else if (updateGridOnSuccess) {
+                        Grid.deselectAll();
+                    } else {
+                        Grid.deselectAll();
                     }
-                    Grid.deselectAll();
                     return true;
                 } catch (error) {
                     Utils.showToast(`Failed to process some images: ${error.message}`, 'error', true);
@@ -2863,7 +4849,16 @@
                         if (file) {
                             const currentStack = file.stack;
                             const newSequence = Date.now();
-                            await App.updateUserMetadata(fileId, { stack: targetStack, stackSequence: newSequence });
+                            const fromLabel = currentStack ? (STACK_NAMES[currentStack] || currentStack) : 'unknown';
+                            const toLabel = STACK_NAMES[targetStack] || targetStack;
+                            state.syncLog?.log({
+                                event: targetStack === 'trash' ? 'ui:stack-recycle' : 'ui:stack-move',
+                                level: targetStack === 'trash' ? 'warn' : 'info',
+                                fileId,
+                                details: `Bulk move ${file.name || fileId} from ${fromLabel} to ${toLabel} (grid selection).`,
+                                data: { from: currentStack, to: targetStack, stackSequence: newSequence, source: 'grid:bulk-move' }
+                            });
+                            await App.updateUserMetadata(fileId, { stack: targetStack, stackSequence: newSequence }, { skipDebounce: true, operationType: 'stack:move' });
                             const currentStackIndex = state.stacks[currentStack].findIndex(f => f.id === fileId);
                             if (currentStackIndex !== -1) {
                                 state.stacks[currentStack].splice(currentStackIndex, 1);
@@ -2877,33 +4872,49 @@
                     successMessage: `Moved {count} images to ${STACK_NAMES[targetStack]}`
                 });
             },
-            async executeTag() {
-                const tagsToAdd = Array.from(this.taggingState.tags);
-                if (tagsToAdd.length === 0) {
+            async executeNotes() {
+                if (!this.notesEditor) {
                     this.hide();
                     return;
                 }
-                
+                const pending = this.notesEditor.getPendingUpdates();
+                if (Object.keys(pending).length === 0) {
+                    this.hide();
+                    return;
+                }
                 await this.executeBulkAction({
                     action: async (fileId) => {
                         const file = state.imageFiles.find(f => f.id === fileId);
-                        if (file) {
-                            const currentTags = file.tags || [];
-                            const newTags = [...new Set([...currentTags, ...tagsToAdd])];
-                            await App.updateUserMetadata(fileId, { tags: newTags });
-                            tagsToAdd.forEach(tag => state.tags.add(tag));
+                        if (!file) return;
+                        const updates = {};
+                        if ('notes' in pending && (file.notes || '') !== pending.notes) {
+                            updates.notes = pending.notes;
+                        }
+                        if ('qualityRating' in pending && (file.qualityRating || 0) !== pending.qualityRating) {
+                            updates.qualityRating = pending.qualityRating;
+                        }
+                        if ('contentRating' in pending && (file.contentRating || 0) !== pending.contentRating) {
+                            updates.contentRating = pending.contentRating;
+                        }
+                        if (Object.keys(updates).length > 0) {
+                            await App.updateUserMetadata(fileId, updates);
                         }
                     },
-                    successMessage: `Tags added to {count} images`,
+                    successMessage: 'Updated notes & ratings for {count} images',
                     updateGridOnSuccess: false
                 });
             },
             async executeDelete() {
                 await this.executeBulkAction({
                     action: async (fileId) => {
-                        await App.deleteFile(fileId);
+                        const file = state.imageFiles.find(f => f.id === fileId);
+                        await App.deleteFile(fileId, {
+                            source: 'grid:bulk-delete',
+                            originStack: file?.stack || null,
+                            name: file?.name || null
+                        });
                     },
-                    successMessage: `Moved {count} images to provider trash`
+                    successMessage: `Moved {count} images to provider recycle bin`
                 });
             },
             async executeExport() {
@@ -2956,6 +4967,7 @@
             hubPressActive: false,
             overlay: null,
             lastHubTap: { time: 0, x: 0, y: 0 },
+            tapHandled: false,
             DOUBLE_TAP_MAX_INTERVAL: 320,
             DOUBLE_TAP_MAX_DISTANCE: 28,
             TAP_DISTANCE_THRESHOLD: 26,
@@ -3149,13 +5161,14 @@
                 try {
                     UI.acknowledgePillCounter(targetStack);
                     if (state.haptic) { state.haptic.triggerFeedback('swipe'); }
-                    await Core.moveToStack(targetStack);
+                    await Core.moveToStack(targetStack, { source: 'gesture:flick' });
                     this.hideAllEdgeGlows();
                 } catch(error) {
                     Utils.showToast(`Flick failed: ${error.message}`, 'error', true);
                 }
             },
             handleStart(e) {
+                this.tapHandled = false;
                 if (e.touches && (e.touches.length > 1 || state.isPinching)) return;
                 if (state.currentScale > 1.1) return;
                 const point = e.touches ? e.touches[0] : e;
@@ -3252,8 +5265,11 @@
                         }
                     }
                 } else if (!this.gestureStarted && isTap) {
-                    this.spawnRipple(this.currentPos.x, this.currentPos.y);
-                    this.handleTap(this.currentPos.x, this.currentPos.y);
+                    if (!this.tapHandled) {
+                        this.tapHandled = true;
+                        this.spawnRipple(this.currentPos.x, this.currentPos.y);
+                        this.handleTap(this.currentPos.x, this.currentPos.y);
+                    }
                 }
                 this.hideAllEdgeGlows();
                 this.hubPressActive = false;
@@ -3318,15 +5334,7 @@
                 await Core.displayCurrentImage();
             },
             async deleteCurrentImage() {
-                const currentStackArray = state.stacks[state.currentStack];
-                if (currentStackArray.length === 0) return;
-                const fileToDelete = currentStackArray[state.currentStackPosition];
-                try {
-                    await App.deleteFile(fileToDelete.id);
-                    Core.updateStackCounts();
-                    if (currentStackArray.length === 0) { this.toggleFocusMode(); Core.showEmptyState();
-                    } else { await Core.displayCurrentImage(); }
-                } catch (error) { Utils.showToast(`Failed to delete ${fileToDelete.name}`, 'error', true); }
+                await Core.deleteCurrentImage({ exitFocusIfEmpty: true, source: 'gesture:shortcut' });
             }
         };
         const Folders = {
@@ -3497,9 +5505,25 @@
         };
         const DraggableResizable = {
             init(modal, header) {
+                if (!modal || !header) {
+                    const logger = (typeof state !== 'undefined' && state?.syncLog) ? state.syncLog : null;
+                    logger?.log({
+                        event: 'ui:draggable:init:error',
+                        level: 'error',
+                        details: 'Draggable init skipped due to missing modal/header reference.',
+                        data: {
+                            modalPresent: Boolean(modal),
+                            headerPresent: Boolean(header),
+                            modalId: modal && modal.id ? modal.id : null,
+                            headerId: header && header.id ? header.id : null
+                        }
+                    });
+                    return;
+                }
+
                 let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
                 let isDragging = false;
-                
+
                 header.onmousedown = dragMouseDown;
 
                 function dragMouseDown(e) {
@@ -3570,10 +5594,45 @@
                 this.setupGridControls(); this.setupSearchFunctionality(); this.setupActionButtons();
                 this.setupKeyboardNavigation();
                 this.setupDraggables();
+                this.setupMaintenanceControls();
             },
             setupDraggables() {
-                DraggableResizable.init(Utils.elements.detailsModal.querySelector('.modal-content'), Utils.elements.detailsModalHeader);
-                DraggableResizable.init(Utils.elements.gridModal.querySelector('.modal-content'), Utils.elements.gridModalHeaderMain);
+                const {
+                    detailsModal,
+                    detailsModalHeader,
+                    gridModal,
+                    gridModalHeaderMain
+                } = Utils.elements;
+
+                const detailsContent = detailsModal ? detailsModal.querySelector('.modal-content') : null;
+                if (detailsContent && detailsModalHeader) {
+                    DraggableResizable.init(detailsContent, detailsModalHeader);
+                } else {
+                    state.syncLog?.log({
+                        event: 'ui:draggable:init:skip',
+                        level: 'warn',
+                        details: 'Skipped draggable wiring for details modal.',
+                        data: {
+                            modalFound: Boolean(detailsModal),
+                            headerFound: Boolean(detailsModalHeader)
+                        }
+                    });
+                }
+
+                const gridContent = gridModal ? gridModal.querySelector('.modal-content') : null;
+                if (gridContent && gridModalHeaderMain) {
+                    DraggableResizable.init(gridContent, gridModalHeaderMain);
+                } else {
+                    state.syncLog?.log({
+                        event: 'ui:draggable:init:skip',
+                        level: 'warn',
+                        details: 'Skipped draggable wiring for grid modal.',
+                        data: {
+                            modalFound: Boolean(gridModal),
+                            headerFound: Boolean(gridModalHeaderMain)
+                        }
+                    });
+                }
             },
             setupProviderSelection() {
                 Utils.elements.googleDriveBtn.addEventListener('click', () => App.selectProvider('googledrive'));
@@ -3631,10 +5690,15 @@
                 Utils.elements.detailsButton.addEventListener('click', () => { if (state.stacks[state.currentStack].length > 0) { Details.show(); } });
                 Utils.elements.detailsClose.addEventListener('click', () => Details.hide());
             },
+            setupMaintenanceControls() {
+                if (Utils.elements.resetFolderButton) {
+                    Utils.elements.resetFolderButton.addEventListener('click', async () => { await App.resetFolderState(); });
+                }
+            },
             setupFocusMode() {
-                Utils.elements.centerTrashBtn.addEventListener('click', () => Core.moveToStack('trash'));
+                Utils.elements.centerTrashBtn.addEventListener('click', () => Core.deleteCurrentImage({ exitFocusIfEmpty: false, source: 'button:center-trash' }));
                 Utils.elements.focusStackName.addEventListener('click', () => Modal.setupFocusStackSwitch());
-                Utils.elements.focusDeleteBtn.addEventListener('click', () => Gestures.deleteCurrentImage());
+                Utils.elements.focusDeleteBtn.addEventListener('click', () => Core.deleteCurrentImage({ exitFocusIfEmpty: true, source: 'button:focus-trash' }));
                 Utils.elements.focusFavoriteBtn.addEventListener('click', async () => {
                     try {
                         const currentFile = state.stacks[state.currentStack]?.[state.currentStackPosition];
@@ -3691,7 +5755,6 @@
             setupGridControls() {
                 Utils.elements.closeGrid.addEventListener('click', () => Grid.close());
                 Utils.elements.selectAllBtn.addEventListener('click', () => Grid.selectAll());
-                Utils.elements.deselectAllBtn.addEventListener('click', () => Grid.deselectAll());
                 Utils.elements.gridSize.addEventListener('input', () => {
                     const value = Utils.elements.gridSize.value;
                     Utils.elements.gridSizeValue.textContent = value;
@@ -3699,22 +5762,111 @@
                 });
             },
             setupSearchFunctionality() {
-                Utils.elements.omniSearch.addEventListener('input', () => Grid.performSearch());
-                Utils.elements.clearSearchBtn.addEventListener('click', () => Grid.resetSearch());
-                document.querySelectorAll('.modifier-link').forEach(link => {
-                    link.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        const modifier = e.target.dataset.modifier;
-                        const searchInput = Utils.elements.omniSearch;
-                        searchInput.value += ` ${modifier} `;
-                        searchInput.focus();
-                        Grid.performSearch();
+                const searchInput = Utils.elements.omniSearch;
+                const clearBtn = Utils.elements.clearSearchBtn;
+                if (searchInput) {
+                    searchInput.addEventListener('input', () => Grid.performSearch());
+                }
+                if (clearBtn) {
+                    clearBtn.addEventListener('click', () => Grid.resetSearch());
+                }
+
+                const {
+                    searchHelper,
+                    searchHelperIcon,
+                    searchHelperPopup,
+                    searchHelperClose
+                } = Utils.elements;
+
+                const modifierLinks = document.querySelectorAll('.modifier-link');
+                const appendModifierToInput = (modifier) => {
+                    if (!searchInput) return;
+                    const baseValue = searchInput.value.replace(/\s+$/, '');
+                    const newValue = baseValue ? `${baseValue} ${modifier} ` : `${modifier} `;
+                    searchInput.value = newValue;
+                    searchInput.focus();
+                    Grid.performSearch();
+                };
+
+                if (searchHelper && searchHelperIcon && searchHelperPopup) {
+                    const setHelperState = (isOpen) => {
+                        const open = Boolean(isOpen);
+                        searchHelper.classList.toggle('is-open', open);
+                        searchHelperPopup.setAttribute('aria-hidden', String(!open));
+                        searchHelperIcon.setAttribute('aria-expanded', String(open));
+                    };
+                    const closeHelper = (focusIcon = false) => {
+                        setHelperState(false);
+                        if (focusIcon) {
+                            searchHelperIcon.focus();
+                        }
+                    };
+                    const openHelper = () => setHelperState(true);
+
+                    searchHelperIcon.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        if (searchHelper.classList.contains('is-open')) {
+                            closeHelper();
+                        } else {
+                            openHelper();
+                        }
                     });
-                });
+
+                    if (searchHelperClose) {
+                        searchHelperClose.addEventListener('click', (event) => {
+                            event.preventDefault();
+                            closeHelper(true);
+                        });
+                    }
+
+                    document.addEventListener('click', (event) => {
+                        if (!searchHelper.contains(event.target)) {
+                            closeHelper();
+                        }
+                    });
+
+                    const handleEscape = (event) => {
+                        if (event.key === 'Escape') {
+                            closeHelper(true);
+                        }
+                    };
+                    searchHelperIcon.addEventListener('keydown', handleEscape);
+                    searchHelperPopup.addEventListener('keydown', handleEscape);
+
+                    modifierLinks.forEach(link => {
+                        link.addEventListener('click', (event) => {
+                            event.preventDefault();
+                            const modifier = link.dataset.modifier;
+                            if (!modifier) return;
+                            appendModifierToInput(modifier);
+                            closeHelper();
+                        });
+                    });
+                } else {
+                    modifierLinks.forEach(link => {
+                        link.addEventListener('click', (event) => {
+                            event.preventDefault();
+                            const modifier = link.dataset.modifier;
+                            if (!modifier) return;
+                            appendModifierToInput(modifier);
+                        });
+                    });
+                }
+
+                if (Utils.elements.deselectAllBtn) {
+                    Utils.elements.deselectAllBtn.addEventListener('click', () => {
+                        if (Utils.elements.omniSearch.value.trim() || state.grid.filtered.length > 0) {
+                            Grid.resetSearch();
+                        } else {
+                            Grid.deselectAll();
+                        }
+                    });
+                }
             },
             setupActionButtons() {
-                Utils.elements.moveSelected.addEventListener('click', () => Modal.setupMoveAction());
                 Utils.elements.tagSelected.addEventListener('click', () => Modal.setupTagAction());
+                Utils.elements.notesSelected.addEventListener('click', () => Modal.setupNotesAction());
+                Utils.elements.moveSelected.addEventListener('click', () => Modal.setupMoveAction());
                 Utils.elements.deleteSelected.addEventListener('click', () => Modal.setupDeleteAction());
                 Utils.elements.exportSelected.addEventListener('click', () => Modal.setupExportAction());
                 Utils.elements.folderSelected.addEventListener('click', () => Modal.setupFolderMoveAction());
@@ -3722,7 +5874,7 @@
                 Utils.elements.actionConfirm.addEventListener('click', async () => {
                     try {
                         if (Modal.currentAction === 'move') { /* handled by buttons */
-                        } else if (Modal.currentAction === 'tag') { await Modal.executeTag();
+                        } else if (Modal.currentAction === 'notes') { await Modal.executeNotes();
                         } else if (Modal.currentAction === 'delete') { await Modal.executeDelete();
                         } else if (Modal.currentAction === 'export') { await Modal.executeExport();
                         } else if (Modal.currentAction === 'folder-move') { Modal.executeFolderMove(); }
@@ -3749,9 +5901,9 @@
                         if (keyMap[e.key]) {
                             e.preventDefault();
                             const targetStack = keyMap[e.key];
-                            if (state.stacks[state.currentStack].length > 0) { 
-                                UI.acknowledgePillCounter(targetStack); 
-                                await Core.moveToStack(targetStack); 
+                            if (state.stacks[state.currentStack].length > 0) {
+                                UI.acknowledgePillCounter(targetStack);
+                                await Core.moveToStack(targetStack, { source: `keyboard:${e.key}` });
                             }
                             return;
                         }
@@ -3768,12 +5920,16 @@
         async function initApp() {
             try {
                 Utils.init();
+                state.syncLog = new SyncActivityLogger();
+                state.syncLog.init();
                 state.visualCues = new VisualCueManager();
                 state.haptic = new HapticFeedbackManager();
                 state.export = new ExportSystem();
                 state.dbManager = new DBManager();
                 await state.dbManager.init();
-                state.syncManager = new SyncManager();
+                state.folderSync = new FolderSyncCoordinator({ dbManager: state.dbManager, logger: state.syncLog });
+                state.syncManager = new SyncManager({ dbManager: state.dbManager, logger: state.syncLog });
+                state.syncManager.start();
                 state.metadataExtractor = new MetadataExtractor();
                 Utils.showScreen('provider-screen');
                 Events.init();
