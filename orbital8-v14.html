@@ -1,9 +1,9 @@
 <!--
-    Orbital8-O-v8 · 2025-10-04 17:30 UTC
-    Changes:
-    - Rebased from v6 visual shell to establish the v8 baseline without layout regressions.
-    - Added manifest-driven sync and folder state tracking to keep devices aligned.
-    - Moved the reset-folder control to the footer link and refreshed logging utilities.
+    Orbital8-O-2025-09-24 03:00 PM
+    v7 Updates:
+    - Added folder version handshake and manifest coordination for cross-device sync
+    - Implemented targeted metadata delta retrieval for Google Drive and OneDrive
+    - Enhanced logging and introduced in-app folder reset workflow
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -467,19 +467,9 @@
         
         .app-footer {
             position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0, 0, 0, 0.8);
-            color: rgba(255, 255, 255, 0.6);
-            padding: 4px 12px;
+            color: rgba(255, 255, 255, 0.6); text-align: center;
+            padding: 4px 8px;
             font-size: 10px; z-index: 5; backdrop-filter: blur(10px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        .app-footer .footer-text {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
         }
         .app-footer .footer-link {
             background: transparent;
@@ -487,6 +477,7 @@
             color: rgba(255, 255, 255, 0.65);
             cursor: pointer;
             font: inherit;
+            margin-left: 8px;
             padding: 0;
             text-decoration: none;
             transition: color 0.2s ease;
@@ -709,7 +700,7 @@
             </div>
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">Orbital8-O-v8-2025-10-04 05:30 PM UTC</div>
+        <div class="app-footer">Orbital8-O-v7-2025-09-24 03:00 PM</div>
     </div>
     
     <!-- Unified Auth Screen -->
@@ -724,7 +715,7 @@
             <button class="button" id="auth-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="auth-status" class="status info"></div>
         </div>
-        <div class="app-footer">Orbital8-O-v8-2025-10-04 05:30 PM UTC</div>
+        <div class="app-footer">Orbital8-O-v7-2025-09-24 03:00 PM</div>
     </div>
     
     <!-- Unified Folder Screen -->
@@ -739,7 +730,7 @@
                 <button class="folder-button danger" id="folder-logout-button">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">Orbital8-O-v8-2025-10-04 05:30 PM UTC</div>
+        <div class="app-footer">Orbital8-O-v7-2025-09-24 03:00 PM</div>
     </div>
     
     <!-- Loading Screen -->
@@ -753,7 +744,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">Orbital8-O-v8-2025-10-04 05:30 PM UTC</div>
+        <div class="app-footer">Orbital8-O-v7-2025-09-24 03:00 PM</div>
     </div>
     
     <!-- Main App Container -->
@@ -763,7 +754,8 @@
             Folders
         </button>
         <button class="ui-button" id="details-button">Details</button>
-        
+        <button class="ui-button" id="reset-folder-button">Reset Folder</button>
+
         <div class="image-viewport" id="image-viewport">
             <img class="center-image zoomable" id="center-image" alt="Select a folder to start" />
         </div>
@@ -823,7 +815,7 @@
         </button>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer" id="app-footer"><span class="footer-text">Orbital8-O-v8-2025-10-04 05:30 PM UTC</span><a href="#" class="footer-link" id="reset-folder-link">Reset folder</a></div>
+        <div class="app-footer">Orbital8-O-2025-09-24 12:00 PM</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -1047,7 +1039,7 @@
                     backButton: document.getElementById('back-button'),
                     backButtonSpinner: document.getElementById('back-button-spinner'),
                     detailsButton: document.getElementById('details-button'),
-                    resetFolderLink: document.getElementById('reset-folder-link'),
+                    resetFolderButton: document.getElementById('reset-folder-button'),
                     imageViewport: document.getElementById('image-viewport'),
                     centerImage: document.getElementById('center-image'),
                     emptyState: document.getElementById('empty-state'),
@@ -2246,16 +2238,9 @@
                 }
                 const localManifest = await this.getLocalManifest(providerType, folderId);
                 const sanitized = this.sanitizeManifest(remoteManifest);
-                const localVersion = localManifest.version || 0;
-                const remoteVersion = sanitized.version || 0;
-                if (remoteVersion <= localVersion) {
-                    // Keep the newer local manifest when the remote payload is stale. This avoids
-                    // downgrading local entries that have not been pushed upstream yet (e.g. the
-                    // last remote save was delayed or rolled back).
-                    const stateUpdates = { lastSyncAt: Date.now(), remoteVersion };
-                    if (remoteContext?.remoteId) { stateUpdates.remoteManifestId = remoteContext.remoteId; }
-                    await this.saveState(providerType, folderId, stateUpdates);
-                    return { files: cachedFiles, changed: false, updatedIds: [], removedIds: [], missingIds: [], manifest: localManifest };
+                if ((sanitized.version || 0) <= (localManifest.version || 0)) {
+                    await this.persistManifest(providerType, folderId, sanitized, remoteContext);
+                    return { files: cachedFiles, changed: false, updatedIds: [], removedIds: [], manifest: sanitized };
                 }
                 const fileMap = new Map((cachedFiles || []).map(file => [file.id, { ...file }]));
                 const updatedIds = [];
@@ -3435,19 +3420,10 @@
                             const existingIds = new Set(effectiveFiles.map(file => file.id));
                             const merged = [...effectiveFiles];
                             for (const item of fetched) {
-                                if (!item || !item.id || existingIds.has(item.id)) {
-                                    continue;
+                                if (item && item.id && !existingIds.has(item.id)) {
+                                    merged.push(item);
+                                    existingIds.add(item.id);
                                 }
-                                let enriched = item;
-                                const manifestEntry = applied.manifest?.items?.[item.id];
-                                if (manifestEntry && state.folderSync) {
-                                    enriched = state.folderSync.applyEntryToFile(item, manifestEntry);
-                                    if (state.dbManager) {
-                                        await state.dbManager.saveMetadata(item.id, enriched);
-                                    }
-                                }
-                                merged.push(enriched);
-                                existingIds.add(item.id);
                             }
                             effectiveFiles = merged;
                         }
@@ -5715,11 +5691,8 @@
                 Utils.elements.detailsClose.addEventListener('click', () => Details.hide());
             },
             setupMaintenanceControls() {
-                if (Utils.elements.resetFolderLink) {
-                    Utils.elements.resetFolderLink.addEventListener('click', async (event) => {
-                        event.preventDefault();
-                        await App.resetFolderState();
-                    });
+                if (Utils.elements.resetFolderButton) {
+                    Utils.elements.resetFolderButton.addEventListener('click', async () => { await App.resetFolderState(); });
                 }
             },
             setupFocusMode() {
