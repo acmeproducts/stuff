@@ -1187,8 +1187,14 @@
             },
 
             getFallbackImageUrl(file) {
-                 if (state.providerType === 'googledrive') {
-                    return file.downloadUrl || `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
+                if (state.providerType === 'googledrive') {
+                    const hasViewStyleDownload = typeof file.downloadUrl === 'string' && file.downloadUrl.includes('https://drive.google.com/file/d/');
+                    const permanentLink = [file.viewUrl, file.webViewLink, hasViewStyleDownload ? file.downloadUrl : null]
+                        .find(url => typeof url === 'string' && url.length > 0);
+                    if (permanentLink) { return permanentLink; }
+                    const apiDownloadLink = [file.driveApiDownloadUrl, file.webContentLink, !hasViewStyleDownload ? file.downloadUrl : null]
+                        .find(url => typeof url === 'string' && url.length > 0);
+                    return apiDownloadLink || `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
                 } else { // OneDrive
                     return file.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
                 }
@@ -3310,10 +3316,30 @@
                 const allFiles = []; let nextPageToken = null;
                 do {
                     const query = `'${folderId}' in parents and trashed=false and (mimeType contains 'image/')`;
-                    let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,appProperties,parents),nextPageToken&pageSize=100`;
+                    let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,webViewLink,appProperties,parents),nextPageToken&pageSize=100`;
                     if (nextPageToken) { url += `&pageToken=${nextPageToken}`; }
                     const response = await this.makeApiCall(url, { signal: state.activeRequests.signal });
-                    const files = response.files.filter(file => file.mimeType && file.mimeType.startsWith('image/')).map(file => ({ id: file.id, name: file.name, type: 'file', mimeType: file.mimeType, size: file.size ? parseInt(file.size) : 0, createdTime: file.createdTime, modifiedTime: file.modifiedTime, thumbnailLink: file.thumbnailLink, downloadUrl: file.webContentLink, appProperties: file.appProperties || {}, parents: file.parents }));
+                    const files = response.files
+                        .filter(file => file.mimeType && file.mimeType.startsWith('image/'))
+                        .map(file => {
+                            const viewUrl = file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`;
+                            const apiDownloadUrl = file.webContentLink || null;
+                            return {
+                                id: file.id,
+                                name: file.name,
+                                type: 'file',
+                                mimeType: file.mimeType,
+                                size: file.size ? parseInt(file.size) : 0,
+                                createdTime: file.createdTime,
+                                modifiedTime: file.modifiedTime,
+                                thumbnailLink: file.thumbnailLink,
+                                downloadUrl: viewUrl,
+                                viewUrl,
+                                driveApiDownloadUrl: apiDownloadUrl,
+                                appProperties: file.appProperties || {},
+                                parents: file.parents
+                            };
+                        });
                     allFiles.push(...files);
                     nextPageToken = response.nextPageToken;
                     if (this.onProgressCallback) { this.onProgressCallback(allFiles.length); }
@@ -3403,9 +3429,21 @@
             }
             async fetchFilesByIds(folderId, fileIds = [], options = {}) {
                 if (!Array.isArray(fileIds) || fileIds.length === 0) return [];
-                const requests = fileIds.map(id => this.makeApiCall(`/files/${id}?fields=id,name,mimeType,size,createdTime,modifiedTime,appProperties,parents,thumbnailLink,webContentLink&supportsAllDrives=true&includeItemsFromAllDrives=true`, { signal: options.signal }));
+                const requests = fileIds.map(id => this.makeApiCall(`/files/${id}?fields=id,name,mimeType,size,createdTime,modifiedTime,appProperties,parents,thumbnailLink,webContentLink,webViewLink&supportsAllDrives=true&includeItemsFromAllDrives=true`, { signal: options.signal }));
                 const files = await Promise.allSettled(requests);
-                return files.filter(result => result.status === 'fulfilled').map(result => result.value);
+                return files
+                    .filter(result => result.status === 'fulfilled')
+                    .map(result => {
+                        const file = result.value;
+                        const viewUrl = file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`;
+                        const apiDownloadUrl = file.webContentLink || file.driveApiDownloadUrl || null;
+                        return {
+                            ...file,
+                            downloadUrl: viewUrl,
+                            viewUrl,
+                            driveApiDownloadUrl: apiDownloadUrl
+                        };
+                    });
             }
             async drillIntoFolder(folder) {
                 // Not applicable for Google Drive's flat folder structure, but fulfills the interface.
@@ -3706,7 +3744,11 @@
                 } return '';
             }
             getDirectImageURL(image) {
-                if (state.providerType === 'googledrive') { return `https://drive.google.com/uc?id=${image.id}&export=view`;
+                if (state.providerType === 'googledrive') {
+                    const hasViewStyleDownload = typeof image.downloadUrl === 'string' && image.downloadUrl.includes('https://drive.google.com/file/d/');
+                    const permanentLink = [image.viewUrl, image.webViewLink, hasViewStyleDownload ? image.downloadUrl : null]
+                        .find(url => typeof url === 'string' && url.length > 0);
+                    return permanentLink || `https://drive.google.com/file/d/${image.id}/view`;
                 } else if (state.providerType === 'onedrive') { return image.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${image.id}/content`; }
                 return '';
             }
