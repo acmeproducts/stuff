@@ -2621,9 +2621,14 @@
                 this.isActive = true;
                 this.resumePendingQueue();
             }
-            stop() {
-                this.flush({ reason: 'stop' }).catch(() => {});
-                if (!this.isActive) return;
+            async stop() {
+                const flushResult = await this.flush({ reason: 'stop' });
+                if (!this.isActive) {
+                    this.provider = null;
+                    this.providerType = null;
+                    this.pendingManifestUpdates.clear();
+                    return flushResult;
+                }
                 document.removeEventListener('visibilitychange', this.lifecycleHandlers.visibility);
                 window.removeEventListener('pagehide', this.lifecycleHandlers.pagehide);
                 window.removeEventListener('beforeunload', this.lifecycleHandlers.beforeUnload);
@@ -2631,6 +2636,7 @@
                 this.provider = null;
                 this.providerType = null;
                 this.pendingManifestUpdates.clear();
+                return flushResult;
             }
             async resumePendingQueue() {
                 if (!this.dbManager) return;
@@ -3266,7 +3272,14 @@
             }
             async makeApiCall(endpoint, options = {}, isJson = true) {
                 if (!this.accessToken) { throw new Error('Not authenticated'); }
-                const url = endpoint.startsWith('https://') ? endpoint : `${this.apiBase}${endpoint}`;
+                let url;
+                if (endpoint.startsWith('https://')) {
+                    url = endpoint;
+                } else if (endpoint.startsWith('/upload/drive/')) {
+                    url = `https://www.googleapis.com${endpoint}`;
+                } else {
+                    url = `${this.apiBase}${endpoint}`;
+                }
                 const headers = { 'Authorization': `Bearer ${this.accessToken}`, ...options.headers };
                 if(isJson) { headers['Content-Type'] = 'application/json'; }
                 let response = await fetch(url, { ...options, headers });
@@ -3778,11 +3791,11 @@
                     authButton.textContent = `Connect ${isGoogle ? 'Drive' : 'OneDrive'}`;
                 }
             },
-            backToProviderSelection() {
+            async backToProviderSelection() {
                 if (state.syncManager) {
-                    state.syncManager.flush({ reason: 'provider-screen' });
+                    await state.syncManager.flush({ reason: 'provider-screen' });
+                    await state.syncManager.stop();
                     state.syncManager.setProviderContext({ provider: null, providerType: null });
-                    state.syncManager.stop();
                 }
                 state.folderSyncCoordinator?.setProviderContext({ provider: null, providerType: null });
                 state.provider = null;
@@ -6184,18 +6197,18 @@
             },
             setupAuth() {
                 Utils.elements.authButton.addEventListener('click', () => App.authenticateCurrentUser());
-                Utils.elements.authBackButton.addEventListener('click', () => App.backToProviderSelection());
+                Utils.elements.authBackButton.addEventListener('click', async () => { await App.backToProviderSelection(); });
             },
             setupFolderManagement() {
                 Utils.elements.backButton.addEventListener('click', () => App.returnToFolderSelection());
 
-                Utils.elements.folderBackButton.addEventListener('click', () => App.backToProviderSelection());
+                Utils.elements.folderBackButton.addEventListener('click', async () => { await App.backToProviderSelection(); });
                 Utils.elements.folderLogoutButton.addEventListener('click', async () => {
                     try {
                         if (state.provider) {
                             await state.provider.disconnect();
                         }
-                        App.backToProviderSelection();
+                        await App.backToProviderSelection();
                     } catch (error) {
                         Utils.showToast(`Logout failed: ${error.message}`, 'error', true);
                     }
