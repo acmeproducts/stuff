@@ -74,94 +74,17 @@
         }
         
         /* ====== Globe Map Styles ====== */
-        #map-panel {
+        #globe-container {
             position: fixed;
             top: 20px;
             right: 20px;
-            width: 220px;
-            background: rgba(5, 8, 16, 0.75);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
-            backdrop-filter: blur(8px);
-            z-index: 50;
-        }
-        #mapCanvas {
-            display: block;
-            width: 100%;
+            width: 200px;
             height: 200px;
+            z-index: 50;
+            cursor: grab;
         }
-        #mapInfo {
-            padding: 10px 12px 14px;
-            font-size: 12px;
-            line-height: 1.5;
-            color: rgba(230, 236, 255, 0.88);
-        }
-        #mapInfo strong {
-            color: #fff;
-        }
-
-        #dragHint {
-            position: fixed;
-            bottom: 50%;
-            left: 50%;
-            transform: translate(-50%, 50%);
-            padding: 14px 18px;
-            background: rgba(12, 16, 28, 0.65);
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            border-radius: 14px;
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-            color: rgba(255, 255, 255, 0.78);
-            font-size: 13px;
-            font-weight: 500;
-            display: none;
-            z-index: 30;
-            pointer-events: none;
-        }
-        #dragHint.active {
-            display: grid;
-            gap: 6px;
-            justify-items: center;
-        }
-        #dragHint .hint-title {
-            letter-spacing: 0.08em;
-            font-size: 11px;
-            text-transform: uppercase;
-            opacity: 0.85;
-        }
-        #dragHint .hint-grid {
-            display: grid;
-            grid-template-columns: 32px 32px 32px;
-            grid-template-rows: 32px 32px 32px;
-            align-items: center;
-            justify-items: center;
-            gap: 4px;
-        }
-        #dragHint .arrow {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 32px;
-            height: 32px;
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.08);
-            color: rgba(255, 255, 255, 0.7);
-            transition: background 0.2s ease, color 0.2s ease;
-            opacity: 0.65;
-        }
-        #dragHint .arrow-center {
-            background: rgba(255, 255, 255, 0.12);
-            color: rgba(255, 255, 255, 0.8);
-            opacity: 0.9;
-        }
-        #dragHint[data-direction="up"] .arrow-up,
-        #dragHint[data-direction="down"] .arrow-down,
-        #dragHint[data-direction="left"] .arrow-left,
-        #dragHint[data-direction="right"] .arrow-right {
-            background: rgba(143, 208, 255, 0.45);
-            color: #0b172e;
-            opacity: 1;
+        #globe-container:active {
+            cursor: grabbing;
         }
 
         #master-footer { position: fixed; bottom: 5px; right: 10px; font-size: 10px; color: rgba(255, 255, 255, 0.5); z-index: 10; }
@@ -174,25 +97,7 @@
     <canvas id="webglCanvas"></canvas>
 
     <!-- Map -->
-    <div id="map-panel">
-        <canvas id="mapCanvas" width="220" height="200" aria-label="Navigation map"></canvas>
-        <div id="mapInfo">
-            <strong>Navigation Map</strong>
-            <div>Drag anywhere on the cosmos to steer.</div>
-        </div>
-    </div>
-
-    <!-- Drag Steering Hint -->
-    <div id="dragHint" aria-hidden="true">
-        <div class="hint-title">Drag to steer</div>
-        <div class="hint-grid">
-            <span class="arrow arrow-up">↑</span>
-            <span class="arrow arrow-left">←</span>
-            <span class="arrow arrow-center">•</span>
-            <span class="arrow arrow-right">→</span>
-            <span class="arrow arrow-down">↓</span>
-        </div>
-    </div>
+    <div id="globe-container"></div>
 
     <!-- Control Panel Drawer -->
     <div id="drawer" data-side="top" aria-hidden="true">
@@ -259,12 +164,7 @@
         // --- Elements ---
         const drawer = document.getElementById('drawer');
         const handle = document.getElementById('handle');
-        const mapCanvas = document.getElementById('mapCanvas');
-        const mapInfo = document.getElementById('mapInfo');
-        const dragHint = document.getElementById('dragHint');
-
-        const SPHERE_LABELS = ['Aster Cluster', 'Nebula Bloom', 'Lumen Nest', 'Halo Gate', 'Drift Crown'];
-        const SPHERE_COLORS = ['#86aaf0', '#ff8c00', '#a881ff', '#63f5c8', '#ffd670'];
+        const globeContainer = document.getElementById('globe-container');
 
         // --- Configuration ---
         let CONFIG = {
@@ -280,12 +180,10 @@
         let particleMaterial, prismMaterial;
         const clock = new THREE.Clock();
         const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-        const tempVec2 = new THREE.Vector2();
-        const mapVector = new THREE.Vector3();
+        const globeEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 
-        // --- Map Components ---
-        let mapCtx = null;
-        const sphereNodes = [];
+        // --- Globe Map Components ---
+        let globeScene, globeCamera, globeRenderer, globe, playerMarker, objectMarkers = [];
 
         // --- State ---
         let sceneObjects = [];
@@ -433,36 +331,20 @@
         function buildScene() {
             sceneObjects.forEach(obj => { scene.remove(obj); obj.geometry.dispose(); });
             sceneObjects = [];
-            sphereNodes.splice(0, sphereNodes.length);
-
+            
             const density = CONFIG.particleDensity;
             const sceneLayout = [
-                { type: 'particles', colorIndex: 0, config: { position: new THREE.Vector3(0, 0, 0), shell: { radius: 40, count: Math.floor(20000 * density) }, innerShape: { type: 'cube', radius: 20, count: Math.floor(8000 * density) } } },
-                { type: 'particles', colorIndex: 1, config: { position: new THREE.Vector3(400, 180, -600), shell: { radius: 80, count: Math.floor(30000 * density) } } },
-                { type: 'particles', colorIndex: 2, config: { position: new THREE.Vector3(-380, -140, 290), shell: { radius: 20, count: Math.floor(10000 * density) } } },
-                { type: 'particles', colorIndex: 3, config: { position: new THREE.Vector3(-600, 250, -1200), shell: { radius: 60, count: Math.floor(25000 * density) } } },
-                { type: 'particles', colorIndex: 4, config: { position: new THREE.Vector3(800, -300, -1500), shell: { radius: 100, count: Math.floor(40000 * density) } } },
+                { type: 'particles', config: { position: new THREE.Vector3(0, 0, 0), shell: { radius: 40, count: Math.floor(20000 * density) }, innerShape: { type: 'cube', radius: 20, count: Math.floor(8000 * density) } } },
+                { type: 'particles', config: { position: new THREE.Vector3(400, 180, -600), shell: { radius: 80, count: Math.floor(30000 * density) } } },
+                { type: 'particles', config: { position: new THREE.Vector3(-380, -140, 290), shell: { radius: 20, count: Math.floor(10000 * density) } } },
+                { type: 'particles', config: { position: new THREE.Vector3(-600, 250, -1200), shell: { radius: 60, count: Math.floor(25000 * density) } } },
+                { type: 'particles', config: { position: new THREE.Vector3(800, -300, -1500), shell: { radius: 100, count: Math.floor(40000 * density) } } },
                 { type: 'prismGrid', config: { position: new THREE.Vector3(1500, 0, 0), count: 4000 } },
             ];
 
             sceneLayout.forEach(item => {
                 let obj;
-                if (item.type === 'particles') {
-                    obj = createParticleObject(item.config);
-                    const index = item.colorIndex ?? 0;
-                    const label = SPHERE_LABELS[index % SPHERE_LABELS.length];
-                    const color = SPHERE_COLORS[index % SPHERE_COLORS.length];
-                    obj.userData.kind = 'sphere';
-                    obj.userData.radius = item.config.shell?.radius ?? 0;
-                    obj.userData.label = label;
-                    obj.userData.mapColor = color;
-                    sphereNodes.push({
-                        object: obj,
-                        radius: obj.userData.radius,
-                        label,
-                        color,
-                    });
-                }
+                if (item.type === 'particles') obj = createParticleObject(item.config);
                 else if (item.type === 'prismGrid') obj = createPrismGridObject(item.config);
                 if (obj) { sceneObjects.push(obj); scene.add(obj); }
             });
@@ -496,11 +378,10 @@
             
             buildScene();
             createStarfield();
-            initMap();
+            initGlobe();
             setupEventListeners();
-            setupPointerSteering(canvas);
             loadSettings();
-
+            
             document.getElementById('loading').classList.add('hidden');
             animate();
         };
@@ -518,11 +399,26 @@
             scene.add(new THREE.Points(starGeometry, starMaterial));
         };
         
-        // --- Map Initialization ---
-        function initMap() {
-            if (!mapCanvas) return;
-            mapCtx = mapCanvas.getContext('2d');
-            updateMap(true);
+        // --- Globe Map Initialization ---
+        function initGlobe() {
+            globeScene = new THREE.Scene();
+            globeCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+            globeCamera.position.z = 2.5;
+
+            globeRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            globeRenderer.setSize(200, 200);
+            globeRenderer.setPixelRatio(window.devicePixelRatio);
+            globeContainer.appendChild(globeRenderer.domElement);
+
+            const globeGeo = new THREE.SphereGeometry(1, 32, 32);
+            const globeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.2 });
+            globe = new THREE.Mesh(globeGeo, globeMat);
+            globeScene.add(globe);
+
+            const playerGeo = new THREE.SphereGeometry(0.05, 16, 16);
+            const playerMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            playerMarker = new THREE.Mesh(playerGeo, playerMat);
+            globe.add(playerMarker);
         }
 
         // --- Settings Management ---
@@ -685,73 +581,6 @@
                 }
             );
         };
-
-        function setupPointerSteering(canvas) {
-            if (!canvas || !dragHint) return;
-            const pointerState = { active: false, pointerId: null, lastX: 0, lastY: 0 };
-
-            const activateHint = () => {
-                dragHint.classList.add('active');
-                dragHint.dataset.direction = '';
-            };
-
-            const deactivateHint = () => {
-                dragHint.classList.remove('active');
-                delete dragHint.dataset.direction;
-            };
-
-            const handlePointerDown = (event) => {
-                if (!event.isPrimary || pointerState.active) return;
-                if (event.button !== undefined && event.button !== 0) return;
-                pointerState.active = true;
-                pointerState.pointerId = event.pointerId;
-                pointerState.lastX = event.clientX;
-                pointerState.lastY = event.clientY;
-                activateHint();
-                try { canvas.setPointerCapture(event.pointerId); } catch (err) {}
-                event.preventDefault();
-            };
-
-            const handlePointerMove = (event) => {
-                if (!pointerState.active || event.pointerId !== pointerState.pointerId) return;
-                const dx = event.clientX - pointerState.lastX;
-                const dy = event.clientY - pointerState.lastY;
-                pointerState.lastX = event.clientX;
-                pointerState.lastY = event.clientY;
-
-                const lookSpeed = 0.0025 * CONFIG.lookSensitivity;
-                euler.setFromQuaternion(camera.quaternion);
-                euler.y -= dx * lookSpeed;
-                euler.x -= dy * lookSpeed * (CONFIG.invertY ? 1 : -1);
-                euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
-                camera.quaternion.setFromEuler(euler);
-
-                let direction = '';
-                if (Math.abs(dx) > Math.abs(dy)) {
-                    if (Math.abs(dx) > 1.5) direction = dx > 0 ? 'right' : 'left';
-                } else {
-                    if (Math.abs(dy) > 1.5) direction = dy > 0 ? 'down' : 'up';
-                }
-                if (direction) dragHint.dataset.direction = direction;
-                else dragHint.dataset.direction = '';
-
-                event.preventDefault();
-            };
-
-            const handlePointerEnd = (event) => {
-                if (event.pointerId !== pointerState.pointerId) return;
-                pointerState.active = false;
-                pointerState.pointerId = null;
-                deactivateHint();
-                try { canvas.releasePointerCapture(event.pointerId); } catch (err) {}
-            };
-
-            canvas.addEventListener('pointerdown', handlePointerDown, { passive: false });
-            canvas.addEventListener('pointermove', handlePointerMove, { passive: false });
-            canvas.addEventListener('pointerup', handlePointerEnd);
-            canvas.addEventListener('pointercancel', handlePointerEnd);
-            canvas.addEventListener('pointerleave', handlePointerEnd);
-        }
         
         const onWindowResize = () => {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -759,7 +588,7 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             composer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            updateMap(true);
+            globeRenderer.setSize(200, 200);
         };
         
         // --- Animation & Map Drawing Loop ---
@@ -811,143 +640,32 @@
                 prismGrid.instanceMatrix.needsUpdate = true;
             }
 
-            // Draw Navigation Map
-            updateMap();
-
+            // Draw Globe Map
+            updateGlobe();
+            
             composer.render();
         };
 
-        function updateMap(force = false) {
-            if (!mapCtx || !mapCanvas) return;
-            const rect = mapCanvas.getBoundingClientRect();
-            if (rect.width === 0 || rect.height === 0) return;
+        function updateGlobe() {
+            // Update player marker
+            const playerPos = camera.position.clone().normalize();
+            playerMarker.position.copy(playerPos);
 
-            const dpr = window.devicePixelRatio || 1;
-            const canvasWidth = rect.width * dpr;
-            const canvasHeight = rect.height * dpr;
-            if (force || mapCanvas.width !== canvasWidth || mapCanvas.height !== canvasHeight) {
-                mapCanvas.width = canvasWidth;
-                mapCanvas.height = canvasHeight;
-            }
-
-            mapCtx.setTransform(1, 0, 0, 1, 0, 0);
-            mapCtx.clearRect(0, 0, canvasWidth, canvasHeight);
-            mapCtx.scale(dpr, dpr);
-
-            const width = rect.width;
-            const height = rect.height;
-            const centerX = width / 2;
-            const centerY = height / 2;
-
-            let insideSphere = null;
-            let insideDistance = 0;
-            sphereNodes.forEach(node => {
-                const distance = camera.position.distanceTo(node.object.position);
-                if (!insideSphere && distance <= node.radius) {
-                    insideSphere = node;
-                    insideDistance = distance;
-                }
+            // Update object markers
+            objectMarkers.forEach(marker => globe.remove(marker));
+            objectMarkers = [];
+            
+            sceneObjects.forEach(obj => {
+                const objPos = obj.position.clone().normalize();
+                const markerGeo = new THREE.SphereGeometry(0.03, 8, 8);
+                const markerMat = new THREE.MeshBasicMaterial({ color: obj.userData.isPrismGrid ? 0x86aaf0 : 0xff8c00 });
+                const marker = new THREE.Mesh(markerGeo, markerMat);
+                marker.position.copy(objPos);
+                globe.add(marker);
+                objectMarkers.push(marker);
             });
 
-            mapCtx.save();
-            mapCtx.translate(centerX, centerY);
-            mapCtx.lineWidth = 2;
-            mapCtx.font = '12px "Inter", system-ui, sans-serif';
-            mapCtx.textAlign = 'center';
-            mapCtx.textBaseline = 'middle';
-
-            if (insideSphere) {
-                const maxRadius = Math.min(width, height) * 0.42;
-                const scale = insideSphere.radius > 0 ? maxRadius / insideSphere.radius : 1;
-
-                mapCtx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-                mapCtx.beginPath();
-                mapCtx.arc(0, 0, insideSphere.radius * scale, 0, Math.PI * 2);
-                mapCtx.stroke();
-
-                mapCtx.setLineDash([6, 4]);
-                mapCtx.beginPath();
-                mapCtx.arc(0, 0, insideSphere.radius * scale * 0.5, 0, Math.PI * 2);
-                mapCtx.stroke();
-                mapCtx.setLineDash([]);
-
-                mapVector.copy(camera.position).sub(insideSphere.object.position);
-                const px = mapVector.x * scale;
-                const py = mapVector.z * scale;
-
-                mapCtx.strokeStyle = insideSphere.color;
-                mapCtx.beginPath();
-                mapCtx.moveTo(0, 0);
-                mapCtx.lineTo(px, py);
-                mapCtx.stroke();
-
-                mapCtx.fillStyle = insideSphere.color;
-                mapCtx.beginPath();
-                mapCtx.arc(px, py, 6, 0, Math.PI * 2);
-                mapCtx.fill();
-
-                mapCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-                mapCtx.fillText('center', 0, 0);
-
-                const altitude = mapVector.y;
-                mapInfo.innerHTML = `
-                    <strong>${insideSphere.label}</strong><br>
-                    Distance to core: ${insideDistance.toFixed(0)}u<br>
-                    Altitude: ${altitude.toFixed(0)}u
-                `.trim();
-            } else {
-                const reticleRadius = Math.min(width, height) * 0.45;
-                mapCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-                mapCtx.beginPath();
-                mapCtx.arc(0, 0, reticleRadius, 0, Math.PI * 2);
-                mapCtx.stroke();
-
-                mapCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-                mapCtx.beginPath();
-                mapCtx.arc(0, 0, 4, 0, Math.PI * 2);
-                mapCtx.fill();
-
-                sphereNodes.forEach((node, index) => {
-                    mapVector.copy(node.object.position).sub(camera.position);
-                    const horizontalLength = Math.hypot(mapVector.x, mapVector.z);
-                    if (horizontalLength < 0.0001) return;
-
-                    tempVec2.set(mapVector.x, mapVector.z).normalize();
-                    const arrowLength = Math.min(reticleRadius - 14, 80 + index * 6);
-                    const ex = tempVec2.x * arrowLength;
-                    const ey = tempVec2.y * arrowLength;
-
-                    mapCtx.strokeStyle = node.color;
-                    mapCtx.beginPath();
-                    mapCtx.moveTo(0, 0);
-                    mapCtx.lineTo(ex, ey);
-                    mapCtx.stroke();
-
-                    mapCtx.beginPath();
-                    mapCtx.moveTo(ex, ey);
-                    mapCtx.lineTo(ex - tempVec2.x * 8 - tempVec2.y * 5, ey - tempVec2.y * 8 + tempVec2.x * 5);
-                    mapCtx.lineTo(ex - tempVec2.x * 8 + tempVec2.y * 5, ey - tempVec2.y * 8 - tempVec2.x * 5);
-                    mapCtx.closePath();
-                    mapCtx.fillStyle = node.color;
-                    mapCtx.fill();
-
-                    const distanceToCenter = mapVector.length();
-                    const distanceToSurface = Math.max(0, distanceToCenter - node.radius);
-                    const labelX = ex + tempVec2.x * 14;
-                    const labelY = ey + tempVec2.y * 14;
-                    mapCtx.fillStyle = 'rgba(255, 255, 255, 0.82)';
-                    mapCtx.fillText(`${node.label}`, labelX, labelY - 8);
-                    mapCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-                    mapCtx.fillText(`${distanceToSurface.toFixed(0)}u`, labelX, labelY + 6);
-                });
-
-                mapInfo.innerHTML = `
-                    <strong>Deep Space</strong><br>
-                    Directional arrows point to nearby spheres.
-                `.trim();
-            }
-
-            mapCtx.restore();
+            globeRenderer.render(globeScene, globeCamera);
         }
 
         // --- Start Application ---
