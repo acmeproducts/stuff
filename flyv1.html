@@ -1,0 +1,959 @@
+<!-- InteractiveParticleMorph-v3.0-2025-08-26 03:34 PM -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Interactive Three.js Particle Morph v3.0</title>
+    <style>
+        /* ====== Base & App Styles ====== */
+        :root {
+            --bg: #0b0b0b; --fg: #e6e6e6; --muted: #bdbdbd; --line: rgba(255,255,255,0.14);
+            --accent: #86aaf0; --panel-bg: rgba(0,0,0,0.72); --radius: 12px; --shadow: 0 10px 30px rgba(0,0,0,0.45);
+            --panel-w: 1100px; --panel-side-w: 380px;
+        }
+        html, body {
+            height: 100%; margin: 0; overflow: hidden;
+            background: var(--bg); color: var(--fg);
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial;
+        }
+        #webglCanvas {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%; display: block;
+        }
+        #loading {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 2000;
+            transition: opacity 0.5s ease;
+        }
+        #loading.hidden { opacity: 0; pointer-events: none; }
+        #progress-bar { width: 200px; height: 4px; background: #333; margin-top: 10px; }
+        #progress { width: 0%; height: 100%; background: #fff; transition: width 0.2s ease; }
+        #ui { position: fixed; top: 20px; left: 20px; z-index: 10; text-shadow: 0 0 5px black; font-size: 14px; pointer-events: none; }
+
+        /* ====== Drawer & Handle Styles ====== */
+        #drawer { position: fixed; z-index: 1000; pointer-events: none; }
+        #drawer .panel {
+            background: var(--panel-bg); border: 1px solid var(--line);
+            box-shadow: var(--shadow); backdrop-filter: blur(6px);
+            pointer-events: auto; transition: transform 220ms cubic-bezier(.2,.8,.2,1);
+        }
+        #drawer[data-side="top"] { left: 0; right: 0; top: 0; }
+        #drawer[data-side="top"] .panel { max-width: var(--panel-w); margin: 0 auto; border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); transform: translateY(-100%); }
+        #drawer.open[data-side="top"] .panel { transform: translateY(0); }
+        #handle { position: fixed; z-index: 1001; display: grid; place-items: center; cursor: pointer; pointer-events: auto; background: none; border: none; padding: 10px; }
+        #handle .bar { background: rgba(255,255,255,0.65); }
+        #handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 999px; }
+        #drawer[data-side="top"] ~ #handle { left: 50%; top: 0px; transform: translateX(-50%); }
+        #drawer[data-side="top"] ~ #handle .bar { width: 84px; height: 4px; border-radius: 999px; }
+
+        /* ====== Panel Content & Joystick Styles ====== */
+        .content { padding: 14px; color: var(--fg); max-height: 95vh; overflow-y: auto; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+        fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+        legend { padding: 0 6px; color: #d0d0d0; font-weight: 600; }
+        label { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; font-size: 14px; margin: 8px 0; }
+        input[type=range] { width: 100%; }
+        input[type=number], select { background: #101010; color: var(--fg); border: 1px solid #333; border-radius: 6px; padding: 6px 8px; width: 70px; }
+        button { background: #1b1b1b; color: var(--fg); border: 1px solid #444; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+        .button-group { display: flex; gap: 8px; margin-top: 10px; }
+        .joystick-container { position: fixed; bottom: 30px; width: 120px; height: 120px; z-index: 100; }
+        #joystick-move { left: 30px; }
+        #joystick-look { right: 30px; }
+        .joystick-base { position: absolute; width: 100%; height: 100%; background: rgba(128, 128, 128, 0.3); border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.3); }
+        .joystick-nipple { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; background: rgba(255, 255, 255, 0.5); border-radius: 50%; transform: translate(-50%, -50%); transition: background-color 0.2s; }
+        #joystick-move.turbo .joystick-nipple {
+            background: rgba(255, 50, 50, 0.7);
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 50, 50, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 50, 50, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 50, 50, 0); }
+        }
+        
+        /* ====== Globe Map Styles ====== */
+        #map-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 220px;
+            background: rgba(5, 8, 16, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(8px);
+            z-index: 50;
+        }
+        #mapCanvas {
+            display: block;
+            width: 100%;
+            height: 200px;
+        }
+        #mapInfo {
+            padding: 10px 12px 14px;
+            font-size: 12px;
+            line-height: 1.5;
+            color: rgba(230, 236, 255, 0.88);
+        }
+        #mapInfo strong {
+            color: #fff;
+        }
+
+        #dragHint {
+            position: fixed;
+            bottom: 50%;
+            left: 50%;
+            transform: translate(-50%, 50%);
+            padding: 14px 18px;
+            background: rgba(12, 16, 28, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 14px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+            color: rgba(255, 255, 255, 0.78);
+            font-size: 13px;
+            font-weight: 500;
+            display: none;
+            z-index: 30;
+            pointer-events: none;
+        }
+        #dragHint.active {
+            display: grid;
+            gap: 6px;
+            justify-items: center;
+        }
+        #dragHint .hint-title {
+            letter-spacing: 0.08em;
+            font-size: 11px;
+            text-transform: uppercase;
+            opacity: 0.85;
+        }
+        #dragHint .hint-grid {
+            display: grid;
+            grid-template-columns: 32px 32px 32px;
+            grid-template-rows: 32px 32px 32px;
+            align-items: center;
+            justify-items: center;
+            gap: 4px;
+        }
+        #dragHint .arrow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.7);
+            transition: background 0.2s ease, color 0.2s ease;
+            opacity: 0.65;
+        }
+        #dragHint .arrow-center {
+            background: rgba(255, 255, 255, 0.12);
+            color: rgba(255, 255, 255, 0.8);
+            opacity: 0.9;
+        }
+        #dragHint[data-direction="up"] .arrow-up,
+        #dragHint[data-direction="down"] .arrow-down,
+        #dragHint[data-direction="left"] .arrow-left,
+        #dragHint[data-direction="right"] .arrow-right {
+            background: rgba(143, 208, 255, 0.45);
+            color: #0b172e;
+            opacity: 1;
+        }
+
+        #master-footer { position: fixed; bottom: 5px; right: 10px; font-size: 10px; color: rgba(255, 255, 255, 0.5); z-index: 10; }
+    </style>
+</head>
+<body>
+    <!-- App Canvas and Loaders -->
+    <div id="loading"><p>Loading...</p><div id="progress-bar"><div id="progress"></div></div></div>
+    <div id="ui"><p>Explore the particle universe</p></div>
+    <canvas id="webglCanvas"></canvas>
+
+    <!-- Map -->
+    <div id="map-panel">
+        <canvas id="mapCanvas" width="220" height="200" aria-label="Navigation map"></canvas>
+        <div id="mapInfo">
+            <strong>Navigation Map</strong>
+            <div>Drag anywhere on the cosmos to steer.</div>
+        </div>
+    </div>
+
+    <!-- Drag Steering Hint -->
+    <div id="dragHint" aria-hidden="true">
+        <div class="hint-title">Drag to steer</div>
+        <div class="hint-grid">
+            <span class="arrow arrow-up">↑</span>
+            <span class="arrow arrow-left">←</span>
+            <span class="arrow arrow-center">•</span>
+            <span class="arrow arrow-right">→</span>
+            <span class="arrow arrow-down">↓</span>
+        </div>
+    </div>
+
+    <!-- Control Panel Drawer -->
+    <div id="drawer" data-side="top" aria-hidden="true">
+        <div class="panel">
+            <div class="content">
+                <div class="grid">
+                    <fieldset>
+                        <legend>Global Settings</legend>
+                        <label><span>Particle Density</span><input id="cfgParticleDensity" type="range" min="0.1" max="2.0" step="0.1" value="1.0"></label>
+                        <label><span>Bloom Strength</span><input id="cfgBloomStrength" type="range" min="0" max="3" step="0.1" value="0.2"></label>
+                        <button id="regenerateScene">Regenerate Scene</button>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Appearance</legend>
+                        <label><span>Color Scheme</span>
+                            <select id="cfgColorScheme">
+                                <option value="fire">Fire</option><option value="neon">Neon</option>
+                                <option value="nature">Nature</option><option value="rainbow">Rainbow</option>
+                            </select>
+                        </label>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Controls</legend>
+                        <label><span>Look Sensitivity</span><input id="cfgLookSensitivity" type="range" min="0.5" max="5.0" step="0.1" value="2.0"></label>
+                        <label><span>Invert Look Y-Axis</span><input id="cfgInvertY" type="checkbox" checked></label>
+                        <div class="button-group">
+                            <button id="exportSettings">Export</button>
+                            <button onclick="document.getElementById('importSettings').click()">Import</button>
+                            <input type="file" id="importSettings" style="display: none;" accept=".json">
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
+        </div>
+    </div>
+    <button id="handle" aria-controls="drawer" aria-expanded="false" title="Toggle controls"><div class="bar" aria-hidden="true"></div></button>
+
+    <!-- Joysticks -->
+    <div id="joystick-move" class="joystick-container">
+        <div class="joystick-base"></div>
+        <div class="joystick-nipple"></div>
+    </div>
+    <div id="joystick-look" class="joystick-container">
+        <div class="joystick-base"></div>
+        <div class="joystick-nipple"></div>
+    </div>
+
+    <footer id="master-footer">InteractiveParticleMorph-v3.0 - 2025-08-26 03:34 PM</footer>
+
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"
+      }
+    }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- Elements ---
+        const drawer = document.getElementById('drawer');
+        const handle = document.getElementById('handle');
+        const mapCanvas = document.getElementById('mapCanvas');
+        const mapInfo = document.getElementById('mapInfo');
+        const dragHint = document.getElementById('dragHint');
+
+        const SPHERE_LABELS = ['Aster Cluster', 'Nebula Bloom', 'Lumen Nest', 'Halo Gate', 'Drift Crown'];
+        const SPHERE_COLORS = ['#86aaf0', '#ff8c00', '#a881ff', '#63f5c8', '#ffd670'];
+
+        // --- Configuration ---
+        let CONFIG = {
+            starCount: 50000,
+            bloomStrength: 0.2,
+            particleDensity: 1.0,
+            lookSensitivity: 2.0,
+            invertY: true,
+        };
+
+        // --- Core Three.js Components ---
+        let scene, camera, renderer, composer, bloomPass;
+        let particleMaterial, prismMaterial;
+        const clock = new THREE.Clock();
+        const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+        const tempVec2 = new THREE.Vector2();
+        const mapVector = new THREE.Vector3();
+
+        // --- Map Components ---
+        let mapCtx = null;
+        const sphereNodes = [];
+
+        // --- State ---
+        let sceneObjects = [];
+        let currentColorScheme = 'fire';
+        const tempVector = new THREE.Vector3();
+        const tempObject = new THREE.Object3D();
+        const cameraMove = { forward: 0, right: 0, yaw: 0, pitch: 0 };
+        let currentSpeed = 0;
+        let turboEngaged = false;
+        let turboHoldTimer = null;
+        let lastTap = 0;
+
+        // --- Shaders for Particles ---
+        const vertexShader = `
+            attribute float size;
+            attribute float opacity;
+            uniform float uTime;
+            varying vec3 vColor;
+            varying float vOpacity;
+            
+            vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+            vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+            vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+            vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+            float snoise(vec3 v) {
+                const vec2 C = vec2(1.0/6.0, 1.0/3.0); const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+                vec3 i = floor(v + dot(v, C.yyy)); vec3 x0 = v - i + dot(i, C.xxx);
+                vec3 g = step(x0.yzx, x0.xyz); vec3 l = 1.0 - g; vec3 i1 = min(g.xyz, l.zxy); vec3 i2 = max(g.xyz, l.zxy);
+                vec3 x1 = x0 - i1 + C.xxx; vec3 x2 = x0 - i2 + C.yyy; vec3 x3 = x0 - D.yyy;
+                i = mod289(i);
+                vec4 p = permute(permute(permute(i.z+vec4(0.,i1.z,i2.z,1.))+i.y+vec4(0.,i1.y,i2.y,1.))+i.x+vec4(0.,i1.x,i2.x,1.));
+                float n_ = 0.142857142857; vec3 ns = n_ * D.wyz - D.xzx;
+                vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+                vec4 x_ = floor(j * ns.z); vec4 y_ = floor(j - 7.0 * x_);
+                vec4 x = x_ * ns.x + ns.yyyy; vec4 y = y_ * ns.x + ns.yyyy; vec4 h = 1.0 - abs(x) - abs(y);
+                vec4 b0 = vec4(x.xy, y.xy); vec4 b1 = vec4(x.zw, y.zw);
+                vec4 s0 = floor(b0)*2.+1.; vec4 s1 = floor(b1)*2.+1.; vec4 sh = -step(h,vec4(0.));
+                vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy; vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+                vec3 p0 = vec3(a0.xy,h.x); vec3 p1 = vec3(a0.zw,h.y); vec3 p2 = vec3(a1.xy,h.z); vec3 p3 = vec3(a1.zw,h.w);
+                vec4 norm = taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+                p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+                vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0); m = m*m;
+                return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+            }
+
+            void main() {
+                vColor = color;
+                vOpacity = opacity;
+                float noise = snoise(vec3(position * 0.1 + uTime * 0.1));
+                vec3 displacement = normalize(position) * noise * 2.0;
+                vec4 mvPosition = modelViewMatrix * vec4(position + displacement, 1.0);
+                gl_Position = projectionMatrix * mvPosition;
+                gl_PointSize = size * (300.0 / -mvPosition.z);
+            }`;
+        const fragmentShader = `
+            varying vec3 vColor; varying float vOpacity;
+            void main() {
+                if (distance(gl_PointCoord, vec2(0.5)) > 0.5) discard;
+                gl_FragColor = vec4(vColor, vOpacity);
+            }`;
+        
+        // --- Shape Generation ---
+        function generateSphereShell(points, count, radius) {
+            const phi = Math.PI * (3. - Math.sqrt(5.));
+            for (let i = 0; i < count; i++) {
+                const y = 1 - (i / (count - 1)) * 2; const r = Math.sqrt(1 - y * y); const theta = phi * i;
+                points.push(Math.cos(theta) * r * radius, y * radius, Math.sin(theta) * r * radius);
+            }
+        }
+        function generateCube(points, count, size) {
+            const s = size * 0.5;
+            for (let i = 0; i < count; i++) {
+                const face = ~~(Math.random() * 6); const u = Math.random() * 2 - 1; const v = Math.random() * 2 - 1;
+                switch (face) {
+                    case 0: points.push( s, u*s, v*s); break; case 1: points.push(-s, u*s, v*s); break;
+                    case 2: points.push(u*s,  s, v*s); break; case 3: points.push(u*s, -s, v*s); break;
+                    case 4: points.push(u*s, v*s,  s); break; case 5: points.push(u*s, v*s, -s); break;
+                }
+            }
+        }
+
+        // --- Object Creation ---
+        function createParticleObject(config) {
+            const points = [];
+            if (config.shell) generateSphereShell(points, config.shell.count, config.shell.radius);
+            if (config.innerShape?.type === 'cube') generateCube(points, config.innerShape.count, config.innerShape.radius);
+            
+            const totalPoints = points.length / 3;
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+            
+            const sizes = new Float32Array(totalPoints).fill(1).map(() => Math.random() * 1.5 + 0.5);
+            const opacities = new Float32Array(totalPoints).fill(1).map(() => Math.random() * 0.5 + 0.4);
+            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+            geometry.setAttribute('opacity', new THREE.BufferAttribute(opacities, 1));
+            geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(totalPoints * 3), 3));
+
+            const obj = new THREE.Points(geometry, particleMaterial);
+            obj.position.copy(config.position);
+            return obj;
+        }
+
+        function createPrismGridObject(config) {
+            const count = config.count;
+            const geometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 6);
+            const mesh = new THREE.InstancedMesh(geometry, prismMaterial, count);
+
+            const gridSize = Math.ceil(Math.sqrt(count));
+            for (let i = 0; i < count; i++) {
+                const x = (i % gridSize - gridSize / 2) * 2.5;
+                const z = (Math.floor(i / gridSize) - gridSize / 2) * 2.5;
+                tempObject.position.set(x, 0, z);
+                tempObject.updateMatrix();
+                mesh.setMatrixAt(i, tempObject.matrix);
+            }
+            mesh.instanceMatrix.needsUpdate = true;
+            mesh.position.copy(config.position);
+            mesh.userData.isPrismGrid = true;
+            return mesh;
+        }
+        
+        // --- Color Application ---
+        const applyAllColors = () => {
+            sceneObjects.forEach(obj => {
+                if (obj.userData.isPrismGrid) return;
+                const geom = obj.geometry;
+                const positions = geom.attributes.position.array;
+                const colors = geom.attributes.color.array;
+                const color = new THREE.Color();
+                for(let i=0; i < positions.length / 3; i++) {
+                    tempVector.set(positions[i*3], positions[i*3+1], positions[i*3+2]).normalize();
+                    let hue = 0;
+                    if (currentColorScheme === 'fire') hue = THREE.MathUtils.mapLinear(tempVector.y, -1, 1, 0, 0.125);
+                    else if (currentColorScheme === 'neon') hue = THREE.MathUtils.mapLinear(tempVector.x, -1, 1, 0.83, 0.5);
+                    else if (currentColorScheme === 'nature') hue = THREE.MathUtils.mapLinear(tempVector.y, -1, 1, 0.25, 0.44);
+                    else if (currentColorScheme === 'rainbow') hue = THREE.MathUtils.mapLinear(tempVector.x + tempVector.y + tempVector.z, -1.73, 1.73, 0, 1);
+                    color.setHSL(hue, 1.0, 0.55);
+                    colors[i*3] = color.r; colors[i*3+1] = color.g; colors[i*3+2] = color.b;
+                }
+                geom.attributes.color.needsUpdate = true;
+            });
+        };
+
+        // --- Scene Generation ---
+        function buildScene() {
+            sceneObjects.forEach(obj => { scene.remove(obj); obj.geometry.dispose(); });
+            sceneObjects = [];
+            sphereNodes.splice(0, sphereNodes.length);
+
+            const density = CONFIG.particleDensity;
+            const sceneLayout = [
+                { type: 'particles', colorIndex: 0, config: { position: new THREE.Vector3(0, 0, 0), shell: { radius: 40, count: Math.floor(20000 * density) }, innerShape: { type: 'cube', radius: 20, count: Math.floor(8000 * density) } } },
+                { type: 'particles', colorIndex: 1, config: { position: new THREE.Vector3(400, 180, -600), shell: { radius: 80, count: Math.floor(30000 * density) } } },
+                { type: 'particles', colorIndex: 2, config: { position: new THREE.Vector3(-380, -140, 290), shell: { radius: 20, count: Math.floor(10000 * density) } } },
+                { type: 'particles', colorIndex: 3, config: { position: new THREE.Vector3(-600, 250, -1200), shell: { radius: 60, count: Math.floor(25000 * density) } } },
+                { type: 'particles', colorIndex: 4, config: { position: new THREE.Vector3(800, -300, -1500), shell: { radius: 100, count: Math.floor(40000 * density) } } },
+                { type: 'prismGrid', config: { position: new THREE.Vector3(1500, 0, 0), count: 4000 } },
+            ];
+
+            sceneLayout.forEach(item => {
+                let obj;
+                if (item.type === 'particles') {
+                    obj = createParticleObject(item.config);
+                    const index = item.colorIndex ?? 0;
+                    const label = SPHERE_LABELS[index % SPHERE_LABELS.length];
+                    const color = SPHERE_COLORS[index % SPHERE_COLORS.length];
+                    obj.userData.kind = 'sphere';
+                    obj.userData.radius = item.config.shell?.radius ?? 0;
+                    obj.userData.label = label;
+                    obj.userData.mapColor = color;
+                    sphereNodes.push({
+                        object: obj,
+                        radius: obj.userData.radius,
+                        label,
+                        color,
+                    });
+                }
+                else if (item.type === 'prismGrid') obj = createPrismGridObject(item.config);
+                if (obj) { sceneObjects.push(obj); scene.add(obj); }
+            });
+            
+            applyAllColors();
+        }
+
+        // --- Main Initialization ---
+        const init = () => {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
+            camera.position.z = 100;
+
+            const canvas = document.getElementById('webglCanvas');
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            composer = new EffectComposer(renderer);
+            composer.addPass(new RenderPass(scene, camera));
+            bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), CONFIG.bloomStrength, 0.4, 0.85);
+            composer.addPass(bloomPass);
+
+            particleMaterial = new THREE.ShaderMaterial({
+                uniforms: { uTime: { value: 0.0 } },
+                vertexShader, fragmentShader, 
+                blending: THREE.NormalBlending,
+                depthTest: false, transparent: true, vertexColors: true
+            });
+            prismMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7, metalness: 0.1 });
+            
+            buildScene();
+            createStarfield();
+            initMap();
+            setupEventListeners();
+            setupPointerSteering(canvas);
+            loadSettings();
+
+            document.getElementById('loading').classList.add('hidden');
+            animate();
+        };
+
+        const createStarfield = () => {
+            const starGeometry = new THREE.BufferGeometry();
+            const starPositions = new Float32Array(CONFIG.starCount * 3);
+            for (let i = 0; i < CONFIG.starCount; i++) {
+                const r = 1000 + Math.random() * 9000;
+                const theta = 2 * Math.PI * Math.random(); const phi = Math.acos(2 * Math.random() - 1);
+                starPositions.set([r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi)], i * 3);
+            }
+            starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+            const starMaterial = new THREE.PointsMaterial({ size: 15, color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false });
+            scene.add(new THREE.Points(starGeometry, starMaterial));
+        };
+        
+        // --- Map Initialization ---
+        function initMap() {
+            if (!mapCanvas) return;
+            mapCtx = mapCanvas.getContext('2d');
+            updateMap(true);
+        }
+
+        // --- Settings Management ---
+        function saveSettings() {
+            localStorage.setItem('particleUniverseSettings', JSON.stringify(CONFIG));
+        }
+
+        function loadSettings() {
+            const saved = localStorage.getItem('particleUniverseSettings');
+            if (saved) {
+                applySettings(JSON.parse(saved));
+            }
+        }
+
+        function applySettings(settings) {
+            CONFIG = { ...CONFIG, ...settings };
+            document.getElementById('cfgParticleDensity').value = CONFIG.particleDensity;
+            document.getElementById('cfgBloomStrength').value = CONFIG.bloomStrength;
+            document.getElementById('cfgLookSensitivity').value = CONFIG.lookSensitivity;
+            document.getElementById('cfgInvertY').checked = CONFIG.invertY;
+            bloomPass.strength = CONFIG.bloomStrength;
+            buildScene();
+        }
+
+        function exportSettings() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(CONFIG));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "particle-universe-settings.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function importSettings(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const settings = JSON.parse(e.target.result);
+                    applySettings(settings);
+                    saveSettings();
+                } catch (error) {
+                    console.error("Error parsing settings file:", error);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // --- Event Listeners Setup ---
+        const setupEventListeners = () => {
+            window.addEventListener('resize', onWindowResize);
+            
+            let isOpen = false;
+            const setOpen = (v) => { isOpen = v; drawer.classList.toggle('open', v); handle.setAttribute('aria-expanded', v); };
+            handle.addEventListener('click', () => setOpen(!isOpen));
+
+            // Config Panel Listeners
+            document.getElementById('regenerateScene').addEventListener('click', () => {
+                CONFIG.particleDensity = parseFloat(document.getElementById('cfgParticleDensity').value);
+                buildScene();
+                saveSettings();
+            });
+            document.getElementById('cfgBloomStrength').addEventListener('input', e => {
+                bloomPass.strength = parseFloat(e.target.value);
+                CONFIG.bloomStrength = bloomPass.strength;
+                saveSettings();
+            });
+            document.getElementById('cfgColorScheme').addEventListener('change', e => { currentColorScheme = e.target.value; applyAllColors(); });
+            document.getElementById('cfgLookSensitivity').addEventListener('input', e => {
+                CONFIG.lookSensitivity = parseFloat(e.target.value);
+                saveSettings();
+            });
+            document.getElementById('cfgInvertY').addEventListener('change', e => {
+                CONFIG.invertY = e.target.checked;
+                saveSettings();
+            });
+            document.getElementById('exportSettings').addEventListener('click', exportSettings);
+            document.getElementById('importSettings').addEventListener('change', importSettings);
+            
+            // --- Joystick Logic ---
+            function setupJoystick(element, onMove, onEnd, onStart) {
+                let active = false;
+                const handleMove = (e) => {
+                    if (!active) return;
+                    e.preventDefault();
+                    const rect = element.getBoundingClientRect();
+                    const touch = e.touches ? e.touches[0] : e;
+                    let x = (touch.clientX - rect.left) / rect.width * 2 - 1;
+                    let y = (touch.clientY - rect.top) / rect.height * 2 - 1;
+                    const length = Math.min(1.0, Math.sqrt(x*x + y*y));
+                    const deadzone = 0.1;
+                    if (length < deadzone) { x = 0; y = 0; } 
+                    else { x = x / (length || 1) * length; y = y / (length || 1) * length; }
+                    element.querySelector('.joystick-nipple').style.transform = `translate(-50%, -50%) translate(${x * 35}px, ${y * 35}px)`;
+                    onMove(x, y);
+                };
+                const handleEnd = () => {
+                    active = false;
+                    element.querySelector('.joystick-nipple').style.transform = 'translate(-50%, -50%)';
+                    onEnd();
+                };
+                const handleStart = (e) => {
+                    active = true;
+                    if (onStart) onStart(e);
+                    handleMove(e);
+                };
+
+                element.addEventListener('dblclick', (e) => { if(onStart) onStart(e); });
+                element.addEventListener('mousedown', handleStart);
+                window.addEventListener('mousemove', handleMove);
+                window.addEventListener('mouseup', handleEnd);
+                element.addEventListener('touchstart', handleStart, { passive: false });
+                window.addEventListener('touchmove', handleMove, { passive: false });
+                window.addEventListener('touchend', handleEnd);
+            }
+
+            // Move Joystick
+            const moveJoystickEl = document.getElementById('joystick-move');
+            setupJoystick(
+                moveJoystickEl,
+                (x, y) => {
+                    cameraMove.forward = -y;
+                    cameraMove.right = x;
+                },
+                () => {
+                    clearTimeout(turboHoldTimer);
+                    turboHoldTimer = null;
+                    turboEngaged = false;
+                    moveJoystickEl.classList.remove('turbo');
+                    cameraMove.forward = 0;
+                    cameraMove.right = 0;
+                },
+                (e) => {
+                    const now = new Date().getTime();
+                    if ((e.type === 'touchstart' && now - lastTap < 250) || e.type === 'dblclick') {
+                       // This space can be used for a different double-tap action if needed
+                    }
+                    lastTap = now;
+
+                    clearTimeout(turboHoldTimer);
+                    turboHoldTimer = setTimeout(() => {
+                        turboEngaged = true;
+                        moveJoystickEl.classList.add('turbo');
+                    }, 5000);
+                }
+            );
+
+            // Look Joystick
+            setupJoystick(
+                document.getElementById('joystick-look'),
+                (x, y) => {
+                    cameraMove.yaw = -x * CONFIG.lookSensitivity;
+                    cameraMove.pitch = (CONFIG.invertY ? 1 : -1) * -y * CONFIG.lookSensitivity;
+                },
+                () => {
+                    cameraMove.yaw = 0;
+                    cameraMove.pitch = 0;
+                }
+            );
+        };
+
+        function setupPointerSteering(canvas) {
+            if (!canvas || !dragHint) return;
+            const pointerState = { active: false, pointerId: null, lastX: 0, lastY: 0 };
+
+            const activateHint = () => {
+                dragHint.classList.add('active');
+                dragHint.dataset.direction = '';
+            };
+
+            const deactivateHint = () => {
+                dragHint.classList.remove('active');
+                delete dragHint.dataset.direction;
+            };
+
+            const handlePointerDown = (event) => {
+                if (!event.isPrimary || pointerState.active) return;
+                if (event.button !== undefined && event.button !== 0) return;
+                pointerState.active = true;
+                pointerState.pointerId = event.pointerId;
+                pointerState.lastX = event.clientX;
+                pointerState.lastY = event.clientY;
+                activateHint();
+                try { canvas.setPointerCapture(event.pointerId); } catch (err) {}
+                event.preventDefault();
+            };
+
+            const handlePointerMove = (event) => {
+                if (!pointerState.active || event.pointerId !== pointerState.pointerId) return;
+                const dx = event.clientX - pointerState.lastX;
+                const dy = event.clientY - pointerState.lastY;
+                pointerState.lastX = event.clientX;
+                pointerState.lastY = event.clientY;
+
+                const lookSpeed = 0.0025 * CONFIG.lookSensitivity;
+                euler.setFromQuaternion(camera.quaternion);
+                euler.y -= dx * lookSpeed;
+                euler.x -= dy * lookSpeed * (CONFIG.invertY ? 1 : -1);
+                euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
+                camera.quaternion.setFromEuler(euler);
+
+                let direction = '';
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    if (Math.abs(dx) > 1.5) direction = dx > 0 ? 'right' : 'left';
+                } else {
+                    if (Math.abs(dy) > 1.5) direction = dy > 0 ? 'down' : 'up';
+                }
+                if (direction) dragHint.dataset.direction = direction;
+                else dragHint.dataset.direction = '';
+
+                event.preventDefault();
+            };
+
+            const handlePointerEnd = (event) => {
+                if (event.pointerId !== pointerState.pointerId) return;
+                pointerState.active = false;
+                pointerState.pointerId = null;
+                deactivateHint();
+                try { canvas.releasePointerCapture(event.pointerId); } catch (err) {}
+            };
+
+            canvas.addEventListener('pointerdown', handlePointerDown, { passive: false });
+            canvas.addEventListener('pointermove', handlePointerMove, { passive: false });
+            canvas.addEventListener('pointerup', handlePointerEnd);
+            canvas.addEventListener('pointercancel', handlePointerEnd);
+            canvas.addEventListener('pointerleave', handlePointerEnd);
+        }
+        
+        const onWindowResize = () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            updateMap(true);
+        };
+        
+        // --- Animation & Map Drawing Loop ---
+        const animate = () => {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const elapsedTime = clock.getElapsedTime();
+            particleMaterial.uniforms.uTime.value = elapsedTime;
+
+            // --- Speed and Acceleration Logic ---
+            const baseSpeed = 40;
+            const turboAcceleration = 150;
+            const maxTurboSpeed = 800;
+            const deceleration = 200;
+
+            if (turboEngaged && (cameraMove.forward !== 0 || cameraMove.right !== 0)) {
+                currentSpeed = Math.min(maxTurboSpeed, currentSpeed + turboAcceleration * delta);
+            } else {
+                currentSpeed = Math.max(0, currentSpeed - deceleration * delta);
+            }
+            const finalSpeed = baseSpeed + currentSpeed;
+
+            // Update Camera
+            euler.setFromQuaternion(camera.quaternion);
+            euler.y -= cameraMove.yaw * delta * 0.1;
+            euler.x -= cameraMove.pitch * delta * 0.1;
+            euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
+            camera.quaternion.setFromEuler(euler);
+            
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            
+            camera.position.addScaledVector(forward, cameraMove.forward * finalSpeed * delta);
+            camera.position.addScaledVector(right, cameraMove.right * finalSpeed * delta);
+
+            // Animate Prism Grid
+            const prismGrid = sceneObjects.find(obj => obj.userData.isPrismGrid);
+            if (prismGrid) {
+                const count = prismGrid.count;
+                const gridSize = Math.ceil(Math.sqrt(count));
+                for (let i = 0; i < count; i++) {
+                    const x = (i % gridSize - gridSize / 2) * 2.5;
+                    const z = (Math.floor(i / gridSize) - gridSize / 2) * 2.5;
+                    const y = Math.sin(x * 0.2 + elapsedTime) * Math.cos(z * 0.2 + elapsedTime * 0.5) * 10;
+                    tempObject.position.set(x, y, z);
+                    tempObject.updateMatrix();
+                    prismGrid.setMatrixAt(i, tempObject.matrix);
+                }
+                prismGrid.instanceMatrix.needsUpdate = true;
+            }
+
+            // Draw Navigation Map
+            updateMap();
+
+            composer.render();
+        };
+
+        function updateMap(force = false) {
+            if (!mapCtx || !mapCanvas) return;
+            const rect = mapCanvas.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
+
+            const dpr = window.devicePixelRatio || 1;
+            const canvasWidth = rect.width * dpr;
+            const canvasHeight = rect.height * dpr;
+            if (force || mapCanvas.width !== canvasWidth || mapCanvas.height !== canvasHeight) {
+                mapCanvas.width = canvasWidth;
+                mapCanvas.height = canvasHeight;
+            }
+
+            mapCtx.setTransform(1, 0, 0, 1, 0, 0);
+            mapCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+            mapCtx.scale(dpr, dpr);
+
+            const width = rect.width;
+            const height = rect.height;
+            const centerX = width / 2;
+            const centerY = height / 2;
+
+            let insideSphere = null;
+            let insideDistance = 0;
+            sphereNodes.forEach(node => {
+                const distance = camera.position.distanceTo(node.object.position);
+                if (!insideSphere && distance <= node.radius) {
+                    insideSphere = node;
+                    insideDistance = distance;
+                }
+            });
+
+            mapCtx.save();
+            mapCtx.translate(centerX, centerY);
+            mapCtx.lineWidth = 2;
+            mapCtx.font = '12px "Inter", system-ui, sans-serif';
+            mapCtx.textAlign = 'center';
+            mapCtx.textBaseline = 'middle';
+
+            if (insideSphere) {
+                const maxRadius = Math.min(width, height) * 0.42;
+                const scale = insideSphere.radius > 0 ? maxRadius / insideSphere.radius : 1;
+
+                mapCtx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+                mapCtx.beginPath();
+                mapCtx.arc(0, 0, insideSphere.radius * scale, 0, Math.PI * 2);
+                mapCtx.stroke();
+
+                mapCtx.setLineDash([6, 4]);
+                mapCtx.beginPath();
+                mapCtx.arc(0, 0, insideSphere.radius * scale * 0.5, 0, Math.PI * 2);
+                mapCtx.stroke();
+                mapCtx.setLineDash([]);
+
+                mapVector.copy(camera.position).sub(insideSphere.object.position);
+                const px = mapVector.x * scale;
+                const py = mapVector.z * scale;
+
+                mapCtx.strokeStyle = insideSphere.color;
+                mapCtx.beginPath();
+                mapCtx.moveTo(0, 0);
+                mapCtx.lineTo(px, py);
+                mapCtx.stroke();
+
+                mapCtx.fillStyle = insideSphere.color;
+                mapCtx.beginPath();
+                mapCtx.arc(px, py, 6, 0, Math.PI * 2);
+                mapCtx.fill();
+
+                mapCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                mapCtx.fillText('center', 0, 0);
+
+                const altitude = mapVector.y;
+                mapInfo.innerHTML = `
+                    <strong>${insideSphere.label}</strong><br>
+                    Distance to core: ${insideDistance.toFixed(0)}u<br>
+                    Altitude: ${altitude.toFixed(0)}u
+                `.trim();
+            } else {
+                const reticleRadius = Math.min(width, height) * 0.45;
+                mapCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                mapCtx.beginPath();
+                mapCtx.arc(0, 0, reticleRadius, 0, Math.PI * 2);
+                mapCtx.stroke();
+
+                mapCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                mapCtx.beginPath();
+                mapCtx.arc(0, 0, 4, 0, Math.PI * 2);
+                mapCtx.fill();
+
+                sphereNodes.forEach((node, index) => {
+                    mapVector.copy(node.object.position).sub(camera.position);
+                    const horizontalLength = Math.hypot(mapVector.x, mapVector.z);
+                    if (horizontalLength < 0.0001) return;
+
+                    tempVec2.set(mapVector.x, mapVector.z).normalize();
+                    const arrowLength = Math.min(reticleRadius - 14, 80 + index * 6);
+                    const ex = tempVec2.x * arrowLength;
+                    const ey = tempVec2.y * arrowLength;
+
+                    mapCtx.strokeStyle = node.color;
+                    mapCtx.beginPath();
+                    mapCtx.moveTo(0, 0);
+                    mapCtx.lineTo(ex, ey);
+                    mapCtx.stroke();
+
+                    mapCtx.beginPath();
+                    mapCtx.moveTo(ex, ey);
+                    mapCtx.lineTo(ex - tempVec2.x * 8 - tempVec2.y * 5, ey - tempVec2.y * 8 + tempVec2.x * 5);
+                    mapCtx.lineTo(ex - tempVec2.x * 8 + tempVec2.y * 5, ey - tempVec2.y * 8 - tempVec2.x * 5);
+                    mapCtx.closePath();
+                    mapCtx.fillStyle = node.color;
+                    mapCtx.fill();
+
+                    const distanceToCenter = mapVector.length();
+                    const distanceToSurface = Math.max(0, distanceToCenter - node.radius);
+                    const labelX = ex + tempVec2.x * 14;
+                    const labelY = ey + tempVec2.y * 14;
+                    mapCtx.fillStyle = 'rgba(255, 255, 255, 0.82)';
+                    mapCtx.fillText(`${node.label}`, labelX, labelY - 8);
+                    mapCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                    mapCtx.fillText(`${distanceToSurface.toFixed(0)}u`, labelX, labelY + 6);
+                });
+
+                mapInfo.innerHTML = `
+                    <strong>Deep Space</strong><br>
+                    Directional arrows point to nearby spheres.
+                `.trim();
+            }
+
+            mapCtx.restore();
+        }
+
+        // --- Start Application ---
+        document.getElementById('progress').style.width = '100%';
+        setTimeout(init, 200);
+
+    </script>
+</body>
+</html>
