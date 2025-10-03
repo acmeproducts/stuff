@@ -1,677 +1,527 @@
-<!-- InteractiveParticleMorph-v3.0-2025-08-26 03:34 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Interactive Three.js Particle Morph v3.0</title>
+    <title>Endless Flight Prototype</title>
     <style>
-        /* ====== Base & App Styles ====== */
         :root {
-            --bg: #0b0b0b; --fg: #e6e6e6; --muted: #bdbdbd; --line: rgba(255,255,255,0.14);
-            --accent: #86aaf0; --panel-bg: rgba(0,0,0,0.72); --radius: 12px; --shadow: 0 10px 30px rgba(0,0,0,0.45);
-            --panel-w: 1100px; --panel-side-w: 380px;
+            color-scheme: dark;
+            --bg: radial-gradient(circle at 50% -20%, #1e2940, #090b12 55%);
+            --panel-bg: rgba(0, 0, 0, 0.55);
+            --accent: #8fd0ff;
+            --accent-active: #ffd866;
+            --text: #f2f6ff;
         }
+
+        * { box-sizing: border-box; }
+
         html, body {
-            height: 100%; margin: 0; overflow: hidden;
-            background: var(--bg); color: var(--fg);
-            font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial;
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: #05070f;
+            touch-action: none;
+            font-family: "Inter", "SF Pro Text", system-ui, sans-serif;
+            color: var(--text);
         }
-        #webglCanvas {
-            position: fixed; top: 0; left: 0;
-            width: 100%; height: 100%; display: block;
-        }
-        #loading {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; display: flex; flex-direction: column;
-            justify-content: center; align-items: center; z-index: 2000;
-            transition: opacity 0.5s ease;
-        }
-        #loading.hidden { opacity: 0; pointer-events: none; }
-        #progress-bar { width: 200px; height: 4px; background: #333; margin-top: 10px; }
-        #progress { width: 0%; height: 100%; background: #fff; transition: width 0.2s ease; }
-        #ui { position: fixed; top: 20px; left: 20px; z-index: 10; text-shadow: 0 0 5px black; font-size: 14px; pointer-events: none; }
 
-        /* ====== Drawer & Handle Styles ====== */
-        #drawer { position: fixed; z-index: 1000; pointer-events: none; }
-        #drawer .panel {
-            background: var(--panel-bg); border: 1px solid var(--line);
-            box-shadow: var(--shadow); backdrop-filter: blur(6px);
-            pointer-events: auto; transition: transform 220ms cubic-bezier(.2,.8,.2,1);
-        }
-        #drawer[data-side="top"] { left: 0; right: 0; top: 0; }
-        #drawer[data-side="top"] .panel { max-width: var(--panel-w); margin: 0 auto; border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); transform: translateY(-100%); }
-        #drawer.open[data-side="top"] .panel { transform: translateY(0); }
-        #handle { position: fixed; z-index: 1001; display: grid; place-items: center; cursor: pointer; pointer-events: auto; background: none; border: none; padding: 10px; }
-        #handle .bar { background: rgba(255,255,255,0.65); }
-        #handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 999px; }
-        #drawer[data-side="top"] ~ #handle { left: 50%; top: 0px; transform: translateX(-50%); }
-        #drawer[data-side="top"] ~ #handle .bar { width: 84px; height: 4px; border-radius: 999px; }
-
-        /* ====== Panel Content & Joystick Styles ====== */
-        .content { padding: 14px; color: var(--fg); max-height: 95vh; overflow-y: auto; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
-        fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
-        legend { padding: 0 6px; color: #d0d0d0; font-weight: 600; }
-        label { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; font-size: 14px; margin: 8px 0; }
-        input[type=range] { width: 100%; }
-        input[type=number], select { background: #101010; color: var(--fg); border: 1px solid #333; border-radius: 6px; padding: 6px 8px; width: 70px; }
-        button { background: #1b1b1b; color: var(--fg); border: 1px solid #444; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
-        .button-group { display: flex; gap: 8px; margin-top: 10px; }
-        .joystick-container { position: fixed; bottom: 30px; width: 120px; height: 120px; z-index: 100; }
-        #joystick-move { left: 30px; }
-        #joystick-look { right: 30px; }
-        .joystick-base { position: absolute; width: 100%; height: 100%; background: rgba(128, 128, 128, 0.3); border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.3); }
-        .joystick-nipple { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; background: rgba(255, 255, 255, 0.5); border-radius: 50%; transform: translate(-50%, -50%); transition: background-color 0.2s; }
-        #joystick-move.turbo .joystick-nipple {
-            background: rgba(255, 50, 50, 0.7);
-            animation: pulse 1s infinite;
-        }
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(255, 50, 50, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(255, 50, 50, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 50, 50, 0); }
-        }
-        
-        /* ====== Globe Map Styles ====== */
-        #globe-container {
+        #appCanvas {
             position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 200px;
-            height: 200px;
-            z-index: 50;
-            cursor: grab;
-        }
-        #globe-container:active {
-            cursor: grabbing;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
         }
 
-        #master-footer { position: fixed; bottom: 5px; right: 10px; font-size: 10px; color: rgba(255, 255, 255, 0.5); z-index: 10; }
+        #hud {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            padding: 10px 16px;
+            border-radius: 999px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+            z-index: 10;
+        }
+
+        #hud button {
+            appearance: none;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
+            padding: 8px 14px;
+            font-size: 0.9rem;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        #hud button[aria-pressed="true"] {
+            background: rgba(255, 255, 255, 0.16);
+            border-color: var(--accent-active);
+            color: var(--accent-active);
+        }
+
+        #readout {
+            font-size: 0.8rem;
+            opacity: 0.85;
+            min-width: 150px;
+        }
+
+        #helper {
+            position: fixed;
+            left: 16px;
+            bottom: 16px;
+            padding: 12px 16px;
+            width: min(92vw, 320px);
+            border-radius: 18px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            font-size: 0.85rem;
+            line-height: 1.45;
+            color: rgba(255, 255, 255, 0.82);
+        }
+
+        #helper strong {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        @media (max-width: 600px) {
+            #hud {
+                top: auto;
+                bottom: 16px;
+                flex-direction: column;
+                align-items: stretch;
+                padding: 14px;
+                gap: 10px;
+            }
+
+            #readout {
+                text-align: center;
+            }
+        }
     </style>
 </head>
 <body>
-    <!-- App Canvas and Loaders -->
-    <div id="loading"><p>Loading...</p><div id="progress-bar"><div id="progress"></div></div></div>
-    <div id="ui"><p>Explore the particle universe</p></div>
-    <canvas id="webglCanvas"></canvas>
-
-    <!-- Map -->
-    <div id="globe-container"></div>
-
-    <!-- Control Panel Drawer -->
-    <div id="drawer" data-side="top" aria-hidden="true">
-        <div class="panel">
-            <div class="content">
-                <div class="grid">
-                    <fieldset>
-                        <legend>Global Settings</legend>
-                        <label><span>Particle Density</span><input id="cfgParticleDensity" type="range" min="0.1" max="2.0" step="0.1" value="1.0"></label>
-                        <label><span>Bloom Strength</span><input id="cfgBloomStrength" type="range" min="0" max="3" step="0.1" value="0.2"></label>
-                        <button id="regenerateScene">Regenerate Scene</button>
-                    </fieldset>
-                    <fieldset>
-                        <legend>Appearance</legend>
-                        <label><span>Color Scheme</span>
-                            <select id="cfgColorScheme">
-                                <option value="fire">Fire</option><option value="neon">Neon</option>
-                                <option value="nature">Nature</option><option value="rainbow">Rainbow</option>
-                            </select>
-                        </label>
-                    </fieldset>
-                    <fieldset>
-                        <legend>Controls</legend>
-                        <label><span>Look Sensitivity</span><input id="cfgLookSensitivity" type="range" min="0.5" max="5.0" step="0.1" value="2.0"></label>
-                        <label><span>Invert Look Y-Axis</span><input id="cfgInvertY" type="checkbox" checked></label>
-                        <div class="button-group">
-                            <button id="exportSettings">Export</button>
-                            <button onclick="document.getElementById('importSettings').click()">Import</button>
-                            <input type="file" id="importSettings" style="display: none;" accept=".json">
-                        </div>
-                    </fieldset>
-                </div>
-            </div>
-        </div>
+    <canvas id="appCanvas"></canvas>
+    <div id="hud" role="group" aria-label="Flight controls">
+        <button id="directionToggle" type="button" aria-pressed="true" aria-label="Toggle forward reverse">
+            Forward
+        </button>
+        <button id="turboToggle" type="button" aria-pressed="false" aria-label="Toggle turbo">
+            Turbo Off
+        </button>
+        <div id="readout" aria-live="polite"></div>
     </div>
-    <button id="handle" aria-controls="drawer" aria-expanded="false" title="Toggle controls"><div class="bar" aria-hidden="true"></div></button>
+    <aside id="helper">
+        <strong>Tap &amp; hold</strong> anywhere to thrust. Drag to steer. Use the toggle to fly forward or reverse, and Turbo for an instant burst.
+    </aside>
 
-    <!-- Joysticks -->
-    <div id="joystick-move" class="joystick-container">
-        <div class="joystick-base"></div>
-        <div class="joystick-nipple"></div>
-    </div>
-    <div id="joystick-look" class="joystick-container">
-        <div class="joystick-base"></div>
-        <div class="joystick-nipple"></div>
-    </div>
-
-    <footer id="master-footer">InteractiveParticleMorph-v3.0 - 2025-08-26 03:34 PM</footer>
-
-    <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"
-      }
-    }
-    </script>
     <script type="module">
-        import * as THREE from 'three';
-        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 
-        // --- Elements ---
-        const drawer = document.getElementById('drawer');
-        const handle = document.getElementById('handle');
-        const globeContainer = document.getElementById('globe-container');
-
-        // --- Configuration ---
-        let CONFIG = {
-            starCount: 50000,
-            bloomStrength: 0.2,
-            particleDensity: 1.0,
-            lookSensitivity: 2.0,
-            invertY: true,
+        // === Constants ===
+        const FOV = 60;
+        const SPEED_BASE = 12;
+        const SPEED_TURBO_FACTOR = 3.0;
+        const SPEED_REVERSE_FACTOR = 1.0;
+        const ACCEL_GAIN = 0.18;
+        const PITCH_CLAMP = {
+            min: -Math.PI / 2 + THREE.MathUtils.degToRad(3),
+            max: Math.PI / 2 - THREE.MathUtils.degToRad(3)
         };
+        const FIXED_DT = 1 / 60;
+        const MAX_FRAME_DELTA = 0.25;
+        const CHUNK_SIZE = 220;
+        const CHUNK_RES = 48;
+        const GRID_RADIUS = 2; // produces a (2*radius + 1)^2 grid
+        const REBASE_THRESHOLD = 10000;
+        const PITCH_DEADZONE = 6;
+        const K_YAW = 0.0025;
+        const K_PITCH = 0.0020;
 
-        // --- Core Three.js Components ---
-        let scene, camera, renderer, composer, bloomPass;
-        let particleMaterial, prismMaterial;
-        const clock = new THREE.Clock();
-        const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-        const globeEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+        // === Core Three.js setup ===
+        const canvas = document.getElementById('appCanvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.setClearColor(new THREE.Color('#05070f'));
 
-        // --- Globe Map Components ---
-        let globeScene, globeCamera, globeRenderer, globe, playerMarker, objectMarkers = [];
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2('#0b1629', 0.0007);
 
-        // --- State ---
-        let sceneObjects = [];
-        let currentColorScheme = 'fire';
-        const tempVector = new THREE.Vector3();
-        const tempObject = new THREE.Object3D();
-        const cameraMove = { forward: 0, right: 0, yaw: 0, pitch: 0 };
-        let currentSpeed = 0;
-        let turboEngaged = false;
-        let turboHoldTimer = null;
-        let lastTap = 0;
+        const rigRoot = new THREE.Object3D();
+        const yawPivot = new THREE.Object3D();
+        const pitchPivot = new THREE.Object3D();
+        const camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.innerHeight, 0.1, 20000);
+        camera.position.set(0, 2, 0);
 
-        // --- Shaders for Particles ---
-        const vertexShader = `
-            attribute float size;
-            attribute float opacity;
-            uniform float uTime;
-            varying vec3 vColor;
-            varying float vOpacity;
-            
-            vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-            vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-            vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
-            vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
-            float snoise(vec3 v) {
-                const vec2 C = vec2(1.0/6.0, 1.0/3.0); const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-                vec3 i = floor(v + dot(v, C.yyy)); vec3 x0 = v - i + dot(i, C.xxx);
-                vec3 g = step(x0.yzx, x0.xyz); vec3 l = 1.0 - g; vec3 i1 = min(g.xyz, l.zxy); vec3 i2 = max(g.xyz, l.zxy);
-                vec3 x1 = x0 - i1 + C.xxx; vec3 x2 = x0 - i2 + C.yyy; vec3 x3 = x0 - D.yyy;
-                i = mod289(i);
-                vec4 p = permute(permute(permute(i.z+vec4(0.,i1.z,i2.z,1.))+i.y+vec4(0.,i1.y,i2.y,1.))+i.x+vec4(0.,i1.x,i2.x,1.));
-                float n_ = 0.142857142857; vec3 ns = n_ * D.wyz - D.xzx;
-                vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
-                vec4 x_ = floor(j * ns.z); vec4 y_ = floor(j - 7.0 * x_);
-                vec4 x = x_ * ns.x + ns.yyyy; vec4 y = y_ * ns.x + ns.yyyy; vec4 h = 1.0 - abs(x) - abs(y);
-                vec4 b0 = vec4(x.xy, y.xy); vec4 b1 = vec4(x.zw, y.zw);
-                vec4 s0 = floor(b0)*2.+1.; vec4 s1 = floor(b1)*2.+1.; vec4 sh = -step(h,vec4(0.));
-                vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy; vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
-                vec3 p0 = vec3(a0.xy,h.x); vec3 p1 = vec3(a0.zw,h.y); vec3 p2 = vec3(a1.xy,h.z); vec3 p3 = vec3(a1.zw,h.w);
-                vec4 norm = taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
-                p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
-                vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0); m = m*m;
-                return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+        rigRoot.add(yawPivot);
+        yawPivot.add(pitchPivot);
+        pitchPivot.add(camera);
+        scene.add(rigRoot);
+
+        const hemiLight = new THREE.HemisphereLight('#89b7ff', '#0d0f16', 0.55);
+        scene.add(hemiLight);
+
+        const sun = new THREE.DirectionalLight('#fff6d5', 1.1);
+        sun.position.set(120, 260, -160);
+        sun.castShadow = false;
+        scene.add(sun);
+
+        const skyGeo = new THREE.SphereGeometry(9000, 32, 16);
+        const skyMat = new THREE.ShaderMaterial({
+            side: THREE.BackSide,
+            uniforms: {
+                topColor: { value: new THREE.Color('#0b1f47') },
+                bottomColor: { value: new THREE.Color('#08101f') }
+            },
+            vertexShader: `varying vec3 vWorldPosition;\nvoid main(){\nvec4 worldPosition = modelMatrix * vec4(position, 1.0);\nvWorldPosition = worldPosition.xyz;\ngl_Position = projectionMatrix * viewMatrix * worldPosition;\n}`,
+            fragmentShader: `varying vec3 vWorldPosition;\nuniform vec3 topColor;\nuniform vec3 bottomColor;\nvoid main(){\nfloat h = normalize(vWorldPosition).y * 0.5 + 0.5;\ngl_FragColor = vec4(mix(bottomColor, topColor, smoothstep(0.0, 1.0, h)), 1.0);\n}`
+        });
+        const skydome = new THREE.Mesh(skyGeo, skyMat);
+        scene.add(skydome);
+
+        // === Terrain generation utilities ===
+        const worldOrigin = new THREE.Vector3();
+
+        function hash2d(x, z) {
+            const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453123;
+            return (s - Math.floor(s));
+        }
+
+        function noise2d(x, z) {
+            const xi = Math.floor(x);
+            const zi = Math.floor(z);
+            const xf = x - xi;
+            const zf = z - zi;
+
+            const h00 = hash2d(xi, zi);
+            const h10 = hash2d(xi + 1, zi);
+            const h01 = hash2d(xi, zi + 1);
+            const h11 = hash2d(xi + 1, zi + 1);
+
+            const u = xf * xf * (3 - 2 * xf);
+            const v = zf * zf * (3 - 2 * zf);
+
+            const x1 = THREE.MathUtils.lerp(h00, h10, u);
+            const x2 = THREE.MathUtils.lerp(h01, h11, u);
+            return THREE.MathUtils.lerp(x1, x2, v);
+        }
+
+        function fbm(x, z) {
+            let value = 0;
+            let amplitude = 0.85;
+            let frequency = 0.0035;
+            for (let i = 0; i < 6; i++) {
+                value += noise2d(x * frequency, z * frequency) * amplitude;
+                frequency *= 2.0;
+                amplitude *= 0.5;
+            }
+            return value;
+        }
+
+        function sampleHeight(x, z) {
+            const ridged = Math.abs(fbm(x + 9000.3, z - 4200.7));
+            const valley = fbm(x - 12000.5, z + 3200.8);
+            const base = fbm(x, z);
+            const height = (base * 55) + (ridged * 120) - (valley * 40);
+            return height;
+        }
+
+        class TerrainManager {
+            constructor(sceneRef, originRef) {
+                this.scene = sceneRef;
+                this.origin = originRef;
+                this.chunks = new Map();
             }
 
-            void main() {
-                vColor = color;
-                vOpacity = opacity;
-                float noise = snoise(vec3(position * 0.1 + uTime * 0.1));
-                vec3 displacement = normalize(position) * noise * 2.0;
-                vec4 mvPosition = modelViewMatrix * vec4(position + displacement, 1.0);
-                gl_Position = projectionMatrix * mvPosition;
-                gl_PointSize = size * (300.0 / -mvPosition.z);
-            }`;
-        const fragmentShader = `
-            varying vec3 vColor; varying float vOpacity;
-            void main() {
-                if (distance(gl_PointCoord, vec2(0.5)) > 0.5) discard;
-                gl_FragColor = vec4(vColor, vOpacity);
-            }`;
-        
-        // --- Shape Generation ---
-        function generateSphereShell(points, count, radius) {
-            const phi = Math.PI * (3. - Math.sqrt(5.));
-            for (let i = 0; i < count; i++) {
-                const y = 1 - (i / (count - 1)) * 2; const r = Math.sqrt(1 - y * y); const theta = phi * i;
-                points.push(Math.cos(theta) * r * radius, y * radius, Math.sin(theta) * r * radius);
-            }
-        }
-        function generateCube(points, count, size) {
-            const s = size * 0.5;
-            for (let i = 0; i < count; i++) {
-                const face = ~~(Math.random() * 6); const u = Math.random() * 2 - 1; const v = Math.random() * 2 - 1;
-                switch (face) {
-                    case 0: points.push( s, u*s, v*s); break; case 1: points.push(-s, u*s, v*s); break;
-                    case 2: points.push(u*s,  s, v*s); break; case 3: points.push(u*s, -s, v*s); break;
-                    case 4: points.push(u*s, v*s,  s); break; case 5: points.push(u*s, v*s, -s); break;
-                }
-            }
-        }
-
-        // --- Object Creation ---
-        function createParticleObject(config) {
-            const points = [];
-            if (config.shell) generateSphereShell(points, config.shell.count, config.shell.radius);
-            if (config.innerShape?.type === 'cube') generateCube(points, config.innerShape.count, config.innerShape.radius);
-            
-            const totalPoints = points.length / 3;
-            const geometry = new THREE.BufferGeometry();
-            geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
-            
-            const sizes = new Float32Array(totalPoints).fill(1).map(() => Math.random() * 1.5 + 0.5);
-            const opacities = new Float32Array(totalPoints).fill(1).map(() => Math.random() * 0.5 + 0.4);
-            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-            geometry.setAttribute('opacity', new THREE.BufferAttribute(opacities, 1));
-            geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(totalPoints * 3), 3));
-
-            const obj = new THREE.Points(geometry, particleMaterial);
-            obj.position.copy(config.position);
-            return obj;
-        }
-
-        function createPrismGridObject(config) {
-            const count = config.count;
-            const geometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 6);
-            const mesh = new THREE.InstancedMesh(geometry, prismMaterial, count);
-
-            const gridSize = Math.ceil(Math.sqrt(count));
-            for (let i = 0; i < count; i++) {
-                const x = (i % gridSize - gridSize / 2) * 2.5;
-                const z = (Math.floor(i / gridSize) - gridSize / 2) * 2.5;
-                tempObject.position.set(x, 0, z);
-                tempObject.updateMatrix();
-                mesh.setMatrixAt(i, tempObject.matrix);
-            }
-            mesh.instanceMatrix.needsUpdate = true;
-            mesh.position.copy(config.position);
-            mesh.userData.isPrismGrid = true;
-            return mesh;
-        }
-        
-        // --- Color Application ---
-        const applyAllColors = () => {
-            sceneObjects.forEach(obj => {
-                if (obj.userData.isPrismGrid) return;
-                const geom = obj.geometry;
-                const positions = geom.attributes.position.array;
-                const colors = geom.attributes.color.array;
-                const color = new THREE.Color();
-                for(let i=0; i < positions.length / 3; i++) {
-                    tempVector.set(positions[i*3], positions[i*3+1], positions[i*3+2]).normalize();
-                    let hue = 0;
-                    if (currentColorScheme === 'fire') hue = THREE.MathUtils.mapLinear(tempVector.y, -1, 1, 0, 0.125);
-                    else if (currentColorScheme === 'neon') hue = THREE.MathUtils.mapLinear(tempVector.x, -1, 1, 0.83, 0.5);
-                    else if (currentColorScheme === 'nature') hue = THREE.MathUtils.mapLinear(tempVector.y, -1, 1, 0.25, 0.44);
-                    else if (currentColorScheme === 'rainbow') hue = THREE.MathUtils.mapLinear(tempVector.x + tempVector.y + tempVector.z, -1.73, 1.73, 0, 1);
-                    color.setHSL(hue, 1.0, 0.55);
-                    colors[i*3] = color.r; colors[i*3+1] = color.g; colors[i*3+2] = color.b;
-                }
-                geom.attributes.color.needsUpdate = true;
-            });
-        };
-
-        // --- Scene Generation ---
-        function buildScene() {
-            sceneObjects.forEach(obj => { scene.remove(obj); obj.geometry.dispose(); });
-            sceneObjects = [];
-            
-            const density = CONFIG.particleDensity;
-            const sceneLayout = [
-                { type: 'particles', config: { position: new THREE.Vector3(0, 0, 0), shell: { radius: 40, count: Math.floor(20000 * density) }, innerShape: { type: 'cube', radius: 20, count: Math.floor(8000 * density) } } },
-                { type: 'particles', config: { position: new THREE.Vector3(400, 180, -600), shell: { radius: 80, count: Math.floor(30000 * density) } } },
-                { type: 'particles', config: { position: new THREE.Vector3(-380, -140, 290), shell: { radius: 20, count: Math.floor(10000 * density) } } },
-                { type: 'particles', config: { position: new THREE.Vector3(-600, 250, -1200), shell: { radius: 60, count: Math.floor(25000 * density) } } },
-                { type: 'particles', config: { position: new THREE.Vector3(800, -300, -1500), shell: { radius: 100, count: Math.floor(40000 * density) } } },
-                { type: 'prismGrid', config: { position: new THREE.Vector3(1500, 0, 0), count: 4000 } },
-            ];
-
-            sceneLayout.forEach(item => {
-                let obj;
-                if (item.type === 'particles') obj = createParticleObject(item.config);
-                else if (item.type === 'prismGrid') obj = createPrismGridObject(item.config);
-                if (obj) { sceneObjects.push(obj); scene.add(obj); }
-            });
-            
-            applyAllColors();
-        }
-
-        // --- Main Initialization ---
-        const init = () => {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
-            camera.position.z = 100;
-
-            const canvas = document.getElementById('webglCanvas');
-            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-            composer = new EffectComposer(renderer);
-            composer.addPass(new RenderPass(scene, camera));
-            bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), CONFIG.bloomStrength, 0.4, 0.85);
-            composer.addPass(bloomPass);
-
-            particleMaterial = new THREE.ShaderMaterial({
-                uniforms: { uTime: { value: 0.0 } },
-                vertexShader, fragmentShader, 
-                blending: THREE.NormalBlending,
-                depthTest: false, transparent: true, vertexColors: true
-            });
-            prismMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7, metalness: 0.1 });
-            
-            buildScene();
-            createStarfield();
-            initGlobe();
-            setupEventListeners();
-            loadSettings();
-            
-            document.getElementById('loading').classList.add('hidden');
-            animate();
-        };
-
-        const createStarfield = () => {
-            const starGeometry = new THREE.BufferGeometry();
-            const starPositions = new Float32Array(CONFIG.starCount * 3);
-            for (let i = 0; i < CONFIG.starCount; i++) {
-                const r = 1000 + Math.random() * 9000;
-                const theta = 2 * Math.PI * Math.random(); const phi = Math.acos(2 * Math.random() - 1);
-                starPositions.set([r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi)], i * 3);
-            }
-            starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-            const starMaterial = new THREE.PointsMaterial({ size: 15, color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false });
-            scene.add(new THREE.Points(starGeometry, starMaterial));
-        };
-        
-        // --- Globe Map Initialization ---
-        function initGlobe() {
-            globeScene = new THREE.Scene();
-            globeCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-            globeCamera.position.z = 2.5;
-
-            globeRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-            globeRenderer.setSize(200, 200);
-            globeRenderer.setPixelRatio(window.devicePixelRatio);
-            globeContainer.appendChild(globeRenderer.domElement);
-
-            const globeGeo = new THREE.SphereGeometry(1, 32, 32);
-            const globeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.2 });
-            globe = new THREE.Mesh(globeGeo, globeMat);
-            globeScene.add(globe);
-
-            const playerGeo = new THREE.SphereGeometry(0.05, 16, 16);
-            const playerMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            playerMarker = new THREE.Mesh(playerGeo, playerMat);
-            globe.add(playerMarker);
-        }
-
-        // --- Settings Management ---
-        function saveSettings() {
-            localStorage.setItem('particleUniverseSettings', JSON.stringify(CONFIG));
-        }
-
-        function loadSettings() {
-            const saved = localStorage.getItem('particleUniverseSettings');
-            if (saved) {
-                applySettings(JSON.parse(saved));
-            }
-        }
-
-        function applySettings(settings) {
-            CONFIG = { ...CONFIG, ...settings };
-            document.getElementById('cfgParticleDensity').value = CONFIG.particleDensity;
-            document.getElementById('cfgBloomStrength').value = CONFIG.bloomStrength;
-            document.getElementById('cfgLookSensitivity').value = CONFIG.lookSensitivity;
-            document.getElementById('cfgInvertY').checked = CONFIG.invertY;
-            bloomPass.strength = CONFIG.bloomStrength;
-            buildScene();
-        }
-
-        function exportSettings() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(CONFIG));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", "particle-universe-settings.json");
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
-        }
-
-        function importSettings(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const settings = JSON.parse(e.target.result);
-                    applySettings(settings);
-                    saveSettings();
-                } catch (error) {
-                    console.error("Error parsing settings file:", error);
-                }
-            };
-            reader.readAsText(file);
-        }
-
-        // --- Event Listeners Setup ---
-        const setupEventListeners = () => {
-            window.addEventListener('resize', onWindowResize);
-            
-            let isOpen = false;
-            const setOpen = (v) => { isOpen = v; drawer.classList.toggle('open', v); handle.setAttribute('aria-expanded', v); };
-            handle.addEventListener('click', () => setOpen(!isOpen));
-
-            // Config Panel Listeners
-            document.getElementById('regenerateScene').addEventListener('click', () => {
-                CONFIG.particleDensity = parseFloat(document.getElementById('cfgParticleDensity').value);
-                buildScene();
-                saveSettings();
-            });
-            document.getElementById('cfgBloomStrength').addEventListener('input', e => {
-                bloomPass.strength = parseFloat(e.target.value);
-                CONFIG.bloomStrength = bloomPass.strength;
-                saveSettings();
-            });
-            document.getElementById('cfgColorScheme').addEventListener('change', e => { currentColorScheme = e.target.value; applyAllColors(); });
-            document.getElementById('cfgLookSensitivity').addEventListener('input', e => {
-                CONFIG.lookSensitivity = parseFloat(e.target.value);
-                saveSettings();
-            });
-            document.getElementById('cfgInvertY').addEventListener('change', e => {
-                CONFIG.invertY = e.target.checked;
-                saveSettings();
-            });
-            document.getElementById('exportSettings').addEventListener('click', exportSettings);
-            document.getElementById('importSettings').addEventListener('change', importSettings);
-            
-            // --- Joystick Logic ---
-            function setupJoystick(element, onMove, onEnd, onStart) {
-                let active = false;
-                const handleMove = (e) => {
-                    if (!active) return;
-                    e.preventDefault();
-                    const rect = element.getBoundingClientRect();
-                    const touch = e.touches ? e.touches[0] : e;
-                    let x = (touch.clientX - rect.left) / rect.width * 2 - 1;
-                    let y = (touch.clientY - rect.top) / rect.height * 2 - 1;
-                    const length = Math.min(1.0, Math.sqrt(x*x + y*y));
-                    const deadzone = 0.1;
-                    if (length < deadzone) { x = 0; y = 0; } 
-                    else { x = x / (length || 1) * length; y = y / (length || 1) * length; }
-                    element.querySelector('.joystick-nipple').style.transform = `translate(-50%, -50%) translate(${x * 35}px, ${y * 35}px)`;
-                    onMove(x, y);
-                };
-                const handleEnd = () => {
-                    active = false;
-                    element.querySelector('.joystick-nipple').style.transform = 'translate(-50%, -50%)';
-                    onEnd();
-                };
-                const handleStart = (e) => {
-                    active = true;
-                    if (onStart) onStart(e);
-                    handleMove(e);
-                };
-
-                element.addEventListener('dblclick', (e) => { if(onStart) onStart(e); });
-                element.addEventListener('mousedown', handleStart);
-                window.addEventListener('mousemove', handleMove);
-                window.addEventListener('mouseup', handleEnd);
-                element.addEventListener('touchstart', handleStart, { passive: false });
-                window.addEventListener('touchmove', handleMove, { passive: false });
-                window.addEventListener('touchend', handleEnd);
+            key(cx, cz) {
+                return `${cx},${cz}`;
             }
 
-            // Move Joystick
-            const moveJoystickEl = document.getElementById('joystick-move');
-            setupJoystick(
-                moveJoystickEl,
-                (x, y) => {
-                    cameraMove.forward = -y;
-                    cameraMove.right = x;
-                },
-                () => {
-                    clearTimeout(turboHoldTimer);
-                    turboHoldTimer = null;
-                    turboEngaged = false;
-                    moveJoystickEl.classList.remove('turbo');
-                    cameraMove.forward = 0;
-                    cameraMove.right = 0;
-                },
-                (e) => {
-                    const now = new Date().getTime();
-                    if ((e.type === 'touchstart' && now - lastTap < 250) || e.type === 'dblclick') {
-                       // This space can be used for a different double-tap action if needed
+            ensureChunks(worldPos) {
+                const centerX = Math.floor(worldPos.x / CHUNK_SIZE);
+                const centerZ = Math.floor(worldPos.z / CHUNK_SIZE);
+                const needed = new Set();
+
+                for (let dz = -GRID_RADIUS; dz <= GRID_RADIUS; dz++) {
+                    for (let dx = -GRID_RADIUS; dx <= GRID_RADIUS; dx++) {
+                        const cx = centerX + dx;
+                        const cz = centerZ + dz;
+                        const id = this.key(cx, cz);
+                        needed.add(id);
+                        if (!this.chunks.has(id)) {
+                            const mesh = this.buildChunk(cx, cz);
+                            this.chunks.set(id, mesh);
+                            this.scene.add(mesh);
+                        }
                     }
-                    lastTap = now;
-
-                    clearTimeout(turboHoldTimer);
-                    turboHoldTimer = setTimeout(() => {
-                        turboEngaged = true;
-                        moveJoystickEl.classList.add('turbo');
-                    }, 5000);
                 }
-            );
 
-            // Look Joystick
-            setupJoystick(
-                document.getElementById('joystick-look'),
-                (x, y) => {
-                    cameraMove.yaw = -x * CONFIG.lookSensitivity;
-                    cameraMove.pitch = (CONFIG.invertY ? 1 : -1) * -y * CONFIG.lookSensitivity;
-                },
-                () => {
-                    cameraMove.yaw = 0;
-                    cameraMove.pitch = 0;
+                for (const [id, mesh] of this.chunks) {
+                    if (!needed.has(id)) {
+                        this.scene.remove(mesh);
+                        mesh.geometry.dispose();
+                        mesh.material.dispose();
+                        this.chunks.delete(id);
+                    }
                 }
-            );
-        };
-        
-        const onWindowResize = () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            composer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            globeRenderer.setSize(200, 200);
-        };
-        
-        // --- Animation & Map Drawing Loop ---
-        const animate = () => {
-            requestAnimationFrame(animate);
-            const delta = clock.getDelta();
-            const elapsedTime = clock.getElapsedTime();
-            particleMaterial.uniforms.uTime.value = elapsedTime;
-
-            // --- Speed and Acceleration Logic ---
-            const baseSpeed = 40;
-            const turboAcceleration = 150;
-            const maxTurboSpeed = 800;
-            const deceleration = 200;
-
-            if (turboEngaged && (cameraMove.forward !== 0 || cameraMove.right !== 0)) {
-                currentSpeed = Math.min(maxTurboSpeed, currentSpeed + turboAcceleration * delta);
-            } else {
-                currentSpeed = Math.max(0, currentSpeed - deceleration * delta);
-            }
-            const finalSpeed = baseSpeed + currentSpeed;
-
-            // Update Camera
-            euler.setFromQuaternion(camera.quaternion);
-            euler.y -= cameraMove.yaw * delta * 0.1;
-            euler.x -= cameraMove.pitch * delta * 0.1;
-            euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
-            camera.quaternion.setFromEuler(euler);
-            
-            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-            
-            camera.position.addScaledVector(forward, cameraMove.forward * finalSpeed * delta);
-            camera.position.addScaledVector(right, cameraMove.right * finalSpeed * delta);
-
-            // Animate Prism Grid
-            const prismGrid = sceneObjects.find(obj => obj.userData.isPrismGrid);
-            if (prismGrid) {
-                const count = prismGrid.count;
-                const gridSize = Math.ceil(Math.sqrt(count));
-                for (let i = 0; i < count; i++) {
-                    const x = (i % gridSize - gridSize / 2) * 2.5;
-                    const z = (Math.floor(i / gridSize) - gridSize / 2) * 2.5;
-                    const y = Math.sin(x * 0.2 + elapsedTime) * Math.cos(z * 0.2 + elapsedTime * 0.5) * 10;
-                    tempObject.position.set(x, y, z);
-                    tempObject.updateMatrix();
-                    prismGrid.setMatrixAt(i, tempObject.matrix);
-                }
-                prismGrid.instanceMatrix.needsUpdate = true;
             }
 
-            // Draw Globe Map
-            updateGlobe();
-            
-            composer.render();
-        };
+            buildChunk(cx, cz) {
+                const geometry = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, CHUNK_RES, CHUNK_RES);
+                geometry.rotateX(-Math.PI / 2);
 
-        function updateGlobe() {
-            // Update player marker
-            const playerPos = camera.position.clone().normalize();
-            playerMarker.position.copy(playerPos);
+                const positions = geometry.attributes.position;
+                const colors = new Float32Array(positions.count * 3);
+                const color = new THREE.Color();
 
-            // Update object markers
-            objectMarkers.forEach(marker => globe.remove(marker));
-            objectMarkers = [];
-            
-            sceneObjects.forEach(obj => {
-                const objPos = obj.position.clone().normalize();
-                const markerGeo = new THREE.SphereGeometry(0.03, 8, 8);
-                const markerMat = new THREE.MeshBasicMaterial({ color: obj.userData.isPrismGrid ? 0x86aaf0 : 0xff8c00 });
-                const marker = new THREE.Mesh(markerGeo, markerMat);
-                marker.position.copy(objPos);
-                globe.add(marker);
-                objectMarkers.push(marker);
-            });
+                for (let i = 0; i < positions.count; i++) {
+                    const vx = positions.getX(i) + cx * CHUNK_SIZE - this.origin.x;
+                    const vz = positions.getZ(i) + cz * CHUNK_SIZE - this.origin.z;
+                    const worldX = vx + this.origin.x;
+                    const worldZ = vz + this.origin.z;
+                    const h = sampleHeight(worldX, worldZ);
+                    positions.setY(i, h);
 
-            globeRenderer.render(globeScene, globeCamera);
+                    const normalized = THREE.MathUtils.clamp((h + 80) / 220, 0, 1);
+                    const hue = THREE.MathUtils.lerp(0.55, 0.3, normalized);
+                    const lightness = THREE.MathUtils.lerp(0.2, 0.65, normalized);
+                    color.setHSL(hue, 0.55, lightness);
+                    colors[i * 3] = color.r;
+                    colors[i * 3 + 1] = color.g;
+                    colors[i * 3 + 2] = color.b;
+                }
+
+                geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                geometry.computeVertexNormals();
+
+                const material = new THREE.MeshStandardMaterial({
+                    vertexColors: true,
+                    roughness: 0.9,
+                    metalness: 0.05,
+                    flatShading: false
+                });
+
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.receiveShadow = true;
+                mesh.rotation.y = Math.PI;
+                mesh.position.set(
+                    cx * CHUNK_SIZE - this.origin.x,
+                    0,
+                    cz * CHUNK_SIZE - this.origin.z
+                );
+                mesh.userData.chunk = { cx, cz };
+                return mesh;
+            }
+
+            rebase(shift) {
+                for (const mesh of this.chunks.values()) {
+                    mesh.position.sub(shift);
+                }
+            }
         }
 
-        // --- Start Application ---
-        document.getElementById('progress').style.width = '100%';
-        setTimeout(init, 200);
+        const terrain = new TerrainManager(scene, worldOrigin);
 
+        // === State ===
+        let yaw = 0;
+        let pitch = 0;
+        let velocity = 0;
+        let direction = 1;
+        let turboEnabled = false;
+        const pointerState = {
+            activeId: null,
+            holding: false,
+            prevX: 0,
+            prevY: 0,
+            dyAccum: 0
+        };
+
+        let yawSensitivity = 0;
+        let pitchSensitivity = 0;
+
+        function recalcSensitivities() {
+            const viewportWidth = canvas.clientWidth || window.innerWidth;
+            const viewportHeight = canvas.clientHeight || window.innerHeight;
+            const fovRad = THREE.MathUtils.degToRad(camera.fov);
+            yawSensitivity = K_YAW * (fovRad / Math.max(1, viewportWidth));
+            pitchSensitivity = K_PITCH * (fovRad / Math.max(1, viewportHeight));
+        }
+
+        recalcSensitivities();
+
+        // === UI controls ===
+        const directionToggle = document.getElementById('directionToggle');
+        const turboToggle = document.getElementById('turboToggle');
+        const readout = document.getElementById('readout');
+
+        directionToggle.addEventListener('click', () => {
+            direction *= -1;
+            velocity *= -1;
+            const isForward = direction === 1;
+            directionToggle.setAttribute('aria-pressed', String(isForward));
+            directionToggle.textContent = isForward ? 'Forward' : 'Reverse';
+            navigator.vibrate?.(8);
+        });
+
+        turboToggle.addEventListener('click', () => {
+            turboEnabled = !turboEnabled;
+            turboToggle.setAttribute('aria-pressed', String(turboEnabled));
+            turboToggle.textContent = turboEnabled ? 'Turbo On' : 'Turbo Off';
+            navigator.vibrate?.(12);
+        });
+
+        // === Pointer input handling ===
+        function getEventXY(e) {
+            return { x: e.clientX, y: e.clientY };
+        }
+
+        function handlePointerDown(e) {
+            if (pointerState.activeId !== null) return;
+            pointerState.activeId = e.pointerId;
+            pointerState.holding = true;
+            const { x, y } = getEventXY(e);
+            pointerState.prevX = x;
+            pointerState.prevY = y;
+            pointerState.dyAccum = 0;
+            canvas.setPointerCapture(e.pointerId);
+            e.preventDefault();
+        }
+
+        function handlePointerMove(e) {
+            if (e.pointerId !== pointerState.activeId) return;
+            const { x, y } = getEventXY(e);
+            const dx = x - pointerState.prevX;
+            const dy = y - pointerState.prevY;
+            pointerState.prevX = x;
+            pointerState.prevY = y;
+            pointerState.dyAccum += dy;
+
+            yaw += dx * yawSensitivity;
+            if (Math.abs(pointerState.dyAccum) > PITCH_DEADZONE) {
+                pitch = THREE.MathUtils.clamp(pitch + dy * pitchSensitivity, PITCH_CLAMP.min, PITCH_CLAMP.max);
+            }
+
+            e.preventDefault();
+        }
+
+        function stopPointer(e) {
+            if (e.pointerId !== pointerState.activeId) return;
+            pointerState.holding = false;
+            pointerState.activeId = null;
+            pointerState.dyAccum = 0;
+            try { canvas.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+            e.preventDefault();
+        }
+
+        canvas.addEventListener('pointerdown', handlePointerDown, { passive: false });
+        canvas.addEventListener('pointermove', handlePointerMove, { passive: false });
+        canvas.addEventListener('pointerup', stopPointer, { passive: false });
+        canvas.addEventListener('pointercancel', stopPointer, { passive: false });
+
+        window.addEventListener('blur', () => {
+            pointerState.holding = false;
+            pointerState.activeId = null;
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                pointerState.holding = false;
+                pointerState.activeId = null;
+                velocity = 0;
+            }
+        });
+
+        // === Simulation loop ===
+        const forwardVector = new THREE.Vector3();
+        const tmpShift = new THREE.Vector3();
+        let accumulator = 0;
+        let lastTime = performance.now() / 1000;
+
+        function fixedUpdate(dt) {
+            yawPivot.rotation.y = yaw;
+            pitchPivot.rotation.x = pitch;
+
+            const turboFactor = turboEnabled ? SPEED_TURBO_FACTOR : 1.0;
+            const directionFactor = direction === 1 ? 1 : SPEED_REVERSE_FACTOR;
+            const targetSpeed = pointerState.holding
+                ? SPEED_BASE * directionFactor * turboFactor * direction
+                : velocity;
+            if (pointerState.holding) {
+                velocity = THREE.MathUtils.lerp(velocity, targetSpeed, ACCEL_GAIN);
+            } else {
+                velocity = targetSpeed; // preserve momentum
+            }
+
+            forwardVector.set(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+            rigRoot.position.addScaledVector(forwardVector, velocity * dt);
+
+            if (rigRoot.position.length() > REBASE_THRESHOLD) {
+                tmpShift.set(
+                    Math.round(rigRoot.position.x / CHUNK_SIZE) * CHUNK_SIZE,
+                    0,
+                    Math.round(rigRoot.position.z / CHUNK_SIZE) * CHUNK_SIZE
+                );
+                if (tmpShift.lengthSq() > 0) {
+                    rigRoot.position.sub(tmpShift);
+                    worldOrigin.add(tmpShift);
+                    terrain.rebase(tmpShift);
+                }
+            }
+
+            const worldCameraPos = rigRoot.position.clone().add(worldOrigin);
+            terrain.ensureChunks(worldCameraPos);
+        }
+
+        function animate() {
+            const now = performance.now() / 1000;
+            let delta = now - lastTime;
+            lastTime = now;
+            delta = Math.min(delta, MAX_FRAME_DELTA);
+            accumulator += delta;
+
+            while (accumulator >= FIXED_DT) {
+                fixedUpdate(FIXED_DT);
+                accumulator -= FIXED_DT;
+            }
+
+            const interpFactor = accumulator / FIXED_DT;
+            skydome.position.copy(rigRoot.position);
+            skydome.position.y -= 50;
+
+            camera.updateMatrixWorld();
+            renderer.render(scene, camera);
+
+            const displaySpeed = Math.abs(velocity).toFixed(1);
+            readout.textContent = `Speed: ${displaySpeed} m/s${turboEnabled ? ' • Turbo' : ''}`;
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+
+        // === Resize handling ===
+        function onResize() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            renderer.setSize(width, height, false);
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            recalcSensitivities();
+        }
+
+        window.addEventListener('resize', onResize);
+        onResize();
     </script>
 </body>
 </html>
