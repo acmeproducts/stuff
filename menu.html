@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Menu Framework — Alpha v2.2 (Presets in New)</title>
+<style>
+  :root {
+    --bg:#f5f7fb; --fg:#111; --panel:#fff; --accent:#1976d2;
+    --hover:#e3f2fd; --border:#d0d7de; --shadow:0 8px 24px rgba(0,0,0,.12);
+    --radius:12px; --menu-radius:10px; --menu-shadow:0 8px 24px rgba(0,0,0,.15);
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:var(--fg); background:var(--bg); }
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; background:#fff; border-bottom:1px solid var(--border); }
+  #gear { padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; cursor:pointer; font-weight:600; }
+  #gear:active { transform: translateY(1px); }
+  main { padding:20px; }
+  #area {
+    min-height: 60vh; max-width: 95vw; margin: 20px auto; background: #e3f2fd;
+    border-radius: 16px; display: flex; align-items: center; justify-content: center;
+    text-align: center; font-size: 1.15rem; padding: 32px; box-shadow: 0 2px 8px #cfd8dc; user-select: none;
+  }
+
+  /* Context menu */
+  #custom-menu {
+    display:none; position:absolute; background:#fff; border-radius: var(--menu-radius);
+    min-width: 220px; box-shadow: var(--menu-shadow); z-index: 1000;
+    border:1px solid var(--border); font-size: 1rem; overflow:hidden;
+  }
+  .menu-list { list-style:none; margin:0; padding:6px; }
+  .menu-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; cursor:pointer; }
+  .menu-item:hover, .menu-item:active { background: var(--hover); }
+  .menu-item[aria-disabled="true"] { opacity:.5; pointer-events:none; }
+  .menu-label { flex:1; }
+  .menu-sep { height:1px; background:var(--border); margin:6px 0; }
+  .menu-arrow { font-weight:700; }
+  .menu-check { width:1.2em; text-align:center; }
+  .back-row { font-weight:600; }
+
+  /* Modal manager */
+  .modal-mask { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:1100; align-items:center; justify-content:center; padding:16px; }
+  .modal { background:#fff; border-radius:var(--radius); width:min(900px,96vw); border:1px solid var(--border); box-shadow:var(--shadow); }
+  .modal header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border); }
+  .tabs { display:flex; gap:6px; padding:10px 12px; border-bottom:1px solid var(--border); background:#f7f9fb; }
+  .tab { padding:8px 12px; border:1px solid var(--border); border-bottom:none; border-radius:8px 8px 0 0; background:#fff; cursor:pointer; font-weight:600; }
+  .tab[aria-selected="true"] { background: var(--hover); }
+  .tabpanels { padding:16px; }
+  .row { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:12px; }
+  label { font-weight:600; }
+  input[type="text"], select, textarea { width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; }
+  textarea { min-height: 200px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.95rem; }
+  .btn { padding:10px 14px; border:1px solid var(--border); border-radius:10px; background:#fff; cursor:pointer; font-weight:600; }
+  .btn.primary { background: var(--accent); color:#fff; border-color: var(--accent); }
+  .btn.danger { border-color:#b3261e; color:#b3261e; }
+  .note { color:#5a6; font-size:.9rem; }
+  .warn { color:#b3261e; font-size:.9rem; }
+  .list { border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .list table { width:100%; border-collapse:collapse; font-size:.95rem; }
+  .list th, .list td { padding:10px 12px; border-bottom:1px solid var(--border); text-align:left; }
+  .list tr:last-child td { border-bottom:none; }
+  @media (max-width: 640px) { .row > * { flex: 1 1 100%; } }
+  .dark body { background:#111; color:#eee; }
+</style>
+</head>
+<body>
+  <header>
+    <div><strong>Menu Framework — Alpha v2.2</strong></div>
+    <button id="gear" aria-haspopup="true" aria-expanded="false" aria-controls="manager">⚙️ Menu Manager</button>
+  </header>
+
+  <main>
+    <div id="area" tabindex="0" aria-label="Interaction Area">Long-press (mobile) or right-click (desktop) to open the active menu.</div>
+  </main>
+
+  <!-- Context Menu Root -->
+  <div id="custom-menu" role="menu" tabindex="-1" aria-hidden="true"></div>
+
+  <!-- Manager Modal -->
+  <div class="modal-mask" id="manager-mask" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mgr-title" id="manager">
+      <header>
+        <div id="mgr-title">Menu Manager</div>
+        <div class="row">
+          <button class="btn" id="mgr-close">Close</button>
+        </div>
+      </header>
+
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tab-new" aria-controls="panel-new" aria-selected="true">New</button>
+        <button class="tab" role="tab" id="tab-open" aria-controls="panel-open" aria-selected="false">Open/List</button>
+        <button class="tab" role="tab" id="tab-export" aria-controls="panel-export" aria-selected="false">Export</button>
+        <button class="tab" role="tab" id="tab-import" aria-controls="panel-import" aria-selected="false">Import</button>
+      </div>
+
+      <div class="tabpanels">
+        <!-- New -->
+        <section id="panel-new" role="tabpanel" aria-labelledby="tab-new">
+          <div class="row">
+            <label for="preset">Choose a preset</label>
+            <select id="preset">
+              <option value="textTools">Text Tools</option>
+              <option value="insertMenu">Insert Menu</option>
+              <option value="systemControls">System Controls</option>
+              <option value="devTools">Developer Tools</option>
+              <option value="mediaControls">Media Controls</option>
+            </select>
+          </div>
+          <div class="row">
+            <button class="btn" id="load-preset">Load to Editor</button>
+            <span class="note">Tip: Edit the JSON, then Save to make it active.</span>
+          </div>
+          <div class="row">
+            <label for="json">Menu JSON</label>
+            <textarea id="json" spellcheck="false"></textarea>
+          </div>
+          <div class="row">
+            <button class="btn primary" id="save">Save</button>
+            <button class="btn" id="save-close">Save & Close</button>
+            <span id="save-note" class="note"></span>
+          </div>
+        </section>
+
+        <!-- Open/List -->
+        <section id="panel-open" role="tabpanel" aria-labelledby="tab-open" hidden>
+          <div class="list">
+            <table>
+              <thead><tr><th>Info</th><th>Actions</th></tr></thead>
+              <tbody id="summary-body"></tbody>
+            </table>
+          </div>
+          <div class="row">
+            <button class="btn" id="reset-examples">Reset Examples</button>
+            <span class="warn">Resets the current active menu to “Text Tools”.</span>
+          </div>
+        </section>
+
+        <!-- Export -->
+        <section id="panel-export" role="tabpanel" aria-labelledby="tab-export" hidden>
+          <div class="row">
+            <button class="btn" id="export">Export Active</button>
+          </div>
+          <div class="note">Exports a JSON file of the active menu.</div>
+        </section>
+
+        <!-- Import -->
+        <section id="panel-import" role="tabpanel" aria-labelledby="tab-import" hidden>
+          <input type="file" id="importFile" accept=".json,application/json" />
+          <div class="row">
+            <button class="btn" id="import">Choose JSON File</button>
+            <span class="note">Imports and sets as active.</span>
+          </div>
+          <div id="import-msg" class="row note"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Helpers ----------
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const nowISO = () => new Date().toISOString();
+
+  function download(filename, data, mime="application/json"){
+    const blob = new Blob([data], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1500);
+  }
+
+  // ---------- Storage (localStorage for simplicity) ----------
+  const LS_KEY = "menuConfig.v22"; // active config
+  function saveConfig(cfg){ localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }
+  function loadConfig(){
+    try { return JSON.parse(localStorage.getItem(LS_KEY)); }
+    catch(_) { return null; }
+  }
+
+  // ---------- Presets ----------
+  const PRESETS = {
+    textTools: {
+      meta: { name: "Text Tools", updatedAt: nowISO() },
+      root: {
+        type: "submenu", label: "Main", items: [
+          { type:"command", id:"copy", label:"Copy", action:"copy" },
+          { type:"command", id:"paste", label:"Paste", action:"paste" },
+          { type:"command", id:"selectAll", label:"Select All", action:"selectAll" },
+          { type:"separator" },
+          { type:"submenu", label:"Case", items:[
+            { type:"command", id:"case.upper", label:"Uppercase", action:"uppercase" },
+            { type:"command", id:"case.lower", label:"Lowercase", action:"lowercase" }
+          ]}
+        ]
+      }
+    },
+    insertMenu: {
+      meta: { name: "Insert Menu", updatedAt: nowISO() },
+      root: {
+        type:"submenu", label:"Insert", items:[
+          { type:"command", id:"insert.image", label:"Image", action:"alert", message:"Insert → Image" },
+          { type:"command", id:"insert.table", label:"Table", action:"alert", message:"Insert → Table" },
+          { type:"submenu", label:"Shapes", items:[
+            { type:"command", id:"insert.shape.rect", label:"Rectangle", action:"alert", message:"Shapes → Rectangle" },
+            { type:"command", id:"insert.shape.circle", label:"Circle", action:"alert", message:"Shapes → Circle" }
+          ]}
+        ]
+      }
+    },
+    systemControls: {
+      meta: { name: "System Controls", updatedAt: nowISO() },
+      root: {
+        type:"submenu", label:"System", items:[
+          { type:"command", id:"settings", label:"Settings", action:"alert", message:"Open Settings" },
+          { type:"toggle", id:"darkmode", label:"Dark Mode", checked:false, action:"toggleDark" },
+          { type:"command", id:"restart", label:"Restart", action:"alert", message:"Simulated Restart" }
+        ]
+      }
+    },
+    devTools: {
+      meta: { name: "Developer Tools", updatedAt: nowISO() },
+      root: {
+        type:"submenu", label:"Dev", items:[
+          { type:"command", id:"inspect", label:"Inspect Element", action:"inspect" },
+          { type:"command", id:"clearConsole", label:"Clear Console", action:"clearConsole" },
+          { type:"command", id:"logTime", label:"Log Time", action:"logTime" },
+          { type:"separator" },
+          { type:"submenu", label:"Network", items:[
+            { type:"radio", id:"net.mode", label:"Mode", group:"net.mode", value:"online",
+              options: [ {value:"online", label:"Online"}, {value:"offline", label:"Offline"} ],
+              action:"radioGroup"
+            }
+          ]}
+        ]
+      }
+    },
+    mediaControls: {
+      meta: { name: "Media Controls", updatedAt: nowISO() },
+      root: {
+        type:"submenu", label:"Media", items:[
+          { type:"toggle", id:"media.playing", label:"Play/Pause", checked:false, action:"togglePlay" },
+          { type:"submenu", label:"Volume", items:[
+            { type:"command", id:"vol.25", label:"25%", action:"alert", message:"Volume 25%" },
+            { type:"command", id:"vol.50", label:"50%", action:"alert", message:"Volume 50%" },
+            { type:"command", id:"vol.75", label:"75%", action:"alert", message:"Volume 75%" },
+            { type:"command", id:"vol.100", label:"100%", action:"alert", message:"Volume 100%" }
+          ]},
+          { type:"toggle", id:"media.mute", label:"Mute", checked:false, action:"toggleMute" }
+        ]
+      }
+    }
+  };
+
+  function presetJson(id){
+    const obj = JSON.parse(JSON.stringify(PRESETS[id] || PRESETS.textTools));
+    obj.meta.updatedAt = nowISO();
+    return obj;
+  }
+
+  // ---------- Runtime state ----------
+  const area = document.getElementById("area");
+  const menu = document.getElementById("custom-menu");
+  const gear = document.getElementById("gear");
+  const mask = document.getElementById("manager-mask");
+  const tabs = [
+    {btn: document.getElementById("tab-new"), panel: document.getElementById("panel-new")},
+    {btn: document.getElementById("tab-open"), panel: document.getElementById("panel-open")},
+    {btn: document.getElementById("tab-export"), panel: document.getElementById("panel-export")},
+    {btn: document.getElementById("tab-import"), panel: document.getElementById("panel-import")}
+  ];
+
+  let config = loadConfig() || presetJson("textTools");
+  saveConfig(config); // ensure present
+
+  const state = { stack: [], anchor:{x:0,y:0}, longPressTimer:null };
+
+  // ---------- Menu rendering ----------
+  function withinViewport(x,y,w,h){
+    const vw=window.innerWidth, vh=window.innerHeight, m=8;
+    let nx=x, ny=y; if (nx + w > vw - m) nx = Math.max(m, vw - w - m);
+    if (ny + h > vh - m) ny = Math.max(m, vh - h - m);
+    return {x:nx,y:ny};
+  }
+
+  function closeMenu(){ menu.style.display="none"; menu.setAttribute("aria-hidden","true"); menu.innerHTML=""; state.stack.length=0; }
+
+  function doAction(node){
+    switch(node.action){
+      case "copy":
+        navigator.clipboard?.writeText("Sample text").then(()=>alert("Copied sample text")).catch(()=>alert("Copy failed (permissions)."));
+        break;
+      case "paste":
+        alert("Paste requires user gesture & permissions in most browsers.");
+        break;
+      case "selectAll":
+        alert("Simulating Select All");
+        break;
+      case "uppercase":
+        alert("UPPERCASE");
+        break;
+      case "lowercase":
+        alert("lowercase");
+        break;
+      case "toggleDark":
+        node.checked = !node.checked;
+        document.documentElement.style.background = node.checked ? "#0f1115" : "";
+        document.body.style.background = node.checked ? "#0f1115" : "";
+        document.body.style.color = node.checked ? "#eaeef3" : "";
+        break;
+      case "inspect":
+        alert("Use browser DevTools (F12).");
+        break;
+      case "clearConsole":
+        console.clear(); alert("Console cleared.");
+        break;
+      case "logTime":
+        console.log("Time:", new Date().toLocaleString());
+        alert("Logged current time to console.");
+        break;
+      case "radioGroup":
+        // handled by submenu rendering below
+        break;
+      case "togglePlay":
+        node.checked = !node.checked;
+        alert(node.checked ? "Playing…" : "Paused.");
+        break;
+      case "toggleMute":
+        node.checked = !node.checked;
+        alert(node.checked ? "Muted" : "Unmuted");
+        break;
+      case "alert":
+      default:
+        alert(node.message || node.label || "Action");
+    }
+  }
+
+  function renderList(items, opts={showBack:false,label:""}){
+    const ul = document.createElement("ul"); ul.className="menu-list";
+
+    if (opts.showBack){
+      const back = document.createElement("li"); back.className="menu-item back-row"; back.setAttribute("role","menuitem");
+      back.innerHTML = `<span class="menu-label">◀ Back: ${opts.label}</span>`;
+      back.addEventListener("click", () => { state.stack.pop(); openAt(state.anchor.x, state.anchor.y); });
+      ul.appendChild(back); const sep=document.createElement("div"); sep.className="menu-sep"; ul.appendChild(sep);
+    }
+
+    for (const it of items){
+      if (it.type === "separator"){ const s=document.createElement("div"); s.className="menu-sep"; ul.appendChild(s); continue; }
+      const li = document.createElement("li"); li.className="menu-item"; li.setAttribute("role","menuitem"); li.setAttribute("tabindex","-1");
+
+      const left = document.createElement("span"); left.className="menu-check";
+      if (it.type === "toggle") left.textContent = it.checked ? "✓" : "";
+      const label = document.createElement("span"); label.className="menu-label"; label.textContent = it.label || it.id || "(unnamed)";
+      const right = document.createElement("span"); right.className = "menu-arrow";
+      if (it.type === "submenu") right.textContent = "›";
+
+      li.append(left, label, right);
+
+      if (it.enabled === false) li.setAttribute("aria-disabled","true");
+
+      if (it.type === "submenu"){
+        li.addEventListener("click", (e)=>{ e.stopPropagation(); state.stack.push(it); openAt(state.anchor.x, state.anchor.y); });
+      } else if (it.type === "toggle"){
+        li.addEventListener("click", ()=>{ doAction(it); openAt(state.anchor.x, state.anchor.y); });
+      } else if (it.type === "radio"){
+        li.addEventListener("click", ()=>{
+          // Convert radio into submenu of options
+          const opts = (it.options||[]).map(o => ({ type:"command", id:`${it.id}:${o.value}`, label:o.label||o.value, _radioOf: it, _radioVal:o.value }));
+          state.stack.push({ type:"submenu", label: it.label, items: opts, _radioGroup: it });
+          openAt(state.anchor.x, state.anchor.y);
+        });
+      } else if (it.type === "command"){
+        li.addEventListener("click", ()=>{ doAction(it); closeMenu(); });
+      }
+      ul.appendChild(li);
+    }
+    return ul;
+  }
+
+  function currentNode(){
+    let node = config.root;
+    for (const s of state.stack){
+      if (!node || !node.items) break;
+      const next = node.items.find(x => x === s || x.label === s.label);
+      node = next || node;
+    }
+    return node;
+  }
+
+  function openAt(x,y){
+    state.anchor = {x,y};
+    menu.innerHTML = "";
+    const node = currentNode();
+
+    // Special radio submenu rendering (show dot next to selected)
+    if (state.stack.length && state.stack[state.stack.length-1]._radioGroup){
+      const g = state.stack[state.stack.length-1]._radioGroup;
+      const ul = document.createElement("ul"); ul.className="menu-list";
+
+      const back = document.createElement("li"); back.className="menu-item back-row"; back.setAttribute("role","menuitem");
+      back.innerHTML = `<span class="menu-label">◀ Back: ${g.label}</span>`;
+      back.addEventListener("click", ()=>{ state.stack.pop(); openAt(state.anchor.x, state.anchor.y); });
+      ul.appendChild(back); const sep=document.createElement("div"); sep.className="menu-sep"; ul.appendChild(sep);
+
+      for (const o of (g.options || [])){
+        const li = document.createElement("li"); li.className="menu-item"; li.setAttribute("role","menuitem");
+        const dot = document.createElement("span"); dot.className="menu-check"; dot.textContent = (g.value === o.value) ? "●" : "";
+        const lab = document.createElement("span"); lab.className="menu-label"; lab.textContent = o.label || o.value;
+        li.append(dot, lab);
+        li.addEventListener("click", ()=>{ g.value = o.value; openAt(state.anchor.x, state.anchor.y); });
+        ul.appendChild(li);
+      }
+      menu.appendChild(ul);
+    } else {
+      menu.appendChild(renderList(node.items || [], { showBack: state.stack.length>0, label: state.stack.length ? state.stack[state.stack.length-1].label : "" }));
+    }
+
+    menu.style.display = "block"; menu.setAttribute("aria-hidden","false");
+    menu.style.left = x + "px"; menu.style.top = y + "px";
+    const rect = menu.getBoundingClientRect();
+    const pos = withinViewport(x, y, rect.width, rect.height);
+    menu.style.left = pos.x + "px"; menu.style.top = pos.y + "px";
+  }
+
+  // ---------- Open / close wiring ----------
+  function hideMenu(){ closeMenu(); }
+
+  const onContext = (e) => { e.preventDefault(); if (e.target === gear) return; openAt(e.pageX, e.pageY); };
+  area.addEventListener("contextmenu", onContext);
+
+  area.addEventListener("touchstart", (e)=>{
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    if (e.target === gear) return;
+    state.longPressTimer = setTimeout(()=>openAt(t.pageX, t.pageY), 500);
+  });
+  area.addEventListener("touchend", ()=>clearTimeout(state.longPressTimer));
+  area.addEventListener("touchmove", ()=>clearTimeout(state.longPressTimer));
+
+  document.addEventListener("click", (e)=>{
+    const within = menu.contains(e.target);
+    const isGear = e.target === gear || gear.contains(e.target);
+    if (!within && !isGear) hideMenu();
+  });
+  window.addEventListener("resize", hideMenu);
+  window.addEventListener("keydown", (e)=>{ if (e.key==="Escape") hideMenu(); });
+
+  // ---------- Manager ----------
+  function openManager(tabIndex=0){
+    mask.style.display = "flex"; mask.setAttribute("aria-hidden","false");
+    tabs.forEach((t,i)=>{ t.btn.setAttribute("aria-selected", String(i===tabIndex)); t.panel.hidden = i!==tabIndex; });
+    // hydrate editor with current preset default on first open
+    $("#json").value = JSON.stringify(config, null, 2);
+  }
+  function closeManager(){ mask.style.display = "none"; mask.setAttribute("aria-hidden","true"); }
+  $("#mgr-close").addEventListener("click", closeManager);
+  $("#gear").addEventListener("click", ()=>openManager(0));
+  tabs.forEach((t,i)=>t.btn.addEventListener("click",()=>openManager(i)));
+
+  // New: preset loader + save
+  $("#load-preset").addEventListener("click", ()=>{
+    const id = $("#preset").value;
+    const obj = presetJson(id);
+    $("#json").value = JSON.stringify(obj, null, 2);
+    $("#save-note").textContent = `Loaded preset “${obj.meta.name}” into editor.`;
+  });
+  function saveFromEditor(closeAfter){
+    try{
+      const obj = JSON.parse($("#json").value);
+      if (!obj || !obj.root || obj.root.type!=="submenu" || !Array.isArray(obj.root.items)) throw new Error("Root must be { type:'submenu', items:[...] }");
+      obj.meta = obj.meta || {};
+      obj.meta.updatedAt = nowISO();
+      config = obj; saveConfig(config);
+      $("#save-note").textContent = "Saved as active.";
+      if (closeAfter) closeManager();
+    } catch(err){
+      $("#save-note").textContent = "Error: " + err.message;
+    }
+  }
+  $("#save").addEventListener("click", ()=>saveFromEditor(false));
+  $("#save-close").addEventListener("click", ()=>saveFromEditor(true));
+
+  // Open/List summary + reset
+  function refreshSummary(){
+    const tbody = $("#summary-body");
+    tbody.innerHTML = "";
+    const tr = document.createElement("tr");
+    const info = document.createElement("td");
+    info.textContent = `${config?.meta?.name || "Unnamed"} — updated ${config?.meta?.updatedAt || "-"}`;
+    const actions = document.createElement("td");
+    const btnEdit = document.createElement("button"); btnEdit.className="btn"; btnEdit.textContent = "Edit in New";
+    btnEdit.addEventListener("click", ()=>{ $("#json").value = JSON.stringify(config, null, 2); openManager(0); });
+    actions.appendChild(btnEdit);
+    tr.append(info, actions);
+    tbody.appendChild(tr);
+  }
+  $("#reset-examples").addEventListener("click", ()=>{
+    config = presetJson("textTools");
+    saveConfig(config);
+    refreshSummary();
+    $("#save-note").textContent = "Reset to Text Tools.";
+  });
+
+  // Export / Import
+  $("#export").addEventListener("click", ()=>download((config?.meta?.name || "menu")+"-config.json", JSON.stringify(config, null, 2)));
+  $("#import").addEventListener("click", ()=>$("#importFile").click());
+  $("#importFile").addEventListener("change", async(e)=>{
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    try{
+      const text = await f.text();
+      const obj = JSON.parse(text);
+      if (!obj?.root?.items) throw new Error("Invalid structure: missing root.items");
+      config = obj; saveConfig(config);
+      $("#import-msg").textContent = `Imported: ${config?.meta?.name || f.name}`;
+      $("#json").value = JSON.stringify(config, null, 2);
+      refreshSummary();
+    }catch(err){
+      $("#import-msg").textContent = "Import error: " + err.message;
+    }finally{
+      e.target.value = "";
+    }
+  });
+
+  // Boot
+  refreshSummary();
+
+})();
+</script>
+</body>
+</html>
