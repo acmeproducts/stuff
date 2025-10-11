@@ -618,10 +618,10 @@
             opacity: 0;
             pointer-events: none;
         }
-        .gesture-layer .tri.up { clip-path: polygon(0% 0%, 100% 0%, 50% 50%); background: transparent; }
-        .gesture-layer .tri.right { clip-path: polygon(100% 0%, 100% 100%, 50% 50%); background: transparent; }
-        .gesture-layer .tri.down { clip-path: polygon(0% 100%, 100% 100%, 50% 50%); background: transparent; }
-        .gesture-layer .tri.left { clip-path: polygon(0% 0%, 0% 100%, 50% 50%); background: transparent; }
+        .gesture-layer .tri.up { clip-path: polygon(0% 0%, 100% 0%, 50% 32%); background: transparent; }
+        .gesture-layer .tri.right { clip-path: polygon(100% 0%, 100% 100%, 68% 50%); background: transparent; }
+        .gesture-layer .tri.down { clip-path: polygon(0% 100%, 100% 100%, 50% 68%); background: transparent; }
+        .gesture-layer .tri.left { clip-path: polygon(0% 0%, 0% 100%, 32% 50%); background: transparent; }
         .gesture-layer .half.left {
             position: absolute;
             top: 12px;
@@ -866,7 +866,7 @@
                 
                 <div class="grid-row-2">
                     <span class="selection-count">
-                        <span id="selection-text">0 selected</span>
+                        <span id="selection-text">No items selected</span>
                         <button id="deselect-all-btn" class="deselect-all-btn">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -2978,13 +2978,18 @@
                 Utils.showModal('grid-modal');
                 Utils.elements.gridTitle.textContent = STACK_NAMES[stack] || stack;
                 state.grid.stack = stack;
+                Utils.elements.gridContent.scrollTop = 0;
                 state.grid.isDirty = false;
                 const value = Utils.elements.gridSize.value;
                 Utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
                 const anchorSource = stack === state.currentStack ? Core.getCurrentFile() : (state.stacks[stack]?.[0] || null);
                 state.grid.anchorId = anchorSource ? anchorSource.id : null;
                 state.grid.filtered = [];
-                state.grid.selected = state.grid.anchorId ? [state.grid.anchorId] : [];
+                const stackFiles = Array.isArray(state.stacks[stack]) ? state.stacks[stack] : [];
+                const availableIds = new Set(stackFiles.map(file => file.id));
+                state.grid.selected = Array.isArray(state.grid.selected)
+                    ? state.grid.selected.filter(id => availableIds.has(id))
+                    : [];
                 Utils.elements.gridContainer.innerHTML = '';
                 this.clearDragState();
                 this.initializeLazyLoad(stack);
@@ -3082,12 +3087,14 @@
                 if (!anchorId) { return; }
                 const items = Array.isArray(files) ? files : state.grid.lazyLoadState.allFiles || [];
                 const hasAnchor = Array.isArray(items) && items.some(file => file && file.id === anchorId);
-                if (hasAnchor) {
-                    const filtered = state.grid.selected.filter(id => id !== anchorId);
-                    state.grid.selected = [anchorId, ...filtered];
-                } else {
-                    state.grid.selected = state.grid.selected.filter(id => id !== anchorId);
+                const currentSelection = Array.isArray(state.grid.selected) ? state.grid.selected : [];
+                if (!hasAnchor) {
+                    state.grid.selected = currentSelection.filter(id => id !== anchorId);
+                    return;
                 }
+                if (!currentSelection.includes(anchorId)) { return; }
+                const filtered = currentSelection.filter(id => id !== anchorId);
+                state.grid.selected = [anchorId, ...filtered];
             },
 
             applySelectionToRenderedTiles() {
@@ -3350,10 +3357,12 @@
             },
             
             updateSelectionUI() {
-                const count = state.grid.selected.length;
+                const selection = Array.isArray(state.grid.selected) ? state.grid.selected : [];
+                const count = selection.length;
                 const buttons = [Utils.elements.tagSelected, Utils.elements.notesSelected, Utils.elements.moveSelected,
                                Utils.elements.deleteSelected, Utils.elements.exportSelected, Utils.elements.folderSelected];
-                Utils.elements.selectionText.textContent = `${count} selected`;
+                const label = count === 0 ? 'No items selected' : `${count} item${count === 1 ? '' : 's'} selected`;
+                Utils.elements.selectionText.textContent = label;
                 buttons.forEach(btn => { if (btn) btn.disabled = (count === 0); });
             },
             
@@ -4037,12 +4046,15 @@
             hubPressActive: false,
             overlay: null,
             lastHubTap: { time: 0, x: 0, y: 0 },
+            activePointerId: null,
+            activePointerType: null,
             DOUBLE_TAP_MAX_INTERVAL: 320,
             DOUBLE_TAP_MAX_DISTANCE: 28,
             TAP_DISTANCE_THRESHOLD: 26,
             TAP_DURATION_THRESHOLD: 260,
             TRAIL_INTERVAL_MS: 12,
             TRAIL_LIFETIME_MS: 1050,
+            HUB_RADIUS_FACTOR: 0.18,
             trailThrottle: null,
             init() {
                 this.edgeElements = [Utils.elements.edgeTop, Utils.elements.edgeBottom, Utils.elements.edgeLeft, Utils.elements.edgeRight];
@@ -4051,13 +4063,12 @@
                 this.initGestureOverlay();
             },
             setupEventListeners() {
-                Utils.elements.imageViewport.addEventListener('mousedown', this.handleStart.bind(this));
-                document.addEventListener('mousemove', this.handleMove.bind(this));
-                document.addEventListener('mouseup', this.handleEnd.bind(this));
-                Utils.elements.imageViewport.addEventListener('touchstart', this.handleStart.bind(this), { passive: false });
-                document.addEventListener('touchmove', this.handleMove.bind(this), { passive: false });
-                document.addEventListener('touchend', this.handleEnd.bind(this), { passive: false });
-                document.addEventListener('touchcancel', this.handleEnd.bind(this), { passive: false });
+                const viewport = Utils.elements.imageViewport;
+                if (!viewport) return;
+                viewport.addEventListener('pointerdown', this.handleStart.bind(this));
+                document.addEventListener('pointermove', this.handleMove.bind(this));
+                document.addEventListener('pointerup', this.handleEnd.bind(this));
+                document.addEventListener('pointercancel', this.handleEnd.bind(this));
             },
             setupPinchZoom() {
                 Utils.elements.centerImage.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
@@ -4147,7 +4158,7 @@
                 if (!rect.width || !rect.height) return false;
                 const cx = rect.left + rect.width / 2;
                 const cy = rect.top + rect.height / 2;
-                const radius = Math.min(rect.width, rect.height) * 0.12;
+                const radius = Math.min(rect.width, rect.height) * this.HUB_RADIUS_FACTOR;
                 return Math.hypot(clientX - cx, clientY - cy) <= radius;
             },
             pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
@@ -4169,23 +4180,34 @@
                 if (!viewport) return null;
                 const rect = viewport.getBoundingClientRect();
                 if (!rect.width || !rect.height) return null;
+                const cx = rect.left + rect.width / 2;
+                const cy = rect.top + rect.height / 2;
+                const radius = Math.min(rect.width, rect.height) * this.HUB_RADIUS_FACTOR;
+                if (Math.hypot(clientX - cx, clientY - cy) <= radius) return null;
                 const fx = (clientX - rect.left) / rect.width;
                 const fy = (clientY - rect.top) / rect.height;
                 const clamp = (val) => Math.max(0, Math.min(1, val));
                 const px = clamp(fx);
                 const py = clamp(fy);
-                const cx = 0.5, cy = 0.5;
-                const inUp = this.pointInTriangle(px, py, 0, 0, 1, 0, cx, cy);
-                const inRight = this.pointInTriangle(px, py, 1, 0, 1, 1, cx, cy);
-                const inDown = this.pointInTriangle(px, py, 0, 1, 1, 1, cx, cy);
-                const inLeft = this.pointInTriangle(px, py, 0, 0, 0, 1, cx, cy);
+                const normRadiusX = radius / rect.width;
+                const normRadiusY = radius / rect.height;
+                const centerX = 0.5;
+                const centerY = 0.5;
+                const apexUpY = Math.max(0, centerY - normRadiusY);
+                const apexDownY = Math.min(1, centerY + normRadiusY);
+                const apexLeftX = Math.max(0, centerX - normRadiusX);
+                const apexRightX = Math.min(1, centerX + normRadiusX);
+                const inUp = this.pointInTriangle(px, py, 0, 0, 1, 0, centerX, apexUpY);
+                const inRight = this.pointInTriangle(px, py, 1, 0, 1, 1, apexRightX, centerY);
+                const inDown = this.pointInTriangle(px, py, 0, 1, 1, 1, centerX, apexDownY);
+                const inLeft = this.pointInTriangle(px, py, 0, 0, 0, 1, apexLeftX, centerY);
                 if (inUp && !inRight && !inDown && !inLeft) return 'up';
                 if (inRight && !inUp && !inDown && !inLeft) return 'right';
                 if (inDown && !inUp && !inRight && !inLeft) return 'down';
                 if (inLeft && !inUp && !inRight && !inDown) return 'left';
                 if (inUp || inRight || inDown || inLeft) {
-                    const dx = px - 0.5;
-                    const dy = py - 0.5;
+                    const dx = px - centerX;
+                    const dy = py - centerY;
                     if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'right' : 'left';
                     return dy > 0 ? 'down' : 'up';
                 }
@@ -4236,14 +4258,60 @@
                     Utils.showToast(`Flick failed: ${error.message}`, 'error', true);
                 }
             },
+            getPointerDetails(e, preferChangedTouches = false) {
+                if (e.pointerId !== undefined) {
+                    return {
+                        id: e.pointerId,
+                        type: e.pointerType || 'mouse',
+                        clientX: e.clientX,
+                        clientY: e.clientY
+                    };
+                }
+                const touchList = preferChangedTouches ? e.changedTouches : e.touches;
+                if (touchList && touchList.length) {
+                    const touch = touchList[0];
+                    return {
+                        id: touch.identifier,
+                        type: 'touch',
+                        clientX: touch.clientX,
+                        clientY: touch.clientY
+                    };
+                }
+                return {
+                    id: 'mouse',
+                    type: 'mouse',
+                    clientX: e.clientX,
+                    clientY: e.clientY
+                };
+            },
+            isActivePointer(e) {
+                if (this.activePointerId === null) return false;
+                if (e.pointerId !== undefined) {
+                    return e.pointerId === this.activePointerId;
+                }
+                if (e.changedTouches && e.changedTouches.length) {
+                    return Array.from(e.changedTouches).some(t => t.identifier === this.activePointerId);
+                }
+                return this.activePointerId === 'mouse';
+            },
+            resetActivePointer() {
+                this.activePointerId = null;
+                this.activePointerType = null;
+            },
             handleStart(e) {
-                if (e.touches && (e.touches.length > 1 || state.isPinching)) return;
+                const pointer = this.getPointerDetails(e);
+                if (pointer.type === 'touch' && state.isPinching) return;
                 if (state.currentScale > 1.1) return;
-                const point = e.touches ? e.touches[0] : e;
-                const hubInteraction = this.isInHub(point.clientX, point.clientY);
+                if (pointer.type === 'touch' && e.isPrimary === false) return;
+                if (this.activePointerId !== null && this.activePointerId !== pointer.id) return;
+                if (this.activePointerType && this.activePointerType !== pointer.type) return;
+                if (pointer.type === 'touch' && e.touches && e.touches.length > 1) return;
+                const hubInteraction = this.isInHub(pointer.clientX, pointer.clientY);
                 if (!hubInteraction && state.stacks[state.currentStack].length === 0) return;
-                this.startPos = { x: point.clientX, y: point.clientY };
-                this.currentPos = { x: point.clientX, y: point.clientY };
+                this.activePointerId = pointer.id;
+                this.activePointerType = pointer.type;
+                this.startPos = { x: pointer.clientX, y: pointer.clientY };
+                this.currentPos = { x: pointer.clientX, y: pointer.clientY };
                 this.startTimestamp = performance.now();
                 this.gestureStarted = false;
                 state.isDragging = true;
@@ -4251,18 +4319,28 @@
                 if (!hubInteraction) {
                     Utils.elements.centerImage.classList.add('dragging');
                 }
-                this.spawnRipple(point.clientX, point.clientY);
-                this.queueTrail(point.clientX, point.clientY);
+                this.spawnRipple(pointer.clientX, pointer.clientY);
+                this.queueTrail(pointer.clientX, pointer.clientY);
             },
             handleMove(e) {
                 if (!state.isDragging) return;
+                if (this.activePointerId === null) return;
+                if (e.pointerId !== undefined && e.pointerId !== this.activePointerId) return;
+                if (this.activePointerType === 'touch' && state.isPinching) {
+                    state.isDragging = false;
+                    Utils.elements.centerImage.classList.remove('dragging');
+                    this.hideAllEdgeGlows();
+                    this.resetActivePointer();
+                    return;
+                }
                 if (e.touches && e.touches.length > 1) {
                     state.isDragging = false; Utils.elements.centerImage.classList.remove('dragging');
-                    this.hideAllEdgeGlows(); return;
+                    this.hideAllEdgeGlows(); this.resetActivePointer(); return;
                 }
                 e.preventDefault();
-                const point = e.touches ? e.touches[0] : e;
-                this.currentPos = { x: point.clientX, y: point.clientY };
+                const pointer = this.getPointerDetails(e);
+                this.currentPos = { x: pointer.clientX, y: pointer.clientY };
+                const point = pointer;
                 this.queueTrail(point.clientX, point.clientY);
                 if (this.hubPressActive) { return; }
                 if (state.imageFiles.length === 0) return;
@@ -4280,10 +4358,13 @@
                 }
             },
             handleEnd(e) {
-                if (!state.isDragging) return;
+                const matchesPointer = this.isActivePointer(e);
+                if (!matchesPointer) return;
+                if (!state.isDragging) { this.resetActivePointer(); return; }
                 state.isDragging = false;
                 Utils.elements.centerImage.classList.remove('dragging');
-                const point = e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : e;
+                const pointer = this.getPointerDetails(e, true);
+                const point = pointer;
                 if (point) { this.currentPos = { x: point.clientX, y: point.clientY }; }
                 this.spawnTrail(this.currentPos.x, this.currentPos.y);
                 const deltaX = this.currentPos.x - this.startPos.x;
@@ -4314,6 +4395,7 @@
                     this.hideAllEdgeGlows();
                     this.hubPressActive = false;
                     this.gestureStarted = false;
+                    this.resetActivePointer();
                     return;
                 }
 
@@ -4339,6 +4421,7 @@
                 this.hideAllEdgeGlows();
                 this.hubPressActive = false;
                 this.gestureStarted = false;
+                this.resetActivePointer();
             },
             getDistance(touch1, touch2) { const dx = touch1.clientX - touch2.clientX; const dy = touch1.clientY - touch2.clientY; return Math.sqrt(dx * dx + dy * dy); },
             getCenter(touch1, touch2) { return { x: (touch1.clientX + touch2.clientX) / 2, y: (touch1.clientY + touch2.clientY) / 2 }; },
