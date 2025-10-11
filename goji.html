@@ -883,7 +883,7 @@
                 
                 <div class="grid-row-2">
                     <span class="selection-count">
-                        <span id="selection-text">0 selected</span>
+                        <span id="selection-text">No items selected</span>
                         <button id="deselect-all-btn" class="deselect-all-btn">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -1057,7 +1057,8 @@
             folderMoveMode: { active: false, files: [] },
             activeRequests: new AbortController(),
             sessionVisitedFolders: new Set(),
-            modalLayout: {}
+            modalLayout: {},
+            isReturningToFolders: false
         };
         const Utils = {
             elements: {},
@@ -2641,17 +2642,37 @@
                 Utils.showScreen('app-container');
             },
             async returnToFolderSelection() {
+                if (state.isReturningToFolders) return;
+
+                state.isReturningToFolders = true;
+                const { backButton, backButtonSpinner } = Utils.elements;
+
+                if (backButton) {
+                    backButton.disabled = true;
+                }
+                if (backButtonSpinner) {
+                    backButtonSpinner.style.display = 'inline-block';
+                }
+
                 try {
                     if (state.syncManager) {
                         state.syncManager.requestSync();
                     }
-                    state.activeRequests.abort(); 
+                    state.activeRequests.abort();
                     this.resetViewState();
                     Utils.showScreen('folder-screen');
                     await Folders.load();
                 } catch(error) {
                     Utils.showToast(`Error returning to folders: ${error.message}`, 'error', true);
                     Utils.showScreen('folder-screen');
+                } finally {
+                    if (backButton) {
+                        backButton.disabled = false;
+                    }
+                    if (backButtonSpinner) {
+                        backButtonSpinner.style.display = 'none';
+                    }
+                    state.isReturningToFolders = false;
                 }
             },
             resetViewState() {
@@ -2849,19 +2870,6 @@
                     Grid.syncWithCurrentImage(currentFile.id);
                     const detailsContainer = Utils.elements.detailsModal;
                     if (detailsContainer && !detailsContainer.classList.contains('hidden')) {
-                        Details.populateAllTabs(currentFile);
-                        if (metadataNeeded && metadataPromise && typeof metadataPromise.then === 'function') {
-                            metadataPromise.then(() => {
-                                const container = Utils.elements.detailsModal;
-                                if (!container || container.classList.contains('hidden')) return;
-                                const activeFile = this.getCurrentFile();
-                                if (!activeFile || activeFile.id !== currentFile.id) return;
-                                Details.populateAllTabs(activeFile);
-                            }).catch(error => {
-                                const message = error?.message || error;
-                                console.warn(`Metadata refresh failed for ${currentFile.name}: ${message}`);
-                            });
-                        }
                     }
                 } catch (error) {
                      Utils.showToast(`Error loading image: ${error.message}`, 'error', true);
@@ -3019,13 +3027,18 @@
                 Utils.showModal('grid-modal');
                 Utils.elements.gridTitle.textContent = STACK_NAMES[stack] || stack;
                 state.grid.stack = stack;
+                Utils.elements.gridContent.scrollTop = 0;
                 state.grid.isDirty = false;
                 const value = Utils.elements.gridSize.value;
                 Utils.elements.gridContainer.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
                 const anchorSource = stack === state.currentStack ? Core.getCurrentFile() : (state.stacks[stack]?.[0] || null);
                 state.grid.anchorId = anchorSource ? anchorSource.id : null;
                 state.grid.filtered = [];
-                state.grid.selected = state.grid.anchorId ? [state.grid.anchorId] : [];
+                const stackFiles = Array.isArray(state.stacks[stack]) ? state.stacks[stack] : [];
+                const availableIds = new Set(stackFiles.map(file => file.id));
+                state.grid.selected = Array.isArray(state.grid.selected)
+                    ? state.grid.selected.filter(id => availableIds.has(id))
+                    : [];
                 Utils.elements.gridContainer.innerHTML = '';
                 this.clearDragState();
                 this.initializeLazyLoad(stack);
@@ -3123,12 +3136,14 @@
                 if (!anchorId) { return; }
                 const items = Array.isArray(files) ? files : state.grid.lazyLoadState.allFiles || [];
                 const hasAnchor = Array.isArray(items) && items.some(file => file && file.id === anchorId);
-                if (hasAnchor) {
-                    const filtered = state.grid.selected.filter(id => id !== anchorId);
-                    state.grid.selected = [anchorId, ...filtered];
-                } else {
-                    state.grid.selected = state.grid.selected.filter(id => id !== anchorId);
+                const currentSelection = Array.isArray(state.grid.selected) ? state.grid.selected : [];
+                if (!hasAnchor) {
+                    state.grid.selected = currentSelection.filter(id => id !== anchorId);
+                    return;
                 }
+                if (!currentSelection.includes(anchorId)) { return; }
+                const filtered = currentSelection.filter(id => id !== anchorId);
+                state.grid.selected = [anchorId, ...filtered];
             },
 
             applySelectionToRenderedTiles() {
@@ -3391,10 +3406,12 @@
             },
             
             updateSelectionUI() {
-                const count = state.grid.selected.length;
+                const selection = Array.isArray(state.grid.selected) ? state.grid.selected : [];
+                const count = selection.length;
                 const buttons = [Utils.elements.tagSelected, Utils.elements.notesSelected, Utils.elements.moveSelected,
                                Utils.elements.deleteSelected, Utils.elements.exportSelected, Utils.elements.folderSelected];
-                Utils.elements.selectionText.textContent = `${count} selected`;
+                const label = count === 0 ? 'No items selected' : `${count} item${count === 1 ? '' : 's'} selected`;
+                Utils.elements.selectionText.textContent = label;
                 buttons.forEach(btn => { if (btn) btn.disabled = (count === 0); });
             },
             
@@ -4084,6 +4101,8 @@
                 Utils.elements.actionConfirm.disabled = true; Utils.elements.actionCancel.textContent = "Close";
             },
             executeFolderMove() {
+                if (state.isReturningToFolders) return;
+
                 state.folderMoveMode = { active: true, files: [...state.grid.selected], };
                 this.hide(); Grid.close(); App.returnToFolderSelection();
                 Utils.showToast(`Select destination folder for ${state.folderMoveMode.files.length} images`, 'info', true);
@@ -4098,6 +4117,8 @@
             hubPressActive: false,
             overlay: null,
             lastHubTap: { time: 0, x: 0, y: 0 },
+            activePointerId: null,
+            activePointerType: null,
             DOUBLE_TAP_MAX_INTERVAL: 320,
             DOUBLE_TAP_MAX_DISTANCE: 28,
             TAP_DISTANCE_THRESHOLD: 26,
@@ -4113,13 +4134,12 @@
                 this.initGestureOverlay();
             },
             setupEventListeners() {
-                Utils.elements.imageViewport.addEventListener('mousedown', this.handleStart.bind(this));
-                document.addEventListener('mousemove', this.handleMove.bind(this));
-                document.addEventListener('mouseup', this.handleEnd.bind(this));
-                Utils.elements.imageViewport.addEventListener('touchstart', this.handleStart.bind(this), { passive: false });
-                document.addEventListener('touchmove', this.handleMove.bind(this), { passive: false });
-                document.addEventListener('touchend', this.handleEnd.bind(this), { passive: false });
-                document.addEventListener('touchcancel', this.handleEnd.bind(this), { passive: false });
+                const viewport = Utils.elements.imageViewport;
+                if (!viewport) return;
+                viewport.addEventListener('pointerdown', this.handleStart.bind(this));
+                document.addEventListener('pointermove', this.handleMove.bind(this));
+                document.addEventListener('pointerup', this.handleEnd.bind(this));
+                document.addEventListener('pointercancel', this.handleEnd.bind(this));
             },
             setupPinchZoom() {
                 Utils.elements.centerImage.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
@@ -4309,14 +4329,60 @@
                     Utils.showToast(`Flick failed: ${error.message}`, 'error', true);
                 }
             },
+            getPointerDetails(e, preferChangedTouches = false) {
+                if (e.pointerId !== undefined) {
+                    return {
+                        id: e.pointerId,
+                        type: e.pointerType || 'mouse',
+                        clientX: e.clientX,
+                        clientY: e.clientY
+                    };
+                }
+                const touchList = preferChangedTouches ? e.changedTouches : e.touches;
+                if (touchList && touchList.length) {
+                    const touch = touchList[0];
+                    return {
+                        id: touch.identifier,
+                        type: 'touch',
+                        clientX: touch.clientX,
+                        clientY: touch.clientY
+                    };
+                }
+                return {
+                    id: 'mouse',
+                    type: 'mouse',
+                    clientX: e.clientX,
+                    clientY: e.clientY
+                };
+            },
+            isActivePointer(e) {
+                if (this.activePointerId === null) return false;
+                if (e.pointerId !== undefined) {
+                    return e.pointerId === this.activePointerId;
+                }
+                if (e.changedTouches && e.changedTouches.length) {
+                    return Array.from(e.changedTouches).some(t => t.identifier === this.activePointerId);
+                }
+                return this.activePointerId === 'mouse';
+            },
+            resetActivePointer() {
+                this.activePointerId = null;
+                this.activePointerType = null;
+            },
             handleStart(e) {
-                if (e.touches && (e.touches.length > 1 || state.isPinching)) return;
+                const pointer = this.getPointerDetails(e);
+                if (pointer.type === 'touch' && state.isPinching) return;
                 if (state.currentScale > 1.1) return;
-                const point = e.touches ? e.touches[0] : e;
-                const hubInteraction = this.isInHub(point.clientX, point.clientY);
+                if (pointer.type === 'touch' && e.isPrimary === false) return;
+                if (this.activePointerId !== null && this.activePointerId !== pointer.id) return;
+                if (this.activePointerType && this.activePointerType !== pointer.type) return;
+                if (pointer.type === 'touch' && e.touches && e.touches.length > 1) return;
+                const hubInteraction = this.isInHub(pointer.clientX, pointer.clientY);
                 if (!hubInteraction && state.stacks[state.currentStack].length === 0) return;
-                this.startPos = { x: point.clientX, y: point.clientY };
-                this.currentPos = { x: point.clientX, y: point.clientY };
+                this.activePointerId = pointer.id;
+                this.activePointerType = pointer.type;
+                this.startPos = { x: pointer.clientX, y: pointer.clientY };
+                this.currentPos = { x: pointer.clientX, y: pointer.clientY };
                 this.startTimestamp = performance.now();
                 this.gestureStarted = false;
                 state.isDragging = true;
@@ -4324,18 +4390,28 @@
                 if (!hubInteraction) {
                     Utils.elements.centerImage.classList.add('dragging');
                 }
-                this.spawnRipple(point.clientX, point.clientY);
-                this.queueTrail(point.clientX, point.clientY);
+                this.spawnRipple(pointer.clientX, pointer.clientY);
+                this.queueTrail(pointer.clientX, pointer.clientY);
             },
             handleMove(e) {
                 if (!state.isDragging) return;
+                if (this.activePointerId === null) return;
+                if (e.pointerId !== undefined && e.pointerId !== this.activePointerId) return;
+                if (this.activePointerType === 'touch' && state.isPinching) {
+                    state.isDragging = false;
+                    Utils.elements.centerImage.classList.remove('dragging');
+                    this.hideAllEdgeGlows();
+                    this.resetActivePointer();
+                    return;
+                }
                 if (e.touches && e.touches.length > 1) {
                     state.isDragging = false; Utils.elements.centerImage.classList.remove('dragging');
-                    this.hideAllEdgeGlows(); return;
+                    this.hideAllEdgeGlows(); this.resetActivePointer(); return;
                 }
                 e.preventDefault();
-                const point = e.touches ? e.touches[0] : e;
-                this.currentPos = { x: point.clientX, y: point.clientY };
+                const pointer = this.getPointerDetails(e);
+                this.currentPos = { x: pointer.clientX, y: pointer.clientY };
+                const point = pointer;
                 this.queueTrail(point.clientX, point.clientY);
                 if (this.hubPressActive) { return; }
                 if (state.imageFiles.length === 0) return;
@@ -4353,10 +4429,13 @@
                 }
             },
             handleEnd(e) {
-                if (!state.isDragging) return;
+                const matchesPointer = this.isActivePointer(e);
+                if (!matchesPointer) return;
+                if (!state.isDragging) { this.resetActivePointer(); return; }
                 state.isDragging = false;
                 Utils.elements.centerImage.classList.remove('dragging');
-                const point = e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : e;
+                const pointer = this.getPointerDetails(e, true);
+                const point = pointer;
                 if (point) { this.currentPos = { x: point.clientX, y: point.clientY }; }
                 this.spawnTrail(this.currentPos.x, this.currentPos.y);
                 const deltaX = this.currentPos.x - this.startPos.x;
@@ -4387,6 +4466,7 @@
                     this.hideAllEdgeGlows();
                     this.hubPressActive = false;
                     this.gestureStarted = false;
+                    this.resetActivePointer();
                     return;
                 }
 
@@ -4412,6 +4492,7 @@
                 this.hideAllEdgeGlows();
                 this.hubPressActive = false;
                 this.gestureStarted = false;
+                this.resetActivePointer();
             },
             getDistance(touch1, touch2) { const dx = touch1.clientX - touch2.clientX; const dy = touch1.clientY - touch2.clientY; return Math.sqrt(dx * dx + dy * dy); },
             getCenter(touch1, touch2) { return { x: (touch1.clientX + touch2.clientX) / 2, y: (touch1.clientY + touch2.clientY) / 2 }; },
@@ -4580,6 +4661,8 @@
             },
 
             async handleFolderMoveSelection(folderId, folderName) {
+                if (state.isReturningToFolders) return;
+
                 const filesToMove = state.folderMoveMode.files;
                 Utils.showScreen('loading-screen'); Utils.updateLoadingProgress(0, filesToMove.length);
                 try {
@@ -5105,7 +5188,10 @@
                 Utils.elements.authBackButton.addEventListener('click', () => App.backToProviderSelection());
             },
             setupFolderManagement() {
-                Utils.elements.backButton.addEventListener('click', () => App.returnToFolderSelection());
+                Utils.elements.backButton.addEventListener('click', () => {
+                    if (state.isReturningToFolders) return;
+                    App.returnToFolderSelection();
+                });
 
                 Utils.elements.folderBackButton.addEventListener('click', () => App.backToProviderSelection());
                 Utils.elements.folderLogoutButton.addEventListener('click', async () => {
@@ -5138,6 +5224,7 @@
                 Utils.elements.cancelLoading.addEventListener('click', () => {
                     if (state.metadataExtractor) { state.metadataExtractor.abort(); }
                     state.activeRequests.abort();
+                    if (state.isReturningToFolders) return;
                     App.returnToFolderSelection();
                     Utils.showToast('Loading cancelled', 'info', true);
                 });
@@ -5184,7 +5271,10 @@
                         Utils.elements.selectAnotherFolderBtn.style.display = 'block';
                     }
                 });
-                Utils.elements.selectAnotherFolderBtn.addEventListener('click', () => { App.returnToFolderSelection(); });
+                Utils.elements.selectAnotherFolderBtn.addEventListener('click', () => {
+                    if (state.isReturningToFolders) return;
+                    App.returnToFolderSelection();
+                });
             },
             setupPillCounters() {
                 STACKS.forEach(stackName => {
@@ -5365,7 +5455,10 @@
                         }
                         switch (e.key) {
                             case 'Tab': e.preventDefault(); UI.cycleThroughPills(); break;
-                            case 'Escape': await App.returnToFolderSelection(); break;
+                            case 'Escape':
+                                if (state.isReturningToFolders) break;
+                                await App.returnToFolderSelection();
+                                break;
                         }
                     } catch (error) {
                         Utils.showToast(`Keyboard command failed: ${error.message}`, 'error', true);
