@@ -1,4 +1,4 @@
-<!-- Baseline ui-v9b.html 02-Oct-25 -->
+<!-- Orbital8-O-2025-10-12 base base base delstack fav trashcan broken 09:30 AM · V9b (restored classic workflow) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -694,7 +694,7 @@
             </div>
             <div id="provider-status" class="status info">Choose your preferred cloud storage</div>
         </div>
-        <div class="app-footer">baseline: 2025-10-12/02-Oct-25</div>
+        <div class="app-footer">Orbital8-O-2025-10-12 09:30 AM · v9</div>
     </div>
     
     <!-- Unified Auth Screen -->
@@ -709,7 +709,7 @@
             <button class="button" id="auth-back-button" style="background: rgba(128,128,128,0.3);">← Back</button>
             <div id="auth-status" class="status info"></div>
         </div>
-        <div class="app-footer">baseline: 2025-10-12/02-Oct-25</div>
+        <div class="app-footer">Orbital8-O-2025-10-12 09:30 AM · v9</div>
     </div>
     
     <!-- Unified Folder Screen -->
@@ -724,7 +724,7 @@
                 <button class="folder-button danger" id="folder-logout-button">Disconnect</button>
             </div>
         </div>
-        <div class="app-footer">baseline: 2025-10-12/02-Oct-25</div>
+        <div class="app-footer">Orbital8-O-2025-10-12 09:30 AM · v9</div>
     </div>
     
     <!-- Loading Screen -->
@@ -738,7 +738,7 @@
             </div>
             <button class="button" id="cancel-loading" style="background: rgba(239, 68, 68, 0.8); margin-top: 16px;">Cancel</button>
         </div>
-        <div class="app-footer">baseline: 2025-10-12/02-Oct-25</div>
+        <div class="app-footer">Orbital8-O-2025-10-12 09:30 AM · v9</div>
     </div>
     
     <!-- Main App Container -->
@@ -808,7 +808,7 @@
         </button>
         
         <div id="toast" class="toast"></div>
-        <div class="app-footer">baseline: 2025-10-12/02-Oct-25</div>
+        <div class="app-footer">Orbital8-O-2025-10-12 09:30 AM · v9</div>
     </div>
     
     <!-- Enhanced Grid Modal -->
@@ -1219,7 +1219,7 @@
             async setImageSrc(img, file) {
                 const loadId = file.id + '_' + Date.now();
                 state.currentImageLoadId = loadId;
-                const imageUrl = this.getPreferredImageUrl(file);
+                let imageUrl = this.getPreferredImageUrl(file);
                 return new Promise((resolve) => {
                     img.onload = () => {
                         if (state.currentImageLoadId !== loadId) return;
@@ -1227,8 +1227,8 @@
                     };
                     img.onerror = () => {
                         if (state.currentImageLoadId !== loadId) return;
-                        const fallbackUrl = this.getFallbackImageUrl(file);
-
+                        let fallbackUrl = this.getFallbackImageUrl(file);
+                        
                         img.onerror = () => {
                             if (state.currentImageLoadId !== loadId) return;
                             img.src = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'150\' height=\'150\' viewBox=\'0 0 150 150\' fill=\'none\'%3E%3Crect width=\'150\' height=\'150\' fill=\'%23E5E7EB\'/%3E%3Cpath d=\'M65 60H85V90H65V60Z\' fill=\'%239CA3AF\'/%3E%3Ccircle cx=\'75\' cy=\'45\' r=\'10\' fill=\'%239CA3AF\'/%3E%3C/svg%3E';
@@ -1240,6 +1240,7 @@
                     img.alt = file.name || 'Image';
                 });
             },
+            
             getPreferredImageUrl(file) {
                 if (state.providerType === 'googledrive') {
                     if (file.thumbnailLink) {
@@ -1256,6 +1257,16 @@
 
             getFallbackImageUrl(file) {
                 if (state.providerType === 'googledrive') {
+                    const directCandidates = [
+                        DriveLinkHelper.normalizeToAssetUrl(file.driveApiDownloadUrl, file.id),
+                        DriveLinkHelper.normalizeToAssetUrl(file.webContentLink, file.id),
+                        DriveLinkHelper.normalizeToAssetUrl(file.downloadUrl, file.id),
+                        DriveLinkHelper.normalizeToAssetUrl(file.viewUrl, file.id),
+                        DriveLinkHelper.normalizeToAssetUrl(file.webViewLink, file.id),
+                        DriveLinkHelper.buildUcDownloadUrl(file.id),
+                        DriveLinkHelper.buildApiDownloadUrl(file.id)
+                    ];
+                    return directCandidates.find(url => typeof url === 'string' && url.length > 0);
                 } else { // OneDrive
                     return file.downloadUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
                 }
@@ -4362,7 +4373,7 @@
                 if (state.isReturningToFolders) return;
 
                 state.isReturningToFolders = true;
-                const { backButton, backButtonSpinner, emptyState } = Utils.elements;
+                const { backButton, backButtonSpinner } = Utils.elements;
 
                 if (backButton) {
                     backButton.disabled = true;
@@ -4370,20 +4381,16 @@
                 if (backButtonSpinner) {
                     backButtonSpinner.style.display = 'inline-block';
                 }
-                if (emptyState) {
-                    emptyState.classList.add('hidden');
-                }
-                Utils.showScreen('folder-screen');
 
                 try {
                     if (state.syncManager) {
                         await state.syncManager.flush({ reason: 'folder-switch' });
                     }
                     state.activeRequests.abort();
-                    state.activeRequests = new AbortController();
-                    this.resetViewState({ skipEmptyState: true });
+                    this.resetViewState();
+                    Utils.showScreen('folder-screen');
                     await Folders.load();
-                } catch (error) {
+                } catch(error) {
                     Utils.showToast(`Error returning to folders: ${error.message}`, 'error', true);
                     Utils.showScreen('folder-screen');
                 } finally {
@@ -4396,36 +4403,13 @@
                     state.isReturningToFolders = false;
                 }
             },
-            resetViewState(options = {}) {
-                const { skipEmptyState = false } = options;
+            resetViewState() {
                 state.imageFiles = [];
                 state.stacks = { in: [], out: [], priority: [], trash: [] };
-                state.currentStack = 'in';
-                state.currentStackPosition = 0;
+                Utils.elements.centerImage.src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
                 Core.updateStackCounts();
-
-                const { centerImage, emptyState, detailsButton } = Utils.elements;
-                if (centerImage) {
-                    centerImage.style.opacity = '0';
-                    centerImage.src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
-                    if (skipEmptyState) {
-                        centerImage.alt = 'Select a folder to start';
-                    }
-                    requestAnimationFrame(() => {
-                        centerImage.style.opacity = '1';
-                    });
-                }
-
-                if (!skipEmptyState) {
-                    Core.showEmptyState();
-                }
-
-                if (emptyState) {
-                    emptyState.classList.add('hidden');
-                }
-                if (detailsButton) {
-                    detailsButton.style.display = 'none';
-                }
+                Core.showEmptyState();
+                Utils.elements.emptyState.classList.add('hidden');
             },
             async updateUserMetadata(fileId, updates, options = {}) {
                 const { skipDebounce = false, operationType = 'metadata:update', origin = 'ui' } = options;
@@ -4906,17 +4890,12 @@
                 Utils.elements.centerImage.style.opacity = '0';
                 Utils.elements.detailsButton.style.display = 'none';
                 this.updateImageCounters();
-                const skipEmptyState = state.isReturningToFolders;
                 setTimeout(() => {
                     Utils.elements.centerImage.src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
                     Utils.elements.centerImage.alt = 'No images in this stack';
-                    if (skipEmptyState) {
-                        Utils.elements.emptyState.classList.add('hidden');
-                    } else {
-                        Utils.elements.emptyState.classList.remove('hidden');
-                        UI.updateEmptyStateButtons();
-                    }
+                    Utils.elements.emptyState.classList.remove('hidden');
                     Utils.elements.centerImage.style.opacity = '1';
+                    UI.updateEmptyStateButtons();
                 }, 200);
             }
         };
