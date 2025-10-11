@@ -2723,41 +2723,29 @@
                 }
             },
             async processFileMetadata(file) {
-                if (!file) return Promise.resolve();
-                if (file.__metadataPromise) {
-                    return file.__metadataPromise;
-                }
-                if (file.metadataStatus === 'loaded' || file.metadataStatus === 'error') {
-                    return Promise.resolve();
-                }
-                const runExtraction = (async () => {
-                    try {
-                        file.metadataStatus = 'loading';
-                        const metadata = await state.metadataExtractor.fetchMetadata(file);
-                        let finalMetadata = { ...file };
-                        if (metadata.error) {
-                            finalMetadata.metadataStatus = 'error';
-                            finalMetadata.extractedMetadata = { 'Error': metadata.error };
-                            finalMetadata.prompt = `Metadata Error: ${metadata.error}`;
-                        } else {
-                            finalMetadata.metadataStatus = 'loaded';
-                            finalMetadata.extractedMetadata = metadata;
-                        }
-                        await state.dbManager.saveMetadata(file.id, finalMetadata);
-                        Object.assign(file, finalMetadata);
-                    } catch (error) {
-                        if (error.name === 'AbortError') return;
-                        console.warn(`Background metadata extraction failed for ${file.name}: ${error.message}`);
-                        file.metadataStatus = 'error';
-                        file.extractedMetadata = { 'Error': error.message };
-                        file.prompt = `Metadata Error: ${error.message}`;
-                        await state.dbManager.saveMetadata(file.id, file);
-                    } finally {
-                        delete file.__metadataPromise;
+                if (file.metadataStatus === 'loaded' || file.metadataStatus === 'loading' || file.metadataStatus === 'error') return;
+                file.metadataStatus = 'loading';
+                try {
+                    const metadata = await state.metadataExtractor.fetchMetadata(file);
+                    let finalMetadata = { ...file };
+                    if (metadata.error) {
+                        finalMetadata.metadataStatus = 'error';
+                        finalMetadata.extractedMetadata = { 'Error': metadata.error };
+                        finalMetadata.prompt = `Metadata Error: ${metadata.error}`;
+                    } else {
+                        finalMetadata.metadataStatus = 'loaded';
+                        finalMetadata.extractedMetadata = metadata;
                     }
-                })();
-                file.__metadataPromise = runExtraction;
-                return runExtraction;
+                    await state.dbManager.saveMetadata(file.id, finalMetadata);
+                    Object.assign(file, finalMetadata);
+                } catch (error) {
+                    if (error.name === 'AbortError') return;
+                    console.warn(`Background metadata extraction failed for ${file.name}: ${error.message}`);
+                    file.metadataStatus = 'error';
+                    file.extractedMetadata = { 'Error': error.message };
+                    file.prompt = `Metadata Error: ${error.message}`;
+                    await state.dbManager.saveMetadata(file.id, file);
+                }
             }
         };
         const Core = {
@@ -2837,7 +2825,7 @@
                     this.showEmptyState();
                     return;
                 }
-
+                
                 if (state.currentStackPosition >= currentStackArray.length) {
                     state.currentStackPosition = currentStackArray.length - 1;
                 }
@@ -2854,22 +2842,28 @@
                 try {
                     Utils.elements.detailsButton.style.display = 'flex';
                     await Utils.setImageSrc(Utils.elements.centerImage, currentFile);
-
+                    
                     const folderName = state.currentFolder.name;
                     const truncatedFolder = folderName.length > 20 ? folderName.substring(0, 20) + '...' : folderName;
-
+                    
                     state.currentScale = 1;
                     state.panOffset = { x: 0, y: 0 };
                     this.applyTransform();
 
-                    const metadataNeeded = currentFile.metadataStatus !== 'loaded';
-                    const metadataPromise = App.processFileMetadata(currentFile);
+                    if (currentFile.metadataStatus === 'pending') {
+                        App.processFileMetadata(currentFile);
+                    }
 
                     this.updateImageCounters();
                     this.updateFavoriteButton();
                     Grid.syncWithCurrentImage(currentFile.id);
                     const detailsContainer = Utils.elements.detailsModal;
                     if (detailsContainer && !detailsContainer.classList.contains('hidden')) {
+                        if (currentFile.metadataStatus !== 'loaded') {
+                            Details.populateMetadataTab(currentFile);
+                            await App.processFileMetadata(currentFile);
+                        }
+                        Details.populateAllTabs(currentFile);
                     }
                 } catch (error) {
                      Utils.showToast(`Error loading image: ${error.message}`, 'error', true);
@@ -3679,28 +3673,19 @@
                 try {
                     const currentFile = state.stacks[state.currentStack][state.currentStackPosition];
                     if (!currentFile) return;
+                    if (currentFile.metadataStatus !== 'loaded') {
+                        this.populateMetadataTab(currentFile);
+                        await App.processFileMetadata(currentFile);
+                    }
+                    this.populateAllTabs(currentFile);
                     const container = Utils.elements.detailsModal;
                     if (!container) return;
-                    const metadataNeeded = currentFile.metadataStatus !== 'loaded';
-                    const metadataPromise = App.processFileMetadata(currentFile);
-                    this.populateAllTabs(currentFile);
                     container.classList.remove('hidden');
                     container.classList.add('visible');
                     if (DraggableResizable && typeof DraggableResizable.onShow === 'function') {
                         DraggableResizable.onShow('details-modal');
                     }
                     this.switchTab('info');
-                    if (metadataNeeded && metadataPromise && typeof metadataPromise.then === 'function') {
-                        metadataPromise.then(() => {
-                            const activeFile = Core.getCurrentFile ? Core.getCurrentFile() : currentFile;
-                            if (!container || container.classList.contains('hidden')) return;
-                            if (!activeFile || activeFile.id !== currentFile.id) return;
-                            this.populateAllTabs(activeFile);
-                        }).catch(error => {
-                            const message = error?.message || error;
-                            console.warn(`Metadata refresh failed while showing details: ${message}`);
-                        });
-                    }
                 } catch (error) {
                     Utils.showToast(`Error showing details: ${error.message}`, 'error', true);
                 }
