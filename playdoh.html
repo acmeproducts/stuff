@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Play-Doh Manipulator v2.4</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117;
+            touch-action: none; /* Crucial for preventing browser gestures */
+            -webkit-user-select: none; 
+            -moz-user-select: none; 
+            -ms-user-select: none; 
+            user-select: none; 
+        }
+        #container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            display: block;
+        }
+        #message-box {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            padding: 0.75rem 1.5rem;
+            background-color: rgba(255, 193, 7, 0.95);
+            color: #1f2937;
+            font-weight: bold;
+            border-radius: 0.5rem;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            pointer-events: none;
+            text-align: center;
+        }
+        .visible {
+            opacity: 1 !important;
+        }
+        #controls-overlay {
+            position: absolute;
+            bottom: 40px; /* Elevated to clear the footer */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 10px;
+        }
+        .control-button {
+            padding: 10px 20px;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .control-button:hover {
+            background-color: #2563eb;
+        }
+        .control-button:active {
+            transform: scale(0.98);
+        }
+        #master-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #ccc;
+            text-align: center;
+            padding: 5px 0;
+            font-size: 0.75rem;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="container"></div>
+    <div id="message-box"></div>
+    
+    <div id="controls-overlay">
+        <button id="reset-shape-button" class="control-button">Reset Shape</button>
+    </div>
+
+    <div id="master-footer">
+        Play-Doh Manipulator v2.4 | 2025-10-25 09:57 AM
+    </div>
+
+    <script type="module">
+        // --- THREE.JS SETUP ---
+        let scene, camera, renderer, mesh, light;
+        const container = document.getElementById('container');
+        const raycaster = new THREE.Raycaster();
+        
+        // Deformation parameters
+        const DEFORMATION_RADIUS = 0.5; // Radius of effect around touch point
+        const PINCH_INTENSITY = 0.5;    // How much vertex moves per pinch action
+        const PUNCH_INTENSITY = 0.15;   // How much vertex moves for a punch action
+        const TWIST_INTENSITY = 0.05;   // How much angle vertex rotates per twist action
+        const ELASTICITY_FACTOR = 0.08; // Increased for faster, more noticeable snap back
+
+        // Color management for smooth JS transitions
+        const colorState = {
+            baseColor: new THREE.Color(0xff4081), // Initial Play-Doh Pink
+            impactFactor: 0.0 // How much the impact color is visible
+        };
+        
+        // --- Multi-Touch State ---
+        let activeTouches = {}; // Stores { id: { x, y, clientX, clientY, prevX, prevY } }
+        let numTouches = 0;
+        let initialPinchDistance = 0;
+        let initialPinchAngle = 0; // For twist gesture
+        let clock = new THREE.Clock();
+
+        // Utility to display temporary messages
+        const messageBox = document.getElementById('message-box');
+        let messageTimeout;
+        function showMessage(text, duration = 2000) {
+            clearTimeout(messageTimeout);
+            messageBox.textContent = text;
+            messageBox.classList.add('visible');
+            messageTimeout = setTimeout(() => {
+                messageBox.classList.remove('visible');
+            }, duration);
+        }
+
+        // --- SHADER AND MATERIAL ---
+
+        // Custom falloff function for smoother deformation, used in JS
+        function getDeformationFalloff(distance, radius) {
+            if (distance >= radius) return 0;
+            const normalizedDistance = distance / radius;
+            return Math.exp(-normalizedDistance * normalizedDistance * 4); // Gaussian-like falloff
+        }
+
+        function createPlayDohMaterial(color) {
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                metalness: 0.0,
+                roughness: 0.8,
+                flatShading: false,
+            });
+
+            material.onBeforeCompile = (shader) => {
+                
+                // --- FIX: 1. VERTEX SHADER MODIFICATION: Pass world position via varying ---
+                // We inject the varying declaration to the vertex shader
+                shader.vertexShader = `
+                    varying vec3 vWorldPosition;
+                    ${shader.vertexShader}
+                `;
+                
+                // Inject assignment using the existing 'worldpos_vertex' chunk
+                shader.vertexShader = shader.vertexShader.replace(
+                    '#include <worldpos_vertex>',
+                    `
+                    #include <worldpos_vertex>
+                    // Pass world position to the fragment shader
+                    vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+                    `
+                );
+
+                // --- FIX: 2. FRAGMENT SHADER MODIFICATION: Receive varying and inject logic ---
+                
+                // Inject uniforms, varying, and utility function definitions at the start
+                shader.fragmentShader = `
+                    varying vec3 vWorldPosition; // Receive world position from vertex shader
+                    uniform float impactFactor;
+                    uniform vec3 impactColor;
+                    uniform vec3 impactPosition;
+                    uniform float impactRadius;
+
+                    float gaussianFalloff(float dist, float radius) {
+                        return exp(-0.5 * pow((dist / radius), 2.0));
+                    }
+                    ${shader.fragmentShader}
+                `;
+                
+                // Define the injection point for the color blending logic (before final output mapping)
+                const finalInjectionPoint = `gl_FragColor = linearToOutputTexel( gl_FragColor );`;
+
+                const colorBlendingLogic = `
+                    // Custom Play-Doh Impact Color Blend
+                    vec3 meshWorldPosition = vWorldPosition; // Use the varying world position
+                    float dist = distance(meshWorldPosition, impactPosition); 
+                    float falloff = gaussianFalloff(dist, impactRadius);
+
+                    float blend = falloff * impactFactor; 
+                    
+                    vec3 blendedColor = mix(gl_FragColor.rgb, impactColor, blend);
+                    gl_FragColor = vec4(blendedColor, gl_FragColor.a);
+                `;
+
+                // Inject the custom blending logic right before the final color space conversion
+                shader.fragmentShader = shader.fragmentShader.replace(
+                    finalInjectionPoint,
+                    `
+                    ${colorBlendingLogic}
+                    ${finalInjectionPoint}
+                    `
+                );
+
+                // Add uniforms for JavaScript access
+                shader.uniforms.impactFactor = { value: 0.0 };
+                shader.uniforms.impactColor = { value: new THREE.Color(0xffffff) };
+                shader.uniforms.impactPosition = { value: new THREE.Vector3(0,0,0) };
+                shader.uniforms.impactRadius = { value: 0.0 };
+                
+                material.userData.shader = shader; // Store shader for later access
+            };
+
+            return material;
+        }
+
+        function initScene() {
+            // Scene Setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0d1117);
+
+            // Camera Setup
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
+
+            // Renderer Setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+
+            // Light Setup 
+            const ambientLight = new THREE.AmbientLight(0x404040, 5);
+            scene.add(ambientLight);
+            light = new THREE.DirectionalLight(0xffffff, 2.0);
+            light.position.set(5, 5, 5);
+            scene.add(light);
+            
+            // Mesh Setup (Default Shape: Sphere)
+            const geometry = new THREE.SphereGeometry(2, 128, 128); 
+            const playDohMaterial = createPlayDohMaterial(colorState.baseColor);
+            mesh = new THREE.Mesh(geometry, playDohMaterial);
+            scene.add(mesh);
+
+            // Store original positions for reset and elasticity
+            mesh.geometry.setAttribute('originalPosition', new THREE.BufferAttribute(geometry.attributes.position.array.slice(), 3));
+            
+            animate(); 
+
+            // --- Attach Event Listeners (Touch) ---
+            renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: false });
+            renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
+            renderer.domElement.addEventListener('touchend', onTouchEnd, { passive: false });
+            
+            document.getElementById('reset-shape-button').addEventListener('click', resetShape);
+        }
+
+        // --- GEOMETRY MANIPULATION FUNCTIONS ---
+
+        function applyDeformation(centerWorld, changeFactor, directionMultiplier = 1) {
+            const positions = mesh.geometry.attributes.position.array;
+            const tempVector = new THREE.Vector3();
+            // Convert centerWorld to local space for geometry manipulation
+            const centerLocal = mesh.worldToLocal(centerWorld.clone());
+
+            for (let i = 0; i < positions.length; i += 3) {
+                tempVector.set(positions[i], positions[i+1], positions[i+2]);
+                
+                const distance = tempVector.distanceTo(centerLocal);
+
+                if (distance < DEFORMATION_RADIUS) {
+                    const falloff = getDeformationFalloff(distance, DEFORMATION_RADIUS);
+                    const displacement = changeFactor * PINCH_INTENSITY * falloff * directionMultiplier;
+                    
+                    // Displace along the normal vector for more "Play-Doh" push/pull
+                    const normalVector = new THREE.Vector3(mesh.geometry.attributes.normal.array[i], mesh.geometry.attributes.normal.array[i+1], mesh.geometry.attributes.normal.array[i+2]);
+                    
+                    positions[i] += normalVector.x * displacement;
+                    positions[i+1] += normalVector.y * displacement;
+                    positions[i+2] += normalVector.z * displacement;
+                }
+            }
+            mesh.geometry.attributes.position.needsUpdate = true;
+            mesh.geometry.computeVertexNormals();
+        }
+
+        function applyTwist(centerWorld, angleDelta, raycastNormal) {
+            const positions = mesh.geometry.attributes.position.array;
+            const tempVector = new THREE.Vector3();
+            const centerLocal = mesh.worldToLocal(centerWorld.clone()); 
+            
+            // Twist axis is the normal vector at the point of intersection, converted to local space
+            const twistAxis = mesh.worldToLocal(centerWorld.clone().add(raycastNormal)).sub(centerLocal).normalize();
+            const quaternion = new THREE.Quaternion();
+
+            for (let i = 0; i < positions.length; i += 3) {
+                tempVector.set(positions[i], positions[i+1], positions[i+2]);
+                
+                const distance = tempVector.distanceTo(centerLocal);
+
+                if (distance < DEFORMATION_RADIUS) {
+                    const falloff = getDeformationFalloff(distance, DEFORMATION_RADIUS * 1.5); // Wider falloff for twist grip
+                    
+                    const currentAngleDelta = angleDelta * TWIST_INTENSITY * falloff;
+                    
+                    // Translate vertex so centerLocal is origin
+                    tempVector.sub(centerLocal);
+                    
+                    quaternion.setFromAxisAngle(twistAxis, currentAngleDelta);
+                    tempVector.applyQuaternion(quaternion);
+                    
+                    // Translate back
+                    tempVector.add(centerLocal);
+
+                    positions[i] = tempVector.x;
+                    positions[i+1] = tempVector.y;
+                    positions[i+2] = tempVector.z;
+                }
+            }
+            mesh.geometry.attributes.position.needsUpdate = true;
+            mesh.geometry.computeVertexNormals();
+        }
+
+        function resetShape() {
+            const positions = mesh.geometry.attributes.position.array;
+            const originalPositions = mesh.geometry.attributes.originalPosition.array;
+
+            for (let i = 0; i < positions.length; i++) {
+                positions[i] = originalPositions[i];
+            }
+
+            mesh.geometry.attributes.position.needsUpdate = true;
+            mesh.geometry.computeVertexNormals();
+            mesh.rotation.set(0,0,0); // Reset global rotation too
+            showMessage('Shape Reset!', 1500);
+        }
+
+        // --- ELASTICITY LOGIC ---
+        function applyElasticity(delta) {
+            if (numTouches > 0) return; // Only apply when hands are off
+
+            const positions = mesh.geometry.attributes.position.array;
+            const originalPositions = mesh.geometry.attributes.originalPosition.array;
+            let needsUpdate = false;
+
+            for (let i = 0; i < positions.length; i++) {
+                const currentPos = positions[i];
+                const originalPos = originalPositions[i];
+                
+                // Interpolate current position toward original position
+                if (Math.abs(currentPos - originalPos) > 0.0001) {
+                    // Simple linear interpolation based on delta time
+                    positions[i] = THREE.MathUtils.lerp(currentPos, originalPos, ELASTICITY_FACTOR * delta * 60);
+                    needsUpdate = true;
+                }
+            }
+
+            if (needsUpdate) {
+                mesh.geometry.attributes.position.needsUpdate = true;
+                mesh.geometry.computeVertexNormals();
+            }
+        }
+
+        // --- MULTI-TOUCH GESTURE HANDLERS ---
+
+        function getNormalizedTouch(touch) {
+            return {
+                x: (touch.clientX / window.innerWidth) * 2 - 1,
+                y: -(touch.clientY / window.innerHeight) * 2 + 1,
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            };
+        }
+        
+        function getCenterPointScreen(touchMap) {
+            if (Object.keys(touchMap).length === 0) return null;
+            let sumX = 0, sumY = 0;
+            for (const id in touchMap) {
+                sumX += touchMap[id].clientX;
+                sumY += touchMap[id].clientY;
+            }
+            return new THREE.Vector2(
+                (sumX / Object.keys(touchMap).length / window.innerWidth) * 2 - 1,
+                -(sumY / Object.keys(touchMap).length / window.innerHeight) * 2 + 1
+            );
+        }
+
+        function getDistanceScreen(touchMap) {
+            if (Object.keys(touchMap).length < 2) return 0;
+            const p1 = Object.values(touchMap)[0];
+            const p2 = Object.values(touchMap)[1];
+            return Math.sqrt(Math.pow(p1.clientX - p2.clientX, 2) + Math.pow(p1.clientY - p2.clientY, 2));
+        }
+
+        function getAngleScreen(touchMap) {
+            if (Object.keys(touchMap).length < 2) return 0;
+            const p1 = Object.values(touchMap)[0];
+            const p2 = Object.values(touchMap)[1];
+            return Math.atan2(p2.clientY - p1.clientY, p2.clientX - p1.clientX);
+        }
+
+        function onTouchStart(event) {
+            event.preventDefault(); 
+
+            for (let i = 0; i < event.changedTouches.length; i++) {
+                const touch = event.changedTouches[i];
+                activeTouches[touch.identifier] = { 
+                    ...getNormalizedTouch(touch),
+                    prevX: touch.clientX, 
+                    prevY: touch.clientY,
+                    startX: touch.clientX, // For tap detection
+                    startY: touch.clientY,
+                    startTime: Date.now()
+                };
+            }
+            numTouches = Object.keys(activeTouches).length;
+
+            if (numTouches === 2) {
+                initialPinchDistance = getDistanceScreen(activeTouches);
+                initialPinchAngle = getAngleScreen(activeTouches);
+            }
+        }
+
+        function onTouchMove(event) {
+            event.preventDefault(); 
+            
+            for (let i = 0; i < event.changedTouches.length; i++) {
+                const touch = event.changedTouches[i];
+                if (activeTouches[touch.identifier]) {
+                    activeTouches[touch.identifier].prevX = activeTouches[touch.identifier].clientX;
+                    activeTouches[touch.identifier].prevY = activeTouches[touch.identifier].clientY;
+                    Object.assign(activeTouches[touch.identifier], getNormalizedTouch(touch));
+                }
+            }
+
+            if (numTouches === 1) {
+                // Single-finger movement for mesh rotation (to view the object)
+                const touch = Object.values(activeTouches)[0];
+                const deltaX = touch.clientX - touch.prevX;
+                const deltaY = touch.clientY - touch.prevY;
+                
+                // Global rotation for viewing
+                mesh.rotation.y += deltaX * 0.005; 
+                mesh.rotation.x += deltaY * 0.005;
+            } else if (numTouches === 2) {
+                const centerScreen = getCenterPointScreen(activeTouches);
+                raycaster.setFromCamera(centerScreen, camera);
+                const intersects = raycaster.intersectObject(mesh);
+                
+                if (intersects.length > 0) {
+                    const centerWorld = intersects[0].point;
+                    const raycastNormal = intersects[0].face.normal;
+                    
+                    // Pinch/Unpinch Deformation
+                    const currentDistance = getDistanceScreen(activeTouches);
+                    const distanceChange = initialPinchDistance - currentDistance; 
+                    applyDeformation(centerWorld, distanceChange * 0.01, -1); // -1 to invert for pinching effect
+                    initialPinchDistance = currentDistance; 
+
+                    // Twist Deformation
+                    const currentAngle = getAngleScreen(activeTouches);
+                    let angleChange = currentAngle - initialPinchAngle;
+                    if (angleChange > Math.PI) angleChange -= 2 * Math.PI;
+                    if (angleChange < -Math.PI) angleChange += 2 * Math.PI;
+                    applyTwist(centerWorld, angleChange, raycastNormal);
+                    initialPinchAngle = currentAngle;
+                    
+                    // Color feedback for pinch/twist
+                    if (mesh.material.userData.shader) {
+                        const randomColor = new THREE.Color(Math.random(), Math.random(), Math.random()).lerp(colorState.baseColor, 0.5);
+                        mesh.material.userData.shader.uniforms.impactColor.value = randomColor;
+                        mesh.material.userData.shader.uniforms.impactPosition.value.copy(centerWorld);
+                        mesh.material.userData.shader.uniforms.impactRadius.value = DEFORMATION_RADIUS;
+                        colorState.impactFactor = 1.0; // Start impact effect
+                    }
+                }
+            }
+        }
+
+        function onTouchEnd(event) {
+            event.preventDefault();
+
+            // Check for single tap (Punch effect)
+            if (event.changedTouches.length === 1 && Object.keys(activeTouches).length === 1) { 
+                const touch = Object.values(activeTouches)[0];
+
+                const travelDistance = Math.sqrt(Math.pow(touch.clientX - touch.startX, 2) + Math.pow(touch.clientY - touch.startY, 2));
+                const timeElapsed = Date.now() - touch.startTime;
+
+                // Check if it's a quick tap (not a drag)
+                if (timeElapsed < 250 && travelDistance < 10) {
+                    const normalizedTouch = getNormalizedTouch(touch);
+                    raycaster.setFromCamera(normalizedTouch, camera);
+                    const intersects = raycaster.intersectObject(mesh);
+
+                    if (intersects.length > 0) {
+                        const punchPointWorld = intersects[0].point;
+                        applyDeformation(punchPointWorld, PUNCH_INTENSITY, 1); // 1 for outward punch
+
+                        // Color feedback for punch
+                        if (mesh.material.userData.shader) {
+                            const randomColor = new THREE.Color(Math.random(), Math.random(), Math.random());
+                            mesh.material.userData.shader.uniforms.impactColor.value = randomColor;
+                            mesh.material.userData.shader.uniforms.impactPosition.value.copy(punchPointWorld);
+                            mesh.material.userData.shader.uniforms.impactRadius.value = DEFORMATION_RADIUS * 0.75; // Smaller radius for punch
+                            colorState.impactFactor = 1.0; // Start impact effect
+                        }
+                    }
+                }
+            }
+
+            let remainingTouches = {};
+            for (let i = 0; i < event.touches.length; i++) {
+                const touch = event.touches[i];
+                remainingTouches[touch.identifier] = activeTouches[touch.identifier];
+            }
+            activeTouches = remainingTouches;
+            numTouches = Object.keys(activeTouches).length;
+        }
+        
+        // --- ANIMATION LOOP & RESIZE ---
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            
+            // 1. Apply Elasticity
+            applyElasticity(delta);
+
+            // 2. Fade out impact color effect
+            if (colorState.impactFactor > 0.0) {
+                colorState.impactFactor -= delta * 2.0; // Faster fade
+                if (colorState.impactFactor < 0.0) colorState.impactFactor = 0.0;
+                if (mesh.material.userData.shader) {
+                    mesh.material.userData.shader.uniforms.impactFactor.value = colorState.impactFactor;
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        window.addEventListener('resize', onWindowResize, false);
+
+        // Start initialization on window load
+        window.onload = function () {
+            initScene();
+        }
+
+    </script>
+</body>
+</html>
