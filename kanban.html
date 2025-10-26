@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI Platform Kanban</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#f7f7f9;
+    --panel:#ffffff;
+    --text:#111;
+    --muted:#666;
+    --accent:#1f6feb;
+    --border:#e3e3e8;
+    --chip:#eef2ff;
+    --chip-text:#0f1b61;
+    --danger:#b3261e;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+  }
+  header{
+    position:sticky;top:0;z-index:10;
+    background:var(--panel);
+    border-bottom:1px solid var(--border);
+    padding:10px 16px;
+    display:grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap:10px;
+    align-items:center;
+  }
+  #search{
+    width:100%;
+    padding:10px 12px;
+    border:1px solid var(--border);
+    border-radius:10px;
+    font-size:16px;
+  }
+  .btn{
+    padding:10px 14px;
+    border:1px solid var(--border);
+    background:var(--panel);
+    border-radius:10px;
+    cursor:pointer;
+    font-weight:600;
+  }
+  .btn.primary{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .btn.danger{background:var(--danger); color:#fff; border-color:var(--danger)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .toolbar{display:flex;gap:8px; align-items:center}
+  main{
+    padding:16px;
+    display:flex;
+    gap:16px;
+    align-items:flex-start;
+    overflow:auto;
+  }
+  .lane{
+    min-width:280px;
+    max-width:340px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:14px;
+    display:flex;
+    flex-direction:column;
+    height:calc(100vh - 120px);
+  }
+  .lane-header{
+    padding:12px 14px;
+    border-bottom:1px solid var(--border);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .lane-title{font-weight:700}
+  .stage{
+    padding:8px 8px 12px 8px;
+    border-bottom:1px dashed var(--border);
+    min-height:120px;
+    overflow:auto;
+  }
+  .stage:last-child{border-bottom:none}
+  .stage-header{
+    display:flex;justify-content:space-between;align-items:center;
+    margin:6px 6px 8px 6px;
+    color:var(--muted);
+    font-weight:700;font-size:13px;
+  }
+  .stage .add{
+    border:1px dashed var(--border);
+    background:#fafafe;
+  }
+  .card{
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:10px 10px 8px 10px;
+    margin:8px 6px;
+    cursor:grab;
+  }
+  .card:active{cursor:grabbing}
+  .card-title{
+    font-weight:700; font-size:15px;
+    margin:0 0 6px 0;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .meta{
+    font-size:12px;color:var(--muted);
+    display:flex; flex-wrap:wrap; gap:8px;
+  }
+  .tags{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px}
+  .tag{
+    background:var(--chip);
+    color:var(--chip-text);
+    padding:2px 8px;
+    border-radius:999px;
+    font-size:12px;
+    border:1px solid #dfe4ff;
+  }
+  .card-actions{
+    margin-top:8px; display:flex; gap:8px; flex-wrap:wrap
+  }
+  .small{font-size:12px; padding:6px 8px}
+  .droptarget{outline:2px dashed var(--accent); outline-offset:-6px}
+  .results{
+    position:absolute; top:56px; left:16px; right:16px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-top:none;
+    max-height:320px; overflow:auto;
+    border-radius:0 0 10px 10px;
+  }
+  .result-item{
+    padding:10px 12px; border-top:1px solid var(--border); cursor:pointer
+  }
+  .result-item:hover{background:#f1f5ff}
+  .muted{color:var(--muted)}
+  .pill{border:1px solid var(--border); padding:2px 6px; border-radius:999px; font-size:12px}
+  .footer{
+    padding:8px 16px; color:var(--muted); font-size:12px; text-align:right
+  }
+  dialog{
+    border:none; border-radius:14px; padding:0; width:min(560px, 92vw);
+  }
+  .modal{
+    padding:16px; background:var(--panel); border:1px solid var(--border); border-radius:14px
+  }
+  .field{display:flex; flex-direction:column; gap:6px; margin:10px 0}
+  .field input, .field textarea, .field select{
+    border:1px solid var(--border); border-radius:10px; padding:10px; font-size:14px; width:100%
+  }
+  .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .hidden{display:none}
+  @media (max-width:900px){
+    .lane{min-width:92vw}
+  }
+</style>
+</head>
+<body>
+<header>
+  <input id="search" placeholder="Search: text, tag:#tag, platform:ChatGPT, stage:Doing, collection:Alpha …" aria-label="Omni search"/>
+  <div class="toolbar">
+    <button id="btnNewCard" class="btn">New Card</button>
+    <button id="btnSettings" class="btn">Settings</button>
+    <button id="btnExport" class="btn">Export</button>
+    <button id="btnImport" class="btn">Import</button>
+    <input id="fileImport" type="file" accept="application/json" class="hidden"/>
+  </div>
+</header>
+
+<main id="board" aria-live="polite"></main>
+
+<div class="footer" id="status"></div>
+
+<!-- Card Editor Modal -->
+<dialog id="cardDialog">
+  <form method="dialog" class="modal" id="cardForm">
+    <h3 id="cardDialogTitle">Card</h3>
+    <div class="field">
+      <label for="cardUrl">Sharing URL</label>
+      <input id="cardUrl" type="url" placeholder="https://…" required/>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="cardTitle">Title</label>
+        <input id="cardTitle" placeholder="Derived from URL if empty"/>
+      </div>
+      <div class="field">
+        <label for="cardCollection">Collection</label>
+        <input id="cardCollection" placeholder="Optional grouping, e.g., Alpha"/>
+      </div>
+    </div>
+    <div class="field">
+      <label for="cardTags">Tags (comma-separated)</label>
+      <input id="cardTags" placeholder="research, draft, eval"/>
+    </div>
+    <div class="row">
+      <button class="btn primary" value="save">Save</button>
+      <button class="btn" value="cancel">Cancel</button>
+      <button id="btnDeleteCard" class="btn danger" value="delete">Delete</button>
+      <span class="muted" id="derivedNote"></span>
+    </div>
+  </form>
+</dialog>
+
+<!-- Settings Modal -->
+<dialog id="settingsDialog">
+  <form method="dialog" class="modal" id="settingsForm">
+    <h3>Board Settings</h3>
+    <div class="grid-2">
+      <div class="field">
+        <label for="platforms">Platforms (comma-separated)</label>
+        <input id="platforms" value="Gemini, Claude, ChatGPT, Perplexity"/>
+      </div>
+      <div class="field">
+        <label for="stages">Stages (top→bottom, comma-separated)</label>
+        <input id="stages" value="Next, Doing, Done"/>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn primary" value="save">Apply</button>
+      <button class="btn" value="cancel">Cancel</button>
+      <button id="resetBtn" class="btn danger" value="reset">Reset Board</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- New Card Quick Modal -->
+<dialog id="newCardDialog">
+  <form method="dialog" class="modal" id="newCardForm">
+    <h3>Quick Add Card</h3>
+    <div class="grid-2">
+      <div class="field">
+        <label for="newCardPlatform">Platform</label>
+        <select id="newCardPlatform"></select>
+      </div>
+      <div class="field">
+        <label for="newCardStage">Stage</label>
+        <select id="newCardStage"></select>
+      </div>
+    </div>
+    <div class="field">
+      <label for="newCardUrl">Sharing URL</label>
+      <input id="newCardUrl" type="url" placeholder="https://…" required/>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="newCardTitle">Title</label>
+        <input id="newCardTitle" placeholder="Auto-derive if empty"/>
+      </div>
+      <div class="field">
+        <label for="newCardCollection">Collection</label>
+        <input id="newCardCollection" placeholder="Optional"/>
+      </div>
+    </div>
+    <div class="field">
+      <label for="newCardTags">Tags (comma-separated)</label>
+      <input id="newCardTags" placeholder="analysis, v1"/>
+    </div>
+    <div class="row">
+      <button class="btn primary" value="save">Create</button>
+      <button class="btn" value="cancel">Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+/* Data Model */
+const storageKey = "ai_kanban_v1";
+let state = {
+  platforms: ["Gemini","Claude","ChatGPT","Perplexity"],
+  stages: ["Next","Doing","Done"],
+  cards: [] // {id, title, url, platform, stage, tags[], collection, createdAt, updatedAt}
+};
+const $ = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+/* Persistence */
+function save(){ localStorage.setItem(storageKey, JSON.stringify(state)); setStatus("Saved"); }
+function load(){
+  const s = localStorage.getItem(storageKey);
+  if(s){
+    try{ state = JSON.parse(s); }
+    catch(e){ console.error(e); }
+  }
+}
+function resetBoard(){
+  state.cards = [];
+  save();
+  render();
+}
+
+/* Utilities */
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function byId(id){ return state.cards.find(c => c.id===id); }
+function fmtDate(ts){ const d=new Date(ts); return d.toLocaleString(); }
+function deriveTitleFromUrl(url){
+  try{
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./,'');
+    const parts = u.pathname.split('/').filter(Boolean);
+    let guess = host;
+    if(parts.length) guess += " · " + decodeURIComponent(parts[parts.length-1]).replace(/[-_]/g,' ');
+    return guess.charAt(0).toUpperCase()+guess.slice(1);
+  }catch(e){ return "Untitled"; }
+}
+async function tryFetchTitle(url){
+  // Best-effort: fetch the HTML and extract <title>. CORS may block; ignore failures.
+  try{
+    const res = await fetch(url, {mode:'cors'});
+    const txt = await res.text();
+    const m = txt.match(/<title[^>]*>([^<]{1,200})<\/title>/i);
+    if(m) return m[1].trim();
+  }catch(e){}
+  return deriveTitleFromUrl(url);
+}
+
+/* Rendering */
+function render(){
+  const board = $("#board");
+  board.innerHTML = "";
+  state.platforms.forEach(platform=>{
+    const lane = document.createElement("section");
+    lane.className = "lane";
+    lane.dataset.platform = platform;
+
+    const lh = document.createElement("div");
+    lh.className = "lane-header";
+    lh.innerHTML = `<div class="lane-title">${platform}</div>
+                    <div class="pill">${state.cards.filter(c=>c.platform===platform).length}</div>`;
+    lane.appendChild(lh);
+
+    state.stages.forEach(stage=>{
+      const stageEl = document.createElement("div");
+      stageEl.className = "stage";
+      stageEl.dataset.stage = stage;
+      stageEl.dataset.platform = platform;
+
+      const sh = document.createElement("div");
+      sh.className = "stage-header";
+      sh.innerHTML = `<span>${stage}</span>
+                      <button class="btn small add" data-add data-platform="${platform}" data-stage="${stage}">+ Card</button>`;
+      stageEl.appendChild(sh);
+
+      stageEl.addEventListener("dragover", e=>{ e.preventDefault(); stageEl.classList.add("droptarget"); });
+      stageEl.addEventListener("dragleave", ()=>stageEl.classList.remove("droptarget"));
+      stageEl.addEventListener("drop", e=>{
+        e.preventDefault();
+        const id = e.dataTransfer.getData("text/id");
+        moveCard(id, platform, stage);
+        stageEl.classList.remove("droptarget");
+      });
+
+      const cardsHere = state.cards.filter(c=>c.platform===platform && c.stage===stage);
+      cardsHere.forEach(c=> stageEl.appendChild(renderCard(c)));
+      lane.appendChild(stageEl);
+    });
+
+    board.appendChild(lane);
+  });
+
+  // Wire add buttons
+  $$("button[data-add]").forEach(btn=>{
+    btn.onclick = ()=>{
+      openNewCardQuick(btn.dataset.platform, btn.dataset.stage);
+    };
+  });
+
+  refillQuickAddSelectors();
+}
+function renderCard(card){
+  const el = document.createElement("article");
+  el.className = "card";
+  el.draggable = true;
+  el.dataset.id = card.id;
+
+  el.addEventListener("dragstart", e=>{
+    e.dataTransfer.setData("text/id", card.id);
+  });
+
+  el.ondblclick = ()=> openCardEditor(card.id);
+
+  const title = document.createElement("div");
+  title.className = "card-title";
+  title.textContent = card.title || "(untitled)";
+  title.title = card.title;
+  title.onclick = ()=> { if(card.url) window.open(card.url, "_blank"); };
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.innerHTML = `
+    <span class="pill">${card.platform}</span>
+    <span class="muted">•</span>
+    <span>${card.stage}</span>
+    ${card.collection ? `<span class="muted">•</span><span class="pill">Collection: ${escapeHtml(card.collection)}</span>`:""}
+    ${card.url ? `<span class="muted">•</span><a href="${card.url}" target="_blank" rel="noopener">Open Link</a>`:""}
+  `;
+
+  const tags = document.createElement("div");
+  tags.className = "tags";
+  (card.tags||[]).forEach(t=>{
+    const s = document.createElement("span");
+    s.className="tag"; s.textContent="#"+t;
+    tags.appendChild(s);
+  });
+
+  const actions = document.createElement("div");
+  actions.className = "card-actions";
+  const editBtn = document.createElement("button");
+  editBtn.className = "btn small";
+  editBtn.textContent = "Edit";
+  editBtn.onclick = ()=> openCardEditor(card.id);
+
+  const openBtn = document.createElement("button");
+  openBtn.className = "btn small";
+  openBtn.textContent = "Open";
+  openBtn.onclick = ()=> { if(card.url) window.open(card.url,"_blank"); };
+
+  const moveNextBtn = document.createElement("button");
+  moveNextBtn.className = "btn small";
+  moveNextBtn.textContent = "Advance";
+  moveNextBtn.onclick = ()=> advanceCard(card.id);
+
+  actions.append(editBtn, openBtn, moveNextBtn);
+
+  el.append(title, meta, tags, actions);
+  return el;
+}
+
+function setStatus(text){ $("#status").textContent = text; }
+
+/* Card Ops */
+function createCard({url,title,platform,stage,tags,collection}){
+  const now = Date.now();
+  const c = {
+    id: uid(),
+    url: url||"",
+    title: (title||"").trim(),
+    platform, stage,
+    tags: normalizeTags(tags),
+    collection: (collection||"").trim(),
+    createdAt: now, updatedAt: now
+  };
+  state.cards.push(c);
+  save();
+  render();
+  focusCard(c.id);
+  return c.id;
+}
+function updateCard(id, patch){
+  const c = byId(id);
+  if(!c) return;
+  Object.assign(c, patch);
+  c.tags = normalizeTags(c.tags);
+  c.updatedAt = Date.now();
+  save();
+  render();
+  focusCard(c.id);
+}
+function deleteCard(id){
+  state.cards = state.cards.filter(c=>c.id!==id);
+  save();
+  render();
+}
+function moveCard(id, platform, stage){
+  updateCard(id, {platform, stage});
+}
+function advanceCard(id){
+  const c = byId(id); if(!c) return;
+  const idx = state.stages.indexOf(c.stage);
+  if(idx >= 0 && idx < state.stages.length-1){
+    moveCard(id, c.platform, state.stages[idx+1]);
+  }
+}
+
+/* Search */
+function parseQuery(q){
+  const terms = q.trim().split(/\s+/);
+  const filters = {text:[], platform:null, stage:null, tag:null, collection:null};
+  for(const t of terms){
+    if(/^platform:/i.test(t)) filters.platform = t.split(":")[1];
+    else if(/^stage:/i.test(t)) filters.stage = t.split(":")[1];
+    else if(/^tag:#?/i.test(t)) filters.tag = t.split(":")[1].replace(/^#/, "");
+    else if(/^collection:/i.test(t)) filters.collection = t.split(":")[1];
+    else filters.text.push(t);
+  }
+  return filters;
+}
+function matchCard(card, filters){
+  const text = filters.text.join(" ").toLowerCase();
+  const hay = [card.title, card.url, card.platform, card.stage, card.collection, ...(card.tags||[])].join(" ").toLowerCase();
+  if(text && !hay.includes(text)) return false;
+  if(filters.platform && card.platform.toLowerCase()!==filters.platform.toLowerCase()) return false;
+  if(filters.stage && card.stage.toLowerCase()!==filters.stage.toLowerCase()) return false;
+  if(filters.collection && (card.collection||"").toLowerCase()!==filters.collection.toLowerCase()) return false;
+  if(filters.tag && !(card.tags||[]).map(t=>t.toLowerCase()).includes(filters.tag.toLowerCase())) return false;
+  return true;
+}
+function search(q){
+  if(!q.trim()){ closeResults(); highlightAll(false); return []; }
+  const f = parseQuery(q);
+  const matches = state.cards.filter(c=>matchCard(c,f));
+  showResults(matches.slice(0,100));
+  highlightMatches(matches);
+  return matches;
+}
+function showResults(cards){
+  removeResults();
+  if(cards.length===0) return;
+  const box = document.createElement("div");
+  box.className = "results";
+  cards.forEach(c=>{
+    const item = document.createElement("div");
+    item.className = "result-item";
+    item.innerHTML = `<strong>${escapeHtml(c.title)}</strong>
+      <div class="muted">${c.platform} · ${c.stage}${c.collection? " · "+escapeHtml(c.collection):""}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`;
+    item.onclick = ()=> { closeResults(); focusCard(c.id); };
+    box.appendChild(item);
+  });
+  document.body.appendChild(box);
+}
+function closeResults(){ removeResults(); highlightAll(false); }
+function removeResults(){ $$(".results").forEach(e=>e.remove()); }
+function highlightAll(flag){
+  $$(".card").forEach(el=>{ el.style.outline = flag ? "2px solid var(--accent)" : "none"; });
+}
+function highlightMatches(cards){
+  const ids = new Set(cards.map(c=>c.id));
+  $$(".card").forEach(el=>{ el.style.outline = ids.has(el.dataset.id) ? "2px solid var(--accent)" : "none"; });
+}
+function focusCard(id){
+  const el = $(`.card[data-id="${id}"]`);
+  if(el){ el.scrollIntoView({behavior:"smooth", block:"center", inline:"center"}); el.animate([{transform:"scale(1.0)"},{transform:"scale(1.02)"},{transform:"scale(1.0)"}], {duration:500}); }
+}
+
+/* Modals */
+const cardDialog = $("#cardDialog");
+const cardForm = $("#cardForm");
+let editingId = null;
+
+function openCardEditor(id){
+  const c = byId(id); if(!c) return;
+  editingId = id;
+  $("#cardDialogTitle").textContent = "Edit Card";
+  $("#cardUrl").value = c.url||"";
+  $("#cardTitle").value = c.title||"";
+  $("#cardTags").value = (c.tags||[]).join(", ");
+  $("#cardCollection").value = c.collection||"";
+  $("#btnDeleteCard").classList.remove("hidden");
+  $("#derivedNote").textContent = "Double-click title to open. Edit URL to re-derive title.";
+  cardDialog.showModal();
+}
+cardForm.addEventListener("close", async ()=>{
+  const action = cardForm.returnValue;
+  if(action==="cancel"){ editingId=null; return; }
+  if(action==="delete" && editingId){ deleteCard(editingId); editingId=null; return; }
+  if(action==="save"){
+    const url = $("#cardUrl").value.trim();
+    let title = $("#cardTitle").value.trim();
+    const tags = $("#cardTags").value;
+    const collection = $("#cardCollection").value.trim();
+    if(!title && url){ title = await tryFetchTitle(url); }
+    updateCard(editingId, {url, title, tags: normalizeTags(tags), collection});
+    editingId=null;
+  }
+});
+
+const settingsDialog = $("#settingsDialog");
+const settingsForm = $("#settingsForm");
+$("#btnSettings").onclick = ()=>{
+  $("#platforms").value = state.platforms.join(", ");
+  $("#stages").value = state.stages.join(", ");
+  settingsDialog.showModal();
+};
+settingsForm.addEventListener("close", ()=>{
+  const val = settingsForm.returnValue;
+  if(val==="cancel") return;
+  if(val==="reset"){ if(confirm("This removes all cards. Continue?")){ resetBoard(); } return; }
+  if(val==="save"){
+    const platforms = $("#platforms").value.split(",").map(s=>s.trim()).filter(Boolean);
+    const stages = $("#stages").value.split(",").map(s=>s.trim()).filter(Boolean);
+    if(platforms.length && stages.length){
+      state.platforms = platforms;
+      state.stages = stages;
+      save();
+      render();
+    }
+  }
+});
+
+/* Quick Add */
+const newCardDialog = $("#newCardDialog");
+const newCardForm = $("#newCardForm");
+$("#btnNewCard").onclick = ()=> openNewCardQuick();
+function openNewCardQuick(platform, stage){
+  refillQuickAddSelectors();
+  if(platform) $("#newCardPlatform").value = platform;
+  if(stage) $("#newCardStage").value = stage;
+  newCardDialog.showModal();
+}
+newCardForm.addEventListener("close", async ()=>{
+  if(newCardForm.returnValue!=="save") return;
+  const platform = $("#newCardPlatform").value;
+  const stage = $("#newCardStage").value;
+  const url = $("#newCardUrl").value.trim();
+  let title = $("#newCardTitle").value.trim();
+  const tags = $("#newCardTags").value;
+  const collection = $("#newCardCollection").value.trim();
+  if(!title && url){ title = await tryFetchTitle(url); }
+  const id = createCard({url,title,platform,stage,tags,collection});
+  $("#newCardUrl").value=""; $("#newCardTitle").value=""; $("#newCardTags").value=""; $("#newCardCollection").value="";
+  focusCard(id);
+});
+function refillQuickAddSelectors(){
+  const pSel = $("#newCardPlatform");
+  const sSel = $("#newCardStage");
+  if(!pSel || !sSel) return;
+  pSel.innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join("");
+  sSel.innerHTML = state.stages.map(s=>`<option>${s}</option>`).join("");
+}
+
+/* Export / Import */
+$("#btnExport").onclick = ()=>{
+  const data = JSON.stringify(state, null, 2);
+  const blob = new Blob([data], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "ai-kanban-export.json"; a.click();
+  URL.revokeObjectURL(url);
+};
+$("#btnImport").onclick = ()=> $("#fileImport").click();
+$("#fileImport").onchange = (e)=>{
+  const file = e.target.files?.[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const obj = JSON.parse(reader.result);
+      if(obj.platforms && obj.stages && Array.isArray(obj.cards)){
+        state = obj; save(); render();
+      }else{
+        alert("Invalid JSON structure.");
+      }
+    }catch(err){ alert("Failed to parse JSON."); }
+  };
+  reader.readAsText(file);
+};
+
+/* Search wire-up */
+const searchInput = $("#search");
+let searchDebounce;
+searchInput.addEventListener("input", ()=>{
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(()=> search(searchInput.value), 120);
+});
+document.addEventListener("click", (e)=>{
+  if(!e.target.closest(".results") && e.target!==searchInput){ closeResults(); }
+});
+searchInput.addEventListener("keydown", (e)=>{
+  if(e.key==="Enter"){
+    const matches = search(searchInput.value);
+    if(matches.length===1 && matches[0].url){ window.open(matches[0].url, "_blank"); }
+  }
+});
+
+/* Helpers */
+function normalizeTags(tags){
+  if(Array.isArray(tags)) return tags.filter(Boolean).map(t=>t.trim()).filter(Boolean);
+  if(typeof tags==="string") return tags.split(",").map(s=>s.trim()).filter(Boolean);
+  return [];
+}
+function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+
+/* Init */
+load();
+render();
+setStatus("Ready. Double-click a card to edit. Drag to move. Search supports tag:#, platform:, stage:, collection:");
+</script>
+</body>
+</html>
