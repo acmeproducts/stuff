@@ -1,84 +1,251 @@
-<!-- TOOLX_FILENAME:test.html -->
+<!-- InstancedQuilt-v14-Canvas-Fix-2025-10-23 10:18 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Swarms Act 1</title>
-  <!-- Act 1 -->
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      height: 100%;
-      background-color: black;
-    }
-    canvas {
-      display: block;
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Infinite Quilt v14 (Canvas Fix)</title>
+<style>
+body { margin: 0; overflow: hidden; background: #05050a; }
+canvas { display: block; background: #05050a; }
+#readout {
+position: fixed; left: 8px; top: 8px;
+background: rgba(0,0,0,0.5); border-radius: 10px; padding: 6px 12px;
+font-size: 14px; color: #e6e6e6; font-family: monospace;
+pointer-events: none; line-height: 1.6;
+}
+#master-footer {
+position: fixed;
+bottom: 0;
+left: 0;
+width: 100%;
+background-color: rgba(14, 18, 25, 0.8);
+border-top: 1px solid #1e2531;
+color: #9aa4b2;
+font-size: 10px;
+text-align: center;
+padding: 8px 0;
+z-index: 100;
+pointer-events: none;
+}
+</style>
 </head>
 <body>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
-  <script>
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 3000);
-    camera.position.z = 400;
+<canvas id="canvas"></canvas>
+<div id="readout"></div>
+<footer id="master-footer"></footer>
+<script>
+const TILE_COLOR = "#202020";
+const BORDER_COLOR = "#404040";
+const FRACTAL_SCALE = 3;
+const MIN_PIXEL_SIZE_TO_RECURSE = 10;
+const MAX_TILES_DRAWN = 20000;
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const readout = document.getElementById('readout');
+const footer = document.getElementById('master-footer');
+let width, height;
+let tileCount = 0;
+// view holds the camera state
+const view = {
+x: 0,
+y: 0,
+// zoom represents the number of pixels per 1 unit of world space.
+// We start at 1 pixel = 1 unit.
+zoom: 1
+};
+// Interaction state
+const pointer = {
+isDown: false,
+lastX: 0,
+lastY: 0
+};
+function setup() {
+width = window.innerWidth;
+height = window.innerHeight;
+canvas.width = width;
+canvas.height = height;
+// Center the view
+view.x = -width / 2;
+view.y = -height / 2;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+setupEventListeners();
+updateFooter();
+draw();
 
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
+}
+// --- World to Screen ---
+function worldToScreen(worldX, worldY) {
+const screenX = (worldX - view.x) * view.zoom;
+const screenY = (worldY - view.y) * view.zoom;
+return { x: screenX, y: screenY };
+}
+// --- Screen to World ---
+function screenToWorld(screenX, screenY) {
+const worldX = (screenX / view.zoom) + view.x;
+const worldY = (screenY / view.zoom) + view.y;
+return { x: worldX, y: worldY };
+}
+/**
+ * Recursively draws the fractal tiles
+ * @param {number} x - World X coordinate of the tile's center
+ * @param {number} y - World Y coordinate of the tile's center
+ * @param {number} size - World size (width/height) of the tile
+   */
+   function drawRecursive(x, y, size) {
+   if (tileCount > MAX_TILES_DRAWN) return;
+<!-- end list -->
+// Convert world coordinates to screen coordinates
+const screenPos = worldToScreen(x, y);
+const screenSize = size * view.zoom;
 
-    const PARTICLES = 600 * 3;
-    const geometry = new THREE.BufferGeometry();
-    const positions = new Float32Array(PARTICLES * 3);
-    const colors = new Float32Array(PARTICLES * 3);
+// Frustum Culling: If the tile is off-screen, stop
+if (screenPos.x + screenSize / 2 &lt; 0 ||
+    screenPos.x - screenSize / 2 &gt; width ||
+    screenPos.y + screenSize / 2 &lt; 0 ||
+    screenPos.y - screenSize / 2 &gt; height) {
+  return;
+}
 
-    for (let i = 0; i < PARTICLES; i++) {
-      const idx = i * 3;
-      positions[idx] = (Math.random() - 0.5) * 150;
-      positions[idx + 1] = (Math.random() - 0.5) * 150;
-      positions[idx + 2] = (Math.random() - 0.5) * 150;
+// Base Case: If the tile is small enough on screen, draw it and stop recursing
+if (screenSize &lt; MIN_PIXEL_SIZE_TO_RECURSE) {
+  ctx.fillStyle = TILE_COLOR;
+  ctx.fillRect(
+    screenPos.x - screenSize / 2,
+    screenPos.y - screenSize / 2,
+    screenSize,
+    screenSize
+  );
+  ctx.strokeStyle = BORDER_COLOR;
+  ctx.strokeRect(
+    screenPos.x - screenSize / 2,
+    screenPos.y - screenSize / 2,
+    screenSize,
+    screenSize
+  );
+  tileCount++;
+  return;
+}
 
-      colors[idx] = Math.random();
-      colors[idx + 1] = Math.random();
-      colors[idx + 2] = Math.random();
-    }
+// Recursive Step: Tile is big, so subdivide it
+const newSize = size / FRACTAL_SCALE;
 
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+// Center
+drawRecursive(x, y, newSize);
+// Top-Left
+drawRecursive(x - newSize, y - newSize, newSize);
+// Top-Right
+drawRecursive(x + newSize, y - newSize, newSize);
+// Bottom-Left
+drawRecursive(x - newSize, y + newSize, newSize);
+// Bottom-Right
+drawRecursive(x + newSize, y + newSize, newSize);
 
-    const material = new THREE.PointsMaterial({
-      size: 5,
-      vertexColors: true,
-      transparent: true,
-      opacity: 1.0,
-      depthWrite: false,
-    });
+}
+function draw() {
+ctx.clearRect(0, 0, width, height);
+ctx.lineWidth = 1;
+tileCount = 0;
 
-    const points = new THREE.Points(geometry, material);
-    scene.add(points);
+// We start with a &quot;universe&quot; tile. Its size is inverse to the zoom.
+// This is the key: as zoom gets smaller, the base tile gets larger,
+// forcing more recursion and revealing the peripheral tiles.
+const baseSize = width / view.zoom; 
 
-    function animate() {
-      requestAnimationFrame(animate);
-      points.rotation.y += 0.002;
-      controls.update();
-      renderer.render(scene, camera);
-    }
+drawRecursive(0, 0, baseSize);
 
-    animate();
+// Update readout
+// Calculate the order of magnitude
+const orderOfMagnitude = Math.log10(view.zoom).toFixed(2);
+readout.innerHTML = `Scale: 10^&lt;sup&gt;${orderOfMagnitude}&lt;/sup&gt;<br>Tiles: ${tileCount.toLocaleString()}`;
 
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-  </script>
+requestAnimationFrame(draw);
+
+}
+// --- Event Handlers ---
+function setupEventListeners() {
+canvas.addEventListener('mousedown', onPointerDown);
+canvas.addEventListener('mousemove', onPointerMove);
+canvas.addEventListener('mouseup', onPointerUp);
+canvas.addEventListener('mouseleave', onPointerUp);
+canvas.addEventListener('wheel', onWheel, { passive: false });
+// --- FIX ---
+// Added e.preventDefault() to touchstart and touchmove
+// to prevent the browser&#39;s default scrolling/panning
+// behavior on tablets, which was blocking the controls.
+canvas.addEventListener(&#39;touchstart&#39;, (e) =&gt; {
+  e.preventDefault();
+  onPointerDown(e.touches[0]);
+}, { passive: false });
+
+canvas.addEventListener(&#39;touchmove&#39;, (e) =&gt; {
+  e.preventDefault();
+  onPointerMove(e.touches[0]);
+}, { passive: false });
+// --- END FIX ---
+
+canvas.addEventListener(&#39;touchend&#39;, onPointerUp);
+
+window.addEventListener(&#39;resize&#39;, onResize);
+
+}
+function onPointerDown(e) {
+pointer.isDown = true;
+pointer.lastX = e.clientX;
+pointer.lastY = e.clientY;
+}
+function onPointerMove(e) {
+if (!pointer.isDown) return;
+const dx = e.clientX - pointer.lastX;
+const dy = e.clientY - pointer.lastY;
+
+// Pan the view
+view.x -= dx / view.zoom;
+view.y -= dy / view.zoom;
+
+pointer.lastX = e.clientX;
+pointer.lastY = e.clientY;
+
+}
+function onPointerUp() {
+pointer.isDown = false;
+}
+function onWheel(e) {
+e.preventDefault();
+const mouseX = e.clientX;
+const mouseY = e.clientY;
+
+// Get world coordinates before zoom
+const worldBefore = screenToWorld(mouseX, mouseY);
+
+// Calculate new zoom
+const zoomFactor = e.deltaY &gt; 0 ? 0.8 : 1.25;
+view.zoom *= zoomFactor;
+
+// Get world coordinates after zoom
+const worldAfter = screenToWorld(mouseX, mouseY);
+
+// Adjust view center to keep the mouse position fixed in world space
+view.x -= (worldAfter.x - worldBefore.x);
+view.y -= (worldAfter.y - worldBefore.y);
+
+}
+function onResize() {
+width = window.innerWidth;
+height = window.innerHeight;
+canvas.width = width;
+canvas.height = height;
+}
+function updateFooter() {
+if (footer) {
+const now = new Date();
+const formattedDate = now.toISOString().slice(0, 10);
+// [User Memory] Get to the point.
+const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+footer.textContent = InstancedQuilt-v14-Canvas-Fix - ${formattedDate} ${formattedTime};
+}
+}
+setup();
+</script>
 </body>
 </html>
