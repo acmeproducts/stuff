@@ -13,12 +13,16 @@
   --accent:#1f6feb;
   --border:#e3e3e8;
   --danger:#b3261e;
-  --highlight:#ff7a00; /* solid orange */
+  --highlight:#ff7a00; /* solid orange for DnD target */
+  --search:#14532d;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;font-family:system-ui,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:var(--text)}
-header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--border);}
+.toolbar{padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.searchbar{padding:10px 16px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+#search{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:15px}
 .btn{padding:10px 14px;border:1px solid var(--border);background:var(--panel);border-radius:10px;cursor:pointer;font-weight:600}
 .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .btn.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
@@ -48,6 +52,7 @@ main{
 }
 .card *{ -webkit-user-drag: none; }
 .card.dragging{opacity:.5}
+.card.search-hit{border-color:var(--search)}
 .card-line{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;width:100%;min-width:0}
 .card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card-platform{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:0 0 auto}
@@ -62,18 +67,37 @@ dialog{border:none;border-radius:14px;padding:0;width:min(720px,92vw)}
 .field input,.field textarea,.field select{border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;width:100%}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.results{
+  position:sticky;top:96px; /* under the header */
+  margin:0 16px 8px 16px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:10px;
+  max-height:260px; overflow:auto;
+}
+.result-item{padding:10px 12px;border-top:1px solid var(--border);cursor:pointer}
+.result-item:first-child{border-top:none}
+.result-item:hover{background:#f1f5ff}
+.muted{color:var(--muted);font-size:12px}
 @media (max-width:900px){main{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <header>
-  <button id="btnNew" class="btn">New</button>
-  <button id="btnSettings" class="btn">Settings</button>
-  <button id="btnExport" class="btn">Export</button>
-  <button id="btnImport" class="btn">Import</button>
-  <input id="fileImport" type="file" accept="application/json" class="hidden"/>
+  <div class="toolbar">
+    <button id="btnNew" class="btn">New</button>
+    <button id="btnSettings" class="btn">Settings</button>
+    <button id="btnExport" class="btn">Export</button>
+    <button id="btnImport" class="btn">Import</button>
+    <input id="fileImport" type="file" accept="application/json" class="hidden"/>
+  </div>
+  <div class="searchbar">
+    <input id="search" placeholder="Search everything…" aria-label="Omni search"/>
+    <span class="muted" id="searchCount"></span>
+  </div>
 </header>
 
+<div id="resultsContainer"></div>
 <main id="board" aria-live="polite"></main>
 <div class="footer" id="status"></div>
 
@@ -121,6 +145,17 @@ dialog{border:none;border-radius:14px;padding:0;width:min(720px,92vw)}
   </form>
 </dialog>
 
+<!-- Search Modal -->
+<dialog id="searchDialog">
+  <form method="dialog" class="modal">
+    <h3>Search results</h3>
+    <div id="searchList" style="max-height:60vh; overflow:auto;"></div>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn" value="close">Close</button>
+    </div>
+  </form>
+</dialog>
+
 <!-- Settings -->
 <dialog id="settingsDialog">
   <form method="dialog" class="modal" id="settingsForm">
@@ -143,7 +178,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(720px,92vw)}
 
 <script>
 /* State */
-const storageKey = "ai_jobs_kanban_v6";
+const storageKey = "ai_jobs_kanban_v7"; // keep same to preserve data
 let state = {
   stages: ["Done","Doing","Next"],
   platforms: ["Gemini","Claude","ChatGPT","Perplexity"],
@@ -250,9 +285,11 @@ function render(){
     board.appendChild(lane);
   });
   refillSelects();
+  // Apply search filter after rendering
+  applySearch($("#search").value);
 }
 
-// Global preventDefault keeps drops active across the page (Safari/Firefox safety).
+// Global preventDefault keeps drops active across the page
 document.addEventListener("dragover", e=> e.preventDefault());
 
 function setHighlight(el){
@@ -284,7 +321,6 @@ function renderCard(card){
   el.addEventListener("dragstart", e=>{
     draggingId = card.id;
     el.classList.add("dragging");
-    // Temporarily disable link pointer events to prevent interference
     el.querySelectorAll("a").forEach(a=> a.style.pointerEvents = "none");
     e.dataTransfer.setData("text/id", card.id);
     e.dataTransfer.setData("text/plain", card.id);
@@ -487,6 +523,75 @@ $("#board").addEventListener("dblclick", (e)=>{
   openEditor(null, stage);
 });
 
+/* Omni Search: simple real-time match + Enter shows modal list */
+const searchInput = $("#search");
+let searchDebounce;
+let currentMatches = [];
+searchInput.addEventListener("input", ()=>{
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(()=> applySearch(searchInput.value), 120);
+});
+searchInput.addEventListener("keydown", (e)=>{
+  if(e.key==="Escape"){ searchInput.value=""; applySearch(""); return; }
+  if(e.key==="Enter"){
+    e.preventDefault();
+    openSearchModal(currentMatches);
+  }
+});
+
+function applySearch(q){
+  const term = (q||"").trim().toLowerCase();
+  const all = state.cards.slice();
+  currentMatches = term ? all.filter(c=> combinedHay(c).includes(term)) : all;
+  highlightMatches(new Set(currentMatches.map(c=>c.id)), Boolean(term));
+  renderResultsPreview(currentMatches.slice(0,120), term);
+  $("#searchCount").textContent = term? `${currentMatches.length} match(es)` : "";
+}
+function combinedHay(c){
+  return [c.title, c.platform, c.stage, c.notes, c.dev, c.live, ...(c.tags||[])].join(" ").toLowerCase();
+}
+function highlightMatches(idset, hasTerm){
+  $$(".card").forEach(el=>{
+    el.classList.toggle("search-hit", hasTerm && idset.has(el.dataset.id));
+    el.style.opacity = hasTerm && !idset.has(el.dataset.id) ? 0.35 : 1;
+  });
+}
+function renderResultsPreview(cards, term){
+  const cont = $("#resultsContainer");
+  cont.innerHTML = "";
+  if(!term || cards.length===0) return;
+  const box = document.createElement("div");
+  box.className = "results";
+  cards.forEach(c=>{
+    const item = document.createElement("div");
+    item.className = "result-item";
+    item.innerHTML = `<strong>${escapeHtml(c.title)}</strong>
+      <div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`;
+    item.onclick = ()=>{ focusCard(c.id); };
+    box.appendChild(item);
+  });
+  cont.appendChild(box);
+}
+function openSearchModal(cards){
+  const dlg = $("#searchDialog");
+  const list = $("#searchList");
+  list.innerHTML = "";
+  if(cards.length===0){
+    list.innerHTML = "<div class='muted'>No results</div>";
+  }else{
+    cards.forEach(c=>{
+      const row = document.createElement("div");
+      row.className = "result-item";
+      row.innerHTML = `<strong>${escapeHtml(c.title)}</strong>
+        <div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`;
+      row.onclick = ()=>{ dlg.close("close"); focusCard(c.id); };
+      list.appendChild(row);
+    });
+  }
+  dlg.showModal();
+}
+function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+
 /* Helpers */
 function setStatus(t){ $("#status").textContent = t; }
 function refillSelects(){
@@ -497,7 +602,7 @@ function refillSelects(){
 }
 
 /* Init */
-load(); render(); setStatus("Drag should now activate reliably. Only the target chip gets an orange border; no lane outlines.");
+load(); render(); setStatus("Simple search enabled. Type to filter live; press Enter to open results modal and jump to a card.");
 </script>
 </body>
 </html>
