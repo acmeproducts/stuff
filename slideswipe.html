@@ -377,20 +377,18 @@
 
         // ===== Core utility module (Adapted for Goji) =====
         const utils = {
-            // Adapted Goji showScreen to SlideSwipe screen IDs
             showScreen(id) {
                 ['provider-screen', 'auth-screen', 'folder-screen', 'app-screen'].forEach(screen =>
                     $(screen)?.classList.toggle('hidden', screen !== id)
                 );
             },
-            toast(message, type = 'info', important = false) { // Adapted Goji toast
+            toast(message, type = 'info', important = false) { 
                 const toast = $('toast');
                 toast.textContent = message;
                 toast.className = `toast ${type} show`;
                 setTimeout(() => toast.classList.remove('show'), 3000);
             },
             setImageSrc(img, file) {
-                // Use Goji logic to get preferred URL
                 let imageUrl = this.getPreferredImageUrl(file);
                 img.src = imageUrl;
                 img.alt = file.name || 'Image';
@@ -451,7 +449,7 @@
             canGoUp() { return false; }
             async updateFileMetadata(fileId, metadata) { throw new Error("Method 'updateFileMetadata(fileId, metadata)' must be implemented."); }
             async deleteFile(fileId) { throw new Error("Method 'deleteFile(fileId)' must be implemented."); }
-            async getAccessToken() { throw new Error("Method 'getAccessToken()' must be implemented."); } // Needed for OneDrive
+            async getAccessToken() { throw new Error("Method 'getAccessToken()' must be implemented."); } 
         }
 
         class GoogleDriveProvider extends BaseProvider {
@@ -459,7 +457,7 @@
                 super(); this.name = 'googledrive';
                 this.clientId = '567988062464-fa6c1ovesqeudqs5398vv4mbo6q068p9.apps.googleusercontent.com';
                 this.redirectUri = window.location.origin + window.location.pathname;
-                this.scope = 'https://www.googleapis.com/auth/drive.file';
+                this.scope = 'https://www.googleapis.com/auth/drive.file'; 
                 this.apiBase = 'https://www.googleapis.com/drive/v3';
                 this.accessToken = null; this.refreshToken = null; this.clientSecret = null;
                 this.isAuthenticated = false; this.currentParentId = 'root';
@@ -542,34 +540,16 @@
                 if (isJson) { return await response.json(); } return response;
             }
             async getAccessToken() { return this.accessToken; }
-            async getFolders() {
+            async getFolders() { // Initial load: items in 'root'
                 this.currentParentId = 'root';
-                const response = await this.makeApiCall(`/files?q='root' in parents and mimeType='application/vnd.google-apps.folder'&fields=files(id,name,createdTime,modifiedTime)&orderBy=modifiedTime desc`);
-                return response.files.map(folder => ({ id: folder.id, name: folder.name, type: 'folder', createdTime: folder.createdTime, modifiedTime: folder.modifiedTime, hasChildren: true }));
+                return this.loadItemsInFolder('root');
             }
-            async getFiles(folderId) {
-                const allFiles = []; let nextPageToken = null;
-                do {
-                    const query = `'${folderId}' in parents and trashed=false and (mimeType contains 'image/')`;
-                    let url = `/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webContentLink,webViewLink,appProperties,parents),nextPageToken&pageSize=100`;
-                    if (nextPageToken) { url += `&pageToken=${nextPageToken}`; }
-                    const response = await this.makeApiCall(url);
-                    const files = response.files
-                        .filter(file => file.mimeType && file.mimeType.startsWith('image/'))
-                        .map(file => ({
-                            id: file.id, name: file.name, type: 'file', mimeType: file.mimeType, size: file.size ? parseInt(file.size) : 0,
-                            createdTime: file.createdTime, modifiedTime: file.modifiedTime, thumbnailLink: file.thumbnailLink,
-                            webContentLink: file.webContentLink, webViewLink: file.webViewLink, appProperties: file.appProperties || {}
-                        }));
-                    allFiles.push(...files);
-                    nextPageToken = response.nextPageToken;
-                } while (nextPageToken);
-                return allFiles;
+            async getFiles(folderId) { // Gets only files for the SlideSwipe core logic
+                 return (await this.loadItemsInFolder(folderId)).filter(item => item.type === 'file' && CONFIG.imgTypes.includes(item.mimeType));
             }
             async drillIntoFolder(folder) {
                 this.currentParentId = folder.id;
-                const items = await this.loadItemsInFolder(folder.id);
-                return items;
+                return this.loadItemsInFolder(folder.id);
             }
             async loadItemsInFolder(folderId) {
                  const query = `'${folderId}' in parents and trashed=false and (mimeType='application/vnd.google-apps.folder' or mimeType contains 'image/')`;
@@ -593,15 +573,14 @@
                 if (parentId === 'root') return this.getFolders();
                 return this.loadItemsInFolder(parentId);
             }
+            getCurrentPath() { 
+                if (this.currentParentId === 'root') return 'My Drive';
+                // This is a placeholder as the full breadcrumb logic is complex;
+                return `Current Folder: ${this.currentParentId.substring(0, 8)}...`;
+            }
             canGoUp() { return this.currentParentId !== 'root'; }
-            async updateFileMetadata(fileId, metadata) {
-                await this.makeApiCall(`/files/${fileId}`, { method: 'PATCH', body: JSON.stringify({ appProperties: metadata }) });
-                return true;
-            }
-            async deleteFile(fileId) {
-                await this.makeApiCall(`/files/${fileId}`, { method: 'PATCH', body: JSON.stringify({ trashed: true }) });
-                return true;
-            }
+            async updateFileMetadata(fileId, metadata) { await this.makeApiCall(`/files/${fileId}`, { method: 'PATCH', body: JSON.stringify({ appProperties: metadata }) }); return true; }
+            async deleteFile(fileId) { await this.makeApiCall(`/files/${fileId}`, { method: 'PATCH', body: JSON.stringify({ trashed: true }) }); return true; }
             async disconnect() {
                 this.isAuthenticated = false; this.accessToken = null; this.refreshToken = null; this.clientSecret = null;
                 this.clearStoredCredentials();
@@ -675,7 +654,7 @@
             async getFiles(folderId) { return (await this.loadItemsInParent(folderId)).filter(item => item.type === 'file' && CONFIG.imgTypes.includes(item.mimeType)); }
             async getFolders() {
                 this.breadcrumb = [{ id: 'root', name: 'Files' }];
-                return (await this.loadItemsInParent('root')).filter(item => item.type === 'folder');
+                return this.loadItemsInParent('root');
             }
             async drillIntoFolder(folder) {
                 this.breadcrumb.push({ id: folder.id, name: folder.name });
@@ -809,17 +788,148 @@
                 appState.providerType = null;
                 utils.showScreen('provider-screen');
             },
-            // Hand off to SlideSwipe main screen
-            async initializeWithProvider(folderId, folderName) {
+            async handleFolderRefresh() {
+                try {
+                    const provider = appState.provider;
+                    if (provider && typeof provider.canGoUp === 'function' && provider.canGoUp()) {
+                        const items = await provider.navigateToParent();
+                        folderManager.displayItems(items);
+                    } else {
+                        await folderManager.loadFolders();
+                    }
+                    folderManager.updateNavigation();
+                } catch (error) {
+                    utils.toast(`Folder navigation failed: ${error.message}`, 'error');
+                }
+            },
+            async handleFolderDrill(folder) {
+                 try {
+                    const provider = appState.provider;
+                    const items = await provider.drillIntoFolder(folder);
+                    folderManager.displayItems(items);
+                    folderManager.updateNavigation();
+                } catch (error) {
+                     utils.toast(`Error browsing folder: ${error.message}`, 'error');
+                }
+            },
+            async handleFolderSelect(folderId, folderName) {
                 appState.currentFolder.id = folderId;
                 appState.currentFolder.name = folderName;
                 $('header-filename').textContent = folderName;
                 $('header-filename').title = folderName;
                 
-                await folderManager.selectFolder(appState.currentFolder); // Use existing SlideSwipe folder selection logic
+                await folderManager.selectFolder(appState.currentFolder);
                 
-                // Show SlideSwipe App Screen
                 utils.showScreen('app-screen');
+            }
+        };
+
+        // ===== Folder Management Module (Goji Logic) =====
+        const folderManager = {
+            async loadFolders() {
+                const { folderList } = { folderList: $('folder-list') };
+                folderList.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: rgba(255, 255, 255, 0.7);"><div class="spinner"></div><span>Loading folders...</span></div>`;
+                try {
+                    const items = await appState.provider.getFolders();
+                    this.displayItems(items);
+                    this.updateNavigation();
+                } catch (error) {
+                    utils.toast(`Error loading folders: ${error.message}`, 'error');
+                    folderList.innerHTML = `<div style="text-align: center; padding: 40px; color: #ef4444;">
+                                                <span>Failed to load folders.</span>
+                                                <button id="retry-folders" class="folder-action-btn" style="margin-top: 15px;">Retry</button>
+                                            </div>`;
+                    $('retry-folders').addEventListener('click', () => this.loadFolders());
+                }
+            },
+            displayItems(items) {
+                const { folderList } = { folderList: $('folder-list') };
+                folderList.innerHTML = '';
+
+                if (!items || items.length === 0) {
+                    folderList.innerHTML = `<div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);"><span>No folders or files found</span></div>`;
+                    return;
+                }
+                
+                // Group folders first, then files
+                const folders = items.filter(i => i.type === 'folder');
+                const files = items.filter(i => i.type === 'file' && CONFIG.imgTypes.includes(i.mimeType));
+                
+                [...folders, ...files].forEach(item => {
+                    const isFolder = item.type === 'folder';
+                    const div = document.createElement('div');
+                    div.className = 'folder-item';
+                    div.dataset.id = item.id;
+                    div.dataset.name = item.name;
+
+                    let dateInfo = item.modifiedTime ? new Date(item.modifiedTime).toLocaleDateString() : '';
+                    if (!isFolder && item.size) { dateInfo += ` • ${utils.formatFileSize(item.size)}`; }
+                    
+                    const iconColor = isFolder ? 'var(--accent)' : 'rgba(16, 185, 129, 0.7)'; // Greenish for files
+                    const iconPath = isFolder ? 'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z' : 'M4 16l4-4 4 4 4-4 4 4M4 4h16v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z';
+                    
+                    div.innerHTML = `
+                        <svg class="folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: ${iconColor};">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"></path>
+                        </svg>
+                        <div class="folder-info">
+                            <div class="folder-name">${item.name}</div>
+                            <div class="folder-date">${dateInfo}</div>
+                        </div>
+                        <div class="folder-actions">
+                            ${isFolder ? `<button class="folder-action-btn drill-btn" data-action="drill" data-id="${item.id}" data-name="${item.name}">Browse →</button>` : ''}
+                            <button class="folder-action-btn select-btn" data-action="select" data-id="${item.id}" data-name="${item.name}">${isFolder && files.length > 0 ? 'Select Folder' : 'Select'}</button>
+                        </div>`;
+                    folderList.appendChild(div);
+                });
+
+                document.querySelectorAll('#folder-list button').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const { action, id, name } = e.target.dataset;
+                        
+                        if (action === 'drill') {
+                            await appManager.handleFolderDrill({ id, name });
+                        } else if (action === 'select') {
+                            await appManager.handleFolderSelect(id, name);
+                        }
+                    });
+                });
+            },
+            updateNavigation() {
+                const { folderSubtitle, folderRefreshButton } = { folderSubtitle: $('folder-subtitle'), folderRefreshButton: $('folder-refresh-button') };
+                const provider = appState.provider;
+
+                if (provider && typeof provider.getCurrentPath === 'function') {
+                    folderSubtitle.textContent = `Current: ${provider.getCurrentPath()}`;
+                }
+
+                if (provider && typeof provider.canGoUp === 'function' && provider.canGoUp()) {
+                    folderRefreshButton.textContent = '← Go Up';
+                } else {
+                    folderRefreshButton.textContent = 'Refresh';
+                }
+            },
+            async selectFolder(folder) {
+                // This is the handoff point to load the images for the SlideSwipe core
+                utils.toast(`Loading images from: ${folder.name}`, 'info');
+                try {
+                    const files = await api.fetchFiles(folder.id);
+                    appState.images = files;
+                    
+                    if (!files || files.length === 0) {
+                        utils.toast('No images found in this folder', 'error');
+                        return;
+                    }
+                    
+                    appState.currentIdx = 0; 
+                    stackManager.updateStacks();
+                    imageViewer.display();
+                    
+                    utils.toast(`Loaded ${files.length} images`, 'success');
+                } catch (error) {
+                    utils.toast(`Error loading images for SlideSwipe: ${error.message}`, 'error');
+                }
             }
         };
 
@@ -913,7 +1023,7 @@
             updateContainers() {
                 CONFIG.stacks.forEach(stack => {
                     const container = document.querySelector(`.ss-stack-container[data-stack="${stack}"]`);
-                    if (!container) return; // Skip if Goji UI didn't include
+                    if (!container) return; 
                     container.innerHTML = '';
                     appState.stacks[stack].forEach((file, index) => {
                         const div = document.createElement('div');
@@ -965,7 +1075,7 @@
             }
         };
         const gridView = {
-            open(stack) { /* Minimal open for now, Goji UI not fully wired */
+            open(stack) { 
                 $('grid-modal').classList.remove('hidden');
             },
             close() { $('grid-modal').classList.add('hidden'); },
@@ -973,7 +1083,7 @@
         const modalManager = {
             toggle(id, show = true) { const el = $(id); if (!el) return; el.classList.toggle('hidden', !show); },
             show(id) { this.toggle(id, true); }, hide(id) { this.toggle(id, false); },
-            setup() { /* Retained minimal setup */
+            setup() { 
                 $$('.ss-tab').forEach(tab => {
                     tab.addEventListener('click', () => {
                         const stack = tab.dataset.stack;
@@ -994,7 +1104,6 @@
 
                 $('header-tags-btn').addEventListener('click', () => {
                     if (appState.images.length === 0) return;
-                    // Trigger simple tag modal (assuming it's still present/adapted)
                     this.show('tag-modal'); 
                     utils.toast('Tag Modal needs re-wiring.', 'error');
                 });
@@ -1007,8 +1116,6 @@
                 container.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; });
                 container.addEventListener('touchmove', e => {
                     touchEndX = e.touches[0].clientX; touchEndY = e.touches[0].clientY;
-                    $$('.swipe-indicator').forEach(i => i.style.opacity = '0');
-                    // Simplified swipe indicators (removed indicators from Goji UI in this version)
                 });
                 container.addEventListener('touchend', () => {
                     const deltaX = touchEndX - touchStartX; const deltaY = touchEndY - touchStartY;
@@ -1053,26 +1160,29 @@
             $('onedrive-btn').addEventListener('click', () => appManager.selectProvider('onedrive'));
             $('auth-button').addEventListener('click', () => appManager.authenticateCurrentUser());
             $('auth-back-button').addEventListener('click', () => appManager.backToProviderSelection());
-            $('folder-refresh-button').addEventListener('click', () => folderManager.loadFolders());
+            
+            // Folder refresh/go up button
+            $('folder-refresh-button').addEventListener('click', () => appManager.handleFolderRefresh());
+            
             $('folder-back-button').addEventListener('click', () => appManager.backToProviderSelection());
             $('folder-logout-button').addEventListener('click', () => appManager.disconnect());
             
-            // Goji Folder list handler
+            // Goji Folder list handler - Delegation to appManager
             $('folder-list').addEventListener('click', (e) => {
                 const target = e.target.closest('[data-id]');
                 const actionBtn = e.target.closest('button');
                 if (target && actionBtn) {
-                    const { id, name } = target.dataset;
+                    const { id, name } = actionBtn.dataset;
                     if (actionBtn.dataset.action === 'drill') {
                         appManager.handleFolderDrill({ id, name });
-                    } else if (actionBtn.dataset.action === 'select' || actionBtn.dataset.action === 'select folder') {
-                        appManager.initializeWithProvider(id, name);
+                    } else if (actionBtn.dataset.action === 'select') {
+                        appManager.handleFolderSelect(id, name);
                     }
                 }
             });
 
             // SlideSwipe handlers
-            $('select-another-folder').addEventListener('click', () => { utils.showScreen('folder-screen'); });
+            $('select-another-folder').addEventListener('click', () => { utils.showScreen('folder-screen'); folderManager.loadFolders(); });
             $('header-grid-btn').addEventListener('click', () => { gridView.open(appState.currentStack); });
             $('close-grid')?.addEventListener('click', () => gridView.close());
             $('image-zoom').addEventListener('input', () => {
