@@ -13,7 +13,7 @@
   --accent:#1f6feb;
   --border:#e3e3e8;
   --danger:#b3261e;
-  --highlight:#ff7a00; /* solid orange for DnD target */
+  --highlight:#ff7a00;
   --search:#14532d;
 }
 *{box-sizing:border-box}
@@ -41,7 +41,7 @@ main{
 .card{
   background:#fff;
   border:2px solid transparent;
-  border-radius:999px; /* chip */
+  border-radius:999px;
   display:flex;align-items:center;gap:10px;
   padding:8px 12px;
   cursor:grab;
@@ -68,7 +68,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(720px,92vw)}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .results{
-  position:sticky;top:96px; /* under the header */
+  position:sticky;top:96px;
   margin:0 16px 8px 16px;
   background:var(--panel);
   border:1px solid var(--border);
@@ -79,6 +79,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(720px,92vw)}
 .result-item:first-child{border-top:none}
 .result-item:hover{background:#f1f5ff}
 .muted{color:var(--muted);font-size:12px}
+.timepill{font-size:12px;color:#555;border:1px solid var(--border);padding:2px 8px;border-radius:999px;margin-left:8px}
 @media (max-width:900px){main{grid-template-columns:1fr}}
 </style>
 </head>
@@ -177,36 +178,75 @@ dialog{border:none;border-radius:14px;padding:0;width:min(720px,92vw)}
 </dialog>
 
 <script>
-/* State */
-const storageKey = "ai_jobs_kanban_v7"; // keep same to preserve data
-let state = {
+/* ===== Persistence (robust) ===== */
+const STABLE_KEY = "ai_jobs_kanban"; // single stable key
+const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
+let dirty = false;
+let saveTimer = null;
+function trySave(key, value){
+  try{
+    localStorage.setItem(key, value);
+    const back = localStorage.getItem(key);
+    return back === value;
+  }catch(e){
+    console.warn("Save error", e);
+    return false;
+  }
+}
+function persistNow(){
+  const payload = JSON.stringify(state);
+  const ok = trySave(STABLE_KEY, payload);
+  if(!ok){
+    setStatus("⚠️ Saving to local storage failed. Use Export to back up.");
+  }else{
+    setStatus("Saved at " + new Date().toLocaleTimeString());
+  }
+  dirty = false;
+}
+function scheduleSave(){
+  dirty = true;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(persistNow, 250);
+}
+function loadState(){
+  let raw = localStorage.getItem(STABLE_KEY);
+  if(!raw){
+    for(let i=LEGACY_KEYS.length-1;i>=0;i--){
+      raw = localStorage.getItem(LEGACY_KEYS[i]);
+      if(raw){ break; }
+    }
+    if(raw){
+      trySave(STABLE_KEY, raw);
+    }
+  }
+  if(raw){
+    try{
+      const obj = JSON.parse(raw);
+      if(obj && Array.isArray(obj.cards) && Array.isArray(obj.stages) && Array.isArray(obj.platforms)){
+        return obj;
+      }
+    }catch(e){ console.warn("Parse fail", e); }
+  }
+  return null;
+}
+
+/* ===== App State ===== */
+let state = loadState() || {
   stages: ["Done","Doing","Next"],
   platforms: ["Gemini","Claude","ChatGPT","Perplexity"],
-  cards: [] // {id,title,platform,stage,dev,live,tags[],notes,pos:number,createdAt,updatedAt}
+  cards: []
 };
 const $ = s=>document.querySelector(s);
 const $$ = s=>Array.from(document.querySelectorAll(s));
 function uid(){return Math.random().toString(36).slice(2,10)}
 
-/* Persistence */
-function save(){localStorage.setItem(storageKey, JSON.stringify(state)); setStatus("Saved");}
-function load(){
-  const raw = localStorage.getItem(storageKey);
-  if(raw){ try{ state = JSON.parse(raw);}catch(e){ console.error(e);} }
-}
-
-/* Ordering helpers */
+/* ===== Ordering ===== */
 function stageCards(stage){
   return state.cards.filter(c=>c.stage===stage).sort((a,b)=>{
     const pa = (typeof a.pos==="number")?a.pos:0;
     const pb = (typeof b.pos==="number")?b.pos:0;
     return pa - pb || (a.createdAt - b.createdAt);
   });
-}
-function nextPos(stage){
-  const list = stageCards(stage);
-  if(list.length===0) return 1000;
-  return (list[list.length-1].pos ?? 0) + 1000;
 }
 function topPos(stage){
   const list = stageCards(stage);
@@ -230,7 +270,7 @@ function moveToStageAt(id, stage, index){
   c.pos = pos;
   c.updatedAt = Date.now();
   maybeRebalance(stage);
-  save(); render(); focusCard(id);
+  scheduleSave(); render(); focusCard(id);
 }
 function maybeRebalance(stage){
   const list = stageCards(stage);
@@ -244,7 +284,7 @@ function maybeRebalance(stage){
   }
 }
 
-/* Rendering */
+/* ===== Rendering ===== */
 let draggingId = null;
 let highlightEl = null;
 function render(){
@@ -285,11 +325,8 @@ function render(){
     board.appendChild(lane);
   });
   refillSelects();
-  // Apply search filter after rendering
   applySearch($("#search").value);
 }
-
-// Global preventDefault keeps drops active across the page
 document.addEventListener("dragover", e=> e.preventDefault());
 
 function setHighlight(el){
@@ -301,7 +338,7 @@ function setHighlight(el){
 function getDropTarget(body, clientY){
   const cards = [...body.querySelectorAll(".card")].filter(x=> x.dataset.id !== draggingId);
   if(cards.length===0){
-    return {index:0, targetEl:null}; // nothing to highlight
+    return {index:0, targetEl:null};
   }
   let index = cards.length;
   for(let i=0;i<cards.length;i++){
@@ -356,7 +393,6 @@ function renderCard(card){
   el.append(line);
   return el;
 }
-
 function makeDragImage(el){
   const di = document.createElement("div");
   di.style.position = "absolute";
@@ -372,7 +408,7 @@ function makeDragImage(el){
   return di;
 }
 
-/* Card Ops */
+/* ===== Card Ops ===== */
 function createCard(data){
   const now = Date.now();
   const stage = data.stage || state.stages[0] || "Next";
@@ -385,12 +421,12 @@ function createCard(data){
     live: (data.live||"").trim(),
     tags: normalizeTags(data.tags),
     notes: (data.notes||"").trim(),
-    pos: topPos(stage), // insert at top
+    pos: topPos(stage),
     createdAt: now,
     updatedAt: now
   };
   state.cards.push(c);
-  save(); render(); focusCard(c.id);
+  scheduleSave(); render(); focusCard(c.id);
   return c.id;
 }
 function updateCard(id, patch){
@@ -398,11 +434,11 @@ function updateCard(id, patch){
   Object.assign(c, patch);
   c.tags = normalizeTags(c.tags);
   c.updatedAt = Date.now();
-  save(); render(); focusCard(c.id);
+  scheduleSave(); render(); focusCard(c.id);
 }
 function deleteCard(id){
   state.cards = state.cards.filter(x=>x.id!==id);
-  save(); render();
+  scheduleSave(); render();
 }
 function focusCard(id){
   const el = $(`.card[data-id="${id}"]`);
@@ -413,11 +449,16 @@ function normalizeTags(tags){
   if(typeof tags==="string") return tags.split(",").map(s=>s.trim()).filter(Boolean);
   return [];
 }
+function fmtTime(ts){
+  if(!ts) return "";
+  const d = new Date(ts);
+  const pad = n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
-/* Editor Modal */
+/* ===== Editor ===== */
 const editDialog = $("#editDialog");
 let editingId = null;
-
 function openEditor(id=null, presetStage=null){
   editingId = id;
   $("#editTitle").textContent = id? "Edit Card" : "New Card";
@@ -432,7 +473,6 @@ function openEditor(id=null, presetStage=null){
   $("#btnDelete").classList.toggle("hidden", !id);
   editDialog.showModal();
 }
-
 editDialog.addEventListener("close", ()=>{
   const action = editDialog.returnValue;
   if(action==="cancel"){ editingId=null; return; }
@@ -458,7 +498,7 @@ editDialog.addEventListener("close", ()=>{
   }
 });
 
-/* Settings */
+/* ===== Settings ===== */
 const settingsDialog = $("#settingsDialog");
 $("#btnSettings").onclick = ()=>{
   $("#sPlatforms").value = state.platforms.join(", ");
@@ -468,25 +508,24 @@ $("#btnSettings").onclick = ()=>{
 settingsDialog.addEventListener("close", ()=>{
   const v = settingsDialog.returnValue;
   if(v==="cancel") return;
-  if(v==="reset"){ if(confirm("Remove all cards?")){ state.cards=[]; save(); render(); } return; }
+  if(v==="reset"){ if(confirm("Remove all cards?")){ state.cards=[]; scheduleSave(); render(); } return; }
   if(v==="save"){
     const platforms = $("#sPlatforms").value.split(",").map(s=>s.trim()).filter(Boolean);
     const stages = $("#sStages").value.split(",").map(s=>s.trim()).filter(Boolean);
     if(stages.length){
       const newFirst = stages[0];
       state.cards.forEach(c=>{
-        if(!stages.includes(c.stage)){ c.stage = newFirst; c.pos = topPos(newFirst); }
+        if(!stages.includes(c.stage)){ c.stage = newFirst; c.pos = topPos(newFirst); c.updatedAt = Date.now(); }
       });
       state.stages = stages;
     }
     if(platforms.length){ state.platforms = platforms; }
-    save(); render();
+    scheduleSave(); render();
   }
 });
 
-/* New, Import, Export */
+/* ===== New, Import, Export ===== */
 $("#btnNew").onclick = ()=> openEditor(null, state.stages[0] || "Next");
-
 $("#btnExport").onclick = ()=>{
   const data = JSON.stringify(state, null, 2);
   const blob = new Blob([data], {type:"application/json"});
@@ -494,6 +533,7 @@ $("#btnExport").onclick = ()=>{
   const a = document.createElement("a");
   a.href = url; a.download = "ai-jobs-kanban.json"; a.click();
   URL.revokeObjectURL(url);
+  setStatus("Exported current board JSON.");
 };
 $("#btnImport").onclick = ()=> $("#fileImport").click();
 $("#fileImport").onchange = (e)=>{
@@ -509,21 +549,21 @@ $("#fileImport").onchange = (e)=>{
           list.sort((a,b)=> (a.pos??0)-(b.pos??0) || (a.createdAt-b.createdAt));
           list.forEach((c,i)=>{ if(typeof c.pos!=="number") c.pos=(i+1)*1000; });
         });
-        save(); render();
+        scheduleSave(); render(); setStatus("Imported JSON and saved to local storage.");
       }else{ alert("Invalid JSON structure."); }
     }catch(err){ alert("Failed to parse JSON."); }
   };
   r.readAsText(f);
 };
 
-/* Lane background double-click to add to that lane (top) */
+/* ===== Lane dblclick: new at top ===== */
 $("#board").addEventListener("dblclick", (e)=>{
   const lane = e.target.closest(".lane"); if(!lane) return;
   const stage = lane.dataset.stage;
   openEditor(null, stage);
 });
 
-/* Omni Search: simple real-time match + Enter shows modal list */
+/* ===== Search ===== */
 const searchInput = $("#search");
 let searchDebounce;
 let currentMatches = [];
@@ -538,7 +578,6 @@ searchInput.addEventListener("keydown", (e)=>{
     openSearchModal(currentMatches);
   }
 });
-
 function applySearch(q){
   const term = (q||"").trim().toLowerCase();
   const all = state.cards.slice();
@@ -548,7 +587,8 @@ function applySearch(q){
   $("#searchCount").textContent = term? `${currentMatches.length} match(es)` : "";
 }
 function combinedHay(c){
-  return [c.title, c.platform, c.stage, c.notes, c.dev, c.live, ...(c.tags||[])].join(" ").toLowerCase();
+  const ts = fmtTime(c.updatedAt);
+  return [c.title, c.platform, c.stage, c.notes, c.dev, c.live, ts, ...(c.tags||[])].join(" ").toLowerCase();
 }
 function highlightMatches(idset, hasTerm){
   $$(".card").forEach(el=>{
@@ -566,14 +606,16 @@ function renderResultsPreview(cards, term){
     const item = document.createElement("div");
     item.className = "result-item";
     item.innerHTML = `<strong>${escapeHtml(c.title)}</strong>
-      <div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`;
+      <div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}
+      <span class="timepill">Updated ${escapeHtml(fmtTime(c.updatedAt))}</span></div>`;
     item.onclick = ()=>{ focusCard(c.id); };
     box.appendChild(item);
   });
   cont.appendChild(box);
 }
+/* Search modal */
+const searchDialog = $("#searchDialog");
 function openSearchModal(cards){
-  const dlg = $("#searchDialog");
   const list = $("#searchList");
   list.innerHTML = "";
   if(cards.length===0){
@@ -583,26 +625,20 @@ function openSearchModal(cards){
       const row = document.createElement("div");
       row.className = "result-item";
       row.innerHTML = `<strong>${escapeHtml(c.title)}</strong>
-        <div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`;
-      row.onclick = ()=>{ dlg.close("close"); focusCard(c.id); };
+        <div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}
+        <span class="timepill">Updated ${escapeHtml(fmtTime(c.updatedAt))}</span></div>`;
+      row.onclick = ()=>{ searchDialog.close("close"); focusCard(c.id); };
       list.appendChild(row);
     });
   }
-  dlg.showModal();
+  searchDialog.showModal();
 }
 function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
 
-/* Helpers */
-function setStatus(t){ $("#status").textContent = t; }
-function refillSelects(){
-  const pSel = $("#fPlatform");
-  const sSel = $("#fStage");
-  pSel.innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join("");
-  sSel.innerHTML = state.stages.map(s=>`<option>${s}</option>`).join("");
-}
-
-/* Init */
-load(); render(); setStatus("Simple search enabled. Type to filter live; press Enter to open results modal and jump to a card.");
+/* ===== Init ===== */
+window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
+render();
+setStatus("Ready. Local autosave enabled (stable key).");
 </script>
 </body>
 </html>
