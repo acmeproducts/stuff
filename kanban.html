@@ -78,9 +78,14 @@ main#board[data-layout="vertical"]{
   -webkit-user-drag: element;
   user-select:none;
   position:relative;
+  transition:border-color .08s ease, box-shadow .08s ease;
 }
 .card *{ -webkit-user-drag: none; }
-.card.dragging{opacity:.5}
+.card.dragging{
+  opacity:.85;
+  border-color:var(--highlight);
+  box-shadow:0 0 0 2px var(--highlight) inset;
+}
 .card.search-hit{border-color:var(--search)}
 .card-line{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;width:100%;min-width:0}
 .card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -89,14 +94,12 @@ main#board[data-layout="vertical"]{
 .card-dates{font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap}
 .card-tags{display:flex;gap:6px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px}
-/* FIX #1: remove any visible box around the ×; no background; no outline */
-.chip button{
-  border:none;background:transparent;outline:none;
-  padding:0;margin:0;cursor:pointer;
-  font-size:13px;font-weight:800;line-height:1;color:#444;
-}
+.chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
 .chip button:hover{color:#000}
-.drop-highlight{border-color:var(--highlight) !important}
+.drop-highlight{
+  border-color:var(--highlight) !important;
+  box-shadow:0 -2px 0 0 var(--highlight) inset;
+}
 
 /* Misc */
 .footer{padding:8px 16px;color:var(--muted);font-size:12px;text-align:right}
@@ -160,7 +163,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(840px,94vw)}
     <button id="btnSettings" class="btn">Settings</button>
     <button id="btnExport" class="btn">Export</button>
     <button id="btnImport" class="btn">Import</button>
-    <input id="fileImport" type="file" accept="application/json" class="hidden"/>
+    <input id="fileImport" type="file" accept="application/json" class="hidden" aria-hidden="true" tabindex="-1" />
   </div>
   <div class="searchbar">
     <input id="search" placeholder="Search… (use -term to exclude)" aria-label="Omni search"/>
@@ -207,13 +210,11 @@ dialog{border:none;border-radius:14px;padding:0;width:min(840px,94vw)}
     </div>
     <div class="field">
       <label for="fTags">Tags</label>
-      <!-- Single tag entry area (input + chips). Suggestions shown once below. -->
       <div class="tag-input-row">
         <input id="tagInput" placeholder="type a tag, press Enter" />
         <div id="tagChips" class="chips"></div>
       </div>
       <div class="suggestions" id="tagSuggestions" aria-label="Previously used tags"></div>
-      <!-- FIX #2: keep hidden field hidden and at the end to avoid any layout 'ghost' -->
       <input id="fTags" class="hidden" />
     </div>
     <div class="field">
@@ -287,13 +288,14 @@ dialog{border:none;border-radius:14px;padding:0;width:min(840px,94vw)}
 </div>
 
 <script>
+const BUILD = "2025-10-27";
 /* ===== Persistence ===== */
 const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
 const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
 let dirty=false, saveTimer=null;
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
-function persistNow(){ const ok=trySave(STABLE_KEY, JSON.stringify(state)); setStatus(ok? "Saved at "+new Date().toLocaleTimeString() : "⚠️ Save failed"); dirty=false; }
+function persistNow(){ const ok=trySave(STABLE_KEY, JSON.stringify(state)); setStatus((ok? "Saved" : "⚠️ Save failed")+" • Build "+BUILD+" • "+new Date().toLocaleTimeString()); dirty=false; }
 function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); }
 function loadState(){
   let raw = localStorage.getItem(STABLE_KEY);
@@ -359,9 +361,22 @@ function render(){
 
     const body=document.createElement("div"); body.className="lane-body"; if(state.collapsed[stage]) body.classList.add("collapsed");
     body.addEventListener("dragenter", e=> e.preventDefault());
-    body.addEventListener("dragover", e=>{ e.preventDefault(); const {index,targetEl}=getDropTarget(body,e.clientY); body.dataset.dropIndex=index; setHighlight(targetEl); if(e.dataTransfer) e.dataTransfer.dropEffect="move"; });
+    body.addEventListener("dragover", e=>{
+      e.preventDefault();
+      const {index,targetAboveEl}=getDropTarget(body,e.clientY);
+      body.dataset.dropIndex=index;
+      setHighlight(targetAboveEl);
+      if(e.dataTransfer) e.dataTransfer.dropEffect="move";
+    });
     body.addEventListener("dragleave", e=>{ if(!body.contains(e.relatedTarget)) setHighlight(null); });
-    body.addEventListener("drop", e=>{ e.preventDefault(); const id=draggingId||e.dataTransfer.getData("text/id")||e.dataTransfer.getData("text/plain"); if(!id){ setHighlight(null); return; } const idx=Number(body.dataset.dropIndex??0); moveToStageAt(id,stage,idx); setHighlight(null); });
+    body.addEventListener("drop", e=>{
+      e.preventDefault();
+      const id=draggingId||e.dataTransfer.getData("text/id")||e.dataTransfer.getData("text/plain");
+      if(!id){ setHighlight(null); return; }
+      const idx=Number(body.dataset.dropIndex??0);
+      moveToStageAt(id,stage,idx);
+      setHighlight(null);
+    });
     stageCards(stage).forEach(c=> body.appendChild(renderCard(c)));
     lane.append(head, body); board.appendChild(lane);
   });
@@ -370,10 +385,27 @@ function render(){
 }
 document.addEventListener("dragover", e=> e.preventDefault());
 function setHighlight(el){ if(highlightEl && highlightEl!==el) highlightEl.classList.remove("drop-highlight"); highlightEl=el; if(highlightEl) highlightEl.classList.add("drop-highlight"); }
-function getDropTarget(body,y){ const cards=[...body.querySelectorAll(".card")].filter(x=> x.dataset.id!==draggingId); if(!cards.length) return {index:0,targetEl:null}; let index=cards.length; for(let i=0;i<cards.length;i++){ const r=cards[i].getBoundingClientRect(); const mid=r.top+r.height/2; if(y<mid){ index=i; break; } } const targetEl=(index>=cards.length)?cards[cards.length-1]:cards[index]; return {index,targetEl}; }
+function getDropTarget(body,y){
+  const cards=[...body.querySelectorAll(".card")].filter(x=> x.dataset.id!==draggingId);
+  if(!cards.length) return {index:0,targetAboveEl:null};
+  let index=cards.length;
+  for(let i=0;i<cards.length;i++){
+    const r=cards[i].getBoundingClientRect();
+    const mid=r.top+r.height/2;
+    if(y<mid){ index=i; break; }
+  }
+  const targetAboveEl = (index>0) ? cards[index-1] : null;
+  return {index,targetAboveEl};
+}
 function renderCard(card){
   const el=document.createElement("article"); el.className="card"; el.draggable=true; el.dataset.id=card.id;
-  el.addEventListener("dragstart", e=>{ draggingId=card.id; el.classList.add("dragging"); e.dataTransfer.setData("text/id",card.id); e.dataTransfer.setData("text/plain",card.id); e.dataTransfer.effectAllowed="move"; const di=makeDragImage(el); document.body.appendChild(di); e.dataTransfer.setDragImage(di, di.offsetWidth/2, di.offsetHeight/2); setTimeout(()=>di.remove(),0); });
+  el.addEventListener("dragstart", e=>{
+    draggingId=card.id;
+    el.classList.add("dragging");
+    e.dataTransfer.setData("text/id",card.id);
+    e.dataTransfer.setData("text/plain",card.id);
+    e.dataTransfer.effectAllowed="move";
+  });
   el.addEventListener("dragend", ()=>{ draggingId=null; el.classList.remove("dragging"); setHighlight(null); });
   el.addEventListener("click", ()=> openEditor(card.id));
   el.addEventListener("mouseenter", (e)=> showTooltip(e, card));
@@ -394,7 +426,6 @@ function renderCard(card){
   el.append(tagsRow);
   return el;
 }
-function makeDragImage(el){ const di=document.createElement("div"); di.style.position="absolute"; di.style.top="-1000px"; di.style.left="-1000px"; di.style.pointerEvents="none"; di.style.padding="6px 10px"; di.style.border="2px solid var(--highlight)"; di.style.borderRadius="999px"; di.style.background="#fff"; di.style.font="600 14px system-ui, -apple-system, Segoe UI, Roboto"; di.textContent=el.querySelector(".card-title")?.textContent||"Card"; return di; }
 
 /* ===== Card Ops ===== */
 function createCard(data){
@@ -470,10 +501,8 @@ editDialog.addEventListener("close", ()=>{
   }
   editorDirty=false;
 });
-// Dirty tracking
 editForm.addEventListener("input", ()=>{ editorDirty=true; });
 editForm.addEventListener("change", ()=>{ editorDirty=true; });
-// Modal top-right ×
 editorCloseBtn.addEventListener("click", ()=>{
   if(editorDirty){
     if(confirm("Discard changes?")) { editDialog.close("cancel"); editorDirty=false; }
@@ -481,7 +510,6 @@ editorCloseBtn.addEventListener("click", ()=>{
     editDialog.close("cancel");
   }
 });
-// Title Enter saves
 $("#fTitle").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); $("#btnSave").click(); } });
 $("#btnSaveAndNew").addEventListener("click", (e)=>{ e.preventDefault(); editDialog.close("save_new"); });
 function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("#fStage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:$("#fNotes").value }; }
@@ -679,7 +707,7 @@ function setStatus(t){ document.getElementById("status").textContent=t; }
 /* ===== Init ===== */
 window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
 render();
-setStatus("Ready. Chips × has no box; duplicate input removed; all features intact.");
+setStatus("Loaded from local storage • Build "+BUILD+" • "+new Date().toLocaleTimeString());
 </script>
 </body>
 </html>
