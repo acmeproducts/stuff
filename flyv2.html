@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>CoreNav Universe — Quadrants, Fog, Habitats (v6)</title>
+<title>CoreNav Universe — Streamed Quadrants & Habitats (v6-streamed)</title>
 <style>
   :root{
     --bg:#06070a; --fg:#e7e7e7; --line:rgba(255,255,255,.15);
@@ -13,7 +13,7 @@
   #webgl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
   #loading{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;transition:opacity .35s}
   #loading.hidden{opacity:0;pointer-events:none}
-  #progressbar{width:220px;height:4px;background:#333;margin-top:10px}
+  #progressbar{width:240px;height:4px;background:#333;margin-top:10px;border-radius:999px;overflow:hidden}
   #progress{width:0%;height:100%;background:#fff;transition:width .18s}
   #handle{position:fixed;top:0;left:50%;transform:translateX(-50%);border:0;background:transparent;padding:8px;z-index:6}
   #handle .bar{width:68px;height:4px;border-radius:999px;background:rgba(255,255,255,.65)}
@@ -38,7 +38,7 @@
 </style>
 </head>
 <body>
-<div id="loading"><p>Loading…</p><div id="progressbar"><div id="progress"></div></div></div>
+<div id="loading"><p>Preparing sector…</p><div id="progressbar"><div id="progress"></div></div></div>
 <canvas id="webgl"></canvas>
 
 <button id="handle" title="Settings"><div class="bar"></div></button>
@@ -56,7 +56,7 @@
       <label><span>Deadzone (px)</span><input id="cfgDeadzone" type="range" min="0" max="60" step="2" value="12"></label>
     </fieldset>
     <fieldset><legend>Visual</legend>
-      <label><span>Star Density</span><input id="cfgStarDensity" type="range" min="0.5" max="2.5" step="0.1" value="1.6"></label>
+      <label><span>Star Density</span><input id="cfgStarDensity" type="range" min="0.5" max="2.5" step="0.1" value="1.4"></label>
       <label><span>Bloom</span><input id="cfgBloom" type="range" min="0" max="2.5" step="0.05" value="0.3"></label>
       <label><span>Colors</span>
         <select id="cfgColor">
@@ -66,8 +66,8 @@
           <option value="rainbow">Rainbow</option>
         </select>
       </label>
-      <label><span>Galaxy Particles</span><input id="cfgGalaxyP" type="range" min="3000" max="20000" step="1000" value="10000"></label>
-      <label><span>Habitats / tile</span><input id="cfgHabitats" type="range" min="0" max="4" step="1" value="2"></label>
+      <label><span>Galaxy Particles</span><input id="cfgGalaxyP" type="range" min="3000" max="16000" step="1000" value="8000"></label>
+      <label><span>Habitats / tile</span><input id="cfgHabitats" type="range" min="0" max="3" step="1" value="2"></label>
     </fieldset>
   </div>
 </div>
@@ -93,7 +93,7 @@ const handle = document.getElementById("handle");
 const dirBtn = document.getElementById("dirBtn");
 const touchDot = document.getElementById("touchDot");
 
-const CFG = { speedBase:16,speedMul:1,turboMul:3,thrustEase:0.22,dragLin:0.16,rudder:1.4,rudderRamp:1.2,turnDamp:0.18,deadzonePx:12,starDensity:1.6,bloom:0.3,colorMode:"fire",galaxyParticles:10000,habitatsPerTile:2 };
+const CFG = { speedBase:16,speedMul:1,turboMul:3,thrustEase:0.22,dragLin:0.16,rudder:1.4,rudderRamp:1.2,turnDamp:0.18,deadzonePx:12,starDensity:1.4,bloom:0.3,colorMode:"fire",galaxyParticles:8000,habitatsPerTile:2 };
 
 let holding=false, pointerId=null;
 let anchorX=0, anchorY=0, curX=0, curY=0;
@@ -107,7 +107,14 @@ let scene, camera, renderer, composer, bloomPass;
 let stars;
 const loaded = new Set(); const chunks = new Map();
 let originOffset = new THREE.Vector3();
-const CELL=1400, RADIUS=2, REBASE=18000;
+const CELL=1400, INIT_RADIUS=1, RADIUS=1, REBASE=18000;
+
+/* streaming queue */
+const pending = new Set();       // keys queued to build
+const buildQueue = [];           // array of keys
+let initialTarget = (2*INIT_RADIUS+1)*(2*INIT_RADIUS+1);
+let initialBuilt = 0;
+const BUILD_BUDGET = 2;          // chunks per frame
 
 /* ===== Utils ===== */
 function lcg(seed){ let s = seed|0; return ()=> (s = (1664525*s + 1013904223)|0) >>> 0; }
@@ -129,9 +136,9 @@ function bindUI(){
   bind("cfgDeadzone", v=> CFG.deadzonePx = parseFloat(v));
   bind("cfgStarDensity", v=> { CFG.starDensity=parseFloat(v); if (stars) reseedStars(); });
   bind("cfgBloom", v=> { CFG.bloom=parseFloat(v); if (bloomPass) bloomPass.strength=CFG.bloom; });
-  bind("cfgGalaxyP", v=> { CFG.galaxyParticles=parseInt(v,10); refreshGalaxies(); });
-  bind("cfgHabitats", v=> { CFG.habitatsPerTile=parseInt(v,10); refreshGalaxies(); });
-  const colorSel = document.getElementById("cfgColor"); if (colorSel) colorSel.addEventListener("change", e=>{ CFG.colorMode=e.target.value; refreshGalaxies(true); });
+  bind("cfgGalaxyP", v=> { CFG.galaxyParticles=parseInt(v,10); refreshNeighborhood(); });
+  bind("cfgHabitats", v=> { CFG.habitatsPerTile=parseInt(v,10); refreshNeighborhood(); });
+  const colorSel = document.getElementById("cfgColor"); if (colorSel) colorSel.addEventListener("change", e=>{ CFG.colorMode=e.target.value; refreshNeighborhood(); });
   handle.addEventListener("click", ()=>{ panel.classList.toggle("open"); panel.setAttribute("aria-hidden", String(!panel.classList.contains("open"))); });
   dirBtn.addEventListener("click", ()=>{ dir*=-1; dirBtn.textContent = dir===1 ? "Forward" : "Reverse"; dirBtn.setAttribute("aria-pressed", String(dir===1)); if (navigator.vibrate) navigator.vibrate(12); });
 }
@@ -182,21 +189,20 @@ function initThree(){
   scene.add(new THREE.AmbientLight(0x666666,.75));
 
   buildStars();
-  ensureChunksAround(new THREE.Vector3());
+  queueNeighborhood(new THREE.Vector3(), INIT_RADIUS);
   addEventListener("resize", onResize);
 }
 function onResize(){ camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); }
 
 /* ===== Background stars ===== */
-let stars;
 function buildStars(){
   if (stars){ stars.geometry.dispose(); stars.material.dispose(); scene.remove(stars); }
-  const count = Math.floor(14000 * CFG.starDensity);
+  const count = Math.floor(12000 * CFG.starDensity);
   const positions = new Float32Array(count*3);
   const colors = new Float32Array(count*3);
   const col = new THREE.Color();
   for (let i=0;i<count;i++){
-    const r = 3200 * Math.pow(Math.random(), 0.7) + 2000;
+    const r = 2400 * Math.pow(Math.random(), 0.7) + 1600;
     const theta = Math.acos(2*Math.random()-1);
     const phi = 2*Math.PI*Math.random();
     const x = r*Math.sin(theta)*Math.cos(phi);
@@ -212,7 +218,7 @@ function buildStars(){
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   g.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  const m = new THREE.PointsMaterial({ size: 1.4, sizeAttenuation:true, vertexColors:true, transparent:true, opacity:0.95, depthWrite:false, blending:THREE.AdditiveBlending });
+  const m = new THREE.PointsMaterial({ size: 1.3, sizeAttenuation:true, vertexColors:true, transparent:true, opacity:0.95, depthWrite:false, blending:THREE.AdditiveBlending });
   stars = new THREE.Points(g, m);
   scene.add(stars);
 }
@@ -237,7 +243,7 @@ function makeSpherePointCloud(radius=420, count=5000, hueBase=0.02){
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(pos,3));
   g.setAttribute("color", new THREE.BufferAttribute(col,3));
-  const m = new THREE.PointsMaterial({ size: 1.5, vertexColors:true, transparent:true, opacity:0.95, depthWrite:false, blending:THREE.AdditiveBlending });
+  const m = new THREE.PointsMaterial({ size: 1.4, vertexColors:true, transparent:true, opacity:0.95, depthWrite:false, blending:THREE.AdditiveBlending });
   return new THREE.Points(g, m);
 }
 function makeGridSphereLines(radius=520, seg=22, color=0x88aaff, opacity=0.15){
@@ -257,7 +263,7 @@ function makeGridSphereLines(radius=520, seg=22, color=0x88aaff, opacity=0.15){
   for(let i=1;i<seg;i++){ const r=Math.sin((i/seg)*Math.PI)*radius; const ln=circle(r,'x'); grp.add(ln); }
   return grp;
 }
-function makeGalaxy({rng, position, particles=10000, radius=520, arms=4, twist=2.9, thickness=28}){
+function makeGalaxy({rng, position, particles=8000, radius=500, arms=3, twist=2.8, thickness=26}){
   const N = Math.max(3000, particles);
   const positions = new Float32Array(N*3);
   const colors = new Float32Array(N*3);
@@ -281,7 +287,7 @@ function makeGalaxy({rng, position, particles=10000, radius=520, arms=4, twist=2
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(positions,3));
   g.setAttribute("color", new THREE.BufferAttribute(colors,3));
-  const mat = new THREE.PointsMaterial({ size: 1.6, sizeAttenuation:true, vertexColors:true, transparent:true, opacity:0.95, depthWrite:false, blending:THREE.AdditiveBlending });
+  const mat = new THREE.PointsMaterial({ size: 1.5, sizeAttenuation:true, vertexColors:true, transparent:true, opacity:0.95, depthWrite:false, blending:THREE.AdditiveBlending });
   const points = new THREE.Points(g, mat);
   const group = new THREE.Group();
   group.add(points);
@@ -290,7 +296,6 @@ function makeGalaxy({rng, position, particles=10000, radius=520, arms=4, twist=2
   const shellR = radius*0.42 + rand(-50,50);
   const inner = new THREE.Mesh(new THREE.SphereGeometry(shellR, 32, 24), new THREE.MeshStandardMaterial({ color: 0x5577aa, metalness:0.2, roughness:0.6, emissive:0x334466, emissiveIntensity:0.4 }));
   const inverse = new THREE.Mesh(new THREE.SphereGeometry(shellR*1.35, 32, 24), new THREE.MeshBasicMaterial({ color: 0x88aaff, side: THREE.BackSide, transparent:true, opacity:0.18 }));
-  inverse.rotation.y = Math.PI * rand(0,1);
   group.add(inner, inverse);
 
   return group;
@@ -335,7 +340,7 @@ function makeShellBoxHab(size=180, innerR=70, color=0xff6699){
 function makeDecoSet(rng, center){
   const grp = new THREE.Group();
   const colors = [0xff6ad5,0xff914d,0xff3b3b,0xffd166,0x5ad1ff,0x7dff8a,0x88ccff,0xccffee];
-  for(let i=0;i<6;i++){
+  for(let i=0;i<4;i++){
     const c = colors[i%colors.length];
     const type = rng()%3;
     let m;
@@ -353,37 +358,51 @@ function makeDecoSet(rng, center){
   return grp;
 }
 
-/* ===== Chunked universe ===== */
-function buildChunk(ix, iz){
-  const key = ix+","+iz; if (loaded.has(key)) return; loaded.add(key);
+/* ===== Chunked universe (streamed) ===== */
+function scheduleChunk(ix, iz){
+  const key = ix+","+iz;
+  if (loaded.has(key) || pending.has(key)) return;
+  pending.add(key);
+  buildQueue.push(key);
+}
+function queueNeighborhood(world, radius){
+  const cx = Math.floor(world.x/CELL), cz = Math.floor(world.z/CELL);
+  for (let dz=-radius; dz<=radius; dz++) for (let dx=-radius; dx<=radius; dx++) scheduleChunk(cx+dx, cz+dz);
+  updateProgress();
+}
+function buildOneChunk(){
+  const key = buildQueue.shift();
+  if (!key) return false;
+  pending.delete(key);
+  if (loaded.has(key)) return true;
+
+  const [ix,iz] = key.split(",").map(n=>parseInt(n,10));
   const rng = lcg(hash2(ix,iz));
   const group = new THREE.Group(); group.userData.key=key;
 
-  const galaxyCount = 3 + (rng()%2);
+  const galaxyCount = 2 + (rng()%2);               // lighter than before
   for (let g=0; g<galaxyCount; g++){
     const basePos = new THREE.Vector3((ix + rrange(rng, -0.35, 0.35)) * CELL, rrange(rng, -220, 220), (iz + rrange(rng, -0.35, 0.35)) * CELL);
-    const gal = makeGalaxy({ rng, position: basePos, particles: CFG.galaxyParticles, radius: rrange(rng, 380, 600), arms: 3 + (rng()%3), twist: rrange(rng, 2.2, 3.4), thickness: rrange(rng, 18, 34) });
+    const gal = makeGalaxy({ rng, position: basePos, particles: CFG.galaxyParticles, radius: rrange(rng, 380, 560), arms: 3 + (rng()%2), twist: rrange(rng, 2.2, 3.2), thickness: rrange(rng, 18, 30) });
     group.add(gal);
 
-    // sphere made of stars + grid shell (like your fly.html feel)
-    const globe = makeSpherePointCloud(rrange(rng, 360, 560), Math.floor(4200 + (rng()%4000)), 0.06*(rng()%10));
-    const shell = makeGridSphereLines(Math.max(420, Math.random()*170+450), 22, 0x88aaff, 0.15);
-    const offset = new THREE.Vector3(rrange(rng,-220,220), rrange(rng,-140,140), rrange(rng,-220,220));
+    const globe = makeSpherePointCloud(rrange(rng, 320, 520), Math.floor(3200 + (rng()%3500)), 0.06*(rng()%10));
+    const shell = makeGridSphereLines(Math.max(380, Math.random()*140+420), 20, 0x88aaff, 0.15);
+    const offset = new THREE.Vector3(rrange(rng,-200,200), rrange(rng,-120,120), rrange(rng,-200,200));
     const globeGroup = new THREE.Group(); globeGroup.position.copy(basePos).add(offset); globeGroup.add(globe); globeGroup.add(shell);
     group.add(globeGroup);
 
     group.add(makeDecoSet(rng, basePos));
   }
 
-  // parking habitats
   for (let i=0;i<CFG.habitatsPerTile;i++){
     const kind = rng()%3;
     let hab;
-    if (kind===0) hab = makeHollowSphereHab(rrange(rng,90,170), rrange(rng,10,16), 0x88ccff);
-    else if (kind===1) hab = makeRingHab(rrange(rng,120,200), rrange(rng,18,28), 0xffcc66);
-    else hab = makeShellBoxHab(rrange(rng,150,220), rrange(rng,60,90), 0xff6699);
+    if (kind===0) hab = makeHollowSphereHab(rrange(rng,90,150), rrange(rng,10,16), 0x88ccff);
+    else if (kind===1) hab = makeRingHab(rrange(rng,120,180), rrange(rng,18,26), 0xffcc66);
+    else hab = makeShellBoxHab(rrange(rng,140,200), rrange(rng,60,90), 0xff6699);
 
-    const hp = new THREE.Vector3((ix + rrange(rng,-0.45,0.45))*CELL, rrange(rng,-180,180), (iz + rrange(rng,-0.45,0.45))*CELL);
+    const hp = new THREE.Vector3((ix + rrange(rng,-0.45,0.45))*CELL, rrange(rng,-160,160), (iz + rrange(rng,-0.45,0.45))*CELL);
     hab.position.copy(hp);
     hab.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
     group.add(hab);
@@ -391,8 +410,27 @@ function buildChunk(ix, iz){
 
   scene.add(group);
   chunks.set(key, group);
+  loaded.add(key);
+  initialBuilt++;
+  updateProgress();
+  return true;
 }
-function unloadFar(cx, cz){
+function updateProgress(){
+  const totalInit = initialTarget;
+  const pct = Math.max(10, Math.min(100, Math.floor((initialBuilt/totalInit)*100)));
+  progress.style.width = pct + "%";
+  if (initialBuilt >= totalInit) loading.classList.add("hidden");
+}
+function maintainNeighborhood(){
+  const world = camera.position.clone().add(originOffset);
+  const cx = Math.floor(world.x/CELL), cz = Math.floor(world.z/CELL);
+
+  // schedule near tiles if not present
+  for (let dz=-RADIUS; dz<=RADIUS; dz++) for (let dx=-RADIUS; dx<=RADIUS; dx++){
+    scheduleChunk(cx+dx, cz+dz);
+  }
+
+  // unload far tiles
   for (const key of Array.from(loaded)){
     const [ix,iz] = key.split(",").map(n=>parseInt(n,10));
     if (Math.abs(ix-cx) > RADIUS || Math.abs(iz-cz) > RADIUS){
@@ -405,27 +443,21 @@ function unloadFar(cx, cz){
     }
   }
 }
-function ensureChunksAround(world){
-  const cx = Math.floor(world.x/CELL), cz = Math.floor(world.z/CELL);
-  for (let dz=-RADIUS; dz<=RADIUS; dz++) for (let dx=-RADIUS; dx<=RADIUS; dx++) buildChunk(cx+dx, cz+dz);
-  unloadFar(cx, cz);
-}
-function refreshGalaxies(){
+function refreshNeighborhood(){
+  // clear existing and reschedule visible neighborhood
+  for (const key of Array.from(loaded)){ const g = chunks.get(key); if (g){ g.traverse(o=>{ o.geometry?.dispose?.(); if (o.material){ if (Array.isArray(o.material)) o.material.forEach(m=>m.dispose?.()); else o.material.dispose?.(); } }); scene.remove(g); chunks.delete(key); } loaded.delete(key); }
+  buildQueue.length = 0; pending.clear();
+  initialBuilt = 0; updateProgress(); loading.classList.remove("hidden");
   const world = camera.position.clone().add(originOffset);
-  const cx = Math.floor(world.x/CELL), cz = Math.floor(world.z/CELL);
-  for (let dz=-RADIUS; dz<=RADIUS; dz++) for (let dx=-RADIUS; dx<=RADIUS; dx++){
-    const key = (cx+dx)+","+(cz+dz);
-    const grp = chunks.get(key);
-    if (!grp) continue;
-    scene.remove(grp);
-    grp.traverse(o=>{ o.geometry?.dispose?.(); if (o.material){ if (Array.isArray(o.material)) o.material.forEach(m=>m.dispose?.()); else o.material.dispose?.(); } });
-    chunks.delete(key); loaded.delete(key);
-    buildChunk(cx+dx, cz+dz);
-  }
+  queueNeighborhood(world, INIT_RADIUS);
 }
 
 /* ===== Movement Loop (ship-like; L/R stable; U/D normal) ===== */
 function loop(){
+  // stream a few chunks per frame to avoid main-thread stall
+  for (let i=0;i<BUILD_BUDGET; i++) if (!buildOneChunk()) break;
+  maintainNeighborhood();
+
   const now = performance.now();
   // Turbo after sustained hold
   if (holding && !turbo){
@@ -448,7 +480,7 @@ function loop(){
     } else { yawAcc=0; pitchAcc=0; }
   } else { yawAcc=0; pitchAcc=0; }
 
-  // Integrate with damping
+  // Integrate with damping (fixed timestep-ish)
   const dt = 1/60;
   const angDrag = CFG.turnDamp;
   yawVel += yawAcc * dt;     yawVel   *= Math.max(0, 1 - angDrag * dt * 60);
@@ -468,8 +500,6 @@ function loop(){
   const ease = CFG.thrustEase;
   speed += (targetSpeed - speed) * (1 - Math.exp(-(ease*60)*dt));
   if (!holding){ speed *= Math.max(0, 1 - CFG.dragLin * dt * 60); }
-
-  // Move forward in camera frame
   const eul = new THREE.Euler(pitch, yaw, 0, "YXZ");
   const forward = new THREE.Vector3(0,0,-1).applyEuler(eul);
   camera.position.addScaledVector(forward, speed * dt);
@@ -480,7 +510,6 @@ function loop(){
     chunks.forEach(g=>g.position.sub(camera.position));
     camera.position.set(0,0,0);
   }
-  ensureChunksAround(camera.position.clone().add(originOffset));
 
   // Keep starfield centered for parallax feel
   if (stars) stars.position.copy(camera.position);
@@ -491,7 +520,8 @@ function loop(){
   });
 
   camera.quaternion.setFromEuler(eul);
-  composer.render();
+  try { composer.render(); } catch (err) { console.error(err); loading.classList.add("hidden"); }
+
   requestAnimationFrame(loop);
 }
 
@@ -500,9 +530,11 @@ function onResize(){ camera.aspect = innerWidth/innerHeight; camera.updateProjec
 addEventListener("resize", onResize);
 
 function boot(){
-  let pct=0; const iv=setInterval(()=>{ pct+=12; progress.style.width=pct+"%"; if (pct>=100){ clearInterval(iv); loading.classList.add("hidden"); } }, 60);
+  // show minimal progress immediately so user sees movement
+  progress.style.width="10%";
   initThree();
   bindUI();
+  // ensure loader goes away even on low-end devices once first chunks done
   requestAnimationFrame(loop);
 }
 boot();
