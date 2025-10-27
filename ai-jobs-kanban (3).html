@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI Jobs Kanban</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg:#f7f7f9;
+  --panel:#ffffff;
+  --text:#111;
+  --muted:#666;
+  --accent:#1f6feb;
+  --border:#e3e3e8;
+  --danger:#b3261e;
+  --highlight:#ff7a00;
+  --search:#14532d;
+  --tooltip:#111;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:system-ui,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:var(--text)}
+header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--border);}
+.toolbar{padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.searchbar{padding:10px 16px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}
+#search{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:15px}
+#btnClearSearch{padding:8px 10px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer}
+.btn{padding:10px 14px;border:1px solid var(--border);background:var(--panel);border-radius:10px;cursor:pointer;font-weight:600}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+.btn.small{padding:6px 8px;font-size:12px}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+main{
+  padding:16px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(320px,1fr));
+  gap:16px;
+  align-items:start
+}
+.lane{background:var(--panel);border:1px solid var(--border);border-radius:14px;min-height:60vh;display:flex;flex-direction:column}
+.lane-header{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-weight:700}
+.lane-body{padding:8px;display:flex;flex-direction:column;gap:8px;min-height:120px}
+.card{
+  background:#fff;
+  border:2px solid transparent;
+  border-radius:999px;
+  display:flex;align-items:center;gap:10px;
+  padding:8px 12px;
+  cursor:grab;
+  min-height:40px;
+  box-shadow:0 1px 0 rgba(0,0,0,.03);
+  -webkit-user-drag: element;
+  user-select:none;
+  position:relative;
+}
+.card *{ -webkit-user-drag: none; }
+.card.dragging{opacity:.5}
+.card.search-hit{border-color:var(--search)}
+.card-line{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;width:100%;min-width:0}
+.card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-platform{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:0 0 auto}
+.card-links a{font-size:12px;margin-left:8px;text-decoration:none}
+.card-dates{font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap}
+.drop-highlight{border-color:var(--highlight) !important}
+.footer{padding:8px 16px;color:var(--muted);font-size:12px;text-align:right}
+.hidden{display:none}
+dialog{border:none;border-radius:14px;padding:0;width:min(840px,94vw)}
+.modal{padding:16px;background:var(--panel);border:1px solid var(--border);border-radius:14px}
+.field{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.field input,.field textarea,.field select{border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;width:100%}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.results{
+  position:sticky;top:96px;
+  margin:0 16px 8px 16px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:10px;
+  max-height:260px; overflow:auto;
+}
+.result-item{padding:10px 12px;border-top:1px solid var(--border);cursor:pointer}
+.result-item:first-child{border-top:none}
+.result-item:hover{background:#f1f5ff}
+.muted{color:var(--muted);font-size:12px}
+.timepill{font-size:12px;color:#555;border:1px solid var(--border);padding:2px 8px;border-radius:999px;margin-left:8px}
+/* Tag chips */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:4px 8px;background:#fff;font-size:12px}
+.chip button{border:none;background:transparent;font-weight:700;cursor:pointer;line-height:1}
+.tag-input-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#tagInput{flex:1}
+.suggestions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.suggestion{border:1px dashed var(--border);border-radius:999px;padding:4px 8px;background:#fafafa;font-size:12px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.suggestion .remove{font-weight:700;cursor:pointer}
+
+/* Tooltip */
+#tooltip{
+  position:fixed; z-index:50; pointer-events:none;
+  background:#fff; color:var(--text);
+  border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 8px 28px rgba(0,0,0,.12);
+  padding:10px 12px; max-width:360px; display:none;
+}
+#tooltip .t-title{font-weight:800;margin-bottom:4px}
+#tooltip .t-meta{font-size:12px;color:var(--muted);margin-bottom:4px}
+#tooltip .t-tags{font-size:12px;color:var(--muted);margin-bottom:6px}
+#tooltip .t-notes{font-size:13px;white-space:pre-wrap;max-height:120px;overflow:auto}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="toolbar">
+    <button id="btnNew" class="btn">New</button>
+    <button id="btnSettings" class="btn">Settings</button>
+    <button id="btnExport" class="btn">Export</button>
+    <button id="btnImport" class="btn">Import</button>
+    <input id="fileImport" type="file" accept="application/json" class="hidden"/>
+  </div>
+  <div class="searchbar">
+    <input id="search" placeholder="Search… (use -term to exclude)" aria-label="Omni search"/>
+    <button id="btnClearSearch" title="Clear search">×</button>
+    <span class="muted" id="searchCount"></span>
+  </div>
+</header>
+
+<div id="resultsContainer"></div>
+<main id="board" aria-live="polite"></main>
+<div class="footer" id="status"></div>
+
+<!-- Editor -->
+<dialog id="editDialog">
+  <form method="dialog" class="modal" id="editForm">
+    <h3 id="editTitle">Card</h3>
+    <!-- Title first row with Save & New -->
+    <div class="field">
+      <label for="fTitle">Title</label>
+      <div class="row">
+        <input id="fTitle" placeholder="Short title" autofocus/>
+        <button id="btnSaveAndNew" class="btn small primary" value="save_new">Save & New</button>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="field">
+        <label for="fPlatform">Platform</label>
+        <select id="fPlatform"></select>
+      </div>
+      <div class="field">
+        <label for="fStage">Lane</label>
+        <select id="fStage"></select>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="field">
+        <label for="fDev">Dev Link</label>
+        <input id="fDev" type="url" placeholder="https://…"/>
+      </div>
+      <div class="field">
+        <label for="fLive">Live Link</label>
+        <input id="fLive" type="url" placeholder="https://…"/>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="fTags">Tags</label>
+      <div class="tag-input-row">
+        <input id="tagInput" placeholder="type a tag, press Enter" />
+        <div id="tagChips" class="chips"></div>
+      </div>
+      <div class="suggestions" id="tagSuggestions"></div>
+      <input id="fTags" class="hidden"/>
+    </div>
+
+    <div class="field">
+      <label for="fNotes">Notes</label>
+      <textarea id="fNotes" rows="4" placeholder="Multi-line notes"></textarea>
+    </div>
+
+    <div class="row">
+      <button class="btn primary" value="save" id="btnSave">Save</button>
+      <button class="btn" value="cancel" id="btnCancel">Cancel</button>
+      <button id="btnDelete" class="btn danger" value="delete">Delete</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Search Modal -->
+<dialog id="searchDialog">
+  <form method="dialog" class="modal">
+    <h3>Search results</h3>
+    <div id="searchList" style="max-height:60vh; overflow:auto;"></div>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn" value="close">Close</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Settings -->
+<dialog id="settingsDialog">
+  <form method="dialog" class="modal" id="settingsForm">
+    <h3>Settings</h3>
+    <div class="field">
+      <label for="sPlatforms">Platforms (comma-separated)</label>
+      <input id="sPlatforms" value="Gemini, Claude, ChatGPT, Perplexity"/>
+    </div>
+    <div class="field">
+      <label for="sStages">Stages (left→right, top→bottom order)</label>
+      <input id="sStages" value="Done, Doing, Next"/>
+    </div>
+    <div class="row">
+      <button class="btn primary" value="save">Apply</button>
+      <button class="btn" value="cancel">Cancel</button>
+      <button class="btn danger" id="btnReset" value="reset">Reset Board</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Tooltip -->
+<div id="tooltip" role="tooltip" aria-hidden="true">
+  <div class="t-title"></div>
+  <div class="t-meta"></div>
+  <div class="t-tags"></div>
+  <div class="t-notes"></div>
+</div>
+
+<script>
+/* ===== Persistence (stable) ===== */
+const STABLE_KEY = "ai_jobs_kanban";
+const TAGS_KEY = "ai_jobs_kanban_tags";
+const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
+let dirty = false, saveTimer = null;
+function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
+function persistNow(){ const ok=trySave(STABLE_KEY, JSON.stringify(state)); setStatus(ok? "Saved at "+new Date().toLocaleTimeString() : "⚠️ Save failed"); dirty=false; }
+function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); }
+function loadState(){
+  let raw = localStorage.getItem(STABLE_KEY);
+  if(!raw){ for(let i=LEGACY_KEYS.length-1;i>=0;i--){ raw=localStorage.getItem(LEGACY_KEYS[i]); if(raw) break; } if(raw) trySave(STABLE_KEY, raw); }
+  if(raw){ try{ const obj=JSON.parse(raw); if(obj?.cards && obj?.stages && obj?.platforms) return obj; }catch{} }
+  return null;
+}
+function loadTagHistory(){ try{ const arr=JSON.parse(localStorage.getItem(TAGS_KEY)||"[]"); return Array.isArray(arr)?arr:[]; }catch{ return []; } }
+function saveTagHistory(list){ const uniq=[...new Set(list.map(t=>String(t).toLowerCase()))]; trySave(TAGS_KEY, JSON.stringify(uniq)); return uniq; }
+
+/* ===== App State ===== */
+let state = loadState() || { stages:["Done","Doing","Next"], platforms:["Gemini","Claude","ChatGPT","Perplexity"], cards:[] };
+let tagHistory = loadTagHistory();
+const $ = s=>document.querySelector(s), $$ = s=>Array.from(document.querySelectorAll(s));
+function uid(){return Math.random().toString(36).slice(2,10)}
+
+/* ===== Ordering ===== */
+function stageCards(stage){ return state.cards.filter(c=>c.stage===stage).sort((a,b)=> (a.pos??0)-(b.pos??0) || (a.createdAt-b.createdAt)); }
+function topPos(stage){ const list=stageCards(stage); return list.length? (list[0].pos??1000)-1000 : 1000; }
+function moveToStageAt(id, stage, index){
+  const c=state.cards.find(x=>x.id===id); if(!c) return;
+  const list=stageCards(stage); let pos;
+  if(index<=0 || list.length===0) pos=(list[0]?.pos??1000)-1000;
+  else if(index>=list.length) pos=(list[list.length-1].pos??1000)+1000;
+  else { const prev=list[index-1], next=list[index]; pos=((prev.pos??0)+(next.pos??0))/2; }
+  c.stage=stage; c.pos=pos; c.updatedAt=Date.now(); maybeRebalance(stage); scheduleSave(); render(); focusCard(id);
+}
+function maybeRebalance(stage){ const list=stageCards(stage); for(let i=1;i<list.length;i++){ if(Math.abs((list[i].pos??0)-(list[i-1].pos??0))<0.5){ list.forEach((c,i)=> c.pos=(i+1)*1000); break; } } }
+
+/* ===== Rendering ===== */
+let draggingId=null, highlightEl=null;
+function render(){
+  $("#sPlatforms").value = state.platforms.join(", ");
+  $("#sStages").value = state.stages.join(", ");
+  const board=$("#board"); board.innerHTML="";
+  state.stages.forEach(stage=>{
+    const lane=document.createElement("section"); lane.className="lane"; lane.dataset.stage=stage;
+    const head=document.createElement("div"); head.className="lane-header"; head.innerHTML=`<span>${stage}</span><span>${state.cards.filter(c=>c.stage===stage).length}</span>`;
+    const body=document.createElement("div"); body.className="lane-body";
+    body.addEventListener("dragenter", e=> e.preventDefault());
+    body.addEventListener("dragover", e=>{ e.preventDefault(); const {index,targetEl}=getDropTarget(body,e.clientY); body.dataset.dropIndex=index; setHighlight(targetEl); if(e.dataTransfer) e.dataTransfer.dropEffect="move"; });
+    body.addEventListener("dragleave", e=>{ if(!body.contains(e.relatedTarget)) setHighlight(null); });
+    body.addEventListener("drop", e=>{ e.preventDefault(); const id=draggingId||e.dataTransfer.getData("text/id")||e.dataTransfer.getData("text/plain"); if(!id){ setHighlight(null); return; } const idx=Number(body.dataset.dropIndex??0); moveToStageAt(id,stage,idx); setHighlight(null); });
+    stageCards(stage).forEach(c=> body.appendChild(renderCard(c)));
+    lane.append(head, body); board.appendChild(lane);
+  });
+  refillSelects();
+  applySearch($("#search").value);
+}
+document.addEventListener("dragover", e=> e.preventDefault());
+function setHighlight(el){ if(highlightEl && highlightEl!==el) highlightEl.classList.remove("drop-highlight"); highlightEl=el; if(highlightEl) highlightEl.classList.add("drop-highlight"); }
+function getDropTarget(body,y){ const cards=[...body.querySelectorAll(".card")].filter(x=> x.dataset.id!==draggingId); if(!cards.length) return {index:0,targetEl:null}; let index=cards.length; for(let i=0;i<cards.length;i++){ const r=cards[i].getBoundingClientRect(); const mid=r.top+r.height/2; if(y<mid){ index=i; break; } } const targetEl=(index>=cards.length)?cards[cards.length-1]:cards[index]; return {index,targetEl}; }
+function renderCard(card){
+  const el=document.createElement("article"); el.className="card"; el.draggable=true; el.dataset.id=card.id;
+  el.addEventListener("dragstart", e=>{ draggingId=card.id; el.classList.add("dragging"); e.dataTransfer.setData("text/id",card.id); e.dataTransfer.setData("text/plain",card.id); e.dataTransfer.effectAllowed="move"; const di=makeDragImage(el); document.body.appendChild(di); e.dataTransfer.setDragImage(di, di.offsetWidth/2, di.offsetHeight/2); setTimeout(()=>di.remove(),0); });
+  el.addEventListener("dragend", ()=>{ draggingId=null; el.classList.remove("dragging"); setHighlight(null); });
+  el.addEventListener("click", ()=> openEditor(card.id));
+  // Tooltip bindings
+  el.addEventListener("mouseenter", (e)=> showTooltip(e, card));
+  el.addEventListener("mousemove", (e)=> positionTooltip(e));
+  el.addEventListener("mouseleave", hideTooltip);
+
+  const line=document.createElement("div"); line.className="card-line";
+  const p=document.createElement("span"); p.className="card-platform"; p.textContent=card.platform;
+  const title=document.createElement("span"); title.className="card-title"; title.textContent=card.title||"(untitled)";
+  const links=document.createElement("span"); links.className="card-links";
+  if(card.dev){ const a=document.createElement("a"); a.href=card.dev; a.target="_blank"; a.rel="noopener"; a.textContent="dev"; a.onclick=(e)=> e.stopPropagation(); links.appendChild(a); }
+  if(card.live){ const a=document.createElement("a"); a.href=card.live; a.target="_blank"; a.rel="noopener"; a.textContent="live"; a.onclick=(e)=> e.stopPropagation(); links.appendChild(a); }
+  const dates=document.createElement("span"); dates.className="card-dates"; dates.textContent = `c ${fmtDate(card.createdAt)} · u ${fmtDate(card.updatedAt)}`;
+  line.append(p,title,links,dates); el.append(line); return el;
+}
+function makeDragImage(el){ const di=document.createElement("div"); di.style.position="absolute"; di.style.top="-1000px"; di.style.left="-1000px"; di.style.pointerEvents="none"; di.style.padding="6px 10px"; di.style.border="2px solid var(--highlight)"; di.style.borderRadius="999px"; di.style.background="#fff"; di.style.font="600 14px system-ui, -apple-system, Segoe UI, Roboto"; di.textContent=el.querySelector(".card-title")?.textContent||"Card"; return di; }
+
+/* ===== Card Ops ===== */
+function createCard(data){
+  const now=Date.now(); const stage=data.stage||state.stages[0]||"Next";
+  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:(data.dev||"").trim(), live:(data.live||"").trim(), tags:normalizeTags(data.tags), notes:(data.notes||"").trim(), pos:topPos(stage), createdAt:now, updatedAt:now };
+  state.cards.push(c); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id); return c.id;
+}
+function updateCard(id, patch){
+  const c=state.cards.find(x=>x.id===id); if(!c) return;
+  Object.assign(c, patch); c.tags=normalizeTags(c.tags); c.updatedAt=Date.now(); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id);
+}
+function deleteCard(id){ state.cards=state.cards.filter(x=>x.id!==id); scheduleSave(); render(); }
+function focusCard(id){ const el=$(`.card[data-id="${id}"]`); if(el){ el.scrollIntoView({behavior:"smooth",block:"center",inline:"center"}); el.animate([{transform:"scale(1)"},{transform:"scale(1.02)"},{transform:"scale(1)"}],{duration:450}); } }
+function normalizeTags(tags){ let arr=[]; if(Array.isArray(tags)) arr=tags; else if(typeof tags==="string") arr=tags.split(",").map(s=>s.trim()); arr=arr.map(s=>s.toLowerCase()).filter(Boolean); return [...new Set(arr)]; }
+function bumpTagHistory(tags){ if(!tags?.length) return; tagHistory=saveTagHistory([...tagHistory, ...tags]); }
+
+/* ===== Editor ===== */
+const editDialog=$("#editDialog"); let editingId=null, activeTags=[];
+function openEditor(id=null, presetStage=null){
+  editingId=id; $("#editTitle").textContent=id? "Edit Card":"New Card";
+  const c=id? state.cards.find(x=>x.id===id):null;
+  refillSelects();
+  $("#fPlatform").value = c?.platform || (state.platforms[0]||"General");
+  $("#fStage").value = c?.stage || (presetStage || state.stages[0] || "Next");
+  $("#fTitle").value = c?.title || "";
+  $("#fDev").value = c?.dev || "";
+  $("#fLive").value = c?.live || "";
+  $("#fNotes").value = c?.notes || "";
+  $("#btnDelete").classList.toggle("hidden", !id);
+  activeTags = c?.tags ? [...c.tags] : []; renderTagChips(); renderTagSuggestions();
+  editDialog.showModal(); $("#fTitle").focus();
+}
+editDialog.addEventListener("close", ()=>{
+  const action=editDialog.returnValue; if(action==="cancel"){ editingId=null; return; }
+  const payload=collectEditorData();
+  if(action==="delete" && editingId){ deleteCard(editingId); editingId=null; return; }
+  if(action==="save" || action==="save_new"){
+    if(!payload.title){ alert("Title is required."); openEditor(editingId); return; }
+    if(editingId) updateCard(editingId, payload); else createCard(payload);
+    const savedStage = payload.stage;
+    if(action==="save_new"){ openEditor(null, savedStage); } else { editingId=null; }
+  }
+});
+$("#fTitle").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); $("#btnSave").click(); } });
+$("#btnSaveAndNew").addEventListener("click", (e)=>{ e.preventDefault(); editDialog.close("save_new"); });
+function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("#fStage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:$("#fNotes").value }; }
+function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join(""); $("#fStage").innerHTML = state.stages.map(s=>`<option>${s}</option>`).join(""); }
+
+/* ===== Tagging UI ===== */
+const tagInput=$("#tagInput"), tagChips=$("#tagChips"), tagSuggestions=$("#tagSuggestions");
+tagInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); const t=tagInput.value.trim().toLowerCase(); if(t && !activeTags.includes(t)){ activeTags.push(t); renderTagChips(); bumpTagHistory([t]); renderTagSuggestions(); } tagInput.value=""; } });
+function renderTagChips(){ tagChips.innerHTML=""; activeTags.forEach(t=>{ const el=document.createElement("span"); el.className="chip"; el.innerHTML=`${escapeHtml(t)} <button title="remove" aria-label="remove tag">×</button>`; el.querySelector("button").onclick=()=>{ activeTags=activeTags.filter(x=>x!==t); renderTagChips(); }; tagChips.appendChild(el); }); $("#fTags").value=activeTags.join(","); }
+function renderTagSuggestions(){ tagSuggestions.innerHTML=""; if(!tagHistory.length) return; tagHistory.forEach(t=>{ const el=document.createElement("span"); el.className="suggestion"; const txt=document.createElement("span"); txt.textContent=t; const rm=document.createElement("span"); rm.textContent="×"; rm.className="remove"; rm.title="remove from history"; el.append(txt,rm); el.onclick=(e)=>{ if(e.target===rm){ tagHistory=saveTagHistory(tagHistory.filter(x=>x!==t)); renderTagSuggestions(); return; } if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); } }; tagSuggestions.appendChild(el); }); }
+
+/* ===== Settings ===== */
+const settingsDialog=$("#settingsDialog");
+$("#btnSettings").onclick=()=>{ $("#sPlatforms").value=state.platforms.join(", "); $("#sStages").value=state.stages.join(", "); settingsDialog.showModal(); };
+settingsDialog.addEventListener("close", ()=>{
+  const v=settingsDialog.returnValue; if(v==="cancel") return;
+  if(v==="reset"){ if(confirm("Remove all cards?")){ state.cards=[]; scheduleSave(); render(); } return; }
+  if(v==="save"){
+    const platforms=$("#sPlatforms").value.split(",").map(s=>s.trim()).filter(Boolean);
+    const stages=$("#sStages").value.split(",").map(s=>s.trim()).filter(Boolean);
+    if(stages.length){ const newFirst=stages[0]; state.cards.forEach(c=>{ if(!stages.includes(c.stage)){ c.stage=newFirst; c.pos=topPos(newFirst); c.updatedAt=Date.now(); } }); state.stages=stages; }
+    if(platforms.length) state.platforms=platforms;
+    scheduleSave(); render();
+  }
+});
+
+/* ===== Import/Export/New ===== */
+$("#btnNew").onclick=()=> openEditor(null, state.stages[0] || "Next");
+$("#btnExport").onclick=()=>{ const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="ai-jobs-kanban.json"; a.click(); URL.revokeObjectURL(url); setStatus("Exported current board JSON."); };
+$("#btnImport").onclick=()=> $("#fileImport").click();
+$("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ const obj=JSON.parse(r.result); if(Array.isArray(obj.cards)&&Array.isArray(obj.platforms)&&Array.isArray(obj.stages)){ state=obj; state.stages.forEach(st=>{ const list=state.cards.filter(c=>c.stage===st); list.sort((a,b)=>(a.pos??0)-(b.pos??0)||(a.createdAt-b.createdAt)); list.forEach((c,i)=>{ if(typeof c.pos!=="number") c.pos=(i+1)*1000; }); }); scheduleSave(); render(); setStatus("Imported JSON and saved to local storage."); } else { alert("Invalid JSON structure."); } }catch(err){ alert("Failed to parse JSON."); } }; r.readAsText(f); };
+
+/* ===== Lane dblclick: new at top ===== */
+$("#board").addEventListener("dblclick", (e)=>{ const lane=e.target.closest(".lane"); if(!lane) return; const stage=lane.dataset.stage; openEditor(null, stage); });
+
+/* ===== Search: simple + negative tokens + clear button ===== */
+const searchInput=$("#search"); let searchDebounce, currentMatches=[];
+searchInput.addEventListener("input", ()=>{ clearTimeout(searchDebounce); searchDebounce=setTimeout(()=> applySearch(searchInput.value), 120); });
+searchInput.addEventListener("keydown", (e)=>{ if(e.key==="Escape"){ clearSearch(); return; } if(e.key==="Enter"){ e.preventDefault(); openSearchModal(currentMatches); } });
+$("#btnClearSearch").addEventListener("click", clearSearch);
+function clearSearch(){ searchInput.value=""; applySearch(""); }
+function applySearch(q){
+  const {includes, excludes}=parseSearch(q||""); const all=state.cards.slice();
+  currentMatches = filterCards(all, includes, excludes);
+  highlightMatches(new Set(currentMatches.map(c=>c.id)), includes.length||excludes.length);
+  renderResultsPreview(currentMatches.slice(0,120));
+  $("#searchCount").textContent=(includes.length||excludes.length)? `${currentMatches.length} match(es)`:"";
+}
+function parseSearch(q){ const parts=q.trim().toLowerCase().split(/\s+/).filter(Boolean); const includes=[], excludes=[]; for(const p of parts){ if(p.startsWith("-")&&p.length>1) excludes.push(p.slice(1)); else includes.push(p); } return {includes,excludes}; }
+function haystack(c){ const ts=fmtDate(c.updatedAt); const cs=fmtDate(c.createdAt); return [c.title,c.platform,c.stage,c.notes,c.dev,c.live,ts,cs,...(c.tags||[])].join(" ").toLowerCase(); }
+function filterCards(cards, inc, exc){ return cards.filter(c=>{ const hay=haystack(c); for(const e of exc){ if(hay.includes(e)) return false; } for(const i of inc){ if(!hay.includes(i)) return false; } return true; }); }
+function highlightMatches(idset, active){ $$(".card").forEach(el=>{ el.classList.toggle("search-hit", active && idset.has(el.dataset.id)); el.style.opacity = active && !idset.has(el.dataset.id) ? 0.35 : 1; }); }
+function renderResultsPreview(cards){ const cont=$("#resultsContainer"); cont.innerHTML=""; const active=$("#search").value.trim().length>0; if(!active||!cards.length) return; const box=document.createElement("div"); box.className="results"; cards.forEach(c=>{ const item=document.createElement("div"); item.className="result-item"; item.innerHTML=`<strong>${escapeHtml(c.title)}</strong><div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}<span class="timepill">Updated ${escapeHtml(fmtDate(c.updatedAt))}</span></div>`; item.onclick=()=>{ openEditor(c.id); }; box.appendChild(item); }); cont.appendChild(box); }
+/* Search modal */
+const searchDialog=$("#searchDialog");
+function openSearchModal(cards){ const list=$("#searchList"); list.innerHTML=""; if(!cards.length){ list.innerHTML="<div class='muted'>No results</div>"; } else { cards.forEach(c=>{ const row=document.createElement("div"); row.className="result-item"; row.innerHTML=`<strong>${escapeHtml(c.title)}</strong><div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}<span class="timepill">Updated ${escapeHtml(fmtDate(c.updatedAt))}</span></div>`; row.onclick=()=>{ searchDialog.close("close"); openEditor(c.id); }; list.appendChild(row); }); } searchDialog.showModal(); }
+
+/* ===== Tooltip ===== */
+const tooltip = document.getElementById("tooltip");
+function showTooltip(e, card){
+  tooltip.querySelector(".t-title").textContent = card.title || "(untitled)";
+  tooltip.querySelector(".t-meta").textContent = `created ${fmtDate(card.createdAt)} · updated ${fmtDate(card.updatedAt)} · ${card.platform} · ${card.stage}`;
+  tooltip.querySelector(".t-tags").textContent = card.tags?.length ? "tags: " + card.tags.join(", ") : "no tags";
+  tooltip.querySelector(".t-notes").textContent = card.notes || "";
+  tooltip.style.display = "block";
+  positionTooltip(e);
+}
+function positionTooltip(e){
+  const pad = 12;
+  let x = e.clientX + pad;
+  let y = e.clientY + pad;
+  const rect = tooltip.getBoundingClientRect();
+  if(x + rect.width > window.innerWidth - 6) x = e.clientX - rect.width - pad;
+  if(y + rect.height > window.innerHeight - 6) y = e.clientY - rect.height - pad;
+  tooltip.style.left = x + "px";
+  tooltip.style.top = y + "px";
+  tooltip.setAttribute("aria-hidden","false");
+}
+function hideTooltip(){
+  tooltip.style.display = "none";
+  tooltip.setAttribute("aria-hidden","true");
+}
+
+/* ===== Helpers ===== */
+function fmtDate(ts){ if(!ts) return ""; const d=new Date(ts); const pad=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;","&gt;":">","\"":"&quot;","'":"&#39;"}[m])); }
+function setStatus(t){ document.getElementById("status").textContent=t; }
+
+/* ===== Init ===== */
+window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
+render();
+setStatus("Ready. Click a card to edit. Dev/Live open in new tabs. Hover for details.");
+</script>
+</body>
+</html>
