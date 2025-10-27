@@ -11,10 +11,12 @@
   --text:#111;
   --muted:#666;
   --accent:#1f6feb;
-  --border:#e3e3e8;
+  --border:#d7d7dc;
   --danger:#b3261e;
   --highlight:#ff7a00;
   --search:#14532d;
+  --ok:#166534;
+  --err:#7f1d1d;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -68,7 +70,7 @@ main#board[data-layout="vertical"]{
 /* Cards */
 .card{
   background:#fff;
-  border:2px solid transparent;
+  border:2px solid var(--border); /* grey oval border */
   border-radius:14px;
   display:flex;flex-direction:column;gap:6px;
   padding:8px 12px;
@@ -82,9 +84,9 @@ main#board[data-layout="vertical"]{
 }
 .card *{ -webkit-user-drag: none; }
 .card.dragging{
-  opacity:.85;
-  border-color:var(--highlight);
-  box-shadow:0 0 0 2px var(--highlight) inset;
+  opacity:.9;
+  border-color:#000;          /* source card outlined in black */
+  box-shadow:0 0 0 2px #000 inset;
 }
 .card.search-hit{border-color:var(--search)}
 .card-line{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;width:100%;min-width:0}
@@ -96,9 +98,10 @@ main#board[data-layout="vertical"]{
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
 .chip button:hover{color:#000}
+/* Landing target outline (orange) */
 .drop-highlight{
   border-color:var(--highlight) !important;
-  box-shadow:0 -2px 0 0 var(--highlight) inset;
+  box-shadow:0 0 0 2px var(--highlight) inset;
 }
 
 /* Misc */
@@ -150,6 +153,14 @@ dialog{border:none;border-radius:14px;padding:0;width:min(840px,94vw)}
 #tooltip .t-meta{font-size:12px;color:var(--muted);margin-bottom:4px}
 #tooltip .t-tags{font-size:12px;color:var(--muted);margin-bottom:6px}
 #tooltip .t-notes{font-size:13px;white-space:pre-wrap;max-height:120px;overflow:auto}
+
+/* Toast */
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+  background:#fff;border:1px solid var(--border);box-shadow:0 8px 24px rgba(0,0,0,.18);
+  border-left:6px solid var(--ok);padding:10px 14px;border-radius:12px;display:none;z-index:60;min-width:260px}
+#toast.err{border-left-color:var(--err)}
+#toast .tmsg{font-weight:700}
+#toast .tdesc{font-size:12px;color:#555;margin-top:2px}
 @media (max-width:900px){
   main#board[data-layout="horizontal"]{ grid-template-columns:1fr; }
 }
@@ -175,6 +186,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(840px,94vw)}
 <div id="resultsContainer"></div>
 <main id="board" aria-live="polite" data-layout="horizontal"></main>
 <div class="footer" id="status"></div>
+<div id="toast"><div class="tmsg"></div><div class="tdesc"></div></div>
 
 <!-- Editor -->
 <dialog id="editDialog">
@@ -209,10 +221,10 @@ dialog{border:none;border-radius:14px;padding:0;width:min(840px,94vw)}
       </div>
     </div>
     <div class="field">
-      <label for="fTags">Tags</label>
+      <label>Tags</label>
+      <div id="tagChips" class="chips" aria-live="polite"></div>
       <div class="tag-input-row">
         <input id="tagInput" placeholder="type a tag, press Enter" />
-        <div id="tagChips" class="chips"></div>
       </div>
       <div class="suggestions" id="tagSuggestions" aria-label="Previously used tags"></div>
       <input id="fTags" class="hidden" />
@@ -363,9 +375,9 @@ function render(){
     body.addEventListener("dragenter", e=> e.preventDefault());
     body.addEventListener("dragover", e=>{
       e.preventDefault();
-      const {index,targetAboveEl}=getDropTarget(body,e.clientY);
+      const {index,targetEl}=getDropTarget(body,e.clientY);
       body.dataset.dropIndex=index;
-      setHighlight(targetAboveEl);
+      setHighlight(targetEl); // highlight the landing card (insert ABOVE it)
       if(e.dataTransfer) e.dataTransfer.dropEffect="move";
     });
     body.addEventListener("dragleave", e=>{ if(!body.contains(e.relatedTarget)) setHighlight(null); });
@@ -387,15 +399,16 @@ document.addEventListener("dragover", e=> e.preventDefault());
 function setHighlight(el){ if(highlightEl && highlightEl!==el) highlightEl.classList.remove("drop-highlight"); highlightEl=el; if(highlightEl) highlightEl.classList.add("drop-highlight"); }
 function getDropTarget(body,y){
   const cards=[...body.querySelectorAll(".card")].filter(x=> x.dataset.id!==draggingId);
-  if(!cards.length) return {index:0,targetAboveEl:null};
+  if(!cards.length) return {index:0,targetEl:null};
   let index=cards.length;
   for(let i=0;i<cards.length;i++){
     const r=cards[i].getBoundingClientRect();
     const mid=r.top+r.height/2;
     if(y<mid){ index=i; break; }
   }
-  const targetAboveEl = (index>0) ? cards[index-1] : null;
-  return {index,targetAboveEl};
+  // Landing card is cards[index], insert ABOVE it
+  const targetEl = (index<cards.length) ? cards[index] : cards[cards.length-1];
+  return {index,targetEl};
 }
 function renderCard(card){
   const el=document.createElement("article"); el.className="card"; el.draggable=true; el.dataset.id=card.id;
@@ -597,6 +610,15 @@ $("#btnExport").onclick=()=>{
   const a=document.createElement("a"); a.href=url; a.download="ai-jobs-kanban.json"; a.click();
   URL.revokeObjectURL(url); setStatus("Exported current board JSON.");
 };
+function toast(title, desc="", isErr=false){
+  const t=document.getElementById("toast");
+  t.className=isErr? "err":"";
+  t.querySelector(".tmsg").textContent=title;
+  t.querySelector(".tdesc").textContent=desc;
+  t.style.display="block";
+  clearTimeout(t._timer);
+  t._timer=setTimeout(()=>{ t.style.display="none"; }, 2800);
+}
 $("#btnImport").onclick=()=> $("#fileImport").click();
 $("#fileImport").onchange=(e)=>{
   const f=e.target.files?.[0]; if(!f) return;
@@ -614,9 +636,9 @@ $("#fileImport").onchange=(e)=>{
           list.sort((a,b)=>(a.pos??0)-(b.pos??0)||(a.createdAt-b.createdAt));
           list.forEach((c,i)=>{ if(typeof c.pos!=="number") c.pos=(i+1)*1000; });
         });
-        scheduleSave(); render(); setStatus("Imported JSON and saved to local storage.");
-      } else { alert("Invalid JSON structure."); }
-    }catch(err){ alert("Failed to parse JSON."); }
+        scheduleSave(); render(); toast("Import successful","Board replaced"); setStatus("Imported JSON and saved to local storage.");
+      } else { toast("Import failed","Invalid JSON", true); alert("Invalid JSON structure."); }
+    }catch(err){ toast("Import failed","Could not parse file", true); alert("Failed to parse JSON."); }
   };
   r.readAsText(f);
 };
@@ -694,20 +716,20 @@ function positionTooltip(e){
   const pad=12; let x=e.clientX+pad, y=e.clientY+pad;
   const rect=tooltip.getBoundingClientRect();
   if(x+rect.width>window.innerWidth-6) x=e.clientX-rect.width-pad;
-  if(y+rect.height>window.innerHeight-6) y=e.clientY-rect.height-pad;
+  if(y+rect.height>window.innerHeight-6) y=e.clientY-rect-height-pad;
   tooltip.style.left=x+"px"; tooltip.style.top=y+"px"; tooltip.setAttribute("aria-hidden","false");
 }
 function hideTooltip(){ tooltip.style.display="none"; tooltip.setAttribute("aria-hidden","true"); }
 
 /* ===== Helpers ===== */
 function fmtDate(ts){ if(!ts) return ""; const d=new Date(ts); const pad=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
-function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;","&gt;":">","\"":"&quot;","'":"&#39;"}[m])); }
+function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;","&gt;":">",""":"&quot;","'":"&#39;"}[m])); }
 function setStatus(t){ document.getElementById("status").textContent=t; }
 
 /* ===== Init ===== */
 window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
 render();
-setStatus("Loaded from local storage • Build "+BUILD+" • "+new Date().toLocaleTimeString());
+setStatus("Loaded • Build "+BUILD+" • "+new Date().toLocaleTimeString());
 </script>
 </body>
 </html>
