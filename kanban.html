@@ -73,7 +73,6 @@ main#board[data-layout="vertical"]{display:flex;flex-direction:column}
 .card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card-platform{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:0 0 auto}
 .card-links a{font-size:12px;margin-left:8px;text-decoration:none}
-.card-dates{font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap}
 .card-tags{display:flex;gap:6px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
@@ -111,8 +110,8 @@ dialog{border:none;border-radius:14px;padding:0;width:min(880px,96vw)}
 /* Tooltip */
 #tooltip{position:fixed;z-index:50;pointer-events:none;background:#fff;color:#111;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.12);padding:10px 12px;max-width:360px;display:none}
 #tooltip .t-title{font-weight:800;margin-bottom:4px}
-#tooltip .t-meta{font-size:12px;color:var(--muted);margin-bottom:4px}
-#tooltip .t-tags{font-size:12px;color:var(--muted);margin-bottom:6px}
+#tooltip .t-meta{font-size:12px;color:#888;margin-bottom:4px}
+#tooltip .t-tags{font-size:12px;color:#666;margin-bottom:6px}
 #tooltip .t-notes{font-size:13px;white-space:pre-wrap;max-height:120px;overflow:auto}
 
 /* Toast */
@@ -154,6 +153,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(880px,96vw)}
   <form method="dialog" class="modal" id="editForm">
     <button type="button" id="editorCloseBtn" class="modal-close" title="Close">×</button>
     <h3 id="editTitle">Card</h3>
+
     <div class="field">
       <label for="fTitle">Title</label>
       <div class="row">
@@ -161,6 +161,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(880px,96vw)}
         <button id="btnSaveAndNew" class="btn small primary" value="save_new">Save & New</button>
       </div>
     </div>
+
     <div class="grid-2">
       <div class="field">
         <label for="fPlatform">Platform</label>
@@ -171,6 +172,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(880px,96vw)}
         <select id="fStage"></select>
       </div>
     </div>
+
     <div class="grid-2">
       <div class="field">
         <label for="fDev">Dev Link</label>
@@ -181,6 +183,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(880px,96vw)}
         <input id="fLive" type="url" placeholder="https://…"/>
       </div>
     </div>
+
     <div class="field">
       <label>Tags</label>
       <!-- Assigned tags ABOVE input -->
@@ -193,10 +196,22 @@ dialog{border:none;border-radius:14px;padding:0;width:min(880px,96vw)}
       <div class="suggestions" id="tagSuggestions" aria-label="Previously used tags"></div>
       <input id="fTags" class="hidden" />
     </div>
+
+    <!-- Attachments -->
+    <div class="field">
+      <label for="fFiles">Attachments</label>
+      <div class="row">
+        <input id="fFiles" type="file" multiple />
+        <button id="btnClearFiles" type="button" class="btn small">Clear selection</button>
+      </div>
+      <div id="fileChips" class="chips" aria-live="polite"></div>
+    </div>
+
     <div class="field">
       <label for="fNotes">Notes</label>
       <textarea id="fNotes" rows="4" placeholder="Multi-line notes"></textarea>
     </div>
+
     <div class="row">
       <button class="btn primary" value="save" id="btnSave">Save</button>
       <button class="btn" value="cancel" id="btnCancel">Cancel</button>
@@ -407,8 +422,7 @@ function renderCard(card){
   const links=document.createElement("span"); links.className="card-links";
   if(card.dev){ const a=document.createElement("a"); a.href=card.dev; a.target="_blank"; a.rel="noopener"; a.textContent="dev"; a.onclick=(e)=> e.stopPropagation(); links.appendChild(a); }
   if(card.live){ const a=document.createElement("a"); a.href=card.live; a.target="_blank"; a.rel="noopener"; a.textContent="live"; a.onclick=(e)=> e.stopPropagation(); links.appendChild(a); }
-  const dates=document.createElement("span"); dates.className="card-dates"; dates.textContent = `c ${fmtDate(card.createdAt)} · u ${fmtDate(card.updatedAt)}`;
-  line.append(p,title,links,dates); el.append(line);
+  line.append(p,title,links); el.append(line);
 
   const tagsRow=document.createElement("div"); tagsRow.className="card-tags";
   if(card.tags?.length){ card.tags.forEach(t=>{ const chip=document.createElement("span"); chip.className="chip"; chip.textContent=t; tagsRow.appendChild(chip); }); }
@@ -419,7 +433,7 @@ function renderCard(card){
 /* ===== Card Ops ===== */
 function createCard(data){
   const now=Date.now(); const stage=data.stage||state.stages[0]||"Next";
-  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:(data.dev||"").trim(), live:(data.live||"").trim(), tags:normalizeTags(data.tags), notes:(data.notes||"").trim(), pos:topPos(stage), createdAt:now, updatedAt:now };
+  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:(data.dev||"").trim(), live:(data.live||"").trim(), tags:normalizeTags(data.tags), notes:(data.notes||"").trim(), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
   state.cards.push(c); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id); return c.id;
 }
 function updateCard(id, patch){
@@ -461,7 +475,7 @@ function bumpTagHistory(tags){ if(!tags?.length) return; tagHistory=saveTagHisto
 /* ===== Editor ===== */
 const editDialog=$("#editDialog"); const editForm=$("#editForm");
 const editorCloseBtn=$("#editorCloseBtn");
-let editingId=null, activeTags=[];
+let editingId=null, activeTags=[], pendingFiles=[], currentFiles=[];
 function openEditor(id=null, presetStage=null){
   editingId=id; editorDirty=false;
   $("#editTitle").textContent=id? "Edit Card":"New Card";
@@ -475,7 +489,11 @@ function openEditor(id=null, presetStage=null){
   $("#fNotes").value = c?.notes || "";
   $("#btnDelete").classList.toggle("hidden", !id);
   activeTags = c?.tags ? [...c.tags] : [];
+  currentFiles = Array.isArray(c?.files) ? c.files.slice() : [];
+  pendingFiles = [];
   renderTagChips(); renderTagSuggestions();
+  renderFileChips();
+  $("#fFiles").value = ""; // reset file input
   editDialog.showModal(); $("#fTitle").focus();
 }
 editDialog.addEventListener("close", ()=>{
@@ -501,7 +519,7 @@ editorCloseBtn.addEventListener("click", ()=>{
 });
 $("#fTitle").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); $("#btnSave").click(); } });
 $("#btnSaveAndNew").addEventListener("click", (e)=>{ e.preventDefault(); editDialog.close("save_new"); });
-function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("#fStage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:$("#fNotes").value }; }
+function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("#fStage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:$("#fNotes").value, files: currentFiles.slice() }; }
 function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join(""); $("#fStage").innerHTML = state.stages.map(s=>`<option>${s}</option>`).join(""); }
 
 /* ===== Tagging UI ===== */
@@ -550,6 +568,39 @@ function renderTagSuggestions(){
     tagSuggestions.appendChild(el);
   });
 }
+
+/* ===== Attachments ===== */
+const fFiles=$("#fFiles"), fileChips=$("#fileChips"), btnClearFiles=$("#btnClearFiles");
+btnClearFiles.addEventListener("click", ()=>{ pendingFiles=[]; fFiles.value=""; renderFileChips(); });
+fFiles.addEventListener("change", async (e)=>{
+  const files = Array.from(e.target.files||[]);
+  for(const file of files){
+    const dataUrl = await readAsDataURL(file);
+    pendingFiles.push({name:file.name,type:file.type,size:file.size,data:dataUrl});
+  }
+  // Merge into currentFiles view (not saved until Save)
+  currentFiles = mergeFiles(currentFiles, pendingFiles);
+  pendingFiles = [];
+  renderFileChips();
+});
+function mergeFiles(existing, added){
+  const byName=new Map(existing.map(x=>[x.name,x]));
+  for(const f of added){ byName.set(f.name, f); }
+  return Array.from(byName.values());
+}
+function renderFileChips(){
+  fileChips.innerHTML="";
+  if(!currentFiles.length){ fileChips.innerHTML="<span class='muted'>No attachments</span>"; return; }
+  currentFiles.forEach((f,idx)=>{
+    const el=document.createElement("span"); el.className="chip";
+    const a=document.createElement("a"); a.href=f.data; a.download=f.name; a.textContent=f.name; a.onclick=(e)=>e.stopPropagation();
+    const rm=document.createElement("button"); rm.textContent="×"; rm.title="remove attachment";
+    rm.onclick=(e)=>{ e.stopPropagation(); currentFiles.splice(idx,1); renderFileChips(); };
+    el.append(a, rm);
+    fileChips.appendChild(el);
+  });
+}
+function readAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
 
 /* ===== Settings ===== */
 const settingsDialog=$("#settingsDialog");
@@ -678,7 +729,9 @@ function parseSearch(q){
 }
 function haystack(c){
   const ts=fmtDate(c.updatedAt); const cs=fmtDate(c.createdAt);
-  return [c.title,c.platform,c.stage,c.notes,c.dev,c.live,ts,cs,...(c.tags||[])].join(" ").toLowerCase();
+  // Include attachment names in search
+  const files = (c.files||[]).map(f=>f.name).join(" ");
+  return [c.title,c.platform,c.stage,c.notes,c.dev,c.live,ts,cs,files,...(c.tags||[])].join(" ").toLowerCase();
 }
 function filterCards(cards, inc, exc){
   return cards.filter(c=>{
@@ -730,9 +783,10 @@ function openSearchModal(cards){
 const tooltip = document.getElementById("tooltip");
 function showTooltip(e, card){
   tooltip.querySelector(".t-title").textContent = card.title || "(untitled)";
-  tooltip.querySelector(".t-meta").textContent = `created ${fmtDate(card.createdAt)} · updated ${fmtDate(card.updatedAt)} · ${card.platform} · ${card.stage}`;
+  tooltip.querySelector(".t-meta").textContent = `${card.platform} · ${card.stage}`;
   tooltip.querySelector(".t-tags").textContent = card.tags?.length ? "tags: " + card.tags.join(", ") : "no tags";
-  tooltip.querySelector(".t-notes").textContent = card.notes || "";
+  const fileLine = (card.files && card.files.length) ? "\nfiles: " + card.files.map(f=>f.name).join(", ") : "";
+  tooltip.querySelector(".t-notes").textContent = (card.notes || "") + fileLine;
   tooltip.style.display = "block"; positionTooltip(e);
 }
 function positionTooltip(e){
