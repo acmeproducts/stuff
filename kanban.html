@@ -21,7 +21,7 @@
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;font-family:system-ui,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:var(--text)}
-header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--border);}
+header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--border);} 
 .toolbar{padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:nowrap;white-space:nowrap;overflow:auto}
 .toolbar .btn{flex:0 0 auto}
 .searchbar{padding:10px 16px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}
@@ -42,13 +42,12 @@ main#board[data-layout="vertical"]{display:flex;flex-direction:column}
 
 /* Orientation-aware overrides when in AUTO layout */
 @media (orientation:portrait){
-  /* compact toolbar keep on one line */
   .toolbar{gap:6px}
   .btn{padding:8px 10px;font-size:14px}
-  main#board[data-layout="auto"]{grid-template-columns:1fr} /* stack lanes in portrait */
+  main#board[data-layout="auto"]{grid-template-columns:1fr}
 }
 @media (orientation:landscape){
-  main#board[data-layout="auto"]{grid-template-columns:repeat(auto-fit, minmax(300px,1fr))} /* side-by-side lanes in landscape */
+  main#board[data-layout="auto"]{grid-template-columns:repeat(auto-fit, minmax(300px,1fr))}
 }
 
 /* Lanes */
@@ -60,37 +59,19 @@ main#board[data-layout="vertical"]{display:flex;flex-direction:column}
 .lane-body.collapsed{display:none}
 
 /* Cards */
-.card{
-  background:#fff;
-  border:2px solid var(--border); /* grey oval border */
-  border-radius:14px;
-  display:flex;flex-direction:column;gap:6px;
-  padding:8px 12px;
-  cursor:grab;
-  min-height:46px;
-  box-shadow:0 1px 0 rgba(0,0,0,.03);
-  -webkit-user-drag: element;
-  user-select:none;
-  position:relative;
-  transition:border-color .08s ease, box-shadow .08s ease;
-}
-.card *{ -webkit-user-drag: none; }
-.card.dragging{
-  opacity:.92;
-  border-color:#000;             /* source card outlined black */
-  box-shadow:0 0 0 2px #000 inset;
-}
+.card{background:#fff;border:2px solid var(--border);border-radius:14px;display:flex;flex-direction:column;gap:6px;padding:8px 12px;cursor:grab;min-height:46px;box-shadow:0 1px 0 rgba(0,0,0,.03);-webkit-user-drag: element;user-select:none;position:relative;transition:border-color .08s ease, box-shadow .08s ease}
+.card *{-webkit-user-drag:none}
+.card.dragging{opacity:.92;border-color:#000;box-shadow:0 0 0 2px #000 inset}
 .card.search-hit{border-color:var(--search)}
 .card-line{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;width:100%;min-width:0}
-.card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.card-platform{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:0 0 auto}
+.card-title{flex:1;min-width:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-platform{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:0 0 auto;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-links a{font-size:12px;margin-left:8px;text-decoration:none}
 .card-tags{display:flex;gap:6px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
 .chip button:hover{color:#000}
-/* Landing target outline (orange) */
-.drop-highlight{ border-color:var(--highlight) !important; box-shadow:0 0 0 2px var(--highlight) inset; }
+.drop-highlight{border-color:var(--highlight)!important;box-shadow:0 0 0 2px var(--highlight) inset}
 
 /* Dialogs */
 .hidden{display:none}
@@ -133,6 +114,9 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 @media (max-width:900px){
   main#board[data-layout="horizontal"], main#board[data-layout="auto"]{grid-template-columns:1fr}
 }
+/* Suggestion chips styled like chips */
+.chip.suggestion{border-style:dashed;cursor:pointer;background:#fafafa}
+.chip.suggestion button{font-weight:800}
 </style>
 </head>
 <body>
@@ -269,6 +253,16 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
         <option value="vertical">Vertical</option>
       </select>
     </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="sMaxPlatform">Max platform chip length</label>
+        <input id="sMaxPlatform" type="number" min="4" value="10" />
+      </div>
+      <div class="field">
+        <label for="sMaxTitle">Max title length</label>
+        <input id="sMaxTitle" type="number" min="4" value="30" />
+      </div>
+    </div>
     <div class="field">
       <label>Copy & paste these status emojis</label>
       <div id="emojiBox" style="border:1px dashed var(--border);border-radius:10px;padding:8px 10px;user-select:all">🟢 🟡 🔴 ⭐ 😡 🤬 🙃 😃</div>
@@ -315,11 +309,15 @@ let state = loadState() || {
   cards:[],
   archive:[],
   collapsed:{},
-  layout:"auto"
+  layout:"auto",
+  maxPlatform:10,
+  maxTitle:30
 };
 state.collapsed = state.collapsed || {};
 state.layout = state.layout || "auto";
 state.archive = Array.isArray(state.archive)? state.archive : [];
+state.maxPlatform = Math.max(4, parseInt(state.maxPlatform||10,10));
+state.maxTitle = Math.max(4, parseInt(state.maxTitle||30,10));
 let tagHistory = loadTagHistory();
 const $ = s=>document.querySelector(s), $$ = s=>Array.from(document.querySelectorAll(s));
 function uid(){return Math.random().toString(36).slice(2,10)}
@@ -343,6 +341,8 @@ function render(){
   $("#sPlatforms").value = state.platforms.join(", ");
   $("#sStages").value = state.stages.join(", ");
   $("#sLayout").value = state.layout;
+  const mp=$("#sMaxPlatform"); if(mp) mp.value=state.maxPlatform;
+  const mt=$("#sMaxTitle"); if(mt) mt.value=state.maxTitle;
 
   const board=$("#board"); board.dataset.layout=state.layout; board.innerHTML="";
   state.stages.forEach(stage=>{
@@ -369,7 +369,7 @@ function render(){
       e.preventDefault();
       const {index,targetEl}=getDropTarget(body,e.clientY);
       body.dataset.dropIndex=index;
-      setHighlight(targetEl); // highlight landing card (insert ABOVE)
+      setHighlight(targetEl);
       if(e.dataTransfer) e.dataTransfer.dropEffect="move";
     });
     body.addEventListener("dragleave", e=>{ if(!body.contains(e.relatedTarget)) setHighlight(null); });
@@ -420,8 +420,8 @@ function renderCard(card){
   el.addEventListener("mouseleave", hideTooltip);
 
   const line=document.createElement("div"); line.className="card-line";
-  const p=document.createElement("span"); p.className="card-platform"; p.textContent=card.platform;
-  const title=document.createElement("span"); title.className="card-title"; title.textContent=card.title||"(untitled)";
+  const p=document.createElement("span"); p.className="card-platform"; p.textContent=ellipsize(card.platform, state.maxPlatform);
+  const title=document.createElement("span"); title.className="card-title"; title.textContent=ellipsize(card.title||"(untitled)", state.maxTitle);
   const links=document.createElement("span"); links.className="card-links";
   if(card.dev){ const a=document.createElement("a"); a.href=card.dev; a.target="_blank"; a.rel="noopener"; a.textContent="dev"; a.onclick=(e)=> e.stopPropagation(); links.appendChild(a); }
   if(card.live){ const a=document.createElement("a"); a.href=card.live; a.target="_blank"; a.rel="noopener"; a.textContent="live"; a.onclick=(e)=> e.stopPropagation(); links.appendChild(a); }
@@ -488,7 +488,7 @@ function openEditor(id=null, presetStage=null){
   pendingFiles = [];
   renderTagChips(); renderTagSuggestions();
   renderFileChips();
-  $("#fFiles").value = ""; // reset file input
+  $("#fFiles").value = "";
   editDialog.showModal(); $("#fTitle").focus();
 }
 editDialog.addEventListener("close", ()=>{
@@ -544,14 +544,16 @@ function renderTagSuggestions(){
   const seen=new Set();
   tagHistory.forEach(t=>{
     const k=t.toLowerCase(); if(seen.has(k)) return; seen.add(k);
-    const el=document.createElement("span"); el.className="suggestion";
-    const txt=document.createElement("span"); txt.textContent=t;
-    const rm=document.createElement("span"); rm.textContent="×"; rm.className="remove"; rm.title="remove from history";
-    el.append(txt,rm);
-    el.onclick=(e)=>{
-      if(e.target===rm){ tagHistory=saveTagHistory(tagHistory.filter(x=>x!==t)); renderTagSuggestions(); return; }
-      if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); }
-    };
+    const el=document.createElement("span"); el.className="chip suggestion";
+    el.innerHTML = `${escapeHtml(t)} <button title="remove from history">×</button>`;
+    el.addEventListener('click', (e)=>{
+      if(e.target.tagName==='BUTTON'){
+        tagHistory = saveTagHistory(tagHistory.filter(x=>x!==t));
+        renderTagSuggestions();
+      } else {
+        if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); }
+      }
+    });
     tagSuggestions.appendChild(el);
   });
 }
@@ -569,23 +571,20 @@ function readAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileRe
 
 /* ===== Paste images/URLs into Notes ===== */
 notesEl.addEventListener("paste", async (e)=>{
-  if(!e.clipboardData) return; // safety
+  if(!e.clipboardData) return;
   const items = Array.from(e.clipboardData.items||[]);
-  // Images
   const imageItems = items.filter(it=> it.kind==="file" && it.type.startsWith("image/"));
   for(const it of imageItems){
     const file = it.getAsFile(); if(!file) continue;
     const dataUrl = await readAsDataURL(file);
-    // Add as attachment AND embed markdown in notes
     currentFiles = mergeFiles(currentFiles, [{name:file.name||("pasted-"+Date.now()+".png"), type:file.type, size:file.size, data:dataUrl}]);
     const cursor = notesEl.selectionStart||notesEl.value.length;
     const md = `\n![pasted](${dataUrl})\n`;
     notesEl.value = notesEl.value.slice(0,cursor)+md+notesEl.value.slice(cursor);
   }
-  // URLs
   const text = e.clipboardData.getData("text/plain");
   if(text && /^https?:\/\//i.test(text)){
-    // keep as plain text in notes; linkified in tooltip render
+    // kept as plain text, linkified in tooltip
   }
 });
 
@@ -603,10 +602,15 @@ settingsDialog.addEventListener("close", ()=>{
   if(v==="save"){
     const platforms=$("#sPlatforms").value.split(",").map(s=>s.trim()).filter(Boolean);
     const stages=$("#sStages").value.split(",").map(s=>s.trim()).filter(Boolean);
-    const layout=$("#sLayout").value; // auto|horizontal|vertical
+    const layout=$("#sLayout").value;
+    const mpEl=$("#sMaxPlatform"), mtEl=$("#sMaxTitle");
+    const mp = Math.max(4, parseInt(mpEl && mpEl.value ? mpEl.value : state.maxPlatform, 10));
+    const mt = Math.max(4, parseInt(mtEl && mtEl.value ? mtEl.value : state.maxTitle, 10));
     if(stages.length){ const newFirst=stages[0]; state.cards.forEach(c=>{ if(!stages.includes(c.stage)){ c.stage=newFirst; c.pos=topPos(newFirst); c.updatedAt=Date.now(); } }); state.stages=stages; }
     if(platforms.length) state.platforms=platforms;
     state.layout = layout;
+    state.maxPlatform = mp;
+    state.maxTitle = mt;
     scheduleSave(); render();
   }
 });
@@ -675,7 +679,6 @@ function showTooltip(e, card){
   tooltip.querySelector(".t-meta").textContent = `${card.platform} · ${card.stage}`;
   tooltip.querySelector(".t-tags").textContent = card.tags?.length ? "tags: " + card.tags.join(", ") : "no tags";
   tooltip.querySelector(".t-notes").innerHTML = linkifyNotes(sanitizeMarkdownImages(card.notes||""));
-  // Append inline previews for image attachments if not already embedded
   if(card.files && card.files.length){
     const imgs = card.files.filter(f=>/^image\//.test(f.type));
     if(imgs.length){
@@ -693,19 +696,27 @@ function hideTooltip(){ tooltip.style.display="none"; tooltip.setAttribute("aria
 function fmtDate(ts){ if(!ts) return ""; const d=new Date(ts); const pad=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=> ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
 function setStatus(t){ document.getElementById("status").textContent=t; }
-function linkifyNotes(s){
-  // Convert URLs to clickable links; keep simple, safe replacement
-  return escapeHtml(s).replace(/(https?:\/\/[^\s)]+)(?![^<]*>)/g, '<a href="$1" target="_blank" rel="noopener">$1<\/a>');
-}
-function sanitizeMarkdownImages(s){
-  // allow markdown ![alt](data:...) to render as <img> for pasted images only
-  return s.replace(/!\[[^\]]*\]\((data:image\/[a-zA-Z0-9+.-]+;base64,[^\)]+)\)/g, (m,src)=>`<img src="${src}" alt="pasted"/>`);
-}
+function ellipsize(text,max){ text=String(text||""); const n=Math.max(4, parseInt(max||0,10)); if(!n||text.length<=n) return text; return text.slice(0, n-3)+"..."; }
+function linkifyNotes(s){ return escapeHtml(s).replace(/(https?:\/\/[^\s)]+)(?![^<]*>)/g, '<a href="$1" target="_blank" rel="noopener">$1<\/a>'); }
+function sanitizeMarkdownImages(s){ return s.replace(/!\[[^\]]*\]\((data:image\/[a-zA-Z0-9+.-]+;base64,[^\)]+)\)/g, (m,src)=>`<img src="${src}" alt="pasted"/>`); }
 
 /* ===== Init ===== */
 window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
 render();
 setStatus("Loaded • Build "+BUILD+" • "+new Date().toLocaleTimeString());
+
+/* ===== Self-tests (non-intrusive) ===== */
+(function runSelfTests(){
+  try{
+    console.assert(ellipsize("abcdef", 6)==="abcdef", "ellipsize exact length");
+    console.assert(ellipsize("abcdef", 5)==="ab...", "ellipsize truncation");
+    // Tag suggestion DOM shape
+    tagHistory = saveTagHistory(["alpha","beta","alpha"]);
+    renderTagSuggestions();
+    const sugg = document.querySelectorAll('#tagSuggestions .chip.suggestion');
+    console.assert(sugg.length===2, "unique suggestions render");
+  }catch(e){ console.warn("Self-tests failure", e); }
+})();
 </script>
 </body>
 </html>
