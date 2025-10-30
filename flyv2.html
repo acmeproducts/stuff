@@ -3,18 +3,20 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>CoreNav Universe — Streamed Quadrants & Habitats (v6-streamed)</title>
+<title>CoreNav Universe — Streamed Quadrants & Habitats (v7)</title>
 <style>
   :root{
     --bg:#06070a; --fg:#e7e7e7; --line:rgba(255,255,255,.15);
     --panel-bg:rgba(0,0,0,.70); --radius:12px; --accent:#86aaf0;
   }
-  html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial}
+  html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--fg);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial}
   #webgl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
   #loading{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;transition:opacity .35s}
   #loading.hidden{opacity:0;pointer-events:none}
-  #progressbar{width:240px;height:4px;background:#333;margin-top:10px;border-radius:999px;overflow:hidden}
+  #progressbar{width:260px;height:4px;background:#333;margin-top:10px;border-radius:999px;overflow:hidden}
   #progress{width:0%;height:100%;background:#fff;transition:width .18s}
+  #error{display:none;color:#fff;background:#8a0000;padding:10px 14px;border-radius:8px;border:1px solid #ff8a8a}
   #handle{position:fixed;top:0;left:50%;transform:translateX(-50%);border:0;background:transparent;padding:8px;z-index:6}
   #handle .bar{width:68px;height:4px;border-radius:999px;background:rgba(255,255,255,.65)}
   #panel{position:fixed;inset:0 0 auto 0;max-width:1000px;margin:0 auto;background:var(--panel-bg);border:1px solid var(--line);
@@ -38,7 +40,11 @@
 </style>
 </head>
 <body>
-<div id="loading"><p>Preparing sector…</p><div id="progressbar"><div id="progress"></div></div></div>
+<div id="loading">
+  <div id="error"></div>
+  <p>Preparing sector…</p>
+  <div id="progressbar"><div id="progress"></div></div>
+</div>
 <canvas id="webgl"></canvas>
 
 <button id="handle" title="Settings"><div class="bar"></div></button>
@@ -66,7 +72,7 @@
           <option value="rainbow">Rainbow</option>
         </select>
       </label>
-      <label><span>Galaxy Particles</span><input id="cfgGalaxyP" type="range" min="3000" max="16000" step="1000" value="8000"></label>
+      <label><span>Galaxy Particles</span><input id="cfgGalaxyP" type="range" min="3000" max="14000" step="1000" value="8000"></label>
       <label><span>Habitats / tile</span><input id="cfgHabitats" type="range" min="0" max="3" step="1" value="2"></label>
     </fieldset>
   </div>
@@ -83,6 +89,14 @@ import * as THREE from "three";
 import {EffectComposer} from "three/addons/postprocessing/EffectComposer.js";
 import {RenderPass} from "three/addons/postprocessing/RenderPass.js";
 import {UnrealBloomPass} from "three/addons/postprocessing/UnrealBloomPass.js";
+
+/* ===== Capability check ===== */
+const gl = document.createElement("canvas").getContext("webgl2") || document.createElement("canvas").getContext("webgl");
+if (!gl){
+  const e = document.getElementById("error");
+  e.style.display="block";
+  e.textContent = "WebGL is not available in this browser/profile. Enable hardware acceleration or try Chrome/Edge/Safari.";
+}
 
 /* ===== Elements & Config ===== */
 const canvas = document.getElementById("webgl");
@@ -110,11 +124,11 @@ let originOffset = new THREE.Vector3();
 const CELL=1400, INIT_RADIUS=1, RADIUS=1, REBASE=18000;
 
 /* streaming queue */
-const pending = new Set();       // keys queued to build
-const buildQueue = [];           // array of keys
+const pending = new Set();
+const buildQueue = [];
 let initialTarget = (2*INIT_RADIUS+1)*(2*INIT_RADIUS+1);
 let initialBuilt = 0;
-const BUILD_BUDGET = 2;          // chunks per frame
+const BUILD_BUDGET = 1;          // chunks per frame (safer for low-end)
 
 /* ===== Utils ===== */
 function lcg(seed){ let s = seed|0; return ()=> (s = (1664525*s + 1013904223)|0) >>> 0; }
@@ -189,7 +203,10 @@ function initThree(){
   scene.add(new THREE.AmbientLight(0x666666,.75));
 
   buildStars();
+
+  // queue only center 3x3 gradually
   queueNeighborhood(new THREE.Vector3(), INIT_RADIUS);
+
   addEventListener("resize", onResize);
 }
 function onResize(){ camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); }
@@ -197,12 +214,12 @@ function onResize(){ camera.aspect = innerWidth/innerHeight; camera.updateProjec
 /* ===== Background stars ===== */
 function buildStars(){
   if (stars){ stars.geometry.dispose(); stars.material.dispose(); scene.remove(stars); }
-  const count = Math.floor(12000 * CFG.starDensity);
+  const count = Math.floor(10000 * CFG.starDensity);
   const positions = new Float32Array(count*3);
   const colors = new Float32Array(count*3);
   const col = new THREE.Color();
   for (let i=0;i<count;i++){
-    const r = 2400 * Math.pow(Math.random(), 0.7) + 1600;
+    const r = 2200 * Math.pow(Math.random(), 0.7) + 1400;
     const theta = Math.acos(2*Math.random()-1);
     const phi = 2*Math.PI*Math.random();
     const x = r*Math.sin(theta)*Math.cos(phi);
@@ -218,7 +235,7 @@ function buildStars(){
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   g.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  const m = new THREE.PointsMaterial({ size: 1.3, sizeAttenuation:true, vertexColors:true, transparent:true, opacity:0.95, depthWrite:false, blending:THREE.AdditiveBlending });
+  const m = new THREE.PointsMaterial({ size: 1.2, sizeAttenuation:true, vertexColors:true, transparent:true, opacity:0.95, depthWrite:false, blending:THREE.AdditiveBlending });
   stars = new THREE.Points(g, m);
   scene.add(stars);
 }
@@ -243,13 +260,13 @@ function makeSpherePointCloud(radius=420, count=5000, hueBase=0.02){
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(pos,3));
   g.setAttribute("color", new THREE.BufferAttribute(col,3));
-  const m = new THREE.PointsMaterial({ size: 1.4, vertexColors:true, transparent:true, opacity:0.95, depthWrite:false, blending:THREE.AdditiveBlending });
+  const m = new THREE.PointsMaterial({ size: 1.3, vertexColors:true, transparent:true, opacity:0.95, depthWrite:false, blending:THREE.AdditiveBlending });
   return new THREE.Points(g, m);
 }
-function makeGridSphereLines(radius=520, seg=22, color=0x88aaff, opacity=0.15){
+function makeGridSphereLines(radius=520, seg=20, color=0x88aaff, opacity=0.14){
   const grp = new THREE.Group();
   const mat = new THREE.LineBasicMaterial({ color, transparent:true, opacity });
-  const circle = (r, axis='y', steps=180)=>{
+  const circle = (r, axis='y', steps=160)=>{
     const pts = [];
     for(let i=0;i<=steps;i++){
       const t = (i/steps)*Math.PI*2;
@@ -287,7 +304,7 @@ function makeGalaxy({rng, position, particles=8000, radius=500, arms=3, twist=2.
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(positions,3));
   g.setAttribute("color", new THREE.BufferAttribute(colors,3));
-  const mat = new THREE.PointsMaterial({ size: 1.5, sizeAttenuation:true, vertexColors:true, transparent:true, opacity:0.95, depthWrite:false, blending:THREE.AdditiveBlending });
+  const mat = new THREE.PointsMaterial({ size: 1.4, sizeAttenuation:true, vertexColors:true, transparent:true, opacity:0.95, depthWrite:false, blending:THREE.AdditiveBlending });
   const points = new THREE.Points(g, mat);
   const group = new THREE.Group();
   group.add(points);
@@ -380,15 +397,16 @@ function buildOneChunk(){
   const rng = lcg(hash2(ix,iz));
   const group = new THREE.Group(); group.userData.key=key;
 
-  const galaxyCount = 2 + (rng()%2);               // lighter than before
+  const galaxyCount = 2; // lighter than before
   for (let g=0; g<galaxyCount; g++){
     const basePos = new THREE.Vector3((ix + rrange(rng, -0.35, 0.35)) * CELL, rrange(rng, -220, 220), (iz + rrange(rng, -0.35, 0.35)) * CELL);
-    const gal = makeGalaxy({ rng, position: basePos, particles: CFG.galaxyParticles, radius: rrange(rng, 380, 560), arms: 3 + (rng()%2), twist: rrange(rng, 2.2, 3.2), thickness: rrange(rng, 18, 30) });
+    const gal = makeGalaxy({ rng, position: basePos, particles: CFG.galaxyParticles, radius: rrange(rng, 360, 520), arms: 3, twist: rrange(rng, 2.2, 3.0), thickness: rrange(rng, 18, 28) });
     group.add(gal);
 
-    const globe = makeSpherePointCloud(rrange(rng, 320, 520), Math.floor(3200 + (rng()%3500)), 0.06*(rng()%10));
-    const shell = makeGridSphereLines(Math.max(380, Math.random()*140+420), 20, 0x88aaff, 0.15);
-    const offset = new THREE.Vector3(rrange(rng,-200,200), rrange(rng,-120,120), rrange(rng,-200,200));
+    // sphere made of stars + grid shell (fly.html feel)
+    const globe = makeSpherePointCloud(rrange(rng, 300, 480), Math.floor(2800 + (rng()%3000)), 0.06*(rng()%10));
+    const shell = makeGridSphereLines(Math.max(340, Math.random()*120+380), 18, 0x88aaff, 0.13);
+    const offset = new THREE.Vector3(rrange(rng,-180,180), rrange(rng,-110,110), rrange(rng,-180,180));
     const globeGroup = new THREE.Group(); globeGroup.position.copy(basePos).add(offset); globeGroup.add(globe); globeGroup.add(shell);
     group.add(globeGroup);
 
@@ -444,8 +462,14 @@ function maintainNeighborhood(){
   }
 }
 function refreshNeighborhood(){
-  // clear existing and reschedule visible neighborhood
-  for (const key of Array.from(loaded)){ const g = chunks.get(key); if (g){ g.traverse(o=>{ o.geometry?.dispose?.(); if (o.material){ if (Array.isArray(o.material)) o.material.forEach(m=>m.dispose?.()); else o.material.dispose?.(); } }); scene.remove(g); chunks.delete(key); } loaded.delete(key); }
+  for (const key of Array.from(loaded)){
+    const g = chunks.get(key);
+    if (g){
+      g.traverse(o=>{ o.geometry?.dispose?.(); if (o.material){ if (Array.isArray(o.material)) o.material.forEach(m=>m.dispose?.()); else o.material.dispose?.(); } });
+      scene.remove(g); chunks.delete(key);
+    }
+    loaded.delete(key);
+  }
   buildQueue.length = 0; pending.clear();
   initialBuilt = 0; updateProgress(); loading.classList.remove("hidden");
   const world = camera.position.clone().add(originOffset);
@@ -454,17 +478,15 @@ function refreshNeighborhood(){
 
 /* ===== Movement Loop (ship-like; L/R stable; U/D normal) ===== */
 function loop(){
-  // stream a few chunks per frame to avoid main-thread stall
+  // stream a few chunks per frame to avoid stalls
   for (let i=0;i<BUILD_BUDGET; i++) if (!buildOneChunk()) break;
   maintainNeighborhood();
 
   const now = performance.now();
-  // Turbo after sustained hold
   if (holding && !turbo){
     const heldMs = now - holdStart;
     if (heldMs > 3000){ turbo = true; if (navigator.vibrate) navigator.vibrate([15,30,15]); updateTouchDot(curX, curY, true); }
   }
-  // Drag to steer; hold to thrust
   if (holding){
     const dx = curX - anchorX, dy = curY - anchorY;
     const mag = Math.hypot(dx, dy);
@@ -480,7 +502,7 @@ function loop(){
     } else { yawAcc=0; pitchAcc=0; }
   } else { yawAcc=0; pitchAcc=0; }
 
-  // Integrate with damping (fixed timestep-ish)
+  // Integrate with damping
   const dt = 1/60;
   const angDrag = CFG.turnDamp;
   yawVel += yawAcc * dt;     yawVel   *= Math.max(0, 1 - angDrag * dt * 60);
@@ -504,24 +526,21 @@ function loop(){
   const forward = new THREE.Vector3(0,0,-1).applyEuler(eul);
   camera.position.addScaledVector(forward, speed * dt);
 
-  // World origin rebasing to keep precision
+  // World origin rebasing
   if (camera.position.length() > REBASE){
     originOffset.add(camera.position);
     chunks.forEach(g=>g.position.sub(camera.position));
     camera.position.set(0,0,0);
   }
 
-  // Keep starfield centered for parallax feel
   if (stars) stars.position.copy(camera.position);
 
-  // Gentle rotation on parking habitats
   chunks.forEach(grp=>{
     grp.traverse(o=>{ if (o.userData && o.userData.parking){ o.rotation.y += 0.0006; } });
   });
 
   camera.quaternion.setFromEuler(eul);
   try { composer.render(); } catch (err) { console.error(err); loading.classList.add("hidden"); }
-
   requestAnimationFrame(loop);
 }
 
@@ -530,11 +549,9 @@ function onResize(){ camera.aspect = innerWidth/innerHeight; camera.updateProjec
 addEventListener("resize", onResize);
 
 function boot(){
-  // show minimal progress immediately so user sees movement
   progress.style.width="10%";
   initThree();
   bindUI();
-  // ensure loader goes away even on low-end devices once first chunks done
   requestAnimationFrame(loop);
 }
 boot();
