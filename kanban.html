@@ -2,216 +2,119 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<title>AI Jobs Kanban — Persistent JSON Boards</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AI Jobs Kanban – Manage Enabled</title>
 <style>
-:root{--bg:#f7f7f9;--panel:#fff;--border:#ccc;--text:#111;--accent:#1f6feb;--warn:#a61e4d}
-*{box-sizing:border-box}
-body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
-header{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--border);
-padding:8px 12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-select,button{font-size:14px}
-button{padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer}
-button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-main{padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
-.lane{background:var(--panel);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column}
-.lane h3{margin:0;padding:8px 10px;border-bottom:1px solid var(--border);font-size:14px}
-.lane-body{padding:8px;display:flex;flex-direction:column;gap:8px}
-.card{background:#fff;border:2px solid var(--border);border-radius:10px;padding:6px 8px;cursor:grab}
-.card.dragging{opacity:.8;border-color:#000}
-.status{padding:8px 12px;font-size:12px;color:#444}
-#errorBox{position:fixed;right:10px;bottom:10px;width:min(480px,95vw);max-height:40vh;overflow:auto;
-background:#fff;border:1px solid var(--warn);border-left:6px solid var(--warn);border-radius:8px;display:none}
-#errorBox header{padding:6px 10px;border-bottom:1px solid var(--border);font-weight:700;background:#fff}
-#errorBox pre{margin:0;padding:8px 10px;white-space:pre-wrap}
+:root{--bg:#f7f7f9;--panel:#fff;--border:#d0d0d5;--text:#111;--accent:#1f6feb;}
+body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);}
+header{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--border);padding:8px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;}
+button{border:1px solid var(--border);border-radius:6px;background:#fff;padding:6px 10px;cursor:pointer;}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+main{padding:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;}
+.lane{background:var(--panel);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;}
+.lane h3{margin:0;padding:6px 8px;border-bottom:1px solid var(--border);}
+.lane-body{padding:6px;display:flex;flex-direction:column;gap:6px;}
+.card{background:#fff;border:2px solid var(--border);border-radius:8px;padding:5px 8px;cursor:grab;}
+.card.dragging{opacity:.8;border-color:#000;}
+footer{font-size:12px;padding:6px 10px;color:#555;text-align:right;border-top:1px solid var(--border);}
 </style>
 </head>
 <body>
 <header>
   <button id="btnNew" class="primary">New</button>
-  <button id="btnClear">Clear</button>
-  <select id="boardPicker"></select>
-  <button id="btnManage">Manage</button>
-  <span id="status" style="margin-left:auto;font-size:12px;color:#666"></span>
+  <button id="btnImport">Import</button>
+  <button id="btnExport">Export</button>
+  <button id="btnArchive">Archive</button>
+  <span id="status" style="margin-left:auto;">Loading…</span>
 </header>
 <main id="board"></main>
-<div id="errorBox"><header>Runtime Errors</header><pre id="errorLog"></pre></div>
+<footer id="footer">Loaded: Default Dataset</footer>
 <script>
 (function(){
-const BUILD="multi-boards-manage-enabled";
-const INDEX_KEY="kanban_boards_index";
-const CUR_KEY="kanban_current";
-const prefix=id=>`kanban_board_${id}`;
-const $=s=>document.querySelector(s);
-const lanes=["Done","Doing","Next"];
-const errBox=$("#errorBox"),errLog=$("#errorLog");
-window.addEventListener("error",e=>{errBox.style.display="block";errLog.textContent+=(e.message+"\\n")});
-window.addEventListener("unhandledrejection",e=>{errBox.style.display="block";errLog.textContent+=(e.reason+"\\n")});
-function uid(){return Math.random().toString(36).slice(2,10)}
-function now(){return new Date().toISOString()}
-function loadIndex(){try{const j=localStorage.getItem(INDEX_KEY);return j?JSON.parse(j):[]}catch{return []}}
-function saveIndex(a){localStorage.setItem(INDEX_KEY,JSON.stringify(a))}
-function loadBoard(id){try{const j=localStorage.getItem(prefix(id));return j?JSON.parse(j):null}catch{return null}}
-function saveBoard(id,d){try{localStorage.setItem(prefix(id),JSON.stringify(d))}catch(e){errLog.textContent+="saveBoard:"+e+"\\n"}}
-function setCur(id){localStorage.setItem(CUR_KEY,id)}
-function getCur(){return localStorage.getItem(CUR_KEY)||""}
-let index=loadIndex();
-let cur=getCur();
-if(!cur||!index.find(b=>b.id===cur)){
- const id=uid();
- index.push({id,name:"Default Board "+now(),archived:false,updatedAt:now()});
- saveIndex(index);cur=id;setCur(id);
- const def={cards:[{id:uid(),title:"Welcome",stage:"Next",createdAt:now(),updatedAt:now()}]};
- saveBoard(id,def);
+const LANES=["Done","Doing","Next"];
+const STORAGE_KEY="ai_jobs_kanban_state_v2";
+const FOOTER=$("#footer");
+function $(s){return document.querySelector(s);}
+function uid(){return Math.random().toString(36).slice(2,10);}
+function now(){return new Date().toLocaleString();}
+function loadState(){
+ let s=localStorage.getItem(STORAGE_KEY);
+ if(s){try{return JSON.parse(s);}catch{return defaultData();}}
+ return defaultData();
 }
-let state=loadBoard(cur)||{cards:[]};
-function setStatus(t){$("#status").textContent=t}
-function renderPicker(){
- const sel=$("#boardPicker");
- sel.innerHTML=index.filter(b=>!b.archived).map(b=>`<option value=\"${b.id}\">${b.name}</option>`).join("");
- sel.value=cur;
+function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));FOOTER.textContent="Saved: "+(state.meta.name||"Unnamed")+" @ "+now();}
+function defaultData(){
+ return {meta:{name:"Default Board",createdAt:now()},cards:[]};
 }
+let state=loadState();
 function render(){
  const board=$("#board");board.innerHTML="";
- lanes.forEach(stage=>{
+ LANES.forEach(stage=>{
   const sec=document.createElement("section");
   sec.className="lane";
-  sec.innerHTML=`<h3>${stage}</h3><div class=\"lane-body\" data-stage=\"${stage}\"></div>`;
+  sec.innerHTML=`<h3>${stage}</h3><div class="lane-body" data-stage="${stage}"></div>`;
   board.appendChild(sec);
   const body=sec.querySelector(".lane-body");
   state.cards.filter(c=>c.stage===stage).forEach(c=>body.appendChild(renderCard(c)));
   body.addEventListener("dragover",e=>e.preventDefault());
-  body.addEventListener("drop",e=>{e.preventDefault();moveToStage(e.dataTransfer.getData("text/plain"),stage)});
+  body.addEventListener("drop",e=>{e.preventDefault();moveToStage(e.dataTransfer.getData("text/plain"),stage);});
  });
- setStatus("Loaded "+BUILD+" • "+index.length+" board(s)");
+ $("#status").textContent="Ready ("+state.cards.length+" cards)";
 }
-function renderCard(card){
+function renderCard(c){
  const el=document.createElement("div");
- el.className="card";
- el.draggable=true;
- el.dataset.id=card.id;
- el.textContent=card.title;
- el.addEventListener("dragstart",e=>{
-  el.classList.add("dragging");
-  e.dataTransfer.setData("text/plain",card.id);
- });
+ el.className="card";el.draggable=true;el.dataset.id=c.id;el.textContent=c.title;
+ el.addEventListener("dragstart",e=>{el.classList.add("dragging");e.dataTransfer.setData("text/plain",c.id);});
  el.addEventListener("dragend",()=>el.classList.remove("dragging"));
  el.addEventListener("click",()=>{
-  const t=prompt("Edit title",card.title);
+  const t=prompt("Edit title",c.title);
   if(t===null)return;
-  card.title=t.trim();card.updatedAt=now();save();render();
+  c.title=t.trim();saveState();render();
  });
  return el;
 }
 function moveToStage(id,stage){
- const c=state.cards.find(x=>x.id===id);
- if(!c)return;
- c.stage=stage;c.updatedAt=now();save();render();
-}
-function save(){
- saveBoard(cur,state);
- const b=index.find(b=>b.id===cur);
- if(b){b.updatedAt=now();saveIndex(index);}
- setStatus("Saved "+now());
+ const card=state.cards.find(x=>x.id===id);
+ if(!card)return;
+ card.stage=stage;saveState();render();
 }
 $("#btnNew").onclick=()=>{
  const t=prompt("Card title");
  if(!t)return;
- state.cards.unshift({id:uid(),title:t.trim(),stage:"Next",createdAt:now(),updatedAt:now()});
- save();render();
+ state.cards.unshift({id:uid(),title:t.trim(),stage:"Next",createdAt:now()});
+ saveState();render();
 };
-$("#btnClear").onclick=()=>{
- if(!confirm("Clear all cards?"))return;
- state.cards=[];save();render();
+$("#btnImport").onclick=()=>{
+ const inp=document.createElement("input");inp.type="file";inp.accept=".json";
+ inp.onchange=e=>{
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{try{
+    const obj=JSON.parse(reader.result);
+    state=obj;saveState();
+    FOOTER.textContent="Imported: "+file.name+" @ "+now();
+    render();
+  }catch(err){alert("Import failed: "+err.message);}};
+  reader.readAsText(file);
+ };
+ inp.click();
 };
-$("#boardPicker").onchange=e=>{
- cur=e.target.value;setCur(cur);state=loadBoard(cur)||{cards:[]};render();
+$("#btnExport").onclick=()=>{
+ const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+ const ts=new Date().toISOString().replace(/[:T]/g,"_").slice(0,15);
+ const a=document.createElement("a");
+ a.href=URL.createObjectURL(blob);
+ a.download=`ai-jobs-kanban-${ts}.json`;
+ a.click();
+ FOOTER.textContent="Exported: "+a.download;
 };
-$("#btnManage").onclick=()=>{
- try{
-  const act=index.filter(b=>!b.archived);
-  const arc=index.filter(b=>b.archived);
-  let msg="Active Boards:\\n"+act.map((b,i)=>`${i+1}. ${b.name}`).join("\\n");
-  msg+="\\n\\nArchived:\\n"+(arc.map(b=>b.name).join("\\n")||"(none)");
-  const cmd=prompt(msg+"\\n\\nCommands: new, rename, archive, restore, delete, version, export, import");
-  if(!cmd)return;
-  switch(cmd){
-   case "new":{
-     const name=prompt("New board name");
-     if(!name)return;
-     const id=uid();
-     index.push({id,name,archived:false,updatedAt:now()});
-     saveIndex(index);saveBoard(id,{cards:[]});
-     cur=id;setCur(id);state={cards:[]};
-     break;
-   }
-   case "rename":{
-     const b=index.find(b=>b.id===cur);if(!b)return;
-     const n=prompt("Rename",b.name);
-     if(!n)return;
-     b.name=n;saveIndex(index);
-     break;
-   }
-   case "archive":{
-     const b=index.find(b=>b.id===cur);
-     if(b){b.archived=true;saveIndex(index);}
-     break;
-   }
-   case "restore":{
-     const n=prompt("Name of board to restore from archive?");
-     const b=index.find(b=>b.name===n&&b.archived);
-     if(b){b.archived=false;saveIndex(index);}
-     break;
-   }
-   case "delete":{
-     const n=prompt("Name of board to permanently delete?");
-     const b=index.find(b=>b.name===n);
-     if(b&&confirm("Delete "+b.name+"?")){
-      localStorage.removeItem(prefix(b.id));
-      index=index.filter(x=>x.id!==b.id);
-      saveIndex(index);
-     }
-     break;
-   }
-   case "version":{
-     const b=index.find(b=>b.id===cur);if(!b)return;
-     const id=uid();
-     const name=b.name+" ["+new Date().toISOString().replace(/[:T]/g,'_').slice(0,15)+"]";
-     index.push({id,name,archived:false,updatedAt:now()});
-     saveIndex(index);
-     saveBoard(id,JSON.parse(JSON.stringify(state)));
-     cur=id;setCur(id);
-     break;
-   }
-   case "export":{
-     const act=index.filter(b=>!b.archived).map(b=>({meta:b,data:loadBoard(b.id)}));
-     const blob=new Blob([JSON.stringify({exportedAt:now(),boards:act},null,2)],{type:"application/json"});
-     const a=document.createElement("a");
-     a.href=URL.createObjectURL(blob);
-     a.download="boards-"+Date.now()+".json";
-     a.click();
-     break;
-   }
-   case "import":{
-     const txt=prompt("Paste JSON");
-     try{
-      const obj=JSON.parse(txt);
-      if(obj.boards){
-       obj.boards.forEach(x=>{
-        const id=uid();
-        index.push({...x.meta,id});
-        saveBoard(id,x.data);
-       });
-       saveIndex(index);
-      }
-     }catch(e){alert("Import failed: "+e.message)}
-     break;
-   }
-  }
-  renderPicker();render();
- }catch(e){alert("Manage failed: "+e.message)}
+$("#btnArchive").onclick=()=>{
+ if(!confirm("Archive current board?"))return;
+ localStorage.removeItem(STORAGE_KEY);
+ state=defaultData();
+ saveState();render();
 };
-renderPicker();render();
+render();
 })();
 </script>
 </body>
