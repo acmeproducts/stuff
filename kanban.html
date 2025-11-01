@@ -2,124 +2,321 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>AI Jobs Kanban — Persistent JSON Boards (v2)</title>
+<title>AI Kanban — Persistent Edition (Baseline-Preserved)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-:root{--bg:#f7f7f9;--panel:#fff;--border:#d0d0d5;--text:#111;--accent:#1f6feb;}
-body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);}
-header{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--border);padding:8px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;}
-button{border:1px solid var(--border);border-radius:6px;background:#fff;padding:6px 10px;cursor:pointer;}
-button.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
-main{padding:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;}
-.lane{background:var(--panel);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;}
-.lane h3{margin:0;padding:6px 8px;border-bottom:1px solid var(--border);}
-.lane-body{padding:6px;display:flex;flex-direction:column;gap:6px;}
-.card{background:#fff;border:2px solid var(--border);border-radius:8px;padding:5px 8px;cursor:grab;}
-.card.dragging{opacity:.8;border-color:#000;}
-footer{font-size:12px;padding:6px 10px;color:#555;text-align:right;border-top:1px solid var(--border);}
+:root{--bg:#f7f7f9;--panel:#fff;--border:#d0d0d5;--text:#111;--accent:#1f6feb;--danger:#b3261e}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+header{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--border);padding:8px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+main{padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;align-items:start}
+.lane{background:var(--panel);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;min-height:0}
+.lane h2{margin:0;padding:10px;border-bottom:1px solid var(--border);font-size:16px}
+.lane-body{padding:8px;display:flex;flex-direction:column;gap:8px;min-height:0}
+.card{background:#fff;border:2px solid var(--border);border-radius:10px;padding:8px;cursor:grab;user-select:none}
+.card.dragging{opacity:.85;border-color:#000}
+footer{border-top:1px solid var(--border);padding:8px 10px;color:#555;font-size:12px;text-align:right;background:#fff}
+
+/* Archive Manager dialog */
+dialog{border:none;border-radius:12px;padding:0;max-width:min(840px,96vw)}
+.modal{padding:14px;background:#fff;border:1px solid var(--border);border-radius:12px}
+.modal h3{margin:0 0 8px 0}
+.list{border:1px solid var(--border);border-radius:10px;max-height:50vh;overflow:auto}
+.item{padding:8px 10px;border-bottom:1px solid var(--border)}
+.item:last-child{border-bottom:none}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.muted{color:#666;font-size:12px}
 </style>
 </head>
 <body>
 <header>
   <button id="btnNew" class="primary">New</button>
+  <button id="btnRename">Rename</button>
   <button id="btnImport">Import</button>
   <button id="btnExport">Export</button>
-  <button id="btnArchive">Archive</button>
-  <span id="status" style="margin-left:auto;">Loading…</span>
+  <button id="btnArchive" title="Archive current board snapshot">Archive</button>
+  <button id="btnArchiveMgr">Archive Manager</button>
+  <span id="status" style="margin-left:auto">Loading…</span>
 </header>
-<main id="board"></main>
-<footer id="footer">Loaded: Default Dataset</footer>
+
+<main id="board" aria-live="polite"></main>
+<footer id="footer">Board: Default • Ready</footer>
+
+<!-- Archive Manager -->
+<dialog id="archiveDialog">
+  <form method="dialog" class="modal">
+    <h3>Archived Snapshots</h3>
+    <div id="archiveList" class="list"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:10px">
+      <button value="close">Close</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 (function(){
-const LANES=["Done","Doing","Next"];
-const STORAGE_KEY="ai_jobs_kanban_state_v2";
-const FOOTER=document.querySelector("#footer");
-function $(s){return document.querySelector(s);}
-function uid(){return Math.random().toString(36).slice(2,10);}
-function now(){return new Date().toLocaleString();}
-function defaultData(){return {meta:{name:"Default Board",createdAt:now()},cards:[]};}
+/* ===== Keys and helpers ===== */
+const STORAGE_KEY="kanban_state_v3";           // current board
+const ARCHIVE_KEY="kanban_archive_v3";         // array of snapshots
+const footer=document.getElementById("footer");
+const statusEl=document.getElementById("status");
+const $=s=>document.querySelector(s);
+
+function uid(){return Math.random().toString(36).slice(2,10)}
+function nowISO(){return new Date().toISOString()}
+function nowLocal(){return new Date().toLocaleString()}
+function tsFile(){return new Date().toISOString().replace(/[:T]/g,"_").slice(0,15)} // YYYY-MM-DD_HHMM
+
+/* ===== Legacy-safe load / save ===== */
+function defaultState(){
+  return { meta:{ name:"Default", createdAt: nowISO(), updatedAt: nowISO() },
+           lanes:{ Next:[], Doing:[], Done:[] } };
+}
+function normalizeState(obj, importName="Imported"){
+  // Accept legacy structures {cards:[{title,stage}]}, or full v3 {meta,lanes}
+  if(!obj || typeof obj!=="object") return defaultState();
+  if(obj.lanes && obj.meta){
+    // v3
+    obj.meta.name = obj.meta.name || importName;
+    obj.meta.updatedAt = nowISO();
+    // ensure lanes
+    obj.lanes.Next ||= []; obj.lanes.Doing ||= []; obj.lanes.Done ||= [];
+    return obj;
+  }
+  // legacy: cards array + stage field
+  if(Array.isArray(obj.cards)){
+    const next=[], doing=[], done=[];
+    obj.cards.forEach(c=>{
+      const card = { id: c.id || uid(), title: String(c.title||"(untitled)"), createdAt: c.createdAt || nowISO(), updatedAt: nowISO() };
+      const st = (c.stage||"Next");
+      if(st==="Done") done.push(card);
+      else if(st==="Doing") doing.push(card);
+      else next.push(card);
+    });
+    return { meta:{ name: importName, createdAt: nowISO(), updatedAt: nowISO() },
+             lanes:{ Next: next, Doing: doing, Done: done } };
+  }
+  // nothing recognizable -> default
+  return defaultState();
+}
 function loadState(){
- let s=localStorage.getItem(STORAGE_KEY);
- if(s){try{return JSON.parse(s);}catch{return defaultData();}}
- return defaultData();
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw) return defaultState();
+    const obj=JSON.parse(raw);
+    return normalizeState(obj, obj?.meta?.name || "Imported");
+  }catch{ return defaultState(); }
 }
-function saveState(){
- localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
- FOOTER.textContent="Saved: "+(state.meta?.name||"Unnamed")+" @ "+now();
+function saveState(st){
+  st.meta.updatedAt = nowISO();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(st));
+  setFooter(`Board: ${st.meta.name} • Saved ${nowLocal()}`);
 }
-let state=loadState();
+
+/* ===== Archive load / save ===== */
+function loadArchive(){
+  try{
+    const raw=localStorage.getItem(ARCHIVE_KEY);
+    const arr= raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  }catch{ return []; }
+}
+function saveArchive(arr){
+  localStorage.setItem(ARCHIVE_KEY, JSON.stringify(arr));
+}
+
+/* ===== App state ===== */
+let state = loadState();
+
+/* ===== UI helpers ===== */
+function setFooter(text){ footer.textContent = text; }
+function setStatus(text){ statusEl.textContent = text; }
+
+/* ===== Rendering ===== */
+const board = document.getElementById("board");
+const LANES = ["Next","Doing","Done"];
+
 function render(){
- const board=$("#board");board.innerHTML="";
- LANES.forEach(stage=>{
-  const sec=document.createElement("section");
-  sec.className="lane";
-  sec.innerHTML=`<h3>${stage}</h3><div class="lane-body" data-stage="${stage}"></div>`;
-  board.appendChild(sec);
-  const body=sec.querySelector(".lane-body");
-  state.cards.filter(c=>c.stage===stage).forEach(c=>body.appendChild(renderCard(c)));
-  body.addEventListener("dragover",e=>e.preventDefault());
-  body.addEventListener("drop",e=>{e.preventDefault();moveToStage(e.dataTransfer.getData("text/plain"),stage);});
- });
- $("#status").textContent="Ready ("+state.cards.length+" cards)";
+  board.innerHTML="";
+  LANES.forEach(stage=>{
+    const sec=document.createElement("section"); sec.className="lane";
+    sec.innerHTML = `<h2>${stage}</h2><div class="lane-body" data-stage="${stage}"></div>`;
+    const body=sec.querySelector(".lane-body");
+
+    // cards
+    (state.lanes[stage]||[]).forEach(c=> body.appendChild(renderCard(c)));
+
+    // DnD target
+    body.addEventListener("dragover", e=> e.preventDefault());
+    body.addEventListener("drop", e=>{
+      e.preventDefault();
+      const id = e.dataTransfer.getData("text/plain");
+      if(id) moveCardTo(stage, id);
+    });
+
+    board.appendChild(sec);
+  });
+  setStatus(`Ready • ${totalCount()} cards`);
+  setFooter(`Board: ${state.meta.name} • Updated ${new Date(state.meta.updatedAt).toLocaleString()}`);
 }
-function renderCard(c){
- const el=document.createElement("div");
- el.className="card";el.draggable=true;el.dataset.id=c.id;el.textContent=c.title;
- el.addEventListener("dragstart",e=>{el.classList.add("dragging");e.dataTransfer.setData("text/plain",c.id);});
- el.addEventListener("dragend",()=>el.classList.remove("dragging"));
- el.addEventListener("click",()=>{
-  const t=prompt("Edit title",c.title);
-  if(t===null)return;
-  c.title=t.trim();saveState();render();
- });
- return el;
+
+function renderCard(card){
+  const el=document.createElement("div");
+  el.className="card";
+  el.draggable=true;
+  el.dataset.id=card.id;
+  el.textContent=card.title;
+
+  el.addEventListener("dragstart", e=>{
+    el.classList.add("dragging");
+    e.dataTransfer.setData("text/plain", card.id);
+    e.dataTransfer.effectAllowed="move";
+  });
+  el.addEventListener("dragend", ()=> el.classList.remove("dragging"));
+
+  el.addEventListener("click", ()=>{
+    const t=prompt("Edit title", card.title);
+    if(t===null) return;
+    card.title = String(t).trim() || card.title;
+    card.updatedAt = nowISO();
+    saveState(state); render();
+  });
+
+  return el;
 }
-function moveToStage(id,stage){
- const card=state.cards.find(x=>x.id===id);
- if(!card)return;
- card.stage=stage;saveState();render();
+
+function totalCount(){
+  return (state.lanes.Next?.length||0)+(state.lanes.Doing?.length||0)+(state.lanes.Done?.length||0);
 }
-$("#btnNew").onclick=()=>{
- const t=prompt("Card title");
- if(!t)return;
- state.cards.unshift({id:uid(),title:t.trim(),stage:"Next",createdAt:now()});
- saveState();render();
+
+/* ===== Mutations ===== */
+function createCard(title){
+  const c={ id:uid(), title:String(title||"(untitled)"), createdAt:nowISO(), updatedAt:nowISO() };
+  state.lanes.Next.unshift(c);
+  saveState(state); render();
+}
+
+function moveCardTo(stage, id){
+  let found=null, from=null;
+  for(const st of LANES){
+    const idx = state.lanes[st].findIndex(x=>x.id===id);
+    if(idx>-1){
+      found = state.lanes[st][idx];
+      from = st;
+      state.lanes[st].splice(idx,1);
+      break;
+    }
+  }
+  if(!found) return;
+  found.updatedAt = nowISO();
+  state.lanes[stage].unshift(found);
+  saveState(state); render();
+}
+
+/* ===== Controls ===== */
+document.getElementById("btnNew").onclick=()=>{
+  const t=prompt("Card title");
+  if(!t) return;
+  createCard(t.trim());
 };
-$("#btnImport").onclick=()=>{
- const inp=document.createElement("input");inp.type="file";inp.accept=".json";
- inp.onchange=e=>{
-  const file=e.target.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=()=>{
-    try{
-      const obj=JSON.parse(reader.result);
-      if(!obj.meta){obj.meta={name:file.name.replace(/\\.json$/,''),importedAt:now()};}
-      if(!obj.cards){throw new Error("Missing cards array");}
-      state=obj;saveState();
-      FOOTER.textContent="Imported: "+(state.meta.name||file.name)+" @ "+now();
-      render();
-    }catch(err){alert("Import failed: "+err.message);}
+
+document.getElementById("btnRename").onclick=()=>{
+  const n=prompt("Rename board", state.meta.name||"Board");
+  if(!n) return;
+  state.meta.name = String(n).trim();
+  saveState(state); render();
+};
+
+document.getElementById("btnExport").onclick=()=>{
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download = `ai-jobs-kanban-${tsFile()}.json`;
+  a.click();
+  setFooter(`Board: ${state.meta.name} • Exported ${a.download}`);
+};
+
+document.getElementById("btnImport").onclick=()=>{
+  const input=document.createElement("input");
+  input.type="file"; input.accept=".json,application/json";
+  input.onchange=e=>{
+    const file=e.target.files?.[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        const obj=JSON.parse(reader.result);
+        const normalized = normalizeState(obj, file.name.replace(/\.json$/,""));
+        state = normalized;
+        saveState(state); render();
+        setFooter(`Board: ${state.meta.name} • Imported ${file.name} @ ${nowLocal()}`);
+      }catch(err){
+        alert("Import failed: "+err.message);
+      }
+    };
+    reader.readAsText(file);
   };
-  reader.readAsText(file);
- };
- inp.click();
+  input.click();
 };
-$("#btnExport").onclick=()=>{
- const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
- const ts=new Date().toISOString().replace(/[:T]/g,"_").slice(0,15);
- const a=document.createElement("a");
- a.href=URL.createObjectURL(blob);
- a.download=`ai-jobs-kanban-${ts}.json`;
- a.click();
- FOOTER.textContent="Exported: "+a.download;
+
+document.getElementById("btnArchive").onclick=()=>{
+  if(!confirm(`Archive snapshot of "${state.meta.name}"?`)) return;
+  const archive = loadArchive();
+  archive.unshift({
+    id: uid(),
+    label: `${state.meta.name} @ ${nowLocal()}`,
+    savedAt: nowISO(),
+    state: state
+  });
+  saveArchive(archive);
+  setFooter(`Board: ${state.meta.name} • Snapshot archived`);
 };
-$("#btnArchive").onclick=()=>{
- if(!confirm("Archive current board?"))return;
- localStorage.removeItem(STORAGE_KEY);
- state=defaultData();
- saveState();render();
+
+const archiveDialog = document.getElementById("archiveDialog");
+document.getElementById("btnArchiveMgr").onclick=()=>{
+  const list = document.getElementById("archiveList");
+  const archive = loadArchive();
+  list.innerHTML = "";
+  if(!archive.length){
+    list.innerHTML = `<div class="item muted">Archive is empty.</div>`;
+  }else{
+    archive.forEach((snap, idx)=>{
+      const row=document.createElement("div"); row.className="item";
+      row.innerHTML = `
+        <div style="font-weight:700">${snap.label}</div>
+        <div class="muted">${new Date(snap.savedAt).toLocaleString()}</div>
+        <div class="row" style="margin-top:6px">
+          <button data-act="restore" data-idx="${idx}">Restore</button>
+          <button class="danger" data-act="delete" data-idx="${idx}">Delete</button>
+        </div>`;
+      row.querySelector('[data-act="restore"]').onclick=(e)=>{
+        const i=Number(e.target.dataset.idx);
+        const arr=loadArchive();
+        const s=arr[i]; if(!s) return;
+        state = normalizeState(s.state, s.state?.meta?.name || "Imported");
+        saveState(state); render();
+        setFooter(`Board: ${state.meta.name} • Restored snapshot`);
+      };
+      row.querySelector('[data-act="delete"]').onclick=(e)=>{
+        const i=Number(e.target.dataset.idx);
+        const arr=loadArchive();
+        if(!confirm("Delete this snapshot?")) return;
+        arr.splice(i,1); saveArchive(arr);
+        // refresh list
+        document.getElementById("btnArchiveMgr").click();
+      };
+      list.appendChild(row);
+    });
+  }
+  archiveDialog.showModal();
 };
+archiveDialog.addEventListener("close", ()=>{ /* no-op */ });
+
+/* ===== Init ===== */
 render();
+setStatus("Ready");
 })();
 </script>
 </body>
