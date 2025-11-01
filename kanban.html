@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>AI Jobs Kanban — Persistent JSON Boards</title>
+<title>AI Jobs Kanban — Persistent JSON Boards (v2)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 :root{--bg:#f7f7f9;--panel:#fff;--border:#d0d0d5;--text:#111;--accent:#1f6feb;}
@@ -33,18 +33,19 @@ footer{font-size:12px;padding:6px 10px;color:#555;text-align:right;border-top:1p
 (function(){
 const LANES=["Done","Doing","Next"];
 const STORAGE_KEY="ai_jobs_kanban_state_v2";
-const FOOTER=$("#footer");
+const FOOTER=document.querySelector("#footer");
 function $(s){return document.querySelector(s);}
 function uid(){return Math.random().toString(36).slice(2,10);}
 function now(){return new Date().toLocaleString();}
+function defaultData(){return {meta:{name:"Default Board",createdAt:now()},cards:[]};}
 function loadState(){
  let s=localStorage.getItem(STORAGE_KEY);
  if(s){try{return JSON.parse(s);}catch{return defaultData();}}
  return defaultData();
 }
-function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));FOOTER.textContent="Saved: "+(state.meta.name||"Unnamed")+" @ "+now();}
-function defaultData(){
- return {meta:{name:"Default Board",createdAt:now()},cards:[]};
+function saveState(){
+ localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+ FOOTER.textContent="Saved: "+(state.meta?.name||"Unnamed")+" @ "+now();
 }
 let state=loadState();
 function render(){
@@ -89,12 +90,16 @@ $("#btnImport").onclick=()=>{
  inp.onchange=e=>{
   const file=e.target.files[0];if(!file)return;
   const reader=new FileReader();
-  reader.onload=()=>{try{
-    const obj=JSON.parse(reader.result);
-    state=obj;saveState();
-    FOOTER.textContent="Imported: "+file.name+" @ "+now();
-    render();
-  }catch(err){alert("Import failed: "+err.message);}};
+  reader.onload=()=>{
+    try{
+      const obj=JSON.parse(reader.result);
+      if(!obj.meta){obj.meta={name:file.name.replace(/\\.json$/,''),importedAt:now()};}
+      if(!obj.cards){throw new Error("Missing cards array");}
+      state=obj;saveState();
+      FOOTER.textContent="Imported: "+(state.meta.name||file.name)+" @ "+now();
+      render();
+    }catch(err){alert("Import failed: "+err.message);}
+  };
   reader.readAsText(file);
  };
  inp.click();
