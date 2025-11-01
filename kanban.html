@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AI Jobs Kanban – Multi-Board Stable</title>
+<title>AI Jobs Kanban – Manage Enabled</title>
 <style>
 :root{--bg:#f7f7f9;--panel:#fff;--border:#ccc;--text:#111;--accent:#1f6feb;--warn:#a61e4d}
 *{box-sizing:border-box}
@@ -38,7 +38,7 @@ background:#fff;border:1px solid var(--warn);border-left:6px solid var(--warn);b
 <div id="errorBox"><header>Runtime Errors</header><pre id="errorLog"></pre></div>
 <script>
 (function(){
-const BUILD="multi-boards-stable";
+const BUILD="multi-boards-manage-enabled";
 const INDEX_KEY="kanban_boards_index";
 const CUR_KEY="kanban_current";
 const prefix=id=>`kanban_board_${id}`;
@@ -49,16 +49,10 @@ window.addEventListener("error",e=>{errBox.style.display="block";errLog.textCont
 window.addEventListener("unhandledrejection",e=>{errBox.style.display="block";errLog.textContent+=(e.reason+"\\n")});
 function uid(){return Math.random().toString(36).slice(2,10)}
 function now(){return new Date().toISOString()}
-function loadIndex(){
- try{const j=localStorage.getItem(INDEX_KEY);return j?JSON.parse(j):[]}catch{return []}
-}
+function loadIndex(){try{const j=localStorage.getItem(INDEX_KEY);return j?JSON.parse(j):[]}catch{return []}}
 function saveIndex(a){localStorage.setItem(INDEX_KEY,JSON.stringify(a))}
-function loadBoard(id){
- try{const j=localStorage.getItem(prefix(id));return j?JSON.parse(j):null}catch{return null}
-}
-function saveBoard(id,d){
- try{localStorage.setItem(prefix(id),JSON.stringify(d))}catch(e){errLog.textContent+="saveBoard:"+e+"\\n"}
-}
+function loadBoard(id){try{const j=localStorage.getItem(prefix(id));return j?JSON.parse(j):null}catch{return null}}
+function saveBoard(id,d){try{localStorage.setItem(prefix(id),JSON.stringify(d))}catch(e){errLog.textContent+="saveBoard:"+e+"\\n"}}
 function setCur(id){localStorage.setItem(CUR_KEY,id)}
 function getCur(){return localStorage.getItem(CUR_KEY)||""}
 let index=loadIndex();
@@ -134,65 +128,88 @@ $("#boardPicker").onchange=e=>{
  cur=e.target.value;setCur(cur);state=loadBoard(cur)||{cards:[]};render();
 };
 $("#btnManage").onclick=()=>{
- const act=index.filter(b=>!b.archived),arc=index.filter(b=>b.archived);
- let msg="Active Boards:\\n"+act.map((b,i)=>`${i+1}. ${b.name}`).join("\\n");
- msg+="\\n\\nArchived:\\n"+(arc.map(b=>b.name).join("\\n")||"(none)");
- const cmd=prompt(msg+"\\n\\nCommands: new, rename, archive, restore, delete, version, export, import");
- if(!cmd)return;
- if(cmd==="new"){
-  const name=prompt("New board name");if(!name)return;
-  const id=uid();index.push({id,name,archived:false,updatedAt:now()});
-  saveIndex(index);saveBoard(id,{cards:[]});cur=id;setCur(id);state={cards:[]};
- }
- else if(cmd==="rename"){
-  const b=index.find(b=>b.id===cur);if(!b)return;
-  const n=prompt("Rename",b.name);if(!n)return;
-  b.name=n;saveIndex(index);
- }
- else if(cmd==="archive"){
-  const b=index.find(b=>b.id===cur);if(b){b.archived=true;saveIndex(index);}
- }
- else if(cmd==="restore"){
-  const n=prompt("Name of board to restore from archive?");
-  const b=index.find(b=>b.name===n&&b.archived);
-  if(b){b.archived=false;saveIndex(index);}
- }
- else if(cmd==="delete"){
-  const n=prompt("Name of board to permanently delete?");
-  const b=index.find(b=>b.name===n);
-  if(b&&confirm("Delete "+b.name+"?")){
-   localStorage.removeItem(prefix(b.id));
-   index=index.filter(x=>x.id!==b.id);
-   saveIndex(index);
-  }
- }
- else if(cmd==="version"){
-  const b=index.find(b=>b.id===cur);if(!b)return;
-  const id=uid();
-  const name=b.name+" ["+new Date().toISOString().replace(/[:T]/g,'_').slice(0,15)+"]";
-  index.push({id,name,archived:false,updatedAt:now()});
-  saveIndex(index);
-  saveBoard(id,JSON.parse(JSON.stringify(state)));
-  cur=id;setCur(id);
- }
- else if(cmd==="export"){
-  const act=index.filter(b=>!b.archived).map(b=>({meta:b,data:loadBoard(b.id)}));
-  const blob=new Blob([JSON.stringify({exportedAt:now(),boards:act},null,2)],{type:"application/json"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="boards-"+Date.now()+".json";a.click();
- }
- else if(cmd==="import"){
-  const txt=prompt("Paste JSON");
-  try{
-   const obj=JSON.parse(txt);
-   if(obj.boards){
-    obj.boards.forEach(x=>{
-      const id=uid();index.push({...x.meta,id});saveBoard(id,x.data);
-    });
-    saveIndex(index);
+ try{
+  const act=index.filter(b=>!b.archived);
+  const arc=index.filter(b=>b.archived);
+  let msg="Active Boards:\\n"+act.map((b,i)=>`${i+1}. ${b.name}`).join("\\n");
+  msg+="\\n\\nArchived:\\n"+(arc.map(b=>b.name).join("\\n")||"(none)");
+  const cmd=prompt(msg+"\\n\\nCommands: new, rename, archive, restore, delete, version, export, import");
+  if(!cmd)return;
+  switch(cmd){
+   case "new":{
+     const name=prompt("New board name");
+     if(!name)return;
+     const id=uid();
+     index.push({id,name,archived:false,updatedAt:now()});
+     saveIndex(index);saveBoard(id,{cards:[]});
+     cur=id;setCur(id);state={cards:[]};
+     break;
    }
-  }catch(e){alert("Import failed:"+e.message)}
- }
- renderPicker();render();
+   case "rename":{
+     const b=index.find(b=>b.id===cur);if(!b)return;
+     const n=prompt("Rename",b.name);
+     if(!n)return;
+     b.name=n;saveIndex(index);
+     break;
+   }
+   case "archive":{
+     const b=index.find(b=>b.id===cur);
+     if(b){b.archived=true;saveIndex(index);}
+     break;
+   }
+   case "restore":{
+     const n=prompt("Name of board to restore from archive?");
+     const b=index.find(b=>b.name===n&&b.archived);
+     if(b){b.archived=false;saveIndex(index);}
+     break;
+   }
+   case "delete":{
+     const n=prompt("Name of board to permanently delete?");
+     const b=index.find(b=>b.name===n);
+     if(b&&confirm("Delete "+b.name+"?")){
+      localStorage.removeItem(prefix(b.id));
+      index=index.filter(x=>x.id!==b.id);
+      saveIndex(index);
+     }
+     break;
+   }
+   case "version":{
+     const b=index.find(b=>b.id===cur);if(!b)return;
+     const id=uid();
+     const name=b.name+" ["+new Date().toISOString().replace(/[:T]/g,'_').slice(0,15)+"]";
+     index.push({id,name,archived:false,updatedAt:now()});
+     saveIndex(index);
+     saveBoard(id,JSON.parse(JSON.stringify(state)));
+     cur=id;setCur(id);
+     break;
+   }
+   case "export":{
+     const act=index.filter(b=>!b.archived).map(b=>({meta:b,data:loadBoard(b.id)}));
+     const blob=new Blob([JSON.stringify({exportedAt:now(),boards:act},null,2)],{type:"application/json"});
+     const a=document.createElement("a");
+     a.href=URL.createObjectURL(blob);
+     a.download="boards-"+Date.now()+".json";
+     a.click();
+     break;
+   }
+   case "import":{
+     const txt=prompt("Paste JSON");
+     try{
+      const obj=JSON.parse(txt);
+      if(obj.boards){
+       obj.boards.forEach(x=>{
+        const id=uid();
+        index.push({...x.meta,id});
+        saveBoard(id,x.data);
+       });
+       saveIndex(index);
+      }
+     }catch(e){alert("Import failed: "+e.message)}
+     break;
+   }
+  }
+  renderPicker();render();
+ }catch(e){alert("Manage failed: "+e.message)}
 };
 renderPicker();render();
 })();
