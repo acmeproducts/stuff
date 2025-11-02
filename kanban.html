@@ -1,4 +1,4 @@
-<!-- [AI Jobs Kanban]-v13-2025-11-01 10:20 PM -->
+<!-- [AI Jobs Kanban]-v14-2025-11-02 10:25 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -375,7 +375,7 @@ const BUILD = "2025-10-28";
 const UPLOADED_CONFIG = {
   stages: ["Next", "Doing", "Done"],
   platforms: ["Default", "Codex", "Gemini", "Claude", "ChatGPT", "Perplexity"],
-  emojis: ["🟢", "🟡", "🔴", "⭐", "😡", "🤬", "🙃", "😃"], // Use last working emoji list for settings default
+  emojis: ["🟢", "🟡", "🔴", "⭐", "😡", "🤬", "🙃", "😃"], // Default emoji list
   titleLimit: 20, 
   chipLimit: 10
 };
@@ -397,7 +397,7 @@ function persistNow(){
 
 function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); }
 
-// --- REVAMPED loadState ---
+// --- REVAMPED loadState to guarantee baseline and ignore old defaults ---
 function loadState(){
   let raw = localStorage.getItem(STABLE_KEY);
   if(raw){ 
@@ -406,16 +406,15 @@ function loadState(){
       // Basic validation: must have the core lists, ignore if it's junk
       if(obj?.cards && obj?.stages && obj?.platforms) return obj; 
     }catch(e){
-      console.warn("Found corrupt state in local storage:", e);
-      // If corrupt, fall through to create new baseline
+      console.warn("Found corrupt state in local storage, resetting to baseline:", e);
     } 
   }
   
-  // If no stable, valid state found, create the new baseline from UPLOADED_CONFIG
+  // If no stable, valid state found (or first run), create the new baseline from UPLOADED_CONFIG
   const newBaseline = {
     stages: UPLOADED_CONFIG.stages,
     platforms: UPLOADED_CONFIG.platforms,
-    cards: [], // Crucially, start with NO cards
+    cards: [], // Start with NO cards
     archive: [],
     collapsed: {},
     layout: "auto",
@@ -434,7 +433,6 @@ function saveTagHistory(list){ const uniq=[...new Set(list.map(t=>String(t).toLo
 function loadEmojis(){ 
     try{ 
         const raw=localStorage.getItem(EMOJIS_KEY); 
-        // If saved emojis exist, use them. Otherwise, use the new UPLOADED_CONFIG default.
         return raw ? JSON.parse(raw) : UPLOADED_CONFIG.emojis; 
     }catch{ 
         return UPLOADED_CONFIG.emojis; 
@@ -443,11 +441,10 @@ function loadEmojis(){
 function saveEmojis(list){ const arr=Array.isArray(list)?list.map(s=>String(s).trim()).filter(Boolean):[]; trySave(EMOJIS_KEY, JSON.stringify(arr)); customEmojis=arr; }
 
 /* ===== App State ===== */
-// State is loaded via the new persistent strategy
 let state = loadState();
 
 let tagHistory = loadTagHistory();
-let customEmojis = loadEmojis(); // Load/default emojis
+let customEmojis = loadEmojis();
 
 const $ = s=>document.querySelector(s), $$ = s=>Array.from(document.querySelectorAll(s));
 function uid(){return Math.random().toString(36).slice(2,10)}
@@ -520,7 +517,7 @@ function render(){
   refillSelects();
   applySearch($("#search").value);
   
-  // Update status immediately after render
+  // Update status after render
   setStatus("Loaded • Config: Default • "+fmtFullDate(new Date()));
 }
 document.addEventListener("dragover", e=> e.preventDefault());
@@ -643,10 +640,23 @@ function openEditor(id=null, presetStage=null){
 // Function to instantly apply current editor changes and save state
 function saveEditorState(id){
     if(!id) return;
-    const payload = collectEditorData();
+    
+    // CRITICAL FIX: Collect latest data from active inputs before patching the state
     const c=state.cards.find(x=>x.id===id); if(!c) return;
-    Object.assign(c, payload);
-    c.tags=normalizeTags(c.tags);
+    
+    const patch = {
+        title: $("#fTitle").value.trim(), 
+        platform: $("#fPlatform").value,
+        stage: $("#fStage").value,
+        dev: $("#fDev").value.trim(),
+        live: $("#fLive").value.trim(),
+        notes: $("#fNotes").value, // Capture text including embedded emojis
+        tags: activeTags.join(","), // Capture tags from active array (managed by chips)
+        files: currentFiles.slice()
+    };
+
+    Object.assign(c, patch);
+    c.tags=normalizeTags(patch.tags);
     c.updatedAt=Date.now();
     bumpTagHistory(c.tags);
     scheduleSave(); // Triggers persistence
@@ -668,8 +678,16 @@ editDialog.addEventListener("close", ()=>{
 
 // Add a general blur listener to the edit dialog to ensure changes are saved on field exit
 editDialog.addEventListener("focusout", (e) => {
-    if ((e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") && editingId) {
-        saveEditorState(editingId);
+    // Only save the current card if a key field was blurred AND we are editing an existing card
+    if (editingId) {
+        // Specific check for tagInput blur to commit pending text and render chips immediately
+        if (e.target.id === "tagInput") {
+            commitTagFromInput(); 
+        }
+        
+        if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") {
+            saveEditorState(editingId);
+        }
     }
 });
 
@@ -698,7 +716,7 @@ function commitTagFromInput(){
   renderTagChips();
   bumpTagHistory(activeTags);
   renderTagSuggestions();
-  if(editingId) saveEditorState(editingId); // Save state after committing tags
+  if(editingId) saveEditorState(editingId);
 }
 tagInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter" || e.key===","){ e.preventDefault(); commitTagFromInput(); } });
 tagInput.addEventListener("blur", ()=>{ commitTagFromInput(); });
@@ -785,8 +803,8 @@ function saveSettingsState(){
     // Apply immediate changes to state
     if(platforms.length) state.platforms=platforms;
     if(stages.length){ const newFirst=stages[0]; state.cards.forEach(c=>{ if(!stages.includes(c.stage)){ c.stage=newFirst; c.pos=topPos(newFirst); c.updatedAt=Date.now(); } }); state.stages=stages; }
-    state.titleLimit = (newTitleLimit && newTitleLimit > 0) ? newTitleLimit : 20;
-    state.chipLimit = (newChipLimit && newChipLimit > 0) ? newChipLimit : 10;
+    state.titleLimit = (newTitleLimit && newTitleLimit > 0) ? newTitleLimit : UPLOADED_CONFIG.titleLimit;
+    state.chipLimit = (newChipLimit && newChipLimit > 0) ? newChipLimit : UPLOADED_CONFIG.chipLimit;
     
     saveEmojis(emojis);
     scheduleSave();
@@ -863,9 +881,16 @@ $("#fileImport").onchange=(e)=>{
       state.platforms = state.platforms || UPLOADED_CONFIG.platforms;
       state.stages = state.stages || UPLOADED_CONFIG.stages;
 
+      // CRITICAL FIX: Ensure tags are properly normalized after import
+      state.cards.forEach(c => {
+        if(c.tags) c.tags = normalizeTags(c.tags);
+      });
+      // Also ensure positions are set and bump tags to history for suggestions
+      state.cards.forEach(c => bumpTagHistory(c.tags));
+
       state.stages.forEach(st=>{ const list=state.cards.filter(c=>c.stage===st); list.sort((a,b)=>(a.pos??0)-(b.pos??0)||(a.createdAt-b.createdAt)); list.forEach((c,i)=>{ if(typeof c.pos!=="number") c.pos=(i+1)*1000; }); }); 
       
-      persistNow(); // Use persistNow for immediate save on import
+      persistNow(); 
       render(); 
       toast("Import successful","Board replaced and committed to memory."); 
       setStatus("Imported JSON • Config: Default • "+fmtFullDate(new Date())); 
@@ -898,7 +923,7 @@ $("#fileImportEmojis").onchange=(e)=>{
       const newEmojis = obj.map(s=>String(s).trim()).filter(Boolean);
       saveEmojis(newEmojis);
       $("#sEmojis").value = newEmojis.join(" ");
-      persistNow(); // Save the new emoji list immediately
+      persistNow(); 
       toast("Import successful","Custom emojis updated.");
     } else {
       toast("Import failed","Invalid JSON structure (expected array)", true);
@@ -1018,6 +1043,7 @@ function showEmojiPicker(input, cursor){
     item.onclick = (e) => { 
       e.stopPropagation(); 
       insertEmoji(emoji); 
+      // Ensure state is saved after emoji insertion if editing a card
       if(editingId) saveEditorState(editingId);
     }; 
     emojiPicker.appendChild(item);
@@ -1130,5 +1156,4 @@ render();
 </script>
 </body>
 </html>
-
-<.> 2025-11-01 - 10:20 PM <.>
+<.> 2025-11-02 - 10:25 AM <.>
