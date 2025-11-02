@@ -273,6 +273,18 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 <dialog id="settingsDialog">
   <form method="dialog" class="modal" id="settingsForm">
     <h3>Settings</h3>
+    
+    <div class="grid-2">
+        <div class="field">
+            <label for="sTitleLen">Card Title Max Length</label>
+            <input id="sTitleLen" type="number" min="1" step="1"/>
+        </div>
+        <div class="field">
+            <label for="sChipLen">Chip/Tag Max Length</label>
+            <input id="sChipLen" type="number" min="1" step="1"/>
+        </div>
+    </div>
+
     <div class="field">
       <label for="sPlatforms">Platforms (comma-separated)</label>
       <input id="sPlatforms" value="Gemini, Claude, ChatGPT, Perplexity"/>
@@ -320,7 +332,7 @@ const BUILD = "2025-10-28";
 /* ===== Persistence & State Keys ===== */
 const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
-const EMOJIS_KEY = "ai_jobs_kanban_emojis"; // New key for custom emojis
+const EMOJIS_KEY = "ai_jobs_kanban_emojis";
 const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
 let dirty=false, saveTimer=null;
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
@@ -334,8 +346,8 @@ function loadState(){
 }
 function loadTagHistory(){ try{ const arr=JSON.parse(localStorage.getItem(TAGS_KEY)||"[]"); return Array.isArray(arr)?arr:[]; }catch{ return []; } }
 function saveTagHistory(list){ const uniq=[...new Set(list.map(t=>String(t).toLowerCase()))]; trySave(TAGS_KEY, JSON.stringify(uniq)); return uniq; }
-function loadEmojis(){ try{ const raw=localStorage.getItem(EMOJIS_KEY); return raw?JSON.parse(raw):null; }catch{ return null; } } // New load function
-function saveEmojis(list){ const arr=Array.isArray(list)?list.map(s=>String(s).trim()).filter(Boolean):[]; trySave(EMOJIS_KEY, JSON.stringify(arr)); customEmojis=arr; } // New save function
+function loadEmojis(){ try{ const raw=localStorage.getItem(EMOJIS_KEY); return raw?JSON.parse(raw):null; }catch{ return null; } }
+function saveEmojis(list){ const arr=Array.isArray(list)?list.map(s=>String(s).trim()).filter(Boolean):[]; trySave(EMOJIS_KEY, JSON.stringify(arr)); customEmojis=arr; }
 
 /* ===== App State ===== */
 let state = loadState() || {
@@ -344,13 +356,18 @@ let state = loadState() || {
   cards:[],
   archive:[],
   collapsed:{},
-  layout:"auto"
+  layout:"auto",
+  // New state properties for content limits
+  titleLimit: 20, 
+  chipLimit: 10
 };
 state.collapsed = state.collapsed || {};
 state.layout = state.layout || "auto";
 state.archive = Array.isArray(state.archive)? state.archive : [];
+state.titleLimit = state.titleLimit || 20; // Default to 20
+state.chipLimit = state.chipLimit || 10;   // Default to 10
 let tagHistory = loadTagHistory();
-let customEmojis = loadEmojis() || ["🟢", "🟡", "🔴", "⭐", "😡", "🤬", "🙃", "😃"]; // Initial/default emojis
+let customEmojis = loadEmojis() || ["🟢", "🟡", "🔴", "⭐", "😡", "🤬", "🙃", "😃"];
 const $ = s=>document.querySelector(s), $$ = s=>Array.from(document.querySelectorAll(s));
 function uid(){return Math.random().toString(36).slice(2,10)}
 
@@ -373,7 +390,9 @@ function render(){
   $("#sPlatforms").value = state.platforms.join(", ");
   $("#sStages").value = state.stages.join(", ");
   $("#sLayout").value = state.layout;
-  $("#sEmojis").value = customEmojis.join(" "); // Set custom emojis in settings
+  $("#sEmojis").value = customEmojis.join(" ");
+  $("#sTitleLen").value = state.titleLimit; // Set title length limit
+  $("#sChipLen").value = state.chipLimit;   // Set chip length limit
 
   const board=$("#board"); board.dataset.layout=state.layout; board.innerHTML="";
   state.stages.forEach(stage=>{
@@ -452,14 +471,27 @@ function renderCard(card){
 
   const line=document.createElement("div"); line.className="card-line";
   const p=document.createElement("span"); p.className="card-platform"; p.textContent=card.platform;
-  const title=document.createElement("span"); title.className="card-title"; title.textContent=card.title||"(untitled)";
+  
+  // Apply title length limit
+  const cardTitle = card.title || "(untitled)";
+  const displayedTitle = cardTitle.length > state.titleLimit ? cardTitle.substring(0, state.titleLimit) + "..." : cardTitle;
+  const title=document.createElement("span"); title.className="card-title"; title.textContent=displayedTitle;
+  
   const links=document.createElement("span"); links.className="card-links";
   if(card.dev){ const a=document.createElement("a"); a.href=card.dev; a.target="_blank"; a.rel="noopener"; a.textContent="dev"; a.onclick=(e)=> e.stopPropagation(); links.appendChild(a); }
   if(card.live){ const a=document.createElement("a"); a.href=card.live; a.target="_blank"; a.rel="noopener"; a.textContent="live"; a.onclick=(e)=> e.stopPropagation(); links.appendChild(a); }
   line.append(p,title,links); el.append(line);
 
   const tagsRow=document.createElement("div"); tagsRow.className="card-tags";
-  if(card.tags?.length){ card.tags.forEach(t=>{ const chip=document.createElement("span"); chip.className="chip"; chip.textContent=t; tagsRow.appendChild(chip); }); }
+  if(card.tags?.length){ 
+    card.tags.forEach(t=>{ 
+      // Apply chip length limit
+      const displayedTag = t.length > state.chipLimit ? t.substring(0, state.chipLimit) + "..." : t;
+      const chip=document.createElement("span"); chip.className="chip"; chip.textContent=displayedTag; 
+      chip.title = t; // Show full tag on hover
+      tagsRow.appendChild(chip); 
+    }); 
+  }
   el.append(tagsRow);
   return el;
 }
@@ -571,7 +603,9 @@ function renderTagChips(){
   hiddenTags.value = activeTags.join(",");
 }
 function renderTagSuggestions(){
-  tagSuggestions.innerHTML=""; if(!tagHistory.length) return;
+  tagSuggestions.innerHTML=""; 
+  // Only display tags already assigned to cards and not removed from history
+  if(!tagHistory.length) return;
   const seen=new Set();
   tagHistory.forEach(t=>{
     const k=t.toLowerCase(); if(seen.has(k)) return; seen.add(k);
@@ -580,7 +614,7 @@ function renderTagSuggestions(){
     const rm=document.createElement("span"); rm.textContent="×"; rm.className="remove"; rm.title="remove from history";
     el.append(txt,rm);
     el.onclick=(e)=>{
-      if(e.target===rm){ tagHistory=saveTagHistory(tagHistory.filter(x=>x!==t)); renderTagSuggestions(); return; }
+      if(e.target===rm){ tagHistory=saveTagHistory(tagHistory.filter(x=>x!==t)); renderTagSuggestions(); renderTagChips(); return; } // Remove from history and re-render
       if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); }
     };
     tagSuggestions.appendChild(el);
@@ -626,7 +660,9 @@ $("#btnSettings").onclick=()=>{
   $("#sPlatforms").value=state.platforms.join(", ");
   $("#sStages").value=state.stages.join(", ");
   $("#sLayout").value=state.layout;
-  $("#sEmojis").value=customEmojis.join(" "); // Populate emoji input
+  $("#sEmojis").value=customEmojis.join(" ");
+  $("#sTitleLen").value = state.titleLimit;
+  $("#sChipLen").value = state.chipLimit;
   settingsDialog.showModal();
 };
 settingsDialog.addEventListener("close", ()=>{
@@ -636,11 +672,18 @@ settingsDialog.addEventListener("close", ()=>{
     const platforms=$("#sPlatforms").value.split(",").map(s=>s.trim()).filter(Boolean);
     const stages=$("#sStages").value.split(",").map(s=>s.trim()).filter(Boolean);
     const layout=$("#sLayout").value; // auto|horizontal|vertical
-    const emojis=$("#sEmojis").value.split(/[\s,]+/).map(s=>s.trim()).filter(Boolean); // New: parse emojis
+    const emojis=$("#sEmojis").value.split(/[\s,]+/).map(s=>s.trim()).filter(Boolean);
+    
+    // New: Read and validate limit inputs
+    const newTitleLimit = parseInt($("#sTitleLen").value, 10);
+    const newChipLimit = parseInt($("#sChipLen").value, 10);
+    state.titleLimit = (newTitleLimit && newTitleLimit > 0) ? newTitleLimit : 20;
+    state.chipLimit = (newChipLimit && newChipLimit > 0) ? newChipLimit : 10;
+    
     if(stages.length){ const newFirst=stages[0]; state.cards.forEach(c=>{ if(!stages.includes(c.stage)){ c.stage=newFirst; c.pos=topPos(newFirst); c.updatedAt=Date.now(); } }); state.stages=stages; }
     if(platforms.length) state.platforms=platforms;
     state.layout = layout;
-    saveEmojis(emojis); // New: save custom emojis
+    saveEmojis(emojis);
     scheduleSave(); render();
   }
 });
@@ -656,7 +699,7 @@ $("#btnExport").onclick=()=>{
   const url=URL.createObjectURL(blob); 
   const a=document.createElement("a"); 
   a.href=url; 
-  a.download=timestampedFileName("ai-jobs-kanban_"); // Updated: timestamped filename
+  a.download=timestampedFileName("ai-jobs-kanban_");
   a.click(); 
   URL.revokeObjectURL(url); 
   setStatus("Exported current board JSON • Build "+BUILD+" • "+fmtFullDate(new Date())); 
@@ -671,13 +714,17 @@ $("#fileImport").onchange=(e)=>{
   const r=new FileReader(); 
   r.onload=()=>{ try{ 
     const obj=JSON.parse(r.result); 
-    // Allowing import without full metadata, only basic validation on core arrays
     if(Array.isArray(obj.cards)&&Array.isArray(obj.platforms)&&Array.isArray(obj.stages)){ 
       state=obj; 
       state.collapsed = state.collapsed || {}; 
       state.layout = state.layout || "auto"; 
       state.archive = Array.isArray(state.archive)? state.archive : []; 
+      state.titleLimit = state.titleLimit || 20; // Ensure new defaults are set on import
+      state.chipLimit = state.chipLimit || 10;
+      
       state.stages.forEach(st=>{ const list=state.cards.filter(c=>c.stage===st); list.sort((a,b)=>(a.pos??0)-(b.pos??0)||(a.createdAt-b.createdAt)); list.forEach((c,i)=>{ if(typeof c.pos!=="number") c.pos=(i+1)*1000; }); }); 
+      
+      // Crucial: Re-save state to localStorage immediately after import
       scheduleSave(); 
       render(); 
       toast("Import successful","Board replaced and committed to memory."); 
@@ -689,7 +736,7 @@ $("#fileImport").onchange=(e)=>{
   r.readAsText(f); 
 };
 
-// New Emoji Export/Import Handlers
+// Emoji Export/Import Handlers
 $("#btnExportEmojis").onclick=()=>{
   const data=JSON.stringify(customEmojis,null,2);
   const blob=new Blob([data],{type:"application/json"});
@@ -710,7 +757,7 @@ $("#fileImportEmojis").onchange=(e)=>{
     if(Array.isArray(obj)){
       const newEmojis = obj.map(s=>String(s).trim()).filter(Boolean);
       saveEmojis(newEmojis);
-      $("#sEmojis").value = newEmojis.join(" "); // Update the input field
+      $("#sEmojis").value = newEmojis.join(" ");
       toast("Import successful","Custom emojis updated.");
     } else {
       toast("Import failed","Invalid JSON structure (expected array)", true);
@@ -911,7 +958,7 @@ document.addEventListener("click", (e) => {
 
 /* ===== Helpers ===== */
 function fmtDate(ts){ if(!ts) return ""; const d=new Date(ts); const pad=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
-function fmtFullDate(d){ const pad=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; } // Updated: full timestamp
+function fmtFullDate(d){ const pad=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
 function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=> ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
 function setStatus(t){ document.getElementById("status").textContent=t; }
 function linkifyNotes(s){
@@ -930,5 +977,4 @@ setStatus("Loaded • Build "+BUILD+" • "+fmtFullDate(new Date()));
 </script>
 </body>
 </html>
-
-<.> 2025-11-01 - 07:53 PM <.>
+<.> 2025-11-01 - 09:25 PM <.>
