@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>voice reader — mobile v10</title>
+<title>voice reader — mobile v11</title>
 <style>
   :root{
     --bg:#0b0f14; --panel:#0f172a; --text:#e5e7eb; --muted:#9aa4b2; --border:#1f2937; --accent:#3b82f6;
@@ -17,7 +17,7 @@
             backdrop-filter:saturate(120%) blur(8px); background:rgba(15,23,42,.92);
             border-bottom:1px solid var(--border); width:100%; display:flex; justify-content:center;
             padding:calc(env(safe-area-inset-top) + 6px) var(--pad) 8px;}
-  .tabs-top .bar{width:100%; max-width:var(--maxw); display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .tabs-top .bar{width:100%; max-width:var(--maxw); display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;}
   .tabbtn{appearance:none; border:1px solid var(--border); background:#0b1220; color:#e5e7eb;
           border-radius:12px; padding:10px; font-weight:700; min-height:44px;}
   .tabbtn.active{background:#3b82f6; border-color:#2563eb;}
@@ -40,8 +40,53 @@
                  border-radius:14px; padding:14px; font-size:16px; box-sizing:border-box;}
   .paste{min-height:180px; resize:vertical; flex:1; overflow:auto;}
   .display{white-space:pre-wrap; background:#0b1220; border:1px solid var(--border);
-           border-radius:14px; padding:12px; min-height:140px; flex:1; overflow:auto;}
+           border-radius:14px; padding:12px; min-height:140px; flex:1; overflow:auto; position:relative;}
   .slider{width:100%;}
+  
+  /* Toggle switches */
+  .toggle-switch{display:flex; align-items:center; gap:8px; padding:8px; background:#0b1220; 
+                 border:1px solid var(--border); border-radius:12px;}
+  .toggle-switch label{flex:1; font-weight:600;}
+  .toggle-switch input[type="checkbox"]{appearance:none; width:48px; height:28px; background:#374151;
+                                        border-radius:14px; position:relative; cursor:pointer; transition:background 0.2s;}
+  .toggle-switch input[type="checkbox"]:checked{background:#3b82f6;}
+  .toggle-switch input[type="checkbox"]::before{content:''; position:absolute; width:24px; height:24px;
+                                                 border-radius:50%; background:white; top:2px; left:2px;
+                                                 transition:transform 0.2s;}
+  .toggle-switch input[type="checkbox"]:checked::before{transform:translateX(20px);}
+  
+  /* Radio buttons for API sources */
+  .radio-group{display:flex; flex-direction:column; gap:8px;}
+  .radio-option{display:flex; align-items:center; gap:8px; padding:8px; background:#0b1220;
+                border:1px solid var(--border); border-radius:12px; cursor:pointer;}
+  .radio-option:has(input:checked){background:#1e293b; border-color:#3b82f6;}
+  .radio-option input[type="radio"]{appearance:none; width:20px; height:20px; border:2px solid var(--border);
+                                    border-radius:50%; position:relative; cursor:pointer;}
+  .radio-option input[type="radio"]:checked{border-color:#3b82f6;}
+  .radio-option input[type="radio"]:checked::before{content:''; position:absolute; width:10px; height:10px;
+                                                     background:#3b82f6; border-radius:50%; top:3px; left:3px;}
+  .radio-option label{flex:1; cursor:pointer; font-weight:600;}
+  
+  /* API Key section */
+  .api-section{background:#0b1220; border:1px solid var(--border); border-radius:12px; padding:12px;}
+  .api-section h3{margin:0 0 8px 0; font-size:14px; color:var(--muted);}
+  .api-key-input{display:flex; gap:8px; margin-bottom:8px;}
+  .api-key-input input{flex:1; font-size:14px; padding:10px;}
+  .api-key-input button{min-height:36px; padding:8px 12px; font-size:14px;}
+  
+  /* Modal/Popup */
+  .modal{display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8);
+         z-index:100; align-items:center; justify-content:center; padding:20px;}
+  .modal.show{display:flex;}
+  .modal-content{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+                 padding:20px; max-width:320px; width:100%;}
+  .modal-content h3{margin:0 0 16px 0;}
+  .modal-buttons{display:flex; gap:10px; margin-top:16px;}
+  .modal-buttons button{flex:1;}
+  
+  /* Copy button */
+  .copy-btn{position:absolute; top:8px; right:8px; padding:6px 12px; font-size:12px; min-height:32px;}
+  
   /* Status footer */
   .statusbar{position:sticky; bottom:0; left:0; right:0; width:100%;
              display:flex; justify-content:center; pointer-events:none; margin-top:8px;}
@@ -55,17 +100,69 @@
   <!-- TOP TABS -->
   <div class="tabs-top">
     <div class="bar">
-      <button id="tab-search" class="tabbtn active" type="button">search</button>
+      <button id="tab-url" class="tabbtn active" type="button">URL</button>
+      <button id="tab-search" class="tabbtn" type="button">search</button>
       <button id="tab-aloud" class="tabbtn" type="button">aloud</button>
     </div>
   </div>
 
-  <!-- SEARCH -->
-  <div id="search-screen" class="screen">
+  <!-- URL TAB -->
+  <div id="url-screen" class="screen">
     <div class="card">
-      <button id="ptt" class="btn primary" title="hold to talk" type="button">PTT</button>
+      <div class="toggle-switch">
+        <label for="transcribe-toggle">Transcribe</label>
+        <input type="checkbox" id="transcribe-toggle" checked>
+      </div>
+      <div class="toggle-switch">
+        <label for="readout-toggle">Read Out Loud</label>
+        <input type="checkbox" id="readout-toggle" checked>
+      </div>
+      
+      <div class="row">
+        <input id="url-input" class="input" type="url" placeholder="Enter or paste URL…">
+        <button id="url-paste-btn" class="btn small" type="button">Paste</button>
+      </div>
+      
+      <div id="transcript-display" class="display" style="display:none;">
+        <button id="copy-transcript" class="btn small copy-btn" type="button">Copy</button>
+        <div id="transcript-text"></div>
+      </div>
+    </div>
+  </div>
 
-      <!-- Enter submits on all mobile keyboards -->
+  <!-- SEARCH -->
+  <div id="search-screen" class="screen" style="display:none;">
+    <div class="card">
+      <!-- API Keys Section -->
+      <div class="api-section">
+        <h3>API Configuration</h3>
+        
+        <div class="radio-group">
+          <div class="radio-option">
+            <input type="radio" id="source-gemini" name="api-source" value="gemini">
+            <label for="source-gemini">Gemini</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" id="source-perplexity" name="api-source" value="perplexity" checked>
+            <label for="source-perplexity">Perplexity</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" id="source-venice" name="api-source" value="venice">
+            <label for="source-venice">Venice.ai</label>
+          </div>
+        </div>
+        
+        <div style="margin-top:12px;">
+          <div class="api-key-input">
+            <input id="api-key-input" type="password" placeholder="Enter API key for selected source…">
+            <button id="save-api-key" class="btn small" type="button">Save</button>
+          </div>
+          <div style="font-size:12px; color:var(--muted);">Keys stored locally in browser</div>
+        </div>
+      </div>
+      
+      <button id="ptt" class="btn primary" title="click to talk" type="button">Push to Talk</button>
+
       <form id="search-form" action="#" method="get" autocomplete="off" style="display:flex; flex-direction:column; gap:12px;">
         <input id="q" class="input" type="search" inputmode="search" enterkeyhint="search" aria-label="search query"
                placeholder="enter query and press Enter…">
@@ -95,6 +192,18 @@
   <div class="statusbar"><div id="status" class="inner">ready</div></div>
 </div>
 
+<!-- PTT Listening Modal -->
+<div id="ptt-modal" class="modal">
+  <div class="modal-content">
+    <h3>🎤 Listening...</h3>
+    <div id="ptt-interim" style="min-height:60px; color:var(--muted); font-style:italic;"></div>
+    <div class="modal-buttons">
+      <button id="ptt-cancel" class="btn" type="button">Cancel</button>
+      <button id="ptt-ok" class="btn primary" type="button">OK</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
   'use strict';
@@ -102,21 +211,31 @@
   const statusEl=$('#status'); const setStatus=t=>statusEl.textContent=t;
 
   /* Tabs */
-  const tabSearch=$('#tab-search'), tabAloud=$('#tab-aloud');
-  const searchScreen=$('#search-screen'), aloudScreen=$('#aloud-screen');
-  tabSearch.addEventListener('click', ()=>{ tabSearch.classList.add('active'); tabAloud.classList.remove('active'); searchScreen.style.display='flex'; aloudScreen.style.display='none'; });
-  tabAloud.addEventListener('click',  ()=>{ tabAloud.classList.add('active'); tabSearch.classList.remove('active'); searchScreen.style.display='none'; aloudScreen.style.display='flex'; });
+  const tabUrl=$('#tab-url'), tabSearch=$('#tab-search'), tabAloud=$('#tab-aloud');
+  const urlScreen=$('#url-screen'), searchScreen=$('#search-screen'), aloudScreen=$('#aloud-screen');
+  
+  function showTab(tab){
+    [tabUrl, tabSearch, tabAloud].forEach(t => t.classList.remove('active'));
+    [urlScreen, searchScreen, aloudScreen].forEach(s => s.style.display='none');
+    
+    if(tab === 'url'){ tabUrl.classList.add('active'); urlScreen.style.display='flex'; }
+    else if(tab === 'search'){ tabSearch.classList.add('active'); searchScreen.style.display='flex'; }
+    else if(tab === 'aloud'){ tabAloud.classList.add('active'); aloudScreen.style.display='flex'; }
+  }
+  
+  tabUrl.addEventListener('click', ()=>showTab('url'));
+  tabSearch.addEventListener('click', ()=>showTab('search'));
+  tabAloud.addEventListener('click', ()=>showTab('aloud'));
 
   /* -------- Robust Reader (state machine + chunking + boundary fallback) ------- */
-  // States: 'idle' | 'playing' | 'paused'
   class Reader {
     constructor(){
       this.state = 'idle';
       this.text  = '';
       this.rate  = 1.2;
-      this.idx   = 0;            // absolute char index into text
-      this._u    = null;         // current utterance
-      this._interrupted = false; // cancel reason: pause/speed change, not end-of-chunk
+      this.idx   = 0;
+      this._u    = null;
+      this._interrupted = false;
       this._boundarySeen = false;
     }
 
@@ -124,12 +243,10 @@
       this.rate = v;
       if(this.state === 'playing'){
         this._interrupted = true;
-        speechSynthesis.cancel();   // stop current chunk
-        // restart from current idx with new rate
+        speechSynthesis.cancel();
         this._startChunk();
         this._interrupted = false;
       }
-      // if paused/idle, just store the new rate; resume will use it
     }
 
     setText(t){
@@ -172,66 +289,34 @@
       syncUI();
     }
 
-    /* Speak next chunk from current idx.
-       Chunk boundary = next sentence end OR ~280 chars, whichever comes first. */
     _startChunk(){
       if(this.state !== 'playing'){ return; }
       if(this.idx >= this.text.length){ this.stop(); return; }
 
-      this._boundarySeen = false;
-      const start = this.idx;
-      const end   = this._findNextBreak(start);
-      const chunk = this.text.slice(start, end);
+      const end = this._findNextBreak(this.idx);
+      const chunk = this.text.slice(this.idx, end);
+      if(!chunk){ this.stop(); return; }
 
-      try { speechSynthesis.cancel(); } catch(_) {}
+      setStatus(`speaking ${Math.round((this.idx/this.text.length)*100)}%`);
+      this._boundarySeen = false;
 
       const u = new SpeechSynthesisUtterance(chunk);
-      u.rate  = this.rate;
+      u.rate = this.rate;
+      u.pitch = 1.0;
+      u.volume = 1.0;
+      this._u = u;
 
-      u.onstart = () => {
-        this._u = u;
-        setStatus('reading…');
-        syncUI();
-      };
-
-      u.onboundary = (e) => {
-        // Chrome/Edge populate charIndex; Safari often doesn't.
-        if(typeof e.charIndex === 'number'){
-          this.idx = start + e.charIndex;
-          this._boundarySeen = true;
-        }
-      };
-
+      u.onboundary = () => { this._boundarySeen = true; };
       u.onend = () => {
+        if(this._interrupted){ this._interrupted = false; return; }
         this._u = null;
-        // If we intentionally interrupted (pause/speed change), don't auto-advance
-        if(this._interrupted){
-          this._interrupted = false;
-          // If pause: remain paused; if speed change: state still 'playing' and _startChunk already called
-          syncUI();
-          return;
-        }
-
-        // Normal end of this chunk: advance index
-        if(!this._boundarySeen){
-          // Fallback: if no boundaries fired, jump to end of chunk
-          this.idx = end;
-        }
-
-        if(this.state === 'playing' && this.idx < this.text.length){
-          // Continue with next chunk
-          this._startChunk();
-        } else if (this.idx >= this.text.length){
-          this.stop();
-        } else {
-          syncUI();
-        }
+        this.idx = end;
+        if(this.state === 'playing'){ this._startChunk(); }
+        else { setStatus('idle'); }
       };
-
-      u.onerror = () => {
+      u.onerror = (e) => {
         this._u = null;
         setStatus('tts error');
-        // Try to continue to avoid getting stuck
         if(this.state === 'playing'){
           this.idx = end;
           this._startChunk();
@@ -244,7 +329,6 @@
     _findNextBreak(from){
       const maxSpan = 280;
       const hardCap = Math.min(this.text.length, from + maxSpan);
-      // Look for sentence end chars between 'from' and 'hardCap'
       const slice = this.text.slice(from, hardCap);
       const m = /[\.!?…](?:\s|$)|\n{1,2}/g;
       let match, lastBreak = -1;
@@ -252,7 +336,7 @@
         lastBreak = match.index + match[0].length;
       }
       if(lastBreak > 0) return from + lastBreak;
-      return hardCap; // no sentence end found, cut at cap
+      return hardCap;
     }
   }
 
@@ -266,7 +350,118 @@
     $('#search-toggle').textContent = label;
     $('#aloud-toggle').textContent  = label;
   }
-  setInterval(syncUI, 300); // safety sync for engines that miss events
+  setInterval(syncUI, 300);
+
+  /* -------- API Key Management -------- */
+  const API_KEYS_KEY = 'voice_reader_api_keys';
+  
+  function getApiKeys(){
+    try{
+      const stored = localStorage.getItem(API_KEYS_KEY);
+      return stored ? JSON.parse(stored) : {};
+    }catch(e){ return {}; }
+  }
+  
+  function saveApiKey(source, key){
+    const keys = getApiKeys();
+    keys[source] = key;
+    localStorage.setItem(API_KEYS_KEY, JSON.stringify(keys));
+  }
+  
+  function getActiveSource(){
+    const checked = document.querySelector('input[name="api-source"]:checked');
+    return checked ? checked.value : 'perplexity';
+  }
+  
+  $('#save-api-key').addEventListener('click', ()=>{
+    const source = getActiveSource();
+    const key = $('#api-key-input').value.trim();
+    if(key){
+      saveApiKey(source, key);
+      setStatus(`${source} API key saved`);
+      $('#api-key-input').value = '';
+    }
+  });
+  
+  // Load saved API key when source changes
+  document.querySelectorAll('input[name="api-source"]').forEach(radio => {
+    radio.addEventListener('change', ()=>{
+      const source = getActiveSource();
+      const keys = getApiKeys();
+      $('#api-key-input').value = keys[source] || '';
+      $('#api-key-input').placeholder = `Enter API key for ${source}…`;
+    });
+  });
+
+  /* -------- URL TAB -------- */
+  const urlInput = $('#url-input');
+  const urlPasteBtn = $('#url-paste-btn');
+  const transcribeToggle = $('#transcribe-toggle');
+  const readoutToggle = $('#readout-toggle');
+  const transcriptDisplay = $('#transcript-display');
+  const transcriptText = $('#transcript-text');
+  const copyTranscript = $('#copy-transcript');
+  
+  async function fetchAndProcessUrl(url){
+    if(!url) return;
+    setStatus('fetching URL...');
+    
+    try{
+      const response = await fetch(url);
+      const html = await response.text();
+      
+      // Basic text extraction (you can enhance this)
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      
+      // Remove script and style elements
+      doc.querySelectorAll('script, style').forEach(el => el.remove());
+      
+      const text = doc.body.textContent || '';
+      const cleaned = text.replace(/\s+/g, ' ').trim();
+      
+      if(transcribeToggle.checked){
+        transcriptDisplay.style.display = 'block';
+        transcriptText.textContent = cleaned;
+      }
+      
+      if(readoutToggle.checked){
+        tts.setText(cleaned);
+      }
+      
+      setStatus('URL processed');
+    }catch(e){
+      setStatus('error fetching URL: ' + e.message);
+    }
+  }
+  
+  urlPasteBtn.addEventListener('click', async ()=>{
+    try{
+      if(navigator.clipboard && navigator.clipboard.readText){
+        const text = await navigator.clipboard.readText();
+        if(text){
+          urlInput.value = text;
+          fetchAndProcessUrl(text);
+        }
+      }
+    }catch(e){ setStatus('clipboard blocked'); }
+  });
+  
+  urlInput.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      fetchAndProcessUrl(urlInput.value.trim());
+    }
+  });
+  
+  copyTranscript.addEventListener('click', async ()=>{
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        await navigator.clipboard.writeText(transcriptText.textContent);
+        setStatus('transcript copied');
+      }
+    }catch(e){ setStatus('copy failed'); }
+  });
 
   /* -------- SEARCH wiring -------- */
   const form=$('#search-form'), q=$('#q'), sDisp=$('#search-display');
@@ -285,125 +480,34 @@
 
   async function runQuery(raw){
     const v=(raw||'').trim(); if(!v) return;
-    const res = await fetchAuto(v);
+    const res = await fetchFromSource(v);
     renderResult(res);
   }
-
-  /* -------- ALOUD wiring -------- */
-  const pasteArea=$('#pastebox'), pasteBtn=$('#paste-btn');
-  const aToggle=$('#aloud-toggle'), aRate=$('#aloud-rate');
-
-  aToggle.addEventListener('click', ()=>tts.toggle());
-  aRate.addEventListener('input', ()=>tts.setRate(parseFloat(aRate.value)));
-
-  function speakFromPaste(){
-    const t=pasteArea.value.trim();
-    if(t){ tts.setText(t); }
-  }
-  pasteArea.addEventListener('paste', ()=>{ setTimeout(speakFromPaste,0); });
-  pasteBtn.addEventListener('click', async ()=>{
-    try{
-      if(navigator.clipboard && navigator.clipboard.readText){
-        const t = await navigator.clipboard.readText();
-        if(t){ pasteArea.value=t; tts.setText(t.trim()); }
-      } else { setStatus('clipboard API not available'); }
-    }catch(e){ setStatus('clipboard blocked'); }
-  });
-
-  /* -------- Key-free sources (DDG/Wikipedia/Open-Meteo) -------- */
-  async function ddg(q){
-    const u='https://api.duckduckgo.com/?q='+encodeURIComponent(q)+'&format=json&no_html=1&no_redirect=1';
-    const r=await fetch(u,{mode:'cors'}); if(!r.ok) throw new Error('ddg '+r.status);
-    return await r.json();
-  }
-  function pickDDG(j){
-    if(j && j.AbstractText) return { title:j.Heading||'', extract:j.AbstractText, url:j.AbstractURL||'' };
-    if(j && Array.isArray(j.RelatedTopics)){
-      const rt=j.RelatedTopics.find(x=>x && x.Text);
-      if(rt) return { title:j.Heading||'', extract:rt.Text, url:rt.FirstURL||'' };
+  
+  /* -------- API Source Integration -------- */
+  async function fetchFromSource(query){
+    const source = getActiveSource();
+    const keys = getApiKeys();
+    const apiKey = keys[source];
+    
+    if(!apiKey){
+      return { title:'API Key Required', extract:`Please add an API key for ${source} in the settings above.`, _src:source };
     }
-    return null;
-  }
-  async function wikiSummary(q){
-    const s='https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch='+encodeURIComponent(q)+'&format=json&origin=*';
-    const sr=await fetch(s); if(!sr.ok) throw new Error('wiki search '+sr.status);
-    const sj=await sr.json();
-    const first=(sj.query&&sj.query.search&&sj.query.search[0])?sj.query.search[0]:null;
-    if(!first) return null;
-    const title=first.title;
-    const u='https://en.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(title);
-    const ur=await fetch(u,{headers:{'Accept':'application/json'}}); if(!ur.ok) throw new Error('wiki sum '+ur.status);
-    const j=await ur.json();
-    return { title:j.title||title, extract:j.extract||'', url:(j.content_urls&&j.content_urls.desktop)?j.content_urls.desktop.page:('https://en.wikipedia.org/wiki/'+encodeURIComponent(title)) };
-  }
-  async function openMeteo(place){
-    const g='https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(place)+'&count=1';
-    const gr=await fetch(g); if(!gr.ok) throw new Error('geo '+gr.status);
-    const gj=await gr.json(); if(!gj.results||!gj.results.length) return null;
-    const {latitude,longitude,name,country_code}=gj.results[0];
-    const wx='https://api.open-meteo.com/v1/forecast?latitude='+latitude+'&longitude='+longitude+'&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto';
-    const wr=await fetch(wx); if(!wr.ok) throw new Error('meteo '+wr.status);
-    const wj=await wr.json();
-    const now=wj.current, d=wj.daily;
-    const desc=`Weather for ${name}, ${country_code}. Current ${Math.round(now.temperature_2m)}°C, wind ${Math.round(now.wind_speed_10m)} km/h. Today max ${Math.round(d.temperature_2m_max[0])}°C, min ${Math.round(d.temperature_2m_min[0])}°C, precip prob ${d.precipitation_probability_max[0]}%.`;
-    return { title:'Weather: '+name, extract:desc, url:'https://open-meteo.com/' };
-  }
-  function detectIntent(s){
-    s = s.toLowerCase();
-    if (/\bweather\b|\bforecast\b/.test(s) || /^weather in /.test(s)) return 'weather';
-    if (/\bnews\b|\bheadline(s)?\b/.test(s)) return 'news';
-    return 'web';
-  }
-  async function fetchAuto(query){
-    const k = detectIntent(query);
+    
     try{
-      if(k==='weather'){
-        const m=/weather in (.+)/i.exec(query);
-        const place = m ? m[1] : query.replace(/^weather\b\s*/i,'').trim();
-        if(place){ const w = await openMeteo(place); if(w) return {...w, _src:'Open-Meteo'}; }
+      setStatus(`querying ${source}...`);
+      
+      if(source === 'gemini'){
+        return await queryGemini(query, apiKey);
+      } else if(source === 'perplexity'){
+        return await queryPerplexity(query, apiKey);
+      } else if(source === 'venice'){
+        return await queryVenice(query, apiKey);
       }
-      const ddgJson = await ddg(query);
-      const p = pickDDG(ddgJson);
-      if(p) return {...p, _src:'DuckDuckGo'};
-      const wk = await wikiSummary(query);
-      if(wk) return {...wk, _src:'Wikipedia'};
     }catch(e){
-      try{ const wk = await wikiSummary(query); if(wk) return {...wk, _src:'Wikipedia'}; }catch(_){}
+      return { title:'Error', extract:'Query failed: ' + e.message, _src:source };
     }
-    return { title:'', extract:'no result', url:'' };
   }
-
-  /* -------- PTT -------- */
-  const ptt=$('#ptt');
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let rec=null, silence=null, holding=false;
-  function ensureRec(){
-    if(!SR) return null; if(rec) return rec;
-    rec = new SR();
-    rec.lang='en-US'; rec.continuous=false; rec.interimResults=true; rec.maxAlternatives=1;
-    rec.onresult=(e)=>{ let final=''; for(let i=e.resultIndex;i<e.results.length;i++){ const r=e.results[i]; if(r.isFinal) final+=r[0].transcript; }
-      if(final){ q.value = final.trim(); } resetSilence(); };
-    rec.onend=()=>{ const v=q.value.trim(); if(v){ (async()=>{ const res=await fetchAuto(v); renderResult(res); })(); } };
-    rec.onerror=()=>{ setStatus('mic error'); };
-    rec.onspeechstart=resetSilence; rec.onspeechend=stopASR;
-    return rec;
-  }
-  function startASR(){
-    const R=(window.isSecureContext && (window.SpeechRecognition||window.webkitSpeechRecognition));
-    if(!R){ setStatus('microphone blocked (allow mic on this site)'); return; }
-    const r=ensureRec();
-    try{ r.start(); setStatus('listening…'); }catch(_){}
-    resetSilence();
-  }
-  function stopASR(){ clearTimeout(silence); if(rec){ try{ rec.stop(); }catch(_){ } } }
-  function resetSilence(){ clearTimeout(silence); silence=setTimeout(()=>{ stopASR(); setStatus('idle'); },8000); }
-  ptt.addEventListener('pointerdown', e=>{ if(e.button!==0 && e.pointerType!=='touch' && e.pointerType!=='pen') return; holding=true; startASR(); });
-  ptt.addEventListener('pointerup',   ()=>{ holding=false; stopASR(); });
-  ptt.addEventListener('pointerleave',()=>{ if(holding){ holding=false; stopASR(); } });
-
-  /* Init */
-  document.addEventListener('DOMContentLoaded', ()=>{ setStatus('ready'); syncUI(); });
-})();
-</script>
-</body>
-</html>
+  
+  async function queryGemini(query, apiKey){
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:gene
