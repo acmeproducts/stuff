@@ -146,6 +146,9 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
   max-width:200px;
   display:none;
   cursor:default;
+  /* Added for the close button */
+  padding-top: 30px;
+  position: relative;
 }
 .emoji-item{
   display:inline-block;
@@ -158,6 +161,26 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
   transition:background .1s;
 }
 .emoji-item:hover{background:#f0f0f0}
+
+/* New style for picker close button */
+#emojiPickerClose{
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    border: none;
+    background: transparent;
+    font-weight: 800;
+    font-size: 18px;
+    cursor: pointer;
+    color: #777;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 8px;
+}
+#emojiPickerClose:hover{
+    color: #000;
+    background: #f2f2f6;
+}
 </style>
 </head>
 <body>
@@ -325,7 +348,9 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
   <div class="t-notes"></div>
 </div>
 
-<div id="emojiPicker" role="listbox" aria-hidden="true"></div>
+<div id="emojiPicker" role="listbox" aria-hidden="true">
+    <button id="emojiPickerClose" title="Close picker">×</button>
+</div>
 
 <script>
 const BUILD = "2025-10-28";
@@ -364,8 +389,8 @@ let state = loadState() || {
 state.collapsed = state.collapsed || {};
 state.layout = state.layout || "auto";
 state.archive = Array.isArray(state.archive)? state.archive : [];
-state.titleLimit = state.titleLimit || 20; // Default to 20
-state.chipLimit = state.chipLimit || 10;   // Default to 10
+state.titleLimit = state.titleLimit || 20;
+state.chipLimit = state.chipLimit || 10;
 let tagHistory = loadTagHistory();
 let customEmojis = loadEmojis() || ["🟢", "🟡", "🔴", "⭐", "😡", "🤬", "🙃", "😃"];
 const $ = s=>document.querySelector(s), $$ = s=>Array.from(document.querySelectorAll(s));
@@ -391,8 +416,8 @@ function render(){
   $("#sStages").value = state.stages.join(", ");
   $("#sLayout").value = state.layout;
   $("#sEmojis").value = customEmojis.join(" ");
-  $("#sTitleLen").value = state.titleLimit; // Set title length limit
-  $("#sChipLen").value = state.chipLimit;   // Set chip length limit
+  $("#sTitleLen").value = state.titleLimit;
+  $("#sChipLen").value = state.chipLimit;
 
   const board=$("#board"); board.dataset.layout=state.layout; board.innerHTML="";
   state.stages.forEach(stage=>{
@@ -552,9 +577,24 @@ function openEditor(id=null, presetStage=null){
   renderTagChips(); renderTagSuggestions();
   renderFileChips();
   $("#fFiles").value = ""; // reset file input
-  editDialog.showModal(); $("#fTitle").focus();
+  editDialog.showModal(); 
+  $("#fTitle").focus();
 }
+
+// NEW: Function to instantly apply current editor changes and save state
+function saveEditorState(id){
+    if(!id) return; // Only save if editing an existing card
+    const payload = collectEditorData();
+    const c=state.cards.find(x=>x.id===id); if(!c) return;
+    Object.assign(c, payload);
+    c.tags=normalizeTags(c.tags);
+    c.updatedAt=Date.now();
+    bumpTagHistory(c.tags);
+    scheduleSave();
+}
+
 editDialog.addEventListener("close", ()=>{
+  hideEmojiPicker();
   const action=editDialog.returnValue; if(action==="cancel"){ editingId=null; return; }
   const payload=collectEditorData();
   if(action==="delete" && editingId){ deleteCard(editingId); editingId=null; return; }
@@ -566,6 +606,22 @@ editDialog.addEventListener("close", ()=>{
   }
   editorDirty=false;
 });
+
+// NEW: Add a general blur listener to the edit dialog
+editDialog.addEventListener("focusout", (e) => {
+    // Only trigger if the target is an input-like element and we are editing an existing card
+    if ((e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") && editingId) {
+        // Since input values are tracked in state and only committed to the card object on save/blur, 
+        // we must call saveEditorState to update the card object and trigger a save.
+        saveEditorState(editingId);
+        // Note: Title, Dev, Live, Notes are saved to card on blur. Tags require re-rendering the chip panel first.
+        // For simplicity and effectiveness, saveEditorState updates the card and triggers render/save.
+        // We also need to re-render the suggestion panel to reflect any new tags typed into tagInput
+        if(e.target.id === "tagInput") { commitTagFromInput(); }
+    }
+});
+
+
 editForm.addEventListener("input", ()=>{ editorDirty=true; });
 editForm.addEventListener("change", ()=>{ editorDirty=true; });
 editorCloseBtn.addEventListener("click", ()=>{
@@ -590,6 +646,7 @@ function commitTagFromInput(){
   renderTagChips();
   bumpTagHistory(activeTags);
   renderTagSuggestions();
+  if(editingId) saveEditorState(editingId); // Save state after committing tags
 }
 tagInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter" || e.key===","){ e.preventDefault(); commitTagFromInput(); } });
 tagInput.addEventListener("blur", ()=>{ commitTagFromInput(); });
@@ -597,14 +654,13 @@ function renderTagChips(){
   tagChips.innerHTML="";
   activeTags.forEach(t=>{
     const el=document.createElement("span"); el.className="chip"; el.innerHTML=`${escapeHtml(t)} <button title="remove" aria-label="remove tag">×</button>`;
-    el.querySelector("button").onclick=()=>{ activeTags=activeTags.filter(x=>x!==t); renderTagChips(); };
+    el.querySelector("button").onclick=()=>{ activeTags=activeTags.filter(x=>x!==t); renderTagChips(); if(editingId) saveEditorState(editingId); };
     tagChips.appendChild(el);
   });
   hiddenTags.value = activeTags.join(",");
 }
 function renderTagSuggestions(){
   tagSuggestions.innerHTML=""; 
-  // Only display tags already assigned to cards and not removed from history
   if(!tagHistory.length) return;
   const seen=new Set();
   tagHistory.forEach(t=>{
@@ -614,8 +670,8 @@ function renderTagSuggestions(){
     const rm=document.createElement("span"); rm.textContent="×"; rm.className="remove"; rm.title="remove from history";
     el.append(txt,rm);
     el.onclick=(e)=>{
-      if(e.target===rm){ tagHistory=saveTagHistory(tagHistory.filter(x=>x!==t)); renderTagSuggestions(); renderTagChips(); return; } // Remove from history and re-render
-      if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); }
+      if(e.target===rm){ tagHistory=saveTagHistory(tagHistory.filter(x=>x!==t)); renderTagSuggestions(); renderTagChips(); return; }
+      if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); if(editingId) saveEditorState(editingId); }
     };
     tagSuggestions.appendChild(el);
   });
@@ -623,13 +679,13 @@ function renderTagSuggestions(){
 
 /* ===== Attachments ===== */
 const fFiles=$("#fFiles"), fileChips=$("#fileChips"), btnClearFiles=$("#btnClearFiles"), notesEl=$("#fNotes");
-btnClearFiles.addEventListener("click", ()=>{ pendingFiles=[]; fFiles.value=""; renderFileChips(); });
-fFiles.addEventListener("change", async (e)=>{ await addFiles(Array.from(e.target.files||[])); });
+btnClearFiles.addEventListener("click", ()=>{ pendingFiles=[]; fFiles.value=""; renderFileChips(); if(editingId) saveEditorState(editingId); });
+fFiles.addEventListener("change", async (e)=>{ await addFiles(Array.from(e.target.files||[])); if(editingId) saveEditorState(editingId); });
 async function addFiles(files){
   for(const file of files){ const dataUrl = await readAsDataURL(file); pendingFiles.push({name:file.name,type:file.type,size:file.size,data:dataUrl}); }
   currentFiles = mergeFiles(currentFiles, pendingFiles); pendingFiles = []; renderFileChips(); }
 function mergeFiles(existing, added){ const byName=new Map(existing.map(x=>[x.name,x])); for(const f of added){ byName.set(f.name, f); } return Array.from(byName.values()); }
-function renderFileChips(){ fileChips.innerHTML=""; if(!currentFiles.length){ fileChips.innerHTML="<span class='muted'>No attachments</span>"; return; } currentFiles.forEach((f,idx)=>{ const el=document.createElement("span"); el.className="chip"; const a=document.createElement("a"); a.href=f.data; a.download=f.name; a.textContent=f.name; a.onclick=(e)=>e.stopPropagation(); const rm=document.createElement("button"); rm.textContent="×"; rm.title="remove attachment"; rm.onclick=(e)=>{ e.stopPropagation(); currentFiles.splice(idx,1); renderFileChips(); }; el.append(a, rm); fileChips.appendChild(el); }); }
+function renderFileChips(){ fileChips.innerHTML=""; if(!currentFiles.length){ fileChips.innerHTML="<span class='muted'>No attachments</span>"; return; } currentFiles.forEach((f,idx)=>{ const el=document.createElement("span"); el.className="chip"; const a=document.createElement("a"); a.href=f.data; a.download=f.name; a.textContent=f.name; a.onclick=(e)=>e.stopPropagation(); const rm=document.createElement("button"); rm.textContent="×"; rm.title="remove attachment"; rm.onclick=(e)=>{ e.stopPropagation(); currentFiles.splice(idx,1); renderFileChips(); if(editingId) saveEditorState(editingId); }; el.append(a, rm); fileChips.appendChild(el); }); }
 function readAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
 
 /* ===== Paste images/URLs into Notes ===== */
@@ -665,26 +721,41 @@ $("#btnSettings").onclick=()=>{
   $("#sChipLen").value = state.chipLimit;
   settingsDialog.showModal();
 };
+
+// NEW: Function to instantly apply current settings changes and save state
+function saveSettingsState(){
+    const platforms=$("#sPlatforms").value.split(",").map(s=>s.trim()).filter(Boolean);
+    const stages=$("#sStages").value.split(",").map(s=>s.trim()).filter(Boolean);
+    const emojis=$("#sEmojis").value.split(/[\s,]+/).map(s=>s.trim()).filter(Boolean);
+    const newTitleLimit = parseInt($("#sTitleLen").value, 10);
+    const newChipLimit = parseInt($("#sChipLen").value, 10);
+
+    // Apply immediate changes to state
+    if(platforms.length) state.platforms=platforms;
+    if(stages.length){ const newFirst=stages[0]; state.cards.forEach(c=>{ if(!stages.includes(c.stage)){ c.stage=newFirst; c.pos=topPos(newFirst); c.updatedAt=Date.now(); } }); state.stages=stages; }
+    state.titleLimit = (newTitleLimit && newTitleLimit > 0) ? newTitleLimit : 20;
+    state.chipLimit = (newChipLimit && newChipLimit > 0) ? newChipLimit : 10;
+    
+    saveEmojis(emojis);
+    scheduleSave();
+}
+
+// NEW: Add a general blur listener to the settings dialog
+settingsDialog.addEventListener("focusout", (e) => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") {
+        saveSettingsState();
+    }
+});
+
 settingsDialog.addEventListener("close", ()=>{
   const v=settingsDialog.returnValue; if(v==="cancel") return;
   if(v==="reset"){ if(confirm("Remove all cards? (Archive remains)")){ state.cards=[]; scheduleSave(); render(); } return; }
   if(v==="save"){
-    const platforms=$("#sPlatforms").value.split(",").map(s=>s.trim()).filter(Boolean);
-    const stages=$("#sStages").value.split(",").map(s=>s.trim()).filter(Boolean);
-    const layout=$("#sLayout").value; // auto|horizontal|vertical
-    const emojis=$("#sEmojis").value.split(/[\s,]+/).map(s=>s.trim()).filter(Boolean);
-    
-    // New: Read and validate limit inputs
-    const newTitleLimit = parseInt($("#sTitleLen").value, 10);
-    const newChipLimit = parseInt($("#sChipLen").value, 10);
-    state.titleLimit = (newTitleLimit && newTitleLimit > 0) ? newTitleLimit : 20;
-    state.chipLimit = (newChipLimit && newChipLimit > 0) ? newChipLimit : 10;
-    
-    if(stages.length){ const newFirst=stages[0]; state.cards.forEach(c=>{ if(!stages.includes(c.stage)){ c.stage=newFirst; c.pos=topPos(newFirst); c.updatedAt=Date.now(); } }); state.stages=stages; }
-    if(platforms.length) state.platforms=platforms;
-    state.layout = layout;
-    saveEmojis(emojis);
-    scheduleSave(); render();
+    // Final save logic for things that only happen on save (like layout change) or re-render
+    saveSettingsState(); // Ensure all fields are saved
+    state.layout=$("#sLayout").value;
+    scheduleSave(); 
+    render();
   }
 });
 
@@ -719,12 +790,11 @@ $("#fileImport").onchange=(e)=>{
       state.collapsed = state.collapsed || {}; 
       state.layout = state.layout || "auto"; 
       state.archive = Array.isArray(state.archive)? state.archive : []; 
-      state.titleLimit = state.titleLimit || 20; // Ensure new defaults are set on import
+      state.titleLimit = state.titleLimit || 20;
       state.chipLimit = state.chipLimit || 10;
       
       state.stages.forEach(st=>{ const list=state.cards.filter(c=>c.stage===st); list.sort((a,b)=>(a.pos??0)-(b.pos??0)||(a.createdAt-b.createdAt)); list.forEach((c,i)=>{ if(typeof c.pos!=="number") c.pos=(i+1)*1000; }); }); 
       
-      // Crucial: Re-save state to localStorage immediately after import
       scheduleSave(); 
       render(); 
       toast("Import successful","Board replaced and committed to memory."); 
@@ -838,40 +908,65 @@ function showTooltip(e, card){
 function positionTooltip(e){ const pad=12; let x=e.clientX+pad, y=e.clientY+pad; const rect=tooltip.getBoundingClientRect(); if(x+rect.width>window.innerWidth-6) x=e.clientX-rect.width-pad; if(y+rect.height>window.innerHeight-6) y=e.clientY-rect.height-pad; tooltip.style.left=x+"px"; tooltip.style.top=y+"px"; tooltip.setAttribute("aria-hidden","false"); }
 function hideTooltip(){ tooltip.style.display="none"; tooltip.setAttribute("aria-hidden","true"); }
 
-/* ===== Emoji Picker - New Feature ===== */
+/* ===== Emoji Picker - Persistent Panel ===== */
 const emojiPicker = $("#emojiPicker");
+const emojiPickerCloseBtn = $("#emojiPickerClose");
 let activeInput = null;
+
+emojiPickerCloseBtn.onclick = hideEmojiPicker;
 
 function handleAtTyping(e){
   const input = e.target;
   activeInput = input;
   const cursor = input.selectionStart || 0;
   const text = input.value;
-
-  if (e.key === "@" || (text.length > 0 && text[cursor - 1] === '@')) {
+  
+  // Logic to show: check if '@' was just pressed or if it's the character before the cursor
+  if ((e.key === "@" && input.selectionEnd === cursor) || (text.length > 0 && text[cursor - 1] === '@')) {
     if(customEmojis.length === 0) return hideEmojiPicker();
     showEmojiPicker(input, cursor);
+  } else if (emojiPicker.style.display === "block") {
+    positionEmojiPicker(input, cursor);
   } else {
-    // Hide picker if typing away from the '@' or if another key is pressed
-    const charBefore = text[cursor - 1];
-    if(charBefore !== '@' || e.key === "Escape" || e.key === "Enter" || e.key === " "){
-      hideEmojiPicker();
+    if(e.key === "Escape" || e.key === "Enter" || e.key === " "){
+        hideEmojiPicker();
     }
   }
 }
 
 function showEmojiPicker(input, cursor){
-  const rect = input.getBoundingClientRect();
-  const pickerHeight = 120; // Estimate
-  let x = rect.left;
-  let y = rect.bottom + 4; // Position below the input
+  positionEmojiPicker(input, cursor);
+  emojiPicker.innerHTML = "";
+  
+  emojiPicker.appendChild(emojiPickerCloseBtn);
 
-  // Rough estimation of cursor position for single line inputs. Not precise, but functional.
+  customEmojis.forEach(emoji => {
+    const item = document.createElement("span");
+    item.className = "emoji-item";
+    item.textContent = emoji;
+    item.title = emoji;
+    item.onclick = (e) => { 
+      e.stopPropagation(); 
+      insertEmoji(emoji); 
+      // After inserting, since we are in the editor dialog, ensure save is triggered
+      if(editingId) saveEditorState(editingId);
+    }; 
+    emojiPicker.appendChild(item);
+  });
+
+  emojiPicker.style.display = "block";
+}
+
+function positionEmojiPicker(input, cursor){
+  const rect = input.getBoundingClientRect();
+  const pickerHeight = 160;
+  let x = rect.left;
+  let y = rect.bottom + 4;
+
   if(input.tagName === "INPUT"){
-    x += (cursor * 8); // Simple char-width approximation
+    x += (cursor * 8);
   }
 
-  // Prevent going off screen
   if (y + pickerHeight > window.innerHeight - 6) {
     y = rect.top - pickerHeight - 4;
   }
@@ -881,18 +976,6 @@ function showEmojiPicker(input, cursor){
   
   emojiPicker.style.left = x + "px";
   emojiPicker.style.top = y + "px";
-  emojiPicker.innerHTML = "";
-
-  customEmojis.forEach(emoji => {
-    const item = document.createElement("span");
-    item.className = "emoji-item";
-    item.textContent = emoji;
-    item.title = emoji;
-    item.onclick = () => insertEmoji(emoji);
-    emojiPicker.appendChild(item);
-  });
-
-  emojiPicker.style.display = "block";
 }
 
 function hideEmojiPicker(){
@@ -906,37 +989,30 @@ function insertEmoji(emoji){
   const cursor = input.selectionStart || 0;
   const text = input.value;
   let insertPos = cursor;
+  let textToInsert = emoji + " ";
 
-  // Check if we are right after an '@'
   if (cursor > 0 && text[cursor - 1] === '@') {
     insertPos = cursor - 1;
-  } else if(text[cursor] === '@'){
-    insertPos = cursor;
+    textToInsert = emoji + " ";
   } else {
-    // Look backward for the starting '@' to replace
-    let atIndex = text.lastIndexOf('@', cursor - 1);
-    if (atIndex !== -1 && (atIndex === 0 || /\s/.test(text[atIndex - 1]))) {
-      insertPos = atIndex;
-    }
+    insertPos = cursor;
+    textToInsert = emoji + " ";
   }
-
-  // Logic: replace '@' if it exists at or just before the cursor, then insert the emoji
+  
   const start = text.slice(0, insertPos);
   const end = text.slice(cursor);
 
-  // If we found an '@' to replace, adjust cursor to exclude it.
-  const isReplacingAt = text[insertPos] === '@';
-  const insertText = isReplacingAt ? emoji + " " : emoji;
-
-  input.value = start + insertText + end;
+  if (text[insertPos] === '@') {
+      input.value = text.slice(0, insertPos) + textToInsert + text.slice(insertPos + 1);
+  } else {
+      input.value = start + textToInsert + end;
+  }
   
-  // Set the new cursor position
-  const newCursorPos = insertPos + insertText.length;
+  const newCursorPos = insertPos + textToInsert.length;
   input.setSelectionRange(newCursorPos, newCursorPos);
   
   input.focus();
-  hideEmojiPicker();
-  editorDirty = true; // Mark editor as dirty
+  editorDirty = true;
 }
 
 // Attach event listeners to all relevant text fields
@@ -944,13 +1020,21 @@ const allTextFields = [$("#fTitle"), $("#fDev"), $("#fLive"), $("#fNotes"), $("#
 allTextFields.forEach(input => {
   if (input) {
     input.addEventListener("input", handleAtTyping);
-    input.addEventListener("keyup", handleAtTyping); // Catching the '@' key press
-    input.addEventListener("blur", () => setTimeout(hideEmojiPicker, 200)); // Delay to allow click on picker item
+    input.addEventListener("keyup", handleAtTyping);
   }
 });
-// Hide picker on click outside
+
 document.addEventListener("click", (e) => {
-    if(activeInput && !emojiPicker.contains(e.target) && e.target !== activeInput) {
+    if(emojiPicker.style.display === "block"){
+        const isPicker = emojiPicker.contains(e.target);
+        const isInput = activeInput && e.target === activeInput;
+        if(!isPicker && !isInput) {
+            hideEmojiPicker();
+        }
+    }
+});
+document.addEventListener("focusin", (e) => {
+    if (activeInput && e.target !== activeInput && emojiPicker.style.display === "block" && !emojiPicker.contains(e.target)) {
         hideEmojiPicker();
     }
 });
@@ -977,4 +1061,6 @@ setStatus("Loaded • Build "+BUILD+" • "+fmtFullDate(new Date()));
 </script>
 </body>
 </html>
-<.> 2025-11-01 - 09:25 PM <.>
+<.> 2025-11-01 - 10:00 PM <.>
+You may be interested in learning more about how web applications use local storage to keep data after you close a browser tab or window, which is explained in this video: [How to store Form data in Local Storage using HTML and JavaScript](https://www.youtube.com/watch?v=hG0YDpePCjI).
+http://googleusercontent.com/youtube_content/3
