@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Garden of Compassion</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #e0f7fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #e0c3fc, #8ec5fc);
+            transition: background 2s ease; /* Faster transition for manual changes */
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.5rem;
+            text-align: center;
+            opacity: 1;
+            transition: opacity 2s ease;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        /* Master Footer */
+        #master-footer {
+            position: fixed;
+            bottom: 10px;
+            right: 15px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        /* --- UI Controls --- */
+        
+        /* Gear Icon */
+        #settings-trigger {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 44px;
+            height: 44px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+            transition: background 0.3s;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        #settings-trigger:active {
+            transform: scale(0.95);
+        }
+        #settings-trigger svg {
+            fill: white;
+            width: 24px;
+            height: 24px;
+        }
+
+        /* Slide-out Panel */
+        #settings-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 300px;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(15px);
+            box-shadow: -5px 0 20px rgba(0,0,0,0.05);
+            transform: translateX(100%);
+            transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            z-index: 201;
+            padding: 80px 30px 30px 30px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        #settings-panel.open {
+            transform: translateX(0);
+        }
+
+        /* Close Button (X) inside panel */
+        #close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 24px;
+            color: #666;
+            cursor: pointer;
+            padding: 10px;
+        }
+
+        /* Control Styling */
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .control-label {
+            font-size: 14px;
+            color: #555;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Custom Range Slider */
+        input[type=range] {
+            width: 100%;
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #8ec5fc;
+            cursor: pointer;
+            margin-top: -8px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #ddd;
+            border-radius: 2px;
+        }
+
+        /* Toggle Switch */
+        .toggle-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #8ec5fc; }
+        input:checked + .slider:before { transform: translateX(26px); }
+
+        /* Button for Theme */
+        .theme-btn {
+            background: #f0f0f0;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            color: #555;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .theme-btn:active { background: #e0e0e0; }
+
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="overlay">Tap gently to share kindness</div>
+        <div id="master-footer">The Garden of Compassion - v1.1 - 2025-11-23 03:25 AM</div>
+    </div>
+
+    <div id="settings-trigger">
+        <svg viewBox="0 0 24 24">
+            <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+        </svg>
+    </div>
+
+    <div id="settings-panel">
+        <div id="close-btn">&times;</div>
+        
+        <div class="control-group toggle-container">
+            <span class="control-label">Show Kindness Words</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="word-toggle" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Bloom Speed</span>
+            <input type="range" id="speed-slider" min="1" max="100" value="50">
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Atmosphere</span>
+            <button class="theme-btn" id="theme-btn">Cycle Color Theme</button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Application: The Garden of Compassion v1.1
+         * Update: Added slide-out settings panel.
+         */
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const overlay = document.getElementById('overlay');
+        
+        // UI Elements
+        const panel = document.getElementById('settings-panel');
+        const trigger = document.getElementById('settings-trigger');
+        const closeBtn = document.getElementById('close-btn');
+        const wordToggle = document.getElementById('word-toggle');
+        const speedSlider = document.getElementById('speed-slider');
+        const themeBtn = document.getElementById('theme-btn');
+
+        // UI Logic
+        function openPanel() { panel.classList.add('open'); }
+        function closePanel() { panel.classList.remove('open'); }
+        trigger.addEventListener('click', openPanel);
+        closeBtn.addEventListener('click', closePanel);
+        
+        // Prevent canvas clicks when clicking panel
+        panel.addEventListener('mousedown', (e) => e.stopPropagation());
+        panel.addEventListener('touchstart', (e) => e.stopPropagation());
+
+        // Canvas Sizing
+        let width, height;
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Configuration
+        const config = {
+            bgColors: [
+                ['#e0c3fc', '#8ec5fc'], // Morning
+                ['#fad0c4', '#ffd1ff'], // Sunset
+                ['#d299c2', '#fef9d7'], // Dusk
+                ['#a1c4fd', '#c2e9fb'], // Clear Day
+                ['#d4fc79', '#96e6a1']  // Fresh Grass
+            ],
+            words: [
+                "Peace", "Gentle", "Warmth", "Love", "Hope", 
+                "Empathy", "Calm", "Breathe", "Grace", "Kindness", 
+                "Forgive", "Care", "Soften", "Stillness"
+            ],
+            showWords: true,
+            speedMultiplier: 1.0
+        };
+
+        // Settings Listeners
+        wordToggle.addEventListener('change', (e) => {
+            config.showWords = e.target.checked;
+        });
+
+        speedSlider.addEventListener('input', (e) => {
+            // Map 1-100 to 0.2 - 2.0
+            const val = parseInt(e.target.value);
+            config.speedMultiplier = 0.2 + (val / 100) * 1.8;
+        });
+
+        themeBtn.addEventListener('click', () => {
+            forceNextTheme();
+        });
+
+
+        // State
+        let entities = [];
+        let colorIndex = 0;
+        let lastBgChange = 0;
+        let firstInteraction = false;
+
+        // Helper: Random Range
+        const random = (min, max) => Math.random() * (max - min) + min;
+
+        // Helper: Random Pastel Color
+        function getPastelColor() {
+            const hue = random(0, 360);
+            return `hsla(${hue}, 70%, 80%,`;
+        }
+
+        class Word {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.text = config.words[Math.floor(Math.random() * config.words.length)];
+                this.velocity = -0.5; 
+                this.alpha = 0;
+                this.life = 0;
+                this.fadeIn = true;
+            }
+
+            update() {
+                this.y += this.velocity * config.speedMultiplier;
+                this.life++;
+
+                if (this.fadeIn) {
+                    this.alpha += 0.02 * config.speedMultiplier;
+                    if (this.alpha >= 1) this.fadeIn = false;
+                } else if (this.life > 200) {
+                    this.alpha -= 0.01 * config.speedMultiplier;
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.font = "20px sans-serif";
+                ctx.fillStyle = "#ffffff";
+                ctx.textAlign = "center";
+                ctx.shadowColor = "rgba(0,0,0,0.1)";
+                ctx.shadowBlur = 5;
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.restore();
+            }
+
+            isDead() {
+                return (this.alpha <= 0 && !this.fadeIn);
+            }
+        }
+
+        class Bloom {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.size = 0;
+                this.maxSize = random(30, 80);
+                this.colorBase = getPastelColor();
+                this.petals = Math.floor(random(5, 9));
+                this.baseGrowthRate = random(0.2, 0.5);
+                this.alpha = 1;
+            }
+
+            update() {
+                const currentGrowth = this.baseGrowthRate * config.speedMultiplier;
+                
+                if (this.size < this.maxSize) {
+                    this.size += currentGrowth;
+                } else {
+                    this.alpha -= 0.002 * config.speedMultiplier; 
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                for(let i=0; i<3; i++) {
+                    ctx.fillStyle = this.colorBase + (this.alpha * (1 - i*0.2)) + ')';
+                    ctx.beginPath();
+                    for (let j = 0; j < this.petals; j++) {
+                        const angle = (j / this.petals) * Math.PI * 2;
+                        const petalSize = (this.size - (i*5));
+                        if (petalSize <= 0) continue;
+                        
+                        const px = this.x + Math.cos(angle) * (petalSize * 0.5);
+                        const py = this.y + Math.sin(angle) * (petalSize * 0.5);
+                        
+                        ctx.moveTo(this.x, this.y);
+                        ctx.arc(px, py, petalSize * 0.4, 0, Math.PI * 2);
+                    }
+                    ctx.fill();
+                }
+                
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * 0.1, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            isDead() {
+                return this.alpha <= 0;
+            }
+        }
+
+        function interact(x, y) {
+            if (!firstInteraction) {
+                firstInteraction = true;
+                overlay.style.opacity = 0;
+            }
+
+            entities.push(new Bloom(x, y));
+            
+            if (config.showWords && Math.random() > 0.5) {
+                entities.push(new Word(x, y - 20));
+            }
+        }
+
+        // Input Listeners
+        canvas.addEventListener('mousedown', (e) => interact(e.clientX, e.clientY));
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); 
+            for (let i = 0; i < e.touches.length; i++) {
+                interact(e.touches[i].clientX, e.touches[i].clientY);
+            }
+        }, { passive: false });
+
+        // Background Logic
+        function forceNextTheme() {
+            colorIndex = (colorIndex + 1) % config.bgColors.length;
+            applyTheme();
+            lastBgChange = Date.now(); // Reset timer so it stays on this theme for a bit
+        }
+
+        function updateBackground() {
+            const now = Date.now();
+            if (now - lastBgChange > 20000) { 
+                colorIndex = (colorIndex + 1) % config.bgColors.length;
+                applyTheme();
+                lastBgChange = now;
+            }
+        }
+
+        function applyTheme() {
+            const container = document.getElementById('canvas-container');
+            const colors = config.bgColors[colorIndex];
+            container.style.background = `linear-gradient(to bottom, ${colors[0]}, ${colors[1]})`;
+        }
+
+        // Main Loop
+        function loop() {
+            ctx.clearRect(0, 0, width, height);
+            updateBackground();
+
+            for (let i = entities.length - 1; i >= 0; i--) {
+                entities[i].update();
+                entities[i].draw(ctx);
+                if (entities[i].isDead()) {
+                    entities.splice(i, 1);
+                }
+            }
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
