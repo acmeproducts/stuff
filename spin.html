@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sequential Animation Disc Playground</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #05060a;
+      color: #f2f2f6;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100vh;
+    }
+    #controls {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 8px;
+      padding: 10px;
+      background: #10121a;
+      border-bottom: 1px solid #242736;
+    }
+    .group {
+      background: #151824;
+      border-radius: 10px;
+      border: 1px solid #262a3a;
+      padding: 8px;
+      display: grid;
+      gap: 6px;
+      align-content: start;
+    }
+    .group h3 {
+      margin: 0 0 4px 0;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #b9bccb;
+    }
+    label {
+      font-size: 12px;
+      color: #d6d7e2;
+      display: grid;
+      gap: 3px;
+    }
+    select,
+    input[type="range"],
+    input[type="text"],
+    button {
+      width: 100%;
+      background: #0b0d14;
+      color: #f3f3fb;
+      border-radius: 8px;
+      border: 1px solid #2a2e41;
+      padding: 6px 8px;
+      font-size: 13px;
+      outline: none;
+    }
+    input[type="range"] {
+      padding: 0;
+      height: 26px;
+    }
+    button {
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { background: #1b1e2b; }
+    button:active { background: #080910; }
+    #controls.hidden { display: none; }
+    #toggleControls {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 20;
+      display: none;
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+    #stage {
+      position: relative;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      touch-action: none;
+      user-select: none;
+      background: radial-gradient(circle at top, #151826, #06070d 55%, #020308 100%);
+    }
+    canvas {
+      max-width: 100%;
+      max-height: 100%;
+    }
+    #hud {
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      padding: 5px 8px;
+      font-size: 11px;
+      white-space: pre;
+      color: #c0c3d2;
+      background: rgba(0,0,0,.45);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.06);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <div class="group" style="grid-column: span 4;">
+      <h3>Disc</h3>
+      <label>
+        Design
+        <select id="designSelect"></select>
+      </label>
+      <label>
+        Seed
+        <input id="seedInput" type="text" value="auto">
+      </label>
+      <button id="regenBtn">Regenerate disc</button>
+      <button id="startBtn">Reset / start spin</button>
+      <button id="hideBtn">Hide controls</button>
+    </div>
+
+    <div class="group" style="grid-column: span 4;">
+      <h3>Spin</h3>
+      <button id="playBtn">Pause</button>
+      <label>
+        Auto speed (RPM)
+        <input id="speedRange" type="range" min="0" max="180" step="1" value="60">
+      </label>
+      <label>
+        Direction
+        <select id="dirSelect">
+          <option value="1">Clockwise</option>
+          <option value="-1">Counter‑clockwise</option>
+        </select>
+      </label>
+      <label>
+        Friction
+        <input id="frictionRange" type="range" min="0" max="0.25" step="0.005" value="0.04">
+      </label>
+    </div>
+
+    <div class="group" style="grid-column: span 4;">
+      <h3>Interaction</h3>
+      <label>
+        Spin interaction
+        <select id="dragMode">
+          <option value="off">Disabled</option>
+          <option value="spin">Drag to spin with momentum</option>
+        </select>
+      </label>
+      <label>
+        Visual scale
+        <input id="scaleRange" type="range" min="0.6" max="1.1" step="0.01" value="0.95">
+      </label>
+      <label>
+        Disc brightness
+        <input id="brightnessRange" type="range" min="0.3" max="1.2" step="0.01" value="1.0">
+      </label>
+    </div>
+  </div>
+
+  <button id="toggleControls">Show controls</button>
+
+  <div id="stage">
+    <canvas id="view"></canvas>
+    <div id="hud"></div>
+  </div>
+
+<script>
+(function() {
+  var view = document.getElementById('view');
+  var ctx = view.getContext('2d');
+  var hud = document.getElementById('hud');
+
+  var controls = document.getElementById('controls');
+  var toggleControlsBtn = document.getElementById('toggleControls');
+  var designSelect = document.getElementById('designSelect');
+  var seedInput = document.getElementById('seedInput');
+  var regenBtn = document.getElementById('regenBtn');
+  var startBtn = document.getElementById('startBtn');
+  var hideBtn = document.getElementById('hideBtn');
+
+  var playBtn = document.getElementById('playBtn');
+  var speedRange = document.getElementById('speedRange');
+  var dirSelect = document.getElementById('dirSelect');
+  var frictionRange = document.getElementById('frictionRange');
+
+  var dragMode = document.getElementById('dragMode');
+  var scaleRange = document.getElementById('scaleRange');
+  var brightnessRange = document.getElementById('brightnessRange');
+
+  function resize() {
+    var stage = document.getElementById('stage');
+    var w = stage.clientWidth;
+    var h = stage.clientHeight;
+    var size = Math.min(w, h);
+    var dpr = window.devicePixelRatio || 1;
+    view.width = Math.floor(size * dpr);
+    view.height = Math.floor(size * dpr);
+    view.style.width = size + 'px';
+    view.style.height = size + 'px';
+    rebuildDisc();
+  }
+  window.addEventListener('resize', resize);
+
+  function hashSeed(str) {
+    var h = 2166136261 >>> 0;
+    for (var i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+  function makeRng(seed) {
+    var s = seed >>> 0;
+    return function() {
+      s ^= s << 13; s >>>= 0;
+      s ^= s >> 17; s >>>= 0;
+      s ^= s << 5;  s >>>= 0;
+      return (s >>> 0) / 4294967296;
+    };
+  }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+
+  var discCanvas = document.createElement('canvas');
+  var discCtx = discCanvas.getContext('2d');
+
+  var currentSeed = "0";
+  var rng = makeRng(1);
+
+  var angle = 0;
+  var angVel = 0;
+  var isPlaying = true;
+
+  var pointerDown = false;
+  var lastPointerAngle = 0;
+  var lastPointerTs = 0;
+
+  function ensureSeed() {
+    var s = seedInput.value.trim();
+    if (!s || s.toLowerCase() === "auto") {
+      s = String(Math.floor(Math.random() * 1e9));
+      seedInput.value = s;
+    }
+    currentSeed = s;
+    rng = makeRng(hashSeed(s));
+  }
+
+  var designs = [
+    {
+      key: "ladder",
+      name: "Example 1 – Ladder climb (sequential)",
+      draw: function(ctx, R, rng) {
+        ctx.clearRect(0,0,discCanvas.width,discCanvas.height);
+        ctx.save();
+        ctx.translate(R,R);
+
+        ctx.fillStyle = "#f1e0b8";
+        ctx.beginPath();
+        ctx.arc(0,0,R*0.99,0,Math.PI*2);
+        ctx.fill();
+
+        var spokes = 16;
+        var framesPerSpoke = 6;
+        var ladderLen = R*0.9;
+        var frameOffset = ladderLen / framesPerSpoke;
+
+        ctx.strokeStyle = "#222222";
+        ctx.lineWidth = R*0.01;
+        ctx.lineCap = "round";
+
+        function drawFigure(yPos, scale) {
+          var bodyLen = R*0.08*scale;
+          var armLen = R*0.05*scale;
+          var legLen = R*0.07*scale;
+          ctx.beginPath();
+          ctx.moveTo(-R*0.01, yPos - bodyLen*0.2);
+          ctx.lineTo(-R*0.01, yPos - bodyLen);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(-R*0.01, yPos - bodyLen - R*0.015*scale, R*0.015*scale, 0, Math.PI*2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(-R*0.01, yPos - bodyLen*0.75);
+          ctx.lineTo(-R*0.03, yPos - bodyLen*0.4);
+          ctx.moveTo(-R*0.01, yPos - bodyLen*0.75);
+          ctx.lineTo(R*0.03, yPos - bodyLen*0.4);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(-R*0.01, yPos - bodyLen*0.2);
+          ctx.lineTo(-R*0.03, yPos + legLen*0.4);
+          ctx.moveTo(-R*0.01, yPos - bodyLen*0.2);
+          ctx.lineTo(R*0.03, yPos + legLen*0.8);
+          ctx.stroke();
+        }
+
+        for (var s = 0; s < spokes; s++) {
+          var a = (s / spokes) * Math.PI*2;
+          ctx.save();
+          ctx.rotate(a);
+          ctx.beginPath();
+          ctx.moveTo(0, -R*0.05);
+          ctx.lineTo(0, -ladderLen);
+          ctx.stroke();
+          var rungCount = 10;
+          for (var r=0;r<=rungCount;r++){
+            var y = -R*0.05 - (ladderLen-R*0.05)* (r/rungCount);
+            ctx.beginPath();
+            ctx.moveTo(-R*0.05, y);
+            ctx.lineTo(R*0.05, y);
+            ctx.stroke();
+          }
+          for (var f = 0; f < framesPerSpoke; f++) {
+            var yPos = -R*0.1 - f*frameOffset;
+            var sc = 0.9 + 0.2*(f/framesPerSpoke);
+            drawFigure(yPos, sc);
+          }
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+    },
+    {
+      key: "spiralDots",
+      name: "Example 2 – Spiral dots (motion illusion)",
+      draw: function(ctx, R, rng) {
+        ctx.clearRect(0,0,discCanvas.width,discCanvas.height);
+        ctx.save();
+        ctx.translate(R,R);
+
+        ctx.fillStyle = "#050508";
+        ctx.beginPath();
+        ctx.arc(0,0,R*0.99,0,Math.PI*2);
+        ctx.fill();
+
+        ctx.fillStyle = "#e0e0e8";
+        var arms = 12;
+        var dotsPerArm = 40;
+        for (var i=0;i<arms;i++){
+          var baseAngle = (i/arms) * Math.PI*2;
+          for (var j=0;j<dotsPerArm;j++){
+            var t = j/(dotsPerArm-1);
+            var rad = lerp(R*0.08, R*0.95, t);
+            var spiralTurn = 2.5;
+            var a = baseAngle + spiralTurn * t * Math.PI*2;
+            var x = Math.cos(a) * rad;
+            var y = Math.sin(a) * rad;
+            var size = lerp(R*0.012, R*0.005, t);
+            ctx.beginPath();
+            ctx.arc(x,y,size,0,Math.PI*2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+      }
+    },
+    {
+      key: "geoCircles",
+      name: "Example 3 – Geometric color circles",
+      draw: function(ctx, R, rng) {
+        ctx.clearRect(0,0,discCanvas.width,discCanvas.height);
+        ctx.save();
+        ctx.translate(R,R);
+        ctx.fillStyle = "#f5f1e5";
+        ctx.beginPath();
+        ctx.arc(0,0,R*0.99,0,Math.PI*2);
+        ctx.fill();
+
+        var outerCount = 12;
+        var middleCount = 8;
+        var radial = 10;
+
+        function drawSegmentedCircle(radius, rInner, colors, angle) {
+          ctx.save();
+          ctx.rotate(angle);
+          var segments = colors.length;
+          for (var i=0;i<segments;i++){
+            var a0 = (i/segments)*Math.PI*2;
+            var a1 = ((i+1)/segments)*Math.PI*2;
+            ctx.beginPath();
+            ctx.moveTo(radius,0);
+            ctx.arc(0,0,radius,a0,a1);
+            ctx.lineTo(rInner*Math.cos(a1), rInner*Math.sin(a1));
+            ctx.arc(0,0,rInner,a1,a0,true);
+            ctx.closePath();
+            ctx.fillStyle = colors[i];
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        for (var i=0;i<outerCount;i++){
+          var a = (i/outerCount)*Math.PI*2;
+          ctx.save();
+          ctx.rotate(a);
+          ctx.translate(0,R*0.8);
+          ctx.fillStyle = "#111111";
+          ctx.beginPath();
+          ctx.arc(0,0,R*0.09,0,Math.PI*2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        for (var m=0;m<middleCount;m++){
+          var a2 = (m/middleCount)*Math.PI*2;
+          ctx.save();
+          ctx.rotate(a2);
+          ctx.translate(0,R*0.5);
+          ctx.fillStyle = "#f6a623";
+          ctx.beginPath();
+          ctx.arc(0,0,R*0.08,0,Math.PI*2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        ctx.strokeStyle = "#4a6fa8";
+        ctx.lineWidth = R*0.01;
+        ctx.beginPath();
+        for (var r=0;r<radial;r++){
+          var a3 = (r/radial)*Math.PI*2;
+          ctx.moveTo(0,0);
+          ctx.lineTo(Math.cos(a3)*R*0.55, Math.sin(a3)*R*0.55);
+        }
+        ctx.stroke();
+
+        drawSegmentedCircle(R*0.35, R*0.18,
+          ["#e64b3c","#f7f5f0","#111111","#f7f5f0"],
+          0);
+
+        ctx.restore();
+      }
+    },
+    {
+      key: "runnerRing",
+      name: "New 1 – Runner around ring",
+      draw: function(ctx, R, rng) {
+        ctx.clearRect(0,0,discCanvas.width,discCanvas.height);
+        ctx.save();
+        ctx.translate(R,R);
+        ctx.fillStyle = "#f4efe2";
+        ctx.beginPath();
+        ctx.arc(0,0,R*0.99,0,Math.PI*2);
+        ctx.fill();
+
+        ctx.strokeStyle = "#333333";
+        ctx.lineWidth = R*0.03;
+        ctx.beginPath();
+        ctx.arc(0,0,R*0.7,0,Math.PI*2);
+        ctx.stroke();
+
+        var frames = 12;
+        function drawRunner(scale) {
+          var body = R*0.12*scale;
+          var headR = R*0.03*scale;
+          ctx.beginPath();
+          ctx.arc(0,-body-headR,headR,0,Math.PI*2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0,-body);
+          ctx.lineTo(0,0);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0,-body*0.8);
+          ctx.lineTo(-body*0.4,-body*0.4);
+          ctx.moveTo(0,-body*0.8);
+          ctx.lineTo(body*0.4,-body*0.4);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0,0);
+          ctx.lineTo(-body*0.4,body*0.6);
+          ctx.moveTo(0,0);
+          ctx.lineTo(body*0.4,body*0.3);
+          ctx.stroke();
+        }
+
+        for (var i=0;i<frames;i++){
+          var t = i/frames;
+          var a = t*Math.PI*2;
+          ctx.save();
+          ctx.rotate(a);
+          ctx.translate(0,-R*0.7);
+          ctx.rotate(-a);
+          drawRunner(0.8 + 0.2*Math.sin(t*Math.PI*2));
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+    },
+    {
+      key: "petalBloom",
+      name: "New 2 – Blooming petals",
+      draw: function(ctx, R, rng) {
+        ctx.clearRect(0,0,discCanvas.width,discCanvas.height);
+        ctx.save();
+        ctx.translate(R,R);
+        ctx.fillStyle = "#0d0f16";
+        ctx.beginPath();
+        ctx.arc(0,0,R*0.99,0,Math.PI*2);
+        ctx.fill();
+
+        var rings = 5;
+        var petals = 18;
+        for (var r=0;r<rings;r++){
+          var tr = r/(rings-1);
+          var baseRad = lerp(R*0.18,R*0.9,tr);
+          for (var p=0;p<petals;p++){
+            var a = (p/petals)*Math.PI*2;
+            var s = lerp(R*0.09,R*0.03,tr);
+            var x = Math.cos(a)*baseRad;
+            var y = Math.sin(a)*baseRad;
+            var hue = 200 + 120*tr;
+            var light = 40 + 35*tr;
+            ctx.fillStyle = "hsl(" + hue + ",80%," + light + "%)";
+            ctx.beginPath();
+            ctx.ellipse(x,y,s,s*0.55,a, a+Math.PI*2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+      }
+    },
+    {
+      key: "orbitDots",
+      name: "New 3 – Orbiting dot clusters",
+      draw: function(ctx, R, rng) {
+        ctx.clearRect(0,0,discCanvas.width,discCanvas.height);
+        ctx.save();
+        ctx.translate(R,R);
+        ctx.fillStyle = "#05060a";
+        ctx.beginPath();
+        ctx.arc(0,0,R*0.99,0,Math.PI*2);
+        ctx.fill();
+
+        var rings = 4;
+        var baseHue = 190;
+        for (var r=0;r<rings;r++){
+          var rad = lerp(R*0.2,R*0.9,r/(rings-1));
+          var count = 18 + r*6;
+          for (var i=0;i<count;i++){
+            var t = i/count;
+            var a = t*Math.PI*2 + r*0.3;
+            var x = Math.cos(a)*rad;
+            var y = Math.sin(a)*rad;
+            var size = lerp(R*0.014,R*0.006,r/(rings-1));
+            var hue = baseHue + 40*r;
+            var light = 40 + 35*(1 - r/(rings-1));
+            ctx.fillStyle = "hsl(" + hue + ",75%," + light + "%)";
+            ctx.beginPath();
+            ctx.arc(x,y,size,0,Math.PI*2);
+            ctx.fill();
+          }
+        }
+
+        ctx.fillStyle = "#0c101c";
+        ctx.beginPath();
+        ctx.arc(0,0,R*0.15,0,Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+  ];
+
+  designs.forEach(function(d, idx) {
+    var opt = document.createElement('option');
+    opt.value = String(idx);
+    opt.textContent = d.name;
+    designSelect.appendChild(opt);
+  });
+
+  var designIndex = 0;
+
+  function rebuildDisc() {
+    if (view.width === 0 || view.height === 0) return;
+    discCanvas.width = view.width;
+    discCanvas.height = view.height;
+    var R = view.width / 2;
+    ensureSeed();
+    var d = designs[designIndex];
+    d.draw(discCtx, R, rng);
+  }
+
+  function renderFrame(dt) {
+    var R = view.width/2;
+    var scale = parseFloat(scaleRange.value);
+    var brightness = parseFloat(brightnessRange.value);
+
+    var friction = parseFloat(frictionRange.value);
+    var dir = parseFloat(dirSelect.value);
+    var rpm = parseFloat(speedRange.value);
+    var omegaAuto = rpm * 2 * Math.PI / 60 * dir;
+
+    if (isPlaying) {
+      angVel += (omegaAuto - angVel) * 0.08;
+    }
+    angVel *= Math.exp(-friction * dt * 60);
+    angle += angVel * dt;
+
+    ctx.clearRect(0,0,view.width,view.height);
+    ctx.save();
+    ctx.translate(R,R);
+    ctx.rotate(angle);
+    ctx.scale(scale, scale);
+
+    ctx.drawImage(discCanvas, -R, -R, 2*R, 2*R);
+
+    ctx.restore();
+
+    if (brightness !== 1) {
+      ctx.save();
+      ctx.globalAlpha = Math.abs(brightness - 1);
+      ctx.globalCompositeOperation = brightness > 1 ? "lighter" : "multiply";
+      ctx.drawImage(view, 0, 0);
+      ctx.restore();
+    }
+
+    hud.textContent =
+      "Design: " + designs[designIndex].name +
+      "\nSeed: " + currentSeed +
+      "\nAngle: " + (angle % (2*Math.PI)).toFixed(2) + " rad" +
+      "\nAng vel: " + angVel.toFixed(2) + " rad/s";
+  }
+
+  var lastTs = performance.now();
+  function loop(ts) {
+    var dt = (ts - lastTs) / 1000;
+    if (dt < 0) dt = 0;
+    if (dt > 0.1) dt = 0.1;
+    lastTs = ts;
+    renderFrame(dt);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  designSelect.addEventListener('change', function() {
+    designIndex = parseInt(designSelect.value, 10) || 0;
+    rebuildDisc();
+  });
+
+  regenBtn.addEventListener('click', function() {
+    seedInput.value = "auto";
+    rebuildDisc();
+  });
+
+  startBtn.addEventListener('click', function() {
+    angle = 0;
+    angVel = 0;
+    isPlaying = true;
+    playBtn.textContent = "Pause";
+    rebuildDisc();
+  });
+
+  playBtn.addEventListener('click', function() {
+    isPlaying = !isPlaying;
+    playBtn.textContent = isPlaying ? "Pause" : "Play";
+  });
+
+  hideBtn.addEventListener('click', function() {
+    controls.classList.add('hidden');
+    toggleControlsBtn.style.display = "inline-block";
+    resize();
+  });
+  toggleControlsBtn.addEventListener('click', function() {
+    controls.classList.remove('hidden');
+    toggleControlsBtn.style.display = "none";
+    resize();
+  });
+
+  function getPointer(e) {
+    var rect = view.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    return {
+      x: (e.clientX - rect.left) * dpr,
+      y: (e.clientY - rect.top) * dpr
+    };
+  }
+
+  function angleFromCenter(p) {
+    var R = view.width/2;
+    return Math.atan2(p.y - R, p.x - R);
+  }
+
+  view.addEventListener('pointerdown', function(e) {
+    if (dragMode.value !== "spin") return;
+    view.setPointerCapture(e.pointerId);
+    var p = getPointer(e);
+    pointerDown = true;
+    lastPointerAngle = angleFromCenter(p);
+    lastPointerTs = performance.now();
+  });
+
+  view.addEventListener('pointermove', function(e) {
+    if (!pointerDown || dragMode.value !== "spin") return;
+    var p = getPointer(e);
+    var a = angleFromCenter(p);
+    var now = performance.now();
+    var dt = (now - lastPointerTs) / 1000;
+    var dAng = a - lastPointerAngle;
+    if (dAng > Math.PI) dAng -= 2*Math.PI;
+    if (dAng < -Math.PI) dAng += 2*Math.PI;
+    if (dt > 0) {
+      angVel = dAng / dt;
+    }
+    angle += dAng;
+    lastPointerAngle = a;
+    lastPointerTs = now;
+  });
+
+  function endPointer(e) {
+    if (!pointerDown) return;
+    pointerDown = false;
+  }
+  view.addEventListener('pointerup', endPointer);
+  view.addEventListener('pointercancel', endPointer);
+  view.addEventListener('pointerleave', endPointer);
+
+  resize();
+})();
+</script>
+</body>
+</html>
