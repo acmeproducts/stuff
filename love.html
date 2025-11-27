@@ -23,12 +23,10 @@
             width: 100%;
             height: 100%;
             background: linear-gradient(to bottom, #e0c3fc, #8ec5fc);
-            transition: background 2s ease;
+            transition: background 3s ease;
         }
 
-        canvas {
-            display: block;
-        }
+        canvas { display: block; }
 
         #overlay {
             position: absolute;
@@ -146,8 +144,8 @@
 
     <div id="canvas-container">
         <canvas id="gameCanvas"></canvas>
-        <div id="overlay">Tap to Bloom<br><span style="font-size: 0.8em; opacity: 0.8;">Press and hold to Grow Love</span></div>
-        <div id="master-footer">The Garden of Compassion - v1.2 - 2025-11-24 01:22 PM</div>
+        <div id="overlay">Tap gently for sound<br><span style="font-size: 0.8em; opacity: 0.8;">Hold to grow a vine</span></div>
+        <div id="master-footer">The Garden of Compassion - v1.3 - 2025-11-27 01:05 PM</div>
     </div>
 
     <div id="settings-trigger">
@@ -156,13 +154,23 @@
 
     <div id="settings-panel">
         <div id="close-btn">&times;</div>
+        
         <div class="control-group toggle-container">
-            <span class="control-label">Show Kindness Words</span>
+            <span class="control-label">Sound</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="audio-toggle" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="control-group toggle-container">
+            <span class="control-label">Show Words</span>
             <label class="toggle-switch">
                 <input type="checkbox" id="word-toggle" checked>
                 <span class="slider"></span>
             </label>
         </div>
+
         <div class="control-group">
             <span class="control-label">Growth Speed</span>
             <input type="range" id="speed-slider" min="1" max="100" value="50">
@@ -178,6 +186,59 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
+        // --- Audio Engine ---
+        const ZenAudio = {
+            ctx: null,
+            enabled: true,
+            // Pentatonic scale frequencies (C Major Pentatonic)
+            frequencies: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25], 
+            
+            init: function() {
+                if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+
+            playTone: function(duration = 1.5, freqOverride = null, type = 'sine', volume = 0.05) {
+                if (!this.ctx || !this.enabled) return;
+                
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                // Pick random note from scale if no override
+                const freq = freqOverride || this.frequencies[Math.floor(Math.random() * this.frequencies.length)];
+                
+                osc.frequency.value = freq;
+                osc.type = type;
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                const now = this.ctx.currentTime;
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(volume, now + 0.1); // Soft attack
+                gain.gain.exponentialRampToValueAtTime(0.001, now + duration); // Long release
+                
+                osc.start(now);
+                osc.stop(now + duration);
+            },
+
+            playArpeggio: function() {
+                if (!this.ctx || !this.enabled) return;
+                // Play a quick sequence of notes
+                const now = this.ctx.currentTime;
+                for(let i=0; i<3; i++) {
+                    setTimeout(() => {
+                        this.playTone(0.8, this.frequencies[Math.floor(Math.random() * this.frequencies.length)], 'sine', 0.03);
+                    }, i * 100);
+                }
+            }
+        };
+
+        // --- Layout ---
         let width, height;
         function resize() {
             width = window.innerWidth;
@@ -188,20 +249,25 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // --- Config & State ---
+        // --- Config & Themes ---
+        // Themes now include 'text' color for complementarity
+        const themes = [
+            { bg: ['#e0c3fc', '#8ec5fc'], text: '#4a148c' }, // Morning (Indigo text)
+            { bg: ['#fad0c4', '#ffd1ff'], text: '#880e4f' }, // Sunset (Deep Pink text)
+            { bg: ['#d299c2', '#fef9d7'], text: '#3e2723' }, // Dusk (Dark Brown text)
+            { bg: ['#a1c4fd', '#c2e9fb'], text: '#01579b' }, // Clear (Navy text)
+            { bg: ['#d4fc79', '#96e6a1'], text: '#1b5e20' }  // Grass (Forest Green text)
+        ];
+
         const config = {
-            bgColors: [
-                ['#e0c3fc', '#8ec5fc'], ['#fad0c4', '#ffd1ff'], 
-                ['#d299c2', '#fef9d7'], ['#a1c4fd', '#c2e9fb'], ['#d4fc79', '#96e6a1']
-            ],
-            words: ["Peace", "Gentle", "Warmth", "Love", "Hope", "Empathy", "Calm", "Grace"],
+            currentThemeIndex: 0,
+            words: ["Peace", "Gentle", "Warmth", "Love", "Hope", "Empathy", "Calm", "Grace", "Kindness"],
             showWords: true,
             speedMultiplier: 1.0,
-            holdThreshold: 400 // ms to trigger long press
+            holdThreshold: 400
         };
 
         let entities = [];
-        let colorIndex = 0;
         let lastBgChange = 0;
         let activeVine = null;
 
@@ -211,7 +277,6 @@
             startX: 0,
             startY: 0,
             startTime: 0,
-            timer: null,
             triggeredLongPress: false
         };
 
@@ -230,7 +295,8 @@
                 this.alpha = 0;
                 this.life = 0;
                 this.fadeIn = true;
-                this.color = "#ffffff";
+                // Use current theme text color
+                this.color = themes[config.currentThemeIndex].text; 
                 this.fontSize = 20;
             }
             update() {
@@ -249,8 +315,8 @@
                 ctx.font = `${this.fontSize}px sans-serif`;
                 ctx.fillStyle = this.color;
                 ctx.textAlign = "center";
-                ctx.shadowColor = "rgba(0,0,0,0.1)";
-                ctx.shadowBlur = 5;
+                ctx.shadowColor = "rgba(255,255,255,0.4)"; // Light shadow for contrast
+                ctx.shadowBlur = 4;
                 ctx.fillText(this.text, this.x, this.y);
                 ctx.restore();
             }
@@ -304,81 +370,63 @@
             constructor(startX, startY) {
                 this.startX = startX;
                 this.startY = startY;
-                this.segments = []; // {x, y, angle, thickness}
-                this.progress = 0; // Current step along path
+                this.segments = []; 
+                this.progress = 0; 
                 this.growing = true;
                 this.alpha = 1;
-                this.points = this.generateHeartPath(startX, startY, 60); // Scale 60
-                
-                // Add LOVE letter points to the end of the heart path
+                this.points = this.generateHeartPath(startX, startY, 60); 
                 this.addTextPoints(startX, startY);
+                this.soundTicker = 0;
             }
 
             generateHeartPath(cx, cy, scale) {
                 let pts = [];
-                // Heart shape parametric
                 for (let t = Math.PI; t > -Math.PI; t -= 0.1) {
                     let x = 16 * Math.pow(Math.sin(t), 3);
                     let y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
-                    // Invert y because canvas y is down
                     pts.push({x: cx + x * scale / 16, y: cy - y * scale / 16});
                 }
                 return pts;
             }
 
             addTextPoints(cx, cy) {
-                // Approximate L O V E inside the heart
-                // Simple stroke logic
                 const ox = cx - 50; 
                 const oy = cy;
                 
                 // L
-                this.points.push({x: ox, y: oy-20}); // gap
-                this.points.push({x: ox, y: oy-20});
-                this.points.push({x: ox, y: oy+20});
-                this.points.push({x: ox+20, y: oy+20});
-                
+                this.points.push({x: ox, y: oy-20}); this.points.push({x: ox, y: oy+20}); this.points.push({x: ox+20, y: oy+20});
                 // O
-                for(let t=0; t<Math.PI*2; t+=0.5) {
+                for(let t=0; t<Math.PI*2; t+=0.8) {
                     this.points.push({x: ox+40 + Math.cos(t)*10, y: oy + Math.sin(t)*10});
                 }
-
                 // V
-                this.points.push({x: ox+60, y: oy-10});
-                this.points.push({x: ox+70, y: oy+20});
-                this.points.push({x: ox+80, y: oy-10});
-
+                this.points.push({x: ox+60, y: oy-10}); this.points.push({x: ox+70, y: oy+20}); this.points.push({x: ox+80, y: oy-10});
                 // E
-                this.points.push({x: ox+110, y: oy-10}); // top right
-                this.points.push({x: ox+90, y: oy-10}); // top left
-                this.points.push({x: ox+90, y: oy+20}); // bottom left
-                this.points.push({x: ox+110, y: oy+20}); // bottom right
-                // middle bar? tricky with single line, skip for zen simplicity
+                this.points.push({x: ox+110, y: oy-10}); this.points.push({x: ox+90, y: oy-10}); 
+                this.points.push({x: ox+90, y: oy+20}); this.points.push({x: ox+110, y: oy+20});
             }
 
             update() {
                 if (this.growing) {
                     if (this.progress < this.points.length) {
                         const target = this.points[Math.floor(this.progress)];
-                        
-                        // Add segment
-                        this.segments.push({
-                            x: target.x,
-                            y: target.y,
-                            size: random(2, 5)
-                        });
+                        this.segments.push({ x: target.x, y: target.y, size: random(2, 5) });
 
-                        // Chance to spawn a leaf or bud
                         if (Math.random() < 0.2) {
-                             // Tiny decorative bloom
                              entities.push(new Bloom(target.x, target.y, random(5, 10), "hsla(120, 40%, 80%,"));
+                        }
+
+                        // Play shimmering sound while growing
+                        this.soundTicker++;
+                        if(this.soundTicker % 15 === 0) {
+                            ZenAudio.playTone(0.5, null, 'sine', 0.02);
                         }
 
                         this.progress += 0.5 * config.speedMultiplier;
                     } else {
                         this.growing = false;
-                        // Finished growing, spawn big "LOVE" word bloom
                         if(config.showWords) entities.push(new Word(this.startX, this.startY, "LOVE"));
+                        ZenAudio.playTone(2.0, 196.00, 'sine', 0.05); // Low G for completion
                     }
                 } else {
                     this.alpha -= 0.005;
@@ -387,48 +435,42 @@
 
             draw(ctx) {
                 if (this.segments.length < 2) return;
-                
                 ctx.save();
                 ctx.globalAlpha = Math.max(0, this.alpha);
                 ctx.beginPath();
                 ctx.moveTo(this.segments[0].x, this.segments[0].y);
-                
-                // Draw Vine Stem
                 for (let i = 1; i < this.segments.length; i++) {
                     ctx.lineTo(this.segments[i].x, this.segments[i].y);
                 }
-                
-                ctx.strokeStyle = "#6b8e23"; // Olive green
+                ctx.strokeStyle = "#6b8e23"; 
                 ctx.lineWidth = 3;
                 ctx.lineCap = "round";
                 ctx.lineJoin = "round";
                 ctx.stroke();
-
-                // Draw Leaves
-                ctx.fillStyle = "#8fbc8f"; // Dark Sea Green
+                
+                ctx.fillStyle = "#8fbc8f"; 
                 for (let i = 0; i < this.segments.length; i+=5) {
                     const p = this.segments[i];
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
                     ctx.fill();
                 }
-
                 ctx.restore();
             }
-
             isDead() { return this.alpha <= 0; }
         }
 
-        // --- Interaction Handler ---
+        // --- Interaction ---
 
         function handleStart(x, y) {
+            ZenAudio.init(); // Initialize audio context on first touch
+            
             inputState.isDown = true;
             inputState.startX = x;
             inputState.startY = y;
             inputState.startTime = Date.now();
             inputState.triggeredLongPress = false;
             
-            // Hide overlay
             document.getElementById('overlay').style.opacity = 0;
         }
 
@@ -437,24 +479,23 @@
             const duration = Date.now() - inputState.startTime;
 
             if (activeVine) {
-                // Stop the vine
                 activeVine.growing = false;
                 activeVine = null;
             } else if (duration < config.holdThreshold) {
-                // Short Tap -> Bloom
+                // Short Tap
                 entities.push(new Bloom(inputState.startX, inputState.startY));
                 if (config.showWords && Math.random() > 0.6) {
                     entities.push(new Word(inputState.startX, inputState.startY - 30));
                 }
+                ZenAudio.playTone(); // Play random gentle note
             }
         }
 
         function handleMove(x, y) {
-            // Optional: If dragging, maybe move the vine target? 
-            // For now, keep it anchored to start for stability.
+            // Optional drag logic
         }
 
-        // --- Listeners ---
+        // Listeners
         canvas.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
         canvas.addEventListener('mouseup', handleEnd);
         canvas.addEventListener('mousemove', e => { if(inputState.isDown) handleMove(e.clientX, e.clientY); });
@@ -465,18 +506,17 @@
         }, {passive: false});
         canvas.addEventListener('touchend', handleEnd);
         
-        // --- Settings Logic ---
+        // --- Settings & Themes ---
         const panel = document.getElementById('settings-panel');
         document.getElementById('settings-trigger').addEventListener('click', () => panel.classList.add('open'));
         document.getElementById('close-btn').addEventListener('click', () => panel.classList.remove('open'));
         
+        document.getElementById('audio-toggle').addEventListener('change', e => ZenAudio.enabled = e.target.checked);
         document.getElementById('word-toggle').addEventListener('change', e => config.showWords = e.target.checked);
         document.getElementById('speed-slider').addEventListener('input', e => config.speedMultiplier = 0.2 + (e.target.value/100)*1.8);
         
         document.getElementById('theme-btn').addEventListener('click', () => {
-            colorIndex = (colorIndex + 1) % config.bgColors.length;
-            applyTheme();
-            lastBgChange = Date.now();
+            forceNextTheme();
         });
 
         document.getElementById('clear-btn').addEventListener('click', () => {
@@ -484,17 +524,22 @@
             activeVine = null;
         });
 
-        function applyTheme() {
-            const colors = config.bgColors[colorIndex];
-            document.getElementById('canvas-container').style.background = `linear-gradient(to bottom, ${colors[0]}, ${colors[1]})`;
+        function forceNextTheme() {
+            config.currentThemeIndex = (config.currentThemeIndex + 1) % themes.length;
+            applyTheme();
+            lastBgChange = Date.now();
         }
 
-        // --- Main Loop ---
+        function applyTheme() {
+            const theme = themes[config.currentThemeIndex];
+            const container = document.getElementById('canvas-container');
+            container.style.background = `linear-gradient(to bottom, ${theme.bg[0]}, ${theme.bg[1]})`;
+        }
+
         function loop() {
-            // 1. Input Logic Check
+            // Long Press check
             if (inputState.isDown) {
                 const duration = Date.now() - inputState.startTime;
-                // If held long enough and vine not started
                 if (duration > config.holdThreshold && !inputState.triggeredLongPress) {
                     inputState.triggeredLongPress = true;
                     activeVine = new Vine(inputState.startX, inputState.startY);
@@ -502,23 +547,18 @@
                 }
             }
 
-            // 2. Draw
             ctx.clearRect(0, 0, width, height);
 
-            // Auto-Cycle Theme
+            // Auto Cycle Theme
             if (Date.now() - lastBgChange > 20000) {
-                colorIndex = (colorIndex + 1) % config.bgColors.length;
-                applyTheme();
-                lastBgChange = Date.now();
+                forceNextTheme();
             }
 
-            // Update Entities
             for (let i = entities.length - 1; i >= 0; i--) {
                 entities[i].update();
                 entities[i].draw(ctx);
                 if (entities[i].isDead()) entities.splice(i, 1);
             }
-
             requestAnimationFrame(loop);
         }
 
