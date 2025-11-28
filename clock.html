@@ -1,149 +1,1177 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Visual Timer & Clock — Enhanced</title>
-<style>
-  :root{
-    --bg:#0a0a0a; --fg:#e5e5e5; --panel:rgba(0,0,0,0.78); --border:rgba(255,255,255,0.12);
-    --primary:#ffffff; --secondary:#aaaaaa; --accent:#46c2ff;
-  }
-  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif; }
-  #wrap { position: fixed; inset: 0; }
-  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  #bg { z-index: 0; }
-  #ui { z-index: 1; pointer-events: none; }/* Floating quick timer bar */ #quickTimer { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: rgba(0,0,0,0.7); border:1px solid var(--border); border-radius:999px; display:flex; gap:8px; align-items:center; padding:8px 12px; z-index: 1200; transition: opacity .3s ease, visibility .3s ease; } #quickTimer.hidden { opacity:0; visibility:hidden; } #quickTimer input { width: 3.5rem; background:#111; color:var(--fg); border:1px solid #333; border-radius:6px; padding:6px 8px; font-size:14px; text-align:center; } #quickTimer button { background:#141414; color:var(--fg); border:1px solid #444; border-radius:999px; padding:6px 12px; font-size:14px; cursor:pointer; } #quickTimer .readout { min-width:72px; text-align:center; font-variant-numeric: tabular-nums; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Visual Clock Mosaic</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap');
 
-/* Hover time tooltip */ #timeOverlay { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 14px; display: none; pointer-events: none; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-/* Pull-out drawer (mobile friendly) */ #drawer { position: fixed; z-index: 1100; pointer-events: none; inset: 0; display:flex; flex-direction: column; align-items: center; } #drawer .panel { width: min(100%, 1200px); background: var(--panel); border: 1px solid var(--border); pointer-events: auto; transform: translateY(-100%); transition: transform 200ms ease; max-height: 85vh; overflow: hidden; display:flex; flex-direction: column; } #drawer.open .panel { transform: translateY(0); } #drawer .scroll { overflow-y: auto; padding: 36px 12px 12px; }
+    html, body {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      font-family: 'Roboto Mono', monospace;
+      touch-action: none;
+    }
 
-#handle { position: fixed; width: 84px; height: 20px; border-radius: 999px; background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.25); cursor: pointer; z-index: 1201; display: flex; align-items: center; justify-content: center; left: 50%; top: 6px; transform: translateX(-50%); } #handle:after{ content: ""; display: block; width: 36px; height: 2px; background: rgba(255,255,255,0.6); border-radius: 2px; }
+    body {
+      --color-bg: #000;
+      --color-text: #fff;
+      --color-bg2: #1a1a1a;
+      --color-border: #333;
+      --color-accent: #4a9eff;
+      background-color: var(--color-bg);
+      color: var(--color-text);
+    }
 
-#hud { display: grid; grid-template-columns: repeat(3, minmax(260px, 1fr)); gap: 16px; } fieldset { border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 12px; min-width: 0; } legend { font-weight: 700; color: #d0d0d0; } label { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; font-size: 12px; margin: 6px 0; } .row { display:flex; gap:10px; align-items:center; flex-wrap: wrap; } input, select, button { background: #111; color: #e5e5e5; border: 1px solid #333; border-radius: 6px; padding: 6px 8px; font-size: 12px; } input[type=range] { width: 160px; } input[type=number] { width: 90px; } button { cursor: pointer; } button:disabled { opacity: 0.55; cursor: not-allowed; } .pill { display:inline-block; padding:2px 8px; border:1px solid #444; border-radius: 999px; font-size: 11px; color:#ddd; } #status { font-size:12px; color:#9ad; }
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.3);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
 
-/* Mobile tweaks */ @media (max-width: 1000px) { #hud { grid-template-columns: 1fr; } #quickTimer{ left: 12px; right: 12px; transform:none; border-radius:14px; justify-content: space-between; } } @media (max-width: 560px) { #quickTimer input{ width:3.2rem; } } </style>
+    #canvas-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
 
+    #main-canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .clock-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .visual-clock {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: clamp(20px, 5vmin, 60px);
+      padding: 20px;
+    }
+
+    .visual-clock.horizontal {
+      flex-direction: row;
+    }
+
+    .visual-clock.vertical {
+      flex-direction: column;
+    }
+
+    .visual-clock-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(8px, 2vmin, 15px);
+    }
+
+    .visual-clock-blocks {
+      display: grid;
+    }
+
+    .visual-clock-block {
+      width: clamp(8px, 2vmin, 20px);
+      height: clamp(8px, 2vmin, 20px);
+      border-radius: 3px;
+      transition: background-color 0.15s ease;
+    }
+
+    .visual-clock-label {
+      font-size: clamp(10px, 2vmin, 18px);
+      text-transform: uppercase;
+      font-weight: bold;
+      color: rgba(255, 255, 255, 0.7);
+      letter-spacing: 0.1em;
+    }
+
+    .settings-toggle {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      z-index: 100;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: white;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      backdrop-filter: blur(10px);
+    }
+
+    .settings-toggle:hover {
+      background: rgba(255,255,255,0.2);
+      transform: scale(1.05);
+    }
+
+    .settings-toggle svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .control-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 400px;
+      max-width: 90vw;
+      height: 100%;
+      background: rgba(20, 20, 20, 0.95);
+      backdrop-filter: blur(20px);
+      border-left: 1px solid var(--color-border);
+      z-index: 200;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .control-panel.open {
+      transform: translateX(0);
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      border-bottom: 1px solid var(--color-border);
+      position: sticky;
+      top: 0;
+      background: rgba(20, 20, 20, 0.98);
+      z-index: 10;
+    }
+
+    .panel-header h2 {
+      font-size: 1.2em;
+      font-weight: 500;
+    }
+
+    .header-buttons {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .panel-close, .info-toggle {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 8px;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .panel-close:hover, .info-toggle:hover {
+      background: rgba(255,255,255,0.1);
+    }
+
+    .info-toggle svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .panel-content {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 25px;
+    }
+
+    .panel-section {
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: 20px;
+    }
+
+    .panel-section:last-child {
+      border-bottom: none;
+    }
+
+    .panel-section h3 {
+      font-size: 0.9em;
+      font-weight: 600;
+      margin-bottom: 15px;
+      color: var(--color-accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 15px;
+    }
+
+    .control-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .control-group label {
+      font-size: 0.85em;
+      color: rgba(255,255,255,0.7);
+    }
+
+    .control-group select,
+    .control-group input[type="number"] {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--color-border);
+      background: var(--color-bg2);
+      color: white;
+      font-size: 0.95em;
+      font-family: inherit;
+    }
+
+    .control-group select:focus,
+    .control-group input:focus {
+      outline: none;
+      border-color: var(--color-accent);
+    }
+
+    .control-group input[type="color"] {
+      width: 100%;
+      height: 45px;
+      padding: 5px;
+      border-radius: 8px;
+      border: 1px solid var(--color-border);
+      background: var(--color-bg2);
+      cursor: pointer;
+    }
+
+    .control-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .control-row .control-group {
+      flex: 1;
+    }
+
+    .range-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .range-group input[type="range"] {
+      flex: 1;
+      accent-color: var(--color-accent);
+    }
+
+    .range-group output {
+      min-width: 70px;
+      text-align: right;
+      font-size: 0.9em;
+      color: rgba(255,255,255,0.8);
+    }
+
+    .upload-area {
+      border: 2px dashed var(--color-border);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .upload-area:hover {
+      border-color: var(--color-accent);
+      background: rgba(74, 158, 255, 0.05);
+    }
+
+    .upload-area p {
+      color: rgba(255,255,255,0.6);
+      font-size: 0.9em;
+    }
+
+    .image-preview {
+      margin-top: 15px;
+      position: relative;
+      display: none;
+    }
+
+    .image-preview.has-image {
+      display: block;
+    }
+
+    .image-preview img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+
+    .image-preview .remove-btn {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      width: 26px;
+      height: 26px;
+      background: #ff4444;
+      border: none;
+      border-radius: 50%;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .apply-btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--color-accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 15px;
+    }
+
+    .apply-btn:hover {
+      background: #3a8eef;
+      transform: translateY(-1px);
+    }
+
+    .apply-btn:disabled {
+      background: #555;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    #file-input {
+      display: none;
+    }
+
+
+    /* Instructions panel */
+    .instructions-panel {
+      display: none;
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+
+    .instructions-panel.visible {
+      display: block;
+    }
+
+    .instructions-panel h4 {
+      font-size: 0.85em;
+      margin-bottom: 10px;
+      color: var(--color-accent);
+    }
+
+    .instructions-panel p {
+      font-size: 0.8em;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 6px;
+      padding-left: 10px;
+    }
+
+    .instructions-panel p:last-child {
+      margin-bottom: 0;
+    }
+  </style>
 </head>
 <body>
-<div id="wrap">
-  <canvas id="bg"></canvas>
-  <canvas id="ui"></canvas>
-  <div id="timeOverlay"></div>  <!-- Quick Timer Bar (MM:SS default) -->  <div id="quickTimer">
-    <span class="readout" id="qtMode">Timer</span>
-    <input id="qtMin" type="number" min="0" step="1" value="5" aria-label="Minutes">
-    <span>:</span>
-    <input id="qtSec" type="number" min="0" max="59" step="1" value="0" aria-label="Seconds">
-    <button id="qtStart">Start</button>
-    <button id="qtStop" disabled>Stop</button>
-  </div>  <div id="handle" title="Open controls"></div>
-  <div id="drawer" class="open" aria-hidden="false">
-    <div class="panel">
-      <div class="scroll">
-        <div id="hud">
-          <fieldset>
-            <legend>Background</legend>
-            <label>Period (s) <input id="period" type="number" step="0.1" min="0.2" max="120" value="12"></label>
-            <label>Density <input id="density" type="range" min="0.5" max="6.0" step="0.01" value="2.0"></label>
-            <label>Contrast <input id="gamma" type="range" min="0.5" max="2.5" step="0.01" value="1.1"></label>
-            <label>Background Color <input id="bgColor" type="color" value="#0a0a0a"></label>
-          </fieldset><fieldset>
-        <legend>Colors</legend>
-        <label>Primary <input id="colPrimary" type="color" value="#ffffff"></label>
-        <label>Secondary <input id="colSecondary" type="color" value="#aaaaaa"></label>
-        <label>Accent <input id="colAccent" type="color" value="#46c2ff"></label>
-        <label>Show time on hover <input id="showHoverTime" type="checkbox" checked></label>
-      </fieldset>
+  <div id="canvas-container">
+    <canvas id="main-canvas"></canvas>
+  </div>
 
-      <fieldset>
-        <legend>Visualization</legend>
-        <label>Use case
-          <select id="mode">
-            <option value="timer" selected>Timer</option>
-            <option value="clock">Clock</option>
-          </select>
-        </label>
-        <label>Model
-          <select id="visModel">
-            <option value="rings" selected>Radial Rings</option>
-            <option value="hourglass">Hourglass</option>
-            <option value="analog">Analog Hands</option>
-            <option value="spiral">Spiral Arcs</option>
-            <option value="teardrop">Sand Teardrop</option>
-            <option value="multizone">Multi‑Zone Clock</option>
-          </select>
-        </label>
-      </fieldset>
+  <div class="clock-overlay" id="clock-overlay">
+    <div class="visual-clock horizontal" id="visual-clock"></div>
+  </div>
 
-      <fieldset>
-        <legend>Timer Logic</legend>
-        <label>Type
-          <select id="timerType">
-            <option value="countdown" selected>Countdown</option>
-            <option value="countup">Countup</option>
-          </select>
-        </label>
-        <label>On finish sound
-          <select id="tune">
-            <option value="none">None</option>
-            <option value="chime" selected>Subtle Chime</option>
-            <option value="bell">Soft Bell</option>
-            <option value="ping">Ping</option>
-          </select>
-        </label>
-        <label>Volume <input id="tuneVol" type="range" min="0" max="1" step="0.01" value="0.3"></label>
-      </fieldset>
 
-      <fieldset>
-        <legend>Config</legend>
-        <div class="row">
-          <button id="saveConfigBtn">Save</button>
-          <button id="exportConfigBtn">Export</button>
-          <label class="row"><button id="importConfigBtn">Import</button><input id="importConfig" type="file" accept=".json" style="display:none;" /></label>
+  <button class="settings-toggle" id="settings-toggle" title="Settings">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor">
+      <path d="m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z"/>
+    </svg>
+  </button>
+
+  <div class="control-panel" id="control-panel">
+    <div class="panel-header">
+      <h2>Settings</h2>
+      <div class="header-buttons">
+        <button class="info-toggle" id="info-toggle" title="Instructions">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor">
+            <path d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/>
+          </svg>
+        </button>
+        <button class="panel-close" id="panel-close">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 -960 960 960" fill="currentColor">
+            <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="panel-content">
+      <!-- Instructions Panel -->
+      <div class="instructions-panel" id="instructions-panel">
+        <h4>Controls</h4>
+        <p>• Single tap/click: Zoom in (fewer tiles)</p>
+        <p>• Double tap/click: Zoom out (more tiles)</p>
+        <p>• Pinch gesture: Zoom in/out</p>
+      </div>
+
+      <!-- Image Upload Section -->
+      <div class="panel-section">
+        <h3>Background Image</h3>
+        <input type="file" id="file-input" accept="image/*">
+        <div class="upload-area" id="upload-area">
+          <p>Click to upload image</p>
         </div>
-      </fieldset>
+        <div class="image-preview" id="image-preview">
+          <img id="preview-img" src="" alt="Preview">
+          <button class="remove-btn" id="remove-image">&times;</button>
+        </div>
+        <button class="apply-btn" id="apply-image" disabled>Apply Image</button>
+      </div>
 
+      <!-- Animation Section -->
+      <div class="panel-section">
+        <h3>Animation</h3>
+        <div class="control-group">
+          <label>Animation Mode</label>
+          <select id="animation-mode">
+            <option value="breathe">Breathe</option>
+            <option value="wave">Wave (Rows)</option>
+            <option value="scan">Scan (Columns)</option>
+            <option value="snake">Snake</option>
+            <option value="fade">Fade</option>
+            <option value="sparkle">Sparkle</option>
+            <option value="ripple">Ripple (Center Out)</option>
+            <option value="cascade">Cascade (Diagonal)</option>
+            <option value="pulse">Pulse (Checkerboard)</option>
+            <option value="rain">Rain (Falling)</option>
+            <option value="heartbeat">Heartbeat</option>
+            <option value="spiral">Spiral</option>
+            <option value="none">None</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Cycle Duration - Minutes</label>
+          <div class="range-group">
+            <input type="range" id="duration-minutes" min="0" max="60" value="0">
+            <output id="minutes-output">0m</output>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>Cycle Duration - Seconds</label>
+          <div class="range-group">
+            <input type="range" id="duration-seconds" min="0" max="60" value="15">
+            <output id="seconds-output">15s</output>
+          </div>
+        </div>
+      </div>
+
+      <!-- Clock Layout Section -->
+      <div class="panel-section">
+        <h3>Clock Layout</h3>
+        <div class="control-group">
+          <label>Orientation</label>
+          <select id="clock-orientation">
+            <option value="horizontal">Horizontal (H M S)</option>
+            <option value="vertical">Vertical (H M S)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Dot Spacing (px)</label>
+          <div class="range-group">
+            <input type="range" id="dot-spacing" min="0" max="15" value="3">
+            <output id="spacing-output">3px</output>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hours Block Config -->
+      <div class="panel-section">
+        <h3>Hours Block (24 dots)</h3>
+        <div class="control-row">
+          <div class="control-group">
+            <label>Columns</label>
+            <input type="number" id="hours-cols" min="1" max="24" value="4">
+          </div>
+          <div class="control-group">
+            <label>Rows (auto)</label>
+            <input type="number" id="hours-rows" value="6" disabled>
+          </div>
+        </div>
+      </div>
+
+      <!-- Minutes/Seconds Block Config -->
+      <div class="panel-section">
+        <h3>Minutes/Seconds Blocks (60 dots each)</h3>
+        <div class="control-row">
+          <div class="control-group">
+            <label>Columns</label>
+            <input type="number" id="minsec-cols" min="1" max="60" value="10">
+          </div>
+          <div class="control-group">
+            <label>Rows (auto)</label>
+            <input type="number" id="minsec-rows" value="6" disabled>
+          </div>
+        </div>
+      </div>
+
+      <!-- Colors Section -->
+      <div class="panel-section">
+        <h3>Colors</h3>
+        <div class="control-group">
+          <label>Active Dot Color</label>
+          <input type="color" id="active-color" value="#FFFFFF">
+        </div>
+        <div class="control-group">
+          <label>Inactive Dot Color</label>
+          <input type="color" id="inactive-color" value="#333333">
+        </div>
+      </div>
     </div>
   </div>
-</div>
 
-  </div>
-</div>
-<script>
-// Drawer & handle
-const handle=document.getElementById('handle');
-const drawer=document.getElementById('drawer');
-let drawerOpen=true; handle.addEventListener('click',()=>{drawerOpen=!drawerOpen; drawer.classList.toggle('open',drawerOpen)});// Canvases const bg=document.getElementById('bg'); const bctx=bg.getContext('2d'); const ui=document.getElementById('ui'); const ctx=ui.getContext('2d');
+  <script>
+    // ============================================================
+    // DEBUG FLAG - Set to true to enable touch/sound features
+    // ============================================================
+    const DEBUG_TOUCH_SOUND = false;
 
-// Controls const bgColor=document.getElementById('bgColor'); const colPrimary=document.getElementById('colPrimary'); const colSecondary=document.getElementById('colSecondary'); const colAccent=document.getElementById('colAccent'); const period=document.getElementById('period'); const density=document.getElementById('density'); const gamma=document.getElementById('gamma'); const modeSel=document.getElementById('mode'); const visModel=document.getElementById('visModel'); const showHoverTime=document.getElementById('showHoverTime');
+    // ============================================================
+    // STATE MANAGEMENT
+    // ============================================================
+    const state = {
+      // Zoom/Tiling: 0 = 1 tile, 1 = 2 tiles, 2 = 4 tiles, etc. (2^tilingStep)
+      tilingStep: 0,
+      uploadedImage: null,
+      loadedImage: null,
+      animationMode: 'breathe',
+      durationMinutes: 0,
+      durationSeconds: 15,
+      clockOrientation: 'horizontal',
+      hoursCols: 4,
+      minSecCols: 10,
+      activeColor: '#FFFFFF',
+      inactiveColor: '#333333',
+      dotSpacing: 3,
+      hours: 0,
+      minutes: 0,
+      seconds: 0
+    };
 
-// Quick timer bar const qt=document.getElementById('quickTimer'); const qtMin=document.getElementById('qtMin'); const qtSec=document.getElementById('qtSec'); const qtStart=document.getElementById('qtStart'); const qtStop=document.getElementById('qtStop'); const qtMode=document.getElementById('qtMode'); qtMode.textContent = (modeSel.value==='clock')? 'Clock' : 'Timer'; modeSel.addEventListener('change',()=>{ qtMode.textContent = (modeSel.value==='clock')? 'Clock' : 'Timer'; });
+    // ============================================================
+    // DOM ELEMENTS
+    // ============================================================
+    const canvas = document.getElementById('main-canvas');
+    const ctx = canvas.getContext('2d');
+    const visualClock = document.getElementById('visual-clock');
+    const settingsToggle = document.getElementById('settings-toggle');
+    const controlPanel = document.getElementById('control-panel');
+    const panelClose = document.getElementById('panel-close');
+    const infoToggle = document.getElementById('info-toggle');
+    const instructionsPanel = document.getElementById('instructions-panel');
+    const fileInput = document.getElementById('file-input');
+    const uploadArea = document.getElementById('upload-area');
+    const imagePreview = document.getElementById('image-preview');
+    const previewImg = document.getElementById('preview-img');
+    const removeImageBtn = document.getElementById('remove-image');
+    const applyImageBtn = document.getElementById('apply-image');
 
-// Time overlay const overlay=document.getElementById('timeOverlay'); ui.addEventListener('mouseenter',()=> overlay.style.display = showHoverTime.checked ? 'block':'none'); ui.addEventListener('mouseleave',()=> overlay.style.display = 'none'); document.addEventListener('mousemove', e=>{ const r=ui.getBoundingClientRect(); if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom){ overlay.style.display = showHoverTime.checked ? 'block':'none'; overlay.style.left = (e.clientX+12)+'px'; overlay.style.top=(e.clientY+12)+'px'; } });
+    const animationModeSelect = document.getElementById('animation-mode');
+    const durationMinutesSlider = document.getElementById('duration-minutes');
+    const durationSecondsSlider = document.getElementById('duration-seconds');
+    const minutesOutput = document.getElementById('minutes-output');
+    const secondsOutput = document.getElementById('seconds-output');
+    const clockOrientationSelect = document.getElementById('clock-orientation');
+    const dotSpacingSlider = document.getElementById('dot-spacing');
+    const spacingOutput = document.getElementById('spacing-output');
+    const hoursColsInput = document.getElementById('hours-cols');
+    const hoursRowsInput = document.getElementById('hours-rows');
+    const minSecColsInput = document.getElementById('minsec-cols');
+    const minSecRowsInput = document.getElementById('minsec-rows');
+    const activeColorInput = document.getElementById('active-color');
+    const inactiveColorInput = document.getElementById('inactive-color');
 
-// Mobile: reveal quick bar on touch let hideQuickTimerTO=null; function revealQuickTimer(){ qt.classList.remove('hidden'); if(hideQuickTimerTO) clearTimeout(hideQuickTimerTO); hideQuickTimerTO=setTimeout(()=> qt.classList.add('hidden'), 2000); } document.addEventListener('mousemove', ()=> { if(isRunning) revealQuickTimer(); }); document.addEventListener('touchstart', ()=> { if(isRunning) revealQuickTimer(); }, {passive:true});
+    // ============================================================
+    // UTILITY FUNCTIONS
+    // ============================================================
+    function formatDuration(seconds) {
+      if (seconds < 60) return seconds + 's';
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+    }
 
-function resize(){ const dpr=Math.min(2, window.devicePixelRatio||1); const w=Math.floor(bg.clientWidthdpr); const h=Math.floor(bg.clientHeightdpr); if(bg.width!==w||bg.height!==h){ bg.width=w; bg.height=h; ui.width=w; ui.height=h; } } window.addEventListener('resize',resize);
+    function getTotalDurationMs() {
+      const totalSeconds = state.durationMinutes * 60 + state.durationSeconds;
+      // Minimum 1 second to avoid division by zero
+      return Math.max(1, totalSeconds) * 1000;
+    }
 
-// Lightweight background let t0 = performance.now()/1000; function drawBackground(){ const w=bg.width, h=bg.height; const cx=w/2, cy=h/2; bctx.clearRect(0,0,w,h); bctx.fillStyle=bgColor.value; bctx.fillRect(0,0,w,h); // subtle animated rings const time=performance.now()/1000 - t0; const per=Math.max(0.1, +period.value); const phase=(time%per)/per; const dens=Math.max(0.5, +density.value); const maxR=Math.hypot(w,h)/2; const step=Math.max(6, 40/dens); bctx.save(); bctx.translate(cx,cy); bctx.globalAlpha=0.18; bctx.strokeStyle='rgba(255,255,255,0.22)'; bctx.lineWidth=Math.max(1, Math.floor(Math.max(w,h)/900)); const shift=phasestep2; for(let r=step; r<maxR; r+=step){ const rr=r+shift; bctx.beginPath(); bctx.arc(0,0, rr, 0, Math.PI2); bctx.stroke(); } bctx.restore(); const g=Math.max(0.5, +gamma.value); if(g!==1){ const img=bctx.getImageData(0,0,w,h); const d=img.data; const inv=1/g; for(let i=0;i<d.length;i+=4){ d[i]=255Math.pow(d[i]/255,inv); d[i+1]=255Math.pow(d[i+1]/255,inv); d[i+2]=255Math.pow(d[i+2]/255,inv);} bctx.putImageData(img,0,0);} }
+    // ============================================================
+    // CONTROL PANEL
+    // ============================================================
+    settingsToggle.addEventListener('click', () => {
+      controlPanel.classList.add('open');
+    });
 
-// Simple visuals (placeholder): radial ring & hand function drawOverlay(){ ctx.clearRect(0,0,ui.width,ui.height); const cx=ui.width/2, cy=ui.height/2; const R=Math.min(ui.width,ui.height)0.32; // track ctx.strokeStyle=colSecondary.value; ctx.lineWidth=Math.max(2, R0.06); ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI2); ctx.stroke(); // progress const frac = (Date.now()/1000%60)/60; ctx.strokeStyle=colPrimary.value; ctx.lineWidth=Math.max(2, R0.06); ctx.beginPath(); ctx.arc(cx,cy,R,-Math.PI/2,-Math.PI/2+frac2Math.PI); ctx.stroke(); // hand ctx.strokeStyle=colAccent.value; ctx.lineWidth=Math.max(2, R0.02); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx + Math.cos(frac2Math.PI - Math.PI/2)R0.85, cy + Math.sin(frac2*Math.PI - Math.PI/2)R0.85); ctx.stroke(); }
+    panelClose.addEventListener('click', () => {
+      controlPanel.classList.remove('open');
+    });
 
-// Timer engine (persists across tab by using wall clock) let isRunning=false, isCountdown=true, startWall=0, endWall=0, targetSeconds=300; // default 5:00 const timerType=document.getElementById('timerType'); function setFromInputs(){ const m=Math.max(0, Math.floor(+qtMin.value||0)); const s=Math.max(0, Math.min(59, Math.floor(+qtSec.value||0))); targetSeconds = m*60 + s; } function fmt(sec){ sec=Math.max(0, Math.floor(sec)); const m=((sec/60)|0); const s=sec%60; return String(m).padStart(2,'0')+":"+String(s).padStart(2,'0'); } function nowSec(){ return Date.now()/1000; } function updateOverlayText(){ if(modeSel.value==='clock'){ overlay.textContent=new Date().toLocaleTimeString(); } else { const remain = isCountdown ? Math.max(0, Math.ceil(endWall - nowSec())) : Math.max(0, Math.ceil(nowSec() - startWall)); overlay.textContent=fmt(remain); } }
+    infoToggle.addEventListener('click', () => {
+      instructionsPanel.classList.toggle('visible');
+    });
 
-// Audio (subtle tune) const tuneSel=document.getElementById('tune'); const tuneVol=document.getElementById('tuneVol'); let audioCtx=null; function playTune(kind){ if(kind==='none') return; if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); const t=audioCtx.currentTime; const seq = (kind==='bell')? [523.25,392,261.63] : (kind==='ping')? [880] : [660, 880, 660]; const dur=0.16; seq.forEach((f,i)=>{ const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type=(kind==='bell')?'sine':'triangle'; o.frequency.value=f; g.gain.value=0; g.gain.linearRampToValueAtTime(+tuneVol.value, t+idur+0.01); g.gain.exponentialRampToValueAtTime(0.001, t+idur+dur); o.connect(g).connect(audioCtx.destination); o.start(t+idur); o.stop(t+idur+dur+0.05); }); }
+    document.addEventListener('click', (e) => {
+      if (controlPanel.classList.contains('open') && 
+          !controlPanel.contains(e.target) && 
+          e.target !== settingsToggle &&
+          !settingsToggle.contains(e.target)) {
+        controlPanel.classList.remove('open');
+      }
+    });
 
-function startTimer(){ setFromInputs(); isCountdown = (timerType.value==='countdown'); const now=nowSec(); if(isCountdown){ endWall = now + targetSeconds; startWall = now; } else { startWall = now; endWall = now + targetSeconds; } isRunning=true; qtStart.disabled=true; qtStop.disabled=false; qt.classList.add('hidden'); } function stopTimer(){ isRunning=false; qtStart.disabled=false; qtStop.disabled=true; }
+    // ============================================================
+    // IMAGE UPLOAD
+    // ============================================================
+    uploadArea.addEventListener('click', () => fileInput.click());
 
-qtStart.addEventListener('click', ()=> startTimer()); qtStop.addEventListener('click', ()=> stopTimer());
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          state.uploadedImage = event.target.result;
+          previewImg.src = event.target.result;
+          imagePreview.classList.add('has-image');
+          applyImageBtn.disabled = false;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
 
-// Frame loop let lastDone=false; function frame(){ resize(); drawBackground(); drawOverlay(); // overlay readout updateOverlayText(); if(isRunning){ const now=nowSec(); const remaining = isCountdown ? (endWall - now) : (now - startWall); const finished = isCountdown ? (remaining<=0) : ((now - startWall) >= targetSeconds); if(finished && !lastDone){ playTune(tuneSel.value); lastDone=true; } if(!finished){ lastDone=false; } } requestAnimationFrame(frame); } resize(); frame();
+    removeImageBtn.addEventListener('click', () => {
+      state.uploadedImage = null;
+      state.loadedImage = null;
+      fileInput.value = '';
+      imagePreview.classList.remove('has-image');
+      applyImageBtn.disabled = true;
+    });
 
-// Config save/load/export/import function gatherConfig(){ return { bgColor:bgColor.value, colPrimary:colPrimary.value, colSecondary:colSecondary.value, colAccent:colAccent.value, period:+period.value, density:+density.value, gamma:+gamma.value, mode:modeSel.value, visModel:visModel.value, showHoverTime:showHoverTime.checked, tune:tuneSel.value, tuneVol:+tuneVol.value, qtMin:+qtMin.value, qtSec:+qtSec.value, timerType:timerType.value }; } function applyConfig(cfg){ if(cfg.bgColor) bgColor.value=cfg.bgColor; if(cfg.colPrimary) colPrimary.value=cfg.colPrimary; if(cfg.colSecondary) colSecondary.value=cfg.colSecondary; if(cfg.colAccent) colAccent.value=cfg.colAccent; if(cfg.period!=null) period.value=cfg.period; if(cfg.density!=null) density.value=cfg.density; if(cfg.gamma!=null) gamma.value=cfg.gamma; if(cfg.mode) {modeSel.value=cfg.mode; qtMode.textContent=(cfg.mode==='clock')?'Clock':'Timer';} if(cfg.visModel) visModel.value=cfg.visModel; if(cfg.showHoverTime!=null) showHoverTime.checked=cfg.showHoverTime; if(cfg.tune) tuneSel.value=cfg.tune; if(cfg.tuneVol!=null) tuneVol.value=cfg.tuneVol; if(cfg.qtMin!=null) qtMin.value=cfg.qtMin; if(cfg.qtSec!=null) qtSec.value=cfg.qtSec; if(cfg.timerType) timerType.value=cfg.timerType; }
+    applyImageBtn.addEventListener('click', () => {
+      if (state.uploadedImage) {
+        const img = new Image();
+        img.onload = () => {
+          state.loadedImage = img;
+          state.tilingStep = 0;
+        };
+        img.src = state.uploadedImage;
+      }
+    });
 
-const saveBtn=document.getElementById('saveConfigBtn'); saveBtn.addEventListener('click',()=>{ localStorage.setItem('infinite_loop_config', JSON.stringify(gatherConfig())); alert('Saved'); }); const exportBtn=document.getElementById('exportConfigBtn'); function filenameForExport(){ const m=(modeSel.value||'mode'); const d=new Date(); const date=${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}; const time=${String(d.getHours()).padStart(2,'0')}-${String(d.getMinutes()).padStart(2,'0')}-${String(d.getSeconds()).padStart(2,'0')}; return infinite_loop_${m}_${date}_${time}.json; } exportBtn.addEventListener('click',()=>{ const blob=new Blob([JSON.stringify(gatherConfig(),null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filenameForExport(); a.click(); }); const importBtn=document.getElementById('importConfigBtn'); const importInput=document.getElementById('importConfig'); importBtn.addEventListener('click',()=> importInput.click()); importInput.addEventListener('change',e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ const cfg=JSON.parse(r.result); applyConfig(cfg); localStorage.setItem('infinite_loop_config', JSON.stringify(cfg)); }catch{ alert('Invalid JSON'); } }; r.readAsText(f); });
+    // ============================================================
+    // CONTROL INPUTS
+    // ============================================================
+    animationModeSelect.addEventListener('change', (e) => {
+      state.animationMode = e.target.value;
+    });
 
-// Auto-load last config try{ const last=localStorage.getItem('infinite_loop_config'); if(last) applyConfig(JSON.parse(last)); }catch{} </script>
+    durationMinutesSlider.addEventListener('input', (e) => {
+      state.durationMinutes = parseInt(e.target.value);
+      minutesOutput.textContent = state.durationMinutes + 'm';
+    });
 
+    durationSecondsSlider.addEventListener('input', (e) => {
+      state.durationSeconds = parseInt(e.target.value);
+      secondsOutput.textContent = state.durationSeconds + 's';
+    });
+
+    clockOrientationSelect.addEventListener('change', (e) => {
+      state.clockOrientation = e.target.value;
+      visualClock.className = 'visual-clock ' + state.clockOrientation;
+      renderClock();
+    });
+
+    dotSpacingSlider.addEventListener('input', (e) => {
+      state.dotSpacing = parseInt(e.target.value);
+      spacingOutput.textContent = state.dotSpacing + 'px';
+      renderClock();
+    });
+
+    hoursColsInput.addEventListener('change', (e) => {
+      state.hoursCols = Math.max(1, Math.min(24, parseInt(e.target.value) || 4));
+      hoursColsInput.value = state.hoursCols;
+      hoursRowsInput.value = Math.ceil(24 / state.hoursCols);
+      renderClock();
+    });
+
+    minSecColsInput.addEventListener('change', (e) => {
+      state.minSecCols = Math.max(1, Math.min(60, parseInt(e.target.value) || 10));
+      minSecColsInput.value = state.minSecCols;
+      minSecRowsInput.value = Math.ceil(60 / state.minSecCols);
+      renderClock();
+    });
+
+    activeColorInput.addEventListener('input', (e) => {
+      state.activeColor = e.target.value;
+      renderClock();
+    });
+
+    inactiveColorInput.addEventListener('input', (e) => {
+      state.inactiveColor = e.target.value;
+      renderClock();
+    });
+
+    hoursRowsInput.value = Math.ceil(24 / state.hoursCols);
+    minSecRowsInput.value = Math.ceil(60 / state.minSecCols);
+
+    // ============================================================
+    // ZOOM HANDLING
+    // ============================================================
+    let clickTimer = null;
+    let lastTapTime = 0;
+    let lastPinchDist = 0;
+
+    function zoomIn() {
+      // Zoom in = make things bigger
+      if (state.loadedImage) {
+        // With image: decrease tiles, minimum 1 tile
+        if (state.tilingStep > 0) {
+          state.tilingStep--;
+        }
+      } else {
+        // Default pattern: scale up circles
+        if (state.tilingStep > -5) {
+          state.tilingStep--;
+        }
+      }
+    }
+
+    function zoomOut() {
+      // Zoom out = make things smaller / more tiles
+      if (state.loadedImage) {
+        // With image: increase tiles
+        if (state.tilingStep < 10) {
+          state.tilingStep++;
+        }
+      } else {
+        // Default pattern: scale down circles
+        if (state.tilingStep < 5) {
+          state.tilingStep++;
+        }
+      }
+    }
+
+    // Mouse click handling
+    canvas.addEventListener('click', (e) => {
+      if (controlPanel.classList.contains('open')) return;
+      
+      const now = Date.now();
+      if (now - lastTapTime < 300) {
+        // Double click - zoom out
+        clearTimeout(clickTimer);
+        clickTimer = null;
+        zoomOut();
+      } else {
+        // Single click - zoom in
+        clickTimer = setTimeout(() => {
+          zoomIn();
+          clickTimer = null;
+        }, 300);
+      }
+      lastTapTime = now;
+    });
+
+    // Touch handling
+    canvas.addEventListener('touchstart', (e) => {
+      if (controlPanel.classList.contains('open')) return;
+      
+      if (e.touches.length === 2) {
+        // Pinch start
+        lastPinchDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        e.preventDefault();
+      } else if (e.touches.length === 1) {
+        const now = Date.now();
+        if (now - lastTapTime < 300) {
+          // Double tap - zoom out
+          clearTimeout(clickTimer);
+          clickTimer = null;
+          zoomOut();
+          e.preventDefault();
+        } else {
+          // Potential single tap - zoom in
+          clickTimer = setTimeout(() => {
+            zoomIn();
+            clickTimer = null;
+          }, 300);
+        }
+        lastTapTime = now;
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2) {
+        const currentDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        
+        const threshold = 50;
+        if (Math.abs(currentDist - lastPinchDist) > threshold) {
+          if (currentDist > lastPinchDist) {
+            zoomIn(); // Pinch out = zoom in (fewer tiles)
+          } else {
+            zoomOut(); // Pinch in = zoom out (more tiles)
+          }
+          lastPinchDist = currentDist;
+        }
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    // ============================================================
+    // CLOCK RENDERING
+    // ============================================================
+    function renderClock() {
+      visualClock.innerHTML = '';
+
+      const blocks = [
+        { label: 'Hours', count: state.hours, total: 24, cols: state.hoursCols },
+        { label: 'Minutes', count: state.minutes, total: 60, cols: state.minSecCols },
+        { label: 'Seconds', count: state.seconds, total: 60, cols: state.minSecCols }
+      ];
+
+      blocks.forEach(block => {
+        const group = document.createElement('div');
+        group.className = 'visual-clock-group';
+
+        const blocksContainer = document.createElement('div');
+        blocksContainer.className = 'visual-clock-blocks';
+        blocksContainer.style.gridTemplateColumns = `repeat(${block.cols}, 1fr)`;
+        blocksContainer.style.gap = `${state.dotSpacing}px`;
+
+        for (let i = 0; i < block.total; i++) {
+          const dot = document.createElement('div');
+          dot.className = 'visual-clock-block';
+          dot.style.backgroundColor = i < block.count ? state.activeColor : state.inactiveColor;
+          blocksContainer.appendChild(dot);
+        }
+
+        const label = document.createElement('div');
+        label.className = 'visual-clock-label';
+        label.textContent = block.label;
+
+        group.appendChild(blocksContainer);
+        group.appendChild(label);
+        visualClock.appendChild(group);
+      });
+    }
+
+    function updateTime() {
+      const now = new Date();
+      state.hours = now.getHours();
+      state.minutes = now.getMinutes();
+      state.seconds = now.getSeconds();
+      renderClock();
+    }
+
+    setInterval(updateTime, 1000);
+    updateTime();
+
+    // ============================================================
+    // CANVAS SETUP
+    // ============================================================
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // ============================================================
+    // GRID CALCULATION
+    // ============================================================
+    function getGridDimensions() {
+      // tilingStep: 0 = 1 tile, 1 = 2 tiles, 2 = 4 tiles, 3 = 8 tiles, etc.
+      // Total tiles = 2^tilingStep
+      const totalTiles = Math.pow(2, state.tilingStep);
+      let cols, rows;
+      
+      if (state.tilingStep === 0) {
+        cols = 1;
+        rows = 1;
+      } else if (state.tilingStep % 2 === 0) {
+        // Even steps: square grid
+        cols = Math.pow(2, state.tilingStep / 2);
+        rows = cols;
+      } else {
+        // Odd steps: wider than tall
+        cols = Math.pow(2, (state.tilingStep + 1) / 2);
+        rows = Math.pow(2, (state.tilingStep - 1) / 2);
+      }
+      
+      return { cols, rows, totalTiles };
+    }
+
+    // ============================================================
+    // ANIMATION EFFECTS
+    // ============================================================
+    function getAnimationEffect(x, y, cols, rows, timestamp) {
+      const cycleMs = getTotalDurationMs();
+      const progress = (timestamp % cycleMs) / cycleMs;
+      const totalCells = cols * rows;
+      const cellIndex = y * cols + x;
+      
+      const centerX = (cols - 1) / 2;
+      const centerY = (rows - 1) / 2;
+      const distFromCenter = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+      const maxDist = Math.sqrt(Math.pow(centerX, 2) + Math.pow(centerY, 2)) || 1;
+
+      switch (state.animationMode) {
+        case 'breathe':
+          const breath = (Math.sin(progress * Math.PI * 2) + 1) / 2;
+          return { scale: 1.0 + breath * 0.08, alpha: 0 };
+          
+        case 'wave':
+          const activeRow = Math.floor(progress * rows);
+          return { scale: 1, alpha: y === activeRow ? 0.4 : 0 };
+          
+        case 'scan':
+          const activeCol = Math.floor(progress * cols);
+          return { scale: 1, alpha: x === activeCol ? 0.4 : 0 };
+          
+        case 'snake':
+          const snakeIndex = Math.floor(progress * totalCells);
+          return { scale: 1, alpha: cellIndex === snakeIndex ? 0.5 : 0 };
+          
+        case 'fade':
+          const fadeAlpha = ((Math.sin(progress * Math.PI * 2) + 1) / 2) * 0.5;
+          return { scale: 1, alpha: fadeAlpha };
+          
+        case 'sparkle':
+          const sparklePhase = Math.floor(progress * 20);
+          const sparkleVal = Math.sin(x * 12.9898 + y * 78.233 + sparklePhase * 43758.5453) * 0.5 + 0.5;
+          return { scale: 1, alpha: sparkleVal > 0.85 ? 0.5 : 0 };
+          
+        case 'ripple':
+          const rippleProgress = progress * maxDist * 1.5;
+          const rippleDist = Math.abs(distFromCenter - rippleProgress);
+          return { scale: 1, alpha: rippleDist < 1.5 ? 0.5 : 0 };
+          
+        case 'cascade':
+          const diagProgress = progress * (cols + rows);
+          const diagPos = x + y;
+          return { scale: 1, alpha: Math.abs(diagPos - diagProgress) < 1 ? 0.5 : 0 };
+          
+        case 'pulse':
+          const pulsePhase = Math.floor(progress * 4);
+          const isEvenCell = (x + y) % 2 === 0;
+          return { scale: 1, alpha: (pulsePhase % 2 === 0) === isEvenCell ? 0.3 : 0 };
+          
+        case 'rain':
+          const rainCols = 3;
+          let isRaining = false;
+          for (let i = 0; i < rainCols; i++) {
+            const colOffset = Math.floor(cols / rainCols) * i + Math.floor(cols / (rainCols * 2));
+            const rowProgress = (progress * 2 + i * 0.3) % 1;
+            const activeRainRow = Math.floor(rowProgress * (rows + 3)) - 2;
+            if (x === colOffset % cols && y >= activeRainRow - 2 && y <= activeRainRow) {
+              isRaining = true;
+              break;
+            }
+          }
+          return { scale: 1, alpha: isRaining ? 0.4 : 0 };
+          
+        case 'heartbeat':
+          const heartCycle = progress * 2;
+          const heartPhase = heartCycle % 1;
+          let heartScale = 1;
+          if (heartPhase < 0.1) heartScale = 1 + heartPhase * 2;
+          else if (heartPhase < 0.2) heartScale = 1.2 - (heartPhase - 0.1) * 2;
+          else if (heartPhase < 0.3) heartScale = 1 + (heartPhase - 0.2) * 1.5;
+          else if (heartPhase < 0.4) heartScale = 1.15 - (heartPhase - 0.3) * 1.5;
+          return { scale: heartScale, alpha: 0 };
+          
+        case 'spiral':
+          const angle = Math.atan2(y - centerY, x - centerX);
+          const normalizedAngle = (angle + Math.PI) / (Math.PI * 2);
+          const spiralOffset = (distFromCenter / maxDist) * 0.5;
+          const spiralProgress = (progress + spiralOffset) % 1;
+          const angleDiff = Math.abs(normalizedAngle - spiralProgress);
+          return { scale: 1, alpha: (angleDiff < 0.08 || angleDiff > 0.92) ? 0.4 : 0 };
+          
+        default:
+          return { scale: 1, alpha: 0 };
+      }
+    }
+
+    // ============================================================
+    // DRAWING - DEFAULT CONCENTRIC CIRCLES
+    // ============================================================
+    function drawDefaultPattern(timestamp) {
+      const cycleMs = getTotalDurationMs();
+      // Progress 0-1 through one complete cycle
+      const progress = (timestamp % cycleMs) / cycleMs;
+      // One complete breath (in and out) per cycle
+      const pulse = Math.sin(progress * Math.PI * 2) * 10;
+      
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1;
+      
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      
+      // Zoom: tilingStep 0 = normal size
+      // Negative = zoomed in (bigger), Positive = zoomed out (smaller)
+      const scale = Math.pow(2, -state.tilingStep);
+      
+      for (let i = 0; i < 20; i++) {
+        const baseSize = i * 30 + pulse;
+        const size = baseSize * scale;
+        if (size > 0) {
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, size, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.font = `${Math.max(10, 16 * scale)}px Roboto Mono`;
+      ctx.textAlign = 'center';
+      ctx.fillText('Upload an image in Settings to start the mosaic', centerX, centerY + (100 * scale));
+    }
+
+    // ============================================================
+    // DRAWING - IMAGE MOSAIC
+    // ============================================================
+    function drawImageMosaic(timestamp, cols, rows, tileW, tileH) {
+      const img = state.loadedImage;
+      const imgAspect = img.width / img.height;
+      
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const anim = getAnimationEffect(x, y, cols, rows, timestamp);
+          
+          let xPos = x * tileW;
+          let yPos = y * tileH;
+          let drawW = tileW;
+          let drawH = tileH;
+          
+          // Apply scale animation
+          if (anim.scale !== 1) {
+            drawW *= anim.scale;
+            drawH *= anim.scale;
+            xPos -= (drawW - tileW) / 2;
+            yPos -= (drawH - tileH) / 2;
+          }
+
+          // Calculate source crop to maintain aspect ratio
+          const tileAspect = tileW / tileH;
+          let srcX = 0, srcY = 0, srcW = img.width, srcH = img.height;
+          
+          if (imgAspect > tileAspect) {
+            // Image is wider - crop sides
+            srcW = img.height * tileAspect;
+            srcX = (img.width - srcW) / 2;
+          } else {
+            // Image is taller - crop top/bottom
+            srcH = img.width / tileAspect;
+            srcY = (img.height - srcH) / 2;
+          }
+
+          ctx.drawImage(img, srcX, srcY, srcW, srcH, xPos, yPos, drawW, drawH);
+
+          // Draw overlay effect
+          if (anim.alpha > 0) {
+            const alphaHex = Math.floor(anim.alpha * 255).toString(16).padStart(2, '0');
+            ctx.fillStyle = state.activeColor + alphaHex;
+            ctx.fillRect(x * tileW, y * tileH, tileW, tileH);
+          }
+        }
+      }
+    }
+
+    // ============================================================
+    // MAIN DRAW LOOP
+    // ============================================================
+    function draw(timestamp) {
+      const width = canvas.width;
+      const height = canvas.height;
+
+      // Clear canvas
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, width, height);
+
+      // Get grid dimensions based on tiling step
+      const { cols, rows } = getGridDimensions();
+      const tileW = width / cols;
+      const tileH = height / rows;
+
+      // Draw either default pattern or uploaded image
+      if (!state.loadedImage) {
+        drawDefaultPattern(timestamp);
+      } else {
+        drawImageMosaic(timestamp, cols, rows, tileW, tileH);
+      }
+
+      requestAnimationFrame(draw);
+    }
+
+    // Start rendering
+    requestAnimationFrame(draw);
+  </script>
 </body>
 </html>
