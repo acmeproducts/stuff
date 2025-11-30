@@ -133,7 +133,7 @@
         input:checked + .slider { background-color: #8ec5fc; }
         input:checked + .slider:before { transform: translateX(22px); }
 
-        textarea, select {
+        textarea {
             width: 100%;
             padding: 10px;
             border-radius: 6px;
@@ -142,8 +142,8 @@
             font-family: inherit;
             font-size: 14px;
             resize: vertical;
+            height: 80px;
         }
-        textarea { height: 60px; }
 
         .theme-btn {
             background: #f0f0f0; border: none; padding: 12px; border-radius: 8px;
@@ -160,7 +160,7 @@
     <div id="canvas-container">
         <canvas id="gameCanvas"></canvas>
         <div id="overlay">Tap to Bloom<br>Double Tap for Vine</div>
-        <div id="master-footer">The Garden of Compassion - v1.5 - 2025-12-01 03:28 AM</div>
+        <div id="master-footer">The Garden of Compassion - v1.6 - 2025-12-01 04:30 AM</div>
     </div>
 
     <div id="settings-trigger">
@@ -176,18 +176,6 @@
                 <input type="checkbox" id="audio-toggle" checked>
                 <span class="slider"></span>
             </label>
-        </div>
-        
-        <div class="control-group">
-            <span class="control-label">Sound Design</span>
-            <select id="sound-profile">
-                <option value="zen">Zen (Pentatonic Chimes)</option>
-                <option value="deep">Deep (Low Resonance)</option>
-                <option value="ethereal">Ethereal (High Glass)</option>
-                <option value="forest">Forest (Dorian/Nature)</option>
-                <option value="sunrise">Sunrise (Lydian/Bright)</option>
-                <option value="cosmic">Cosmic (Whole Tone)</option>
-            </select>
         </div>
 
         <div class="control-group">
@@ -219,84 +207,63 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        // --- Audio Engine ---
+        // --- Audio Engine (Karplus-Strong Synthesis) ---
+        // Ported from synesthetic_experience_updated.html
         const ZenAudio = {
             ctx: null,
             enabled: true,
-            profile: 'zen',
-            
-            // Musical Scales (Frequencies in Hz)
-            scales: {
-                zen: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25], // C Major Pentatonic
-                deep: [130.81, 146.83, 164.81, 196.00, 110.00], // Low Octave
-                ethereal: [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50], // High Octave
-                forest: [293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25], // D Dorian (Nature feel)
-                sunrise: [261.63, 293.66, 329.63, 369.99, 392.00, 440.00, 493.88], // C Lydian (Bright/Magical)
-                cosmic: [261.63, 293.66, 329.63, 369.99, 415.30, 466.16] // Whole Tone (Dreamy)
-            },
+            masterGain: null,
+            // Pentatonic Scale
+            frequencies: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00],
 
             init: function() {
                 if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
                     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    this.masterGain = this.ctx.createGain();
+                    this.masterGain.gain.value = 0.3;
+                    this.masterGain.connect(this.ctx.destination);
                 }
                 if (this.ctx && this.ctx.state === 'suspended') {
                     this.ctx.resume();
                 }
             },
 
-            playTone: function(duration = 2.0, freqOverride = null, volume = 0.05) {
+            playTone: function(duration = 2.0, freqOverride = null, volume = 0.3) {
                 if (!this.ctx || !this.enabled) return;
-                
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                
-                const currentScale = this.scales[this.profile] || this.scales.zen;
-                const freq = freqOverride || currentScale[Math.floor(Math.random() * currentScale.length)];
-                
-                osc.frequency.value = freq;
-                
-                // Sound Design / Synthesis Profiles
-                let attack = 0.1;
-                let release = duration;
 
-                switch(this.profile) {
-                    case 'deep':
-                        osc.type = 'triangle';
-                        duration = 3.0; 
-                        attack = 0.5; // Slow swell
-                        break;
-                    case 'ethereal':
-                        osc.type = 'sine';
-                        volume = 0.03; 
-                        break;
-                    case 'forest':
-                        osc.type = 'sine'; // Pure
-                        attack = 0.05; // Gentle tap
-                        break;
-                    case 'sunrise':
-                        osc.type = 'triangle'; 
-                        volume = 0.04;
-                        release = duration + 1.0; // Long tail
-                        break;
-                    case 'cosmic':
-                        osc.type = 'triangle';
-                        volume = 0.03;
-                        attack = 0.2;
-                        break;
-                    default: // Zen
-                        osc.type = 'sine';
+                const freq = freqOverride || this.frequencies[Math.floor(Math.random() * this.frequencies.length)];
+                
+                // Karplus-Strong Algorithm
+                const sampleRate = this.ctx.sampleRate;
+                const bufferSize = sampleRate * duration;
+                const buffer = this.ctx.createBuffer(1, bufferSize, sampleRate);
+                const data = buffer.getChannelData(0);
+
+                const delayLength = Math.floor(sampleRate / freq);
+                const delayLine = new Float32Array(delayLength);
+
+                // Fill delay line with noise burst
+                for (let i = 0; i < delayLength; i++) {
+                    delayLine[i] = Math.random() * 2 - 1;
                 }
-                
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                
-                const now = this.ctx.currentTime;
-                gain.gain.setValueAtTime(0, now);
-                gain.gain.linearRampToValueAtTime(volume, now + attack); 
-                gain.gain.exponentialRampToValueAtTime(0.001, now + release); 
-                
-                osc.start(now);
-                osc.stop(now + release);
+
+                let index = 0;
+                let lastSample = 0;
+
+                // Synthesis loop
+                for (let i = 0; i < bufferSize; i++) {
+                    // Lowpass filter feedback
+                    const currentSample = (delayLine[index] + lastSample) * 0.5 * 0.996;
+                    lastSample = delayLine[index];
+                    delayLine[index] = currentSample;
+                    data[i] = currentSample * volume;
+                    index = (index + 1) % delayLength;
+                }
+
+                const source = this.ctx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(this.masterGain);
+                source.start();
             }
         };
 
@@ -322,6 +289,21 @@
 
         const decayRates = [0.0, 0.002, 0.005, 0.01, 0.02, 0.05]; 
 
+        // Secret Easter Egg List
+        const secretWords = [
+            "Huoi I Love You",
+            "You are my Sunshine my only sunshine",
+            "you make me happy when skys are grey",
+            "you'll never know dear how much I love you",
+            "you are the sunshine of my life",
+            "❤️❤️❤️",
+            "🥰❤️♥️🧡🫰",
+            "whereever you go that's where I want to be",
+            "ILU",
+            "I Love You My Sweetheart",
+            "My Babydoll I Love You"
+        ];
+
         const config = {
             currentThemeIndex: 0,
             defaultWords: ["Peace", "Gentle", "Warmth", "Love", "Hope", "Empathy", "Calm", "Grace", "Kindness", "Light", "Joy", "Bliss"],
@@ -337,9 +319,22 @@
         // --- Helper: Word Selection ---
         function getRandomWord() {
             const pool = config.customWords.length > 0 
-                ? [...config.defaultWords, ...config.customWords] 
+                ? config.customWords // If custom words exist (including secret list), use them exclusively if desired, or mix.
                 : config.defaultWords;
-            return pool[Math.floor(Math.random() * pool.length)];
+            
+            // If the pool is the secret list, just pick from it.
+            // If the pool is user entered words, we can mix or just use them.
+            // Logic: If user provided words, use ONLY those + defaults? 
+            // Standard behavior: Mix custom and defaults unless secret list is active.
+            
+            // To ensure the secret words appear frequently if active:
+            if (config.customWords === secretWords) {
+                return config.customWords[Math.floor(Math.random() * config.customWords.length)];
+            }
+
+            // Normal operation:
+            const combined = config.customWords.length > 0 ? [...config.defaultWords, ...config.customWords] : config.defaultWords;
+            return combined[Math.floor(Math.random() * combined.length)];
         }
 
         const random = (min, max) => Math.random() * (max - min) + min;
@@ -465,16 +460,16 @@
 
                         this.soundTicker++;
                         if(this.soundTicker % 10 === 0) {
-                            ZenAudio.playTone(0.3, null, 0.02);
+                            // Gentle strumming sound while growing
+                            ZenAudio.playTone(0.5, null, 0.1); 
                         }
 
                         this.progress += 0.8 * config.speedMultiplier; 
                     } else {
                         this.growing = false;
                         entities.push(new Word(this.startX, this.startY - 20, getRandomWord(), 30));
-                        // Play Root note of current scale
-                        const currentScale = ZenAudio.scales[ZenAudio.profile] || ZenAudio.scales.zen;
-                        ZenAudio.playTone(3.0, currentScale[0] / 2, 0.1); 
+                        // Root note for completion
+                        ZenAudio.playTone(3.0, ZenAudio.frequencies[0] / 2, 0.2); 
                     }
                 } else {
                     if (config.decayValue > 0) {
@@ -524,7 +519,7 @@
             } else {
                 entities.push(new Bloom(x, y));
                 entities.push(new Word(x, y - 30)); 
-                ZenAudio.playTone();
+                ZenAudio.playTone(2.0, null, 0.3);
                 document.getElementById('overlay').style.opacity = 0;
             }
             
@@ -539,30 +534,54 @@
             }
         }, {passive: false});
         
-        // --- Settings Logic ---
+        // --- Settings Logic & Storage ---
         const panel = document.getElementById('settings-panel');
         document.getElementById('settings-trigger').addEventListener('click', () => panel.classList.add('open'));
         document.getElementById('close-btn').addEventListener('click', () => panel.classList.remove('open'));
         
         document.getElementById('audio-toggle').addEventListener('change', e => ZenAudio.enabled = e.target.checked);
-        document.getElementById('sound-profile').addEventListener('change', e => {
-            ZenAudio.profile = e.target.value;
-        });
+        
         document.getElementById('decay-slider').addEventListener('input', e => {
             const index = parseInt(e.target.value);
             config.decayValue = decayRates[index];
         });
         document.getElementById('speed-slider').addEventListener('input', e => config.speedMultiplier = 0.2 + (e.target.value/100)*1.8);
         
+        // Custom Words Logic
         const customArea = document.getElementById('custom-words');
-        customArea.addEventListener('input', e => {
-            const raw = e.target.value;
+
+        function loadCustomWords() {
+            const stored = localStorage.getItem('garden_custom_words');
+            if (stored) {
+                customArea.value = stored;
+                processCustomWords(stored);
+            }
+        }
+
+        function processCustomWords(raw) {
+            // Easter Egg Check
+            if (raw.trim() === '6969') {
+                config.customWords = secretWords;
+                // We keep '6969' in the box so we don't reveal the list in the UI
+                return;
+            }
+
             if (raw.trim() === "") {
                 config.customWords = [];
             } else {
                 config.customWords = raw.split(',').map(s => s.trim()).filter(s => s.length > 0);
             }
+        }
+
+        // On Blur: Save to storage
+        customArea.addEventListener('blur', (e) => {
+            const val = e.target.value;
+            localStorage.setItem('garden_custom_words', val);
+            processCustomWords(val);
         });
+
+        // Load on start
+        loadCustomWords();
 
         document.getElementById('theme-btn').addEventListener('click', () => {
             config.currentThemeIndex = (config.currentThemeIndex + 1) % themes.length;
@@ -573,15 +592,12 @@
             entities = [];
         });
 
-        // Screenshot Feature
         document.getElementById('save-btn').addEventListener('click', () => {
-            // Draw background explicitly first because canvas is transparent
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = canvas.width;
             tempCanvas.height = canvas.height;
             const tCtx = tempCanvas.getContext('2d');
             
-            // Get current gradient colors
             const theme = themes[config.currentThemeIndex];
             const grad = tCtx.createLinearGradient(0, 0, 0, canvas.height);
             grad.addColorStop(0, theme.bg[0]);
@@ -591,7 +607,6 @@
             tCtx.fillRect(0,0, tempCanvas.width, tempCanvas.height);
             tCtx.drawImage(canvas, 0, 0);
             
-            // Download
             const link = document.createElement('a');
             link.download = `garden-of-compassion-${Date.now()}.png`;
             link.href = tempCanvas.toDataURL();
