@@ -172,7 +172,6 @@
             height: 80px;
         }
 
-        /* File Upload */
         .file-upload {
             border: 1px dashed #ccc;
             padding: 15px;
@@ -202,9 +201,9 @@
 
     <div id="canvas-container">
         <canvas id="gameCanvas"></canvas>
-        <div id="overlay">Tap to Bloom<br>Double Tap to Create<br><span style="font-size:0.7em; opacity:0.8">Find the secrets</span></div>
+        <div id="overlay">Tap to Bloom<br>Double Tap for Vine</div>
         <div id="rec-indicator"><div id="rec-dot"></div>Recording</div>
-        <div id="master-footer">The Garden of Compassion - v2.0 - 2025-12-01 09:30 AM</div>
+        <div id="master-footer">The Garden of Compassion - v2.2 - 2025-12-01 12:00 PM</div>
     </div>
 
     <div id="settings-trigger">
@@ -233,7 +232,7 @@
 
         <div class="control-group">
             <span class="control-label">Custom Words / Commands</span>
-            <textarea id="custom-words" placeholder="e.g. Joy, Peace. Commands: /show /cheat"></textarea>
+            <textarea id="custom-words" placeholder="e.g. Joy, Peace. Commands: /cheat"></textarea>
         </div>
 
         <div class="control-group">
@@ -262,12 +261,8 @@
         
         // --- Audio Engine ---
         const ZenAudio = {
-            ctx: null,
-            enabled: true,
-            masterGain: null,
-            dest: null,
-            // Full Screen Scale Mapping (Low to High)
-            scale: [130.81, 146.83, 164.81, 196.00, 220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00],
+            ctx: null, enabled: true, masterGain: null, dest: null,
+            scale: [130.81, 146.83, 164.81, 196.00, 220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51],
 
             init: function() {
                 if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
@@ -287,11 +282,9 @@
                 return this.scale[Math.min(index, this.scale.length - 1)];
             },
 
-            // Instruments
             playPluck: function(freq, volume = 0.3) {
                 if (!this.ctx || !this.enabled) return;
-                const duration = 2.0;
-                const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * duration, this.ctx.sampleRate);
+                const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 2.0, this.ctx.sampleRate);
                 const data = buffer.getChannelData(0);
                 const delayLength = Math.floor(this.ctx.sampleRate / freq);
                 const delayLine = new Float32Array(delayLength).map(() => Math.random()*2-1);
@@ -306,34 +299,10 @@
                 src.connect(this.masterGain); src.start();
             },
 
-            playPad: function(freq, volume = 0.2) {
-                if (!this.ctx || !this.enabled) return;
-                const osc = this.ctx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = freq;
-                const osc2 = this.ctx.createOscillator(); osc2.type = 'sine'; osc2.frequency.value = freq * 1.01;
-                const g = this.ctx.createGain();
-                osc.connect(g); osc2.connect(g); g.connect(this.masterGain);
-                const now = this.ctx.currentTime;
-                g.gain.setValueAtTime(0, now);
-                g.gain.linearRampToValueAtTime(volume, now + 0.5);
-                g.gain.exponentialRampToValueAtTime(0.001, now + 3.0);
-                osc.start(now); osc2.start(now); osc.stop(now+3); osc2.stop(now+3);
-            },
-
-            playChime: function(freq, volume = 0.1) {
-                if (!this.ctx || !this.enabled) return;
-                const osc = this.ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = freq * 2;
-                const g = this.ctx.createGain(); g.connect(this.masterGain);
-                const now = this.ctx.currentTime;
-                g.gain.setValueAtTime(0, now);
-                g.gain.linearRampToValueAtTime(volume, now + 0.05);
-                g.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
-                osc.start(now); osc.stop(now+1.5);
-            },
-
             playDiscovery: function() {
                 if (!this.ctx || !this.enabled) return;
                 [261.63, 329.63, 392.00, 523.25].forEach((f, i) => {
-                    setTimeout(() => this.playChime(f, 0.2), i * 150);
+                    setTimeout(() => this.playPluck(f, 0.2), i * 150);
                 });
             }
         };
@@ -345,11 +314,9 @@
             ZenAudio.init();
             const stream = canvas.captureStream(30);
             if (ZenAudio.dest && ZenAudio.dest.stream.getAudioTracks().length > 0) stream.addTrack(ZenAudio.dest.stream.getAudioTracks()[0]);
-            
             const types = ["video/mp4", "video/webm;codecs=h264", "video/webm"];
             const mimeType = types.find(t => MediaRecorder.isTypeSupported(t)) || "";
             if (!mimeType) return alert("Recording not supported.");
-
             mediaRecorder = new MediaRecorder(stream, { mimeType });
             recordedChunks = [];
             mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
@@ -380,10 +347,7 @@
 
         // --- Layout ---
         let width, height;
-        function resize() {
-            width = window.innerWidth; height = window.innerHeight;
-            canvas.width = width; canvas.height = height;
-        }
+        function resize() { width = window.innerWidth; height = window.innerHeight; canvas.width = width; canvas.height = height; }
         window.addEventListener('resize', resize);
         resize();
 
@@ -396,7 +360,7 @@
             { bg: ['#d4fc79', '#96e6a1'], text: '#1b5e20' } 
         ];
         const decayRates = [0.0, 0.002, 0.005, 0.01, 0.02, 0.05]; 
-        const secretWords = ["Huoi I Love You", "You are my Sunshine", "I Love You My Sweetheart", "My Babydoll"];
+        const secretWords = ["Huoi I Love You", "You are my Sunshine", "I Love You My Sweetheart", "My Babydoll", "❤️❤️❤️", "🥰❤️♥️🧡🫰", "whereever you go that's where I want to be"];
         const config = {
             currentThemeIndex: 0,
             defaultWords: ["Peace", "Gentle", "Warmth", "Love", "Hope", "Empathy", "Calm", "Grace", "Kindness", "Light", "Joy"],
@@ -408,39 +372,44 @@
 
         let entities = [];
         let systemMessages = [];
-
-        // --- Easter Egg System ---
+        
+        // --- Progression System (Subtle Easter Eggs) ---
+        let gardenLevel = 0; // 0=Simple, 1=Petals, 2=Detailed, 3=Flourish, 4=Ethereal
+        const maxLevel = 4;
+        
         const eggSequences = [
-            { id: 1, code: "TTT", name: "Zen Master", color: "#FFD700" },
-            { id: 2, code: "HH", name: "Deep Breath", color: "#87CEEB" },
-            { id: 3, code: "TTH", name: "Heartbeat", color: "#FF69B4" },
-            { id: 4, code: "HTH", name: "Sunrise", color: "#FFA500" },
-            { id: 5, code: "TTTT", name: "Rainfall", color: "#00BFFF" },
-            { id: 6, code: "HHT", name: "Mountain", color: "#A0522D" },
-            { id: 7, code: "THTH", name: "River Flow", color: "#40E0D0" },
-            { id: 8, code: "HTTH", name: "Lotus Open", color: "#DA70D6" },
-            { id: 9, code: "THH", name: "Wind", color: "#E0FFFF" },
-            { id: 10, code: "HHH", name: "The Void", color: "#F8F8FF" }
+            { code: "TTT", id: 1 }, { code: "HH", id: 2 }, { code: "TTH", id: 3 }, 
+            { code: "HTH", id: 4 }, { code: "TTTT", id: 5 }, { code: "HHT", id: 6 },
+            { code: "THTH", id: 7 }, { code: "HTTH", id: 8 }, { code: "THH", id: 9 }, { code: "HHH", id: 10 }
         ];
         let inputBuffer = "";
-        let foundEggs = JSON.parse(localStorage.getItem('garden_eggs') || "[]");
+        let foundEggs = JSON.parse(localStorage.getItem('garden_egg_ids') || "[]");
+        
+        // Restore level based on eggs found
+        gardenLevel = Math.min(maxLevel, Math.floor(foundEggs.length / 2)); // Level up every 2 secrets
 
         function registerInput(type) {
             inputBuffer += type;
             if (inputBuffer.length > 5) inputBuffer = inputBuffer.slice(-5);
-            eggSequences.forEach(seq => {
-                if (inputBuffer.endsWith(seq.code)) triggerEgg(seq);
-            });
+            eggSequences.forEach(seq => { if (inputBuffer.endsWith(seq.code)) triggerEgg(seq); });
         }
 
         function triggerEgg(seq) {
             inputBuffer = ""; 
-            entities.push(new Word(width/2, height/2, `✨ ${seq.name} ✨`, 40, seq.color));
-            for(let i=0; i<8; i++) entities.push(new Bloom(width/2, height/2, 150, seq.color));
-            ZenAudio.playDiscovery();
-            if (!foundEggs.includes(seq.name)) {
-                foundEggs.push(seq.name);
-                localStorage.setItem('garden_eggs', JSON.stringify(foundEggs));
+            if (!foundEggs.includes(seq.id)) {
+                foundEggs.push(seq.id);
+                localStorage.setItem('garden_egg_ids', JSON.stringify(foundEggs));
+                
+                // Check Level Up
+                const newLevel = Math.min(maxLevel, Math.floor(foundEggs.length / 2));
+                if (newLevel > gardenLevel) {
+                    gardenLevel = newLevel;
+                }
+                
+                // Visual Flash (Subtle)
+                ctx.fillStyle = "rgba(255,255,255,0.2)";
+                ctx.fillRect(0,0,width,height);
+                ZenAudio.playDiscovery(); // Subtle chord
             }
         }
 
@@ -477,86 +446,120 @@
         class Bloom {
             constructor(x, y, size=null, color=null) {
                 this.x = x; this.y = y; this.size = 0; this.maxSize = size || random(30, 80);
-                this.colorBase = color || getPastelColor(); this.petals = Math.floor(random(5, 9));
+                this.colorBase = color || getPastelColor(); 
+                this.petals = Math.floor(random(5, 9));
                 this.alpha = 1;
+                this.level = gardenLevel; // Capture current level
+                this.angleOffset = Math.random() * Math.PI;
             }
             update() {
                 if (this.size < this.maxSize) this.size += 0.5 * config.speedMultiplier;
                 else if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier;
+                if (this.level >= 4) this.angleOffset += 0.005; // Rotate gently at high levels
             }
             draw(ctx) {
                 ctx.save();
+                // Level 0: Basic Buds (Original)
+                // Level 1: Simple Petals
+                // Level 2: Detailed
+                // Level 3: Flourish
+                // Level 4: Ethereal
+                
+                if (this.level >= 4) {
+                    ctx.shadowBlur = 15; ctx.shadowColor = "rgba(255,255,255,0.8)";
+                }
+
                 for(let i=0; i<3; i++) {
                     ctx.fillStyle = this.colorBase + (this.alpha * (1 - i*0.2)) + ')';
                     ctx.beginPath();
                     for (let j = 0; j < this.petals; j++) {
-                        const angle = (j / this.petals) * Math.PI * 2;
-                        const petalSize = (this.size - (i*5));
+                        const angle = (j / this.petals) * Math.PI * 2 + this.angleOffset;
+                        let petalSize = (this.size - (i*5));
                         if (petalSize <= 0) continue;
+                        
+                        // Ornate shape logic based on level
+                        const px = this.x + Math.cos(angle) * (petalSize * 0.5);
+                        const py = this.y + Math.sin(angle) * (petalSize * 0.5);
+                        
                         ctx.moveTo(this.x, this.y);
-                        ctx.arc(this.x + Math.cos(angle)*(petalSize*0.5), this.y + Math.sin(angle)*(petalSize*0.5), petalSize*0.4, 0, Math.PI*2);
+                        
+                        if (this.level < 1) {
+                            // Simple circle petal
+                             ctx.arc(px, py, petalSize * 0.4, 0, Math.PI * 2);
+                        } else {
+                            // Tear drop / detailed petal
+                            ctx.ellipse(px, py, petalSize*0.4, petalSize*0.2, angle, 0, Math.PI*2);
+                        }
                     }
                     ctx.fill();
                 }
+
+                // Inner Detail
+                if (this.level >= 2) {
+                    ctx.fillStyle = "rgba(255,255,255,0.6)";
+                    ctx.beginPath(); ctx.arc(this.x, this.y, this.size*0.15, 0, Math.PI*2); ctx.fill();
+                }
+                if (this.level >= 3) {
+                    // Golden Center
+                     ctx.fillStyle = `rgba(255, 215, 0, ${this.alpha})`;
+                     ctx.beginPath(); ctx.arc(this.x, this.y, this.size*0.08, 0, Math.PI*2); ctx.fill();
+                }
+
                 ctx.restore();
             }
             isDead() { return this.alpha <= 0; }
         }
 
-        class LivingPath {
+        class Vine {
             constructor(startX, startY) {
                 this.startX = startX; this.startY = startY;
                 this.segments = []; this.progress = 0; this.growing = true; this.alpha = 1;
-                this.type = ['vine', 'ribbon', 'cloud'][Math.floor(Math.random()*3)];
                 this.points = this.genPath(startX, startY);
                 this.baseFreq = ZenAudio.getFreq(startY, height);
-                // Trigger Start Sound (No Looping)
-                if (this.type === 'vine') ZenAudio.playPluck(this.baseFreq, 0.4);
-                if (this.type === 'ribbon') ZenAudio.playPad(this.baseFreq, 0.3);
-                if (this.type === 'cloud') ZenAudio.playChime(this.baseFreq, 0.2);
+                this.level = gardenLevel;
+                // Trigger Start Sound (Soft Pluck)
+                ZenAudio.playPluck(this.baseFreq, 0.4);
             }
             genPath(cx, cy) {
                 let pts = []; const scale = 70;
-                if (this.type === 'vine') {
-                    for (let t = Math.PI; t > -Math.PI; t -= 0.1) pts.push({x: cx + (16*Math.pow(Math.sin(t),3))*scale/16, y: cy - (13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t))*scale/16});
-                } else if (this.type === 'ribbon') {
-                    for (let t = 0; t < Math.PI * 4; t += 0.1) pts.push({x: cx + Math.sin(t)*scale*1.5, y: cy + Math.sin(t*2)*scale*0.8});
-                } else {
-                    for (let t = 0; t < Math.PI * 2; t += 0.2) pts.push({x: cx + Math.cos(t)*scale*(0.8+Math.random()*0.4), y: cy + Math.sin(t)*scale*0.6});
-                }
+                for (let t = Math.PI; t > -Math.PI; t -= 0.1) pts.push({x: cx + (16*Math.pow(Math.sin(t),3))*scale/16, y: cy - (13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t))*scale/16});
                 return pts;
             }
             update() {
                 if (this.growing) {
                     if (this.progress < this.points.length) {
                         const t = this.points[Math.floor(this.progress)];
-                        this.segments.push({ x: t.x, y: t.y, size: this.type==='cloud'?random(10,20):random(2,5) });
-                        if (this.type==='vine' && Math.random()<0.2) entities.push(new Bloom(t.x, t.y, random(5,10), "hsla(120,40%,80%,"));
+                        this.segments.push({ x: t.x, y: t.y, size: random(2,5), angle: Math.random()*Math.PI*2 });
+                        if (Math.random()<0.2) entities.push(new Bloom(t.x, t.y, random(5,10), "hsla(120,40%,80%,"));
                         this.progress += 0.8 * config.speedMultiplier;
+                        // NO REPETITIVE SOUND LOOP
                     } else {
                         this.growing = false;
                         entities.push(new Word(this.startX, this.startY - 20, getRandomWord(), 30));
                         // Completion Sound
-                        ZenAudio.playChime(this.baseFreq * 2, 0.1);
+                        ZenAudio.playPluck(this.baseFreq * 2, 0.15);
                     }
                 } else if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier;
             }
             draw(ctx) {
                 if (this.segments.length < 2) return;
                 ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha);
-                if (this.type === 'vine') {
-                    ctx.beginPath(); ctx.moveTo(this.segments[0].x, this.segments[0].y);
-                    for (let i=1; i<this.segments.length; i++) ctx.lineTo(this.segments[i].x, this.segments[i].y);
-                    ctx.strokeStyle = "#558b2f"; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.stroke();
-                } else if (this.type === 'ribbon') {
-                    ctx.beginPath(); ctx.moveTo(this.segments[0].x, this.segments[0].y);
-                    for (let i=1; i<this.segments.length; i++) ctx.lineTo(this.segments[i].x, this.segments[i].y);
-                    const grad = ctx.createLinearGradient(this.startX-50, this.startY-50, this.startX+50, this.startY+50);
-                    grad.addColorStop(0, `hsla(${Date.now()%360},70%,70%,0.5)`); grad.addColorStop(1, `hsla(${(Date.now()+180)%360},70%,70%,0.5)`);
-                    ctx.strokeStyle = grad; ctx.lineWidth = 8; ctx.stroke();
-                } else {
-                    ctx.fillStyle = "rgba(255,255,255,0.4)";
-                    for (let i=0; i<this.segments.length; i+=2) { ctx.beginPath(); ctx.arc(this.segments[i].x, this.segments[i].y, this.segments[i].size, 0, Math.PI*2); ctx.fill(); }
+                ctx.beginPath(); ctx.moveTo(this.segments[0].x, this.segments[0].y);
+                for (let i=1; i<this.segments.length; i++) ctx.lineTo(this.segments[i].x, this.segments[i].y);
+                ctx.strokeStyle = "#558b2f"; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.stroke();
+                
+                ctx.fillStyle = "#8bc34a"; 
+                for (let i = 0; i < this.segments.length; i+=6) {
+                    // Draw Leaves
+                    const s = this.segments[i];
+                    ctx.beginPath(); 
+                    if (this.level < 2) {
+                        ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); 
+                    } else {
+                        // Detailed leaf shape
+                        ctx.ellipse(s.x, s.y, s.size*1.5, s.size*0.5, s.angle, 0, Math.PI*2);
+                    }
+                    ctx.fill();
                 }
                 ctx.restore();
             }
@@ -571,21 +574,18 @@
             const diff = Date.now() - lastTap;
             const freq = ZenAudio.getFreq(y, height);
             
-            // Easter Egg Input
             if (dur < 300) registerInput("T"); else registerInput("H");
 
             if (diff < 300) {
-                // Double Tap (Creation)
-                entities.push(new LivingPath(x, y));
+                entities.push(new Vine(x, y));
             } else {
-                // Single Tap/Hold
                 if (dur < 300) {
                     entities.push(new Bloom(x, y));
                     entities.push(new Word(x, y-30));
                     ZenAudio.playPluck(freq, 0.3);
                 } else {
                     entities.push(new Bloom(x, y, 120));
-                    ZenAudio.playPad(freq * 0.5, 0.4);
+                    ZenAudio.playPluck(freq * 0.5, 0.4);
                 }
             }
             lastTap = Date.now();
@@ -608,22 +608,16 @@
             r.onload = evt => {
                 try {
                     localStorage.setItem('garden_bg', evt.target.result);
-                    config.useGradient = false;
-                    setBg(evt.target.result);
+                    config.useGradient = false; setBg(evt.target.result);
                 } catch(e) { alert("Image too large!"); }
             };
             r.readAsDataURL(file);
         });
         document.getElementById('reset-bg-btn').addEventListener('click', () => {
-            localStorage.removeItem('garden_bg');
-            config.useGradient = true;
-            container.style.backgroundImage = 'none';
+            localStorage.removeItem('garden_bg'); config.useGradient = true; container.style.backgroundImage = 'none';
         });
 
-        function setBg(url) {
-            container.style.backgroundImage = `url(${url})`;
-            container.style.backgroundSize = 'cover';
-        }
+        function setBg(url) { container.style.backgroundImage = `url(${url})`; container.style.backgroundSize = 'cover'; }
 
         // --- Settings ---
         const panel = document.getElementById('settings-panel');
@@ -647,13 +641,9 @@
         
         function parseWords(val) {
             systemMessages = [];
-            if (val.trim() === '/show') {
-                systemMessages.push("--- FOUND EGGS ---");
-                if (!foundEggs.length) systemMessages.push("None yet.");
-                else foundEggs.forEach(e => systemMessages.push(e));
-            } else if (val.trim() === '/cheat') {
+            if (val.trim() === '/cheat') {
                 systemMessages.push("--- SECRETS ---");
-                eggSequences.forEach(s => systemMessages.push(`${s.code}: ${s.name}`));
+                eggSequences.forEach(s => systemMessages.push(s.code));
             } else if (val.trim() === '6969') {
                 config.customWords = secretWords;
             } else {
@@ -663,29 +653,23 @@
 
         // --- Loop ---
         function loop() {
-            // Draw BG (Gradient only if no image)
             if (config.useGradient) {
                 const t = themes[config.currentThemeIndex];
                 const g = ctx.createLinearGradient(0,0,0,height);
                 g.addColorStop(0, t.bg[0]); g.addColorStop(1, t.bg[1]);
                 ctx.fillStyle = g; ctx.fillRect(0,0,width,height);
-            } else {
-                ctx.clearRect(0,0,width,height); // Transparent for BG image
-            }
+            } else { ctx.clearRect(0,0,width,height); }
 
             for (let i = entities.length - 1; i >= 0; i--) {
                 entities[i].update(); entities[i].draw(ctx);
                 if (entities[i].isDead()) entities.splice(i, 1);
             }
-
-            // System Msg Overlay
             if (systemMessages.length) {
                 ctx.save(); ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(width/2-150, 40, 300, 20+systemMessages.length*20);
                 ctx.fillStyle = "white"; ctx.font = "14px monospace"; ctx.textAlign = "center";
                 systemMessages.forEach((m, i) => ctx.fillText(m, width/2, 65+i*20));
                 ctx.restore();
             }
-
             requestAnimationFrame(loop);
         }
         loop();
