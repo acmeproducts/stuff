@@ -24,7 +24,6 @@
             height: 100%;
             background-size: cover;
             background-position: center;
-            background-repeat: no-repeat;
         }
 
         canvas { display: block; }
@@ -44,6 +43,32 @@
             width: 80%;
             z-index: 10;
         }
+
+        #rec-indicator {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 8px 12px;
+            border-radius: 20px;
+            color: white;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 150;
+        }
+        #rec-dot {
+            width: 10px;
+            height: 10px;
+            background-color: #ff4444;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 
         #master-footer {
             position: fixed;
@@ -146,8 +171,8 @@
             resize: vertical;
             height: 80px;
         }
-        
-        /* File Input Styling */
+
+        /* File Upload */
         .file-upload {
             border: 1px dashed #ccc;
             padding: 15px;
@@ -167,6 +192,9 @@
         .theme-btn:active { background: #e0e0e0; }
         #clear-btn { background: #ffebee; color: #c62828; margin-top: 10px; }
         #save-btn { background: #e8f5e9; color: #2e7d32; }
+        #record-btn { background: #ffe0b2; color: #e65100; font-weight: bold; }
+        #record-btn.recording { background: #ffcdd2; color: #c62828; animation: pulse-btn 2s infinite; }
+        @keyframes pulse-btn { 0% { background: #ffcdd2; } 50% { background: #ef9a9a; } 100% { background: #ffcdd2; } }
 
     </style>
 </head>
@@ -174,8 +202,9 @@
 
     <div id="canvas-container">
         <canvas id="gameCanvas"></canvas>
-        <div id="overlay">Tap to Bloom<br>Hold to Deepen</div>
-        <div id="master-footer">The Garden of Compassion - v1.9 - 2025-12-01 08:00 AM</div>
+        <div id="overlay">Tap to Bloom<br>Double Tap to Create<br><span style="font-size:0.7em; opacity:0.8">Find the secrets</span></div>
+        <div id="rec-indicator"><div id="rec-dot"></div>Recording</div>
+        <div id="master-footer">The Garden of Compassion - v2.0 - 2025-12-01 09:30 AM</div>
     </div>
 
     <div id="settings-trigger">
@@ -194,25 +223,22 @@
         </div>
 
         <div class="control-group">
-            <span class="control-label">Background Image</span>
+            <span class="control-label">Background</span>
             <label class="file-upload">
-                Tap to Upload Background
+                Select Image
                 <input type="file" id="bg-upload" accept="image/*" style="display: none;">
             </label>
-            <button class="theme-btn" id="reset-bg-btn" style="margin-top:5px; font-size:11px; padding:8px;">Reset to Gradient</button>
+            <button class="theme-btn" id="reset-bg-btn" style="margin-top:5px; padding:6px; font-size:11px;">Reset to Gradient</button>
         </div>
 
         <div class="control-group">
             <span class="control-label">Custom Words / Commands</span>
-            <textarea id="custom-words" placeholder="e.g. Joy, Peace. Or type /show or /cheat"></textarea>
+            <textarea id="custom-words" placeholder="e.g. Joy, Peace. Commands: /show /cheat"></textarea>
         </div>
 
         <div class="control-group">
-            <span class="control-label">Fade Rate (Decay)</span>
+            <span class="control-label">Fade Rate</span>
             <input type="range" id="decay-slider" min="0" max="5" step="1" value="2">
-            <div style="display:flex; justify-content:space-between; font-size:10px; color:#888;">
-                <span>Eternal</span><span>Fast</span>
-            </div>
         </div>
 
         <div class="control-group">
@@ -221,7 +247,9 @@
         </div>
         
         <div class="control-group">
+            <button class="theme-btn" id="record-btn">Record Video</button>
             <button class="theme-btn" id="save-btn">Save Snapshot</button>
+            <button class="theme-btn" id="theme-btn">Cycle Colors</button>
             <button class="theme-btn" id="clear-btn">Clear Garden</button>
         </div>
     </div>
@@ -229,179 +257,227 @@
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const canvasContainer = document.getElementById('canvas-container');
+        const container = document.getElementById('canvas-container');
+        const recIndicator = document.getElementById('rec-indicator');
         
         // --- Audio Engine ---
         const ZenAudio = {
             ctx: null,
             enabled: true,
             masterGain: null,
-            // Full Spectrum Pentatonic Scale
-            scale: [130.81, 146.83, 164.81, 196.00, 220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51],
+            dest: null,
+            // Full Screen Scale Mapping (Low to High)
+            scale: [130.81, 146.83, 164.81, 196.00, 220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00],
 
             init: function() {
                 if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
                     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
                     this.masterGain = this.ctx.createGain();
                     this.masterGain.gain.value = 0.3;
+                    this.dest = this.ctx.createMediaStreamDestination();
                     this.masterGain.connect(this.ctx.destination);
+                    this.masterGain.connect(this.dest);
                 }
-                if (this.ctx && this.ctx.state === 'suspended') {
-                    this.ctx.resume();
-                }
+                if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
             },
 
-            getFreqFromPos: function(y, height) {
+            getFreq: function(y, height) {
                 const norm = 1 - Math.max(0, Math.min(1, y / height));
                 const index = Math.floor(norm * this.scale.length);
                 return this.scale[Math.min(index, this.scale.length - 1)];
             },
 
-            playTone: function(freq, type='sine', volume=0.3, duration=2.0) {
+            // Instruments
+            playPluck: function(freq, volume = 0.3) {
                 if (!this.ctx || !this.enabled) return;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                
-                osc.type = type;
-                osc.frequency.value = freq;
-                
-                gain.connect(this.masterGain);
-                
-                const now = this.ctx.currentTime;
-                gain.gain.setValueAtTime(0, now);
-                gain.gain.linearRampToValueAtTime(volume, now + 0.05);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-                
-                osc.start(now);
-                osc.stop(now + duration);
+                const duration = 2.0;
+                const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * duration, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                const delayLength = Math.floor(this.ctx.sampleRate / freq);
+                const delayLine = new Float32Array(delayLength).map(() => Math.random()*2-1);
+                let idx = 0, last = 0;
+                for (let i = 0; i < buffer.length; i++) {
+                    const sample = (delayLine[idx] + last) * 0.5 * 0.994;
+                    last = delayLine[idx]; delayLine[idx] = sample;
+                    data[i] = sample * volume;
+                    idx = (idx + 1) % delayLength;
+                }
+                const src = this.ctx.createBufferSource(); src.buffer = buffer;
+                src.connect(this.masterGain); src.start();
             },
-            
+
+            playPad: function(freq, volume = 0.2) {
+                if (!this.ctx || !this.enabled) return;
+                const osc = this.ctx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = freq;
+                const osc2 = this.ctx.createOscillator(); osc2.type = 'sine'; osc2.frequency.value = freq * 1.01;
+                const g = this.ctx.createGain();
+                osc.connect(g); osc2.connect(g); g.connect(this.masterGain);
+                const now = this.ctx.currentTime;
+                g.gain.setValueAtTime(0, now);
+                g.gain.linearRampToValueAtTime(volume, now + 0.5);
+                g.gain.exponentialRampToValueAtTime(0.001, now + 3.0);
+                osc.start(now); osc2.start(now); osc.stop(now+3); osc2.stop(now+3);
+            },
+
+            playChime: function(freq, volume = 0.1) {
+                if (!this.ctx || !this.enabled) return;
+                const osc = this.ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = freq * 2;
+                const g = this.ctx.createGain(); g.connect(this.masterGain);
+                const now = this.ctx.currentTime;
+                g.gain.setValueAtTime(0, now);
+                g.gain.linearRampToValueAtTime(volume, now + 0.05);
+                g.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+                osc.start(now); osc.stop(now+1.5);
+            },
+
             playDiscovery: function() {
-                // Chord for Easter Egg
                 if (!this.ctx || !this.enabled) return;
                 [261.63, 329.63, 392.00, 523.25].forEach((f, i) => {
-                    setTimeout(() => this.playTone(f, 'triangle', 0.2, 3.0), i * 100);
+                    setTimeout(() => this.playChime(f, 0.2), i * 150);
                 });
             }
         };
 
+        // --- Video Recorder ---
+        let mediaRecorder, recordedChunks = [], isRecording = false;
+        function toggleRecording() { isRecording ? stopRecording() : startRecording(); }
+        function startRecording() {
+            ZenAudio.init();
+            const stream = canvas.captureStream(30);
+            if (ZenAudio.dest && ZenAudio.dest.stream.getAudioTracks().length > 0) stream.addTrack(ZenAudio.dest.stream.getAudioTracks()[0]);
+            
+            const types = ["video/mp4", "video/webm;codecs=h264", "video/webm"];
+            const mimeType = types.find(t => MediaRecorder.isTypeSupported(t)) || "";
+            if (!mimeType) return alert("Recording not supported.");
+
+            mediaRecorder = new MediaRecorder(stream, { mimeType });
+            recordedChunks = [];
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+            mediaRecorder.onstop = saveRecording;
+            mediaRecorder.start();
+            isRecording = true;
+            recIndicator.style.opacity = 1;
+            const btn = document.getElementById('record-btn');
+            btn.textContent = "Stop Recording"; btn.classList.add('recording');
+            document.getElementById('settings-panel').classList.remove('open');
+        }
+        function stopRecording() {
+            if (mediaRecorder) mediaRecorder.stop();
+            isRecording = false;
+            recIndicator.style.opacity = 0;
+            const btn = document.getElementById('record-btn');
+            btn.textContent = "Record Video"; btn.classList.remove('recording');
+        }
+        function saveRecording() {
+            const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.style.display = "none"; a.href = url;
+            a.download = `garden-video-${Date.now()}.${mediaRecorder.mimeType.includes("mp4") ? "mp4" : "webm"}`;
+            document.body.appendChild(a); a.click();
+            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+        }
+
         // --- Layout ---
         let width, height;
         function resize() {
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvas.width = width;
-            canvas.height = height;
+            width = window.innerWidth; height = window.innerHeight;
+            canvas.width = width; canvas.height = height;
         }
         window.addEventListener('resize', resize);
         resize();
 
         // --- Config & State ---
+        const themes = [
+            { bg: ['#e0c3fc', '#8ec5fc'], text: '#4a148c' },
+            { bg: ['#fad0c4', '#ffd1ff'], text: '#880e4f' },
+            { bg: ['#d299c2', '#fef9d7'], text: '#3e2723' },
+            { bg: ['#a1c4fd', '#c2e9fb'], text: '#01579b' },
+            { bg: ['#d4fc79', '#96e6a1'], text: '#1b5e20' } 
+        ];
+        const decayRates = [0.0, 0.002, 0.005, 0.01, 0.02, 0.05]; 
+        const secretWords = ["Huoi I Love You", "You are my Sunshine", "I Love You My Sweetheart", "My Babydoll"];
         const config = {
-            defaultWords: ["Peace", "Gentle", "Warmth", "Love", "Hope", "Empathy", "Calm", "Grace", "Kindness", "Light", "Joy", "Bliss"],
+            currentThemeIndex: 0,
+            defaultWords: ["Peace", "Gentle", "Warmth", "Love", "Hope", "Empathy", "Calm", "Grace", "Kindness", "Light", "Joy"],
             customWords: [],
             speedMultiplier: 1.0,
             decayValue: 0.005,
-            bgImage: null
+            useGradient: true
         };
-        const decayRates = [0.0, 0.002, 0.005, 0.01, 0.02, 0.05]; 
 
         let entities = [];
-        let systemMessages = []; // For cheat codes/displays
+        let systemMessages = [];
 
         // --- Easter Egg System ---
-        const sequences = [
-            { id: 1, code: "TTT", name: "Zen Master", color: "#FFD700" },      // Tap Tap Tap
-            { id: 2, code: "HH", name: "Deep Breath", color: "#87CEEB" },      // Hold Hold
-            { id: 3, code: "TTH", name: "Heartbeat", color: "#FF69B4" },       // Tap Tap Hold
-            { id: 4, code: "HTH", name: "Sunrise", color: "#FFA500" },         // Hold Tap Hold
-            { id: 5, code: "TTTT", name: "Rainfall", color: "#00BFFF" },       // Tap Tap Tap Tap
-            { id: 6, code: "HHT", name: "Mountain", color: "#A0522D" },        // Hold Hold Tap
-            { id: 7, code: "THTH", name: "River Flow", color: "#40E0D0" },     // Tap Hold Tap Hold
-            { id: 8, code: "HTTH", name: "Lotus Open", color: "#DA70D6" },     // Hold Tap Tap Hold
-            { id: 9, code: "THH", name: "Wind", color: "#E0FFFF" },            // Tap Hold Hold
-            { id: 10, code: "HHH", name: "The Void", color: "#F8F8FF" }        // Hold Hold Hold
+        const eggSequences = [
+            { id: 1, code: "TTT", name: "Zen Master", color: "#FFD700" },
+            { id: 2, code: "HH", name: "Deep Breath", color: "#87CEEB" },
+            { id: 3, code: "TTH", name: "Heartbeat", color: "#FF69B4" },
+            { id: 4, code: "HTH", name: "Sunrise", color: "#FFA500" },
+            { id: 5, code: "TTTT", name: "Rainfall", color: "#00BFFF" },
+            { id: 6, code: "HHT", name: "Mountain", color: "#A0522D" },
+            { id: 7, code: "THTH", name: "River Flow", color: "#40E0D0" },
+            { id: 8, code: "HTTH", name: "Lotus Open", color: "#DA70D6" },
+            { id: 9, code: "THH", name: "Wind", color: "#E0FFFF" },
+            { id: 10, code: "HHH", name: "The Void", color: "#F8F8FF" }
         ];
-        
-        let inputBuffer = ""; // Stores "T" and "H"
+        let inputBuffer = "";
         let foundEggs = JSON.parse(localStorage.getItem('garden_eggs') || "[]");
 
         function registerInput(type) {
             inputBuffer += type;
-            if (inputBuffer.length > 5) inputBuffer = inputBuffer.slice(-5); // Keep last 5
-            checkSequence();
-        }
-
-        function checkSequence() {
-            // Check buffer against all codes
-            sequences.forEach(seq => {
-                if (inputBuffer.endsWith(seq.code)) {
-                    // Trigger Egg
-                    triggerEgg(seq);
-                    inputBuffer = ""; // Reset buffer on match
-                }
+            if (inputBuffer.length > 5) inputBuffer = inputBuffer.slice(-5);
+            eggSequences.forEach(seq => {
+                if (inputBuffer.endsWith(seq.code)) triggerEgg(seq);
             });
         }
 
         function triggerEgg(seq) {
-            // Visual
+            inputBuffer = ""; 
             entities.push(new Word(width/2, height/2, `✨ ${seq.name} ✨`, 40, seq.color));
-            entities.push(new Bloom(width/2, height/2, 200, seq.color));
-            
-            // Audio
+            for(let i=0; i<8; i++) entities.push(new Bloom(width/2, height/2, 150, seq.color));
             ZenAudio.playDiscovery();
-
-            // Save
             if (!foundEggs.includes(seq.name)) {
                 foundEggs.push(seq.name);
                 localStorage.setItem('garden_eggs', JSON.stringify(foundEggs));
             }
         }
 
-        // --- Helper Functions ---
+        // --- Helper ---
         const random = (min, max) => Math.random() * (max - min) + min;
         function getPastelColor() { return `hsla(${random(0, 360)}, 70%, 80%,`; }
-        
         function getRandomWord() {
+            if (config.customWords === secretWords) return config.customWords[Math.floor(Math.random() * config.customWords.length)];
             const combined = config.customWords.length > 0 ? [...config.defaultWords, ...config.customWords] : config.defaultWords;
             return combined[Math.floor(Math.random() * combined.length)];
         }
 
-        // --- Entities ---
+        // --- Visual Entities ---
         class Word {
-            constructor(x, y, text, size=20, color="#ffffff") {
-                this.x = x; this.y = y; this.text = text;
-                this.velocity = -0.5; this.alpha = 0; this.life = 0;
-                this.fadeIn = true; this.color = color; this.fontSize = size;
+            constructor(x, y, text, size=20, color=null) {
+                this.x = x; this.y = y; this.text = text || getRandomWord();
+                this.velocity = -0.5; this.alpha = 0; this.life = 0; this.fadeIn = true;
+                this.color = color || themes[config.currentThemeIndex].text; this.fontSize = size;
             }
             update() {
                 this.y += this.velocity * config.speedMultiplier;
-                this.life++;
-                if (this.fadeIn) {
-                    this.alpha += 0.02 * config.speedMultiplier;
-                    if (this.alpha >= 1) this.fadeIn = false;
-                } else if (config.decayValue > 0) {
-                    this.alpha -= config.decayValue * config.speedMultiplier;
-                }
+                if (this.fadeIn) { this.alpha += 0.02 * config.speedMultiplier; if (this.alpha>=1) this.fadeIn=false; }
+                else if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier;
             }
             draw(ctx) {
-                ctx.save();
-                ctx.globalAlpha = Math.max(0, this.alpha);
-                ctx.font = `${this.fontSize}px sans-serif`;
-                ctx.fillStyle = this.color;
-                ctx.textAlign = "center";
-                ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 4;
-                ctx.fillText(this.text, this.x, this.y);
-                ctx.restore();
+                ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.font = `${this.fontSize}px sans-serif`; ctx.fillStyle = this.color;
+                ctx.textAlign = "center"; ctx.shadowBlur = 4; ctx.shadowColor = "rgba(0,0,0,0.5)";
+                ctx.fillText(this.text, this.x, this.y); ctx.restore();
             }
             isDead() { return this.alpha <= 0 && !this.fadeIn; }
         }
 
         class Bloom {
-            constructor(x, y, maxSize=80, color=null) {
-                this.x = x; this.y = y; this.size = 0;
-                this.maxSize = maxSize;
-                this.colorBase = color || getPastelColor();
+            constructor(x, y, size=null, color=null) {
+                this.x = x; this.y = y; this.size = 0; this.maxSize = size || random(30, 80);
+                this.colorBase = color || getPastelColor(); this.petals = Math.floor(random(5, 9));
                 this.alpha = 1;
             }
             update() {
@@ -410,185 +486,209 @@
             }
             draw(ctx) {
                 ctx.save();
-                ctx.fillStyle = this.colorBase + this.alpha + ')';
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
-                ctx.fill();
+                for(let i=0; i<3; i++) {
+                    ctx.fillStyle = this.colorBase + (this.alpha * (1 - i*0.2)) + ')';
+                    ctx.beginPath();
+                    for (let j = 0; j < this.petals; j++) {
+                        const angle = (j / this.petals) * Math.PI * 2;
+                        const petalSize = (this.size - (i*5));
+                        if (petalSize <= 0) continue;
+                        ctx.moveTo(this.x, this.y);
+                        ctx.arc(this.x + Math.cos(angle)*(petalSize*0.5), this.y + Math.sin(angle)*(petalSize*0.5), petalSize*0.4, 0, Math.PI*2);
+                    }
+                    ctx.fill();
+                }
                 ctx.restore();
             }
             isDead() { return this.alpha <= 0; }
         }
 
-        // --- Interaction Logic ---
-        let touchStartTime = 0;
-        let startX, startY;
-
-        function handleStart(x, y) {
-            ZenAudio.init();
-            touchStartTime = Date.now();
-            startX = x; startY = y;
-            document.getElementById('overlay').style.opacity = 0;
-        }
-
-        function handleEnd(x, y) {
-            const duration = Date.now() - touchStartTime;
-            const freq = ZenAudio.getFreqFromPos(y, height);
-            
-            // Easter Egg Logic
-            if (duration < 300) registerInput("T");
-            else registerInput("H");
-
-            // Per Tap Sound Scheme (Replacing Loop)
-            if (duration < 300) {
-                // Short Tap: Plucked sound
-                ZenAudio.playTone(freq, 'triangle', 0.3, 1.5); 
-                entities.push(new Bloom(x, y));
-                entities.push(new Word(x, y - 30));
-            } else {
-                // Long Press (Hold): Deeper, longer sound
-                ZenAudio.playTone(freq * 0.5, 'sine', 0.4, 3.0);
-                entities.push(new Bloom(x, y, 120)); // Bigger bloom
-                // Visualize "Creation" without vine loop sound
-                for(let i=0; i<5; i++) {
-                    setTimeout(() => {
-                        entities.push(new Bloom(x + random(-40,40), y + random(-40,40), 20));
-                    }, i * 100);
-                }
+        class LivingPath {
+            constructor(startX, startY) {
+                this.startX = startX; this.startY = startY;
+                this.segments = []; this.progress = 0; this.growing = true; this.alpha = 1;
+                this.type = ['vine', 'ribbon', 'cloud'][Math.floor(Math.random()*3)];
+                this.points = this.genPath(startX, startY);
+                this.baseFreq = ZenAudio.getFreq(startY, height);
+                // Trigger Start Sound (No Looping)
+                if (this.type === 'vine') ZenAudio.playPluck(this.baseFreq, 0.4);
+                if (this.type === 'ribbon') ZenAudio.playPad(this.baseFreq, 0.3);
+                if (this.type === 'cloud') ZenAudio.playChime(this.baseFreq, 0.2);
             }
-        }
-
-        canvas.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
-        canvas.addEventListener('mouseup', e => handleEnd(e.clientX, e.clientY));
-        canvas.addEventListener('touchstart', e => {
-            e.preventDefault();
-            handleStart(e.touches[0].clientX, e.touches[0].clientY);
-        }, {passive: false});
-        canvas.addEventListener('touchend', e => {
-            // Use stored start coordinates as touchend has no clientX/Y
-            handleEnd(startX, startY);
-        });
-
-        // --- Background & Storage ---
-        const bgInput = document.getElementById('bg-upload');
-        const resetBgBtn = document.getElementById('reset-bg-btn');
-
-        // Load BG
-        const storedBg = localStorage.getItem('garden_bg');
-        if (storedBg) {
-            canvasContainer.style.backgroundImage = `url(${storedBg})`;
-            canvasContainer.style.backgroundSize = "cover";
-        } else {
-            // Default Gradient
-            canvasContainer.style.background = `linear-gradient(to bottom, #e0c3fc, #8ec5fc)`;
-        }
-
-        bgInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(evt) {
-                    const dataUrl = evt.target.result;
-                    try {
-                        localStorage.setItem('garden_bg', dataUrl);
-                        canvasContainer.style.backgroundImage = `url(${dataUrl})`;
-                        canvasContainer.style.background = "none"; // clear gradient
-                        canvasContainer.style.backgroundSize = "cover";
-                    } catch (err) {
-                        alert("Image too large for browser storage. Please try a smaller image.");
-                    }
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        resetBgBtn.addEventListener('click', () => {
-            localStorage.removeItem('garden_bg');
-            canvasContainer.style.backgroundImage = "none";
-            canvasContainer.style.background = `linear-gradient(to bottom, #e0c3fc, #8ec5fc)`;
-        });
-
-        // --- Custom Words & Commands ---
-        const customArea = document.getElementById('custom-words');
-        customArea.value = localStorage.getItem('garden_custom_words') || "";
-        
-        // Initial load
-        parseCustomInput(customArea.value);
-
-        customArea.addEventListener('blur', (e) => {
-            const val = e.target.value;
-            localStorage.setItem('garden_custom_words', val);
-            parseCustomInput(val);
-        });
-
-        function parseCustomInput(val) {
-            systemMessages = []; // Clear previous system messages
-            
-            if (val.trim() === '/show') {
-                systemMessages.push("--- EASTER EGGS FOUND ---");
-                if(foundEggs.length === 0) systemMessages.push("None yet. Try tapping rhythms!");
-                else foundEggs.forEach(e => systemMessages.push("found: " + e));
-            } else if (val.trim() === '/cheat') {
-                systemMessages.push("--- SECRET PATTERNS ---");
-                sequences.forEach(s => systemMessages.push(`${s.code} : ${s.name}`));
-            } else {
-                // Normal word processing
-                if (val.trim() === '6969') { 
-                    // Secret word list
-                    config.customWords = [
-                        "Huoi I Love You", "You are my Sunshine", "I Love You My Sweetheart"
-                    ];
+            genPath(cx, cy) {
+                let pts = []; const scale = 70;
+                if (this.type === 'vine') {
+                    for (let t = Math.PI; t > -Math.PI; t -= 0.1) pts.push({x: cx + (16*Math.pow(Math.sin(t),3))*scale/16, y: cy - (13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t))*scale/16});
+                } else if (this.type === 'ribbon') {
+                    for (let t = 0; t < Math.PI * 4; t += 0.1) pts.push({x: cx + Math.sin(t)*scale*1.5, y: cy + Math.sin(t*2)*scale*0.8});
                 } else {
-                    config.customWords = val.split(',').map(s => s.trim()).filter(s => s.length > 0);
+                    for (let t = 0; t < Math.PI * 2; t += 0.2) pts.push({x: cx + Math.cos(t)*scale*(0.8+Math.random()*0.4), y: cy + Math.sin(t)*scale*0.6});
                 }
+                return pts;
             }
+            update() {
+                if (this.growing) {
+                    if (this.progress < this.points.length) {
+                        const t = this.points[Math.floor(this.progress)];
+                        this.segments.push({ x: t.x, y: t.y, size: this.type==='cloud'?random(10,20):random(2,5) });
+                        if (this.type==='vine' && Math.random()<0.2) entities.push(new Bloom(t.x, t.y, random(5,10), "hsla(120,40%,80%,"));
+                        this.progress += 0.8 * config.speedMultiplier;
+                    } else {
+                        this.growing = false;
+                        entities.push(new Word(this.startX, this.startY - 20, getRandomWord(), 30));
+                        // Completion Sound
+                        ZenAudio.playChime(this.baseFreq * 2, 0.1);
+                    }
+                } else if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier;
+            }
+            draw(ctx) {
+                if (this.segments.length < 2) return;
+                ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha);
+                if (this.type === 'vine') {
+                    ctx.beginPath(); ctx.moveTo(this.segments[0].x, this.segments[0].y);
+                    for (let i=1; i<this.segments.length; i++) ctx.lineTo(this.segments[i].x, this.segments[i].y);
+                    ctx.strokeStyle = "#558b2f"; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.stroke();
+                } else if (this.type === 'ribbon') {
+                    ctx.beginPath(); ctx.moveTo(this.segments[0].x, this.segments[0].y);
+                    for (let i=1; i<this.segments.length; i++) ctx.lineTo(this.segments[i].x, this.segments[i].y);
+                    const grad = ctx.createLinearGradient(this.startX-50, this.startY-50, this.startX+50, this.startY+50);
+                    grad.addColorStop(0, `hsla(${Date.now()%360},70%,70%,0.5)`); grad.addColorStop(1, `hsla(${(Date.now()+180)%360},70%,70%,0.5)`);
+                    ctx.strokeStyle = grad; ctx.lineWidth = 8; ctx.stroke();
+                } else {
+                    ctx.fillStyle = "rgba(255,255,255,0.4)";
+                    for (let i=0; i<this.segments.length; i+=2) { ctx.beginPath(); ctx.arc(this.segments[i].x, this.segments[i].y, this.segments[i].size, 0, Math.PI*2); ctx.fill(); }
+                }
+                ctx.restore();
+            }
+            isDead() { return this.alpha <= 0; }
         }
 
-        // --- Settings Panel ---
+        // --- Inputs ---
+        let lastTap = 0, touchStart = 0;
+        function handleStart() { ZenAudio.init(); touchStart = Date.now(); document.getElementById('overlay').style.opacity = 0; }
+        function handleEnd(x, y) {
+            const dur = Date.now() - touchStart;
+            const diff = Date.now() - lastTap;
+            const freq = ZenAudio.getFreq(y, height);
+            
+            // Easter Egg Input
+            if (dur < 300) registerInput("T"); else registerInput("H");
+
+            if (diff < 300) {
+                // Double Tap (Creation)
+                entities.push(new LivingPath(x, y));
+            } else {
+                // Single Tap/Hold
+                if (dur < 300) {
+                    entities.push(new Bloom(x, y));
+                    entities.push(new Word(x, y-30));
+                    ZenAudio.playPluck(freq, 0.3);
+                } else {
+                    entities.push(new Bloom(x, y, 120));
+                    ZenAudio.playPad(freq * 0.5, 0.4);
+                }
+            }
+            lastTap = Date.now();
+        }
+
+        canvas.addEventListener('mousedown', e => handleStart());
+        canvas.addEventListener('mouseup', e => handleEnd(e.clientX, e.clientY));
+        canvas.addEventListener('touchstart', e => { e.preventDefault(); handleStart(); }, {passive:false});
+        canvas.addEventListener('touchend', e => { e.preventDefault(); if(e.changedTouches.length) handleEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY); });
+
+        // --- Background Storage ---
+        const bgUpload = document.getElementById('bg-upload');
+        const storedBg = localStorage.getItem('garden_bg');
+        if (storedBg) { config.useGradient = false; setBg(storedBg); }
+        
+        bgUpload.addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const r = new FileReader();
+            r.onload = evt => {
+                try {
+                    localStorage.setItem('garden_bg', evt.target.result);
+                    config.useGradient = false;
+                    setBg(evt.target.result);
+                } catch(e) { alert("Image too large!"); }
+            };
+            r.readAsDataURL(file);
+        });
+        document.getElementById('reset-bg-btn').addEventListener('click', () => {
+            localStorage.removeItem('garden_bg');
+            config.useGradient = true;
+            container.style.backgroundImage = 'none';
+        });
+
+        function setBg(url) {
+            container.style.backgroundImage = `url(${url})`;
+            container.style.backgroundSize = 'cover';
+        }
+
+        // --- Settings ---
         const panel = document.getElementById('settings-panel');
         document.getElementById('settings-trigger').addEventListener('click', () => panel.classList.add('open'));
         document.getElementById('close-btn').addEventListener('click', () => panel.classList.remove('open'));
         document.getElementById('audio-toggle').addEventListener('change', e => ZenAudio.enabled = e.target.checked);
-        document.getElementById('decay-slider').addEventListener('input', e => config.decayValue = decayRates[parseInt(e.target.value)]);
+        document.getElementById('decay-slider').addEventListener('input', e => config.decayValue = decayRates[e.target.value]);
         document.getElementById('speed-slider').addEventListener('input', e => config.speedMultiplier = 0.2 + (e.target.value/100)*1.8);
+        document.getElementById('record-btn').addEventListener('click', toggleRecording);
         document.getElementById('clear-btn').addEventListener('click', () => { entities = []; systemMessages = []; });
-
+        document.getElementById('theme-btn').addEventListener('click', () => config.currentThemeIndex = (config.currentThemeIndex + 1) % themes.length);
         document.getElementById('save-btn').addEventListener('click', () => {
-            // Snapshot logic
-            const link = document.createElement('a');
-            link.download = 'garden.png';
-            link.href = canvas.toDataURL();
-            link.click();
+            const a = document.createElement('a'); a.download = 'garden.png'; a.href = canvas.toDataURL(); a.click();
         });
 
-        // --- Main Loop ---
-        function loop() {
-            ctx.clearRect(0, 0, width, height);
+        // Custom Words
+        const cBox = document.getElementById('custom-words');
+        cBox.value = localStorage.getItem('garden_words') || "";
+        parseWords(cBox.value);
+        cBox.addEventListener('blur', e => { localStorage.setItem('garden_words', e.target.value); parseWords(e.target.value); });
+        
+        function parseWords(val) {
+            systemMessages = [];
+            if (val.trim() === '/show') {
+                systemMessages.push("--- FOUND EGGS ---");
+                if (!foundEggs.length) systemMessages.push("None yet.");
+                else foundEggs.forEach(e => systemMessages.push(e));
+            } else if (val.trim() === '/cheat') {
+                systemMessages.push("--- SECRETS ---");
+                eggSequences.forEach(s => systemMessages.push(`${s.code}: ${s.name}`));
+            } else if (val.trim() === '6969') {
+                config.customWords = secretWords;
+            } else {
+                config.customWords = val.split(',').map(s => s.trim()).filter(s => s.length);
+            }
+        }
 
-            // Draw Entities
+        // --- Loop ---
+        function loop() {
+            // Draw BG (Gradient only if no image)
+            if (config.useGradient) {
+                const t = themes[config.currentThemeIndex];
+                const g = ctx.createLinearGradient(0,0,0,height);
+                g.addColorStop(0, t.bg[0]); g.addColorStop(1, t.bg[1]);
+                ctx.fillStyle = g; ctx.fillRect(0,0,width,height);
+            } else {
+                ctx.clearRect(0,0,width,height); // Transparent for BG image
+            }
+
             for (let i = entities.length - 1; i >= 0; i--) {
-                entities[i].update();
-                entities[i].draw(ctx);
+                entities[i].update(); entities[i].draw(ctx);
                 if (entities[i].isDead()) entities.splice(i, 1);
             }
 
-            // Draw System Messages (Cheats/Stats)
-            if (systemMessages.length > 0) {
-                ctx.save();
-                ctx.fillStyle = "rgba(0,0,0,0.5)";
-                ctx.fillRect(width/2 - 150, 50, 300, 20 + systemMessages.length * 25);
-                ctx.fillStyle = "white";
-                ctx.font = "16px monospace";
-                ctx.textAlign = "center";
-                systemMessages.forEach((msg, i) => {
-                    ctx.fillText(msg, width/2, 80 + i * 25);
-                });
+            // System Msg Overlay
+            if (systemMessages.length) {
+                ctx.save(); ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(width/2-150, 40, 300, 20+systemMessages.length*20);
+                ctx.fillStyle = "white"; ctx.font = "14px monospace"; ctx.textAlign = "center";
+                systemMessages.forEach((m, i) => ctx.fillText(m, width/2, 65+i*20));
                 ctx.restore();
             }
 
             requestAnimationFrame(loop);
         }
         loop();
-
     </script>
 </body>
 </html>
