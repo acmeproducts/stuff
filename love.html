@@ -72,4 +72,557 @@
             transition: background 0.3s;
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
-        #settings
+        #settings-trigger:active { transform: scale(0.95); }
+        #settings-trigger svg { fill: white; width: 24px; height: 24px; }
+
+        #settings-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 320px;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            box-shadow: -5px 0 20px rgba(0,0,0,0.05);
+            transform: translateX(100%);
+            transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            z-index: 201;
+            padding: 70px 25px 30px 25px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+        #settings-panel.open { transform: translateX(0); }
+
+        #close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 24px;
+            color: #666;
+            cursor: pointer;
+            padding: 10px;
+        }
+
+        .control-group { display: flex; flex-direction: column; gap: 8px; }
+        .control-label { font-size: 13px; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        input[type=range] { width: 100%; -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%;
+            background: #8ec5fc; cursor: pointer; margin-top: -7px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: #ddd; border-radius: 2px;
+        }
+
+        .toggle-container { display: flex; justify-content: space-between; align-items: center; }
+        .toggle-switch { position: relative; display: inline-block; width: 44px; height: 22px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc; transition: .4s; border-radius: 22px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 16px; width: 16px;
+            left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #8ec5fc; }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        textarea, select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            background: #fff;
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
+        }
+        textarea { height: 60px; }
+
+        .theme-btn {
+            background: #f0f0f0; border: none; padding: 12px; border-radius: 8px;
+            color: #555; font-size: 14px; cursor: pointer; transition: background 0.2s; text-align: center;
+        }
+        .theme-btn:active { background: #e0e0e0; }
+        #clear-btn { background: #ffebee; color: #c62828; margin-top: 10px; }
+        #save-btn { background: #e8f5e9; color: #2e7d32; }
+
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="overlay">Tap to Bloom<br>Double Tap for Vine</div>
+        <div id="master-footer">The Garden of Compassion - v1.5 - 2025-12-01 03:28 AM</div>
+    </div>
+
+    <div id="settings-trigger">
+        <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+    </div>
+
+    <div id="settings-panel">
+        <div id="close-btn">&times;</div>
+        
+        <div class="control-group toggle-container">
+            <span class="control-label">Sound</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="audio-toggle" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+        
+        <div class="control-group">
+            <span class="control-label">Sound Design</span>
+            <select id="sound-profile">
+                <option value="zen">Zen (Pentatonic Chimes)</option>
+                <option value="deep">Deep (Low Resonance)</option>
+                <option value="ethereal">Ethereal (High Glass)</option>
+                <option value="forest">Forest (Dorian/Nature)</option>
+                <option value="sunrise">Sunrise (Lydian/Bright)</option>
+                <option value="cosmic">Cosmic (Whole Tone)</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Custom Words (comma separated)</span>
+            <textarea id="custom-words" placeholder="e.g. Joy, Serenity, You are loved"></textarea>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Fade Rate (Decay)</span>
+            <input type="range" id="decay-slider" min="0" max="5" step="1" value="2">
+            <div style="display:flex; justify-content:space-between; font-size:10px; color:#888;">
+                <span>Eternal</span><span>Fast</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Growth Speed</span>
+            <input type="range" id="speed-slider" min="1" max="100" value="50">
+        </div>
+        
+        <div class="control-group">
+            <button class="theme-btn" id="save-btn">Save Snapshot</button>
+            <button class="theme-btn" id="theme-btn">Cycle Color Theme</button>
+            <button class="theme-btn" id="clear-btn">Clear Garden</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // --- Audio Engine ---
+        const ZenAudio = {
+            ctx: null,
+            enabled: true,
+            profile: 'zen',
+            
+            // Musical Scales (Frequencies in Hz)
+            scales: {
+                zen: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25], // C Major Pentatonic
+                deep: [130.81, 146.83, 164.81, 196.00, 110.00], // Low Octave
+                ethereal: [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50], // High Octave
+                forest: [293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25], // D Dorian (Nature feel)
+                sunrise: [261.63, 293.66, 329.63, 369.99, 392.00, 440.00, 493.88], // C Lydian (Bright/Magical)
+                cosmic: [261.63, 293.66, 329.63, 369.99, 415.30, 466.16] // Whole Tone (Dreamy)
+            },
+
+            init: function() {
+                if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+
+            playTone: function(duration = 2.0, freqOverride = null, volume = 0.05) {
+                if (!this.ctx || !this.enabled) return;
+                
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                const currentScale = this.scales[this.profile] || this.scales.zen;
+                const freq = freqOverride || currentScale[Math.floor(Math.random() * currentScale.length)];
+                
+                osc.frequency.value = freq;
+                
+                // Sound Design / Synthesis Profiles
+                let attack = 0.1;
+                let release = duration;
+
+                switch(this.profile) {
+                    case 'deep':
+                        osc.type = 'triangle';
+                        duration = 3.0; 
+                        attack = 0.5; // Slow swell
+                        break;
+                    case 'ethereal':
+                        osc.type = 'sine';
+                        volume = 0.03; 
+                        break;
+                    case 'forest':
+                        osc.type = 'sine'; // Pure
+                        attack = 0.05; // Gentle tap
+                        break;
+                    case 'sunrise':
+                        osc.type = 'triangle'; 
+                        volume = 0.04;
+                        release = duration + 1.0; // Long tail
+                        break;
+                    case 'cosmic':
+                        osc.type = 'triangle';
+                        volume = 0.03;
+                        attack = 0.2;
+                        break;
+                    default: // Zen
+                        osc.type = 'sine';
+                }
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                const now = this.ctx.currentTime;
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(volume, now + attack); 
+                gain.gain.exponentialRampToValueAtTime(0.001, now + release); 
+                
+                osc.start(now);
+                osc.stop(now + release);
+            }
+        };
+
+        // --- Layout ---
+        let width, height;
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Config & Themes ---
+        const themes = [
+            { bg: ['#e0c3fc', '#8ec5fc'], text: '#4a148c' },
+            { bg: ['#fad0c4', '#ffd1ff'], text: '#880e4f' },
+            { bg: ['#d299c2', '#fef9d7'], text: '#3e2723' },
+            { bg: ['#a1c4fd', '#c2e9fb'], text: '#01579b' },
+            { bg: ['#d4fc79', '#96e6a1'], text: '#1b5e20' } 
+        ];
+
+        const decayRates = [0.0, 0.002, 0.005, 0.01, 0.02, 0.05]; 
+
+        const config = {
+            currentThemeIndex: 0,
+            defaultWords: ["Peace", "Gentle", "Warmth", "Love", "Hope", "Empathy", "Calm", "Grace", "Kindness", "Light", "Joy", "Bliss"],
+            customWords: [],
+            speedMultiplier: 1.0,
+            decayValue: 0.005 
+        };
+
+        let entities = [];
+        let lastBgChange = 0;
+        let lastTapTime = 0; 
+
+        // --- Helper: Word Selection ---
+        function getRandomWord() {
+            const pool = config.customWords.length > 0 
+                ? [...config.defaultWords, ...config.customWords] 
+                : config.defaultWords;
+            return pool[Math.floor(Math.random() * pool.length)];
+        }
+
+        const random = (min, max) => Math.random() * (max - min) + min;
+        function getPastelColor() { return `hsla(${random(0, 360)}, 70%, 80%,`; }
+
+        // --- Entities ---
+
+        class Word {
+            constructor(x, y, textOverride = null, sizeOverride = 20) {
+                this.x = x;
+                this.y = y;
+                this.text = textOverride || getRandomWord();
+                this.velocity = -0.5;
+                this.alpha = 0;
+                this.life = 0;
+                this.fadeIn = true;
+                this.color = themes[config.currentThemeIndex].text; 
+                this.fontSize = sizeOverride;
+            }
+            update() {
+                this.y += this.velocity * config.speedMultiplier;
+                this.life++;
+                
+                if (this.fadeIn) {
+                    this.alpha += 0.02 * config.speedMultiplier;
+                    if (this.alpha >= 1) this.fadeIn = false;
+                } else {
+                    if (config.decayValue > 0) {
+                        this.alpha -= config.decayValue * config.speedMultiplier;
+                    }
+                }
+            }
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.font = `${this.fontSize}px sans-serif`;
+                ctx.fillStyle = this.color;
+                ctx.textAlign = "center";
+                ctx.shadowColor = "rgba(255,255,255,0.4)"; 
+                ctx.shadowBlur = 4;
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.restore();
+            }
+            isDead() { return this.alpha <= 0 && !this.fadeIn; }
+        }
+
+        class Bloom {
+            constructor(x, y, sizeOverride = null, colorOverride = null) {
+                this.x = x;
+                this.y = y;
+                this.size = 0;
+                this.maxSize = sizeOverride || random(30, 80);
+                this.colorBase = colorOverride || getPastelColor();
+                this.petals = Math.floor(random(5, 9));
+                this.growthRate = random(0.3, 0.6);
+                this.alpha = 1;
+            }
+            update() {
+                if (this.size < this.maxSize) {
+                    this.size += this.growthRate * config.speedMultiplier;
+                } else {
+                    if (config.decayValue > 0) {
+                        this.alpha -= (config.decayValue * 0.5) * config.speedMultiplier; 
+                    }
+                }
+            }
+            draw(ctx) {
+                ctx.save();
+                for(let i=0; i<3; i++) {
+                    ctx.fillStyle = this.colorBase + (this.alpha * (1 - i*0.2)) + ')';
+                    ctx.beginPath();
+                    for (let j = 0; j < this.petals; j++) {
+                        const angle = (j / this.petals) * Math.PI * 2;
+                        const petalSize = (this.size - (i*5));
+                        if (petalSize <= 0) continue;
+                        ctx.moveTo(this.x, this.y);
+                        ctx.arc(this.x + Math.cos(angle)*(petalSize*0.5), 
+                                this.y + Math.sin(angle)*(petalSize*0.5), 
+                                petalSize*0.4, 0, Math.PI*2);
+                    }
+                    ctx.fill();
+                }
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * 0.1, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+            isDead() { return this.alpha <= 0; }
+        }
+
+        class Vine {
+            constructor(startX, startY) {
+                this.startX = startX;
+                this.startY = startY;
+                this.segments = []; 
+                this.progress = 0; 
+                this.growing = true;
+                this.alpha = 1;
+                this.points = this.generateHeartPath(startX, startY, 70); 
+                this.soundTicker = 0;
+            }
+
+            generateHeartPath(cx, cy, scale) {
+                let pts = [];
+                for (let t = Math.PI; t > -Math.PI; t -= 0.1) {
+                    let x = 16 * Math.pow(Math.sin(t), 3);
+                    let y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+                    pts.push({x: cx + x * scale / 16, y: cy - y * scale / 16});
+                }
+                return pts;
+            }
+
+            update() {
+                if (this.growing) {
+                    if (this.progress < this.points.length) {
+                        const target = this.points[Math.floor(this.progress)];
+                        this.segments.push({ x: target.x, y: target.y, size: random(2, 5) });
+
+                        if (Math.random() < 0.2) {
+                             entities.push(new Bloom(target.x, target.y, random(5, 10), "hsla(120, 40%, 80%,"));
+                        }
+
+                        this.soundTicker++;
+                        if(this.soundTicker % 10 === 0) {
+                            ZenAudio.playTone(0.3, null, 0.02);
+                        }
+
+                        this.progress += 0.8 * config.speedMultiplier; 
+                    } else {
+                        this.growing = false;
+                        entities.push(new Word(this.startX, this.startY - 20, getRandomWord(), 30));
+                        // Play Root note of current scale
+                        const currentScale = ZenAudio.scales[ZenAudio.profile] || ZenAudio.scales.zen;
+                        ZenAudio.playTone(3.0, currentScale[0] / 2, 0.1); 
+                    }
+                } else {
+                    if (config.decayValue > 0) {
+                        this.alpha -= config.decayValue * config.speedMultiplier;
+                    }
+                }
+            }
+
+            draw(ctx) {
+                if (this.segments.length < 2) return;
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.beginPath();
+                ctx.moveTo(this.segments[0].x, this.segments[0].y);
+                for (let i = 1; i < this.segments.length; i++) {
+                    ctx.lineTo(this.segments[i].x, this.segments[i].y);
+                }
+                ctx.strokeStyle = "#558b2f"; 
+                ctx.lineWidth = 3;
+                ctx.lineCap = "round";
+                ctx.lineJoin = "round";
+                ctx.stroke();
+                
+                ctx.fillStyle = "#8bc34a"; 
+                for (let i = 0; i < this.segments.length; i+=6) {
+                    const p = this.segments[i];
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+            isDead() { return this.alpha <= 0; }
+        }
+
+        // --- Interaction ---
+
+        function handleInput(x, y) {
+            ZenAudio.init();
+            
+            const now = Date.now();
+            const timeDiff = now - lastTapTime;
+            
+            if (timeDiff < 300) {
+                entities.push(new Vine(x, y));
+                document.getElementById('overlay').style.opacity = 0;
+            } else {
+                entities.push(new Bloom(x, y));
+                entities.push(new Word(x, y - 30)); 
+                ZenAudio.playTone();
+                document.getElementById('overlay').style.opacity = 0;
+            }
+            
+            lastTapTime = now;
+        }
+
+        canvas.addEventListener('mousedown', e => handleInput(e.clientX, e.clientY));
+        canvas.addEventListener('touchstart', e => {
+            e.preventDefault(); 
+            if (e.changedTouches.length > 0) {
+                handleInput(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+            }
+        }, {passive: false});
+        
+        // --- Settings Logic ---
+        const panel = document.getElementById('settings-panel');
+        document.getElementById('settings-trigger').addEventListener('click', () => panel.classList.add('open'));
+        document.getElementById('close-btn').addEventListener('click', () => panel.classList.remove('open'));
+        
+        document.getElementById('audio-toggle').addEventListener('change', e => ZenAudio.enabled = e.target.checked);
+        document.getElementById('sound-profile').addEventListener('change', e => {
+            ZenAudio.profile = e.target.value;
+        });
+        document.getElementById('decay-slider').addEventListener('input', e => {
+            const index = parseInt(e.target.value);
+            config.decayValue = decayRates[index];
+        });
+        document.getElementById('speed-slider').addEventListener('input', e => config.speedMultiplier = 0.2 + (e.target.value/100)*1.8);
+        
+        const customArea = document.getElementById('custom-words');
+        customArea.addEventListener('input', e => {
+            const raw = e.target.value;
+            if (raw.trim() === "") {
+                config.customWords = [];
+            } else {
+                config.customWords = raw.split(',').map(s => s.trim()).filter(s => s.length > 0);
+            }
+        });
+
+        document.getElementById('theme-btn').addEventListener('click', () => {
+            config.currentThemeIndex = (config.currentThemeIndex + 1) % themes.length;
+            applyTheme();
+        });
+
+        document.getElementById('clear-btn').addEventListener('click', () => {
+            entities = [];
+        });
+
+        // Screenshot Feature
+        document.getElementById('save-btn').addEventListener('click', () => {
+            // Draw background explicitly first because canvas is transparent
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const tCtx = tempCanvas.getContext('2d');
+            
+            // Get current gradient colors
+            const theme = themes[config.currentThemeIndex];
+            const grad = tCtx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, theme.bg[0]);
+            grad.addColorStop(1, theme.bg[1]);
+            
+            tCtx.fillStyle = grad;
+            tCtx.fillRect(0,0, tempCanvas.width, tempCanvas.height);
+            tCtx.drawImage(canvas, 0, 0);
+            
+            // Download
+            const link = document.createElement('a');
+            link.download = `garden-of-compassion-${Date.now()}.png`;
+            link.href = tempCanvas.toDataURL();
+            link.click();
+        });
+
+        function applyTheme() {
+            const theme = themes[config.currentThemeIndex];
+            const container = document.getElementById('canvas-container');
+            container.style.background = `linear-gradient(to bottom, ${theme.bg[0]}, ${theme.bg[1]})`;
+        }
+
+        // --- Main Loop ---
+        function loop() {
+            ctx.clearRect(0, 0, width, height);
+
+            if (Date.now() - lastBgChange > 25000) {
+                config.currentThemeIndex = (config.currentThemeIndex + 1) % themes.length;
+                applyTheme();
+                lastBgChange = Date.now();
+            }
+
+            for (let i = entities.length - 1; i >= 0; i--) {
+                entities[i].update();
+                entities[i].draw(ctx);
+                if (entities[i].isDead()) entities.splice(i, 1);
+            }
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
