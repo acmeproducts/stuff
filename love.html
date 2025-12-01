@@ -201,9 +201,9 @@
 
     <div id="canvas-container">
         <canvas id="gameCanvas"></canvas>
-        <div id="overlay">Tap to Bloom<br>Double Tap for Hearts<br><span style="font-size:0.7em; opacity:0.8">Drag to Flow</span></div>
+        <div id="overlay">Tap to Bloom<br>Double Tap for Hearts<br><span style="font-size:0.7em; opacity:0.8">Drag to Strum</span></div>
         <div id="rec-indicator"><div id="rec-dot"></div>Recording</div>
-        <div id="master-footer">The Garden of Compassion - v2.7 - 2025-12-01 05:45 PM</div>
+        <div id="master-footer">The Garden of Compassion - v2.8 - 2025-12-01 06:15 PM</div>
     </div>
 
     <div id="settings-trigger">
@@ -262,6 +262,7 @@
         // --- Audio Engine ---
         const ZenAudio = {
             ctx: null, enabled: true, masterGain: null, dest: null,
+            // Extended Pentatonic
             scale: [130.81, 146.83, 164.81, 196.00, 220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51],
 
             init: function() {
@@ -282,7 +283,7 @@
                 return this.scale[Math.min(index, this.scale.length - 1)];
             },
 
-            // Instruments
+            // Karplus-Strong Pluck
             playPluck: function(freq, volume = 0.3) {
                 if (!this.ctx || !this.enabled) return;
                 const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 2.0, this.ctx.sampleRate);
@@ -300,6 +301,7 @@
                 src.connect(this.masterGain); src.start();
             },
 
+            // Strum: Arpeggio based on count
             playStrum: function(count, baseFreq) {
                 if (!this.ctx || !this.enabled) return;
                 let baseIndex = 0;
@@ -309,9 +311,7 @@
                 for(let i=0; i<count; i++) {
                     let noteIndex = Math.min(this.scale.length-1, baseIndex + i * 2);
                     let freq = this.scale[noteIndex];
-                    setTimeout(() => {
-                        this.playPluck(freq, 0.15);
-                    }, i * 60); 
+                    setTimeout(() => { this.playPluck(freq, 0.15); }, i * 60); 
                 }
             },
 
@@ -322,26 +322,6 @@
                 const now = this.ctx.currentTime;
                 g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(volume, now+0.05); g.gain.exponentialRampToValueAtTime(0.001, now+1.5);
                 osc.start(now); osc.stop(now+1.5);
-            },
-
-            playSparkle: function(freq) {
-                if (!this.ctx || !this.enabled) return;
-                const osc = this.ctx.createOscillator();
-                const g = this.ctx.createGain();
-                
-                osc.type = 'triangle';
-                osc.frequency.value = freq * (1 + Math.random()*0.02); // slight detune
-                
-                g.connect(this.masterGain);
-                const now = this.ctx.currentTime;
-                
-                // Very short envelope (droplet/sparkle)
-                g.gain.setValueAtTime(0, now);
-                g.gain.linearRampToValueAtTime(0.08, now + 0.02);
-                g.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-                
-                osc.start(now);
-                osc.stop(now + 0.3);
             },
 
             playDiscovery: function() {
@@ -392,7 +372,7 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // --- Config & State ---
+        // --- Config ---
         const themes = [
             { bg: ['#e0c3fc', '#8ec5fc'], text: '#4a148c' },
             { bg: ['#fad0c4', '#ffd1ff'], text: '#880e4f' },
@@ -467,7 +447,8 @@
                 foundEggs.push(id);
                 localStorage.setItem('garden_egg_ids', JSON.stringify(foundEggs));
                 if (levelStrength > gardenLevel) gardenLevel = levelStrength;
-                ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.fillRect(0,0,width,height);
+                // Mandala Flash
+                entities.push(new Mandala(width/2, height/2, gardenLevel));
                 ZenAudio.playDiscovery();
             }
         }
@@ -480,12 +461,12 @@
             return config.defaultWords[Math.floor(Math.random() * config.defaultWords.length)];
         }
 
-        // --- Visual Entities ---
+        // --- Entities ---
         class Word {
-            constructor(x, y, text, size=20, color=null) {
+            constructor(x, y, text) {
                 this.x = x; this.y = y; this.text = text || getRandomWord();
                 this.velocity = -0.5; this.alpha = 0; this.life = 0; this.fadeIn = true;
-                this.color = color || themes[config.currentThemeIndex].text; this.fontSize = size;
+                this.color = themes[config.currentThemeIndex].text; 
             }
             update() {
                 this.y += this.velocity * config.speedMultiplier;
@@ -494,7 +475,7 @@
             }
             draw(ctx) {
                 ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha);
-                ctx.font = `${this.fontSize}px sans-serif`; ctx.fillStyle = this.color;
+                ctx.font = "20px sans-serif"; ctx.fillStyle = this.color;
                 ctx.textAlign = "center"; ctx.shadowBlur = 4; ctx.shadowColor = "rgba(0,0,0,0.5)";
                 ctx.fillText(this.text, this.x, this.y); ctx.restore();
             }
@@ -502,9 +483,9 @@
         }
 
         class Bloom {
-            constructor(x, y, size=null, color=null) {
+            constructor(x, y, size=null) {
                 this.x = x; this.y = y; this.size = 0; this.maxSize = size || random(30, 80);
-                this.colorBase = color || getPastelColor(); this.petals = Math.floor(random(5, 9));
+                this.colorBase = getPastelColor(); this.petals = Math.floor(random(5, 9));
                 this.alpha = 1; this.level = gardenLevel;
             }
             update() {
@@ -532,102 +513,132 @@
             isDead() { return this.alpha <= 0; }
         }
 
-        class HeartCluster {
-            constructor(x, y, sizeMod=1) {
-                this.x = x; this.y = y; this.alpha = 1; 
-                this.maxSize = (10 + gardenLevel + Math.random()*20) * sizeMod;
-                this.size = 0;
-                const hearts = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🤎", "🤍"];
-                this.text = hearts[Math.floor(Math.random()*hearts.length)];
+        // Heart Cloud (Double Tap)
+        class HeartCloud {
+            constructor(x, y) {
+                this.x = x; this.y = y; this.alpha = 1;
+                // Generate 2-8 hearts
+                this.hearts = [];
+                const count = Math.floor(random(2, 9));
+                const colors = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🤎", "🤍"];
+                for(let i=0; i<count; i++) {
+                    this.hearts.push({
+                        ox: random(-40, 40), oy: random(-40, 40),
+                        size: random(15, 35) + (gardenLevel * 2),
+                        char: colors[Math.floor(Math.random()*colors.length)]
+                    });
+                }
+                // Play Strum based on count
+                const baseFreq = ZenAudio.getFreq(y, height);
+                ZenAudio.playStrum(count, baseFreq);
             }
             update() {
-                if (this.size < this.maxSize) this.size += 1;
-                this.y -= 0.5;
-                if (config.decayValue > 0) this.alpha -= config.decayValue * 2;
+                this.y -= 0.5 * config.speedMultiplier;
+                if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier;
             }
             draw(ctx) {
                 ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha);
-                ctx.font = `${this.size}px sans-serif`; ctx.textAlign = "center";
-                ctx.fillText(this.text, this.x, this.y);
+                this.hearts.forEach(h => {
+                    ctx.font = `${h.size}px serif`;
+                    ctx.fillText(h.char, this.x + h.ox, this.y + h.oy);
+                });
                 ctx.restore();
             }
             isDead() { return this.alpha <= 0; }
         }
 
-        class EmojiHeartPath {
-            constructor(startX, startY) {
-                this.startX = startX; this.startY = startY;
-                this.progress = 0; this.growing = true;
-                this.points = this.genPath(startX, startY);
-                this.baseFreq = ZenAudio.getFreq(startY, height);
-                ZenAudio.playPluck(this.baseFreq, 0.4); 
-            }
-            genPath(cx, cy) {
-                let pts = []; const scale = 70 + (gardenLevel*2);
-                for (let t = Math.PI; t > -Math.PI; t -= 0.1) pts.push({x: cx + (16*Math.pow(Math.sin(t),3))*scale/16, y: cy - (13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t))*scale/16});
-                return pts;
+        // Drag Entities
+        class CometTrail {
+            constructor(x, y) {
+                this.x = x; this.y = y; this.size = random(2, 6) + (gardenLevel*0.5); 
+                this.alpha = 1; this.life = 30;
+                this.color = `hsl(${random(200, 260)}, 100%, 80%)`;
             }
             update() {
-                if (this.growing) {
-                    if (this.progress < this.points.length) {
-                        const t = this.points[Math.floor(this.progress)];
-                        const count = Math.floor(random(1, 6)); 
-                        if (Math.random() < 0.3) ZenAudio.playStrum(count, this.baseFreq);
-                        for(let k=0; k<count; k++) {
-                            entities.push(new HeartCluster(t.x + random(-10,10), t.y + random(-10,10), random(0.5, 1.5)));
-                        }
-                        this.progress += 0.8 * config.speedMultiplier;
-                    } else {
-                        this.growing = false;
-                        entities.push(new Word(this.startX, this.startY - 20, getRandomWord(), 30));
-                        ZenAudio.playChime(this.baseFreq * 2, 0.15);
-                    }
-                }
+                this.size *= 0.9; this.alpha -= 0.03;
             }
-            draw(ctx) {}
-            isDead() { return !this.growing; }
+            draw(ctx) {
+                ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
+                ctx.restore();
+            }
+            isDead() { return this.alpha <= 0; }
+        }
+
+        class Ripple {
+            constructor(x, y) {
+                this.x = x; this.y = y; this.r = 0; this.alpha = 0.8;
+                this.maxR = 50 + (gardenLevel * 5);
+            }
+            update() {
+                this.r += 2; this.alpha -= 0.02;
+            }
+            draw(ctx) {
+                ctx.save(); ctx.strokeStyle = `rgba(255,255,255,${Math.max(0,this.alpha)})`;
+                ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.stroke();
+                ctx.restore();
+            }
+            isDead() { return this.alpha <= 0; }
+        }
+
+        class Mandala {
+            constructor(x, y, level) {
+                this.x = x; this.y = y; this.r = 0; this.maxR = 300; this.alpha = 1; this.level = level;
+            }
+            update() { this.r += 2; this.alpha -= 0.01; }
+            draw(ctx) {
+                ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.r * 0.01);
+                ctx.strokeStyle = `rgba(255, 215, 0, ${this.alpha})`; ctx.lineWidth = 2;
+                const petals = 8 + this.level;
+                for(let i=0; i<petals; i++) {
+                    ctx.rotate(Math.PI*2/petals);
+                    ctx.beginPath(); ctx.ellipse(0, this.r/2, this.r/4, this.r/8, 0, 0, Math.PI*2); ctx.stroke();
+                }
+                ctx.restore();
+            }
+            isDead() { return this.alpha <= 0; }
         }
 
         // --- Inputs ---
-        let lastTap = 0, touchStart = 0, isDragging = false;
-        let lastDragSound = 0;
-
+        let lastTap = 0, touchStart = 0, isDragging = false, lastDragSound = 0;
+        
         function handleStart(x, y) { 
             ZenAudio.init(); touchStart = Date.now(); isDragging = true;
             document.getElementById('overlay').style.opacity = 0;
-            // No tone start, waiting for move
         }
         
         function handleMove(x, y) {
             if (isDragging) {
-                const now = Date.now();
-                // Play sparkly grain sound every 80ms or so while dragging
-                if (now - lastDragSound > 80) {
-                    ZenAudio.playSparkle(ZenAudio.getFreq(y, height));
-                    lastDragSound = now;
+                // Drag Audio: Invisible Harp Strings
+                // Only trigger if we moved enough distance or crossed a grid line
+                const freq = ZenAudio.getFreq(y, height);
+                if (Date.now() - lastDragSound > 50) { // Limit strum rate
+                    ZenAudio.playPluck(freq, 0.1); 
+                    lastDragSound = Date.now();
                 }
                 
-                // Visual Particles
-                if (Math.random() > 0.3) {
-                    ctx.fillStyle = `rgba(255,255,255,0.4)`;
-                    ctx.beginPath(); ctx.arc(x + random(-5,5), y + random(-5,5), 2 + gardenLevel*0.5, 0, Math.PI*2); ctx.fill();
-                }
+                // Drag Visuals
+                entities.push(new CometTrail(x, y));
+                if (Math.random() < 0.1) entities.push(new Ripple(x, y));
             }
         }
 
         function handleEnd(x, y) {
-            isDragging = false;
+            isDragging = false; 
             const dur = Date.now() - touchStart; const diff = Date.now() - lastTap; const freq = ZenAudio.getFreq(y, height);
             checkDragUnlock(dur);
             if (dur < 300) registerInput("T"); else registerInput("H");
 
             if (diff < 300 && dur < 300) {
-                entities.push(new EmojiHeartPath(x, y));
+                // Double Tap: Heart Cloud
+                entities.push(new HeartCloud(x, y));
+                entities.push(new Word(x, y-50));
             } else {
+                // Single Tap / Hold
                 if (dur < 300) {
                     entities.push(new Bloom(x, y)); entities.push(new Word(x, y-30)); ZenAudio.playPluck(freq, 0.3);
                 } else {
-                    entities.push(new Bloom(x, y, 120 + gardenLevel*10)); ZenAudio.playChime(freq * 0.5, 0.2);
+                    entities.push(new Bloom(x, y, 150)); ZenAudio.playChime(freq * 0.5, 0.2);
                 }
             }
             lastTap = Date.now();
@@ -673,12 +684,8 @@
         function parseWords(val) {
             systemMessages = [];
             if (val.trim() === '/cheat') { systemMessages.push("--- SECRETS ---"); rhythmSequences.forEach(s => systemMessages.push(s.code)); systemMessages.push("Drag 2-11s for levels 11-20"); }
-            else if (val.trim() === '6969') { 
-                // COMBINE MODE
-                config.customWords = [...new Set([...config.defaultWords, ...secretWords])];
-            } else { 
-                config.customWords = val.split(',').map(s => s.trim()).filter(s => s.length); 
-            }
+            else if (val.trim() === '6969') { config.customWords = [...new Set([...config.defaultWords, ...secretWords])]; }
+            else { config.customWords = val.split(',').map(s => s.trim()).filter(s => s.length); }
         }
 
         function loop() {
