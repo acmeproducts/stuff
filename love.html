@@ -203,7 +203,7 @@
         <canvas id="gameCanvas"></canvas>
         <div id="overlay">Tap to Bloom<br>Double Tap for Hearts<br><span style="font-size:0.7em; opacity:0.8">Drag to Flow</span></div>
         <div id="rec-indicator"><div id="rec-dot"></div>Recording</div>
-        <div id="master-footer">The Garden of Compassion - v2.6 - 2025-12-01 05:30 PM</div>
+        <div id="master-footer">The Garden of Compassion - v2.7 - 2025-12-01 05:45 PM</div>
     </div>
 
     <div id="settings-trigger">
@@ -262,7 +262,6 @@
         // --- Audio Engine ---
         const ZenAudio = {
             ctx: null, enabled: true, masterGain: null, dest: null,
-            dragOsc: null, dragGain: null,
             scale: [130.81, 146.83, 164.81, 196.00, 220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51],
 
             init: function() {
@@ -325,31 +324,29 @@
                 osc.start(now); osc.stop(now+1.5);
             },
 
+            playSparkle: function(freq) {
+                if (!this.ctx || !this.enabled) return;
+                const osc = this.ctx.createOscillator();
+                const g = this.ctx.createGain();
+                
+                osc.type = 'triangle';
+                osc.frequency.value = freq * (1 + Math.random()*0.02); // slight detune
+                
+                g.connect(this.masterGain);
+                const now = this.ctx.currentTime;
+                
+                // Very short envelope (droplet/sparkle)
+                g.gain.setValueAtTime(0, now);
+                g.gain.linearRampToValueAtTime(0.08, now + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                
+                osc.start(now);
+                osc.stop(now + 0.3);
+            },
+
             playDiscovery: function() {
                 if (!this.ctx || !this.enabled) return;
                 [261.63, 329.63, 392.00, 523.25].forEach((f, i) => { setTimeout(() => this.playChime(f, 0.2), i * 150); });
-            },
-
-            // Drag Tone
-            startDragTone: function(freq) {
-                if (!this.ctx || !this.enabled) return;
-                if (!this.dragOsc) {
-                    this.dragOsc = this.ctx.createOscillator(); this.dragOsc.type = 'triangle';
-                    this.dragGain = this.ctx.createGain(); this.dragGain.gain.value = 0;
-                    this.dragOsc.connect(this.dragGain); this.dragGain.connect(this.masterGain);
-                    this.dragOsc.start();
-                }
-                this.dragOsc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.1);
-                this.dragGain.gain.setTargetAtTime(0.1, this.ctx.currentTime, 0.1);
-            },
-            updateDragTone: function(freq, volume) {
-                if(this.dragOsc) {
-                    this.dragOsc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.1);
-                    this.dragGain.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.1);
-                }
-            },
-            stopDragTone: function() {
-                if(this.dragGain) this.dragGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.2);
             }
         };
 
@@ -405,7 +402,6 @@
         ];
         const decayRates = [0.0, 0.002, 0.005, 0.01, 0.02, 0.05]; 
         
-        // --- EXPANDED WORD LISTS ---
         const config = {
             currentThemeIndex: 0,
             defaultWords: [
@@ -575,17 +571,11 @@
                 if (this.growing) {
                     if (this.progress < this.points.length) {
                         const t = this.points[Math.floor(this.progress)];
-                        
-                        // Spawn Cluster of Emojis at current point (No Line)
                         const count = Math.floor(random(1, 6)); 
-                        // Strum sound
                         if (Math.random() < 0.3) ZenAudio.playStrum(count, this.baseFreq);
-                        
                         for(let k=0; k<count; k++) {
-                            // Variation in position and size
                             entities.push(new HeartCluster(t.x + random(-10,10), t.y + random(-10,10), random(0.5, 1.5)));
                         }
-                        
                         this.progress += 0.8 * config.speedMultiplier;
                     } else {
                         this.growing = false;
@@ -594,30 +584,39 @@
                     }
                 }
             }
-            draw(ctx) { 
-                // No drawing of path lines!
-            }
+            draw(ctx) {}
             isDead() { return !this.growing; }
         }
 
         // --- Inputs ---
         let lastTap = 0, touchStart = 0, isDragging = false;
+        let lastDragSound = 0;
+
         function handleStart(x, y) { 
             ZenAudio.init(); touchStart = Date.now(); isDragging = true;
             document.getElementById('overlay').style.opacity = 0;
-            ZenAudio.startDragTone(ZenAudio.getFreq(y, height));
+            // No tone start, waiting for move
         }
+        
         function handleMove(x, y) {
             if (isDragging) {
-                ZenAudio.updateDragTone(ZenAudio.getFreq(y, height), 0.15);
-                if (Math.random() > 0.5) {
-                    ctx.fillStyle = `rgba(255,255,255,0.3)`;
-                    ctx.beginPath(); ctx.arc(x, y, 2 + gardenLevel*0.5, 0, Math.PI*2); ctx.fill();
+                const now = Date.now();
+                // Play sparkly grain sound every 80ms or so while dragging
+                if (now - lastDragSound > 80) {
+                    ZenAudio.playSparkle(ZenAudio.getFreq(y, height));
+                    lastDragSound = now;
+                }
+                
+                // Visual Particles
+                if (Math.random() > 0.3) {
+                    ctx.fillStyle = `rgba(255,255,255,0.4)`;
+                    ctx.beginPath(); ctx.arc(x + random(-5,5), y + random(-5,5), 2 + gardenLevel*0.5, 0, Math.PI*2); ctx.fill();
                 }
             }
         }
+
         function handleEnd(x, y) {
-            isDragging = false; ZenAudio.stopDragTone();
+            isDragging = false;
             const dur = Date.now() - touchStart; const diff = Date.now() - lastTap; const freq = ZenAudio.getFreq(y, height);
             checkDragUnlock(dur);
             if (dur < 300) registerInput("T"); else registerInput("H");
