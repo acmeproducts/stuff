@@ -201,9 +201,9 @@
 
     <div id="canvas-container">
         <canvas id="gameCanvas"></canvas>
-        <div id="overlay">Tap to Bloom<br>Double Tap for Vine</div>
+        <div id="overlay">Tap to Bloom<br>Double Tap for Vine<br><span style="font-size:0.7em; opacity:0.8">Drag to Flow</span></div>
         <div id="rec-indicator"><div id="rec-dot"></div>Recording</div>
-        <div id="master-footer">The Garden of Compassion - v2.2 - 2025-12-01 12:00 PM</div>
+        <div id="master-footer">The Garden of Compassion - v2.5 - 2025-12-01 11:30 AM</div>
     </div>
 
     <div id="settings-trigger">
@@ -262,6 +262,7 @@
         // --- Audio Engine ---
         const ZenAudio = {
             ctx: null, enabled: true, masterGain: null, dest: null,
+            dragOsc: null, dragGain: null,
             scale: [130.81, 146.83, 164.81, 196.00, 220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51],
 
             init: function() {
@@ -282,16 +283,17 @@
                 return this.scale[Math.min(index, this.scale.length - 1)];
             },
 
+            // Instruments
             playPluck: function(freq, volume = 0.3) {
                 if (!this.ctx || !this.enabled) return;
                 const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 2.0, this.ctx.sampleRate);
                 const data = buffer.getChannelData(0);
                 const delayLength = Math.floor(this.ctx.sampleRate / freq);
-                const delayLine = new Float32Array(delayLength).map(() => Math.random()*2-1);
                 let idx = 0, last = 0;
+                const noise = new Float32Array(delayLength).map(() => Math.random()*2-1);
                 for (let i = 0; i < buffer.length; i++) {
-                    const sample = (delayLine[idx] + last) * 0.5 * 0.994;
-                    last = delayLine[idx]; delayLine[idx] = sample;
+                    const sample = (noise[idx] + last) * 0.5 * 0.992;
+                    last = noise[idx]; noise[idx] = sample;
                     data[i] = sample * volume;
                     idx = (idx + 1) % delayLength;
                 }
@@ -299,11 +301,56 @@
                 src.connect(this.masterGain); src.start();
             },
 
+            // Strum: Plays 'count' notes in rapid succession based on baseFreq
+            playStrum: function(count, baseFreq) {
+                if (!this.ctx || !this.enabled) return;
+                let baseIndex = 0;
+                let closest = 10000;
+                this.scale.forEach((f, i) => { if(Math.abs(f-baseFreq)<closest) { closest=Math.abs(f-baseFreq); baseIndex=i; }});
+                
+                for(let i=0; i<count; i++) {
+                    let noteIndex = Math.min(this.scale.length-1, baseIndex + i * 2);
+                    let freq = this.scale[noteIndex];
+                    setTimeout(() => {
+                        this.playPluck(freq, 0.15);
+                    }, i * 60); 
+                }
+            },
+
+            playChime: function(freq, volume = 0.1) {
+                if (!this.ctx || !this.enabled) return;
+                const osc = this.ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = freq * 2;
+                const g = this.ctx.createGain(); g.connect(this.masterGain);
+                const now = this.ctx.currentTime;
+                g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(volume, now+0.05); g.gain.exponentialRampToValueAtTime(0.001, now+1.5);
+                osc.start(now); osc.stop(now+1.5);
+            },
+
             playDiscovery: function() {
                 if (!this.ctx || !this.enabled) return;
-                [261.63, 329.63, 392.00, 523.25].forEach((f, i) => {
-                    setTimeout(() => this.playPluck(f, 0.2), i * 150);
-                });
+                [261.63, 329.63, 392.00, 523.25].forEach((f, i) => { setTimeout(() => this.playChime(f, 0.2), i * 150); });
+            },
+
+            // Drag Tone
+            startDragTone: function(freq) {
+                if (!this.ctx || !this.enabled) return;
+                if (!this.dragOsc) {
+                    this.dragOsc = this.ctx.createOscillator(); this.dragOsc.type = 'triangle';
+                    this.dragGain = this.ctx.createGain(); this.dragGain.gain.value = 0;
+                    this.dragOsc.connect(this.dragGain); this.dragGain.connect(this.masterGain);
+                    this.dragOsc.start();
+                }
+                this.dragOsc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.1);
+                this.dragGain.gain.setTargetAtTime(0.1, this.ctx.currentTime, 0.1);
+            },
+            updateDragTone: function(freq, volume) {
+                if(this.dragOsc) {
+                    this.dragOsc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.1);
+                    this.dragGain.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.1);
+                }
+            },
+            stopDragTone: function() {
+                if(this.dragGain) this.dragGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.2);
             }
         };
 
@@ -324,16 +371,14 @@
             mediaRecorder.start();
             isRecording = true;
             recIndicator.style.opacity = 1;
-            const btn = document.getElementById('record-btn');
-            btn.textContent = "Stop Recording"; btn.classList.add('recording');
+            document.getElementById('record-btn').classList.add('recording');
             document.getElementById('settings-panel').classList.remove('open');
         }
         function stopRecording() {
             if (mediaRecorder) mediaRecorder.stop();
             isRecording = false;
             recIndicator.style.opacity = 0;
-            const btn = document.getElementById('record-btn');
-            btn.textContent = "Record Video"; btn.classList.remove('recording');
+            document.getElementById('record-btn').classList.remove('recording');
         }
         function saveRecording() {
             const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
@@ -360,56 +405,75 @@
             { bg: ['#d4fc79', '#96e6a1'], text: '#1b5e20' } 
         ];
         const decayRates = [0.0, 0.002, 0.005, 0.01, 0.02, 0.05]; 
-        const secretWords = ["Huoi I Love You", "You are my Sunshine", "I Love You My Sweetheart", "My Babydoll", "❤️❤️❤️", "🥰❤️♥️🧡🫰", "whereever you go that's where I want to be"];
+        
+        // --- EXPANDED WORD LISTS ---
         const config = {
             currentThemeIndex: 0,
-            defaultWords: ["Peace", "Gentle", "Warmth", "Love", "Hope", "Empathy", "Calm", "Grace", "Kindness", "Light", "Joy"],
+            defaultWords: [
+                "Peace", "Gentle", "Warmth", "Love", "Hope", "Empathy", "Calm", "Grace", "Kindness", "Light", "Joy", "Bliss",
+                "Serenity", "Breathe Deep", "Be Here", "Soften", "Let Go", "You Are Enough", "Tranquility", "Balance", "Harmony",
+                "Inner Peace", "Radiate", "Stillness", "Presence", "Gratitude", "Acceptance", "Flow", "Healing", "Strength",
+                "Wisdom", "Patience", "Courage", "Trust", "Clarity", "Unity", "Wholeness"
+            ],
             customWords: [],
             speedMultiplier: 1.0,
             decayValue: 0.005,
             useGradient: true
         };
 
+        const secretWords = [
+            "Huoi I Love You", "You are my Sunshine", "I Love You My Sweetheart", "My Babydoll", "❤️❤️❤️", "🥰❤️♥️🧡🫰",
+            "whereever you go that's where I want to be", "Forever Yours", "My One and Only", "Soulmate", "Endless Love",
+            "My Heart is Yours", "Together Always", "You Complete Me", "My Happy Place", "Love of My Life", "Dream Come True",
+            "My Everything", "Cherished", "Adored", "My Rock", "Purest Love", "Only You", "Sweetheart", "Darling",
+            "Beloved", "My Angel", "Home is You", "Infinite Love", "Unconditional", "My Better Half", "Twin Flame"
+        ];
+
         let entities = [];
         let systemMessages = [];
         
-        // --- Progression System (Subtle Easter Eggs) ---
-        let gardenLevel = 0; // 0=Simple, 1=Petals, 2=Detailed, 3=Flourish, 4=Ethereal
-        const maxLevel = 4;
+        // --- Progression System ---
+        let gardenLevel = 0; 
+        let foundEggs = JSON.parse(localStorage.getItem('garden_egg_ids') || "[]");
         
-        const eggSequences = [
+        const rhythmSequences = [
             { code: "TTT", id: 1 }, { code: "HH", id: 2 }, { code: "TTH", id: 3 }, 
             { code: "HTH", id: 4 }, { code: "TTTT", id: 5 }, { code: "HHT", id: 6 },
             { code: "THTH", id: 7 }, { code: "HTTH", id: 8 }, { code: "THH", id: 9 }, { code: "HHH", id: 10 }
         ];
         let inputBuffer = "";
-        let foundEggs = JSON.parse(localStorage.getItem('garden_egg_ids') || "[]");
-        
-        // Restore level based on eggs found
-        gardenLevel = Math.min(maxLevel, Math.floor(foundEggs.length / 2)); // Level up every 2 secrets
+
+        function checkDragUnlock(durationMs) {
+            const seconds = durationMs / 1000;
+            const targetLevel = 10 + Math.floor(seconds - 1);
+            if (targetLevel > 10 && targetLevel <= 20) {
+                const id = `DRAG_${targetLevel}`;
+                if (!foundEggs.includes(id)) triggerUnlock(id, targetLevel);
+            }
+        }
+
+        const maxLevelFound = foundEggs.reduce((max, id) => {
+            let lvl = 0;
+            if (typeof id === 'number') lvl = Math.floor(foundEggs.length / 2);
+            else if (typeof id === 'string' && id.startsWith('DRAG_')) lvl = parseInt(id.split('_')[1]);
+            return Math.max(max, lvl);
+        }, 0);
+        gardenLevel = maxLevelFound;
 
         function registerInput(type) {
             inputBuffer += type;
             if (inputBuffer.length > 5) inputBuffer = inputBuffer.slice(-5);
-            eggSequences.forEach(seq => { if (inputBuffer.endsWith(seq.code)) triggerEgg(seq); });
+            rhythmSequences.forEach(seq => { if (inputBuffer.endsWith(seq.code)) triggerUnlock(seq.id, seq.id); });
         }
 
-        function triggerEgg(seq) {
+        function triggerUnlock(id, levelStrength) {
             inputBuffer = ""; 
-            if (!foundEggs.includes(seq.id)) {
-                foundEggs.push(seq.id);
+            if (!foundEggs.includes(id)) {
+                foundEggs.push(id);
                 localStorage.setItem('garden_egg_ids', JSON.stringify(foundEggs));
-                
-                // Check Level Up
-                const newLevel = Math.min(maxLevel, Math.floor(foundEggs.length / 2));
-                if (newLevel > gardenLevel) {
-                    gardenLevel = newLevel;
-                }
-                
-                // Visual Flash (Subtle)
-                ctx.fillStyle = "rgba(255,255,255,0.2)";
-                ctx.fillRect(0,0,width,height);
-                ZenAudio.playDiscovery(); // Subtle chord
+                if (levelStrength > gardenLevel) gardenLevel = levelStrength;
+                ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.fillRect(0,0,width,height);
+                ZenAudio.playDiscovery();
             }
         }
 
@@ -417,9 +481,9 @@
         const random = (min, max) => Math.random() * (max - min) + min;
         function getPastelColor() { return `hsla(${random(0, 360)}, 70%, 80%,`; }
         function getRandomWord() {
-            if (config.customWords === secretWords) return config.customWords[Math.floor(Math.random() * config.customWords.length)];
-            const combined = config.customWords.length > 0 ? [...config.defaultWords, ...config.customWords] : config.defaultWords;
-            return combined[Math.floor(Math.random() * combined.length)];
+            // Logic: if custom words exist (either user or secret combo), use them.
+            if (config.customWords.length > 0) return config.customWords[Math.floor(Math.random() * config.customWords.length)];
+            return config.defaultWords[Math.floor(Math.random() * config.defaultWords.length)];
         }
 
         // --- Visual Entities ---
@@ -446,65 +510,49 @@
         class Bloom {
             constructor(x, y, size=null, color=null) {
                 this.x = x; this.y = y; this.size = 0; this.maxSize = size || random(30, 80);
-                this.colorBase = color || getPastelColor(); 
-                this.petals = Math.floor(random(5, 9));
-                this.alpha = 1;
-                this.level = gardenLevel; // Capture current level
-                this.angleOffset = Math.random() * Math.PI;
+                this.colorBase = color || getPastelColor(); this.petals = Math.floor(random(5, 9));
+                this.alpha = 1; this.level = gardenLevel;
             }
             update() {
                 if (this.size < this.maxSize) this.size += 0.5 * config.speedMultiplier;
                 else if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier;
-                if (this.level >= 4) this.angleOffset += 0.005; // Rotate gently at high levels
             }
             draw(ctx) {
                 ctx.save();
-                // Level 0: Basic Buds (Original)
-                // Level 1: Simple Petals
-                // Level 2: Detailed
-                // Level 3: Flourish
-                // Level 4: Ethereal
-                
-                if (this.level >= 4) {
-                    ctx.shadowBlur = 15; ctx.shadowColor = "rgba(255,255,255,0.8)";
-                }
-
+                if (this.level >= 10) { ctx.shadowBlur = 20; ctx.shadowColor = "white"; }
                 for(let i=0; i<3; i++) {
                     ctx.fillStyle = this.colorBase + (this.alpha * (1 - i*0.2)) + ')';
                     ctx.beginPath();
                     for (let j = 0; j < this.petals; j++) {
-                        const angle = (j / this.petals) * Math.PI * 2 + this.angleOffset;
-                        let petalSize = (this.size - (i*5));
+                        const angle = (j / this.petals) * Math.PI * 2;
+                        const petalSize = (this.size - (i*5));
                         if (petalSize <= 0) continue;
-                        
-                        // Ornate shape logic based on level
-                        const px = this.x + Math.cos(angle) * (petalSize * 0.5);
-                        const py = this.y + Math.sin(angle) * (petalSize * 0.5);
-                        
                         ctx.moveTo(this.x, this.y);
-                        
-                        if (this.level < 1) {
-                            // Simple circle petal
-                             ctx.arc(px, py, petalSize * 0.4, 0, Math.PI * 2);
-                        } else {
-                            // Tear drop / detailed petal
-                            ctx.ellipse(px, py, petalSize*0.4, petalSize*0.2, angle, 0, Math.PI*2);
-                        }
+                        if (this.level < 5) ctx.arc(this.x + Math.cos(angle)*(petalSize*0.5), this.y + Math.sin(angle)*(petalSize*0.5), petalSize*0.4, 0, Math.PI*2);
+                        else ctx.ellipse(this.x + Math.cos(angle)*(petalSize*0.5), this.y + Math.sin(angle)*(petalSize*0.5), petalSize*0.4, petalSize*0.2, angle, 0, Math.PI*2);
                     }
                     ctx.fill();
                 }
+                ctx.restore();
+            }
+            isDead() { return this.alpha <= 0; }
+        }
 
-                // Inner Detail
-                if (this.level >= 2) {
-                    ctx.fillStyle = "rgba(255,255,255,0.6)";
-                    ctx.beginPath(); ctx.arc(this.x, this.y, this.size*0.15, 0, Math.PI*2); ctx.fill();
-                }
-                if (this.level >= 3) {
-                    // Golden Center
-                     ctx.fillStyle = `rgba(255, 215, 0, ${this.alpha})`;
-                     ctx.beginPath(); ctx.arc(this.x, this.y, this.size*0.08, 0, Math.PI*2); ctx.fill();
-                }
-
+        class HeartCluster {
+            constructor(x, y) {
+                this.x = x; this.y = y; this.alpha = 1; this.size = 0; this.maxSize = 20 + gardenLevel;
+                const hearts = ["❤️", "🧡", "💛", "💚", "💙", "💜"];
+                this.text = hearts[Math.floor(Math.random()*hearts.length)];
+            }
+            update() {
+                if (this.size < this.maxSize) this.size += 1;
+                this.y -= 0.5;
+                if (config.decayValue > 0) this.alpha -= config.decayValue * 2;
+            }
+            draw(ctx) {
+                ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.font = `${this.size}px sans-serif`; ctx.textAlign = "center";
+                ctx.fillText(this.text, this.x, this.y);
                 ctx.restore();
             }
             isDead() { return this.alpha <= 0; }
@@ -516,12 +564,11 @@
                 this.segments = []; this.progress = 0; this.growing = true; this.alpha = 1;
                 this.points = this.genPath(startX, startY);
                 this.baseFreq = ZenAudio.getFreq(startY, height);
+                ZenAudio.playPluck(this.baseFreq, 0.4); 
                 this.level = gardenLevel;
-                // Trigger Start Sound (Soft Pluck)
-                ZenAudio.playPluck(this.baseFreq, 0.4);
             }
             genPath(cx, cy) {
-                let pts = []; const scale = 70;
+                let pts = []; const scale = 70 + (gardenLevel*2);
                 for (let t = Math.PI; t > -Math.PI; t -= 0.1) pts.push({x: cx + (16*Math.pow(Math.sin(t),3))*scale/16, y: cy - (13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t))*scale/16});
                 return pts;
             }
@@ -529,15 +576,22 @@
                 if (this.growing) {
                     if (this.progress < this.points.length) {
                         const t = this.points[Math.floor(this.progress)];
-                        this.segments.push({ x: t.x, y: t.y, size: random(2,5), angle: Math.random()*Math.PI*2 });
-                        if (Math.random()<0.2) entities.push(new Bloom(t.x, t.y, random(5,10), "hsla(120,40%,80%,"));
+                        this.segments.push({ x: t.x, y: t.y, size: random(2,5) });
+                        
+                        // Spawn Heart Cluster + Strum Sound (Quantity = Duration)
+                        if (Math.random() < 0.25) {
+                            const count = Math.floor(random(1, 5)); // 1 to 4 hearts
+                            ZenAudio.playStrum(count, this.baseFreq);
+                            for(let k=0; k<count; k++) {
+                                entities.push(new HeartCluster(t.x + random(-15,15), t.y + random(-15,15)));
+                            }
+                        }
+                        
                         this.progress += 0.8 * config.speedMultiplier;
-                        // NO REPETITIVE SOUND LOOP
                     } else {
                         this.growing = false;
                         entities.push(new Word(this.startX, this.startY - 20, getRandomWord(), 30));
-                        // Completion Sound
-                        ZenAudio.playPluck(this.baseFreq * 2, 0.15);
+                        ZenAudio.playChime(this.baseFreq * 2, 0.15);
                     }
                 } else if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier;
             }
@@ -546,77 +600,65 @@
                 ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha);
                 ctx.beginPath(); ctx.moveTo(this.segments[0].x, this.segments[0].y);
                 for (let i=1; i<this.segments.length; i++) ctx.lineTo(this.segments[i].x, this.segments[i].y);
-                ctx.strokeStyle = "#558b2f"; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.stroke();
-                
-                ctx.fillStyle = "#8bc34a"; 
-                for (let i = 0; i < this.segments.length; i+=6) {
-                    // Draw Leaves
-                    const s = this.segments[i];
-                    ctx.beginPath(); 
-                    if (this.level < 2) {
-                        ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); 
-                    } else {
-                        // Detailed leaf shape
-                        ctx.ellipse(s.x, s.y, s.size*1.5, s.size*0.5, s.angle, 0, Math.PI*2);
-                    }
-                    ctx.fill();
-                }
+                ctx.strokeStyle = "#558b2f"; ctx.lineWidth = 3 + (this.level*0.2); ctx.lineCap = "round"; ctx.stroke();
+                if (this.level > 10) { ctx.shadowBlur = 10; ctx.shadowColor = "#8bc34a"; ctx.stroke(); }
                 ctx.restore();
             }
             isDead() { return this.alpha <= 0; }
         }
 
         // --- Inputs ---
-        let lastTap = 0, touchStart = 0;
-        function handleStart() { ZenAudio.init(); touchStart = Date.now(); document.getElementById('overlay').style.opacity = 0; }
+        let lastTap = 0, touchStart = 0, isDragging = false;
+        function handleStart(x, y) { 
+            ZenAudio.init(); touchStart = Date.now(); isDragging = true;
+            document.getElementById('overlay').style.opacity = 0;
+            ZenAudio.startDragTone(ZenAudio.getFreq(y, height));
+        }
+        function handleMove(x, y) {
+            if (isDragging) {
+                ZenAudio.updateDragTone(ZenAudio.getFreq(y, height), 0.15);
+                if (Math.random() > 0.5) {
+                    ctx.fillStyle = `rgba(255,255,255,0.3)`;
+                    ctx.beginPath(); ctx.arc(x, y, 2 + gardenLevel*0.5, 0, Math.PI*2); ctx.fill();
+                }
+            }
+        }
         function handleEnd(x, y) {
-            const dur = Date.now() - touchStart;
-            const diff = Date.now() - lastTap;
-            const freq = ZenAudio.getFreq(y, height);
-            
+            isDragging = false; ZenAudio.stopDragTone();
+            const dur = Date.now() - touchStart; const diff = Date.now() - lastTap; const freq = ZenAudio.getFreq(y, height);
+            checkDragUnlock(dur);
             if (dur < 300) registerInput("T"); else registerInput("H");
 
-            if (diff < 300) {
+            if (diff < 300 && dur < 300) {
                 entities.push(new Vine(x, y));
             } else {
                 if (dur < 300) {
-                    entities.push(new Bloom(x, y));
-                    entities.push(new Word(x, y-30));
-                    ZenAudio.playPluck(freq, 0.3);
+                    entities.push(new Bloom(x, y)); entities.push(new Word(x, y-30)); ZenAudio.playPluck(freq, 0.3);
                 } else {
-                    entities.push(new Bloom(x, y, 120));
-                    ZenAudio.playPluck(freq * 0.5, 0.4);
+                    entities.push(new Bloom(x, y, 120 + gardenLevel*10)); ZenAudio.playChime(freq * 0.5, 0.2);
                 }
             }
             lastTap = Date.now();
         }
 
-        canvas.addEventListener('mousedown', e => handleStart());
+        canvas.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
+        canvas.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
         canvas.addEventListener('mouseup', e => handleEnd(e.clientX, e.clientY));
-        canvas.addEventListener('touchstart', e => { e.preventDefault(); handleStart(); }, {passive:false});
+        canvas.addEventListener('touchstart', e => { e.preventDefault(); handleStart(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+        canvas.addEventListener('touchmove', e => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
         canvas.addEventListener('touchend', e => { e.preventDefault(); if(e.changedTouches.length) handleEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY); });
 
         // --- Background Storage ---
         const bgUpload = document.getElementById('bg-upload');
         const storedBg = localStorage.getItem('garden_bg');
         if (storedBg) { config.useGradient = false; setBg(storedBg); }
-        
         bgUpload.addEventListener('change', e => {
-            const file = e.target.files[0];
-            if (!file) return;
+            const file = e.target.files[0]; if (!file) return;
             const r = new FileReader();
-            r.onload = evt => {
-                try {
-                    localStorage.setItem('garden_bg', evt.target.result);
-                    config.useGradient = false; setBg(evt.target.result);
-                } catch(e) { alert("Image too large!"); }
-            };
+            r.onload = evt => { try { localStorage.setItem('garden_bg', evt.target.result); config.useGradient = false; setBg(evt.target.result); } catch(e) { alert("Image too large!"); } };
             r.readAsDataURL(file);
         });
-        document.getElementById('reset-bg-btn').addEventListener('click', () => {
-            localStorage.removeItem('garden_bg'); config.useGradient = true; container.style.backgroundImage = 'none';
-        });
-
+        document.getElementById('reset-bg-btn').addEventListener('click', () => { localStorage.removeItem('garden_bg'); config.useGradient = true; container.style.backgroundImage = 'none'; });
         function setBg(url) { container.style.backgroundImage = `url(${url})`; container.style.backgroundSize = 'cover'; }
 
         // --- Settings ---
@@ -629,11 +671,8 @@
         document.getElementById('record-btn').addEventListener('click', toggleRecording);
         document.getElementById('clear-btn').addEventListener('click', () => { entities = []; systemMessages = []; });
         document.getElementById('theme-btn').addEventListener('click', () => config.currentThemeIndex = (config.currentThemeIndex + 1) % themes.length);
-        document.getElementById('save-btn').addEventListener('click', () => {
-            const a = document.createElement('a'); a.download = 'garden.png'; a.href = canvas.toDataURL(); a.click();
-        });
+        document.getElementById('save-btn').addEventListener('click', () => { const a = document.createElement('a'); a.download = 'garden.png'; a.href = canvas.toDataURL(); a.click(); });
 
-        // Custom Words
         const cBox = document.getElementById('custom-words');
         cBox.value = localStorage.getItem('garden_words') || "";
         parseWords(cBox.value);
@@ -641,34 +680,25 @@
         
         function parseWords(val) {
             systemMessages = [];
-            if (val.trim() === '/cheat') {
-                systemMessages.push("--- SECRETS ---");
-                eggSequences.forEach(s => systemMessages.push(s.code));
-            } else if (val.trim() === '6969') {
-                config.customWords = secretWords;
-            } else {
-                config.customWords = val.split(',').map(s => s.trim()).filter(s => s.length);
+            if (val.trim() === '/cheat') { systemMessages.push("--- SECRETS ---"); rhythmSequences.forEach(s => systemMessages.push(s.code)); systemMessages.push("Drag 2-11s for levels 11-20"); }
+            else if (val.trim() === '6969') { 
+                // COMBINE MODE
+                config.customWords = [...new Set([...config.defaultWords, ...secretWords])];
+            } else { 
+                config.customWords = val.split(',').map(s => s.trim()).filter(s => s.length); 
             }
         }
 
-        // --- Loop ---
         function loop() {
             if (config.useGradient) {
-                const t = themes[config.currentThemeIndex];
-                const g = ctx.createLinearGradient(0,0,0,height);
-                g.addColorStop(0, t.bg[0]); g.addColorStop(1, t.bg[1]);
-                ctx.fillStyle = g; ctx.fillRect(0,0,width,height);
+                const t = themes[config.currentThemeIndex]; const g = ctx.createLinearGradient(0,0,0,height);
+                g.addColorStop(0, t.bg[0]); g.addColorStop(1, t.bg[1]); ctx.fillStyle = g; ctx.fillRect(0,0,width,height);
             } else { ctx.clearRect(0,0,width,height); }
-
-            for (let i = entities.length - 1; i >= 0; i--) {
-                entities[i].update(); entities[i].draw(ctx);
-                if (entities[i].isDead()) entities.splice(i, 1);
-            }
+            for (let i = entities.length - 1; i >= 0; i--) { entities[i].update(); entities[i].draw(ctx); if (entities[i].isDead()) entities.splice(i, 1); }
             if (systemMessages.length) {
                 ctx.save(); ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(width/2-150, 40, 300, 20+systemMessages.length*20);
                 ctx.fillStyle = "white"; ctx.font = "14px monospace"; ctx.textAlign = "center";
-                systemMessages.forEach((m, i) => ctx.fillText(m, width/2, 65+i*20));
-                ctx.restore();
+                systemMessages.forEach((m, i) => ctx.fillText(m, width/2, 65+i*20)); ctx.restore();
             }
             requestAnimationFrame(loop);
         }
