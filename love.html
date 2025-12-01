@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Garden of Compassion</title>
+    <title>A Gift to My Babydoll</title>
     <style>
         body, html {
             margin: 0;
@@ -22,8 +22,6 @@
             position: relative;
             width: 100%;
             height: 100%;
-            background-size: cover;
-            background-position: center;
         }
 
         canvas { display: block; }
@@ -39,7 +37,7 @@
             text-align: center;
             opacity: 1;
             transition: opacity 2s ease;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
             width: 80%;
             z-index: 10;
         }
@@ -51,7 +49,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            background: rgba(0, 0, 0, 0.4);
+            background: rgba(255, 0, 0, 0.7);
             padding: 8px 12px;
             border-radius: 20px;
             color: white;
@@ -60,15 +58,16 @@
             opacity: 0;
             transition: opacity 0.3s;
             z-index: 150;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
         }
         #rec-dot {
             width: 10px;
             height: 10px;
-            background-color: #ff4444;
+            background-color: white;
             border-radius: 50%;
-            animation: pulse 1.5s infinite;
+            animation: pulse 1s infinite;
         }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }
 
         #master-footer {
             position: fixed;
@@ -76,7 +75,7 @@
             right: 15px;
             font-size: 12px;
             color: rgba(255, 255, 255, 0.8);
-            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
             pointer-events: none;
             z-index: 100;
         }
@@ -110,7 +109,7 @@
             height: 100%;
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(15px);
-            box-shadow: -5px 0 20px rgba(0,0,0,0.1);
+            box-shadow: -5px 0 20px rgba(0,0,0,0.2);
             transform: translateX(100%);
             transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
             z-index: 201;
@@ -201,9 +200,9 @@
 
     <div id="canvas-container">
         <canvas id="gameCanvas"></canvas>
-        <div id="overlay">Tap to Bloom<br>Double Tap for Hearts<br><span style="font-size:0.7em; opacity:0.8">Drag to Strum</span></div>
-        <div id="rec-indicator"><div id="rec-dot"></div>Recording</div>
-        <div id="master-footer">The Garden of Compassion - v2.9 - 2025-12-01 08:30 PM</div>
+        <div id="overlay">Tap to Bloom<br>Double Tap for Hearts<br><span style="font-size:0.7em; opacity:0.8">Drag to Flow</span></div>
+        <div id="rec-indicator"><div id="rec-dot"></div>REC</div>
+        <div id="master-footer">A Gift to My Babydoll - v3.2 - 2025-12-01 04:53 PM</div>
     </div>
 
     <div id="settings-trigger">
@@ -301,18 +300,18 @@
                 src.connect(this.masterGain); src.start();
             },
 
-            playStrum: function(count, baseFreq) {
+            playHarmonicCluster: function(count, baseFreq) {
                 if (!this.ctx || !this.enabled) return;
                 let baseIndex = 0;
                 let closest = 10000;
                 this.scale.forEach((f, i) => { if(Math.abs(f-baseFreq)<closest) { closest=Math.abs(f-baseFreq); baseIndex=i; }});
                 
                 for(let i=0; i<count; i++) {
-                    let noteIndex = Math.min(this.scale.length-1, baseIndex + i * 2);
+                    const offset = Math.floor(Math.random() * 5) - 2; 
+                    let noteIndex = Math.max(0, Math.min(this.scale.length-1, baseIndex + offset));
                     let freq = this.scale[noteIndex];
-                    setTimeout(() => {
-                        this.playPluck(freq, 0.15);
-                    }, i * 60); 
+                    const delay = Math.random() * 0.2; 
+                    setTimeout(() => { this.playChime(freq, 0.15); }, delay * 1000); 
                 }
             },
 
@@ -321,7 +320,7 @@
                 const osc = this.ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = freq * 2;
                 const g = this.ctx.createGain(); g.connect(this.masterGain);
                 const now = this.ctx.currentTime;
-                g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(volume, now+0.05); g.gain.exponentialRampToValueAtTime(0.001, now+1.5);
+                g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(volume, now+0.02); g.gain.exponentialRampToValueAtTime(0.001, now+1.5);
                 osc.start(now); osc.stop(now+1.5);
             },
 
@@ -338,10 +337,16 @@
             ZenAudio.init();
             const stream = canvas.captureStream(30);
             if (ZenAudio.dest && ZenAudio.dest.stream.getAudioTracks().length > 0) stream.addTrack(ZenAudio.dest.stream.getAudioTracks()[0]);
-            const types = ["video/mp4", "video/webm;codecs=h264", "video/webm"];
-            const mimeType = types.find(t => MediaRecorder.isTypeSupported(t)) || "";
-            if (!mimeType) return alert("Recording not supported.");
-            mediaRecorder = new MediaRecorder(stream, { mimeType });
+            
+            let mimeType = 'video/mp4';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'video/webm;codecs=h264';
+                if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+            }
+
+            try { mediaRecorder = new MediaRecorder(stream, { mimeType }); } 
+            catch (e) { alert("Recording not supported."); return; }
+
             recordedChunks = [];
             mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
             mediaRecorder.onstop = saveRecording;
@@ -362,7 +367,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.style.display = "none"; a.href = url;
-            a.download = `garden-video-${Date.now()}.${mediaRecorder.mimeType.includes("mp4") ? "mp4" : "webm"}`;
+            a.download = `gift-video-${Date.now()}.${mediaRecorder.mimeType.includes("mp4") ? "mp4" : "webm"}`;
             document.body.appendChild(a); a.click();
             setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
         }
@@ -373,7 +378,7 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // --- Config & State ---
+        // --- Config ---
         const themes = [
             { bg: ['#e0c3fc', '#8ec5fc'], text: '#4a148c' },
             { bg: ['#fad0c4', '#ffd1ff'], text: '#880e4f' },
@@ -394,7 +399,8 @@
             customWords: [],
             speedMultiplier: 1.0,
             decayValue: 0.005,
-            useGradient: true
+            useGradient: true,
+            bgImageObj: null
         };
 
         const secretWords = [
@@ -407,8 +413,6 @@
 
         let entities = [];
         let systemMessages = [];
-        
-        // --- Progression System ---
         let gardenLevel = 0; 
         let foundEggs = JSON.parse(localStorage.getItem('garden_egg_ids') || "[]");
         
@@ -448,13 +452,11 @@
                 foundEggs.push(id);
                 localStorage.setItem('garden_egg_ids', JSON.stringify(foundEggs));
                 if (levelStrength > gardenLevel) gardenLevel = levelStrength;
-                // Intricate Easter Egg: Mandala Bloom
                 entities.push(new Mandala(width/2, height/2, gardenLevel));
                 ZenAudio.playDiscovery();
             }
         }
 
-        // --- Helper ---
         const random = (min, max) => Math.random() * (max - min) + min;
         function getPastelColor() { return `hsla(${random(0, 360)}, 70%, 80%,`; }
         function getRandomWord() {
@@ -517,36 +519,26 @@
         class HeartCloud {
             constructor(x, y) {
                 this.x = x; this.y = y; this.alpha = 1;
-                // Generate 2-8 hearts
                 this.hearts = [];
                 const count = Math.floor(random(2, 9));
                 const colors = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🤎", "🤍"];
-                
-                // Form a loose cloud shape or heart shape (30% chance)
                 const isHeartShape = Math.random() < 0.3;
                 
                 for(let i=0; i<count; i++) {
                     let ox, oy;
                     if(isHeartShape) {
-                        // Parametric heart distribution
                         const t = (i/count) * Math.PI * 2;
                         ox = (16 * Math.pow(Math.sin(t), 3)) * 2;
                         oy = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) * 2;
                     } else {
-                        // Random Cloud
-                        ox = random(-40, 40);
-                        oy = random(-40, 40);
+                        ox = random(-40, 40); oy = random(-40, 40);
                     }
-                    
                     this.hearts.push({
-                        ox: ox, oy: oy,
-                        size: random(10, 40) + (gardenLevel * 1.5),
+                        ox: ox, oy: oy, size: random(10, 40) + (gardenLevel * 1.5),
                         char: colors[Math.floor(Math.random()*colors.length)]
                     });
                 }
-                // Play Strum based on count (Audio Feedback)
-                const baseFreq = ZenAudio.getFreq(y, height);
-                ZenAudio.playStrum(count, baseFreq);
+                ZenAudio.playHarmonicCluster(count, ZenAudio.getFreq(y, height));
             }
             update() {
                 this.y -= 0.5 * config.speedMultiplier;
@@ -563,16 +555,13 @@
             isDead() { return this.alpha <= 0; }
         }
 
-        // Drag Entities
         class CometTrail {
             constructor(x, y) {
-                this.x = x; this.y = y; this.size = random(2, 6) + (gardenLevel*0.5); 
+                this.x = x; this.y = y; this.size = random(3, 8) + (gardenLevel*0.5); 
                 this.alpha = 1; 
                 this.color = `hsl(${random(200, 260)}, 100%, 80%)`;
             }
-            update() {
-                this.size *= 0.95; this.alpha -= 0.02;
-            }
+            update() { this.size *= 0.95; this.alpha -= 0.02; }
             draw(ctx) {
                 ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha);
                 ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
@@ -584,11 +573,8 @@
         class Ripple {
             constructor(x, y) {
                 this.x = x; this.y = y; this.r = 0; this.alpha = 0.5;
-                this.maxR = 60 + (gardenLevel * 5);
             }
-            update() {
-                this.r += 2; this.alpha -= 0.015;
-            }
+            update() { this.r += 2; this.alpha -= 0.015; }
             draw(ctx) {
                 ctx.save(); ctx.strokeStyle = `rgba(255,255,255,${Math.max(0,this.alpha)})`;
                 ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.stroke();
@@ -604,15 +590,8 @@
             }
             update() { this.r += 1.5; this.alpha -= 0.005; this.rot += 0.02; }
             draw(ctx) {
-                ctx.save(); 
-                ctx.translate(this.x, this.y); 
-                ctx.rotate(this.rot);
-                ctx.globalAlpha = Math.max(0, this.alpha);
-                
-                // Intricate Pattern
-                ctx.strokeStyle = `hsla(${this.r % 360}, 70%, 70%, 0.8)`; 
-                ctx.lineWidth = 2;
-                
+                ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.rot); ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.strokeStyle = `hsla(${this.r % 360}, 70%, 70%, 0.8)`; ctx.lineWidth = 2;
                 const layers = 3 + Math.floor(this.level/5);
                 for(let l=1; l<=layers; l++) {
                     const petals = 6 * l;
@@ -620,14 +599,11 @@
                     for(let i=0; i<petals; i++) {
                         const angle = (Math.PI*2/petals) * i;
                         const dist = this.r * (l/layers);
-                        const px = Math.cos(angle) * dist;
-                        const py = Math.sin(angle) * dist;
-                        ctx.moveTo(px, py);
-                        ctx.arc(px, py, dist * 0.2, 0, Math.PI*2);
+                        const px = Math.cos(angle) * dist; const py = Math.sin(angle) * dist;
+                        ctx.moveTo(px, py); ctx.arc(px, py, dist * 0.2, 0, Math.PI*2);
                     }
                     ctx.stroke();
                 }
-                
                 ctx.restore();
             }
             isDead() { return this.alpha <= 0; }
@@ -635,7 +611,7 @@
 
         // --- Inputs ---
         let lastTap = 0, touchStart = 0, isDragging = false;
-        let lastDragY = 0; // For string crossing detection
+        let lastDragY = 0;
         
         function handleStart(x, y) { 
             ZenAudio.init(); touchStart = Date.now(); isDragging = true;
@@ -645,15 +621,11 @@
         
         function handleMove(x, y) {
             if (isDragging) {
-                // Audio: String Crossing (Harp Effect)
-                // Grid size 30px
                 if (Math.abs(y - lastDragY) > 15) { 
                     const freq = ZenAudio.getFreq(y, height);
-                    ZenAudio.playPluck(freq, 0.15); // Strum sound on move
+                    ZenAudio.playPluck(freq, 0.15); 
                     lastDragY = y;
                 }
-                
-                // Visuals: Comet & Ripple
                 entities.push(new CometTrail(x, y));
                 if (Math.random() < 0.1) entities.push(new Ripple(x, y));
             }
@@ -666,11 +638,9 @@
             if (dur < 300) registerInput("T"); else registerInput("H");
 
             if (diff < 300 && dur < 300) {
-                // Double Tap: Heart Cloud
                 entities.push(new HeartCloud(x, y));
                 entities.push(new Word(x, y-60));
             } else {
-                // Single Tap / Hold
                 if (dur < 300) {
                     entities.push(new Bloom(x, y)); entities.push(new Word(x, y-30)); ZenAudio.playPluck(freq, 0.3);
                 } else {
@@ -689,16 +659,35 @@
 
         // --- Background Storage ---
         const bgUpload = document.getElementById('bg-upload');
-        const storedBg = localStorage.getItem('garden_bg');
-        if (storedBg) { config.useGradient = false; setBg(storedBg); }
+        function loadBgFromStorage() {
+            const storedBg = localStorage.getItem('garden_bg');
+            if (storedBg) {
+                config.useGradient = false;
+                const img = new Image();
+                img.onload = () => { config.bgImageObj = img; };
+                img.src = storedBg;
+            }
+        }
+        loadBgFromStorage();
         bgUpload.addEventListener('change', e => {
             const file = e.target.files[0]; if (!file) return;
             const r = new FileReader();
-            r.onload = evt => { try { localStorage.setItem('garden_bg', evt.target.result); config.useGradient = false; setBg(evt.target.result); } catch(e) { alert("Image too large!"); } };
+            r.onload = evt => { 
+                try { 
+                    localStorage.setItem('garden_bg', evt.target.result); 
+                    config.useGradient = false; 
+                    const img = new Image();
+                    img.onload = () => { config.bgImageObj = img; };
+                    img.src = evt.target.result;
+                } catch(e) { alert("Image too large!"); } 
+            };
             r.readAsDataURL(file);
         });
-        document.getElementById('reset-bg-btn').addEventListener('click', () => { localStorage.removeItem('garden_bg'); config.useGradient = true; container.style.backgroundImage = 'none'; });
-        function setBg(url) { container.style.backgroundImage = `url(${url})`; container.style.backgroundSize = 'cover'; }
+        document.getElementById('reset-bg-btn').addEventListener('click', () => { 
+            localStorage.removeItem('garden_bg'); 
+            config.useGradient = true; 
+            config.bgImageObj = null;
+        });
 
         // --- Settings ---
         const panel = document.getElementById('settings-panel');
@@ -720,20 +709,38 @@
         function parseWords(val) {
             systemMessages = [];
             if (val.trim() === '/cheat') { systemMessages.push("--- SECRETS ---"); rhythmSequences.forEach(s => systemMessages.push(s.code)); systemMessages.push("Drag 2-11s for levels 11-20"); }
-            else if (val.trim() === '6969') { 
-                // COMBINE MODE
-                config.customWords = [...new Set([...config.defaultWords, ...secretWords])];
-            } else { 
-                config.customWords = val.split(',').map(s => s.trim()).filter(s => s.length); 
-            }
+            else if (val.trim() === '6969') { config.customWords = [...new Set([...config.defaultWords, ...secretWords])]; }
+            else { config.customWords = val.split(',').map(s => s.trim()).filter(s => s.length); }
         }
 
         function loop() {
-            if (config.useGradient) {
+            // Draw Background (Layer 1)
+            if (config.useGradient || !config.bgImageObj) {
                 const t = themes[config.currentThemeIndex]; const g = ctx.createLinearGradient(0,0,0,height);
                 g.addColorStop(0, t.bg[0]); g.addColorStop(1, t.bg[1]); ctx.fillStyle = g; ctx.fillRect(0,0,width,height);
-            } else { ctx.clearRect(0,0,width,height); }
-            for (let i = entities.length - 1; i >= 0; i--) { entities[i].update(); entities[i].draw(ctx); if (entities[i].isDead()) entities.splice(i, 1); }
+            } else {
+                const img = config.bgImageObj;
+                const ratio = Math.max(width / img.width, height / img.height);
+                const cx = (width - img.width * ratio) / 2; const cy = (height - img.height * ratio) / 2;
+                ctx.drawImage(img, 0, 0, img.width, img.height, cx, cy, img.width * ratio, img.height * ratio);
+            }
+
+            // Layer 2: Visuals (Blooms, Hearts, Trails) - Drawn First
+            for (let i = entities.length - 1; i >= 0; i--) {
+                if (!(entities[i] instanceof Word)) {
+                    entities[i].update(); entities[i].draw(ctx);
+                    if (entities[i].isDead()) entities.splice(i, 1);
+                }
+            }
+
+            // Layer 3: Words (Z-Level 1000 equivalent) - Drawn Last
+            for (let i = entities.length - 1; i >= 0; i--) {
+                if (entities[i] instanceof Word) {
+                    entities[i].update(); entities[i].draw(ctx);
+                    if (entities[i].isDead()) entities.splice(i, 1);
+                }
+            }
+
             if (systemMessages.length) {
                 ctx.save(); ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(width/2-150, 40, 300, 20+systemMessages.length*20);
                 ctx.fillStyle = "white"; ctx.font = "14px monospace"; ctx.textAlign = "center";
