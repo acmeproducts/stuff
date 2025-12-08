@@ -1,4 +1,4 @@
-<!-- A Gift for My Babydoll-v4.21-2025-12-07 11:10 PM -->
+<!-- A Gift for My Babydoll-v4.24-2025-12-08 10:00 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -67,7 +67,7 @@
 
     <!-- Footer -->
     <div class="fixed bottom-3 right-4 text-[10px] text-white/60 pointer-events-none z-10 tracking-wider" id="master-footer">
-        A Gift for My Babydoll v4.21 • <span id="clock">--:--</span>
+        A Gift for My Babydoll v4.24 • <span id="clock">--:--</span>
     </div>
 
     <!-- Settings Trigger -->
@@ -263,13 +263,11 @@
                 </button>
             </div>
             <div class="overflow-y-auto max-h-[60vh] space-y-3 text-sm text-gray-700">
-                <p class="font-bold text-gray-900">v4.21 Changelog (Bug Fixes):</p>
+                <p class="font-bold text-gray-900">v4.24 Changelog (Immediate Audio Fix):</p>
                 <ul class="list-decimal pl-5 space-y-1">
-                    <li><strong>Quota Error Fix:</strong> Wrapped background image saving in a safety block. If the image is too large for storage, it will still apply for the current session without crashing.</li>
-                    <li><strong>Removed Secret 6:</strong> The "Smiley Face" has been removed to eliminate flickering and restore elegance.</li>
-                    <li><strong>Foundation Polish:</strong> Code cleanup to ensure 3D Hearts, Jewel Centers, and Gold Filigree render smoothly.</li>
-                    <li><strong>Confirmed Audio:</strong> Retained the organic string audio and contextual double-tap chords from v4.19.</li>
-                    <li><strong>Visual Stability:</strong> Opaque Vivid Trails and 3D Growing Hearts are stable.</li>
+                    <li><strong>Instant Audio:</strong> Reverted audio initialization to exact logic from previous working version (Uploaded File). Audio context resumes immediately on start.</li>
+                    <li><strong>No Delay:</strong> Removed over-complex wake-up logic that was causing 2-3s delay.</li>
+                    <li><strong>Retained Features:</strong> Vivid Opaque Trails, 3D Growing Hearts, Contextual Double Tap Strum, 60fps Recording.</li>
                 </ul>
             </div>
         </div>
@@ -277,8 +275,8 @@
 
     <script>
         /**
-         * A Gift for My Babydoll - v4.21
-         * Fix: QuotaExceededError handling for background images
+         * A Gift for My Babydoll - v4.24
+         * Fix: Reverted Audio Init to Original Logic (No Delay)
          */
 
         // --- 1. Core Config & State ---
@@ -324,11 +322,13 @@
         let foundEggs = JSON.parse(localStorage.getItem('garden_egg_ids') || "[]");
         let inputBuffer = ""; 
 
-        // --- 2. Audio Engine (Karplus-Strong) ---
+        // --- 2. Audio Engine (Reverted to Original Logic) ---
         const ZenAudio = {
             ctx: null, enabled: true, masterGain: null, dest: null,
             // Pentatonic Scale
             scale: [130.81, 146.83, 164.81, 196.00, 220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51],
+            
+            // Matches uploaded file logic exactly
             init: function() {
                 if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
                     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -338,15 +338,19 @@
                     this.masterGain.connect(this.ctx.destination);
                     this.masterGain.connect(this.dest);
                 }
-                if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+                if (this.ctx && (this.ctx.state === 'suspended' || this.ctx.state === 'interrupted')) {
+                    this.ctx.resume();
+                }
             },
+
             getFreqIndex: function(y, height) {
                 const norm = 1 - Math.max(0, Math.min(1, y / height));
                 return Math.floor(norm * (this.scale.length - 1));
             },
-            // The organic "Pluck" sound
+            
             playPluck: function(freq, volume = 0.3) {
                 if (!this.ctx || !this.enabled) return;
+                
                 const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 2.0, this.ctx.sampleRate);
                 const data = buffer.getChannelData(0);
                 const delayLength = Math.floor(this.ctx.sampleRate / freq);
@@ -360,10 +364,9 @@
                 }
                 const src = this.ctx.createBufferSource(); src.buffer = buffer; src.connect(this.masterGain); src.start();
             },
-            // Contextual Strum using Plucks
+            
             playStrum: function(baseIdx) {
                 if (!this.ctx || !this.enabled) return;
-                // Play a triad arpeggio
                 const idx1 = baseIdx;
                 const idx2 = Math.min(this.scale.length-1, baseIdx + 2);
                 const idx3 = Math.min(this.scale.length-1, baseIdx + 4);
@@ -372,6 +375,7 @@
                 setTimeout(() => this.playPluck(this.scale[idx2], 0.15), 50);
                 setTimeout(() => this.playPluck(this.scale[idx3], 0.15), 100);
             },
+            
             playDiscovery: function() {
                 if (!this.ctx || !this.enabled) return;
                 [261.63, 329.63, 392.00, 523.25].forEach((f, i) => { setTimeout(() => this.playPluck(f, 0.2), i * 150); });
@@ -722,6 +726,7 @@
         let lastTap=0, isDragging=false, dragStart=0, startX, startY, lastDragSound=0;
         
         function handleInputStart(x,y) { 
+            // FIXED: Immediate check/resume every time touch starts
             ZenAudio.init(); 
             document.getElementById('overlay').style.opacity='0'; 
             startX=x; startY=y; 
@@ -1007,15 +1012,29 @@
         
         function startRecording() {
             ZenAudio.init();
-            const stream = canvas.captureStream(30);
+            if (ZenAudio.ctx && ZenAudio.ctx.state === 'suspended') {
+                ZenAudio.ctx.resume();
+            }
+
+            const stream = canvas.captureStream(60); 
             if (ZenAudio.dest && ZenAudio.dest.stream.getAudioTracks().length > 0) {
                 stream.addTrack(ZenAudio.dest.stream.getAudioTracks()[0]);
             }
-            const mimeTypes = ["video/mp4", "video/webm;codecs=vp9", "video/webm"];
+
+            const mimeTypes = [
+                "video/mp4", 
+                "video/webm;codecs=h264", 
+                "video/webm;codecs=vp9", 
+                "video/webm"
+            ];
+            
             let selectedType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
-            if (!selectedType) { alert("Screen recording is not supported."); return; }
+
+            if (!selectedType) { alert("Screen recording is not supported on this browser."); return; }
+
             try { mediaRecorder = new MediaRecorder(stream, { mimeType: selectedType }); } 
             catch (e) { console.error(e); alert("Recording init failed."); return; }
+
             recordedChunks = [];
             mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
             mediaRecorder.onstop = () => {
@@ -1023,11 +1042,15 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a"); 
                 a.style.display="none"; a.href=url; 
-                const ext = selectedType.includes("mp4") ? "mp4" : "webm";
+                
+                let ext = "webm";
+                if (selectedType.includes("mp4")) ext = "mp4";
+                
                 a.download=`garden-${Date.now()}.${ext}`;
                 document.body.appendChild(a); a.click(); 
                 setTimeout(()=>URL.revokeObjectURL(url),100);
             };
+            
             mediaRecorder.start(); isRecording = true; 
             recInd.style.opacity = '1'; recBtn.innerText = "Stop"; 
             recBtn.classList.add('bg-red-100','text-red-700','animate-pulse'); 
