@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
-    <title>The Garden of Compassion v3.1</title>
+    <title>The Garden of Compassion</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
     <style>
@@ -55,7 +55,7 @@
     </div>
 
     <div class="fixed bottom-3 right-4 text-[10px] text-white/60 pointer-events-none z-10 tracking-wider" id="master-footer">
-        Garden v3.1 (Base: Love2 | Features: Love1) • <span id="clock">--:--</span>
+        Garden v3.2 (Light Audio Only) • <span id="clock">--:--</span>
     </div>
 
     <button class="fixed top-5 right-5 w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/30 active:scale-95 transition-all shadow-lg z-50" id="settings-trigger">
@@ -136,9 +136,10 @@
 
     <script>
         /**
-         * Garden v3.1
-         * Base Audio Engine: Love2 (Preserved Exactly)
-         * Visuals & System: Love1 (Ported)
+         * Garden v3.2 - High Register Enforcement
+         * Audio: Love2 Engine, but with the bottom 5 frequencies physically REMOVED.
+         * Visuals: Love1 (Shapes, Particles, Trails)
+         * System: Love1 (Recorder, UI)
          */
 
         const config = {
@@ -166,11 +167,16 @@
         let foundEggs = JSON.parse(localStorage.getItem('garden_egg_ids') || "[]");
         let inputBuffer = "";
 
-        // --- 1. AUDIO ENGINE (STRICTLY FROM LOVE2) ---
+        // --- 1. AUDIO ENGINE (MODIFIED LOVE2) ---
         const ZenAudio = {
             ctx: null, enabled: true, masterGain: null, dest: null,
-            // Extended Pentatonic [from Love2]
-            scale: [130.81, 146.83, 164.81, 196.00, 220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51],
+            // MODIFICATION: I have removed the first 5 notes (130Hz - 220Hz).
+            // Lowest note is now 261.63 (Middle C). No deep bass possible.
+            scale: [
+                261.63, 293.66, 329.63, 392.00, 440.00, // Middle C - A4
+                523.25, 587.33, 659.25, 783.99, 880.00, // C5 - A5
+                1046.50, 1174.66, 1318.51              // Highs
+            ],
 
             init: function() {
                 if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
@@ -186,7 +192,6 @@
                 }
             },
 
-            // Instant Wake Up
             warmUp: function() {
                 if (!this.ctx) this.init();
                 if (this.ctx && this.enabled) {
@@ -212,7 +217,7 @@
                 let idx = 0, last = 0;
                 const noise = new Float32Array(delayLength).map(() => Math.random()*2-1);
                 for (let i = 0; i < buffer.length; i++) {
-                    const sample = (noise[idx] + last) * 0.5 * 0.992; // Love2 Decay
+                    const sample = (noise[idx] + last) * 0.5 * 0.992; // Love2 Decay (Bright)
                     last = noise[idx]; noise[idx] = sample;
                     data[i] = sample * volume;
                     idx = (idx + 1) % delayLength;
@@ -221,7 +226,7 @@
                 src.connect(this.masterGain); src.start();
             },
 
-            // Strum: Arpeggio (Love2 Logic)
+            // Strum: Arpeggio (Love2 Logic - Prevents muddy chords)
             playStrum: function(count, baseFreq) {
                 if (!this.ctx || !this.enabled) return;
                 let baseIndex = 0;
@@ -234,7 +239,7 @@
                 }
             },
 
-            // Chime: Sine Wave (Love2 Logic for Holds)
+            // Chime: Sine Wave (Love2 Logic)
             playChime: function(freq, volume = 0.1) {
                 if (!this.ctx || !this.enabled) return;
                 const osc = this.ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = freq * 2;
@@ -306,7 +311,6 @@
             isDead() { return this.alpha <= 0 && !this.fadeIn; }
         }
 
-        // Enhanced Bloom from Love1
         class Bloom {
             constructor(x, y, size=null) {
                 this.x = x; this.y = y; this.size = 0; 
@@ -326,7 +330,6 @@
             }
             draw(ctx) {
                 ctx.save();
-                // Love1 Secret 2: Gold Filigree
                 if(foundEggs.includes(2)) {
                     ctx.strokeStyle = `rgba(218, 165, 32, ${this.alpha * 0.6})`; ctx.lineWidth = 0.5;
                     for(let i=0; i<5; i++) {
@@ -371,7 +374,6 @@
             }
         }
 
-        // Love1 Secret: 3D Heart
         class GrowingHeart {
             constructor(x, y) {
                 this.x = x; this.y = y; this.size = 0; this.maxSize = random(40, 90);
@@ -406,7 +408,6 @@
                         color: colors[Math.floor(Math.random()*colors.length)], rot: random(-0.2, 0.2)
                     });
                 }
-                // Love2 Logic: Play Strum for Heart Cloud
                 const freq = ZenAudio.getFreq(y, height);
                 ZenAudio.playStrum(count, freq);
             }
@@ -453,7 +454,7 @@
             isDead() { return this.alpha <= 0; }
         }
 
-        // --- 3. INPUT (LOVE2 INTERACTION LOGIC) ---
+        // --- 3. INPUT (LOVE2 LOGIC) ---
         let lastTap=0, isDragging=false, dragStart=0, startX, startY, lastDragSound=0;
         
         function wakeAudio() {
@@ -476,16 +477,12 @@
             if(!startX) return;
             if(Math.sqrt((x-startX)**2 + (y-startY)**2) > 10) {
                 isDragging=true;
-                
-                // Trail Logic: Switch randomly every 10s (Love1 feature)
                 if(Date.now() - config.lastTrailSwitch > 10000) {
                     const options = ['♥', 'Comet', '☁️', '⭐'];
                     config.currentTrail = options[Math.floor(Math.random() * options.length)];
                     config.lastTrailSwitch = Date.now();
                 }
                 visualEntities.push(new TrailBase(x, y, config.currentTrail));
-                
-                // Sound: Love2 Logic (Single plucks on drag)
                 if(Date.now()-lastDragSound > 60) { 
                     const freq = ZenAudio.getFreq(y, height);
                     ZenAudio.playPluck(freq, 0.1); 
@@ -502,22 +499,18 @@
                 registerInput('S'); 
             } else {
                 const freq = ZenAudio.getFreq(y, height);
-                // Love2 Logic: Short Tap vs Long Hold
                 if (dur < 300) {
-                    // Double Tap Logic
                     if(now-lastTap < 300) {
                         visualEntities.push(new HeartCloud(x,y));
                     } else {
-                        // Single Tap
                         let ent = (foundEggs.includes(3) && Math.random() > 0.7) ? new GrowingHeart(x,y) : new Bloom(x,y);
                         visualEntities.push(ent);
                         wordEntities.push(new Word(x,y-30));
-                        ZenAudio.playPluck(freq, 0.3); // Single note
+                        ZenAudio.playPluck(freq, 0.3);
                     }
                     lastTap = now;
                     registerInput('T');
                 } else {
-                    // Long Hold (Love2 feature: Chime)
                     visualEntities.push(new Bloom(x, y, 150));
                     ZenAudio.playChime(freq, 0.2); 
                 }
@@ -532,12 +525,8 @@
         canvas.addEventListener('touchmove',e=>{e.preventDefault();if(startX)handleInputMove(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
         canvas.addEventListener('touchend',e=>{e.preventDefault();if(e.changedTouches.length)handleInputEnd(e.changedTouches[0].clientX,e.changedTouches[0].clientY)});
 
-        // --- 4. SECRETS (FROM LOVE1) ---
-        const rhythmSequences = [
-            { code: "TTT", id: 1 }, { code: "TTS", id: 2 }, { code: "TST", id: 3 }, 
-            { code: "SST", id: 4 }, { code: "TTTT", id: 5 }
-        ];
-
+        // --- 4. SECRETS ---
+        const rhythmSequences = [{ code: "TTT", id: 1 }, { code: "TTS", id: 2 }, { code: "TST", id: 3 }, { code: "SST", id: 4 }, { code: "TTTT", id: 5 }];
         function registerInput(char) {
             inputBuffer += char; if(inputBuffer.length>5) inputBuffer=inputBuffer.slice(-5);
             rhythmSequences.forEach(seq => { if(inputBuffer.endsWith(seq.code)) triggerUnlock(seq.id); });
@@ -546,12 +535,11 @@
             inputBuffer="";
             if(!foundEggs.includes(id)) {
                 foundEggs.push(id); localStorage.setItem('garden_egg_ids', JSON.stringify(foundEggs));
-                ZenAudio.playDiscovery(); 
-                updateSecretsUI();
+                ZenAudio.playDiscovery(); updateSecretsUI();
             }
         }
 
-        // --- 5. SYSTEM & RENDERING (FROM LOVE1) ---
+        // --- 5. SYSTEM & RENDERING ---
         function drawBackground(ctx, img, cw, ch) {
             if (!img.complete || img.naturalWidth === 0) return;
             const scale = Math.max(cw / img.width, ch / img.height);
@@ -564,31 +552,19 @@
             if(config.useGradient || !config.backgroundImage) {
                 const t=themes[config.currentThemeIndex]; const g=ctx.createLinearGradient(0,0,0,height);
                 g.addColorStop(0,t.bg[0]); g.addColorStop(1,t.bg[1]); ctx.fillStyle=g; ctx.fillRect(0,0,width,height);
-            } else { 
-                drawBackground(ctx, config.backgroundImage, width, height); 
-            }
+            } else { drawBackground(ctx, config.backgroundImage, width, height); }
             for(let i=visualEntities.length-1; i>=0; i--) { visualEntities[i].update(); if(visualEntities[i].isDead()) visualEntities.splice(i,1); }
             for(let i=wordEntities.length-1; i>=0; i--) { wordEntities[i].update(); if(wordEntities[i].isDead()) wordEntities.splice(i,1); }
             for(let i=particles.length-1; i>=0; i--) { particles[i].update(); particles[i].draw(ctx); if(particles[i].isDead()) particles.splice(i,1); }
-            
-            visualEntities.forEach(e => e.draw(ctx));
-            wordEntities.forEach(w => w.draw(ctx));
-
-            requestAnimationFrame(loop);
-            document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+            visualEntities.forEach(e => e.draw(ctx)); wordEntities.forEach(w => w.draw(ctx));
+            requestAnimationFrame(loop); document.getElementById('clock').innerText = new Date().toLocaleTimeString();
         }
 
-        // UI Helpers
+        // UI & Recorder
         const bgInput=document.getElementById('bg-upload-input');
         document.getElementById('apply-bg-btn').addEventListener('click', ()=>{
             const f=bgInput.files[0]; if(!f){alert("Please select an image file first.");return;}
-            const r=new FileReader(); 
-            r.onload=e=>{ 
-                try { localStorage.setItem('garden_bg',e.target.result); } 
-                catch (err) { alert("Image too large to save permanently, but it has been applied for this session."); }
-                const i=new Image(); i.onload=()=>{config.backgroundImage=i;config.useGradient=false;}; i.src=e.target.result; 
-            }; 
-            r.readAsDataURL(f);
+            const r=new FileReader(); r.onload=e=>{ try { localStorage.setItem('garden_bg',e.target.result); } catch (err) { alert("Image too large to save permanently, but it has been applied for this session."); } const i=new Image(); i.onload=()=>{config.backgroundImage=i;config.useGradient=false;}; i.src=e.target.result; }; r.readAsDataURL(f);
         });
         document.getElementById('reset-bg-btn').addEventListener('click', ()=>{ localStorage.removeItem('garden_bg'); config.useGradient=true; config.backgroundImage=null; });
         if(localStorage.getItem('garden_bg')){ const i=new Image(); i.onload=()=>{config.backgroundImage=i;config.useGradient=false;}; i.src=localStorage.getItem('garden_bg'); }
@@ -602,75 +578,39 @@
         document.getElementById('theme-btn').onclick=()=>config.currentThemeIndex=(config.currentThemeIndex+1)%themes.length;
         document.getElementById('clear-btn').onclick=()=>{visualEntities=[];wordEntities=[];particles=[];};
         document.getElementById('save-btn').onclick=()=>{const a=document.createElement('a');a.download='garden.png';a.href=canvas.toDataURL();a.click();};
-        const cBox=document.getElementById('custom-words');
-        cBox.value=localStorage.getItem('garden_words')||"";
+        const cBox=document.getElementById('custom-words'); cBox.value=localStorage.getItem('garden_words')||"";
         cBox.onblur=e=>{localStorage.setItem('garden_words',e.target.value); config.customWords=e.target.value.split(',').filter(s=>s.trim());};
 
         const secretsModal = document.getElementById('secrets-modal');
-        document.getElementById('secrets-btn').onclick=()=>{ 
-            updateSecretsUI(); 
-            secretsModal.classList.remove('invisible'); secretsModal.classList.add('visible'); 
-            secretsModal.querySelector('.modal-content').classList.remove('scale-out'); 
-            secretsModal.querySelector('.modal-content').classList.add('scale-in');
-            panel.classList.add('translate-x-full');
-        };
-        document.getElementById('close-secrets').onclick=()=>{ 
-            secretsModal.classList.remove('visible'); secretsModal.classList.add('invisible'); 
-            secretsModal.querySelector('.modal-content').classList.add('scale-out');
-        };
+        document.getElementById('secrets-btn').onclick=()=>{ updateSecretsUI(); secretsModal.classList.remove('invisible'); secretsModal.classList.add('visible'); secretsModal.querySelector('.modal-content').classList.remove('scale-out'); secretsModal.querySelector('.modal-content').classList.add('scale-in'); panel.classList.add('translate-x-full'); };
+        document.getElementById('close-secrets').onclick=()=>{ secretsModal.classList.remove('visible'); secretsModal.classList.add('invisible'); secretsModal.querySelector('.modal-content').classList.add('scale-out'); };
         function updateSecretsUI() {
             const list=document.getElementById('secrets-list'); list.innerHTML='';
-            for(let i=1; i<=20; i++) {
-                const u = foundEggs.includes(i);
-                const b = document.createElement('div');
-                b.className = `aspect-square rounded flex items-center justify-center text-xs font-bold border ${u?'bg-amber-200 border-amber-400 text-amber-900':'bg-gray-100 text-gray-300'}`;
-                b.innerText=i;
-                list.appendChild(b);
-            }
+            for(let i=1; i<=20; i++) { const u = foundEggs.includes(i); const b = document.createElement('div'); b.className = `aspect-square rounded flex items-center justify-center text-xs font-bold border ${u?'bg-amber-200 border-amber-400 text-amber-900':'bg-gray-100 text-gray-300'}`; b.innerText=i; list.appendChild(b); }
             document.getElementById('secrets-count').innerText=foundEggs.length;
         }
 
-        // Robust Recording (Love1)
         let mediaRecorder, recordedChunks = [], isRecording = false;
-        const recBtn = document.getElementById('record-btn');
-        const recInd = document.getElementById('rec-indicator');
-        
+        const recBtn = document.getElementById('record-btn'); const recInd = document.getElementById('rec-indicator');
         recBtn.addEventListener('click', () => isRecording ? stopRecording() : startRecording());
-        
         function startRecording() {
             ZenAudio.init(); 
             if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
             mediaRecorder = null; recordedChunks = [];
             const stream = canvas.captureStream(60); 
-            if (ZenAudio.dest && ZenAudio.dest.stream.getAudioTracks().length > 0) {
-                stream.addTrack(ZenAudio.dest.stream.getAudioTracks()[0]);
-            }
+            if (ZenAudio.dest && ZenAudio.dest.stream.getAudioTracks().length > 0) stream.addTrack(ZenAudio.dest.stream.getAudioTracks()[0]);
             const mimeTypes = ["video/mp4", "video/webm;codecs=h264", "video/webm"];
             let selectedType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
             if (!selectedType) { alert("Recording not supported."); return; }
-            try { mediaRecorder = new MediaRecorder(stream, { mimeType: selectedType }); } 
-            catch (e) { alert("Recording init failed."); return; }
+            try { mediaRecorder = new MediaRecorder(stream, { mimeType: selectedType }); } catch (e) { alert("Recording init failed."); return; }
             mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
             mediaRecorder.onstop = () => {
-                const blob = new Blob(recordedChunks, { type: selectedType });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a"); 
-                a.style.display="none"; a.href=url; 
-                a.download=`garden-${Date.now()}.${selectedType.includes("mp4")?"mp4":"webm"}`;
-                document.body.appendChild(a); a.click(); 
-                setTimeout(()=>URL.revokeObjectURL(url),100);
+                const blob = new Blob(recordedChunks, { type: selectedType }); const url = URL.createObjectURL(blob);
+                const a = document.createElement("a"); a.style.display="none"; a.href=url; a.download=`garden-${Date.now()}.${selectedType.includes("mp4")?"mp4":"webm"}`; document.body.appendChild(a); a.click(); setTimeout(()=>URL.revokeObjectURL(url),100);
             };
-            mediaRecorder.start(); isRecording = true; 
-            recInd.style.opacity = '1'; recBtn.innerText = "Stop"; 
-            recBtn.classList.add('bg-red-100','text-red-700','animate-pulse'); 
-            panel.classList.add('translate-x-full');
+            mediaRecorder.start(); isRecording = true; recInd.style.opacity = '1'; recBtn.innerText = "Stop"; recBtn.classList.add('bg-red-100','text-red-700','animate-pulse'); panel.classList.add('translate-x-full');
         }
-
-        function stopRecording() { 
-            if(mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop(); 
-            isRecording=false; recInd.style.opacity='0'; recBtn.innerText="Record"; 
-            recBtn.classList.remove('bg-red-100','text-red-700','animate-pulse'); 
-        }
+        function stopRecording() { if(mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop(); isRecording=false; recInd.style.opacity='0'; recBtn.innerText="Record"; recBtn.classList.remove('bg-red-100','text-red-700','animate-pulse'); }
 
         loop();
     </script>
