@@ -1,4 +1,4 @@
-<!-- A Gift for My Babydoll-v4.15-2025-12-07 11:25 AM -->
+<!-- A Gift for My Babydoll-v4.21-2025-12-07 11:10 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -67,7 +67,7 @@
 
     <!-- Footer -->
     <div class="fixed bottom-3 right-4 text-[10px] text-white/60 pointer-events-none z-10 tracking-wider" id="master-footer">
-        A Gift for My Babydoll v4.15 • <span id="clock">--:--</span>
+        A Gift for My Babydoll v4.21 • <span id="clock">--:--</span>
     </div>
 
     <!-- Settings Trigger -->
@@ -263,14 +263,13 @@
                 </button>
             </div>
             <div class="overflow-y-auto max-h-[60vh] space-y-3 text-sm text-gray-700">
-                <p class="font-bold text-gray-900">v4.15 Changelog (New Features):</p>
+                <p class="font-bold text-gray-900">v4.21 Changelog (Bug Fixes):</p>
                 <ul class="list-decimal pl-5 space-y-1">
-                    <li><strong>Unified Trail Control:</strong> Slider now controls both lifespan and scroll speed. Higher value = Slower scroll & Longer life.</li>
-                    <li><strong>Double Tap Audio:</strong> Added distinct "Harp Strum" sound on double tap.</li>
-                    <li><strong>Secret 1 (Royal Core):</strong> Upgraded to complex, rotating mandala geometry.</li>
-                    <li><strong>Secret 2 (Emerald Wrap):</strong> Upgraded to intricate, vein-detailed leaves using Bezier curves.</li>
-                    <li><strong>Secret 3 (Amour Bloom):</strong> Upgraded to fractal heart-flower patterns.</li>
-                    <li><strong>Secret 5 (Stardust):</strong> Upgraded to physics-based particle system with gravity/friction.</li>
+                    <li><strong>Quota Error Fix:</strong> Wrapped background image saving in a safety block. If the image is too large for storage, it will still apply for the current session without crashing.</li>
+                    <li><strong>Removed Secret 6:</strong> The "Smiley Face" has been removed to eliminate flickering and restore elegance.</li>
+                    <li><strong>Foundation Polish:</strong> Code cleanup to ensure 3D Hearts, Jewel Centers, and Gold Filigree render smoothly.</li>
+                    <li><strong>Confirmed Audio:</strong> Retained the organic string audio and contextual double-tap chords from v4.19.</li>
+                    <li><strong>Visual Stability:</strong> Opaque Vivid Trails and 3D Growing Hearts are stable.</li>
                 </ul>
             </div>
         </div>
@@ -278,8 +277,8 @@
 
     <script>
         /**
-         * A Gift for My Babydoll - v4.15
-         * Unified Trail Logic, Enhanced Visuals, Double Tap Audio
+         * A Gift for My Babydoll - v4.21
+         * Fix: QuotaExceededError handling for background images
          */
 
         // --- 1. Core Config & State ---
@@ -293,11 +292,14 @@
             ],
             customWords: [],
             speedMultiplier: 1.0,
-            decayValue: 0.005, // Flower Fade
-            trailDecay: 0.01,  // Linked to slider
-            trailSpeed: 1.0,   // Linked to slider
+            decayValue: 0.005,
+            trailDecay: 0.01,
+            trailSpeed: 1.0,
             useGradient: true,
-            backgroundImage: null
+            backgroundImage: null,
+            // Trail State
+            currentTrail: '♥',
+            lastTrailSwitch: Date.now()
         };
 
         const themes = [
@@ -322,9 +324,10 @@
         let foundEggs = JSON.parse(localStorage.getItem('garden_egg_ids') || "[]");
         let inputBuffer = ""; 
 
-        // --- 2. Audio Engine ---
+        // --- 2. Audio Engine (Karplus-Strong) ---
         const ZenAudio = {
             ctx: null, enabled: true, masterGain: null, dest: null,
+            // Pentatonic Scale
             scale: [130.81, 146.83, 164.81, 196.00, 220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51],
             init: function() {
                 if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
@@ -337,11 +340,11 @@
                 }
                 if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
             },
-            getFreq: function(y, height) {
+            getFreqIndex: function(y, height) {
                 const norm = 1 - Math.max(0, Math.min(1, y / height));
-                const index = Math.floor(norm * this.scale.length);
-                return this.scale[Math.min(index, this.scale.length - 1)];
+                return Math.floor(norm * (this.scale.length - 1));
             },
+            // The organic "Pluck" sound
             playPluck: function(freq, volume = 0.3) {
                 if (!this.ctx || !this.enabled) return;
                 const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 2.0, this.ctx.sampleRate);
@@ -350,35 +353,28 @@
                 let idx = 0, last = 0;
                 const noise = new Float32Array(delayLength).map(() => Math.random()*2-1);
                 for (let i = 0; i < buffer.length; i++) {
-                    const sample = (noise[idx] + last) * 0.5 * 0.992;
+                    const sample = (noise[idx] + last) * 0.5 * 0.992; // Lowpass filter
                     last = noise[idx]; noise[idx] = sample;
                     data[i] = sample * volume;
                     idx = (idx + 1) % delayLength;
                 }
                 const src = this.ctx.createBufferSource(); src.buffer = buffer; src.connect(this.masterGain); src.start();
             },
-            playStrum: function(count, baseFreq) {
+            // Contextual Strum using Plucks
+            playStrum: function(baseIdx) {
                 if (!this.ctx || !this.enabled) return;
-                let baseIndex = 0;
-                let closest = 10000;
-                this.scale.forEach((f, i) => { if(Math.abs(f-baseFreq)<closest) { closest=Math.abs(f-baseFreq); baseIndex=i; }});
-                for(let i=0; i<count; i++) {
-                    let noteIndex = Math.min(this.scale.length-1, baseIndex + i * 2);
-                    let freq = this.scale[noteIndex];
-                    setTimeout(() => { this.playPluck(freq, 0.1); }, i * 40); 
-                }
-            },
-            playChime: function(freq, volume = 0.1) {
-                if (!this.ctx || !this.enabled) return;
-                const osc = this.ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = freq * 2;
-                const g = this.ctx.createGain(); g.connect(this.masterGain);
-                const now = this.ctx.currentTime;
-                g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(volume, now+0.05); g.gain.exponentialRampToValueAtTime(0.001, now+1.5);
-                osc.start(now); osc.stop(now+1.5);
+                // Play a triad arpeggio
+                const idx1 = baseIdx;
+                const idx2 = Math.min(this.scale.length-1, baseIdx + 2);
+                const idx3 = Math.min(this.scale.length-1, baseIdx + 4);
+                
+                this.playPluck(this.scale[idx1], 0.2);
+                setTimeout(() => this.playPluck(this.scale[idx2], 0.15), 50);
+                setTimeout(() => this.playPluck(this.scale[idx3], 0.15), 100);
             },
             playDiscovery: function() {
                 if (!this.ctx || !this.enabled) return;
-                [261.63, 329.63, 392.00, 523.25].forEach((f, i) => { setTimeout(() => this.playChime(f, 0.2), i * 150); });
+                [261.63, 329.63, 392.00, 523.25].forEach((f, i) => { setTimeout(() => this.playPluck(f, 0.2), i * 150); });
             }
         };
 
@@ -407,7 +403,6 @@
             return config.defaultWords[Math.floor(Math.random() * config.defaultWords.length)];
         }
 
-        // Particle System for Secret 5 (Stardust)
         class Particle {
             constructor(x, y, color) {
                 this.x = x; this.y = y;
@@ -415,6 +410,7 @@
                 this.life = 1.0; this.decay = random(0.005, 0.02);
                 this.color = color;
                 this.gravity = 0.1;
+                this.sparkleColor = `hsl(${random(0,360)}, 80%, 70%)`;
             }
             update() {
                 this.x += this.vx; this.y += this.vy;
@@ -423,8 +419,7 @@
             }
             draw(ctx) {
                 ctx.globalAlpha = Math.max(0, this.life);
-                // Sparkling color change
-                ctx.fillStyle = `hsl(${random(0,360)}, 80%, 70%)`;
+                ctx.fillStyle = this.sparkleColor;
                 ctx.fillRect(this.x, this.y, 2, 2);
             }
             isDead() { return this.life <= 0; }
@@ -460,6 +455,11 @@
                 this.alpha = 1; 
                 this.compColor = `hsla(${(this.colorObj.hue + 180)%360}, 60%, 70%,`;
                 this.rotation = random(0, Math.PI*2);
+                // Flower Shape Variation
+                const shapeRnd = Math.random();
+                if(shapeRnd > 0.6) this.shape = 'pointed';
+                else if (shapeRnd > 0.3) this.shape = 'round';
+                else this.shape = 'hybrid';
             }
             update() {
                 this.rotation += 0.002;
@@ -469,72 +469,78 @@
             draw(ctx) {
                 ctx.save();
                 
-                // Secret 2: Emerald Wrap (Intricate Leaves)
+                // Secret 2: Gold Filigree
                 if(foundEggs.includes(2)) {
-                    ctx.fillStyle = `rgba(100, 160, 100, ${this.alpha * 0.8})`;
-                    ctx.strokeStyle = `rgba(60, 120, 60, ${this.alpha * 0.8})`;
+                    ctx.strokeStyle = `rgba(218, 165, 32, ${this.alpha * 0.6})`;
+                    ctx.lineWidth = 0.5;
                     for(let i=0; i<5; i++) {
                         const angle = (i/5) * Math.PI*2 + this.rotation;
-                        const len = this.size * 1.4;
+                        const len = this.size * 1.5;
                         ctx.beginPath();
                         ctx.moveTo(this.x, this.y);
-                        // Complex Bezier Leaf
-                        ctx.bezierCurveTo(
-                            this.x + Math.cos(angle - 0.5) * len * 0.5, 
-                            this.y + Math.sin(angle - 0.5) * len * 0.5,
-                            this.x + Math.cos(angle + 0.5) * len * 0.8, 
-                            this.y + Math.sin(angle + 0.5) * len * 0.8,
-                            this.x + Math.cos(angle) * len, 
-                            this.y + Math.sin(angle) * len
-                        );
-                        ctx.bezierCurveTo(
-                            this.x + Math.cos(angle - 0.2) * len * 0.8, 
-                            this.y + Math.sin(angle - 0.2) * len * 0.8,
-                            this.x + Math.cos(angle + 0.2) * len * 0.5, 
-                            this.y + Math.sin(angle + 0.2) * len * 0.5,
-                            this.x, this.y
-                        );
-                        ctx.fill();
-                        ctx.stroke(); // Vein
+                        ctx.bezierCurveTo(this.x + Math.cos(angle - 0.4) * len * 0.5, this.y + Math.sin(angle - 0.4) * len * 0.5,
+                            this.x + Math.cos(angle + 0.4) * len * 0.8, this.y + Math.sin(angle + 0.4) * len * 0.8,
+                            this.x + Math.cos(angle) * len, this.y + Math.sin(angle) * len);
+                        ctx.stroke(); 
                     }
                 }
 
+                // Draw Petals based on Shape
                 for(let i=0; i<3; i++) {
-                    ctx.fillStyle = this.colorBase + (this.alpha * (1 - i*0.2)) + ')';
+                    ctx.fillStyle = this.colorBase + (this.alpha * 0.7 * (1 - i*0.2)) + ')';
                     ctx.beginPath();
                     for (let j = 0; j < this.petals; j++) {
                         const angle = (j / this.petals) * Math.PI * 2 + (i * 0.1) + this.rotation;
                         const petalSize = (this.size - (i*5));
                         if (petalSize <= 0) continue;
+                        
                         ctx.moveTo(this.x, this.y);
-                        ctx.ellipse(this.x + Math.cos(angle)*(petalSize*0.5), this.y + Math.sin(angle)*(petalSize*0.5), petalSize*0.4, petalSize*0.2, angle, 0, Math.PI*2);
+                        if(this.shape === 'pointed') {
+                            ctx.quadraticCurveTo(
+                                this.x + Math.cos(angle - 0.3) * petalSize, 
+                                this.y + Math.sin(angle - 0.3) * petalSize,
+                                this.x + Math.cos(angle) * petalSize * 1.2,
+                                this.y + Math.sin(angle) * petalSize * 1.2
+                            );
+                            ctx.quadraticCurveTo(
+                                this.x + Math.cos(angle + 0.3) * petalSize,
+                                this.y + Math.sin(angle + 0.3) * petalSize,
+                                this.x, this.y
+                            );
+                        } else {
+                            // Round or Hybrid (Standard Ellipse)
+                            ctx.ellipse(this.x + Math.cos(angle)*(petalSize*0.5), this.y + Math.sin(angle)*(petalSize*0.5), petalSize*0.4, petalSize*0.2, angle, 0, Math.PI*2);
+                        }
                     }
                     ctx.fill();
                 }
 
-                // Secret 1: Royal Core (Complex Mandala)
-                if(foundEggs.includes(1)) {
-                    ctx.strokeStyle = this.compColor + this.alpha + ')';
-                    ctx.lineWidth = 1;
-                    const rBase = this.size * 0.3;
-                    for(let r=0; r<3; r++) {
-                        ctx.beginPath();
-                        const rad = rBase - (r*3);
-                        for(let a=0; a<Math.PI*2; a+=0.5) {
-                            const ra = a + this.rotation * (r%2==0?1:-1);
-                            ctx.lineTo(this.x + Math.cos(ra)*rad, this.y + Math.sin(ra)*rad);
-                        }
-                        ctx.closePath();
-                        ctx.stroke();
+                // Ornate Center
+                const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 0.25);
+                const centerAlpha = foundEggs.includes(1) ? 0.9 : 0.7; 
+                grad.addColorStop(0, `rgba(255, 255, 255, ${centerAlpha})`); 
+                grad.addColorStop(0.4, this.compColor + (this.alpha * centerAlpha) + ")"); 
+                grad.addColorStop(1, this.compColor + "0)"); 
+                ctx.fillStyle = grad;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 0.25, 0, Math.PI*2); ctx.fill();
+                
+                // Extra Detail Ring
+                ctx.strokeStyle = `rgba(255,255,255,${this.alpha*0.6})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size*0.1, 0, Math.PI*2); ctx.stroke();
+                
+                if(this.size > 20) {
+                    ctx.fillStyle = `rgba(255,255,200,${this.alpha})`;
+                    for(let k=0; k<6; k++) {
+                        const dotA = (k/6)*Math.PI*2 + this.rotation;
+                        const dotR = this.size * 0.2;
+                        ctx.beginPath(); ctx.arc(this.x + Math.cos(dotA)*dotR, this.y + Math.sin(dotA)*dotR, 1.5, 0, Math.PI*2); ctx.fill();
                     }
-                    ctx.fillStyle = `rgba(255, 255, 200, ${this.alpha})`;
-                    ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
                 }
 
                 ctx.restore();
             }
             isDead() { 
-                // Secret 5: Stardust Legacy (Fireworks on death)
                 if (this.alpha <= 0 && foundEggs.includes(5)) {
                     for(let k=0; k<15; k++) particles.push(new Particle(this.x, this.y, this.colorBase + '1)'));
                 }
@@ -542,19 +548,55 @@
             }
         }
 
+        // 3D Growing Heart (Replaces growing flower sometimes)
+        class GrowingHeart {
+            constructor(x, y) {
+                this.x = x; this.y = y; this.size = 0; 
+                this.maxSize = random(40, 90);
+                this.hue = random(0, 360);
+                this.alpha = 1;
+            }
+            update() {
+                if (this.size < this.maxSize) this.size += 0.5 * config.speedMultiplier;
+                else if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier;
+            }
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                const scale = this.size / 30;
+                ctx.scale(scale, scale);
+                ctx.globalAlpha = Math.max(0, this.alpha);
+
+                // 3D Shader Gradient
+                let grad = ctx.createRadialGradient(-5, -5, 2, 0, 0, 25);
+                grad.addColorStop(0, "white"); // Highlight
+                grad.addColorStop(0.3, `hsl(${this.hue}, 100%, 70%)`); // Body
+                grad.addColorStop(1, `hsl(${this.hue}, 100%, 30%)`); // Shadow
+                ctx.fillStyle = grad;
+
+                ctx.beginPath();
+                ctx.moveTo(0,0);
+                ctx.bezierCurveTo(-10, -10, -20, 0, 0, 20);
+                ctx.bezierCurveTo(20, 0, 10, -10, 0, 0);
+                ctx.fill();
+                
+                ctx.strokeStyle = `rgba(255,255,255,${this.alpha*0.5})`;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.restore();
+            }
+            isDead() { return this.alpha <= 0; }
+        }
+
         class HeartBloom extends Bloom {
             draw(ctx) {
                 ctx.save();
-                
-                // Secret 3: Amour Bloom (Fractal Heart Flower)
                 const layerCount = foundEggs.includes(3) ? 5 : 3;
-
                 for(let i=0; i<layerCount; i++) {
-                    ctx.fillStyle = this.colorBase + (this.alpha * (1 - i*0.15)) + ')';
                     const scale = (this.size - (i*4)) / 20;
                     if (scale <= 0) continue;
-                    
-                    const pCount = this.petals + (i%2); // Vary petal count per layer
+                    const pCount = this.petals + (i%2); 
                     for (let j = 0; j < pCount; j++) {
                         ctx.save();
                         const angle = (j / pCount) * Math.PI * 2 + this.rotation + (i*0.2);
@@ -562,7 +604,12 @@
                         ctx.rotate(angle + Math.PI/2);
                         ctx.translate(0, -scale * 15);
                         ctx.scale(scale, scale);
-                        // Heart path
+                        
+                        let grad = ctx.createRadialGradient(-3, -3, 1, 0, 0, 15);
+                        grad.addColorStop(0, "rgba(255,255,255,0.4)");
+                        grad.addColorStop(1, this.colorBase + (this.alpha * 0.8) + ')');
+                        ctx.fillStyle = grad;
+
                         ctx.beginPath();
                         ctx.moveTo(0,0);
                         ctx.bezierCurveTo(-5, -5, -10, 0, 0, 10);
@@ -571,8 +618,6 @@
                         ctx.restore();
                     }
                 }
-                
-                // Center Dot
                 ctx.fillStyle = this.compColor + this.alpha + ')';
                 ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 0.1, 0, Math.PI*2); ctx.fill();
                 ctx.restore();
@@ -584,12 +629,12 @@
                 this.x = x; this.y = y; this.alpha = 1;
                 this.hearts = [];
                 const count = Math.floor(random(4, 12));
-                const colors = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🤎", "🤍"];
+                const colors = ["#ff0000", "#ff7f00", "#ffff00", "#00ff00", "#0000ff", "#4b0082", "#9400d3", "#ff1493"];
                 for(let i=0; i<count; i++) {
                     this.hearts.push({
                         ox: random(-40, 40), oy: random(-40, 40),
-                        size: random(15, 35),
-                        char: colors[Math.floor(Math.random()*colors.length)],
+                        size: random(10, 25),
+                        color: colors[Math.floor(Math.random()*colors.length)],
                         rot: random(-0.2, 0.2)
                     });
                 }
@@ -604,17 +649,20 @@
                     ctx.save();
                     ctx.translate(this.x + h.ox, this.y + h.oy);
                     ctx.rotate(h.rot);
-                    ctx.font = `${h.size}px serif`;
-                    // Secret 4: Dimensional Hearts (3D Effect with Shadow/Highlight)
-                    if(foundEggs.includes(4)) {
-                        ctx.fillStyle = "rgba(0,0,0,0.5)"; // Drop Shadow
-                        ctx.fillText(h.char, 2, 2);
-                        // Slight offset brightness
-                        ctx.fillStyle = "rgba(255,255,255,0.3)";
-                        ctx.fillText(h.char, -1, -1);
-                    }
-                    ctx.fillStyle = "black"; // Base for emoji
-                    ctx.fillText(h.char, 0, 0);
+                    const scale = h.size / 20;
+                    ctx.scale(scale, scale);
+                    
+                    let grad = ctx.createRadialGradient(-5, -5, 2, 0, 0, 20);
+                    grad.addColorStop(0, "white");
+                    grad.addColorStop(0.3, h.color);
+                    grad.addColorStop(1, "#330000"); // Depth
+                    ctx.fillStyle = grad;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(0,0);
+                    ctx.bezierCurveTo(-10, -10, -20, 0, 0, 20);
+                    ctx.bezierCurveTo(20, 0, 10, -10, 0, 0);
+                    ctx.fill();
                     ctx.restore();
                 });
                 ctx.restore();
@@ -622,34 +670,48 @@
             isDead() { return this.alpha <= 0; }
         }
 
-        // --- CYCLICAL DRAG TRAILS ---
-        // Unified Speed/Decay: If Slider is High -> Slow Speed, Low Decay
+        // --- TRAIL SYSTEM (Vivid & Opaque) ---
         class TrailBase {
-            constructor(x, y, char) {
+            constructor(x, y, type) {
                 this.x = x; this.y = y; this.alpha = 1; 
                 this.size = random(10, 20);
-                this.char = char;
+                this.type = type; 
+                this.hue = random(0, 360);
+                this.color = `hsl(${this.hue},100%,60%)`; // High Saturation, Opaque
+                this.cometColor = `hsl(${random(200,260)},100%,80%)`;
             }
             update() {
-                this.y -= config.trailSpeed; // Controlled by slider
-                this.alpha -= config.trailDecay; // Controlled by slider
+                this.y -= config.trailSpeed; 
+                this.alpha -= config.trailDecay; 
             }
             draw(ctx) {
                 ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha);
-                ctx.font = `${this.size}px serif`;
-                if(foundEggs.includes(4) && this.char === "♥") {
-                     ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fillText(this.char, this.x+2, this.y+2);
-                     ctx.fillStyle = `hsl(${random(0,360)},100%,60%)`;
-                } else if (this.char === "♥") {
-                    ctx.fillStyle = `hsl(${random(0,360)},100%,60%)`;
-                } else if(this.char === "Comet") {
-                    ctx.fillStyle = `hsl(${random(200,260)},100%,80%)`;
-                }
                 
-                if(this.char === "Comet") {
-                    ctx.beginPath(); ctx.arc(this.x, this.y, this.size/4, 0, Math.PI*2); ctx.fill();
-                } else {
-                    ctx.fillText(this.char, this.x, this.y);
+                // NO Screen composite - Standard Opaque mixing for visibility
+                if(this.type === "Comet") {
+                    ctx.fillStyle = this.cometColor;
+                    ctx.beginPath(); ctx.arc(this.x, this.y, this.size/3, 0, Math.PI*2); ctx.fill();
+                } 
+                else if (this.type === "♥" || this.type === "⭐") {
+                    ctx.translate(this.x, this.y);
+                    
+                    if(this.type === "♥") {
+                        // 2D Vivid Heart
+                        ctx.fillStyle = this.color;
+                        ctx.font = `${this.size}px serif`;
+                        ctx.fillText("♥", 0, 0);
+                    } else {
+                        // Star
+                        ctx.fillStyle = this.color; // Colorful Stars
+                        ctx.font = `${this.size}px serif`;
+                        ctx.fillText("⭐", 0, 0);
+                    }
+                } 
+                else {
+                    // Cloud
+                    ctx.fillStyle = "rgba(255,255,255,0.9)";
+                    ctx.font = `${this.size}px serif`;
+                    ctx.fillText(this.type, this.x, this.y);
                 }
                 ctx.restore();
             }
@@ -671,16 +733,24 @@
             if(!startX) return;
             if(Math.sqrt((x-startX)**2 + (y-startY)**2) > 10) {
                 isDragging=true;
-                const cycle = (Date.now() - dragStart) % 27000;
                 
-                let tType = "Comet";
-                if(cycle > 7000 && cycle < 17000) tType = "♥";
-                else if(cycle >= 17000) tType = "☁️";
+                // Trail Logic: Switch randomly every 10s
+                if(Date.now() - config.lastTrailSwitch > 10000) {
+                    const options = ['♥', 'Comet', '☁️', '⭐'];
+                    // Weighted random: 60% chance to go back to Hearts
+                    if (config.currentTrail !== '♥' && Math.random() > 0.4) {
+                        config.currentTrail = '♥';
+                    } else {
+                        config.currentTrail = options[Math.floor(Math.random() * options.length)];
+                    }
+                    config.lastTrailSwitch = Date.now();
+                }
 
-                visualEntities.push(new TrailBase(x, y, tType));
+                visualEntities.push(new TrailBase(x, y, config.currentTrail));
                 
                 if(Date.now()-lastDragSound > 60) { 
-                    ZenAudio.playPluck(ZenAudio.getFreq(y,height), 0.1); 
+                    const idx = ZenAudio.getFreqIndex(y, height);
+                    ZenAudio.playPluck(ZenAudio.scale[idx], 0.1); 
                     lastDragSound=Date.now(); 
                 }
             }
@@ -692,23 +762,28 @@
                 registerInput('S'); 
                 checkDragUnlock(now-dragStart); 
             } else {
-                const freq = ZenAudio.getFreq(y,height);
+                const idx = ZenAudio.getFreqIndex(y, height);
+                const freq = ZenAudio.scale[idx];
                 
                 let ent;
-                if(foundEggs.includes(3) && Math.random() > 0.6) ent = new HeartBloom(x,y);
+                const rnd = Math.random();
+                // 3D Growing Heart (Secret 3 or Random)
+                if(foundEggs.includes(3) && rnd > 0.7) ent = new GrowingHeart(x,y);
+                else if(foundEggs.includes(3) && rnd > 0.5) ent = new HeartBloom(x,y);
                 else ent = new Bloom(x,y);
 
                 visualEntities.push(ent);
                 wordEntities.push(new Word(x,y-30));
                 
+                // Single Tap Audio (Pluck)
                 ZenAudio.playPluck(freq, 0.3);
+                
                 registerInput('T');
                 
-                // Double Tap Check
                 if(now-lastTap < 300) { 
                     visualEntities.push(new HeartCloud(x,y));
-                    // Double Tap Audio Effect: Strum
-                    ZenAudio.playStrum(6, freq);
+                    // Double Tap: Play Arpeggio of Plucks (Contextual)
+                    ZenAudio.playStrum(idx);
                 }
                 lastTap=now;
             }
@@ -724,12 +799,12 @@
 
         // --- 5. Secrets Logic ---
         const rhythmSequences = [
-            { code: "TTT", id: 1, desc: "Tap Tap Tap", title: "Royal Core" }, 
-            { code: "TTS", id: 2, desc: "Tap Tap Swipe", title: "Emerald Wrap" }, 
-            { code: "TST", id: 3, desc: "Tap Swipe Tap", title: "Amour Bloom" }, 
+            { code: "TTT", id: 1, desc: "Tap Tap Tap", title: "Jewel Core" }, 
+            { code: "TTS", id: 2, desc: "Tap Tap Swipe", title: "Gold Filigree" }, 
+            { code: "TST", id: 3, desc: "Tap Swipe Tap", title: "Amour Bloom & Heart 3D" }, 
             { code: "SST", id: 4, desc: "Swipe Swipe Tap", title: "Dimension Heart" }, 
             { code: "TTTT", id: 5, desc: "Tap Tap Tap Tap", title: "Stardust Legacy" }, 
-            { code: "SS", id: 6, desc: "Swipe Swipe", title: "Secret 6" },
+            { code: "SS", id: 6, desc: "Swipe Swipe", title: "Removed (Joy)" },
             { code: "TSTS", id: 7, desc: "Tap Swipe Tap Swipe", title: "Secret 7" }, 
             { code: "STST", id: 8, desc: "Swipe Tap Swipe Tap", title: "Secret 8" }, 
             { code: "TSS", id: 9, desc: "Tap Swipe Swipe", title: "Secret 9" }, 
@@ -751,7 +826,7 @@
                 
                 // Visual Confirmation
                 let b = new Bloom(width/2, height/2, 200);
-                if(id===5) b.alpha = 0.5; // Fast for sparks
+                if(id===3) b = new GrowingHeart(width/2, height/2); 
                 visualEntities.push(b);
                 
                 ZenAudio.playDiscovery(); 
@@ -776,15 +851,11 @@
                 drawBackground(ctx, config.backgroundImage, width, height); 
             }
 
-            // Update Entities
             for(let i=visualEntities.length-1; i>=0; i--) { visualEntities[i].update(); if(visualEntities[i].isDead()) visualEntities.splice(i,1); }
             for(let i=wordEntities.length-1; i>=0; i--) { wordEntities[i].update(); if(wordEntities[i].isDead()) wordEntities.splice(i,1); }
             for(let i=particles.length-1; i>=0; i--) { particles[i].update(); particles[i].draw(ctx); if(particles[i].isDead()) particles.splice(i,1); }
             
-            // Layer 2: Trails & Blooms
             visualEntities.forEach(e => e.draw(ctx));
-            
-            // Layer 3: Words (On Top)
             wordEntities.forEach(w => w.draw(ctx));
 
             requestAnimationFrame(loop);
@@ -797,7 +868,19 @@
         document.getElementById('apply-bg-btn').addEventListener('click', ()=>{
             const f=bgInput.files[0]; if(!f){alert("Please select an image file first.");return;}
             const r=new FileReader(); 
-            r.onload=e=>{ localStorage.setItem('garden_bg',e.target.result); const i=new Image(); i.onload=()=>{config.backgroundImage=i;config.useGradient=false;}; i.src=e.target.result; }; 
+            r.onload=e=>{ 
+                // Fix: Try-Catch for Storage Quota
+                try {
+                    localStorage.setItem('garden_bg',e.target.result); 
+                } catch (err) {
+                    console.warn("Image too large to save to local storage. It will reset on reload.");
+                    alert("Image applied! Note: This image is too large to save permanently, so it will reset if you refresh the page.");
+                }
+                
+                const i=new Image(); 
+                i.onload=()=>{config.backgroundImage=i;config.useGradient=false;}; 
+                i.src=e.target.result; 
+            }; 
             r.readAsDataURL(f);
         });
         
@@ -809,21 +892,14 @@
         document.getElementById('close-btn').onclick = ()=>panel.classList.add('translate-x-full');
         document.getElementById('audio-toggle').onchange=e=>ZenAudio.enabled=e.target.checked;
         
-        // Sliders
         document.getElementById('decay-slider').oninput=e=>config.decayValue=[0,0.002,0.005,0.01,0.02,0.05][e.target.value];
-        
-        // Unified Trail Slider: Low Value = Fast Fade/Scroll, High Value = Slow Fade/Scroll
         document.getElementById('trail-slider').oninput=e=>{
             const val = parseInt(e.target.value);
-            // Map 1-10 to decay (0.1 to 0.001)
             const decays = [0.1, 0.08, 0.06, 0.04, 0.02, 0.01, 0.008, 0.005, 0.002, 0.0005];
-            // Map 1-10 to speed (3.0 to 0.2)
             const speeds = [3.0, 2.5, 2.0, 1.5, 1.0, 0.8, 0.6, 0.4, 0.2, 0.1];
-            
             config.trailDecay = decays[val-1];
             config.trailSpeed = speeds[val-1];
         };
-
         document.getElementById('speed-slider').oninput=e=>config.speedMultiplier=0.2+(e.target.value/100)*1.8;
         
         document.getElementById('theme-btn').onclick=()=>config.currentThemeIndex=(config.currentThemeIndex+1)%themes.length;
@@ -833,7 +909,6 @@
         cBox.value=localStorage.getItem('garden_words')||"";
         cBox.onblur=e=>{localStorage.setItem('garden_words',e.target.value);if(e.target.value==='6969')config.customWords=[...config.defaultWords,...secretWords];else config.customWords=e.target.value.split(',').filter(s=>s.trim());};
 
-        // Modal Manager
         const modals = {
             secrets: document.getElementById('secrets-modal'),
             code: document.getElementById('code-modal'),
@@ -856,22 +931,18 @@
 
         document.getElementById('secrets-btn').onclick=()=>toggleModal('secrets', true);
         document.getElementById('close-secrets').onclick=()=>toggleModal('secrets', false);
-        
         document.getElementById('info-btn').onclick=()=>{
             document.getElementById('source-code-display').textContent = document.documentElement.outerHTML;
             toggleModal('code', true);
         };
         document.getElementById('close-code').onclick=()=>toggleModal('code', false);
-        
         document.getElementById('req-btn').onclick=()=>toggleModal('req', true);
         document.getElementById('close-req').onclick=()=>toggleModal('req', false);
-
         document.getElementById('copy-code-btn').onclick=()=>{
             navigator.clipboard.writeText(document.documentElement.outerHTML).then(() => {
                 alert("Code copied to clipboard!");
             });
         };
-
         document.getElementById('back-to-grid').onclick=()=>{
             document.getElementById('secrets-detail-view').classList.add('hidden');
             document.getElementById('secrets-grid-view').classList.remove('hidden');
@@ -903,9 +974,9 @@
             document.getElementById('detail-type').innerText = id<=10?"RHYTHM":"ENDURANCE";
             
             let rewardText = "Mystery Effect";
-            if(id===1) rewardText = "Complex Rotating Mandala";
-            if(id===2) rewardText = "Emerald Leaf Wraps with Veins";
-            if(id===3) rewardText = "Fractal Heart Blooms";
+            if(id===1) rewardText = "Jewel Center (Soft Gradient)";
+            if(id===2) rewardText = "Gold Filigree Leaves";
+            if(id===3) rewardText = "Fractal Heart Blooms & 3D Hearts";
             if(id===4) rewardText = "Dimensional 3D Hearts";
             if(id===5) rewardText = "Stardust Legacy (Particles)";
             
@@ -914,11 +985,11 @@
             document.getElementById('simulate-btn').onclick = () => {
                 toggleModal('secrets', false);
                 setTimeout(() => {
-                    if(id===3) visualEntities.push(new HeartBloom(width/2, height/2, 200));
+                    if(id===3) visualEntities.push(new GrowingHeart(width/2, height/2));
                     else if(id===4) visualEntities.push(new HeartCloud(width/2, height/2));
                     else if(id===5) {
                         let b = new Bloom(width/2, height/2, 200);
-                        b.alpha = 0.5; // Fast fade
+                        b.alpha = 0.5; 
                         visualEntities.push(b);
                     }
                     else visualEntities.push(new Bloom(width/2, height/2, 200)); 
@@ -927,7 +998,7 @@
             };
         }
 
-        // Recording Logic
+        // Recording
         let mediaRecorder, recordedChunks = [], isRecording = false;
         const recBtn = document.getElementById('record-btn');
         const recInd = document.getElementById('rec-indicator');
@@ -937,19 +1008,14 @@
         function startRecording() {
             ZenAudio.init();
             const stream = canvas.captureStream(30);
-            
             if (ZenAudio.dest && ZenAudio.dest.stream.getAudioTracks().length > 0) {
                 stream.addTrack(ZenAudio.dest.stream.getAudioTracks()[0]);
             }
-
             const mimeTypes = ["video/mp4", "video/webm;codecs=vp9", "video/webm"];
             let selectedType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
-
             if (!selectedType) { alert("Screen recording is not supported."); return; }
-
             try { mediaRecorder = new MediaRecorder(stream, { mimeType: selectedType }); } 
             catch (e) { console.error(e); alert("Recording init failed."); return; }
-
             recordedChunks = [];
             mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
             mediaRecorder.onstop = () => {
@@ -962,7 +1028,6 @@
                 document.body.appendChild(a); a.click(); 
                 setTimeout(()=>URL.revokeObjectURL(url),100);
             };
-            
             mediaRecorder.start(); isRecording = true; 
             recInd.style.opacity = '1'; recBtn.innerText = "Stop"; 
             recBtn.classList.add('bg-red-100','text-red-700','animate-pulse'); 
