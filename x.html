@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Web Viewer v10</title>
+    <title>Universal Web Viewer v11</title>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --bg: #f4f4f9; --text: #333; }
         body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); }
@@ -33,7 +33,7 @@
             font-size: 12px; 
             overflow-y: auto; 
             border-top: 4px solid #444;
-            display: block; /* Visible by default for transparency */
+            display: block; 
         }
         .log-entry { margin-bottom: 4px; border-bottom: 1px solid #333; padding-bottom: 2px; }
         .log-time { color: #888; margin-right: 8px; }
@@ -95,11 +95,11 @@
     </div>
 
     <div id="log-panel">
-        <div class="log-entry">System Ready. Internal Browsing Enabled.</div>
+        <div class="log-entry">System Ready. V11 Deduplicated.</div>
     </div>
 
     <script>
-        // --- CONFIG & STATE ---
+        // --- CONFIG ---
         const PROXIES = [
             { name: "CodeTabs", url: t => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(t)}` },
             { name: "AllOrigins", url: t => `https://api.allorigins.win/raw?url=${encodeURIComponent(t)}` },
@@ -112,15 +112,14 @@
         let audioQueue = [];
         let currentAudioIndex = 0;
 
-        // --- LOGGER ---
+        // --- UTILS ---
         function log(msg, type="info") {
             const panel = document.getElementById('log-panel');
             const time = new Date().toLocaleTimeString();
-            const colorClass = type === 'error' ? 'log-err' : (type === 'nav' ? 'log-nav' : '');
-            
+            const color = type === 'error' ? 'log-err' : (type === 'nav' ? 'log-nav' : '');
             const div = document.createElement('div');
             div.className = 'log-entry';
-            div.innerHTML = `<span class="log-time">[${time}]</span><span class="${colorClass}">${msg}</span>`;
+            div.innerHTML = `<span class="log-time">[${time}]</span><span class="${color}">${msg}</span>`;
             panel.appendChild(div);
             panel.scrollTop = panel.scrollHeight;
         }
@@ -130,12 +129,10 @@
             p.style.display = p.style.display === 'none' ? 'block' : 'none';
         }
 
-        // --- URL UTILS ---
         function fixUrl(input) {
             let url = input.trim();
             if (!url) return null;
             if (!url.includes('.') && !url.includes('://') && !url.includes('localhost')) {
-                log(`Auto-appending .com to "${url}"`, 'warn');
                 url += '.com';
             }
             if (!url.startsWith('http://') && !url.startsWith('https://')) {
@@ -146,27 +143,26 @@
 
         // --- CORE LOAD LOGIC ---
         async function loadUrl(urlOverride) {
-            // Determine URL: Override (from link click) or Input (from user type)
             let raw = urlOverride || document.getElementById('urlInput').value;
             const url = fixUrl(raw);
-            
             if(!url) return alert("Invalid URL");
-            
-            // Update input box to match reality
+
+            // 1. CLEAR STATE to prevent stale data
+            fetchedHtml = ""; 
+            stopAudio(); // Ensure audio stops on navigation
             document.getElementById('urlInput').value = url;
             
-            log(`Fetching: ${url}`);
             document.getElementById('btnGo').disabled = true;
             document.getElementById('btnGo').textContent = "...";
-            
-            let success = false;
-            fetchedHtml = "";
+            log(`Fetching: ${url}`);
 
+            let success = false;
+            
             for (let proxy of PROXIES) {
                 if(success) break;
                 try {
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+                    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
                     
                     const res = await fetch(proxy.url(url), { signal: controller.signal });
                     clearTimeout(timeoutId);
@@ -175,11 +171,9 @@
                     const text = await res.text();
                     if(!text || text.length < 200) throw new Error("Empty/Short content");
 
-                    // 1. Base Tag (Fixes images)
-                    const baseTag = `<base href="${url}" target="_self">`; // target_self important for internal nav
-                    
-                    // 2. Inject Internal Navigation Script
-                    // This intercepts clicks inside the iframe and sends them back to THIS script
+                    // 2. PREPARE HTML
+                    // Base tag for images, Script for navigation
+                    const baseTag = `<base href="${url}" target="_self">`;
                     const navScript = `
                         <script>
                             document.addEventListener('click', function(e) {
@@ -192,7 +186,7 @@
                         <\/script>
                     `;
 
-                    // Combine
+                    // Inject
                     if(text.includes('<head>')) {
                         fetchedHtml = text.replace('<head>', `<head>${baseTag}${navScript}`);
                     } else {
@@ -208,50 +202,54 @@
                 }
             }
 
-            if(!success) log("All proxies failed.", 'error');
+            if(!success) {
+                log("All proxies failed.", 'error');
+                // Fallback (might not work if blocked)
+                document.getElementById('main-frame').srcdoc = "";
+                document.getElementById('main-frame').src = url;
+            }
+
             document.getElementById('btnGo').disabled = false;
             document.getElementById('btnGo').textContent = "Go";
         }
 
-        // --- LISTENER FOR INTERNAL LINKS ---
+        // --- INTERNAL NAVIGATION LISTENER ---
         window.addEventListener('message', (event) => {
             if (event.data && event.data.type === 'internal_nav') {
-                log(`Link Clicked: ${event.data.url}`, 'nav');
-                loadUrl(event.data.url); // Recursively load the new URL
+                log(`Navigating to: ${event.data.url}`, 'nav');
+                loadUrl(event.data.url);
             }
         });
 
-        // --- SOURCE COPY ---
-        function copySource() {
-            const el = document.getElementById('source-code');
-            el.select();
-            document.execCommand('copy');
-            const btn = document.getElementById('btnCopySource');
-            const originalText = btn.innerText;
-            btn.innerText = "Copied!";
-            btn.style.background = "#27ae60";
-            setTimeout(() => {
-                btn.innerText = originalText;
-                btn.style.background = ""; // Reset
-            }, 1500);
-        }
-
-        // --- READER MODE ---
+        // --- READER MODE (Fixed Duplication) ---
         document.getElementById('btnReader').onclick = () => {
-            if(!fetchedHtml) return alert("Load a URL first");
+            if(!fetchedHtml) return alert("Content is loading or empty.");
+            
             const parser = new DOMParser();
             const doc = parser.parseFromString(fetchedHtml, 'text/html');
 
+            // Strip junk
             ['script','style','iframe','nav','footer','header','aside','svg','button','form'].forEach(t => doc.querySelectorAll(t).forEach(e => e.remove()));
 
             let contentHTML = "";
-            const nodes = doc.querySelectorAll('h1, h2, h3, p, li');
-            const badPhrases = ["Getty Images", "Source:", "Copyright", "All rights reserved"];
+            let lastText = ""; // Memory to prevent immediate duplicates
+
+            // CHANGED: Removed 'li' to prevent nested duplicates (e.g. li > p)
+            const nodes = doc.querySelectorAll('h1, h2, h3, p, article');
+            
+            const badPhrases = ["Getty Images", "Source:", "Copyright", "All rights reserved", "Read More"];
 
             nodes.forEach(node => {
                 let text = node.innerText.trim();
-                if(text.length > 25 && !badPhrases.some(b => text.includes(b))) {
+                text = text.replace(/\s+/g, ' '); // Normalize whitespace
+
+                // Filter Logic:
+                // 1. Length > 20
+                // 2. Not in bad phrases
+                // 3. Not identical to the previous paragraph (Exact Match Dedupe)
+                if(text.length > 25 && !badPhrases.some(b => text.includes(b)) && text !== lastText) {
                     contentHTML += `<p>${text}</p>`;
+                    lastText = text;
                 }
             });
 
@@ -260,7 +258,7 @@
             document.getElementById('reader-overlay').style.display = 'flex';
         };
 
-        // --- AUDIO ---
+        // --- AUDIO ENGINE ---
         function startAudio() {
             const paras = document.querySelectorAll('#reader-content p');
             if(paras.length === 0) return;
@@ -281,24 +279,38 @@
                 return;
             }
             const p = audioQueue[currentAudioIndex];
+            
             document.querySelectorAll('.speaking').forEach(e => e.classList.remove('speaking'));
             p.classList.add('speaking');
             p.scrollIntoView({ behavior: "smooth", block: "center" });
 
             const u = new SpeechSynthesisUtterance(p.innerText);
+            // Attempt to use English voice to avoid default system voice weirdness
             const enVoice = synth.getVoices().find(v => v.lang.startsWith('en'));
             if(enVoice) u.voice = enVoice;
 
             u.onend = () => { currentAudioIndex++; playNextChunk(); };
             u.onerror = () => { currentAudioIndex++; playNextChunk(); };
+            
             synth.speak(u);
         }
 
         function stopAudio() {
             isReading = false;
             synth.cancel();
+            document.querySelectorAll('.speaking').forEach(e => e.classList.remove('speaking'));
             document.getElementById('btnPlay').style.display = 'inline-block';
             document.getElementById('btnStop').style.display = 'none';
+        }
+
+        // --- COPY SOURCE ---
+        function copySource() {
+            const el = document.getElementById('source-code');
+            el.select();
+            document.execCommand('copy');
+            const btn = document.getElementById('btnCopySource');
+            btn.innerText = "Copied!";
+            setTimeout(() => btn.innerText = "Copy Code", 1500);
         }
 
         // --- EVENTS ---
