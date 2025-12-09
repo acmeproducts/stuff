@@ -3,208 +3,243 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Reader v7 (Debug Mode)</title>
+    <title>Web Reader v8 (Stable)</title>
     <style>
         :root { --primary: #007aff; --bg: #f4f4f9; --text: #333; }
-        body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background: var(--bg); }
+        body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); }
         
         /* Toolbar */
-        .toolbar { background: white; padding: 10px; display: flex; gap: 10px; border-bottom: 1px solid #ccc; flex-wrap: wrap;}
-        input { flex: 1; padding: 8px; font-size: 16px; min-width: 200px;}
-        button { padding: 8px 15px; background: var(--primary); color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold;}
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        .btn-green { background: #28a745; }
-        .btn-red { background: #dc3545; }
-        .btn-grey { background: #6c757d; }
+        .toolbar { background: white; padding: 12px; display: flex; gap: 10px; border-bottom: 1px solid #ccc; align-items: center; }
+        input { flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 16px; background: var(--primary); color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: 600; white-space: nowrap; }
+        button:hover { opacity: 0.9; }
+        button:disabled { background: #ccc; cursor: default; }
+        .btn-green { background: #34c759; }
+        .btn-red { background: #ff3b30; }
 
-        /* Main Area */
-        .workspace { flex: 1; position: relative; display:flex; flex-direction: column;}
-        iframe { width: 100%; height: 100%; border: none; background: white; flex:1;}
+        /* Workspace */
+        .workspace { flex: 1; position: relative; display: flex; flex-direction: column; }
+        iframe { width: 100%; height: 100%; border: none; background: white; flex: 1; }
 
         /* Reader Overlay */
         #reader-overlay {
             position: absolute; top: 0; left: 0; right: 0; bottom: 0;
             background: white; z-index: 100; display: none; flex-direction: column;
         }
-        .reader-header { padding: 15px; background: #f8f9fa; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
-        .reader-body { flex: 1; padding: 30px; overflow-y: auto; max-width: 800px; margin: 0 auto; line-height: 1.8; font-size: 18px; color: #222; }
+        .reader-header { padding: 15px; background: #f9f9f9; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+        .reader-body { flex: 1; padding: 40px; overflow-y: auto; max-width: 800px; margin: 0 auto; line-height: 1.8; font-size: 18px; color: #111; }
         
         /* Audio Highlight */
-        .speaking { background-color: #fff3cd; border-left: 5px solid #ffc107; padding-left: 10px; transition: all 0.2s; }
-        
-        /* Logs */
-        #log-panel { 
-            height: 150px; 
-            background: #1a1a1a; 
-            color: #00ff9d; 
-            padding: 10px; 
-            font-family: 'Courier New', monospace; 
-            font-size: 13px; 
-            overflow-y: auto; 
-            border-top: 2px solid #555;
-        }
-        .log-time { color: #888; margin-right: 8px; }
-        .log-err { color: #ff6b6b; }
-        .log-warn { color: #feca57; }
+        .speaking { background-color: #fff3cd; box-shadow: -4px 0 0 #ffc107; padding-left: 8px; }
+
+        /* Minimal Status Bar */
+        #status-bar { padding: 8px; background: #333; color: white; font-size: 12px; text-align: center; display: none;}
     </style>
 </head>
 <body>
 
     <div class="toolbar">
-        <input type="text" id="urlInput" placeholder="Enter URL (e.g. cnn.com)" value="cnn.com" />
+        <input type="text" id="urlInput" placeholder="e.g. cnn (auto-adds .com)" />
         <button id="btnGo">Go</button>
         <button id="btnReader" class="btn-green">Reader View</button>
-        <button onclick="testAudio()" class="btn-grey">Test Audio Hardware</button>
+        <button id="btnSource" style="background:#5856d6">Source</button>
     </div>
+
+    <div id="status-bar"></div>
 
     <div class="workspace">
         <iframe id="main-frame" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
 
         <div id="reader-overlay">
             <div class="reader-header">
-                <div>
-                    <strong>Reader Mode</strong>
-                    <span id="voice-status" style="font-size:12px; color:#666; margin-left:10px;">(Loading Voices...)</span>
-                </div>
-                <div>
-                    <button id="btnPlay" class="btn-green" onclick="startReadingChain()">🔊 Read All</button>
-                    <button id="btnStop" class="btn-red" onclick="stopReading()">⏹ Stop</button>
-                    <button class="btn-grey" onclick="closeReader()">Close</button>
+                <strong>Reader Mode</strong>
+                <div style="display:flex; gap: 10px;">
+                    <button id="btnPlay" class="btn-green" onclick="startAudio()">🔊 Read Aloud</button>
+                    <button id="btnStop" class="btn-red" onclick="stopAudio()" style="display:none;">⏹ Stop</button>
+                    <button onclick="closeReader()" style="background:#666;">Close</button>
                 </div>
             </div>
             <div id="reader-content" class="reader-body"></div>
         </div>
-    </div>
 
-    <div id="log-panel">
-        <div>-- System Ready. Click "Test Audio Hardware" if you hear nothing. --</div>
+        <div id="source-overlay" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.8); z-index:200; align-items:center; justify-content:center;">
+            <div style="background:white; width:90%; height:90%; display:flex; flex-direction:column; border-radius:8px; overflow:hidden;">
+                <div style="padding:10px; background:#eee; display:flex; justify-content:space-between;">
+                    <strong>Source Code</strong>
+                    <button onclick="document.getElementById('source-overlay').style.display='none'" class="btn-red">Close</button>
+                </div>
+                <textarea id="source-code" style="flex:1; width:100%; resize:none; padding:10px; font-family:monospace; background:#222; color:#eee; border:none;"></textarea>
+            </div>
+        </div>
     </div>
 
     <script>
-        // --- LOGGING UTILS ---
-        function log(msg, type="info") {
-            const panel = document.getElementById('log-panel');
-            const time = new Date().toLocaleTimeString();
-            const colorClass = type === 'error' ? 'log-err' : (type === 'warn' ? 'log-warn' : '');
-            
-            const line = document.createElement('div');
-            line.innerHTML = `<span class="log-time">[${time}]</span><span class="${colorClass}">${msg}</span>`;
-            panel.appendChild(line);
-            panel.scrollTop = panel.scrollHeight;
-        }
+        // --- CONFIG ---
+        // The robust proxy list from v5
+        const PROXIES = [
+            { name: "AllOrigins", url: t => `https://api.allorigins.win/raw?url=${encodeURIComponent(t)}` },
+            { name: "CORSProxy", url: t => `https://corsproxy.io/?${encodeURIComponent(t)}` }
+        ];
 
-        // --- AUDIO ENGINE ---
+        let fetchedHtml = "";
         let synth = window.speechSynthesis;
-        let voices = [];
-        let currentParagraphIndex = 0;
         let isReading = false;
+        let audioQueue = [];
+        let currentAudioIndex = 0;
 
-        // 1. Initialize Voices (Crucial for Chrome/Android)
-        function initVoices() {
-            voices = synth.getVoices();
-            const status = document.getElementById('voice-status');
-            
-            if (voices.length > 0) {
-                status.textContent = `(${voices.length} voices found)`;
-                log(`Audio Engine: Loaded ${voices.length} voices.`);
-            } else {
-                status.textContent = "(Waiting for voices...)";
+        // --- URL LOGIC (Restored) ---
+        function fixUrl(input) {
+            let url = input.trim();
+            if (!url) return null;
+            // 1. Auto-add .com if missing tld
+            if (!url.includes('.') && !url.includes('://') && !url.includes('localhost')) {
+                url += '.com';
             }
-        }
-        
-        // Chrome loads voices asynchronously
-        if (speechSynthesis.onvoiceschanged !== undefined) {
-            speechSynthesis.onvoiceschanged = initVoices;
-        }
-        initVoices(); // Try immediately in case they are already there
-
-        // 2. Hardware Test
-        function testAudio() {
-            log("Testing Audio Hardware...");
-            if (synth.speaking) synth.cancel();
-            
-            const u = new SpeechSynthesisUtterance("Audio system check. One, two, three.");
-            u.volume = 1;
-            u.rate = 1;
-            
-            u.onstart = () => log("Test Audio: STARTED signal received.");
-            u.onend = () => log("Test Audio: COMPLETED signal received.");
-            u.onerror = (e) => log(`Test Audio FAILED: ${e.error}`, "error");
-            
-            synth.speak(u);
+            // 2. Auto-add https://
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+            }
+            return url;
         }
 
-        // 3. The Chained Reader (Fixes the "Stop" issue)
-        function startReadingChain() {
-            if (isReading) return; // Don't double start
+        // --- FETCH LOGIC (Restored) ---
+        async function loadUrl() {
+            const raw = document.getElementById('urlInput').value;
+            const url = fixUrl(raw);
             
-            const paragraphs = document.querySelectorAll('#reader-content p');
-            if (paragraphs.length === 0) return alert("No text to read.");
+            if(!url) return showStatus("Please enter a URL");
+            
+            // Visual feedback
+            document.getElementById('urlInput').value = url; 
+            showStatus(`Loading ${url}...`);
+            document.getElementById('btnGo').disabled = true;
 
+            let success = false;
+            
+            // Try proxies sequentially
+            for(let proxy of PROXIES) {
+                if(success) break;
+                try {
+                    const res = await fetch(proxy.url(url));
+                    if(!res.ok) throw new Error("HTTP Error");
+                    let text = await res.text();
+                    
+                    if(text.length < 100) throw new Error("Empty content");
+
+                    // Inject Base Tag (Crucial for images)
+                    const base = `<base href="${url}" target="_blank">`;
+                    fetchedHtml = text.replace('<head>', `<head>${base}`);
+                    
+                    document.getElementById('main-frame').srcdoc = fetchedHtml;
+                    success = true;
+                    showStatus("Loaded successfully via " + proxy.name);
+                } catch(e) {
+                    console.warn(proxy.name + " failed.");
+                }
+            }
+
+            if(!success) {
+                showStatus("Proxies failed. Trying direct load (may be blocked).");
+                document.getElementById('main-frame').src = url;
+            }
+            document.getElementById('btnGo').disabled = false;
+        }
+
+        function showStatus(msg) {
+            const el = document.getElementById('status-bar');
+            el.textContent = msg;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+
+        // --- READER LOGIC ---
+        document.getElementById('btnReader').onclick = () => {
+            if(!fetchedHtml) return showStatus("Load a URL first!");
+            
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(fetchedHtml, 'text/html');
+
+            // 1. Clean Garbage
+            ['script','style','iframe','nav','footer','svg','noscript','button','form','aside'].forEach(tag => {
+                doc.querySelectorAll(tag).forEach(el => el.remove());
+            });
+
+            // 2. Extract Meaningful Text
+            // We look for P and H tags that have substantial length
+            let contentHTML = "";
+            const nodes = doc.querySelectorAll('h1, h2, h3, p, article');
+            
+            const badPhrases = ["Getty Images", "Source:", "Copyright", "All rights reserved"];
+
+            nodes.forEach(node => {
+                const text = node.innerText.trim();
+                // Filter logic: Must be > 20 chars, and not contain bad phrases
+                if(text.length > 20 && !badPhrases.some(bad => text.includes(bad))) {
+                    contentHTML += `<p>${text}</p>`;
+                }
+            });
+
+            if(!contentHTML) contentHTML = "<p>Could not extract text automatically. The site might be purely Javascript.</p>";
+
+            document.getElementById('reader-content').innerHTML = contentHTML;
+            document.getElementById('reader-overlay').style.display = 'flex';
+        };
+
+        function closeReader() {
+            stopAudio();
+            document.getElementById('reader-overlay').style.display = 'none';
+        }
+
+        // --- AUDIO ENGINE (Robust) ---
+        function startAudio() {
+            stopAudio();
+            
+            const paras = document.querySelectorAll('#reader-content p');
+            if(paras.length === 0) return;
+
+            audioQueue = Array.from(paras);
+            currentAudioIndex = 0;
             isReading = true;
-            currentParagraphIndex = 0;
-            log(`Starting Read Chain: ${paragraphs.length} paragraphs queued.`);
-            
+
             document.getElementById('btnPlay').style.display = 'none';
             document.getElementById('btnStop').style.display = 'inline-block';
 
-            readNextParagraph();
+            speakNext();
         }
 
-        function readNextParagraph() {
-            if (!isReading) return;
+        function speakNext() {
+            if(!isReading || currentAudioIndex >= audioQueue.length) {
+                stopAudio();
+                return;
+            }
 
-            const paragraphs = document.querySelectorAll('#reader-content p');
+            const p = audioQueue[currentAudioIndex];
             
-            // End of content
-            if (currentParagraphIndex >= paragraphs.length) {
-                log("Read Chain: Reached end of content.");
-                stopReading();
-                return;
-            }
-
-            const p = paragraphs[currentParagraphIndex];
-            const text = p.innerText.trim();
-
-            // Skip empty/short garbage
-            if (text.length < 2) {
-                currentParagraphIndex++;
-                readNextParagraph();
-                return;
-            }
-
-            // Highlight visual
+            // Visual Highlight
             document.querySelectorAll('.speaking').forEach(el => el.classList.remove('speaking'));
             p.classList.add('speaking');
-            p.scrollIntoView({ behavior: "smooth", block: "center" });
+            p.scrollIntoView({behavior: "smooth", block: "center"});
 
             // Create Utterance
-            const u = new SpeechSynthesisUtterance(text);
+            const u = new SpeechSynthesisUtterance(p.innerText);
+            u.rate = 1.0;
             
-            // Select Voice (Prefer Google US English or standard English)
-            const preferredVoice = voices.find(v => v.name.includes("Google US English")) || voices.find(v => v.lang.startsWith("en"));
-            if (preferredVoice) u.voice = preferredVoice;
-
-            // Events
-            u.onstart = () => log(`Speaking Paragraph ${currentParagraphIndex + 1}...`);
-            u.onerror = (e) => {
-                log(`Error on Para ${currentParagraphIndex + 1}: ${e.error}`, "error");
-                // Attempt to continue despite error
-                currentParagraphIndex++;
-                readNextParagraph(); 
-            };
+            // "Next" trigger
             u.onend = () => {
-                // Success - move to next
-                currentParagraphIndex++;
-                readNextParagraph();
+                currentAudioIndex++;
+                speakNext();
+            };
+            
+            // Error handling (skip bad para)
+            u.onerror = () => {
+                currentAudioIndex++;
+                speakNext();
             };
 
-            // Speak
             synth.speak(u);
         }
 
-        function stopReading() {
-            log("Stopping Audio.");
+        function stopAudio() {
             isReading = false;
             synth.cancel();
             document.querySelectorAll('.speaking').forEach(el => el.classList.remove('speaking'));
@@ -212,95 +247,18 @@
             document.getElementById('btnStop').style.display = 'none';
         }
 
-        // --- CONTENT FETCHING ---
-        const PROXIES = [
-            { name: "AllOrigins", url: t => `https://api.allorigins.win/raw?url=${encodeURIComponent(t)}` },
-            { name: "CORSProxy", url: t => `https://corsproxy.io/?${encodeURIComponent(t)}` }
-        ];
-        let fetchedHtml = "";
+        // --- SOURCE LOGIC ---
+        document.getElementById('btnSource').onclick = () => {
+            if(!fetchedHtml) return showStatus("Load a URL first!");
+            document.getElementById('source-code').value = fetchedHtml;
+            document.getElementById('source-overlay').style.display = 'flex';
+        };
 
-        async function loadUrl() {
-            let url = document.getElementById('urlInput').value.trim();
-            if(!url) return;
-            if(!url.startsWith('http')) url = 'https://' + url;
-
-            log(`Initiating load for: ${url}`);
-            document.getElementById('btnGo').textContent = "...";
-            
-            let success = false;
-            for(let p of PROXIES) {
-                if(success) break;
-                try {
-                    log(`Trying Proxy: ${p.name}`);
-                    let res = await fetch(p.url(url));
-                    if(!res.ok) throw new Error("HTTP " + res.status);
-                    
-                    let text = await res.text();
-                    if(text.length < 500) throw new Error("Response too short (likely blocked)");
-
-                    const base = `<base href="${url}" target="_blank">`;
-                    fetchedHtml = text.replace('<head>', `<head>${base}`);
-                    document.getElementById('main-frame').srcdoc = fetchedHtml;
-                    
-                    log(`Load Success via ${p.name}!`, "success");
-                    success = true;
-                } catch(e) { 
-                    log(`${p.name} failed: ${e.message}`, "warn"); 
-                }
-            }
-
-            if(!success) {
-                log("All proxies failed. Loading directly (expect blocks).", "error");
-                document.getElementById('main-frame').src = url;
-            }
-            document.getElementById('btnGo').textContent = "Go";
-        }
-
-        // --- PARSER ---
-        function openReader() {
-            if(!fetchedHtml) return alert("Load a URL first");
-            log("Opening Reader Mode...");
-            
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(fetchedHtml, 'text/html');
-            
-            // Clean
-            ['script','style','iframe','nav','footer','svg','noscript','button','input','aside'].forEach(tag => {
-                doc.querySelectorAll(tag).forEach(e => e.remove());
-            });
-
-            // Extract
-            let container = document.createElement('div');
-            // We target P tags mainly, as they contain the story
-            doc.querySelectorAll('p, h1, h2').forEach(node => {
-                let text = node.innerText.trim();
-                const badPhrases = ["Getty Images", "AP", "Reuters", "Copyright", "Source:", "File Photo"];
-                
-                if(text.length > 25 && !badPhrases.some(b => text.includes(b))) {
-                    let p = document.createElement('p');
-                    p.innerText = text;
-                    container.appendChild(p);
-                }
-            });
-
-            if(container.children.length === 0) {
-                container.innerHTML = "<p>No clean text found. The site might be dynamic JS.</p>";
-            }
-
-            document.getElementById('reader-content').innerHTML = container.innerHTML;
-            document.getElementById('reader-overlay').style.display = 'flex';
-            log(`Reader Mode ready with ${container.children.length} paragraphs.`);
-        }
-
-        function closeReader() {
-            stopReading();
-            document.getElementById('reader-overlay').style.display = 'none';
-        }
-
-        // Events
+        // --- EVENTS ---
         document.getElementById('btnGo').onclick = loadUrl;
-        document.getElementById('btnReader').onclick = openReader;
-        document.getElementById('urlInput').addEventListener('keypress', e => { if(e.key==='Enter') loadUrl() });
+        document.getElementById('urlInput').addEventListener('keypress', (e) => {
+            if(e.key === 'Enter') loadUrl();
+        });
 
     </script>
 </body>
