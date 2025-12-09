@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Web Viewer</title>
+    <title>Web Reader & Source Tool</title>
     <style>
         :root {
             --bg-color: #f4f4f9;
-            --text-color: #333;
-            --accent-color: #007bff;
-            --code-bg: #2d2d2d;
-            --code-text: #f8f8f2;
+            --header-bg: #ffffff;
+            --accent-color: #2c3e50;
+            --accent-hover: #1a252f;
+            --secondary-color: #3498db;
+            --danger-color: #e74c3c;
             --footer-height: 40px;
         }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg-color);
-            color: var(--text-color);
             margin: 0;
             padding: 0;
             display: flex;
@@ -26,47 +26,41 @@
             overflow: hidden;
         }
 
-        /* Header / Controls Area */
+        /* Header */
         header {
-            padding: 15px;
-            background: white;
+            background: var(--header-bg);
+            padding: 15px 20px;
             border-bottom: 1px solid #ddd;
             display: flex;
-            flex-wrap: wrap;
             gap: 10px;
             align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             z-index: 10;
         }
 
-        input[type="url"] {
+        input[type="text"] {
             flex: 1;
-            min-width: 200px;
-            padding: 10px;
+            padding: 12px;
             border: 1px solid #ccc;
             border-radius: 4px;
-            font-size: 14px;
+            font-size: 16px;
+            outline: none;
+            transition: border 0.2s;
         }
 
-        .btn-group {
-            display: flex;
-            gap: 5px;
+        input[type="text"]:focus {
+            border-color: var(--secondary-color);
         }
 
         button {
-            padding: 10px 20px;
-            background-color: var(--accent-color);
-            color: white;
+            padding: 12px 20px;
             border: none;
             border-radius: 4px;
-            font-size: 14px;
             cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        button.secondary {
-            background-color: #6c757d;
+            font-weight: 600;
+            transition: opacity 0.2s;
+            color: white;
+            background-color: var(--accent-color);
         }
 
         button:hover {
@@ -78,201 +72,420 @@
             cursor: not-allowed;
         }
 
-        /* Main Display Area */
-        main {
+        .btn-green { background-color: #27ae60; }
+        .btn-blue { background-color: var(--secondary-color); }
+        .btn-red { background-color: var(--danger-color); }
+
+        /* Main Workspace */
+        #workspace {
             flex: 1;
             position: relative;
             overflow: hidden;
             display: flex;
-            flex-direction: column;
+            justify-content: center;
+            background: #e0e0e0;
         }
 
-        /* Rendered View (Iframe) */
-        #render-frame {
+        iframe {
             width: 100%;
             height: 100%;
             border: none;
             background: white;
-            display: none; /* Hidden by default */
         }
 
-        /* Source Code View */
-        #source-container {
+        /* Reader Mode Overlay */
+        #reader-view {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
-            overflow: auto;
-            background-color: var(--code-bg);
-            color: var(--code-text);
-            display: none;
-            padding: 20px;
+            background: #fff;
+            color: #222;
+            padding: 40px;
             box-sizing: border-box;
-        }
-
-        pre {
-            margin: 0;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 13px;
-        }
-
-        /* Status & Errors */
-        #status-bar {
-            padding: 10px;
-            text-align: center;
-            font-size: 0.9rem;
-            background: #fff3cd;
-            color: #856404;
+            overflow-y: auto;
             display: none;
+            max-width: 900px;
+            margin: 0 auto;
+            right: 0; /* Center horizontally */
+            line-height: 1.8;
+            font-size: 18px;
         }
 
-        /* Master Footer */
+        #reader-controls {
+            position: sticky;
+            top: 0;
+            background: rgba(255,255,255,0.95);
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Source Code Modal */
+        #source-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            width: 90%;
+            height: 90%;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .modal-header {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8f9fa;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .modal-body {
+            flex: 1;
+            padding: 0;
+            position: relative;
+        }
+
+        textarea#source-editor {
+            width: 100%;
+            height: 100%;
+            border: none;
+            resize: none;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            box-sizing: border-box;
+            background: #2d2d2d;
+            color: #f8f8f2;
+            outline: none;
+        }
+
+        /* Loading / Status */
+        #status-msg {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: none;
+            z-index: 50;
+        }
+
+        /* Footer */
         footer {
             height: var(--footer-height);
-            background-color: #e9ecef;
-            color: #666;
+            background-color: #f8f9fa;
+            color: #6c757d;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 0.8rem;
-            border-top: 1px solid #ccc;
+            border-top: 1px solid #ddd;
         }
+
+        /* Utility */
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
     <header>
-        <input type="url" id="urlInput" placeholder="https://example.com" />
-        <div class="btn-group">
-            <button id="btnRender">View Rendered</button>
-            <button id="btnSource" class="secondary">View Source</button>
-        </div>
+        <input type="text" id="urlInput" placeholder="example" autofocus />
+        <button id="btnGo" title="Load URL">Go</button>
+        <button id="btnReader" class="btn-green">Reader View</button>
+        <button id="btnSource" class="btn-blue">Source</button>
     </header>
 
-    <div id="status-bar"></div>
+    <div id="status-msg">Loading...</div>
 
-    <main>
-        <iframe id="render-frame" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
-        
-        <div id="source-container">
-            <pre id="codeOutput"></pre>
+    <main id="workspace">
+        <iframe id="main-frame" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
+
+        <div id="reader-view">
+            <div id="reader-controls">
+                <strong>Reader Mode</strong>
+                <div>
+                    <button id="btnReadAloud" class="btn-blue">🔊 Read Aloud</button>
+                    <button id="btnStopRead" class="btn-red hidden">⏹ Stop</button>
+                    <button id="btnCloseReader">Close</button>
+                </div>
+            </div>
+            <div id="reader-content"></div>
         </div>
     </main>
 
+    <div id="source-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <strong>Source Code</strong>
+                <div style="display: flex; gap: 10px;">
+                    <button id="btnCopySource">Copy</button>
+                    <button id="btnPreviewSource" class="btn-green">Preview</button>
+                    <button id="btnCloseModal" class="btn-red">Close</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <iframe id="source-view-frame" style="display:none; width:100%; height:100%;"></iframe>
+                <textarea id="source-editor" spellcheck="false"></textarea>
+            </div>
+        </div>
+    </div>
+
     <footer>
-        Universal Viewer v2.0 - 2025-12-08 10:45 AM
+        Web Reader Tool v3.0 - 2025-12-09 10:46 AM
     </footer>
 
     <script>
+        // DOM Elements
         const urlInput = document.getElementById('urlInput');
-        const btnRender = document.getElementById('btnRender');
-        const btnSource = document.getElementById('btnSource');
-        const renderFrame = document.getElementById('render-frame');
-        const sourceContainer = document.getElementById('source-container');
-        const codeOutput = document.getElementById('codeOutput');
-        const statusBar = document.getElementById('status-bar');
+        const mainFrame = document.getElementById('main-frame');
+        const statusMsg = document.getElementById('status-msg');
+        
+        // Reader Elements
+        const readerView = document.getElementById('reader-view');
+        const readerContent = document.getElementById('reader-content');
+        
+        // Source Modal Elements
+        const sourceModal = document.getElementById('source-modal');
+        const sourceEditor = document.getElementById('source-editor');
+        
+        // State
+        let currentHtml = "";
+        let currentUrl = "";
+        let synth = window.speechSynthesis;
+        let speechUtterance = null;
 
-        // Helper: Show status message
-        function showStatus(msg, isError = false) {
-            statusBar.style.display = 'block';
-            statusBar.style.backgroundColor = isError ? '#f8d7da' : '#fff3cd';
-            statusBar.style.color = isError ? '#721c24' : '#856404';
-            statusBar.textContent = msg;
+        // --- Core: URL Logic & Fetching ---
+
+        function normalizeUrl(input) {
+            let url = input.trim();
+            if (!url) return null;
+
+            // Default TLD
+            if (!url.includes('.') && !url.includes('://')) {
+                url += '.com';
+            }
+
+            // Implied Protocol
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+            }
+            return url;
         }
 
-        function hideStatus() {
-            statusBar.style.display = 'none';
-        }
-
-        // Core Function: Fetch and Display
-        async function loadContent(mode) {
-            let rawUrl = urlInput.value.trim();
-            if (!rawUrl) return showStatus("Please enter a URL.", true);
-
-            if (!rawUrl.startsWith('http')) rawUrl = 'https://' + rawUrl;
-
-            // UI Reset
-            hideStatus();
-            renderFrame.style.display = 'none';
-            sourceContainer.style.display = 'none';
+        async function loadContent() {
+            const rawInput = urlInput.value;
+            const finalUrl = normalizeUrl(rawInput);
             
-            // Disable buttons during load
-            btnRender.disabled = true;
-            btnSource.disabled = true;
-            btnRender.textContent = "Loading...";
+            if (!finalUrl) return; // Empty input
 
+            currentUrl = finalUrl;
+            showStatus("Fetching content...");
+            
             try {
-                // 1. Fetch content via AllOrigins Proxy (Bypasses CORS)
-                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
+                // Fetch via AllOrigins Proxy
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(finalUrl)}`;
                 const response = await fetch(proxyUrl);
                 
-                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                if (!response.ok) throw new Error("Network response was not ok");
                 
-                const text = await response.text();
-
-                if (mode === 'render') {
-                    // 2. RENDER MODE: Inject <base> tag to fix relative links
-                    // This allows <img src="logo.png"> to resolve to target.com/logo.png
-                    // instead of our github.io/logo.png
-                    
-                    const baseTag = `<base href="${rawUrl}" target="_blank">`;
-                    
-                    // Inject directly after <head> or at the start if no head exists
-                    let htmlContent = text;
-                    if (htmlContent.includes('<head>')) {
-                        htmlContent = htmlContent.replace('<head>', `<head>${baseTag}`);
-                    } else {
-                        htmlContent = `${baseTag}${htmlContent}`;
-                    }
-
-                    // Write to iframe 'srcdoc'. 
-                    // This bypasses X-Frame-Options because the browser treats 'srcdoc' 
-                    // as same-origin (about:srcdoc) effectively.
-                    renderFrame.srcdoc = htmlContent;
-                    renderFrame.style.display = 'block';
-
+                let text = await response.text();
+                
+                // Inject <base> tag for relative links
+                const baseTag = `<base href="${finalUrl}" target="_blank">`;
+                if (text.includes('<head>')) {
+                    text = text.replace('<head>', `<head>${baseTag}`);
                 } else {
-                    // 3. SOURCE MODE: Just show text
-                    codeOutput.textContent = text;
-                    sourceContainer.style.display = 'block';
+                    text = `${baseTag}${text}`;
                 }
 
-                // Update URL param for shareability (Deep Linking)
-                const newUrl = new URL(window.location);
-                newUrl.searchParams.set('url', rawUrl);
-                newUrl.searchParams.set('mode', mode);
-                window.history.pushState({}, '', newUrl);
+                currentHtml = text;
+                renderIframe(text);
+                hideStatus();
+                
+                // Close Reader/Modals if open
+                readerView.style.display = 'none';
+                sourceModal.style.display = 'none';
 
             } catch (err) {
                 console.error(err);
-                showStatus(`Failed to load: ${err.message}. (Target site might block proxies)`, true);
-            } finally {
-                btnRender.disabled = false;
-                btnSource.disabled = false;
-                btnRender.textContent = "View Rendered";
+                showStatus("Error loading page. Site might block proxies.");
+                setTimeout(hideStatus, 3000);
             }
         }
 
-        // Event Listeners
-        btnRender.addEventListener('click', () => loadContent('render'));
-        btnSource.addEventListener('click', () => loadContent('source'));
-        urlInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') loadContent('render');
-        });
+        function renderIframe(htmlContent) {
+            // Write to srcdoc to bypass X-Frame-Options
+            mainFrame.srcdoc = htmlContent;
+        }
 
-        // Initialize from URL Parameters (The "Call" Feature)
-        // This allows an external iframe to set the URL: 
-        // iframe src="viewer.html?url=google.com&mode=render"
-        window.addEventListener('DOMContentLoaded', () => {
-            const params = new URLSearchParams(window.location.search);
-            const initialUrl = params.get('url');
-            const initialMode = params.get('mode') || 'render';
+        function showStatus(msg) {
+            statusMsg.textContent = msg;
+            statusMsg.style.display = 'block';
+        }
+        function hideStatus() {
+            statusMsg.style.display = 'none';
+        }
 
-            if (initialUrl) {
-                urlInput.value = initialUrl;
-                loadContent(initialMode);
+        // --- Reader Mode Logic ---
+
+        function toggleReaderMode() {
+            if (readerView.style.display === 'block') {
+                readerView.style.display = 'none';
+                stopReading();
+                return;
             }
+
+            if (!currentHtml) return showStatus("Load a URL first.");
+
+            // Parse HTML string to DOM
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(currentHtml, 'text/html');
+
+            // 1. Remove unwanted tags (Ads, Scripts, Graphics)
+            const removeSelectors = [
+                'script', 'style', 'iframe', 'img', 'svg', 'video', 'nav', 'footer', 'aside',
+                '.ad', '.ads', '.advertisement', '.banner', '.cookie-banner', '#sidebar'
+            ];
+            
+            removeSelectors.forEach(sel => {
+                doc.querySelectorAll(sel).forEach(el => el.remove());
+            });
+
+            // 2. Extract meaningful text content (h1-h6, p, li, article)
+            // We clone specific nodes to a clean container
+            let cleanContainer = document.createElement('div');
+            
+            // Try to find the main article first
+            let contentNodes = doc.querySelectorAll('article, main, [role="main"]');
+            
+            // Fallback to body paragraphs if no semantic tags found
+            if (contentNodes.length === 0) {
+                contentNodes = doc.querySelectorAll('body');
+            }
+
+            // Copy content text logic
+            contentNodes.forEach(node => {
+                // Get all paragraphs and headings inside
+                const textElements = node.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li');
+                textElements.forEach(el => {
+                    if (el.innerText.trim().length > 0) {
+                        let newEl = document.createElement(el.tagName);
+                        newEl.innerText = el.innerText;
+                        cleanContainer.appendChild(newEl);
+                    }
+                });
+            });
+
+            if (cleanContainer.innerHTML.trim() === "") {
+                readerContent.innerHTML = "<p>Could not extract readable text. The site might be built entirely with JavaScript or Canvas.</p>";
+            } else {
+                readerContent.innerHTML = cleanContainer.innerHTML;
+            }
+
+            readerView.style.display = 'block';
+        }
+
+        // --- Text to Speech ---
+
+        function readAloud() {
+            stopReading();
+            const text = readerContent.innerText;
+            if (!text) return;
+
+            speechUtterance = new SpeechSynthesisUtterance(text);
+            speechUtterance.onend = () => {
+                document.getElementById('btnReadAloud').classList.remove('hidden');
+                document.getElementById('btnStopRead').classList.add('hidden');
+            };
+
+            document.getElementById('btnReadAloud').classList.add('hidden');
+            document.getElementById('btnStopRead').classList.remove('hidden');
+
+            synth.speak(speechUtterance);
+        }
+
+        function stopReading() {
+            if (synth.speaking) {
+                synth.cancel();
+            }
+            document.getElementById('btnReadAloud').classList.remove('hidden');
+            document.getElementById('btnStopRead').classList.add('hidden');
+        }
+
+        // --- Source Modal Logic ---
+
+        function openSourceModal() {
+            if (!currentHtml) return showStatus("Load a URL first.");
+            sourceEditor.value = currentHtml;
+            sourceModal.style.display = 'flex';
+        }
+
+        function copySource() {
+            sourceEditor.select();
+            document.execCommand('copy');
+            const originalText = document.getElementById('btnCopySource').innerText;
+            document.getElementById('btnCopySource').innerText = "Copied!";
+            setTimeout(() => {
+                document.getElementById('btnCopySource').innerText = originalText;
+            }, 1500);
+        }
+
+        function previewSource() {
+            // Take content from Textarea (allows user edits) and put in Main Frame
+            const editedHtml = sourceEditor.value;
+            currentHtml = editedHtml; // Update global state
+            renderIframe(editedHtml);
+            sourceModal.style.display = 'none'; // Close modal to show result
+        }
+
+        // --- Event Listeners ---
+
+        // Input enter key
+        urlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') loadContent();
         });
+
+        document.getElementById('btnGo').addEventListener('click', loadContent);
+        
+        // Reader
+        document.getElementById('btnReader').addEventListener('click', toggleReaderMode);
+        document.getElementById('btnCloseReader').addEventListener('click', () => {
+            readerView.style.display = 'none';
+            stopReading();
+        });
+        document.getElementById('btnReadAloud').addEventListener('click', readAloud);
+        document.getElementById('btnStopRead').addEventListener('click', stopReading);
+
+        // Source
+        document.getElementById('btnSource').addEventListener('click', openSourceModal);
+        document.getElementById('btnCloseModal').addEventListener('click', () => sourceModal.style.display = 'none');
+        document.getElementById('btnCopySource').addEventListener('click', copySource);
+        document.getElementById('btnPreviewSource').addEventListener('click', previewSource);
+
     </script>
 </body>
 </html>
