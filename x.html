@@ -3,488 +3,343 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Reader & Source Tool</title>
+    <title>Web Reader & Source Tool v4</title>
     <style>
         :root {
-            --bg-color: #f4f4f9;
-            --header-bg: #ffffff;
-            --accent-color: #2c3e50;
-            --accent-hover: #1a252f;
-            --secondary-color: #3498db;
-            --danger-color: #e74c3c;
-            --footer-height: 40px;
+            --bg-color: #f0f2f5;
+            --primary: #007aff;
+            --success: #34c759;
+            --danger: #ff3b30;
+            --text: #333;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: var(--bg-color);
             margin: 0;
-            padding: 0;
             display: flex;
             flex-direction: column;
             height: 100vh;
-            overflow: hidden;
         }
 
-        /* Header */
-        header {
-            background: var(--header-bg);
-            padding: 15px 20px;
-            border-bottom: 1px solid #ddd;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            z-index: 10;
-        }
-
-        input[type="text"] {
-            flex: 1;
+        /* Top Bar */
+        .toolbar {
+            background: white;
             padding: 12px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 16px;
-            outline: none;
-            transition: border 0.2s;
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid #ccc;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            align-items: center;
         }
 
-        input[type="text"]:focus {
-            border-color: var(--secondary-color);
+        input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
         }
 
         button {
-            padding: 12px 20px;
+            padding: 10px 16px;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
-            transition: opacity 0.2s;
             color: white;
-            background-color: var(--accent-color);
+            background: var(--primary);
+            white-space: nowrap;
         }
-
-        button:hover {
-            opacity: 0.9;
-        }
-
-        button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-
-        .btn-green { background-color: #27ae60; }
-        .btn-blue { background-color: var(--secondary-color); }
-        .btn-red { background-color: var(--danger-color); }
+        button:hover { opacity: 0.9; }
+        button.success { background: var(--success); }
+        button.danger { background: var(--danger); }
+        button:disabled { background: #ccc; cursor: default; }
 
         /* Main Workspace */
-        #workspace {
+        .workspace {
             flex: 1;
             position: relative;
+            background: #e5e5e5;
             overflow: hidden;
-            display: flex;
-            justify-content: center;
-            background: #e0e0e0;
         }
 
-        iframe {
+        iframe#main-frame {
             width: 100%;
             height: 100%;
             border: none;
             background: white;
+        }
+
+        /* Log Console (New) */
+        #console-log {
+            height: 100px;
+            background: #222;
+            color: #0f0;
+            font-family: monospace;
+            padding: 10px;
+            overflow-y: auto;
+            font-size: 12px;
+            border-top: 2px solid #444;
+            display: none; /* Hidden unless needed */
         }
 
         /* Reader Mode Overlay */
-        #reader-view {
+        .overlay {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #fff;
-            color: #222;
-            padding: 40px;
-            box-sizing: border-box;
-            overflow-y: auto;
-            display: none;
-            max-width: 900px;
-            margin: 0 auto;
-            right: 0; /* Center horizontally */
-            line-height: 1.8;
-            font-size: 18px;
-        }
-
-        #reader-controls {
-            position: sticky;
-            top: 0;
-            background: rgba(255,255,255,0.95);
-            padding: 10px 0;
-            border-bottom: 1px solid #eee;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        /* Source Code Modal */
-        #source-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-
-        .modal-content {
+            top: 0; left: 0; right: 0; bottom: 0;
             background: white;
-            width: 90%;
-            height: 90%;
-            border-radius: 8px;
-            display: flex;
+            z-index: 100;
+            display: none;
             flex-direction: column;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
         }
 
-        .modal-header {
+        .overlay-header {
             padding: 15px;
             border-bottom: 1px solid #eee;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: #f8f9fa;
-            border-radius: 8px 8px 0 0;
+            background: #f9f9f9;
         }
 
-        .modal-body {
+        .overlay-content {
             flex: 1;
-            padding: 0;
-            position: relative;
+            padding: 30px;
+            overflow-y: auto;
+            max-width: 800px;
+            margin: 0 auto;
+            line-height: 1.6;
+            font-size: 18px;
+            color: #222;
         }
 
-        textarea#source-editor {
+        /* Source Code Textarea */
+        textarea#source-code {
             width: 100%;
             height: 100%;
+            background: #282c34;
+            color: #abb2bf;
             border: none;
-            resize: none;
             padding: 15px;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
+            font-family: monospace;
+            resize: none;
             box-sizing: border-box;
-            background: #2d2d2d;
-            color: #f8f8f2;
-            outline: none;
         }
-
-        /* Loading / Status */
-        #status-msg {
-            position: absolute;
-            top: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #333;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            display: none;
-            z-index: 50;
-        }
-
-        /* Footer */
-        footer {
-            height: var(--footer-height);
-            background-color: #f8f9fa;
-            color: #6c757d;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.8rem;
-            border-top: 1px solid #ddd;
-        }
-
-        /* Utility */
-        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-    <header>
-        <input type="text" id="urlInput" placeholder="example" autofocus />
-        <button id="btnGo" title="Load URL">Go</button>
-        <button id="btnReader" class="btn-green">Reader View</button>
-        <button id="btnSource" class="btn-blue">Source</button>
-    </header>
+    <div class="toolbar">
+        <input type="text" id="urlInput" placeholder="google.com" />
+        <button id="btnGo">Go</button>
+        <button id="btnReader" class="success">Reader View</button>
+        <button id="btnSource" style="background: #5856d6;">Source</button>
+        <button id="btnLogs" style="background: #8e8e93; font-size: 0.8em;">Logs</button>
+    </div>
 
-    <div id="status-msg">Loading...</div>
-
-    <main id="workspace">
+    <div class="workspace">
         <iframe id="main-frame" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
 
-        <div id="reader-view">
-            <div id="reader-controls">
+        <div id="reader-overlay" class="overlay">
+            <div class="overlay-header">
                 <strong>Reader Mode</strong>
-                <div>
-                    <button id="btnReadAloud" class="btn-blue">🔊 Read Aloud</button>
-                    <button id="btnStopRead" class="btn-red hidden">⏹ Stop</button>
-                    <button id="btnCloseReader">Close</button>
+                <div style="display:flex; gap:5px;">
+                    <button id="btnSpeak" class="success">🔊 Read</button>
+                    <button id="btnStop" class="danger" style="display:none;">⏹ Stop</button>
+                    <button onclick="document.getElementById('reader-overlay').style.display='none'">Close</button>
                 </div>
             </div>
-            <div id="reader-content"></div>
+            <div id="reader-content" class="overlay-content"></div>
         </div>
-    </main>
 
-    <div id="source-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <strong>Source Code</strong>
-                <div style="display: flex; gap: 10px;">
-                    <button id="btnCopySource">Copy</button>
-                    <button id="btnPreviewSource" class="btn-green">Preview</button>
-                    <button id="btnCloseModal" class="btn-red">Close</button>
+        <div id="source-overlay" class="overlay">
+            <div class="overlay-header">
+                <strong>Source Editor</strong>
+                <div style="display:flex; gap:5px;">
+                    <button id="btnCopy" class="success">Copy</button>
+                    <button id="btnPreview" style="background:#ff9500;">Run Preview</button>
+                    <button onclick="document.getElementById('source-overlay').style.display='none'">Close</button>
                 </div>
             </div>
-            <div class="modal-body">
-                <iframe id="source-view-frame" style="display:none; width:100%; height:100%;"></iframe>
-                <textarea id="source-editor" spellcheck="false"></textarea>
+            <div style="flex:1;">
+                <textarea id="source-code" spellcheck="false"></textarea>
             </div>
         </div>
     </div>
 
-    <footer>
-        Web Reader Tool v3.0 - 2025-12-09 10:46 AM
-    </footer>
+    <div id="console-log"></div>
 
     <script>
-        // DOM Elements
-        const urlInput = document.getElementById('urlInput');
-        const mainFrame = document.getElementById('main-frame');
-        const statusMsg = document.getElementById('status-msg');
+        // --- Configuration ---
+        const PROXY_URL = "https://corsproxy.io/?"; 
         
-        // Reader Elements
-        const readerView = document.getElementById('reader-view');
-        const readerContent = document.getElementById('reader-content');
-        
-        // Source Modal Elements
-        const sourceModal = document.getElementById('source-modal');
-        const sourceEditor = document.getElementById('source-editor');
-        
-        // State
-        let currentHtml = "";
+        // --- State ---
+        let fetchedHtml = "";
         let currentUrl = "";
-        let synth = window.speechSynthesis;
-        let speechUtterance = null;
+        const logBox = document.getElementById('console-log');
 
-        // --- Core: URL Logic & Fetching ---
+        // --- Logger ---
+        function log(msg, type="info") {
+            const time = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'red' : '#0f0';
+            logBox.innerHTML += `<div style="color:${color}">[${time}] ${msg}</div>`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
 
-        function normalizeUrl(input) {
+        document.getElementById('btnLogs').onclick = () => {
+            logBox.style.display = logBox.style.display === 'block' ? 'none' : 'block';
+        };
+
+        // --- URL Processor ---
+        function fixUrl(input) {
             let url = input.trim();
             if (!url) return null;
-
-            // Default TLD
-            if (!url.includes('.') && !url.includes('://')) {
+            if (!url.includes('.') && !url.includes('://') && !url.includes('localhost')) {
                 url += '.com';
             }
-
-            // Implied Protocol
-            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            if (!url.startsWith('http')) {
                 url = 'https://' + url;
             }
             return url;
         }
 
-        async function loadContent() {
-            const rawInput = urlInput.value;
-            const finalUrl = normalizeUrl(rawInput);
+        // --- Main Loader ---
+        async function loadUrl() {
+            const rawInput = document.getElementById('urlInput').value;
+            const url = fixUrl(rawInput);
             
-            if (!finalUrl) return; // Empty input
-
-            currentUrl = finalUrl;
-            showStatus("Fetching content...");
-            
-            try {
-                // Fetch via AllOrigins Proxy
-                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(finalUrl)}`;
-                const response = await fetch(proxyUrl);
-                
-                if (!response.ok) throw new Error("Network response was not ok");
-                
-                let text = await response.text();
-                
-                // Inject <base> tag for relative links
-                const baseTag = `<base href="${finalUrl}" target="_blank">`;
-                if (text.includes('<head>')) {
-                    text = text.replace('<head>', `<head>${baseTag}`);
-                } else {
-                    text = `${baseTag}${text}`;
-                }
-
-                currentHtml = text;
-                renderIframe(text);
-                hideStatus();
-                
-                // Close Reader/Modals if open
-                readerView.style.display = 'none';
-                sourceModal.style.display = 'none';
-
-            } catch (err) {
-                console.error(err);
-                showStatus("Error loading page. Site might block proxies.");
-                setTimeout(hideStatus, 3000);
-            }
-        }
-
-        function renderIframe(htmlContent) {
-            // Write to srcdoc to bypass X-Frame-Options
-            mainFrame.srcdoc = htmlContent;
-        }
-
-        function showStatus(msg) {
-            statusMsg.textContent = msg;
-            statusMsg.style.display = 'block';
-        }
-        function hideStatus() {
-            statusMsg.style.display = 'none';
-        }
-
-        // --- Reader Mode Logic ---
-
-        function toggleReaderMode() {
-            if (readerView.style.display === 'block') {
-                readerView.style.display = 'none';
-                stopReading();
+            if (!url) {
+                alert("Please enter a valid URL");
                 return;
             }
 
-            if (!currentHtml) return showStatus("Load a URL first.");
+            currentUrl = url;
+            fetchedHtml = ""; // Reset
+            log(`Starting load for: ${url}`);
+            document.getElementById('btnGo').textContent = "Loading...";
+            document.getElementById('btnGo').disabled = true;
 
-            // Parse HTML string to DOM
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(currentHtml, 'text/html');
+            try {
+                // Method A: Try Proxy Fetch
+                const target = PROXY_URL + encodeURIComponent(url);
+                log(`Fetching via proxy: ${target}`);
+                
+                const response = await fetch(target);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                let text = await response.text();
+                log("Data received. Processing...");
 
-            // 1. Remove unwanted tags (Ads, Scripts, Graphics)
-            const removeSelectors = [
-                'script', 'style', 'iframe', 'img', 'svg', 'video', 'nav', 'footer', 'aside',
-                '.ad', '.ads', '.advertisement', '.banner', '.cookie-banner', '#sidebar'
-            ];
-            
-            removeSelectors.forEach(sel => {
-                doc.querySelectorAll(sel).forEach(el => el.remove());
-            });
+                // Inject Base Tag (Crucial for images/css to load)
+                // This makes the browser look for "logo.png" at "google.com/logo.png"
+                const baseTag = `<base href="${url}" target="_blank">`;
+                if (text.includes('<head>')) {
+                    text = text.replace('<head>', `<head>${baseTag}`);
+                } else {
+                    text = baseTag + text;
+                }
 
-            // 2. Extract meaningful text content (h1-h6, p, li, article)
-            // We clone specific nodes to a clean container
-            let cleanContainer = document.createElement('div');
-            
-            // Try to find the main article first
-            let contentNodes = doc.querySelectorAll('article, main, [role="main"]');
-            
-            // Fallback to body paragraphs if no semantic tags found
-            if (contentNodes.length === 0) {
-                contentNodes = doc.querySelectorAll('body');
+                fetchedHtml = text;
+                
+                // Render to Iframe
+                const frame = document.getElementById('main-frame');
+                frame.srcdoc = text;
+                log("Rendered to iframe via srcdoc.");
+
+            } catch (err) {
+                log(`Proxy failed: ${err.message}`, "error");
+                log("Attempting direct load (Warning: X-Frame-Options may block this).");
+                
+                // Fallback: Direct SRC (Will fail on Google/Amazon)
+                document.getElementById('main-frame').removeAttribute('srcdoc');
+                document.getElementById('main-frame').src = url;
+            } finally {
+                document.getElementById('btnGo').textContent = "Go";
+                document.getElementById('btnGo').disabled = false;
             }
-
-            // Copy content text logic
-            contentNodes.forEach(node => {
-                // Get all paragraphs and headings inside
-                const textElements = node.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li');
-                textElements.forEach(el => {
-                    if (el.innerText.trim().length > 0) {
-                        let newEl = document.createElement(el.tagName);
-                        newEl.innerText = el.innerText;
-                        cleanContainer.appendChild(newEl);
-                    }
-                });
-            });
-
-            if (cleanContainer.innerHTML.trim() === "") {
-                readerContent.innerHTML = "<p>Could not extract readable text. The site might be built entirely with JavaScript or Canvas.</p>";
-            } else {
-                readerContent.innerHTML = cleanContainer.innerHTML;
-            }
-
-            readerView.style.display = 'block';
         }
+
+        // --- Reader Mode ---
+        document.getElementById('btnReader').onclick = () => {
+            if (!fetchedHtml) {
+                alert("Please load a URL first (must be via Proxy).");
+                return;
+            }
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(fetchedHtml, 'text/html');
+
+            // Clean Junk
+            const junk = ['script', 'style', 'iframe', 'nav', 'footer', 'noscript', 'svg'];
+            junk.forEach(tag => {
+                doc.querySelectorAll(tag).forEach(el => el.remove());
+            });
+
+            // Extract Text
+            // We look for P and H tags specifically
+            let content = "";
+            doc.querySelectorAll('h1, h2, h3, p, article').forEach(el => {
+                if(el.innerText.trim().length > 20) { // Filter short nonsense
+                    content += `<${el.tagName}>${el.innerText}</${el.tagName}>`;
+                }
+            });
+
+            if(!content) content = "<p>Could not extract text. The site might be purely Javascript.</p>";
+
+            document.getElementById('reader-content').innerHTML = content;
+            document.getElementById('reader-overlay').style.display = 'flex';
+        };
 
         // --- Text to Speech ---
-
-        function readAloud() {
-            stopReading();
-            const text = readerContent.innerText;
-            if (!text) return;
-
-            speechUtterance = new SpeechSynthesisUtterance(text);
-            speechUtterance.onend = () => {
-                document.getElementById('btnReadAloud').classList.remove('hidden');
-                document.getElementById('btnStopRead').classList.add('hidden');
+        const synth = window.speechSynthesis;
+        document.getElementById('btnSpeak').onclick = () => {
+            const text = document.getElementById('reader-content').innerText;
+            const utter = new SpeechSynthesisUtterance(text);
+            
+            document.getElementById('btnSpeak').style.display = 'none';
+            document.getElementById('btnStop').style.display = 'inline-block';
+            
+            utter.onend = () => {
+                document.getElementById('btnSpeak').style.display = 'inline-block';
+                document.getElementById('btnStop').style.display = 'none';
             };
+            
+            synth.speak(utter);
+        };
 
-            document.getElementById('btnReadAloud').classList.add('hidden');
-            document.getElementById('btnStopRead').classList.remove('hidden');
+        document.getElementById('btnStop').onclick = () => {
+            synth.cancel();
+            document.getElementById('btnSpeak').style.display = 'inline-block';
+            document.getElementById('btnStop').style.display = 'none';
+        };
 
-            synth.speak(speechUtterance);
-        }
+        // --- Source Mode ---
+        document.getElementById('btnSource').onclick = () => {
+            if(!fetchedHtml) return alert("Load a URL first");
+            document.getElementById('source-code').value = fetchedHtml;
+            document.getElementById('source-overlay').style.display = 'flex';
+        };
 
-        function stopReading() {
-            if (synth.speaking) {
-                synth.cancel();
-            }
-            document.getElementById('btnReadAloud').classList.remove('hidden');
-            document.getElementById('btnStopRead').classList.add('hidden');
-        }
-
-        // --- Source Modal Logic ---
-
-        function openSourceModal() {
-            if (!currentHtml) return showStatus("Load a URL first.");
-            sourceEditor.value = currentHtml;
-            sourceModal.style.display = 'flex';
-        }
-
-        function copySource() {
-            sourceEditor.select();
+        document.getElementById('btnCopy').onclick = () => {
+            document.getElementById('source-code').select();
             document.execCommand('copy');
-            const originalText = document.getElementById('btnCopySource').innerText;
-            document.getElementById('btnCopySource').innerText = "Copied!";
-            setTimeout(() => {
-                document.getElementById('btnCopySource').innerText = originalText;
-            }, 1500);
-        }
+            log("Source copied to clipboard");
+        };
 
-        function previewSource() {
-            // Take content from Textarea (allows user edits) and put in Main Frame
-            const editedHtml = sourceEditor.value;
-            currentHtml = editedHtml; // Update global state
-            renderIframe(editedHtml);
-            sourceModal.style.display = 'none'; // Close modal to show result
-        }
+        document.getElementById('btnPreview').onclick = () => {
+            const newCode = document.getElementById('source-code').value;
+            fetchedHtml = newCode;
+            document.getElementById('main-frame').srcdoc = newCode;
+            document.getElementById('source-overlay').style.display = 'none';
+            log("Preview updated with edited code");
+        };
 
-        // --- Event Listeners ---
-
-        // Input enter key
-        urlInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') loadContent();
+        // --- Inputs ---
+        document.getElementById('urlInput').addEventListener('keypress', (e) => {
+            if(e.key === 'Enter') loadUrl();
         });
-
-        document.getElementById('btnGo').addEventListener('click', loadContent);
-        
-        // Reader
-        document.getElementById('btnReader').addEventListener('click', toggleReaderMode);
-        document.getElementById('btnCloseReader').addEventListener('click', () => {
-            readerView.style.display = 'none';
-            stopReading();
-        });
-        document.getElementById('btnReadAloud').addEventListener('click', readAloud);
-        document.getElementById('btnStopRead').addEventListener('click', stopReading);
-
-        // Source
-        document.getElementById('btnSource').addEventListener('click', openSourceModal);
-        document.getElementById('btnCloseModal').addEventListener('click', () => sourceModal.style.display = 'none');
-        document.getElementById('btnCopySource').addEventListener('click', copySource);
-        document.getElementById('btnPreviewSource').addEventListener('click', previewSource);
+        document.getElementById('btnGo').onclick = loadUrl;
 
     </script>
 </body>
