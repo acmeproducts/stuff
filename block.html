@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BlockBuilder Infinite</title>
+    <title>BlockBuilder Pro</title>
     <style>
         :root {
-            --bg-color: #f0f4f8;
-            --panel-bg: #ffffff;
-            --text-color: #333;
-            --accent: #6366f1;
-            --accent-hover: #4f46e5;
-            --border: #e2e8f0;
+            --bg-color: #e0e7ff;
+            --panel-bg: rgba(255, 255, 255, 0.95);
+            --text-color: #1e293b;
+            --accent: #4f46e5;
             --danger: #ef4444;
+            --border: #cbd5e1;
         }
         body, html {
             margin: 0;
@@ -23,6 +22,8 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: var(--bg-color);
             touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
         }
         #app {
             display: flex;
@@ -30,66 +31,58 @@
             height: 100vh;
         }
         
-        /* Header / Toolbar */
+        /* Toolbar */
         header {
             background: var(--panel-bg);
-            padding: 8px 16px;
-            border-bottom: 1px solid var(--border);
+            padding: 10px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             z-index: 20;
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            gap: 10px;
-            height: 60px;
+            backdrop-filter: blur(8px);
         }
 
-        .tools-left, .tools-right {
+        .scroll-group {
             display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            -webkit-overflow-scrolling: touch;
             align-items: center;
-            gap: 8px;
         }
 
-        /* Buttons & Inputs */
+        /* Buttons */
         button, .icon-btn {
-            height: 40px;
-            min-width: 40px;
-            border-radius: 8px;
+            height: 48px;
+            min-width: 48px;
+            border-radius: 12px;
             border: 1px solid var(--border);
-            background: var(--panel-bg);
+            background: white;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: all 0.1s;
-            color: #475569;
-            padding: 0 10px;
-            font-weight: 600;
-            font-size: 0.9rem;
+            color: #64748b;
+            transition: transform 0.1s, background 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
-        button:active { transform: translateY(1px); background: #f8fafc; }
-        
+        button:active { transform: scale(0.95); }
         button.active {
             background: var(--accent);
             color: white;
             border-color: var(--accent);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
         }
-        button.active.delete-mode {
-            background: var(--danger);
-            border-color: var(--danger);
-        }
-
-        .divider { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
 
         /* Color Picker */
-        .color-wrap {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
+        .color-preview {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
             overflow: hidden;
-            border: 1px solid var(--border);
             position: relative;
         }
         input[type="color"] {
@@ -97,594 +90,591 @@
             top: -50%; left: -50%;
             width: 200%; height: 200%;
             border: none; cursor: pointer;
+            padding: 0; margin: 0;
         }
 
         /* Canvas */
         .viewport {
             flex: 1;
             position: relative;
-            background: radial-gradient(circle at center, #f1f5f9 0%, #cbd5e1 100%);
             overflow: hidden;
-            cursor: crosshair;
+            background: radial-gradient(circle at center, #f8fafc 0%, #e2e8f0 100%);
         }
-        
-        .hud {
+
+        /* Context Menu (Long Press) */
+        #contextMenu {
             position: absolute;
-            bottom: 20px;
+            bottom: -300px; /* Hidden */
+            left: 0;
+            width: 100%;
+            background: white;
+            border-radius: 20px 20px 0 0;
+            padding: 20px;
+            box-sizing: border-box;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.15);
+            transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        #contextMenu.show { bottom: 0; }
+        
+        .menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            color: var(--text-color);
+        }
+        .menu-row {
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+        }
+        .texture-btn {
+            flex: 1;
+            font-size: 0.8rem;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        /* Toast */
+        .toast {
+            position: absolute;
+            top: 80px;
             left: 50%;
-            transform: translateX(-50%);
-            background: rgba(15, 23, 42, 0.8);
+            transform: translateX(-50%) translateY(-20px);
+            background: rgba(0,0,0,0.8);
             color: white;
             padding: 8px 16px;
             border-radius: 20px;
-            font-size: 0.85rem;
-            pointer-events: none;
-            backdrop-filter: blur(4px);
+            font-size: 0.9rem;
             opacity: 0;
-            transition: opacity 0.3s;
+            transition: all 0.3s;
+            pointer-events: none;
         }
-        .hud.visible { opacity: 1; }
+        .toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-        /* Icon SVG Styling */
-        svg { width: 20px; height: 20px; pointer-events: none; }
+        svg { width: 24px; height: 24px; pointer-events: none; }
     </style>
 </head>
 <body>
 
 <div id="app">
     <header>
-        <div class="tools-left">
-            <div class="color-wrap" title="Color">
-                <input type="color" id="colorPicker" value="#6366f1">
+        <div class="scroll-group">
+            <div class="color-preview" style="background: #4f46e5">
+                <input type="color" id="mainColor" value="#4f46e5" onchange="this.parentElement.style.background=this.value">
             </div>
-            
-            <div class="divider"></div>
 
-            <button class="shape-btn active" onclick="builder.setShape('cube')" title="Cube">
+            <button class="shape-btn active" onclick="app.setShape('cube')" title="Cube">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 16.5l-9 5-9-5V7.5l9-5 9 5v9z"/></svg>
             </button>
-            <button class="shape-btn" onclick="builder.setShape('slab')" title="Slab">
-                <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="12" width="20" height="8" rx="2"/></svg>
+            
+            <button class="shape-btn" onclick="app.setShape('h-rect')" title="Horizontal Rectangle">
+                <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="14" width="20" height="6" rx="1"/></svg>
             </button>
-            <button class="shape-btn" onclick="builder.setShape('slope')" title="Slope">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18L3 4v16z"/></svg>
-            </button>
-            <button class="shape-btn" onclick="builder.setShape('pyramid')" title="Pyramid">
-                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 22h20L12 2z"/></svg>
-            </button>
-
-            <div class="divider"></div>
-
-            <button id="btnDelete" onclick="builder.toggleDelete()" title="Delete Mode">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                </svg>
+            
+            <button class="shape-btn" onclick="app.setShape('v-rect')" title="Vertical Rectangle">
+                <svg viewBox="0 0 24 24" fill="currentColor"><rect x="8" y="4" width="8" height="16" rx="1"/></svg>
             </button>
         </div>
 
-        <div class="tools-right">
-            <button onclick="builder.clear()">Clear</button>
-            <button onclick="builder.saveIO()">Save/Export</button>
-            <input type="file" id="fileIn" hidden onchange="builder.importFile(this)">
-            <button onclick="document.getElementById('fileIn').click()">Import</button>
+        <div class="scroll-group">
+            <button onclick="app.saveIO()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            </button>
+            <button onclick="document.getElementById('fileInput').click()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+            <input type="file" id="fileInput" hidden onchange="app.importFile(this)">
         </div>
     </header>
 
     <div class="viewport" id="container">
         <canvas id="canvas"></canvas>
-        <div id="hud" class="hud">Action</div>
+        <div id="toast" class="toast">Action</div>
+    </div>
+
+    <div id="contextMenu">
+        <div class="menu-header">
+            <span>Modify Block</span>
+            <button onclick="app.closeMenu()" style="height:32px; width:32px; border:none; box-shadow:none;">✕</button>
+        </div>
+        
+        <div class="menu-row">
+            <div style="flex:1; display:flex; gap:10px; align-items:center;">
+                <span>Change Color:</span>
+                <div class="color-preview" style="width:32px; height:32px;">
+                    <input type="color" id="editColor" onchange="app.updateSelectedBlock('color', this.value)">
+                </div>
+            </div>
+            <button onclick="app.deleteSelected()" style="background:var(--danger); color:white; border-color:var(--danger);">
+                Delete
+            </button>
+        </div>
+
+        <div style="font-size:0.9rem; font-weight:600; color:#64748b; margin-top:5px;">Texture</div>
+        <div class="menu-row">
+            <button class="texture-btn" onclick="app.updateSelectedBlock('texture', 'none')">Smooth</button>
+            <button class="texture-btn" onclick="app.updateSelectedBlock('texture', 'lines')">Lines</button>
+            <button class="texture-btn" onclick="app.updateSelectedBlock('texture', 'grid')">Grid</button>
+            <button class="texture-btn" onclick="app.updateSelectedBlock('texture', 'dots')">Dots</button>
+        </div>
     </div>
 </div>
 
 <script>
-class VoxelEngine {
+class BlockEngine {
     constructor() {
         this.canvas = document.getElementById('canvas');
         this.ctx = this.canvas.getContext('2d');
         this.container = document.getElementById('container');
         
-        // --- Configuration ---
-        this.tileW = 64;  // Width of tile
-        this.tileH = 32;  // Height of top face (Iso projection)
-        this.blockH = 32; // Extrusion height
+        // Config
+        this.tileW = 60;
+        this.tileH = 30; // Isometric Top Face ratio
+        this.blockH = 40; // Extrusion Height
         
-        // --- State ---
-        // Blocks stored as key "x,y,z" -> { type, color, shape }
+        // State
         this.blocks = {};
-        
-        // Camera
-        this.camX = 0;
-        this.camY = 0;
-        this.zoom = 1.0;
+        this.cam = { x: 0, y: 0, zoom: 1.0 };
+        this.currentShape = 'cube';
         
         // Interaction
-        this.currentShape = 'cube';
-        this.isDeleteMode = false;
-        
         this.isDragging = false;
-        this.lastMouse = {x:0, y:0};
-        this.touchStart = 0;
+        this.lastPos = { x:0, y:0 };
+        this.pinchDist = 0;
+        
+        // Long Press State
+        this.longPressTimer = null;
+        this.longPressTriggered = false;
+        this.selectedBlockKey = null; // Key of block being edited
         
         // Init
         this.resize();
         this.load();
         
-        // Events
+        // Listeners
         window.addEventListener('resize', () => this.resize());
-        
-        // Mouse
-        this.canvas.addEventListener('mousedown', e => this.onDown(e));
-        window.addEventListener('mousemove', e => this.onMove(e));
-        window.addEventListener('mouseup', e => this.onUp(e));
-        this.canvas.addEventListener('wheel', e => this.onWheel(e), {passive: false});
         
         // Touch
         this.canvas.addEventListener('touchstart', e => this.onTouchStart(e), {passive:false});
         this.canvas.addEventListener('touchmove', e => this.onTouchMove(e), {passive:false});
         this.canvas.addEventListener('touchend', e => this.onTouchEnd(e), {passive:false});
+        
+        // Mouse (Desktop compat)
+        this.canvas.addEventListener('mousedown', e => this.onMouseDown(e));
+        window.addEventListener('mousemove', e => this.onMouseMove(e));
+        window.addEventListener('mouseup', e => this.onMouseUp(e));
+        this.canvas.addEventListener('wheel', e => this.onWheel(e), {passive:false});
 
         // Loop
-        requestAnimationFrame(() => this.loop());
+        requestAnimationFrame(() => this.draw());
     }
 
     resize() {
         this.canvas.width = this.container.clientWidth;
         this.canvas.height = this.container.clientHeight;
-        if(this.camX === 0 && this.camY === 0) {
-            this.camX = this.canvas.width/2;
-            this.camY = this.canvas.height/2;
+        if(this.cam.x === 0) {
+            this.cam.x = this.canvas.width/2;
+            this.cam.y = this.canvas.height/2;
         }
         this.draw();
     }
 
-    loop() {
-        this.draw();
-        requestAnimationFrame(() => this.loop());
-    }
-
-    // --- Core Isometric Math ---
-    
-    // Grid (x,y,z) -> Screen (x,y)
+    // --- Math ---
     toScreen(x, y, z) {
-        // Isometric projection formulas
-        // Screen X = (GridX - GridY) * (Width / 2)
-        // Screen Y = (GridX + GridY) * (Height / 2) - (GridZ * BlockHeight)
+        // Iso Projection
         const sx = (x - y) * this.tileW * 0.5;
         const sy = (x + y) * this.tileH * 0.5 - (z * this.blockH);
         return {
-            x: sx * this.zoom + this.camX,
-            y: sy * this.zoom + this.camY
+            x: sx * this.cam.zoom + this.cam.x,
+            y: sy * this.cam.zoom + this.cam.y
         };
     }
 
-    // Screen (x,y) -> Grid (x,y) at Z=0 plane
-    toGrid(sx, sy) {
-        const adjX = (sx - this.camX) / this.zoom;
-        const adjY = (sy - this.camY) / this.zoom;
-        
-        // Inverse Iso Matrix
-        // y = (2*adjY - adjX * (H/W fraction? No, standard iso inverse))
-        // Let's derive from toScreen:
-        // sx = (x-y)*W/2  =>  2*sx/W = x - y
-        // sy = (x+y)*H/2  =>  2*sy/H = x + y
-        // Add: 2*sx/W + 2*sy/H = 2x  => x = sx/W + sy/H
-        // Sub: 2*sy/H - 2*sx/W = 2y  => y = sy/H - sx/W
-        
-        const isoX = (adjX / this.tileW) + (adjY / this.tileH);
-        const isoY = (adjY / this.tileH) - (adjX / this.tileW);
-        
+    toGrid(mx, my) {
+        // Inverse for Z=0 plane
+        const adjX = (mx - this.cam.x) / this.cam.zoom;
+        const adjY = (my - this.cam.y) / this.cam.zoom;
         return {
-            x: Math.floor(isoX),
-            y: Math.floor(isoY),
-            fx: isoX, // floating point exact
-            fy: isoY
+            x: Math.round((adjX / this.tileW + adjY / this.tileH)),
+            y: Math.round((adjY / this.tileH - adjX / this.tileW))
         };
     }
 
     // --- Rendering ---
-
     draw() {
         const ctx = this.ctx;
-        const W = this.canvas.width;
-        const H = this.canvas.height;
+        const Z = this.cam.zoom;
         
-        // Background
-        ctx.fillStyle = '#f0f4f8'; // Skyish
-        ctx.fillRect(0,0,W,H);
+        // Clear
+        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // 1. Draw Infinite Dynamic Grid
-        // We calculate the visible range of tiles based on viewport to save performance
-        // (Simplified: Draw a large enough grid centered on view)
+        // 1. Grid (Dynamic)
         this.drawGrid(ctx);
 
         // 2. Sort Blocks (Painter's Algo)
-        // Depth = x + y. If tie, z.
-        const list = Object.keys(this.blocks).map(k => {
-            const p = k.split(',').map(Number);
-            return {
-                x:p[0], y:p[1], z:p[2], 
-                data: this.blocks[k]
-            };
-        });
+        // Sort by 'Manhattan Distance' (x+y) then z
+        const keys = Object.keys(this.blocks);
+        const list = keys.map(k => {
+            const [x,y,z] = k.split(',').map(Number);
+            return { x, y, z, ...this.blocks[k], key: k };
+        }).sort((a,b) => (a.x + a.y) - (b.x + b.y) || a.z - b.z);
 
-        list.sort((a,b) => {
-            const d1 = a.x + a.y;
-            const d2 = b.x + b.y;
-            if(d1 !== d2) return d1 - d2;
-            return a.z - b.z;
-        });
-
-        // 3. Draw Blocks
+        // 3. Render Blocks
         list.forEach(b => {
-            this.drawShape(ctx, b.x, b.y, b.z, b.data);
+            const pos = this.toScreen(b.x, b.y, b.z);
+            const isSelected = (b.key === this.selectedBlockKey);
+            
+            // Dimensions based on shape
+            let w = this.tileW * Z;
+            let h = this.tileH * Z;
+            let bh = this.blockH * Z;
+            let offsetY = 0; // vertical shift
+            let offsetX = 0; // center shift
+
+            if(b.type === 'h-rect') {
+                bh *= 0.3; // Flat slab
+                offsetY = (this.blockH * Z) * 0.0; // Sits on bottom
+            } else if(b.type === 'v-rect') {
+                w *= 0.4; // Thin
+                h *= 0.4; // Thin depth
+                bh *= 1.5; // Tall
+                // No offset needed if centering logic is used
+            }
+
+            this.drawPrism(ctx, pos.x, pos.y - offsetY, w, h, bh, b.color, b.texture, isSelected);
         });
+        
+        requestAnimationFrame(() => this.draw());
     }
 
     drawGrid(ctx) {
+        const cx = this.toGrid(this.canvas.width/2, this.canvas.height/2);
+        const range = 15;
+        ctx.strokeStyle = '#e2e8f0';
         ctx.lineWidth = 1;
-        ctx.strokeStyle = '#cbd5e1';
-        
-        // Optimization: Calculate roughly which tiles are on screen
-        // Center tile
-        const center = this.toGrid(this.canvas.width/2, this.canvas.height/2);
-        const range = Math.ceil(Math.max(this.canvas.width, this.canvas.height) / (this.tileW*this.zoom)) + 2;
-        
-        const startX = center.x - range;
-        const endX = center.x + range;
-        const startY = center.y - range;
-        const endY = center.y + range;
-
         ctx.beginPath();
-        // Draw grid lines in iso perspective
-        for(let x=startX; x<=endX; x++) {
-            const p1 = this.toScreen(x, startY, 0);
-            const p2 = this.toScreen(x, endY, 0);
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-        }
-        for(let y=startY; y<=endY; y++) {
-            const p1 = this.toScreen(startX, y, 0);
-            const p2 = this.toScreen(endX, y, 0);
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
+        
+        for(let i = -range; i <= range; i++) {
+            // X lines
+            let p1 = this.toScreen(cx.x + i, cx.y - range, 0);
+            let p2 = this.toScreen(cx.x + i, cx.y + range, 0);
+            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+            
+            // Y lines
+            p1 = this.toScreen(cx.x - range, cx.y + i, 0);
+            p2 = this.toScreen(cx.x + range, cx.y + i, 0);
+            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
         }
         ctx.stroke();
     }
 
-    drawShape(ctx, x, y, z, data) {
-        const { color, type } = data;
-        const p = this.toScreen(x, y, z);
-        const w = this.tileW * this.zoom;
-        const h = this.tileH * this.zoom; // Top face height
-        const bh = this.blockH * this.zoom; // Extrusion
-        
+    drawPrism(ctx, x, y, w, h, bh, color, texture, isSelected) {
         // Colors
-        const base = color;
-        const left = this.shade(color, -20);
-        const right = this.shade(color, -40);
+        const top = color;
+        const right = this.shade(color, -15);
+        const left = this.shade(color, -30);
 
-        const cx = p.x;
-        const cy = p.y; // Bottom-center of the "sprite" logic (conceptually)
-
-        ctx.lineWidth = 0.5;
-        ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-
-        switch(type) {
-            case 'cube':
-                this.drawPrism(ctx, cx, cy, w, h, bh, base, left, right);
-                break;
-            case 'slab':
-                this.drawPrism(ctx, cx, cy, w, h, bh*0.5, base, left, right);
-                break;
-            case 'slope':
-                // Triangle Slope (Ramp up North)
-                this.drawSlope(ctx, cx, cy, w, h, bh, base, left, right);
-                break;
-            case 'pyramid':
-                this.drawPyramid(ctx, cx, cy, w, h, bh, base, left, right);
-                break;
-            default: // fallback
-                this.drawPrism(ctx, cx, cy, w, h, bh, base, left, right);
-        }
-    }
-
-    // Geometry Helpers
-
-    drawPrism(ctx, cx, cy, w, h, bh, cTop, cLeft, cRight) {
         // Top Face
         ctx.beginPath();
-        ctx.moveTo(cx, cy - bh); // Center
-        ctx.lineTo(cx + w/2, cy - bh - h/2);
-        ctx.lineTo(cx, cy - bh - h);
-        ctx.lineTo(cx - w/2, cy - bh - h/2);
+        ctx.moveTo(x, y - bh);
+        ctx.lineTo(x + w/2, y - bh - h/2);
+        ctx.lineTo(x, y - bh - h);
+        ctx.lineTo(x - w/2, y - bh - h/2);
         ctx.closePath();
-        ctx.fillStyle = cTop; ctx.fill(); ctx.stroke();
+        ctx.fillStyle = top; ctx.fill();
+        this.applyTexture(ctx, texture, x, y - bh - h/2, w/2); // Simple pattern
+        if(isSelected) { ctx.strokeStyle='white'; ctx.lineWidth=2; ctx.stroke(); }
+        else { ctx.strokeStyle='rgba(0,0,0,0.1)'; ctx.lineWidth=0.5; ctx.stroke(); }
 
-        // Right Face
+        // Right
         ctx.beginPath();
-        ctx.moveTo(cx, cy - bh);
-        ctx.lineTo(cx + w/2, cy - bh - h/2);
-        ctx.lineTo(cx + w/2, cy - h/2);
-        ctx.lineTo(cx, cy);
+        ctx.moveTo(x, y - bh);
+        ctx.lineTo(x + w/2, y - bh - h/2);
+        ctx.lineTo(x + w/2, y - h/2);
+        ctx.lineTo(x, y);
         ctx.closePath();
-        ctx.fillStyle = cRight; ctx.fill(); ctx.stroke();
+        ctx.fillStyle = right; ctx.fill(); 
+        ctx.stroke();
 
-        // Left Face
+        // Left
         ctx.beginPath();
-        ctx.moveTo(cx, cy - bh);
-        ctx.lineTo(cx - w/2, cy - bh - h/2);
-        ctx.lineTo(cx - w/2, cy - h/2);
-        ctx.lineTo(cx, cy);
+        ctx.moveTo(x, y - bh);
+        ctx.lineTo(x - w/2, y - bh - h/2);
+        ctx.lineTo(x - w/2, y - h/2);
+        ctx.lineTo(x, y);
         ctx.closePath();
-        ctx.fillStyle = cLeft; ctx.fill(); ctx.stroke();
+        ctx.fillStyle = left; ctx.fill(); 
+        ctx.stroke();
     }
+
+    applyTexture(ctx, type, x, y, size) {
+        if(!type || type === 'none') return;
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        if(type === 'lines') {
+            for(let i=0; i<5; i++) ctx.fillRect(x - size + (i*size/2), y, 2, size);
+        } else if(type === 'dots') {
+            for(let i=0; i<3; i++) for(let j=0; j<3; j++) 
+                ctx.fillRect(x - size/2 + i*10, y + j*10, 3, 3);
+        } else if (type === 'grid') {
+            ctx.beginPath();
+            ctx.moveTo(x-size, y+size/2); ctx.lineTo(x+size, y+size/2);
+            ctx.moveTo(x, y); ctx.lineTo(x, y+size);
+            ctx.stroke();
+        }
+    }
+
+    shade(hex, p) {
+        const num = parseInt(hex.replace("#",""), 16);
+        const amt = Math.round(2.55 * p);
+        const R = (num >> 16) + amt;
+        const G = (num >> 8 & 0x00FF) + amt;
+        const B = (num & 0x0000FF) + amt;
+        return "#" + (0x1000000 + (R<255?R<1?0:R:255)*0x10000 + (G<255?G<1?0:G:255)*0x100 + (B<255?B<1?0:B:255)).toString(16).slice(1);
+    }
+
+    // --- Inputs & Logic ---
     
-    drawPyramid(ctx, cx, cy, w, h, bh, cTop, cLeft, cRight) {
-        // Peak is at cx, cy - bh - h/2
-        const peakY = cy - bh - h/2;
+    handleStart(x, y) {
+        this.isDragging = false;
+        this.longPressTriggered = false;
+        this.touchStartTime = Date.now();
+        this.startPos = {x, y};
+        this.lastPos = {x, y};
         
-        // Right Face Triangle
-        ctx.beginPath();
-        ctx.moveTo(cx, peakY);
-        ctx.lineTo(cx + w/2, cy - h/2);
-        ctx.lineTo(cx, cy); // Base center
-        ctx.closePath();
-        ctx.fillStyle = cRight; ctx.fill(); ctx.stroke();
-        
-        // Left Face Triangle
-        ctx.beginPath();
-        ctx.moveTo(cx, peakY);
-        ctx.lineTo(cx - w/2, cy - h/2);
-        ctx.lineTo(cx, cy);
-        ctx.closePath();
-        ctx.fillStyle = cLeft; ctx.fill(); ctx.stroke();
+        // Start Long Press Timer
+        clearTimeout(this.longPressTimer);
+        this.longPressTimer = setTimeout(() => {
+            this.handleLongPress(x, y);
+        }, 500); // 500ms for long press
     }
 
-    drawSlope(ctx, cx, cy, w, h, bh, cTop, cLeft, cRight) {
-        // Ramp going UP towards North (Back)
-        // Base is normal square
-        // Top edge is the back line
+    handleMove(x, y) {
+        const dx = x - this.startPos.x;
+        const dy = y - this.startPos.y;
         
-        // Right Side (Triangle)
-        ctx.beginPath();
-        ctx.moveTo(cx, cy); // Bottom center
-        ctx.lineTo(cx + w/2, cy - h/2); // Right corner low
-        ctx.lineTo(cx, cy - bh - h); // Top back center
-        ctx.closePath();
-        ctx.fillStyle = cRight; ctx.fill(); ctx.stroke();
-        
-        // Left Side (Triangle)
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx - w/2, cy - h/2);
-        ctx.lineTo(cx, cy - bh - h);
-        ctx.closePath();
-        ctx.fillStyle = cLeft; ctx.fill(); ctx.stroke();
-
-        // Ramp Face
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + w/2, cy - h/2);
-        ctx.lineTo(cx, cy - bh - h);
-        ctx.lineTo(cx - w/2, cy - h/2);
-        ctx.closePath();
-        ctx.fillStyle = cTop; ctx.fill(); ctx.stroke();
-    }
-
-    shade(hex, percent) {
-        let R = parseInt(hex.substring(1,3),16);
-        let G = parseInt(hex.substring(3,5),16);
-        let B = parseInt(hex.substring(5,7),16);
-
-        R = parseInt(R * (100 + percent) / 100);
-        G = parseInt(G * (100 + percent) / 100);
-        B = parseInt(B * (100 + percent) / 100);
-
-        R = (R<255)?R:255; G = (G<255)?G:255; B = (B<255)?B:255;
-        
-        const RR = ((R.toString(16).length==1)?"0"+R.toString(16):R.toString(16));
-        const GG = ((G.toString(16).length==1)?"0"+G.toString(16):G.toString(16));
-        const BB = ((B.toString(16).length==1)?"0"+B.toString(16):B.toString(16));
-
-        return "#"+RR+GG+BB;
-    }
-
-    // --- Input Handling ---
-
-    handleTap(mx, my) {
-        // 1. Raycast for existing blocks (Hit Test)
-        // Sort blocks by draw order (reverse for hit testing usually, but simpler: check dist to center)
-        // Because shapes vary, simple bounding box is tricky. 
-        // We will project mouse to grid at various heights.
-        
-        let hit = null;
-        let minDist = Infinity;
-
-        // Iterate all blocks to find clicked one (inefficient for massive worlds, but fine for local)
-        // Better: sort reverse Z
-        for(let key in this.blocks) {
-            const [x,y,z] = key.split(',').map(Number);
-            const scr = this.toScreen(x,y,z);
-            // Height adjust based on shape?
-            // Simple hit: Check if inside the rhombus of the top face
-            // This is "good enough" for tile interactions
-            
-            // Adjust hit zone for height
-            const hOffset = this.blockH * this.zoom * (this.blocks[key].type === 'slab' ? 0.5 : 1);
-            const cy = scr.y - hOffset; 
-            const cx = scr.x;
-            
-            if(this.pointInRhombus(mx, my, cx, cy)) {
-                // We have a hit candidate. Highest Z wins usually?
-                // Actually we just want the "closest" to camera usually means highest Z + X + Y logic
-                // Let's use Z-index sort
-                const score = (x+y)*1000 + z; 
-                if(minDist === Infinity || score > hit.score) {
-                    hit = { x,y,z, score };
-                }
-            }
+        if(Math.hypot(dx, dy) > 10) {
+            this.isDragging = true;
+            clearTimeout(this.longPressTimer); // Moved too much, cancel long press
         }
 
-        if(this.isDeleteMode) {
-            if(hit) {
-                delete this.blocks[`${hit.x},${hit.y},${hit.z}`];
-                this.toast("Deleted");
-            }
+        if(this.isDragging) {
+            this.cam.x += (x - this.lastPos.x);
+            this.cam.y += (y - this.lastPos.y);
+            this.lastPos = {x, y};
+        }
+    }
+
+    handleEnd(x, y) {
+        clearTimeout(this.longPressTimer);
+        
+        if(!this.isDragging && !this.longPressTriggered) {
+            // It was a tap
+            this.handleTap(x, y);
+        }
+    }
+
+    handleLongPress(x, y) {
+        this.longPressTriggered = true;
+        if(navigator.vibrate) navigator.vibrate(50); // Haptic feedback
+        
+        const hit = this.raycast(x, y);
+        if(hit) {
+            this.selectedBlockKey = hit.key;
+            this.openMenu(this.blocks[hit.key]);
         } else {
-            // Build Mode
-            const color = document.getElementById('colorPicker').value;
-            
-            if(hit) {
-                // Stack on top
-                // Check shape height? Standard: always stack at next integer Z
-                // If hitting a slab, maybe stack at z+0.5? Keeping it integer based for simplicity
-                const newZ = hit.z + 1;
-                this.blocks[`${hit.x},${hit.y},${newZ}`] = { type: this.currentShape, color };
-            } else {
-                // Hit Ground?
-                const g = this.toGrid(mx, my);
-                // Verify z=0 stack
-                let z = 0;
-                while(this.blocks[`${g.x},${g.y},${z}`]) z++;
-                this.blocks[`${g.x},${g.y},${z}`] = { type: this.currentShape, color };
-            }
+            this.selectedBlockKey = null;
+            this.closeMenu();
+        }
+    }
+
+    handleTap(x, y) {
+        if(document.getElementById('contextMenu').classList.contains('show')) {
+            this.closeMenu();
+            return;
+        }
+
+        const hit = this.raycast(x, y);
+        const color = document.getElementById('mainColor').value;
+        
+        if(hit) {
+            // Add on top (Normal stacking)
+            const nz = hit.z + 1;
+            // Determine stacking rule based on shape? 
+            // Simplified: Always stack 1 unit up for consistent grid
+            this.blocks[`${hit.x},${hit.y},${nz}`] = { type: this.currentShape, color, texture: 'none' };
+        } else {
+            // Ground
+            const g = this.toGrid(x, y);
+            // Find stack height
+            let z = 0;
+            while(this.blocks[`${g.x},${g.y},${z}`]) z++;
+            this.blocks[`${g.x},${g.y},${z}`] = { type: this.currentShape, color, texture: 'none' };
         }
         this.save();
     }
 
-    pointInRhombus(px, py, cx, cy) {
-        const w = this.tileW * this.zoom / 2;
-        const h = this.tileH * this.zoom / 2;
-        const dx = Math.abs(px - cx);
-        const dy = Math.abs(py - cy);
-        return (dx/w + dy/h) <= 1;
-    }
+    // Raycast: Find closest block under screen pixel
+    raycast(mx, my) {
+        // Iterate blocks in reverse Z order (top to bottom) is usually best for hits,
+        // but Painter's Algo draws back to front.
+        // We need to check all blocks and find the one with highest 'visual Z'.
+        // Simplified: Check distance to center of top face
+        
+        let best = null;
+        let maxZ = -Infinity; // Visual Depth sorting score
 
-    // --- Inputs ---
-    
-    onDown(e) {
-        this.isDragging = false;
-        this.lastMouse = {x: e.clientX, y: e.clientY};
-        this.clickTime = Date.now();
-    }
-    onMove(e) {
-        if(e.buttons) {
-            const dx = e.clientX - this.lastMouse.x;
-            const dy = e.clientY - this.lastMouse.y;
-            if(Math.abs(dx)>2 || Math.abs(dy)>2) {
-                this.isDragging = true;
-                this.camX += dx;
-                this.camY += dy;
-                this.lastMouse = {x: e.clientX, y: e.clientY};
+        for(let key in this.blocks) {
+            const [x,y,z] = key.split(',').map(Number);
+            const b = this.blocks[key];
+            const scr = this.toScreen(x, y, z);
+            
+            // Adjust hit box center based on shape height
+            let hOffset = this.blockH * this.cam.zoom;
+            if(b.type === 'h-rect') hOffset *= 0.3; // Lower hit area
+            if(b.type === 'v-rect') hOffset *= 1.5;
+
+            // Simple Rhombus check at top face
+            const w = this.tileW * this.cam.zoom * (b.type === 'v-rect' ? 0.4 : 1);
+            const h = this.tileH * this.cam.zoom * (b.type === 'v-rect' ? 0.4 : 1);
+            
+            const dx = Math.abs(mx - scr.x);
+            const dy = Math.abs(my - (scr.y - hOffset)); // Top face center
+
+            if( (dx/(w/2) + dy/(h/2)) <= 1 ) {
+                // Hit! Sort by Z index to get the "top" one
+                if(z >= maxZ) {
+                    maxZ = z;
+                    best = { x, y, z, key, ...b };
+                }
             }
         }
-    }
-    onUp(e) {
-        if(!this.isDragging && Date.now() - this.clickTime < 300) {
-            const rect = this.canvas.getBoundingClientRect();
-            this.handleTap(e.clientX - rect.left, e.clientY - rect.top);
-        }
-    }
-    onWheel(e) {
-        e.preventDefault();
-        const d = -Math.sign(e.deltaY) * 0.1;
-        this.zoom = Math.max(0.5, Math.min(3, this.zoom + d));
+        return best;
     }
 
-    // Touch logic
+    // --- Inputs Wrapper ---
+    
     onTouchStart(e) {
-        e.preventDefault();
+        if(e.touches.length === 2) {
+            this.isPinching = true;
+            this.pinchDist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            return;
+        }
         if(e.touches.length === 1) {
-            this.isDragging = false;
-            this.touchStart = Date.now();
-            this.lastMouse = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+            const t = e.touches[0];
+            this.handleStart(t.clientX, t.clientY);
         }
     }
+
     onTouchMove(e) {
         e.preventDefault();
+        if(e.touches.length === 2) {
+            // Pinch Zoom
+            const dist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            const delta = (dist - this.pinchDist) * 0.01;
+            this.cam.zoom = Math.max(0.5, Math.min(3, this.cam.zoom + delta));
+            this.pinchDist = dist;
+            return;
+        }
         if(e.touches.length === 1) {
-             const dx = e.touches[0].clientX - this.lastMouse.x;
-             const dy = e.touches[0].clientY - this.lastMouse.y;
-             if(Math.abs(dx)>2 || Math.abs(dy)>2) {
-                 this.isDragging = true;
-                 this.camX += dx;
-                 this.camY += dy;
-                 this.lastMouse = {x: e.touches[0].clientX, y: e.touches[0].clientY};
-             }
+            const t = e.touches[0];
+            this.handleMove(t.clientX, t.clientY);
         }
     }
+
     onTouchEnd(e) {
-        e.preventDefault();
-        if(!this.isDragging && Date.now() - this.touchStart < 400 && e.changedTouches.length > 0) {
+        if(this.isPinching && e.touches.length < 2) {
+            this.isPinching = false;
+            return;
+        }
+        if(e.changedTouches.length > 0) {
             const t = e.changedTouches[0];
-            const rect = this.canvas.getBoundingClientRect();
-            this.handleTap(t.clientX - rect.left, t.clientY - rect.top);
+            this.handleEnd(t.clientX, t.clientY);
         }
     }
 
-    // --- UI & IO ---
+    onMouseDown(e) { this.handleStart(e.clientX, e.clientY); }
+    onMouseMove(e) { if(e.buttons) this.handleMove(e.clientX, e.clientY); }
+    onMouseUp(e) { this.handleEnd(e.clientX, e.clientY); }
+    onWheel(e) { e.preventDefault(); this.cam.zoom = Math.max(0.5, Math.min(3, this.cam.zoom - Math.sign(e.deltaY)*0.1)); }
 
+    // --- UI Logic ---
     setShape(s) {
         this.currentShape = s;
-        this.isDeleteMode = false;
         document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
-        document.querySelector(`button[onclick="builder.setShape('${s}')"]`).classList.add('active');
-        document.getElementById('btnDelete').classList.remove('active');
-        this.toast("Shape: " + s);
+        document.querySelector(`button[onclick="app.setShape('${s}')"]`).classList.add('active');
+        this.toast(s === 'h-rect' ? 'Slab Mode' : s === 'v-rect' ? 'Pillar Mode' : 'Cube Mode');
     }
-    
-    toggleDelete() {
-        this.isDeleteMode = !this.isDeleteMode;
-        document.getElementById('btnDelete').classList.toggle('active', this.isDeleteMode);
-        document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
-        if(this.isDeleteMode) this.toast("Delete Mode");
-        else {
-            this.setShape(this.currentShape);
+
+    openMenu(blockData) {
+        const menu = document.getElementById('contextMenu');
+        menu.classList.add('show');
+        document.getElementById('editColor').parentElement.style.background = blockData.color;
+        document.getElementById('editColor').value = blockData.color;
+        this.draw(); // Re-draw to show selection outline
+    }
+
+    closeMenu() {
+        document.getElementById('contextMenu').classList.remove('show');
+        this.selectedBlockKey = null;
+        this.draw();
+    }
+
+    updateSelectedBlock(prop, val) {
+        if(this.selectedBlockKey && this.blocks[this.selectedBlockKey]) {
+            this.blocks[this.selectedBlockKey][prop] = val;
+            if(prop === 'color') document.getElementById('editColor').parentElement.style.background = val;
+            this.save();
+            this.draw();
+        }
+    }
+
+    deleteSelected() {
+        if(this.selectedBlockKey) {
+            delete this.blocks[this.selectedBlockKey];
+            this.save();
+            this.closeMenu();
         }
     }
 
     toast(msg) {
-        const h = document.getElementById('hud');
-        h.innerText = msg;
-        h.classList.add('visible');
-        setTimeout(() => h.classList.remove('visible'), 1000);
+        const t = document.getElementById('toast');
+        t.innerText = msg;
+        t.classList.add('visible');
+        setTimeout(()=>t.classList.remove('visible'), 1500);
     }
 
-    save() {
-        localStorage.setItem('blockWorldInf', JSON.stringify(this.blocks));
-    }
-    load() {
-        const d = localStorage.getItem('blockWorldInf');
+    save() { localStorage.setItem('blockWorldPro', JSON.stringify(this.blocks)); }
+    load() { 
+        const d = localStorage.getItem('blockWorldPro');
         if(d) this.blocks = JSON.parse(d);
     }
-    clear() {
-        if(confirm("Clear World?")) {
-            this.blocks = {};
-            this.save();
-        }
-    }
     saveIO() {
-        const str = JSON.stringify(this.blocks);
-        const blob = new Blob([str], {type: "application/json"});
-        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(this.blocks)], {type: "application/json"}));
         a.download = "world.json";
         a.click();
     }
-    importFile(input) {
-        const f = input.files[0];
+    importFile(el) {
+        const f = el.files[0];
         if(!f) return;
         const r = new FileReader();
-        r.onload = e => {
-            this.blocks = JSON.parse(e.target.result);
-            this.save();
-        };
+        r.onload = e => { this.blocks = JSON.parse(e.target.result); this.save(); this.draw(); };
         r.readAsText(f);
     }
 }
 
-const builder = new VoxelEngine();
+const app = new BlockEngine();
 </script>
 </body>
 </html>
