@@ -3,49 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Reader v8 (Stable)</title>
+    <title>Universal Web Viewer v9</title>
     <style>
-        :root { --primary: #007aff; --bg: #f4f4f9; --text: #333; }
+        :root { --primary: #2c3e50; --accent: #3498db; --bg: #f4f4f9; --text: #333; }
         body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); }
         
         /* Toolbar */
-        .toolbar { background: white; padding: 12px; display: flex; gap: 10px; border-bottom: 1px solid #ccc; align-items: center; }
-        input { flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
-        button { padding: 10px 16px; background: var(--primary); color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: 600; white-space: nowrap; }
+        .toolbar { background: white; padding: 12px; display: flex; gap: 8px; border-bottom: 1px solid #ccc; align-items: center; flex-wrap: wrap; }
+        input { flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; min-width: 150px; }
+        button { padding: 10px 16px; background: var(--primary); color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: 600; font-size: 14px; }
         button:hover { opacity: 0.9; }
-        button:disabled { background: #ccc; cursor: default; }
-        .btn-green { background: #34c759; }
-        .btn-red { background: #ff3b30; }
+        button:disabled { background: #95a5a6; cursor: wait; }
+        .btn-green { background: #27ae60; }
+        .btn-red { background: #c0392b; }
+        .btn-grey { background: #7f8c8d; }
 
         /* Workspace */
-        .workspace { flex: 1; position: relative; display: flex; flex-direction: column; }
+        .workspace { flex: 1; position: relative; display: flex; flex-direction: column; overflow: hidden; }
         iframe { width: 100%; height: 100%; border: none; background: white; flex: 1; }
+
+        /* Logs Panel (Visible by default for debugging) */
+        #log-panel { 
+            height: 120px; 
+            background: #222; 
+            color: #0f0; 
+            padding: 10px; 
+            font-family: 'Courier New', monospace; 
+            font-size: 12px; 
+            overflow-y: auto; 
+            border-top: 4px solid #444;
+            display: block; 
+        }
+        .log-entry { margin-bottom: 4px; border-bottom: 1px solid #333; padding-bottom: 2px; }
+        .log-time { color: #888; margin-right: 8px; }
+        .log-err { color: #ff6b6b; }
+        .log-success { color: #2ecc71; font-weight: bold; }
 
         /* Reader Overlay */
         #reader-overlay {
             position: absolute; top: 0; left: 0; right: 0; bottom: 0;
             background: white; z-index: 100; display: none; flex-direction: column;
         }
-        .reader-header { padding: 15px; background: #f9f9f9; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+        .reader-header { padding: 15px; background: #ecf0f1; border-bottom: 1px solid #bdc3c7; display: flex; justify-content: space-between; align-items: center; }
         .reader-body { flex: 1; padding: 40px; overflow-y: auto; max-width: 800px; margin: 0 auto; line-height: 1.8; font-size: 18px; color: #111; }
         
         /* Audio Highlight */
-        .speaking { background-color: #fff3cd; box-shadow: -4px 0 0 #ffc107; padding-left: 8px; }
+        .speaking { background-color: #fff3cd; border-left: 5px solid #f1c40f; padding-left: 10px; }
 
-        /* Minimal Status Bar */
-        #status-bar { padding: 8px; background: #333; color: white; font-size: 12px; text-align: center; display: none;}
+        /* Source Overlay */
+        #source-overlay { position:absolute; inset:0; background:rgba(0,0,0,0.8); z-index:200; display:none; align-items:center; justify-content:center; }
+        .modal-box { background:white; width:90%; height:90%; display:flex; flex-direction:column; border-radius:8px; overflow:hidden; }
     </style>
 </head>
 <body>
 
     <div class="toolbar">
-        <input type="text" id="urlInput" placeholder="e.g. cnn (auto-adds .com)" />
+        <input type="text" id="urlInput" placeholder="Enter site (e.g. cnn)" />
         <button id="btnGo">Go</button>
-        <button id="btnReader" class="btn-green">Reader View</button>
-        <button id="btnSource" style="background:#5856d6">Source</button>
+        <button id="btnReader" class="btn-green">Reader & Audio</button>
+        <button id="btnSource" class="btn-grey">Source</button>
+        <button onclick="toggleLogs()" style="margin-left:auto; background: #333;">Logs</button>
     </div>
-
-    <div id="status-bar"></div>
 
     <div class="workspace">
         <iframe id="main-frame" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
@@ -53,32 +71,46 @@
         <div id="reader-overlay">
             <div class="reader-header">
                 <strong>Reader Mode</strong>
-                <div style="display:flex; gap: 10px;">
-                    <button id="btnPlay" class="btn-green" onclick="startAudio()">🔊 Read Aloud</button>
+                <div style="display:flex; gap: 8px;">
+                    <button id="btnPlay" class="btn-green" onclick="startAudio()">🔊 Play</button>
                     <button id="btnStop" class="btn-red" onclick="stopAudio()" style="display:none;">⏹ Stop</button>
-                    <button onclick="closeReader()" style="background:#666;">Close</button>
+                    <button onclick="document.getElementById('reader-overlay').style.display='none'" class="btn-grey">Close</button>
                 </div>
             </div>
             <div id="reader-content" class="reader-body"></div>
         </div>
 
-        <div id="source-overlay" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.8); z-index:200; align-items:center; justify-content:center;">
-            <div style="background:white; width:90%; height:90%; display:flex; flex-direction:column; border-radius:8px; overflow:hidden;">
+        <div id="source-overlay">
+            <div class="modal-box">
                 <div style="padding:10px; background:#eee; display:flex; justify-content:space-between;">
                     <strong>Source Code</strong>
                     <button onclick="document.getElementById('source-overlay').style.display='none'" class="btn-red">Close</button>
                 </div>
-                <textarea id="source-code" style="flex:1; width:100%; resize:none; padding:10px; font-family:monospace; background:#222; color:#eee; border:none;"></textarea>
+                <textarea id="source-code" style="flex:1; padding:10px; font-family:monospace; background:#222; color:#eee; border:none; resize:none;" spellcheck="false"></textarea>
             </div>
         </div>
     </div>
 
+    <div id="log-panel">
+        <div class="log-entry">System Ready. Waiting for input...</div>
+    </div>
+
     <script>
-        // --- CONFIG ---
-        // The robust proxy list from v5
+        // --- PROXY CONFIGURATION ---
+        // We rotate through these. CodeTabs is often best for redirects.
         const PROXIES = [
-            { name: "AllOrigins", url: t => `https://api.allorigins.win/raw?url=${encodeURIComponent(t)}` },
-            { name: "CORSProxy", url: t => `https://corsproxy.io/?${encodeURIComponent(t)}` }
+            { 
+                name: "CodeTabs (Primary)", 
+                url: t => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(t)}`
+            },
+            { 
+                name: "AllOrigins (Backup 1)", 
+                url: t => `https://api.allorigins.win/raw?url=${encodeURIComponent(t)}`
+            },
+            { 
+                name: "CORSProxy (Backup 2)", 
+                url: t => `https://corsproxy.io/?${encodeURIComponent(t)}`
+            }
         ];
 
         let fetchedHtml = "";
@@ -87,127 +119,155 @@
         let audioQueue = [];
         let currentAudioIndex = 0;
 
-        // --- URL LOGIC (Restored) ---
+        // --- LOGGER ---
+        function log(msg, type="info") {
+            const panel = document.getElementById('log-panel');
+            const time = new Date().toLocaleTimeString();
+            const colorClass = type === 'error' ? 'log-err' : (type === 'success' ? 'log-success' : '');
+            
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.innerHTML = `<span class="log-time">[${time}]</span><span class="${colorClass}">${msg}</span>`;
+            panel.appendChild(div);
+            panel.scrollTop = panel.scrollHeight;
+        }
+
+        function toggleLogs() {
+            const p = document.getElementById('log-panel');
+            p.style.display = p.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // --- URL PARSER ---
         function fixUrl(input) {
             let url = input.trim();
             if (!url) return null;
-            // 1. Auto-add .com if missing tld
+            
+            // 1. TLD Logic: If no dot, assume .com
             if (!url.includes('.') && !url.includes('://') && !url.includes('localhost')) {
+                log(`Input "${url}" has no TLD. Appending .com`, 'warn');
                 url += '.com';
             }
-            // 2. Auto-add https://
+            
+            // 2. Protocol Logic: Default to https
             if (!url.startsWith('http://') && !url.startsWith('https://')) {
                 url = 'https://' + url;
             }
             return url;
         }
 
-        // --- FETCH LOGIC (Restored) ---
+        // --- MAIN FETCH ---
         async function loadUrl() {
             const raw = document.getElementById('urlInput').value;
             const url = fixUrl(raw);
             
-            if(!url) return showStatus("Please enter a URL");
+            if(!url) return alert("Please enter a valid URL");
             
-            // Visual feedback
-            document.getElementById('urlInput').value = url; 
-            showStatus(`Loading ${url}...`);
+            log(`Starting sequence for: ${url}`);
             document.getElementById('btnGo').disabled = true;
-
-            let success = false;
+            document.getElementById('btnGo').textContent = "Loading...";
             
-            // Try proxies sequentially
-            for(let proxy of PROXIES) {
-                if(success) break;
-                try {
-                    const res = await fetch(proxy.url(url));
-                    if(!res.ok) throw new Error("HTTP Error");
-                    let text = await res.text();
-                    
-                    if(text.length < 100) throw new Error("Empty content");
+            let success = false;
+            fetchedHtml = "";
 
-                    // Inject Base Tag (Crucial for images)
-                    const base = `<base href="${url}" target="_blank">`;
-                    fetchedHtml = text.replace('<head>', `<head>${base}`);
+            // Proxy Rotation Loop
+            for (let proxy of PROXIES) {
+                if(success) break;
+                
+                try {
+                    log(`Attempting via ${proxy.name}...`);
+                    const fetchUrl = proxy.url(url);
                     
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+                    
+                    const res = await fetch(fetchUrl, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+
+                    if(!res.ok) throw new Error(`HTTP Status ${res.status}`);
+                    
+                    const text = await res.text();
+                    if(!text || text.length < 500) throw new Error("Content too short/empty");
+
+                    // Success!
+                    log(`${proxy.name} Success! (${text.length} bytes)`, 'success');
+                    
+                    // Inject Base Tag (Critical for Relative Links)
+                    const baseTag = `<base href="${url}" target="_blank">`;
+                    if(text.includes('<head>')) {
+                        fetchedHtml = text.replace('<head>', `<head>${baseTag}`);
+                    } else {
+                        fetchedHtml = baseTag + text;
+                    }
+
                     document.getElementById('main-frame').srcdoc = fetchedHtml;
                     success = true;
-                    showStatus("Loaded successfully via " + proxy.name);
-                } catch(e) {
-                    console.warn(proxy.name + " failed.");
+
+                } catch(err) {
+                    log(`${proxy.name} Failed: ${err.message}`, 'error');
                 }
             }
 
             if(!success) {
-                showStatus("Proxies failed. Trying direct load (may be blocked).");
+                log("ALL PROXIES FAILED. Attempting direct load (Warning: will likely block).", 'error');
+                document.getElementById('main-frame').srcdoc = "";
                 document.getElementById('main-frame').src = url;
             }
+
             document.getElementById('btnGo').disabled = false;
+            document.getElementById('btnGo').textContent = "Go";
         }
 
-        function showStatus(msg) {
-            const el = document.getElementById('status-bar');
-            el.textContent = msg;
-            el.style.display = 'block';
-            setTimeout(() => el.style.display = 'none', 5000);
-        }
-
-        // --- READER LOGIC ---
+        // --- READER MODE ---
         document.getElementById('btnReader').onclick = () => {
-            if(!fetchedHtml) return showStatus("Load a URL first!");
+            if(!fetchedHtml) return alert("Load a URL first");
             
             const parser = new DOMParser();
             const doc = parser.parseFromString(fetchedHtml, 'text/html');
 
-            // 1. Clean Garbage
-            ['script','style','iframe','nav','footer','svg','noscript','button','form','aside'].forEach(tag => {
-                doc.querySelectorAll(tag).forEach(el => el.remove());
+            // Strip junk
+            ['script','style','iframe','nav','footer','header','aside','svg','button','form'].forEach(t => {
+                doc.querySelectorAll(t).forEach(e => e.remove());
             });
 
-            // 2. Extract Meaningful Text
-            // We look for P and H tags that have substantial length
+            // Extract text paragraphs
             let contentHTML = "";
-            const nodes = doc.querySelectorAll('h1, h2, h3, p, article');
-            
-            const badPhrases = ["Getty Images", "Source:", "Copyright", "All rights reserved"];
+            const nodes = doc.querySelectorAll('h1, h2, h3, p, li');
+            const badPhrases = ["Getty Images", "Source:", "Copyright", "All rights reserved", "File Photo"];
 
             nodes.forEach(node => {
-                const text = node.innerText.trim();
-                // Filter logic: Must be > 20 chars, and not contain bad phrases
-                if(text.length > 20 && !badPhrases.some(bad => text.includes(bad))) {
+                let text = node.innerText.trim();
+                // Filter: Must be long enough and not a caption
+                if(text.length > 25 && !badPhrases.some(b => text.includes(b))) {
+                    // Clean newlines
+                    text = text.replace(/\n/g, ' ');
                     contentHTML += `<p>${text}</p>`;
                 }
             });
 
-            if(!contentHTML) contentHTML = "<p>Could not extract text automatically. The site might be purely Javascript.</p>";
-
+            if(!contentHTML) contentHTML = "<p>Could not extract readable text. Site may be dynamic JavaScript.</p>";
+            
             document.getElementById('reader-content').innerHTML = contentHTML;
             document.getElementById('reader-overlay').style.display = 'flex';
         };
 
-        function closeReader() {
-            stopAudio();
-            document.getElementById('reader-overlay').style.display = 'none';
-        }
-
         // --- AUDIO ENGINE (Robust) ---
         function startAudio() {
-            stopAudio();
-            
             const paras = document.querySelectorAll('#reader-content p');
             if(paras.length === 0) return;
-
+            
+            stopAudio();
             audioQueue = Array.from(paras);
             currentAudioIndex = 0;
             isReading = true;
-
+            
             document.getElementById('btnPlay').style.display = 'none';
             document.getElementById('btnStop').style.display = 'inline-block';
-
-            speakNext();
+            
+            log("Audio: Starting playback...");
+            playNextChunk();
         }
 
-        function speakNext() {
+        function playNextChunk() {
             if(!isReading || currentAudioIndex >= audioQueue.length) {
                 stopAudio();
                 return;
@@ -215,25 +275,28 @@
 
             const p = audioQueue[currentAudioIndex];
             
-            // Visual Highlight
-            document.querySelectorAll('.speaking').forEach(el => el.classList.remove('speaking'));
+            // Visuals
+            document.querySelectorAll('.speaking').forEach(e => e.classList.remove('speaking'));
             p.classList.add('speaking');
-            p.scrollIntoView({behavior: "smooth", block: "center"});
+            p.scrollIntoView({ behavior: "smooth", block: "center" });
 
-            // Create Utterance
             const u = new SpeechSynthesisUtterance(p.innerText);
             u.rate = 1.0;
             
-            // "Next" trigger
+            // Force English voice if available (fixes some Android silence issues)
+            const voices = synth.getVoices();
+            const enVoice = voices.find(v => v.lang.startsWith('en'));
+            if(enVoice) u.voice = enVoice;
+
             u.onend = () => {
                 currentAudioIndex++;
-                speakNext();
+                playNextChunk();
             };
             
-            // Error handling (skip bad para)
-            u.onerror = () => {
+            u.onerror = (e) => {
+                log(`Audio Error: ${e.error}`, 'error');
                 currentAudioIndex++;
-                speakNext();
+                playNextChunk();
             };
 
             synth.speak(u);
@@ -242,24 +305,23 @@
         function stopAudio() {
             isReading = false;
             synth.cancel();
-            document.querySelectorAll('.speaking').forEach(el => el.classList.remove('speaking'));
+            document.querySelectorAll('.speaking').forEach(e => e.classList.remove('speaking'));
             document.getElementById('btnPlay').style.display = 'inline-block';
             document.getElementById('btnStop').style.display = 'none';
         }
 
-        // --- SOURCE LOGIC ---
+        // --- SOURCE VIEW ---
         document.getElementById('btnSource').onclick = () => {
-            if(!fetchedHtml) return showStatus("Load a URL first!");
+            if(!fetchedHtml) return alert("Load a URL first");
             document.getElementById('source-code').value = fetchedHtml;
             document.getElementById('source-overlay').style.display = 'flex';
         };
 
         // --- EVENTS ---
         document.getElementById('btnGo').onclick = loadUrl;
-        document.getElementById('urlInput').addEventListener('keypress', (e) => {
+        document.getElementById('urlInput').addEventListener('keypress', e => {
             if(e.key === 'Enter') loadUrl();
         });
-
     </script>
 </body>
 </html>
