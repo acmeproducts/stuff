@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Web Viewer</title>
+    <style>
+        :root {
+            --bg-color: #f4f4f9;
+            --text-color: #333;
+            --accent-color: #007bff;
+            --code-bg: #2d2d2d;
+            --code-text: #f8f8f2;
+            --footer-height: 40px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Header / Controls Area */
+        header {
+            padding: 15px;
+            background: white;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+
+        input[type="url"] {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 5px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button.secondary {
+            background-color: #6c757d;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Main Display Area */
+        main {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Rendered View (Iframe) */
+        #render-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: white;
+            display: none; /* Hidden by default */
+        }
+
+        /* Source Code View */
+        #source-container {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: var(--code-bg);
+            color: var(--code-text);
+            display: none;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+        }
+
+        /* Status & Errors */
+        #status-bar {
+            padding: 10px;
+            text-align: center;
+            font-size: 0.9rem;
+            background: #fff3cd;
+            color: #856404;
+            display: none;
+        }
+
+        /* Master Footer */
+        footer {
+            height: var(--footer-height);
+            background-color: #e9ecef;
+            color: #666;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            border-top: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <input type="url" id="urlInput" placeholder="https://example.com" />
+        <div class="btn-group">
+            <button id="btnRender">View Rendered</button>
+            <button id="btnSource" class="secondary">View Source</button>
+        </div>
+    </header>
+
+    <div id="status-bar"></div>
+
+    <main>
+        <iframe id="render-frame" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
+        
+        <div id="source-container">
+            <pre id="codeOutput"></pre>
+        </div>
+    </main>
+
+    <footer>
+        Universal Viewer v2.0 - 2025-12-08 10:45 AM
+    </footer>
+
+    <script>
+        const urlInput = document.getElementById('urlInput');
+        const btnRender = document.getElementById('btnRender');
+        const btnSource = document.getElementById('btnSource');
+        const renderFrame = document.getElementById('render-frame');
+        const sourceContainer = document.getElementById('source-container');
+        const codeOutput = document.getElementById('codeOutput');
+        const statusBar = document.getElementById('status-bar');
+
+        // Helper: Show status message
+        function showStatus(msg, isError = false) {
+            statusBar.style.display = 'block';
+            statusBar.style.backgroundColor = isError ? '#f8d7da' : '#fff3cd';
+            statusBar.style.color = isError ? '#721c24' : '#856404';
+            statusBar.textContent = msg;
+        }
+
+        function hideStatus() {
+            statusBar.style.display = 'none';
+        }
+
+        // Core Function: Fetch and Display
+        async function loadContent(mode) {
+            let rawUrl = urlInput.value.trim();
+            if (!rawUrl) return showStatus("Please enter a URL.", true);
+
+            if (!rawUrl.startsWith('http')) rawUrl = 'https://' + rawUrl;
+
+            // UI Reset
+            hideStatus();
+            renderFrame.style.display = 'none';
+            sourceContainer.style.display = 'none';
+            
+            // Disable buttons during load
+            btnRender.disabled = true;
+            btnSource.disabled = true;
+            btnRender.textContent = "Loading...";
+
+            try {
+                // 1. Fetch content via AllOrigins Proxy (Bypasses CORS)
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
+                const response = await fetch(proxyUrl);
+                
+                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                
+                const text = await response.text();
+
+                if (mode === 'render') {
+                    // 2. RENDER MODE: Inject <base> tag to fix relative links
+                    // This allows <img src="logo.png"> to resolve to target.com/logo.png
+                    // instead of our github.io/logo.png
+                    
+                    const baseTag = `<base href="${rawUrl}" target="_blank">`;
+                    
+                    // Inject directly after <head> or at the start if no head exists
+                    let htmlContent = text;
+                    if (htmlContent.includes('<head>')) {
+                        htmlContent = htmlContent.replace('<head>', `<head>${baseTag}`);
+                    } else {
+                        htmlContent = `${baseTag}${htmlContent}`;
+                    }
+
+                    // Write to iframe 'srcdoc'. 
+                    // This bypasses X-Frame-Options because the browser treats 'srcdoc' 
+                    // as same-origin (about:srcdoc) effectively.
+                    renderFrame.srcdoc = htmlContent;
+                    renderFrame.style.display = 'block';
+
+                } else {
+                    // 3. SOURCE MODE: Just show text
+                    codeOutput.textContent = text;
+                    sourceContainer.style.display = 'block';
+                }
+
+                // Update URL param for shareability (Deep Linking)
+                const newUrl = new URL(window.location);
+                newUrl.searchParams.set('url', rawUrl);
+                newUrl.searchParams.set('mode', mode);
+                window.history.pushState({}, '', newUrl);
+
+            } catch (err) {
+                console.error(err);
+                showStatus(`Failed to load: ${err.message}. (Target site might block proxies)`, true);
+            } finally {
+                btnRender.disabled = false;
+                btnSource.disabled = false;
+                btnRender.textContent = "View Rendered";
+            }
+        }
+
+        // Event Listeners
+        btnRender.addEventListener('click', () => loadContent('render'));
+        btnSource.addEventListener('click', () => loadContent('source'));
+        urlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') loadContent('render');
+        });
+
+        // Initialize from URL Parameters (The "Call" Feature)
+        // This allows an external iframe to set the URL: 
+        // iframe src="viewer.html?url=google.com&mode=render"
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const initialUrl = params.get('url');
+            const initialMode = params.get('mode') || 'render';
+
+            if (initialUrl) {
+                urlInput.value = initialUrl;
+                loadContent(initialMode);
+            }
+        });
+    </script>
+</body>
+</html>
