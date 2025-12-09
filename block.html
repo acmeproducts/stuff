@@ -3,62 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BlockBuilder SmartSnap</title>
+    <title>BlockBuilder Stable</title>
     <style>
         :root {
-            --bg: #f8fafc;
+            --bg: #f1f5f9;
             --panel: rgba(255, 255, 255, 0.95);
-            --border: #e2e8f0;
+            --border: #cbd5e1;
             --primary: #3b82f6;
             --text: #1e293b;
+            --danger: #ef4444;
         }
-        body { margin: 0; overflow: hidden; background: var(--bg); font-family: sans-serif; touch-action: none; user-select: none; }
+        body { margin: 0; overflow: hidden; background: var(--bg); font-family: -apple-system, BlinkMacSystemFont, sans-serif; touch-action: none; user-select: none; }
         #app { display: flex; flex-direction: column; height: 100vh; }
         
         /* Toolbar */
         header {
-            padding: 10px; background: var(--panel); border-bottom: 1px solid var(--border);
-            display: flex; gap: 10px; overflow-x: auto; align-items: center; height: 60px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); z-index: 10;
+            padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--border);
+            display: flex; gap: 12px; align-items: center; height: 64px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); z-index: 10;
         }
-        .group { display: flex; background: #f1f5f9; padding: 3px; border-radius: 8px; gap: 2px; }
+        
+        /* Icons & Buttons */
+        .group { display: flex; background: #e2e8f0; padding: 4px; border-radius: 10px; gap: 4px; }
         
         button {
-            width: 44px; height: 44px; border: none; background: transparent; border-radius: 6px;
-            cursor: pointer; color: #64748b; flex-shrink: 0; transition: all 0.2s;
-            display: flex; align-items: center; justify-content: center;
+            width: 44px; height: 44px; border: none; background: transparent; border-radius: 8px;
+            cursor: pointer; color: #64748b; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
         }
-        button.active { background: white; color: var(--primary); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        button.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        button:active { transform: scale(0.95); }
         button svg { width: 24px; height: 24px; fill: currentColor; }
 
         .color-pick {
-            width: 44px; height: 44px; border-radius: 8px; overflow: hidden; position: relative;
-            border: 2px solid white; box-shadow: 0 0 0 1px var(--border); flex-shrink: 0;
+            width: 44px; height: 44px; border-radius: 10px; overflow: hidden; position: relative;
+            border: 2px solid white; box-shadow: 0 0 0 1px var(--border);
         }
         
-        /* Canvas */
-        #viewport { flex: 1; position: relative; background: radial-gradient(circle at center, #f1f5f9, #cbd5e1); cursor: crosshair; }
+        /* Viewport */
+        #viewport { flex: 1; position: relative; background: radial-gradient(circle at center, #f8fafc, #cbd5e1); cursor: crosshair; overflow: hidden; }
         canvas { display: block; width: 100%; height: 100%; }
 
-        /* HUD */
-        .hud {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            background: rgba(15, 23, 42, 0.8); color: white; padding: 6px 12px;
-            border-radius: 20px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.2s;
+        /* HUD & Toast */
+        .toast {
+            position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.9); color: white; padding: 8px 16px;
+            border-radius: 20px; font-size: 0.9rem; font-weight: 500;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s;
         }
-        .hud.show { opacity: 1; }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(5px); }
         
-        /* Context Menu */
+        /* Edit Menu */
         #menu {
             position: absolute; bottom: 0; left: 0; width: 100%; background: white;
-            padding: 20px; border-radius: 20px 20px 0 0; transform: translateY(100%);
+            padding: 24px; border-radius: 24px 24px 0 0; transform: translateY(110%);
             transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.1); box-sizing: border-box; display: flex; flex-direction: column; gap: 15px;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.1); box-sizing: border-box;
+            display: flex; flex-direction: column; gap: 16px; z-index: 20;
         }
         #menu.open { transform: translateY(0); }
-        .row { display: flex; gap: 10px; }
+        .row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+        .menu-title { font-weight: 700; font-size: 1.1rem; color: var(--text); }
         .btn-full { flex: 1; padding: 12px; background: #f1f5f9; border: 1px solid var(--border); border-radius: 8px; font-weight: 600; color: var(--text); }
-        .btn-danger { background: #fef2f2; color: #ef4444; border-color: #fecaca; }
+        .btn-danger { background: #fef2f2; color: var(--danger); border-color: #fecaca; }
 
     </style>
 </head>
@@ -71,17 +78,17 @@
         </div>
         
         <div class="group">
-            <button class="active" onclick="app.setShape('cube')" title="Cube (Center)">
-                <svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/></svg>
+            <button class="active shape-btn" onclick="app.setShape('cube')" title="Cube">
+                <svg viewBox="0 0 24 24"><path d="M12 3.5l8 4.5v9L12 21.5l-8-4.5v-9L12 3.5z"/></svg>
             </button>
-            <button onclick="app.setShape('slab')" title="Slab (Center)">
-                <svg viewBox="0 0 24 24"><path d="M12 13l8 3.5v4l-8 3.5-8-3.5v-4L12 13z"/></svg>
+            <button class="shape-btn" onclick="app.setShape('slab')" title="Slab">
+                <svg viewBox="0 0 24 24"><path d="M12 14l8 3.5v3l-8 3.5-8-3.5v-3L12 14z"/></svg>
             </button>
-            <button onclick="app.setShape('pillar')" title="Pillar (4 Corners)">
-                <svg viewBox="0 0 24 24"><rect x="10" y="4" width="4" height="16" rx="1"/></svg>
+            <button class="shape-btn" onclick="app.setShape('pillar')" title="Pillar">
+                <svg viewBox="0 0 24 24"><rect x="10" y="4" width="4" height="16" rx="0.5"/></svg>
             </button>
-            <button onclick="app.setShape('beam')" title="Beam (4 Edges)">
-                <svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="4" rx="1"/></svg>
+            <button class="shape-btn" onclick="app.setShape('beam')" title="Beam">
+                <svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="4" rx="0.5"/></svg>
             </button>
         </div>
 
@@ -100,19 +107,20 @@
 
     <div id="viewport">
         <canvas id="canvas"></canvas>
-        <div id="hud" class="hud">Mode</div>
+        <div id="toast" class="toast">Action</div>
     </div>
 
     <div id="menu">
-        <div class="row" style="justify-content:space-between; font-weight:bold;">
-            <span>Edit Block</span> <span onclick="app.closeMenu()">✕</span>
+        <div class="row">
+            <span class="menu-title">Edit Block</span>
+            <button onclick="app.closeMenu()" style="width:32px; height:32px; background:#f1f5f9;">✕</button>
         </div>
         <div class="row">
             <button class="btn-full" onclick="app.setTexture('none')">Smooth</button>
             <button class="btn-full" onclick="app.setTexture('lines')">Lines</button>
             <button class="btn-full" onclick="app.setTexture('grid')">Grid</button>
         </div>
-        <button class="btn-full btn-danger" onclick="app.deleteBlock()">Delete</button>
+        <button class="btn-full btn-danger" onclick="app.deleteBlock()">Delete Block</button>
     </div>
 </div>
 
@@ -122,21 +130,20 @@ class Engine {
         this.canvas = document.getElementById('canvas');
         this.ctx = this.canvas.getContext('2d');
         
-        // Settings
-        this.tileW = 60;
-        this.tileH = 30; // 2:1 Isometric Ratio
+        this.tileW = 64; 
+        this.tileH = 32;
         this.blockH = 40;
         
-        // State
-        this.blocks = {}; // key: "x,y,z" -> { type, color, sub, texture }
+        this.blocks = {}; // "x,y,z" -> { type, color, sub, texture }
         this.cam = { x: 0, y: 0, zoom: 1 };
         this.tool = { shape: 'cube', color: '#3b82f6' };
         this.selection = null;
+        
+        this.cursor = null; // {x, y, z, sub}
 
         this.resize();
         this.load();
         
-        // Events
         window.addEventListener('resize', () => this.resize());
         this.setupInputs();
         
@@ -146,47 +153,44 @@ class Engine {
     resize() {
         this.canvas.width = this.canvas.parentElement.clientWidth;
         this.canvas.height = this.canvas.parentElement.clientHeight;
-        if(this.cam.x===0) { this.cam.x = this.canvas.width/2; this.cam.y = this.canvas.height/2; }
+        if(this.cam.x === 0) {
+            this.cam.x = this.canvas.width/2; 
+            this.cam.y = this.canvas.height/2;
+        }
         this.draw();
     }
 
     // --- Core Logic ---
 
-    // Snap Logic: Determines Sub-Position (0-3) based on mouse within tile
+    // Calculate Grid & Snap Position
     getSnap(mx, my) {
-        // 1. Get Grid Coordinate
         const Z = this.cam.zoom;
         const adjX = (mx - this.cam.x) / Z;
         const adjY = (my - this.cam.y) / Z;
 
-        // Inverse Iso
         const gy = (adjY / this.tileH - adjX / this.tileW);
         const gx = (adjX / this.tileW + adjY / this.tileH);
         
         const ix = Math.floor(gx);
         const iy = Math.floor(gy);
 
-        // 2. Get Decimal Remainder (0.0 - 0.99)
+        // Sub-grid Logic for snapping
         const dx = gx - ix;
         const dy = gy - iy;
-
-        let sub = 0; // Default center
+        let sub = 0; 
 
         if(this.tool.shape === 'pillar') {
-            // Pillars: 4 Corners
-            // 0:Top(N), 1:Right(E), 2:Bottom(S), 3:Left(W)
-            if(dx < 0.5 && dy < 0.5) sub = 0; // Top Corner
-            else if(dx > 0.5 && dy < 0.5) sub = 1; // Right Corner
-            else if(dx > 0.5 && dy > 0.5) sub = 2; // Bottom Corner
-            else sub = 3; // Left Corner
+            // 4 Corners: 0=Top, 1=Right, 2=Bottom, 3=Left
+            if(dx < 0.5 && dy < 0.5) sub = 0; 
+            else if(dx > 0.5 && dy < 0.5) sub = 1; 
+            else if(dx > 0.5 && dy > 0.5) sub = 2; 
+            else sub = 3; 
         } else if (this.tool.shape === 'beam') {
-            // Beams: 4 Edges
-            // Logic: Find closest edge
-            const dTop = dy; // dist to 0
-            const dRight = 1 - dx; // dist to 1
-            const dBottom = 1 - dy; 
+            // 4 Edges: 0=Top(N), 1=Right(E), 2=Bottom(S), 3=Left(W)
+            const dTop = dy;
+            const dRight = 1 - dx;
+            const dBottom = 1 - dy;
             const dLeft = dx;
-            
             const min = Math.min(dTop, dRight, dBottom, dLeft);
             if(min === dTop) sub = 0;
             else if(min === dRight) sub = 1;
@@ -197,25 +201,38 @@ class Engine {
         return { x: ix, y: iy, sub };
     }
 
+    // --- Rendering ---
+
     draw() {
         const ctx = this.ctx;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
         this.drawGrid();
 
-        // Painter's Algorithm: Sort by depth
+        // 1. Convert Blocks to Render List
         const list = Object.keys(this.blocks).map(k => {
             const [x,y,z] = k.split(',').map(Number);
-            return { x, y, z, ...this.blocks[k], key: k };
+            return { x, y, z, ...this.blocks[k], key: k, ghost: false };
         });
 
-        // Sort: Z level first, then standard iso depth (x+y), then sub-position nuance
+        // 2. Add Ghost Cursor (if hovering and not dragging)
+        if(this.cursor) {
+            list.push({ 
+                x: this.cursor.x, y: this.cursor.y, z: this.cursor.z, 
+                type: this.tool.shape, color: this.tool.color, sub: this.cursor.sub, 
+                ghost: true, key: 'ghost' 
+            });
+        }
+
+        // 3. Sort (Painter's Algorithm)
         list.sort((a,b) => {
+            // Z height first
             if(a.z !== b.z) return a.z - b.z;
+            // Then Depth (x+y)
             const d1 = a.x + a.y;
             const d2 = b.x + b.y;
             if(d1 !== d2) return d1 - d2;
-            // Same tile? Draw based on sub-pos index to avoid flickering overlap
+            // Tie-break: Ghost always on top? Or specific sub-order
             return a.sub - b.sub;
         });
 
@@ -226,202 +243,116 @@ class Engine {
         const ctx = this.ctx;
         const Z = this.cam.zoom;
         
-        // Base screen pos of tile center (ground)
         let pos = this.iso(b.x, b.y, b.z);
         
-        // Geometry defaults (Standard Cube)
         let w = this.tileW * Z;
         let d = this.tileH * Z;
         let h = this.blockH * Z;
-        let ox = 0; // Offset X from center
-        let oy = 0; // Offset Y from center
 
-        // Shape Modifications
+        // Shape Geometry Modifiers
         if(b.type === 'slab') {
-            h *= 0.2;
-            // Slabs sit on bottom
+            h *= 0.2; 
+            // Draws at bottom of cell
         }
         else if(b.type === 'pillar') {
-            // Thin vertical
             w *= 0.25; d *= 0.25; h *= 1.2;
-            // Snap Offsets (Iso math)
-            const shift = (this.tileW * Z) * 0.35; 
-            // 0:Top, 1:Right, 2:Bottom, 3:Left
-            // Top (Corner closest to top of screen) -> Standard Iso Y is Up/Down
-            // Wait, my iso function: x-y.
-            // Grid(0,0) -> Grid(1,0) moves +X (Screen Down-Right)
-            // Grid(0,0) -> Grid(0,1) moves +Y (Screen Down-Left)
-            
-            // Sub 0 (Top/North Corner in Grid): x=0, y=0 corner
-            if(b.sub === 0) { oy -= shift/2; } // Visual adjustment needed for accurate corner?
-            // Let's use Grid Deltas converted to Screen
-            // Center is 0.5, 0.5. 
-            // Corner 0 is 0.1, 0.1
-            // Corner 1 is 0.9, 0.1 etc
-            
-            // Easier: Calculate exact sub-grid coordinate
-            let sx = 0.5, sy = 0.5; // Center defaults
-            if(b.sub === 0) { sx = 0.2; sy = 0.2; }
-            if(b.sub === 1) { sx = 0.8; sy = 0.2; }
-            if(b.sub === 2) { sx = 0.8; sy = 0.8; }
-            if(b.sub === 3) { sx = 0.2; sy = 0.8; }
-            
-            // Recalculate pos based on specific sub-coordinate
+            // Shift position to corners
+            let sx = 0.5, sy = 0.5;
+            if(b.sub === 0) { sx = 0.2; sy = 0.2; } // N
+            if(b.sub === 1) { sx = 0.8; sy = 0.2; } // E
+            if(b.sub === 2) { sx = 0.8; sy = 0.8; } // S
+            if(b.sub === 3) { sx = 0.2; sy = 0.8; } // W
             pos = this.iso(b.x + (sx-0.5), b.y + (sy-0.5), b.z);
         }
         else if(b.type === 'beam') {
-            // Horizontal Wall/Beam
             h *= 0.4;
-            
-            // Orientation
-            // 0 (Top Edge) & 2 (Bottom Edge) -> Runs along X axis? No, top edge is Y=0 line. Runs along X.
-            // 1 (Right Edge) & 3 (Left Edge) -> Runs along Y axis.
-            
+            let long = this.tileW * Z; 
+            let short = this.tileW * Z * 0.2;
             let sx=0.5, sy=0.5;
-            let long = this.tileW * Z; // Full Width
-            let short = this.tileW * Z * 0.2; // Thin Width
-            
-            // Dimensions depend on rotation
-            if(b.sub === 0) { // Top Edge (y=0)
-                sy = 0.1; w = long; d = short; 
-            } else if(b.sub === 2) { // Bottom Edge (y=1)
-                sy = 0.9; w = long; d = short;
-            } else if(b.sub === 1) { // Right Edge (x=1)
-                sx = 0.9; w = short; d = this.tileH * Z; // In iso, depth is visual height of top face
-                // Actually, standard drawing code assumes "w" is X-span, "d" is Y-span visual
-                // My drawPrism uses w for both left/right span.
-                // We need to pass specific dimensions.
-            } else if(b.sub === 3) { // Left Edge (x=0)
-                sx = 0.1; w = short; d = this.tileH * Z;
-            }
-            
+
+            if(b.sub === 0) { sy=0.1; w=long; d=short; } // Top Edge
+            else if(b.sub === 2) { sy=0.9; w=long; d=short; } // Bottom Edge
+            else if(b.sub === 1) { sx=0.9; w=short; d=this.tileH*Z; } // Right Edge
+            else if(b.sub === 3) { sx=0.1; w=short; d=this.tileH*Z; } // Left Edge
+
             pos = this.iso(b.x + (sx-0.5), b.y + (sy-0.5), b.z);
         }
 
         // Colors
-        const isSel = (this.selection === b.key);
-        const top = b.color;
-        const right = this.shade(b.color, -15);
-        const left = this.shade(b.color, -25);
+        let c1 = b.color, c2 = this.shade(b.color, -15), c3 = this.shade(b.color, -25);
+        if(b.ghost) {
+            // Transparency for ghost cursor
+            ctx.globalAlpha = 0.5;
+        }
 
-        // Draw Logic
-        // Adjust center Y to account for height (drawing from bottom up)
+        // Draw Prism
         const cx = pos.x;
         const cy = pos.y - (b.z * this.blockH * Z);
+        const hw = w/2; 
+        const hd = d/2;
 
-        // If Beam and Side Orientation (1 or 3), we need to swap the prism visual logic 
-        // OR just draw a general prism with specific X-width and Y-depth
-        
-        // Simplest Prism Drawer that handles rectangular footprints:
-        // Inputs: CenterX, CenterY, Width(X-axis), Depth(Y-axis), Height
-        this.drawPrism(ctx, cx, cy, w, d, h, top, right, left, b.texture, isSel);
-    }
-
-    drawPrism(ctx, x, y, w, d, h, c1, c2, c3, tex, sel) {
-        // x,y is the Bottom Center of the column
-        // In Iso, Width is X-axis diagonal, Depth is Y-axis diagonal
-        // My previous code used w for both. Let's split.
-        
-        // Top Face Path
-        // Top Center = x, y - h
-        // Right Point = x + w/2, y - h - d/2 ?? 
-        // No, standard ISO: X axis goes Down-Right, Y axis goes Down-Left (or vice versa)
-        
-        // To support non-square prisms (Beams):
-        // Vertices relative to center:
-        // Top: (0, -h)
-        // Top-North: (0, -h - d/2) ? No, ISO projection is specific.
-        // Let's rely on standard w/d ratios. 
-        // If w is small and d is large (Vertical Beam), visual footprint changes.
-        
-        // Correct approach for arbitrary footprint:
-        // Center (x,y)
-        // Vector X (Right-Down): (w/2, w/4)
-        // Vector Y (Left-Down): (-d/2, d/4)
-        // But d/4 depends on tile ratio. Tile is 2:1. So Y step is half X step.
-        
-        // Let's adhere to the visuals:
-        // Top Face
+        // Top Face (Centered at cy - h)
         ctx.beginPath();
-        ctx.moveTo(x, y - h - d); // Top (Back) corner? No.
-        // Let's use simpler relative drawing
-        // Center of top face: x, y-h
-        // R: x + w/2, y - h - (w/4) ... No this is getting complex math wise.
-        
-        // Quick Fix: Reuse standard logic but vary the width/height inputs to fake aspect ratio
-        // If it's a N/S beam, it's wide (w normal) but thin (d small).
-        // If it's E/W beam, it's narrow (w small) but tall visually? No.
-        
-        // Visual Approximation:
-        const hw = w/2; // Half Width
-        const hd = d/2; // Half Depth (Height of top face)
-        
-        // If "Vertical" on screen (side beam), w is small, d is large.
-        
-        // Top Face
-        ctx.beginPath();
-        ctx.moveTo(x, y - h - hd); // Top Back?
-        // Actually:
-        // Top Face Top: x, y - h - hd
-        // Top Face Right: x + hw, y - h
-        // Top Face Bottom: x, y - h + hd 
-        // Top Face Left: x - hw, y - h
-        // But y-h is the "center" of the top face
-        // Let's center it:
-        ctx.moveTo(x, y - h - hd);
-        ctx.lineTo(x + hw, y - h);
-        ctx.lineTo(x, y - h + hd);
-        ctx.lineTo(x - hw, y - h);
+        ctx.moveTo(cx, cy - h - hd);
+        ctx.lineTo(cx + hw, cy - h);
+        ctx.lineTo(cx, cy - h + hd);
+        ctx.lineTo(cx - hw, cy - h);
         ctx.closePath();
-        ctx.fillStyle = c1; ctx.fill();
+        ctx.fillStyle = c1; ctx.fill(); 
         
-        if(tex==='lines') { ctx.fillStyle='rgba(0,0,0,0.1)'; for(let i=1;i<3;i++) ctx.fillRect(x-hw/2, y-h-hd+(i*hd/1.5), hw, 2); }
-        if(tex==='grid') { ctx.fillStyle='rgba(0,0,0,0.1)'; ctx.fillRect(x-2, y-h-hd/2, 4, hd); ctx.fillRect(x-hw/2, y-h, hw, 2); }
+        // Texture
+        if(b.texture === 'lines') {
+            ctx.fillStyle='rgba(0,0,0,0.1)'; 
+            ctx.fillRect(cx-hw/2, cy-h-hd/2, hw, 2); 
+            ctx.fillRect(cx-hw/2, cy-h+hd/4, hw, 2);
+        }
+        if(b.texture === 'grid') {
+            ctx.fillStyle='rgba(0,0,0,0.1)';
+            ctx.fillRect(cx-hw, cy-h, w, 1);
+            ctx.fillRect(cx, cy-h-hd, 1, d);
+        }
 
-        if(sel) { ctx.lineWidth=2; ctx.strokeStyle='white'; ctx.stroke(); }
-        else { ctx.lineWidth=0.5; ctx.strokeStyle='rgba(0,0,0,0.1)'; ctx.stroke(); }
+        // Outline
+        ctx.lineWidth = (b.key === this.selection) ? 2 : 0.5;
+        ctx.strokeStyle = (b.key === this.selection) ? 'white' : 'rgba(0,0,0,0.1)';
+        ctx.stroke();
 
         // Right Face
         ctx.beginPath();
-        ctx.moveTo(x, y - h + hd); // Bottom of top face
-        ctx.lineTo(x + hw, y - h); // Right of top face
-        ctx.lineTo(x + hw, y); // Bottom Right
-        ctx.lineTo(x, y + hd); // Bottom Center
+        ctx.moveTo(cx, cy - h + hd);
+        ctx.lineTo(cx + hw, cy - h);
+        ctx.lineTo(cx + hw, cy);
+        ctx.lineTo(cx, cy + hd);
         ctx.closePath();
         ctx.fillStyle = c2; ctx.fill(); ctx.stroke();
 
         // Left Face
         ctx.beginPath();
-        ctx.moveTo(x, y - h + hd);
-        ctx.lineTo(x - hw, y - h);
-        ctx.lineTo(x - hw, y);
-        ctx.lineTo(x, y + hd);
+        ctx.moveTo(cx, cy - h + hd);
+        ctx.lineTo(cx - hw, cy - h);
+        ctx.lineTo(cx - hw, cy);
+        ctx.lineTo(cx, cy + hd);
         ctx.closePath();
         ctx.fillStyle = c3; ctx.fill(); ctx.stroke();
+
+        ctx.globalAlpha = 1.0;
     }
-    
+
     drawGrid() {
         const ctx = this.ctx;
         ctx.lineWidth = 1; ctx.strokeStyle = '#cbd5e1';
-        const range = 8;
-        // Center point in Grid
-        const cx = Math.floor((this.cam.x/this.cam.zoom)/this.tileW);
-        const cy = Math.floor((this.cam.y/this.cam.zoom)/this.tileH); // Approx
-        
-        // Draw standard grid around 0,0 for context
-        // Or infinite grid logic? Keeping it simple centered grid.
+        const range = 10;
         ctx.beginPath();
         for(let i=-range; i<=range; i++) {
-            const p1 = this.iso(i, -range, 0); const p2 = this.iso(i, range, 0);
+            let p1=this.iso(i,-range,0), p2=this.iso(i,range,0);
             ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
-            const p3 = this.iso(-range, i, 0); const p4 = this.iso(range, i, 0);
+            let p3=this.iso(-range,i,0), p4=this.iso(range,i,0);
             ctx.moveTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y);
         }
         ctx.stroke();
     }
 
-    // Grid (x,y,z) -> Screen (x,y)
-    iso(x, y, z) {
+    iso(x,y,z) {
         return {
             x: (x - y) * this.tileW * 0.5 * this.cam.zoom + this.cam.x,
             y: (x + y) * this.tileH * 0.5 * this.cam.zoom - (z * this.blockH * this.cam.zoom) + this.cam.y
@@ -437,85 +368,133 @@ class Engine {
         return "#" + (0x1000000 + (R<255?R<1?0:R:255)*0x10000 + (G<255?G<1?0:G:255)*0x100 + (B<255?B<1?0:B:255)).toString(16).slice(1);
     }
 
-    // --- Inputs ---
+    // --- Inputs & Event Handling ---
 
     setupInputs() {
         const c = this.canvas;
-        let start = {x:0, y:0}, last = {x:0, y:0}, moved = false, timer = null;
-        
-        const down = (x,y) => {
-            moved = false; start = {x,y}; last = {x,y};
-            timer = setTimeout(() => { if(!moved) this.longPress(x,y); }, 500);
+        let start = {x:0, y:0}, last = {x:0, y:0};
+        let moved = false;
+        let longPressTimer = null;
+        let isTouch = false; // Flag to prevent double firing
+
+        // Handler Wrapper
+        const down = (x, y, type) => {
+            if(type === 'mouse' && isTouch) return; // Ignore mouse if touch is active
+            if(type === 'touch') isTouch = true;
+
+            moved = false;
+            start = {x, y};
+            last = {x, y};
+            
+            // Long Press Detector
+            clearTimeout(longPressTimer);
+            longPressTimer = setTimeout(() => {
+                if(!moved) this.longPress(x, y);
+            }, 600);
         };
-        const move = (x,y) => {
-            if(Math.hypot(x-start.x, y-start.y) > 5) { moved = true; clearTimeout(timer); }
-            if(moved) {
-                this.cam.x += x - last.x; this.cam.y += y - last.y;
-                last = {x,y}; this.draw();
+
+        const move = (x, y, type) => {
+            if(type === 'mouse' && isTouch) return;
+            
+            // Update Cursor Highlight
+            const snap = this.getSnap(x, y);
+            // Calculate z for cursor
+            let z = 0;
+            while(this.blocks[`${snap.x},${snap.y},${z}`]) z++;
+            this.cursor = { x: snap.x, y: snap.y, z: z, sub: snap.sub };
+
+            if(Math.hypot(x-start.x, y-start.y) > 8) {
+                moved = true;
+                clearTimeout(longPressTimer);
+                this.cam.x += x - last.x;
+                this.cam.y += y - last.y;
+                last = {x, y};
+            }
+            this.draw();
+        };
+
+        const up = (x, y, type) => {
+            if(type === 'mouse' && isTouch) {
+                // Reset touch flag after small delay to allow mouse to re-engage later if needed?
+                // Actually, hybrid devices usually fire both sequence rapidly.
+                setTimeout(() => isTouch = false, 500); 
+                return;
+            }
+            clearTimeout(longPressTimer);
+            if(!moved) this.tap(x, y);
+            else {
+                // Just ended a drag, reset cursor if needed
+                // this.cursor = null;
+                // this.draw();
             }
         };
-        const up = (x,y) => { clearTimeout(timer); if(!moved) this.tap(x,y); };
 
-        c.addEventListener('mousedown', e => down(e.clientX, e.clientY));
-        window.addEventListener('mousemove', e => { if(e.buttons) move(e.clientX, e.clientY); });
-        window.addEventListener('mouseup', e => up(e.clientX, e.clientY));
+        // Events
+        c.addEventListener('mousedown', e => down(e.clientX, e.clientY, 'mouse'));
+        window.addEventListener('mousemove', e => { 
+            // Always track cursor for mouse even if buttons not pressed
+            if(!e.buttons) {
+                const snap = this.getSnap(e.clientX, e.clientY);
+                let z = 0;
+                while(this.blocks[`${snap.x},${snap.y},${z}`]) z++;
+                this.cursor = { x: snap.x, y: snap.y, z: z, sub: snap.sub };
+                this.draw();
+            } else {
+                move(e.clientX, e.clientY, 'mouse');
+            }
+        });
+        window.addEventListener('mouseup', e => up(e.clientX, e.clientY, 'mouse'));
         
-        c.addEventListener('touchstart', e => { if(e.touches.length===1) down(e.touches[0].clientX, e.touches[0].clientY); });
-        c.addEventListener('touchmove', e => { if(e.touches.length===1) move(e.touches[0].clientX, e.touches[0].clientY); });
-        c.addEventListener('touchend', e => { if(e.changedTouches.length>0) up(e.changedTouches[0].clientX, e.changedTouches[0].clientY); });
-        c.addEventListener('wheel', e => { this.cam.zoom = Math.max(0.5, Math.min(3, this.cam.zoom - Math.sign(e.deltaY)*0.1)); this.draw(); });
+        c.addEventListener('touchstart', e => { if(e.touches.length===1) down(e.touches[0].clientX, e.touches[0].clientY, 'touch'); }, {passive:false});
+        c.addEventListener('touchmove', e => { 
+            e.preventDefault(); // Stop scroll
+            if(e.touches.length===1) move(e.touches[0].clientX, e.touches[0].clientY, 'touch'); 
+        }, {passive:false});
+        c.addEventListener('touchend', e => { 
+            if(e.changedTouches.length>0) up(e.changedTouches[0].clientX, e.changedTouches[0].clientY, 'touch'); 
+        }, {passive:false});
+        
+        c.addEventListener('wheel', e => { 
+            this.cam.zoom = Math.max(0.5, Math.min(3, this.cam.zoom - Math.sign(e.deltaY)*0.1)); 
+            this.draw(); 
+        });
+        
+        // Mouse leave clears cursor
+        c.addEventListener('mouseleave', () => { this.cursor = null; this.draw(); });
     }
 
     tap(mx, my) {
-        if(document.getElementById('menu').classList.contains('open')) { this.closeMenu(); return; }
-        
-        // 1. Raycast for existing blocks (to select or stack)
-        // Simple hit check on centers
-        let hit = null;
-        let maxZ = -999;
-        
-        Object.keys(this.blocks).forEach(k => {
-            const [x,y,z] = k.split(',').map(Number);
-            const pos = this.iso(x, y, z); // This is tile center logic. 
-            // Better hit test needed for offset shapes, but simple works for now
-            const dx = Math.abs(mx - pos.x);
-            const dy = Math.abs(my - (pos.y - this.blockH*this.cam.zoom));
-            if(dx < 30 && dy < 30) {
-                 if(z > maxZ) { maxZ = z; hit = {x,y,z, ...this.blocks[k]}; }
-            }
-        });
+        if(document.getElementById('menu').classList.contains('open')) { 
+            this.closeMenu(); return; 
+        }
 
-        // Add New Block logic
         const snap = this.getSnap(mx, my);
         
-        // Stacking or Ground?
+        // Find Stack Height
         let z = 0;
-        // Check if occupied at ground
-        // Note: For smart pillars, we allow multiple in one cell? 
-        // Current logic: 1 block per z-index per cell.
-        // If you want 4 pillars in 1 cell, we need key "x,y,z,sub".
-        // Keeping it simple: One block per grid coordinate (x,y,z). 
-        // If there is a block there, we stack on top.
-        
+        // Simple stacking: if ANY block exists at this x,y,z, go up.
+        // We do not currently support multiple sub-blocks in one cell (too complex for data structure)
         while(this.blocks[`${snap.x},${snap.y},${z}`]) z++;
-        
+
         this.blocks[`${snap.x},${snap.y},${z}`] = {
             type: this.tool.shape,
             color: this.tool.color,
-            sub: snap.sub, // The magic snap orientation
+            sub: snap.sub,
             texture: 'none'
         };
+        
         this.saveIO();
         this.draw();
-        this.toast(`Placed ${this.tool.shape}`);
+        
+        // Update cursor z immediately for next click
+        if(this.cursor) this.cursor.z = z + 1;
+        this.showToast(`Placed ${this.tool.shape}`);
     }
 
     longPress(mx, my) {
-        // Find block to edit
-        const snap = this.getSnap(mx, my); // Rough location
-        // Search Z column
+        // Find top-most block at this location
+        const snap = this.getSnap(mx, my);
         let topZ = -1;
-        // Simplified search
         for(let z=0; z<20; z++) {
             if(this.blocks[`${snap.x},${snap.y},${z}`]) topZ = z;
         }
@@ -530,19 +509,34 @@ class Engine {
     // --- UI State ---
     setShape(s) { 
         this.tool.shape = s; 
-        document.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-        // Re-highlight correct button logic omitted for brevity, assumes standard click flow
-        this.toast("Mode: " + s);
+        document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector(`button[onclick="app.setShape('${s}')"]`).classList.add('active');
+        this.showToast(s + " Mode");
     }
-    setColor(c) { this.tool.color = c; document.getElementById('colorPreview').style.background = c; }
-    setTexture(t) { if(this.selection) { this.blocks[this.selection].texture=t; this.saveIO(); this.draw(); } }
-    deleteBlock() { if(this.selection) { delete this.blocks[this.selection]; this.selection=null; this.closeMenu(); this.saveIO(); this.draw(); } }
+    setColor(c) { 
+        this.tool.color = c; 
+        document.getElementById('colorPreview').style.background = c; 
+    }
+    setTexture(t) {
+        if(this.selection && this.blocks[this.selection]) {
+            this.blocks[this.selection].texture = t;
+            this.saveIO(); this.draw();
+        }
+    }
+    deleteBlock() {
+        if(this.selection && this.blocks[this.selection]) {
+            delete this.blocks[this.selection];
+            this.selection = null;
+            this.closeMenu();
+            this.saveIO(); this.draw();
+        }
+    }
     closeMenu() { document.getElementById('menu').classList.remove('open'); this.selection=null; this.draw(); }
-    toast(m) { const h = document.getElementById('hud'); h.innerText=m; h.classList.add('show'); setTimeout(()=>h.classList.remove('show'),1000); }
+    showToast(m) { const t = document.getElementById('toast'); t.innerText=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1000); }
 
     // IO
-    saveIO() { localStorage.setItem('blockSnap', JSON.stringify(this.blocks)); }
-    load() { const d = localStorage.getItem('blockSnap'); if(d) this.blocks = JSON.parse(d); }
+    saveIO() { localStorage.setItem('blockAppV4', JSON.stringify(this.blocks)); }
+    load() { const d = localStorage.getItem('blockAppV4'); if(d) this.blocks = JSON.parse(d); }
     importFile(el) { 
         const f=el.files[0]; if(!f)return; 
         const r=new FileReader(); r.onload=e=>{this.blocks=JSON.parse(e.target.result);this.saveIO();this.draw();}; 
