@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Web Tool v18</title>
+    <title>Universal Web Tool v16</title>
     <style>
         :root {
             --primary: #202124;
@@ -161,7 +161,6 @@
         .log-time { color: #9aa0a6; margin-right: 10px; }
         .log-err { color: #ea4335; }
         .log-nav { color: #fbbc04; }
-        .log-sys { color: #8ab4f8; }
 
         /* Source View */
         textarea.source-viewer {
@@ -172,8 +171,8 @@
 <body>
 
     <div id="loading-overlay">
-        <div style="font-size: 40px;">🔄</div>
-        <div id="loading-text">Fetching...</div>
+        <div style="font-size: 40px;">🔎</div>
+        <div id="loading-text">Searching...</div>
     </div>
 
     <nav class="nav-bar">
@@ -219,7 +218,7 @@
 
         <div id="panel-logs" class="panel">
             <div class="log-container" id="log-output">
-                <div class="log-entry">System Ready. v18 Cookie Cutter.</div>
+                <div class="log-entry">System Ready. v16 Google Search Support.</div>
             </div>
         </div>
 
@@ -243,7 +242,7 @@
         function log(msg, type="info") {
             const container = document.getElementById('log-output');
             const time = new Date().toLocaleTimeString();
-            const color = type === 'error' ? 'log-err' : (type === 'nav' ? 'log-nav' : (type === 'sys' ? 'log-sys' : ''));
+            const color = type === 'error' ? 'log-err' : (type === 'nav' ? 'log-nav' : '');
             container.innerHTML += `<div class="log-entry"><span class="log-time">[${time}]</span><span class="${color}">${msg}</span></div>`;
             container.scrollTop = container.scrollHeight;
         }
@@ -267,8 +266,11 @@
             let url = input.trim();
             if (!url) return null;
             if (!url.includes('.') && !url.includes('://') && !url.includes('localhost')) {
-                // Smart Search
-                return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+                // If it looks like a search query (no dots), search Google
+                if (url.includes(' ')) {
+                    return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+                }
+                url += '.com';
             }
             if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
             return url;
@@ -319,36 +321,26 @@
                                     e.preventDefault();
                                     e.stopPropagation();
                                     e.stopImmediatePropagation();
-                                    
-                                    // Send to parent for unwrapping
+                                    console.log("Interceptor: " + link.href);
                                     window.parent.postMessage({ type: 'internal_nav', url: link.href }, '*');
                                 }
                             }, true);
                         <\/script>
                     `;
 
-                    // --- COOKIE CUTTER CSS FIXES ---
-                    // Explicitly targeting OneTrust and Optanon IDs found in source
-                    const cookieKillerCss = `
+                    // --- GOOGLE CSS FIXES ---
+                    // Hide consent walls and banners that break iframe viewing
+                    const googleCss = `
                         <style>
-                            /* Generic Blocks */
                             div[role="dialog"], div[aria-modal="true"], #lb, .bErdLd { display: none !important; }
-                            
-                            /* NPR / OneTrust Specifics */
-                            #onetrust-consent-sdk { display: none !important; pointer-events: none !important; visibility: hidden !important; }
-                            #onetrust-banner-sdk { display: none !important; }
-                            .onetrust-pc-dark-filter { display: none !important; }
-                            .optanon-alert-box-wrapper { display: none !important; }
-                            
-                            /* Restoring Scroll */
                             html, body { overflow: auto !important; position: static !important; }
                         </style>
                     `;
 
                     if(text.includes('<head>')) {
-                        fetchedHtml = text.replace('<head>', `<head>${baseTag}${navScript}${cookieKillerCss}`);
+                        fetchedHtml = text.replace('<head>', `<head>${baseTag}${navScript}${googleCss}`);
                     } else {
-                        fetchedHtml = baseTag + navScript + cookieKillerCss + text;
+                        fetchedHtml = baseTag + navScript + googleCss + text;
                     }
 
                     document.getElementById('main-frame').srcdoc = fetchedHtml;
@@ -363,9 +355,9 @@
             }
 
             if(!success) {
-                log("Proxies failed. Google likely blocked.", 'error');
+                log("Proxies failed. Google likely blocked. Direct Mode (Reader Disabled).", 'error');
                 document.getElementById('main-frame').src = url;
-                document.getElementById('status-indicator').textContent = "Direct Mode (Broken Features)";
+                document.getElementById('status-indicator').textContent = "Direct Mode (No Reader)";
                 document.getElementById('status-indicator').style.color = "#c0392b";
                 document.getElementById('btnReaderOpen').disabled = true;
             } else {
@@ -379,7 +371,7 @@
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlString, 'text/html');
             
-            // Remove Media & Scripts
+            // Remove Media & Scripts that cause hangs
             ['video', 'audio', 'embed', 'object', 'iframe'].forEach(tag => {
                 doc.querySelectorAll(tag).forEach(el => el.remove());
             });
@@ -390,27 +382,10 @@
             return doc.documentElement.outerHTML;
         }
 
-        // --- LINK UNWRAPPER LOGIC ---
         window.addEventListener('message', (event) => {
             if (event.data && event.data.type === 'internal_nav') {
-                let targetUrl = event.data.url;
-                
-                // UNWRAP GOOGLE LINKS
-                if (targetUrl.includes('google.com/url') || targetUrl.includes('google.co.uk/url')) {
-                    try {
-                        const urlObj = new URL(targetUrl);
-                        const realUrl = urlObj.searchParams.get('q') || urlObj.searchParams.get('url');
-                        if (realUrl) {
-                            log(`Unwrapped Google Link: ${realUrl}`, 'sys');
-                            targetUrl = realUrl;
-                        }
-                    } catch (e) {
-                        log("Failed to unwrap URL", 'error');
-                    }
-                }
-
-                log(`Navigating: ${targetUrl}`, 'nav');
-                loadUrl(targetUrl);
+                log(`Interceptor Caught: ${event.data.url}`, 'nav');
+                loadUrl(event.data.url);
             }
         });
 
@@ -419,7 +394,7 @@
             loadUrl('https://npr.org');
         };
 
-        // --- READER MODE ---
+        // --- SMART READER ---
         document.getElementById('btnReaderOpen').onclick = () => {
             if(!fetchedHtml) return alert("Content unavailable.");
             
@@ -431,15 +406,21 @@
 
             let contentHTML = "";
             let lastText = "";
-            
-            // GOOGLE SEARCH MODE DETECT
+            let isSearch = false;
+
+            // DETECT GOOGLE/SEARCH MODE
+            // Google results typically use h3 for titles and divs for snippets
             if(document.getElementById('urlInput').value.includes('google')) {
-                log("Reader: Search Mode");
-                const items = doc.querySelectorAll('h3, .VwiC3b, .BNeawe'); 
+                isSearch = true;
+                log("Reader: Search Mode Detected");
+                
+                // Grab generic containers often used in search results
+                const items = doc.querySelectorAll('h3, .VwiC3b'); // .VwiC3b is a common Google snippet class
                 items.forEach(node => {
                     let text = node.innerText.trim();
                     if(text.length > 10 && text !== lastText) {
-                        if(node.tagName === 'H3' || node.classList.contains('BNeawe')) {
+                        // Tag headline vs snippet
+                        if(node.tagName === 'H3') {
                             contentHTML += `<h3>${text}</h3>`;
                         } else {
                             contentHTML += `<p>${text}</p><hr>`;
@@ -450,7 +431,8 @@
             } 
             
             if (!contentHTML) {
-                // ARTICLE MODE
+                // FALLBACK: Standard Article Mode
+                isSearch = false;
                 const nodes = doc.querySelectorAll('h1, h2, h3, p, article');
                 const badPhrases = ["Getty Images", "Source:", "Copyright", "All rights reserved", "enlarge image"];
 
@@ -474,8 +456,10 @@
         }
 
         function startAudio() {
+            // Read headers too if in search mode
             const selectors = document.getElementById('urlInput').value.includes('google') ? 'h3, p' : 'p';
             const paras = document.querySelectorAll(`#reader-content ${selectors}`);
+            
             if(paras.length === 0) return;
             stopAudio();
             audioQueue = Array.from(paras);
