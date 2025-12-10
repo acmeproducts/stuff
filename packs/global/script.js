@@ -1,5 +1,5 @@
 /**
- * Garden v7.1 Config Engine
+ * Garden v7.2 Engine (Full Feature)
  * Location: /packs/global/script.js
  */
 
@@ -9,11 +9,7 @@ let currentThemeCode = "DEFAULT";
 let stats = { taps: 0, drags: 0, secrets: 0, mouseDistance: 0 };
 let lastMouse = { x: 0, y: 0 };
 
-const ROUTER_CONFIG = {
-    'DOWN': 'https://httpstat.us/503',
-    'HELP': 'about:blank',
-    'ADMIN': 'about:blank'
-};
+const ROUTER_CONFIG = { 'DOWN': 'about:blank', 'HELP': 'about:blank' };
 
 let config = {
     currentThemeIndex: 0,
@@ -33,24 +29,16 @@ document.addEventListener('mousemove', (e) => {
     lastMouse = { x: e.clientX, y: e.clientY };
 });
 
-// --- 2. CONFIG LOADER (PATH UPDATE: packs/local) ---
+// --- 2. CONFIG LOADER (Fixes for text/image injection) ---
 async function handleRouter(code) {
     if(!code) return;
     code = code.trim().toUpperCase();
-
-    if(ROUTER_CONFIG[code]) {
-        const iframe = document.getElementById('system-frame');
-        iframe.src = ROUTER_CONFIG[code];
-        iframe.style.display = 'block';
-        logSession('system_route');
-        return;
-    }
+    if(ROUTER_CONFIG[code]) { document.getElementById('system-frame').src = ROUTER_CONFIG[code]; document.getElementById('system-frame').style.display = 'block'; logSession('system_route'); return; }
     loadTheme(code);
 }
 
 async function loadTheme(code) {
     const cleanCode = code.toLowerCase();
-    // CORRECTED PATH: Now looks inside /packs/local/
     const basePath = `packs/local/${cleanCode}`;
     const configPath = `${basePath}/config.json`;
 
@@ -62,12 +50,14 @@ async function loadTheme(code) {
         const version = themeConfig.version || "1.0";
         const cacheBuster = `?v=${version}`;
 
+        // UI Injection (Targeting v7.2 IDs)
         if(themeConfig.title) document.title = themeConfig.title;
         if(themeConfig.splashTitle) document.getElementById('splash-title').innerText = themeConfig.splashTitle;
         if(themeConfig.splashText) document.getElementById('splash-text').innerHTML = themeConfig.splashText;
-        if(themeConfig.footerText) document.getElementById('footer-text').innerText = themeConfig.footerText;
+        if(themeConfig.footerText) document.getElementById('footer-label').innerText = themeConfig.footerText;
         if(themeConfig.customWords) config.customWords = themeConfig.customWords;
 
+        // Image Loading (Extension Agnostic)
         if(themeConfig.image) {
             const imgPath = `${basePath}/${themeConfig.image}${cacheBuster}`;
             const img = new Image();
@@ -76,10 +66,11 @@ async function loadTheme(code) {
                 config.useGradient = false; 
                 localStorage.setItem('garden_active_theme', cleanCode);
             };
-            img.onerror = () => console.warn("Image failed to load");
+            img.onerror = () => console.warn(`Image failed: ${imgPath}`);
             img.src = imgPath;
         }
 
+        // Audio Loading
         if(themeConfig.audio) {
             const audioPath = `${basePath}/${themeConfig.audio}${cacheBuster}`;
             setAudio(audioPath);
@@ -90,7 +81,7 @@ async function loadTheme(code) {
         document.getElementById('settings-panel').classList.add('translate-x-full');
 
     } catch (err) {
-        alert(`Theme '${code}' not found.\nExpected: ${configPath}`);
+        alert(`Theme '${code}' not found.\nEnsure ${configPath} exists.`);
     }
 }
 
@@ -99,78 +90,27 @@ function setAudio(src) {
     if(!src) { if(audio) { audio.pause(); audio.src = ""; } return; }
     if(!audio) { audio = document.createElement('audio'); audio.id = 'bg-audio-track'; audio.loop = true; document.body.appendChild(audio); }
     audio.src = src; audio.volume = 0.3;
-    audio.play().catch(e => console.log("Audio waiting for interaction"));
+    audio.play().catch(e => console.log("Audio waiting"));
 }
 
-// --- 3. TELEMETRY ---
-async function getPublicIP() {
-    try { const r = await fetch('https://api.ipify.org?format=json'); const d = await r.json(); return d.ip; } catch (e) { return "offline"; }
-}
-
+// --- 3. TELEMETRY (Standard) ---
+async function getPublicIP() { try { const r = await fetch('https://api.ipify.org?format=json'); const d = await r.json(); return d.ip; } catch (e) { return "offline"; } }
 async function generateDataLayer() {
-    const now = Date.now();
-    const durationSec = (now - SESSION_START) / 1000;
-    const ip = await getPublicIP();
-
-    const getCanvasFP = () => {
-        try {
-            const c = document.createElement('canvas'); const cx = c.getContext('2d');
-            cx.textBaseline = "top"; cx.font = "14px 'Arial'"; cx.fillStyle = "#f60";
-            cx.fillRect(125,1,62,20); cx.fillStyle = "#069"; cx.fillText("Garden_v7", 2, 15);
-            let b64 = c.toDataURL();
-            let hash = 0; for(let i=0; i<b64.length; i++) hash = Math.imul(31, hash) + b64.charCodeAt(i) | 0;
-            return Math.abs(hash).toString(16);
-        } catch(e) { return "err"; }
-    };
-
+    const now = Date.now(); const durationSec = (now - SESSION_START) / 1000; const ip = await getPublicIP();
     return {
-        "@session_start_iso": new Date(SESSION_START).toISOString(),
-        "@session_end_iso": new Date(now).toISOString(),
-        "@duration_formatted": `${Math.floor(durationSec/60)}m ${Math.floor(durationSec%60)}s`,
-        "@ip_address": ip,
-        "@session_id": SESSION_START.toString(36),
-        "@theme_code": currentThemeCode,
-        "@user_agent": navigator.userAgent,
-        "@screen_resolution": `${window.screen.width}x${window.screen.height}`,
-        "@window_size": `${window.innerWidth}x${window.innerHeight}`,
-        "@pixel_ratio": window.devicePixelRatio || 1,
-        "@platform": navigator.platform,
-        "@language": navigator.language,
-        "@timezone": Intl.DateTimeFormat().resolvedOptions().timeZone,
-        "@cores": navigator.hardwareConcurrency || "ukn",
-        "@memory": navigator.deviceMemory || "ukn",
-        "@cookies_enabled": navigator.cookieEnabled,
-        "@local_storage": (typeof localStorage !== 'undefined') ? 'available' : 'blocked',
-        "@canvas_fingerprint": getCanvasFP(),
-        "@input_taps": stats.taps,
-        "@input_drags": stats.drags,
-        "@mouse_pixels_moved": Math.round(stats.mouseDistance),
-        "@referrer": document.referrer || "direct"
+        "@session_start_iso": new Date(SESSION_START).toISOString(), "@session_end_iso": new Date(now).toISOString(), "@duration_formatted": `${Math.floor(durationSec/60)}m ${Math.floor(durationSec%60)}s`, "@ip_address": ip, "@session_id": SESSION_START.toString(36), "@theme_code": currentThemeCode, "@user_agent": navigator.userAgent, "@screen_resolution": `${window.screen.width}x${window.screen.height}`, "@window_size": `${window.innerWidth}x${window.innerHeight}`, "@platform": navigator.platform, "@language": navigator.language, "@timezone": Intl.DateTimeFormat().resolvedOptions().timeZone, "@cookies_enabled": navigator.cookieEnabled, "@input_taps": stats.taps, "@input_drags": stats.drags, "@mouse_pixels_moved": Math.round(stats.mouseDistance)
     };
 }
-
 async function logSession() {
-    let cartridge = null;
-    try {
-        cartridge = await fetch('packs/global/logging.json').then(r => r.json());
-    } catch(e) { return; } 
-
+    let cartridge = null; try { cartridge = await fetch('packs/global/logging.json').then(r => r.json()); } catch(e) { return; } 
     if (!cartridge || !cartridge.formId) return;
-
-    const dataLayer = await generateDataLayer();
-    const formData = new FormData();
-    const map = cartridge.mapping;
-    const defs = cartridge.definitions;
-
-    for (const [colKey, token] of Object.entries(map)) {
-        const entryId = defs[colKey];
-        if (!entryId || token === "Reserved") continue;
+    const dataLayer = await generateDataLayer(); const formData = new FormData();
+    for (const [colKey, token] of Object.entries(cartridge.mapping)) {
+        const entryId = cartridge.definitions[colKey]; if (!entryId || token === "Reserved") continue;
         let val = token.replace(/@\w+/g, (match) => dataLayer[match] !== undefined ? dataLayer[match] : match);
         formData.append(entryId, val);
     }
-
-    const url = `https://docs.google.com/forms/d/e/${cartridge.formId}/formResponse`;
-    fetch(url, { method: 'POST', mode: 'no-cors', body: formData }).catch(e=>{});
+    fetch(`https://docs.google.com/forms/d/e/${cartridge.formId}/formResponse`, { method: 'POST', mode: 'no-cors', body: formData }).catch(e=>{});
 }
 
 // --- 4. AUDIO ENGINE (HIGH) ---
@@ -178,64 +118,29 @@ const ZenAudio = {
     ctx: null, enabled: true, masterGain: null, dest: null,
     scale: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51],
     init: function() {
-        if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
-            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-            this.masterGain = this.ctx.createGain(); this.masterGain.gain.value = 0.3;
-            this.dest = this.ctx.createMediaStreamDestination();
-            this.masterGain.connect(this.ctx.destination); this.masterGain.connect(this.dest);
-        }
+        if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.masterGain = this.ctx.createGain(); this.masterGain.gain.value = 0.3; this.dest = this.ctx.createMediaStreamDestination(); this.masterGain.connect(this.ctx.destination); this.masterGain.connect(this.dest); }
         if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     },
     warmUp: function() { if (!this.ctx) this.init(); if (this.ctx && this.enabled) { const o = this.ctx.createOscillator(); const g = this.ctx.createGain(); g.gain.value = 0.001; o.connect(g); g.connect(this.masterGain); o.start(); o.stop(this.ctx.currentTime + 0.01); } },
     getFreq: function(y, height) { const norm = 1 - Math.max(0, Math.min(1, y / height)); const index = Math.floor(norm * this.scale.length); return this.scale[Math.min(index, this.scale.length - 1)]; },
     playPluck: function(freq, volume = 0.3) {
-        if (!this.ctx || !this.enabled) return;
-        const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 2.0, this.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        const delayLength = Math.floor(this.ctx.sampleRate / freq);
-        let idx = 0, last = 0;
-        const noise = new Float32Array(delayLength).map(() => Math.random()*2-1);
-        for (let i = 0; i < buffer.length; i++) {
-            const sample = (noise[idx] + last) * 0.5 * 0.992; 
-            last = noise[idx]; noise[idx] = sample;
-            data[i] = sample * volume; idx = (idx + 1) % delayLength;
-        }
+        if (!this.ctx || !this.enabled) return; const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 2.0, this.ctx.sampleRate); const data = buffer.getChannelData(0); const delayLength = Math.floor(this.ctx.sampleRate / freq); let idx = 0, last = 0; const noise = new Float32Array(delayLength).map(() => Math.random()*2-1);
+        for (let i = 0; i < buffer.length; i++) { const sample = (noise[idx] + last) * 0.5 * 0.992; last = noise[idx]; noise[idx] = sample; data[i] = sample * volume; idx = (idx + 1) % delayLength; }
         const src = this.ctx.createBufferSource(); src.buffer = buffer; src.connect(this.masterGain); src.start();
     },
-    playStrum: function(count, baseFreq) {
-        if (!this.ctx || !this.enabled) return;
-        let baseIndex = 0; let closest = 10000;
-        this.scale.forEach((f, i) => { if(Math.abs(f-baseFreq)<closest) { closest=Math.abs(f-baseFreq); baseIndex=i; }});
-        for(let i=0; i<count; i++) { let noteIndex = Math.min(this.scale.length-1, baseIndex + i * 2); setTimeout(() => { this.playPluck(this.scale[noteIndex], 0.15); }, i * 60); }
-    },
-    playChime: function(freq, volume = 0.1) {
-        if (!this.ctx || !this.enabled) return;
-        const osc = this.ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = freq * 2;
-        const g = this.ctx.createGain(); g.connect(this.masterGain); const now = this.ctx.currentTime;
-        g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(volume, now+0.05); g.gain.exponentialRampToValueAtTime(0.001, now+1.5);
-        osc.start(now); osc.stop(now+1.5);
-    },
-    playDiscovery: function() {
-        if (!this.ctx || !this.enabled) return;
-        [0,2,4,6].forEach((offset, i) => { setTimeout(() => this.playChime(this.scale[offset], 0.2), i * 150); });
-    }
+    playStrum: function(count, baseFreq) { if (!this.ctx || !this.enabled) return; let baseIndex = 0; let closest = 10000; this.scale.forEach((f, i) => { if(Math.abs(f-baseFreq)<closest) { closest=Math.abs(f-baseFreq); baseIndex=i; }}); for(let i=0; i<count; i++) { let noteIndex = Math.min(this.scale.length-1, baseIndex + i * 2); setTimeout(() => { this.playPluck(this.scale[noteIndex], 0.15); }, i * 60); } },
+    playChime: function(freq, volume = 0.1) { if (!this.ctx || !this.enabled) return; const osc = this.ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = freq * 2; const g = this.ctx.createGain(); g.connect(this.masterGain); const now = this.ctx.currentTime; g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(volume, now+0.05); g.gain.exponentialRampToValueAtTime(0.001, now+1.5); osc.start(now); osc.stop(now+1.5); },
+    playDiscovery: function() { if (!this.ctx || !this.enabled) return; [0,2,4,6].forEach((offset, i) => { setTimeout(() => this.playChime(this.scale[offset], 0.2), i * 150); }); }
 };
 
 // --- 5. VISUALS ---
 const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
-let width, height;
-function resize() { width = window.innerWidth; height = window.innerHeight; canvas.width = width; canvas.height = height; }
-window.addEventListener('resize', resize); resize();
+let width, height; function resize() { width = window.innerWidth; height = window.innerHeight; canvas.width = width; canvas.height = height; } window.addEventListener('resize', resize); resize();
 const random = (min, max) => Math.random() * (max - min) + min;
 function getPastelColor() { const hue = random(0, 360); return { hue: hue, str: `hsla(${hue}, 70%, 80%,` }; }
 function getRandomWord() { if (config.customWords.length > 0) return config.customWords[Math.floor(Math.random() * config.customWords.length)]; return config.defaultWords[Math.floor(Math.random() * config.defaultWords.length)]; }
 
-class Bloom {
-    constructor(x, y, size=null) { this.x = x; this.y = y; this.size = 0; this.maxSize = size || random(30, 80); this.colorObj = getPastelColor(); this.colorBase = this.colorObj.str; this.petals = Math.floor(random(5, 9)); this.alpha = 1; this.compColor = `hsla(${(this.colorObj.hue + 180)%360}, 60%, 70%,`; this.rotation = random(0, Math.PI*2); const shapeRnd = Math.random(); if(shapeRnd > 0.6) this.shape = 'pointed'; else if (shapeRnd > 0.3) this.shape = 'round'; else this.shape = 'hybrid'; }
-    update() { this.rotation += 0.002; if (this.size < this.maxSize) this.size += 0.5 * config.speedMultiplier; else if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier; }
-    draw(ctx) { ctx.save(); if(foundEggs.includes(2)) { ctx.strokeStyle = `rgba(218, 165, 32, ${this.alpha * 0.6})`; ctx.lineWidth = 0.5; for(let i=0; i<5; i++) { const angle = (i/5) * Math.PI*2 + this.rotation; const len = this.size * 1.5; ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.bezierCurveTo(this.x + Math.cos(angle - 0.4) * len * 0.5, this.y + Math.sin(angle - 0.4) * len * 0.5, this.x + Math.cos(angle + 0.4) * len * 0.8, this.y + Math.sin(angle + 0.4) * len * 0.8, this.x + Math.cos(angle) * len, this.y + Math.sin(angle) * len); ctx.stroke(); } } for(let i=0; i<3; i++) { ctx.fillStyle = this.colorBase + (this.alpha * 0.7 * (1 - i*0.2)) + ')'; ctx.beginPath(); for (let j = 0; j < this.petals; j++) { const angle = (j / this.petals) * Math.PI * 2 + (i * 0.1) + this.rotation; const petalSize = (this.size - (i*5)); if (petalSize <= 0) continue; ctx.moveTo(this.x, this.y); if(this.shape === 'pointed') { ctx.quadraticCurveTo(this.x + Math.cos(angle - 0.3) * petalSize, this.y + Math.sin(angle - 0.3) * petalSize, this.x + Math.cos(angle) * petalSize * 1.2, this.y + Math.sin(angle) * petalSize * 1.2); ctx.quadraticCurveTo(this.x + Math.cos(angle + 0.3) * petalSize, this.y + Math.sin(angle + 0.3) * petalSize, this.x, this.y); } else { ctx.ellipse(this.x + Math.cos(angle)*(petalSize*0.5), this.y + Math.sin(angle)*(petalSize*0.5), petalSize*0.4, petalSize*0.2, angle, 0, Math.PI*2); } } ctx.fill(); } const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 0.25); const centerAlpha = foundEggs.includes(1) ? 0.9 : 0.7; grad.addColorStop(0, `rgba(255, 255, 255, ${centerAlpha})`); grad.addColorStop(1, this.compColor + "0)"); ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 0.25, 0, Math.PI*2); ctx.fill(); ctx.restore(); }
-    isDead() { if (this.alpha <= 0 && foundEggs.includes(5)) { for(let k=0; k<10; k++) particles.push(new Particle(this.x, this.y, this.colorBase + '1)')); } return this.alpha <= 0; }
-}
+class Bloom { constructor(x, y, size=null) { this.x = x; this.y = y; this.size = 0; this.maxSize = size || random(30, 80); this.colorObj = getPastelColor(); this.colorBase = this.colorObj.str; this.petals = Math.floor(random(5, 9)); this.alpha = 1; this.compColor = `hsla(${(this.colorObj.hue + 180)%360}, 60%, 70%,`; this.rotation = random(0, Math.PI*2); const shapeRnd = Math.random(); if(shapeRnd > 0.6) this.shape = 'pointed'; else if (shapeRnd > 0.3) this.shape = 'round'; else this.shape = 'hybrid'; } update() { this.rotation += 0.002; if (this.size < this.maxSize) this.size += 0.5 * config.speedMultiplier; else if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier; } draw(ctx) { ctx.save(); if(foundEggs.includes(2)) { ctx.strokeStyle = `rgba(218, 165, 32, ${this.alpha * 0.6})`; ctx.lineWidth = 0.5; for(let i=0; i<5; i++) { const angle = (i/5) * Math.PI*2 + this.rotation; const len = this.size * 1.5; ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.bezierCurveTo(this.x + Math.cos(angle - 0.4) * len * 0.5, this.y + Math.sin(angle - 0.4) * len * 0.5, this.x + Math.cos(angle + 0.4) * len * 0.8, this.y + Math.sin(angle + 0.4) * len * 0.8, this.x + Math.cos(angle) * len, this.y + Math.sin(angle) * len); ctx.stroke(); } } for(let i=0; i<3; i++) { ctx.fillStyle = this.colorBase + (this.alpha * 0.7 * (1 - i*0.2)) + ')'; ctx.beginPath(); for (let j = 0; j < this.petals; j++) { const angle = (j / this.petals) * Math.PI * 2 + (i * 0.1) + this.rotation; const petalSize = (this.size - (i*5)); if (petalSize <= 0) continue; ctx.moveTo(this.x, this.y); if(this.shape === 'pointed') { ctx.quadraticCurveTo(this.x + Math.cos(angle - 0.3) * petalSize, this.y + Math.sin(angle - 0.3) * petalSize, this.x + Math.cos(angle) * petalSize * 1.2, this.y + Math.sin(angle) * petalSize * 1.2); ctx.quadraticCurveTo(this.x + Math.cos(angle + 0.3) * petalSize, this.y + Math.sin(angle + 0.3) * petalSize, this.x, this.y); } else { ctx.ellipse(this.x + Math.cos(angle)*(petalSize*0.5), this.y + Math.sin(angle)*(petalSize*0.5), petalSize*0.4, petalSize*0.2, angle, 0, Math.PI*2); } } ctx.fill(); } const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 0.25); const centerAlpha = foundEggs.includes(1) ? 0.9 : 0.7; grad.addColorStop(0, `rgba(255, 255, 255, ${centerAlpha})`); grad.addColorStop(1, this.compColor + "0)"); ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 0.25, 0, Math.PI*2); ctx.fill(); ctx.restore(); } isDead() { if (this.alpha <= 0 && foundEggs.includes(5)) { for(let k=0; k<10; k++) particles.push(new Particle(this.x, this.y, this.colorBase + '1)')); } return this.alpha <= 0; } }
 class GrowingHeart { constructor(x, y) { this.x = x; this.y = y; this.size = 0; this.maxSize = random(40, 90); this.hue = random(0, 360); this.alpha = 1; } update() { if (this.size < this.maxSize) this.size += 0.5 * config.speedMultiplier; else if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier; } draw(ctx) { ctx.save(); ctx.translate(this.x, this.y); const scale = this.size / 30; ctx.scale(scale, scale); ctx.globalAlpha = Math.max(0, this.alpha); let grad = ctx.createRadialGradient(-5, -5, 2, 0, 0, 25); grad.addColorStop(0, "white"); grad.addColorStop(0.3, `hsl(${this.hue}, 100%, 70%)`); grad.addColorStop(1, `hsl(${this.hue}, 100%, 30%)`); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(-10, -10, -20, 0, 0, 20); ctx.bezierCurveTo(20, 0, 10, -10, 0, 0); ctx.fill(); ctx.restore(); } isDead() { return this.alpha <= 0; } }
 class HeartBloom extends Bloom { draw(ctx) { ctx.save(); const layerCount = foundEggs.includes(3) ? 5 : 3; for(let i=0; i<layerCount; i++) { const scale = (this.size - (i*4)) / 20; if (scale <= 0) continue; const pCount = this.petals + (i%2); for (let j = 0; j < pCount; j++) { ctx.save(); const angle = (j / pCount) * Math.PI * 2 + this.rotation + (i*0.2); ctx.translate(this.x, this.y); ctx.rotate(angle + Math.PI/2); ctx.translate(0, -scale * 15); ctx.scale(scale, scale); let grad = ctx.createRadialGradient(-3, -3, 1, 0, 0, 15); grad.addColorStop(0, "rgba(255,255,255,0.4)"); grad.addColorStop(1, this.colorBase + (this.alpha * 0.8) + ')'); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(-5, -5, -10, 0, 0, 10); ctx.bezierCurveTo(10, 0, 5, -5, 0, 0); ctx.fill(); ctx.restore(); } } ctx.fillStyle = this.compColor + this.alpha + ')'; ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 0.1, 0, Math.PI*2); ctx.fill(); ctx.restore(); } }
 class HeartCloud { constructor(x, y) { this.x = x; this.y = y; this.alpha = 1; this.hearts = []; const count = Math.floor(random(4, 12)); const colors = ["#ff0000", "#ff7f00", "#ffff00", "#00ff00", "#0000ff", "#4b0082", "#9400d3", "#ff1493"]; for(let i=0; i<count; i++) { this.hearts.push({ ox: random(-40, 40), oy: random(-40, 40), size: random(10, 25), color: colors[Math.floor(Math.random()*colors.length)], rot: random(-0.2, 0.2) }); } const freq = ZenAudio.getFreq(y, height); ZenAudio.playStrum(count, freq); } update() { this.y -= 0.5 * config.speedMultiplier; if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier; } draw(ctx) { ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha); this.hearts.forEach(h => { ctx.save(); ctx.translate(this.x + h.ox, this.y + h.oy); ctx.rotate(h.rot); const scale = h.size / 20; ctx.scale(scale, scale); let grad = ctx.createRadialGradient(-5, -5, 2, 0, 0, 20); grad.addColorStop(0, "white"); grad.addColorStop(0.3, h.color); grad.addColorStop(1, "#330000"); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(-10, -10, -20, 0, 0, 20); ctx.bezierCurveTo(20, 0, 10, -10, 0, 0); ctx.fill(); ctx.restore(); }); ctx.restore(); } isDead() { return this.alpha <= 0; } }
@@ -243,12 +148,12 @@ class TrailBase { constructor(x, y, type) { this.x = x; this.y = y; this.alpha =
 class Particle { constructor(x, y, color) { this.x = x; this.y = y; this.vx = random(-3, 3); this.vy = random(-5, 1); this.life = 1.0; this.decay = random(0.005, 0.02); this.color = color; this.gravity = 0.1; this.sparkleColor = `hsl(${random(0,360)}, 80%, 70%)`; } update() { this.x += this.vx; this.y += this.vy; this.vy += this.gravity; this.life -= this.decay; } draw(ctx) { ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.sparkleColor; ctx.fillRect(this.x, this.y, 2, 2); } isDead() { return this.life <= 0; } }
 class Word { constructor(x, y, text) { this.x = x; this.y = y; this.text = text || getRandomWord(); this.velocity = -0.5; this.alpha = 0; this.fadeIn = true; this.color = "#4a148c"; } update() { this.y += this.velocity * config.speedMultiplier; if (this.fadeIn) { this.alpha += 0.02 * config.speedMultiplier; if (this.alpha>=1) this.fadeIn=false; } else if (config.decayValue > 0) { this.alpha -= config.decayValue * config.speedMultiplier; } } draw(ctx) { ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha); ctx.font = "20px 'Segoe UI', sans-serif"; ctx.fillStyle = this.color; ctx.textAlign = "center"; ctx.shadowBlur = 4; ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.fillText(this.text, this.x, this.y); ctx.restore(); } isDead() { return this.alpha <= 0 && !this.fadeIn; } }
 
-// --- 6. UI & PERSISTENCE ---
+// --- 6. UI & BINDINGS ---
 let visualEntities = []; let wordEntities = []; let particles = [];
 let foundEggs = JSON.parse(localStorage.getItem('garden_egg_ids') || "[]"); let inputBuffer = "";
 let lastTap=0, isDragging=false, dragStart=0, startX, startY, lastDragSound=0;
 
-// UI Handlers
+// UI Event Listeners
 document.getElementById('load-code-btn').onclick = () => handleRouter(document.getElementById('theme-code-input').value);
 document.getElementById('purge-btn').onclick = () => { if(confirm("Reset everything?")) { localStorage.clear(); location.reload(); } };
 document.getElementById('settings-trigger').onclick = ()=>document.getElementById('settings-panel').classList.remove('translate-x-full');
@@ -259,28 +164,19 @@ document.getElementById('speed-slider').oninput=e=>config.speedMultiplier=0.2+(e
 document.getElementById('theme-btn').onclick=()=>config.currentThemeIndex=(config.currentThemeIndex+1)%5;
 document.getElementById('clear-btn').onclick=()=>{visualEntities=[];wordEntities=[];particles=[];};
 document.getElementById('save-btn').onclick=()=>{const a=document.createElement('a');a.download='garden.png';a.href=canvas.toDataURL();a.click();};
-document.getElementById('secrets-btn').onclick=()=>{ updateSecretsUI(); document.getElementById('secrets-modal').classList.remove('invisible'); document.getElementById('secrets-modal').classList.add('visible'); document.getElementById('secrets-modal').querySelector('.modal-content').classList.add('scale-in'); };
-document.getElementById('close-secrets').onclick=()=>{ document.getElementById('secrets-modal').classList.remove('visible'); document.getElementById('secrets-modal').classList.add('invisible'); };
-window.addEventListener('beforeunload', () => logSession('unload'));
+window.addEventListener('beforeunload', () => logSession());
 
-// Manual Upload
-document.getElementById('bg-upload').addEventListener('change', (e) => {
-    const file = e.target.files[0]; if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-        try { localStorage.setItem('garden_manual_bg', evt.target.result); } catch(e){}
-        const img = new Image(); img.onload = ()=>{config.backgroundImage=img; config.useGradient=false;}; img.src=evt.target.result;
-    };
-    reader.readAsDataURL(file);
-});
+// Modals
+function toggleModal(id, show) { const el = document.getElementById(id); if(show) { el.classList.remove('invisible'); el.classList.add('visible'); el.querySelector('.modal-content').classList.add('scale-in'); } else { el.classList.remove('visible'); el.classList.add('invisible'); } }
+document.getElementById('secrets-btn').onclick=()=>{ updateSecretsUI(); toggleModal('secrets-modal', true); };
+document.getElementById('close-secrets').onclick=()=>toggleModal('secrets-modal', false);
+document.getElementById('info-btn').onclick=()=>{ document.getElementById('source-code-display').textContent = document.documentElement.outerHTML; toggleModal('code-modal', true); };
+document.getElementById('close-code').onclick=()=>toggleModal('code-modal', false);
+document.getElementById('req-btn').onclick=()=>toggleModal('req-modal', true);
+document.getElementById('close-req').onclick=()=>toggleModal('req-modal', false);
+document.getElementById('copy-code-btn').onclick=()=>{ navigator.clipboard.writeText(document.documentElement.outerHTML); alert("Copied!"); };
 
-// Startup Persistence
-const savedTheme = localStorage.getItem('garden_active_theme');
-const manualBg = localStorage.getItem('garden_manual_bg');
-if(manualBg) { const img = new Image(); img.onload=()=>{config.backgroundImage=img; config.useGradient=false;}; img.src=manualBg; } 
-else if(savedTheme) { loadTheme(savedTheme); }
-
-// Logic
+// Secrets & Input Logic
 function updateSecretsUI() { const list=document.getElementById('secrets-list'); list.innerHTML=''; for(let i=1; i<=20; i++) { const u = foundEggs.includes(i); const b = document.createElement('div'); b.className = `aspect-square rounded flex items-center justify-center text-xs font-bold border ${u?'bg-amber-200 border-amber-400 text-amber-900':'bg-gray-100 text-gray-300'}`; b.innerText=i; list.appendChild(b); } document.getElementById('secrets-count').innerText=foundEggs.length; }
 const rhythmSequences = [{ code: "TTT", id: 1 }, { code: "TTS", id: 2 }, { code: "TST", id: 3 }, { code: "SST", id: 4 }, { code: "TTTT", id: 5 }];
 function registerInput(char) { inputBuffer += char; if(inputBuffer.length>5) inputBuffer=inputBuffer.slice(-5); rhythmSequences.forEach(seq => { if(inputBuffer.endsWith(seq.code)) triggerUnlock(seq.id); }); }
@@ -291,10 +187,7 @@ function handleInputEnd(x,y) {
     if(dur < 300) {
         if(now-lastTap < 300) { visualEntities.push(new HeartCloud(x,y)); ZenAudio.playStrum(3, freq); } 
         else { 
-            let ent;
-            if(foundEggs.includes(3) && Math.random() > 0.7) ent = new GrowingHeart(x,y);
-            else if(foundEggs.includes(3) && Math.random() > 0.5) ent = new HeartBloom(x,y);
-            else ent = new Bloom(x,y);
+            let ent; if(foundEggs.includes(3) && Math.random() > 0.7) ent = new GrowingHeart(x,y); else if(foundEggs.includes(3) && Math.random() > 0.5) ent = new HeartBloom(x,y); else ent = new Bloom(x,y);
             visualEntities.push(ent); wordEntities.push(new Word(x,y-30)); ZenAudio.playPluck(freq, 0.3); stats.taps++;
         }
         lastTap = now; registerInput('T');
@@ -314,6 +207,7 @@ function startRecording() { ZenAudio.init(); if (mediaRecorder && mediaRecorder.
 function stopRecording() { if(mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop(); isRecording=false; recInd.style.opacity='0'; recBtn.innerText="Record"; recBtn.classList.remove('bg-red-100','text-red-700','animate-pulse'); }
 
 // Loop
+const savedTheme = localStorage.getItem('garden_active_theme'); if(savedTheme) loadTheme(savedTheme);
 function loop() {
     ctx.clearRect(0,0,width,height);
     if(config.backgroundImage) { const img = config.backgroundImage; const scale = Math.max(width / img.width, height / img.height); const x = (width / 2) - (img.width / 2) * scale; const y = (height / 2) - (img.height / 2) * scale; ctx.drawImage(img, x, y, img.width * scale, img.height * scale); } 
