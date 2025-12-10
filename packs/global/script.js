@@ -1,1 +1,370 @@
+/**
+ * Garden v7.0 Config Engine
+ * Location: /packs/global/script.js
+ */
 
+// --- 1. GLOBAL STATE & ROUTER ---
+const SESSION_START = Date.now();
+let currentThemeCode = "DEFAULT";
+let stats = { taps: 0, drags: 0, secrets: 0, mouseDistance: 0 };
+let lastMouse = { x: 0, y: 0 };
+
+// System Routes (Bypasses the Garden)
+const ROUTER_CONFIG = {
+    'DOWN': 'https://httpstat.us/503',
+    'HELP': 'about:blank',
+    'ADMIN': 'about:blank'
+};
+
+// Default Configuration
+let config = {
+    currentThemeIndex: 0,
+    defaultWords: ["Peace", "Gentle", "Warmth", "Love", "Hope", "Empathy", "Calm"],
+    customWords: [],
+    speedMultiplier: 1.0,
+    decayValue: 0.005,
+    trailDecay: 0.02,
+    useGradient: true,
+    backgroundImage: null,
+    currentTrail: '♥',
+    lastTrailSwitch: Date.now()
+};
+
+// Track Mouse Distance
+document.addEventListener('mousemove', (e) => {
+    if(lastMouse.x !== 0) stats.mouseDistance += Math.sqrt(Math.pow(e.clientX - lastMouse.x, 2) + Math.pow(e.clientY - lastMouse.y, 2));
+    lastMouse = { x: e.clientX, y: e.clientY };
+});
+
+// --- 2. CONFIG LOADER (THE BRAIN) ---
+async function handleRouter(code) {
+    if(!code) return;
+    code = code.trim().toUpperCase();
+
+    // A. System Route (Iframe)
+    if(ROUTER_CONFIG[code]) {
+        const iframe = document.getElementById('system-frame');
+        iframe.src = ROUTER_CONFIG[code];
+        iframe.style.display = 'block';
+        logSession('system_route');
+        return;
+    }
+
+    // B. Theme Route (Config Injection)
+    loadTheme(code);
+}
+
+async function loadTheme(code) {
+    const cleanCode = code.toLowerCase();
+    const configPath = `local/${cleanCode}/config.json`;
+
+    try {
+        const response = await fetch(configPath);
+        if(!response.ok) throw new Error("Config not found");
+        const themeConfig = await response.json();
+
+        // 1. Versioning (Cache Busting)
+        const version = themeConfig.version || "1.0";
+        const cacheBuster = `?v=${version}`;
+
+        // 2. UI Text Personalization
+        if(themeConfig.title) document.title = themeConfig.title;
+        if(themeConfig.splashTitle) document.getElementById('splash-title').innerText = themeConfig.splashTitle;
+        if(themeConfig.splashText) document.getElementById('splash-text').innerHTML = themeConfig.splashText;
+        if(themeConfig.footerText) document.getElementById('footer-text').innerText = themeConfig.footerText;
+        if(themeConfig.customWords) config.customWords = themeConfig.customWords;
+
+        // 3. Asset Loading
+        if(themeConfig.image) {
+            const imgPath = `local/${cleanCode}/${themeConfig.image}${cacheBuster}`;
+            const img = new Image();
+            img.onload = () => { 
+                config.backgroundImage = img; 
+                config.useGradient = false; 
+                localStorage.setItem('garden_active_theme', cleanCode);
+            };
+            img.onerror = () => console.warn("Image failed to load");
+            img.src = imgPath;
+        }
+
+        if(themeConfig.audio) {
+            const audioPath = `local/${cleanCode}/${themeConfig.audio}${cacheBuster}`;
+            setAudio(audioPath);
+        }
+
+        currentThemeCode = code;
+        alert(`Theme Loaded: ${themeConfig.themeName || code}`);
+        document.getElementById('settings-panel').classList.add('translate-x-full');
+
+    } catch (err) {
+        alert(`Theme '${code}' not found.\nExpected: /local/${cleanCode}/config.json`);
+    }
+}
+
+function setAudio(src) {
+    let audio = document.getElementById('bg-audio-track');
+    if(!src) { if(audio) { audio.pause(); audio.src = ""; } return; }
+    if(!audio) { audio = document.createElement('audio'); audio.id = 'bg-audio-track'; audio.loop = true; document.body.appendChild(audio); }
+    audio.src = src; audio.volume = 0.3;
+    audio.play().catch(e => console.log("Audio waiting for interaction"));
+}
+
+// --- 3. TELEMETRY (DATA LAYER) ---
+async function getPublicIP() {
+    try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        return data.ip;
+    } catch (e) { return "offline"; }
+}
+
+async function generateDataLayer() {
+    const now = Date.now();
+    const durationSec = (now - SESSION_START) / 1000;
+    const ip = await getPublicIP();
+
+    // Fingerprinting
+    const getCanvasFP = () => {
+        try {
+            const c = document.createElement('canvas'); const cx = c.getContext('2d');
+            cx.textBaseline = "top"; cx.font = "14px 'Arial'"; cx.fillStyle = "#f60";
+            cx.fillRect(125,1,62,20); cx.fillStyle = "#069"; cx.fillText("Garden_v7", 2, 15);
+            let b64 = c.toDataURL();
+            let hash = 0; for(let i=0; i<b64.length; i++) hash = Math.imul(31, hash) + b64.charCodeAt(i) | 0;
+            return Math.abs(hash).toString(16);
+        } catch(e) { return "err"; }
+    };
+
+    return {
+        // Time
+        "@session_start_iso": new Date(SESSION_START).toISOString(),
+        "@session_end_iso": new Date(now).toISOString(),
+        "@duration_formatted": `${Math.floor(durationSec/60)}m ${Math.floor(durationSec%60)}s`,
+        
+        // Identity
+        "@ip_address": ip,
+        "@session_id": SESSION_START.toString(36),
+        "@theme_code": currentThemeCode,
+        
+        // Device
+        "@user_agent": navigator.userAgent,
+        "@screen_resolution": `${window.screen.width}x${window.screen.height}`,
+        "@window_size": `${window.innerWidth}x${window.innerHeight}`,
+        "@pixel_ratio": window.devicePixelRatio || 1,
+        "@platform": navigator.platform,
+        "@language": navigator.language,
+        "@timezone": Intl.DateTimeFormat().resolvedOptions().timeZone,
+        "@cores": navigator.hardwareConcurrency || "ukn",
+        "@memory": navigator.deviceMemory || "ukn",
+        
+        // Capability
+        "@cookies_enabled": navigator.cookieEnabled,
+        "@local_storage": (typeof localStorage !== 'undefined') ? 'available' : 'blocked',
+        "@touch_support": ('ontouchstart' in window) ? 'true' : 'false',
+        "@canvas_fingerprint": getCanvasFP(),
+        
+        // Behavior
+        "@input_taps": stats.taps,
+        "@input_drags": stats.drags,
+        "@secrets_found_count": stats.secrets,
+        "@mouse_pixels_moved": Math.round(stats.mouseDistance),
+        "@referrer": document.referrer || "direct"
+    };
+}
+
+async function logSession() {
+    // 1. Load Cartridge
+    let cartridge = null;
+    try {
+        cartridge = await fetch('packs/global/logging.json').then(r => r.json());
+    } catch(e) { return; } 
+
+    if (!cartridge || !cartridge.formId) return;
+
+    // 2. Hydrate
+    const dataLayer = await generateDataLayer();
+    const formData = new FormData();
+    const map = cartridge.mapping;
+    const defs = cartridge.definitions;
+
+    for (const [colKey, token] of Object.entries(map)) {
+        const entryId = defs[colKey];
+        if (!entryId || token === "Reserved") continue;
+
+        let val = token.replace(/@\w+/g, (match) => {
+            return dataLayer[match] !== undefined ? dataLayer[match] : match;
+        });
+        formData.append(entryId, val);
+    }
+
+    // 3. Send
+    const url = `https://docs.google.com/forms/d/e/${cartridge.formId}/formResponse`;
+    fetch(url, { method: 'POST', mode: 'no-cors', body: formData }).catch(e=>{});
+}
+
+// --- 4. AUDIO ENGINE (HIGH REGISTER 261Hz+) ---
+const ZenAudio = {
+    ctx: null, enabled: true, masterGain: null, dest: null,
+    // C Major Pentatonic (C4 to E6) - No Lows
+    scale: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51],
+    init: function() {
+        if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.value = 0.3;
+            this.dest = this.ctx.createMediaStreamDestination();
+            this.masterGain.connect(this.ctx.destination);
+            this.masterGain.connect(this.dest);
+        }
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    },
+    warmUp: function() {
+        if (!this.ctx) this.init();
+        if (this.ctx && this.enabled) {
+            const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+            g.gain.value = 0.001; o.connect(g); g.connect(this.masterGain);
+            o.start(); o.stop(this.ctx.currentTime + 0.01);
+        }
+    },
+    getFreq: function(y, height) {
+        const norm = 1 - Math.max(0, Math.min(1, y / height));
+        const index = Math.floor(norm * this.scale.length);
+        return this.scale[Math.min(index, this.scale.length - 1)];
+    },
+    playPluck: function(freq, volume = 0.3) {
+        if (!this.ctx || !this.enabled) return;
+        const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 2.0, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        const delayLength = Math.floor(this.ctx.sampleRate / freq);
+        let idx = 0, last = 0;
+        const noise = new Float32Array(delayLength).map(() => Math.random()*2-1);
+        for (let i = 0; i < buffer.length; i++) {
+            const sample = (noise[idx] + last) * 0.5 * 0.992; // Bright
+            last = noise[idx]; noise[idx] = sample;
+            data[i] = sample * volume; idx = (idx + 1) % delayLength;
+        }
+        const src = this.ctx.createBufferSource(); src.buffer = buffer; src.connect(this.masterGain); src.start();
+    },
+    playStrum: function(count, baseFreq) {
+        if (!this.ctx || !this.enabled) return;
+        let baseIndex = 0; let closest = 10000;
+        this.scale.forEach((f, i) => { if(Math.abs(f-baseFreq)<closest) { closest=Math.abs(f-baseFreq); baseIndex=i; }});
+        for(let i=0; i<count; i++) { let noteIndex = Math.min(this.scale.length-1, baseIndex + i * 2); setTimeout(() => { this.playPluck(this.scale[noteIndex], 0.15); }, i * 60); }
+    },
+    playChime: function(freq, volume = 0.1) {
+        if (!this.ctx || !this.enabled) return;
+        const osc = this.ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = freq * 2;
+        const g = this.ctx.createGain(); g.connect(this.masterGain); const now = this.ctx.currentTime;
+        g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(volume, now+0.05); g.gain.exponentialRampToValueAtTime(0.001, now+1.5);
+        osc.start(now); osc.stop(now+1.5);
+    },
+    playDiscovery: function() {
+        if (!this.ctx || !this.enabled) return;
+        [0,2,4,6].forEach((offset, i) => { setTimeout(() => this.playChime(this.scale[offset], 0.2), i * 150); });
+    }
+};
+
+// --- 5. VISUALS ---
+const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
+let width, height;
+function resize() { width = window.innerWidth; height = window.innerHeight; canvas.width = width; canvas.height = height; }
+window.addEventListener('resize', resize); resize();
+const random = (min, max) => Math.random() * (max - min) + min;
+function getPastelColor() { const hue = random(0, 360); return { hue: hue, str: `hsla(${hue}, 70%, 80%,` }; }
+function getRandomWord() { if (config.customWords.length > 0) return config.customWords[Math.floor(Math.random() * config.customWords.length)]; return config.defaultWords[Math.floor(Math.random() * config.defaultWords.length)]; }
+
+class Bloom {
+    constructor(x, y, size=null) { this.x = x; this.y = y; this.size = 0; this.maxSize = size || random(30, 80); this.colorObj = getPastelColor(); this.colorBase = this.colorObj.str; this.petals = Math.floor(random(5, 9)); this.alpha = 1; this.compColor = `hsla(${(this.colorObj.hue + 180)%360}, 60%, 70%,`; this.rotation = random(0, Math.PI*2); const shapeRnd = Math.random(); if(shapeRnd > 0.6) this.shape = 'pointed'; else if (shapeRnd > 0.3) this.shape = 'round'; else this.shape = 'hybrid'; }
+    update() { this.rotation += 0.002; if (this.size < this.maxSize) this.size += 0.5 * config.speedMultiplier; else if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier; }
+    draw(ctx) { ctx.save(); if(foundEggs.includes(2)) { ctx.strokeStyle = `rgba(218, 165, 32, ${this.alpha * 0.6})`; ctx.lineWidth = 0.5; for(let i=0; i<5; i++) { const angle = (i/5) * Math.PI*2 + this.rotation; const len = this.size * 1.5; ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.bezierCurveTo(this.x + Math.cos(angle - 0.4) * len * 0.5, this.y + Math.sin(angle - 0.4) * len * 0.5, this.x + Math.cos(angle + 0.4) * len * 0.8, this.y + Math.sin(angle + 0.4) * len * 0.8, this.x + Math.cos(angle) * len, this.y + Math.sin(angle) * len); ctx.stroke(); } } for(let i=0; i<3; i++) { ctx.fillStyle = this.colorBase + (this.alpha * 0.7 * (1 - i*0.2)) + ')'; ctx.beginPath(); for (let j = 0; j < this.petals; j++) { const angle = (j / this.petals) * Math.PI * 2 + (i * 0.1) + this.rotation; const petalSize = (this.size - (i*5)); if (petalSize <= 0) continue; ctx.moveTo(this.x, this.y); if(this.shape === 'pointed') { ctx.quadraticCurveTo(this.x + Math.cos(angle - 0.3) * petalSize, this.y + Math.sin(angle - 0.3) * petalSize, this.x + Math.cos(angle) * petalSize * 1.2, this.y + Math.sin(angle) * petalSize * 1.2); ctx.quadraticCurveTo(this.x + Math.cos(angle + 0.3) * petalSize, this.y + Math.sin(angle + 0.3) * petalSize, this.x, this.y); } else { ctx.ellipse(this.x + Math.cos(angle)*(petalSize*0.5), this.y + Math.sin(angle)*(petalSize*0.5), petalSize*0.4, petalSize*0.2, angle, 0, Math.PI*2); } } ctx.fill(); } const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 0.25); const centerAlpha = foundEggs.includes(1) ? 0.9 : 0.7; grad.addColorStop(0, `rgba(255, 255, 255, ${centerAlpha})`); grad.addColorStop(1, this.compColor + "0)"); ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 0.25, 0, Math.PI*2); ctx.fill(); ctx.restore(); }
+    isDead() { if (this.alpha <= 0 && foundEggs.includes(5)) { for(let k=0; k<10; k++) particles.push(new Particle(this.x, this.y, this.colorBase + '1)')); } return this.alpha <= 0; }
+}
+class GrowingHeart { constructor(x, y) { this.x = x; this.y = y; this.size = 0; this.maxSize = random(40, 90); this.hue = random(0, 360); this.alpha = 1; } update() { if (this.size < this.maxSize) this.size += 0.5 * config.speedMultiplier; else if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier; } draw(ctx) { ctx.save(); ctx.translate(this.x, this.y); const scale = this.size / 30; ctx.scale(scale, scale); ctx.globalAlpha = Math.max(0, this.alpha); let grad = ctx.createRadialGradient(-5, -5, 2, 0, 0, 25); grad.addColorStop(0, "white"); grad.addColorStop(0.3, `hsl(${this.hue}, 100%, 70%)`); grad.addColorStop(1, `hsl(${this.hue}, 100%, 30%)`); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(-10, -10, -20, 0, 0, 20); ctx.bezierCurveTo(20, 0, 10, -10, 0, 0); ctx.fill(); ctx.restore(); } isDead() { return this.alpha <= 0; } }
+class HeartBloom extends Bloom { draw(ctx) { ctx.save(); const layerCount = foundEggs.includes(3) ? 5 : 3; for(let i=0; i<layerCount; i++) { const scale = (this.size - (i*4)) / 20; if (scale <= 0) continue; const pCount = this.petals + (i%2); for (let j = 0; j < pCount; j++) { ctx.save(); const angle = (j / pCount) * Math.PI * 2 + this.rotation + (i*0.2); ctx.translate(this.x, this.y); ctx.rotate(angle + Math.PI/2); ctx.translate(0, -scale * 15); ctx.scale(scale, scale); let grad = ctx.createRadialGradient(-3, -3, 1, 0, 0, 15); grad.addColorStop(0, "rgba(255,255,255,0.4)"); grad.addColorStop(1, this.colorBase + (this.alpha * 0.8) + ')'); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(-5, -5, -10, 0, 0, 10); ctx.bezierCurveTo(10, 0, 5, -5, 0, 0); ctx.fill(); ctx.restore(); } } ctx.fillStyle = this.compColor + this.alpha + ')'; ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 0.1, 0, Math.PI*2); ctx.fill(); ctx.restore(); } }
+class HeartCloud { constructor(x, y) { this.x = x; this.y = y; this.alpha = 1; this.hearts = []; const count = Math.floor(random(4, 12)); const colors = ["#ff0000", "#ff7f00", "#ffff00", "#00ff00", "#0000ff", "#4b0082", "#9400d3", "#ff1493"]; for(let i=0; i<count; i++) { this.hearts.push({ ox: random(-40, 40), oy: random(-40, 40), size: random(10, 25), color: colors[Math.floor(Math.random()*colors.length)], rot: random(-0.2, 0.2) }); } const freq = ZenAudio.getFreq(y, height); ZenAudio.playStrum(count, freq); } update() { this.y -= 0.5 * config.speedMultiplier; if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier; } draw(ctx) { ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha); this.hearts.forEach(h => { ctx.save(); ctx.translate(this.x + h.ox, this.y + h.oy); ctx.rotate(h.rot); const scale = h.size / 20; ctx.scale(scale, scale); let grad = ctx.createRadialGradient(-5, -5, 2, 0, 0, 20); grad.addColorStop(0, "white"); grad.addColorStop(0.3, h.color); grad.addColorStop(1, "#330000"); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(-10, -10, -20, 0, 0, 20); ctx.bezierCurveTo(20, 0, 10, -10, 0, 0); ctx.fill(); ctx.restore(); }); ctx.restore(); } isDead() { return this.alpha <= 0; } }
+class TrailBase { constructor(x, y, type) { this.x = x; this.y = y; this.alpha = 1; this.size = random(10, 20); this.type = type; this.hue = random(0, 360); this.color = `hsl(${this.hue},100%,60%)`; this.cometColor = `hsl(${random(200,260)},100%,80%)`; } update() { this.y -= 1.0; this.alpha -= config.trailDecay; } draw(ctx) { ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha); if(this.type === "Comet") { ctx.fillStyle = this.cometColor; ctx.beginPath(); ctx.arc(this.x, this.y, this.size/3, 0, Math.PI*2); ctx.fill(); } else if (this.type === "♥" || this.type === "⭐") { ctx.translate(this.x, this.y); ctx.fillStyle = this.color; ctx.font = `${this.size}px serif`; ctx.fillText(this.type, 0, 0); } else { ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.font = `${this.size}px serif`; ctx.fillText(this.type, this.x, this.y); } ctx.restore(); } isDead() { return this.alpha <= 0; } }
+class Particle { constructor(x, y, color) { this.x = x; this.y = y; this.vx = random(-3, 3); this.vy = random(-5, 1); this.life = 1.0; this.decay = random(0.005, 0.02); this.color = color; this.gravity = 0.1; this.sparkleColor = `hsl(${random(0,360)}, 80%, 70%)`; } update() { this.x += this.vx; this.y += this.vy; this.vy += this.gravity; this.life -= this.decay; } draw(ctx) { ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.sparkleColor; ctx.fillRect(this.x, this.y, 2, 2); } isDead() { return this.life <= 0; } }
+class Word { constructor(x, y, text) { this.x = x; this.y = y; this.text = text || getRandomWord(); this.velocity = -0.5; this.alpha = 0; this.fadeIn = true; this.color = "#4a148c"; } update() { this.y += this.velocity * config.speedMultiplier; if (this.fadeIn) { this.alpha += 0.02 * config.speedMultiplier; if (this.alpha>=1) this.fadeIn=false; } else if (config.decayValue > 0) { this.alpha -= config.decayValue * config.speedMultiplier; } } draw(ctx) { ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha); ctx.font = "20px 'Segoe UI', sans-serif"; ctx.fillStyle = this.color; ctx.textAlign = "center"; ctx.shadowBlur = 4; ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.fillText(this.text, this.x, this.y); ctx.restore(); } isDead() { return this.alpha <= 0 && !this.fadeIn; } }
+
+// --- 6. INPUT & UI BINDINGS ---
+let visualEntities = []; let wordEntities = []; let particles = [];
+let foundEggs = JSON.parse(localStorage.getItem('garden_egg_ids') || "[]"); let inputBuffer = "";
+let lastTap=0, isDragging=false, dragStart=0, startX, startY, lastDragSound=0;
+
+// UI Handlers
+document.getElementById('load-code-btn').onclick = () => handleRouter(document.getElementById('theme-code-input').value);
+document.getElementById('purge-btn').onclick = () => { if(confirm("Reset to default?")) { localStorage.clear(); location.reload(); } };
+document.getElementById('settings-trigger').onclick = ()=>document.getElementById('settings-panel').classList.remove('translate-x-full');
+document.getElementById('close-btn').onclick = ()=>document.getElementById('settings-panel').classList.add('translate-x-full');
+document.getElementById('audio-toggle').onchange=e=>ZenAudio.enabled=e.target.checked;
+document.getElementById('decay-slider').oninput=e=>config.decayValue=[0,0.002,0.005,0.01,0.02,0.05][e.target.value];
+document.getElementById('speed-slider').oninput=e=>config.speedMultiplier=0.2+(e.target.value/100)*1.8;
+document.getElementById('theme-btn').onclick=()=>config.currentThemeIndex=(config.currentThemeIndex+1)%5;
+document.getElementById('clear-btn').onclick=()=>{visualEntities=[];wordEntities=[];particles=[];};
+document.getElementById('save-btn').onclick=()=>{const a=document.createElement('a');a.download='garden.png';a.href=canvas.toDataURL();a.click();};
+document.getElementById('secrets-btn').onclick=()=>{ updateSecretsUI(); document.getElementById('secrets-modal').classList.remove('invisible'); document.getElementById('secrets-modal').classList.add('visible'); document.getElementById('secrets-modal').querySelector('.modal-content').classList.add('scale-in'); };
+document.getElementById('close-secrets').onclick=()=>{ document.getElementById('secrets-modal').classList.remove('visible'); document.getElementById('secrets-modal').classList.add('invisible'); };
+window.addEventListener('beforeunload', () => logSession('unload'));
+
+// Manual Upload
+document.getElementById('bg-upload').addEventListener('change', (e) => {
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+        try { localStorage.setItem('garden_manual_bg', evt.target.result); } catch(e){}
+        const img = new Image(); img.onload = ()=>{config.backgroundImage=img; config.useGradient=false;}; img.src=evt.target.result;
+    };
+    reader.readAsDataURL(file);
+});
+
+// Startup Persistence
+const savedTheme = localStorage.getItem('garden_active_theme');
+const manualBg = localStorage.getItem('garden_manual_bg');
+if(manualBg) { const img = new Image(); img.onload=()=>{config.backgroundImage=img; config.useGradient=false;}; img.src=manualBg; } 
+else if(savedTheme) { loadTheme(savedTheme); }
+
+// Logic
+function updateSecretsUI() { const list=document.getElementById('secrets-list'); list.innerHTML=''; for(let i=1; i<=20; i++) { const u = foundEggs.includes(i); const b = document.createElement('div'); b.className = `aspect-square rounded flex items-center justify-center text-xs font-bold border ${u?'bg-amber-200 border-amber-400 text-amber-900':'bg-gray-100 text-gray-300'}`; b.innerText=i; list.appendChild(b); } document.getElementById('secrets-count').innerText=foundEggs.length; }
+const rhythmSequences = [{ code: "TTT", id: 1 }, { code: "TTS", id: 2 }, { code: "TST", id: 3 }, { code: "SST", id: 4 }, { code: "TTTT", id: 5 }];
+function registerInput(char) { inputBuffer += char; if(inputBuffer.length>5) inputBuffer=inputBuffer.slice(-5); rhythmSequences.forEach(seq => { if(inputBuffer.endsWith(seq.code)) triggerUnlock(seq.id); }); }
+function triggerUnlock(id) { inputBuffer=""; if(!foundEggs.includes(id)) { foundEggs.push(id); stats.secrets++; localStorage.setItem('garden_egg_ids', JSON.stringify(foundEggs)); ZenAudio.playDiscovery(); updateSecretsUI(); } }
+
+function handleInputEnd(x,y) {
+    const now = Date.now(); const dur = now - dragStart; const freq = ZenAudio.getFreq(y, height);
+    if(dur < 300) {
+        if(now-lastTap < 300) { visualEntities.push(new HeartCloud(x,y)); ZenAudio.playStrum(3, freq); } 
+        else { 
+            let ent;
+            if(foundEggs.includes(3) && Math.random() > 0.7) ent = new GrowingHeart(x,y);
+            else if(foundEggs.includes(3) && Math.random() > 0.5) ent = new HeartBloom(x,y);
+            else ent = new Bloom(x,y);
+            visualEntities.push(ent); wordEntities.push(new Word(x,y-30)); ZenAudio.playPluck(freq, 0.3); stats.taps++;
+        }
+        lastTap = now; registerInput('T');
+    } else { visualEntities.push(new Bloom(x, y, 150)); ZenAudio.playChime(freq, 0.2); stats.drags++; }
+}
+canvas.addEventListener('mousedown',e=>{ZenAudio.warmUp(); document.getElementById('overlay').style.opacity='0'; startX=e.clientX; startY=e.clientY; dragStart=Date.now(); isDragging=false;}); 
+canvas.addEventListener('mousemove',e=>{if(!startX) return; if(Math.sqrt((e.clientX-startX)**2 + (e.clientY-startY)**2) > 10) { isDragging=true; if(Date.now()-lastDragSound>60){ZenAudio.playPluck(ZenAudio.getFreq(e.clientY,height),0.1); lastDragSound=Date.now(); visualEntities.push(new TrailBase(e.clientX,e.clientY,config.currentTrail));} }});
+canvas.addEventListener('mouseup',e=>{if(isDragging){registerInput('S');}else{handleInputEnd(e.clientX,e.clientY);} startX=null;});
+canvas.addEventListener('touchstart',e=>{e.preventDefault(); ZenAudio.warmUp(); document.getElementById('overlay').style.opacity='0'; startX=e.touches[0].clientX; startY=e.touches[0].clientY; dragStart=Date.now(); isDragging=false;}, {passive:false});
+canvas.addEventListener('touchmove',e=>{e.preventDefault(); if(!startX) return; if(Math.sqrt((e.touches[0].clientX-startX)**2 + (e.touches[0].clientY-startY)**2) > 10) { isDragging=true; if(Date.now()-lastDragSound>60){ZenAudio.playPluck(ZenAudio.getFreq(e.touches[0].clientY,height),0.1); lastDragSound=Date.now(); visualEntities.push(new TrailBase(e.touches[0].clientX,e.touches[0].clientY,config.currentTrail));} } }, {passive:false});
+canvas.addEventListener('touchend',e=>{e.preventDefault(); if(isDragging){registerInput('S');}else if(e.changedTouches.length){handleInputEnd(e.changedTouches[0].clientX,e.changedTouches[0].clientY);} startX=null;});
+
+// Recorder
+let mediaRecorder, recordedChunks = [], isRecording = false; const recBtn = document.getElementById('record-btn'); const recInd = document.getElementById('rec-indicator');
+recBtn.addEventListener('click', () => isRecording ? stopRecording() : startRecording());
+function startRecording() { ZenAudio.init(); if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop(); mediaRecorder = null; recordedChunks = []; const stream = canvas.captureStream(60); if (ZenAudio.dest && ZenAudio.dest.stream.getAudioTracks().length > 0) stream.addTrack(ZenAudio.dest.stream.getAudioTracks()[0]); const mimeTypes = ["video/mp4", "video/webm;codecs=h264", "video/webm"]; let selectedType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type)); if (!selectedType) { alert("Recording not supported."); return; } try { mediaRecorder = new MediaRecorder(stream, { mimeType: selectedType }); } catch (e) { alert("Recording init failed."); return; } mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); }; mediaRecorder.onstop = () => { const blob = new Blob(recordedChunks, { type: selectedType }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.style.display="none"; a.href=url; a.download=`garden-${Date.now()}.${selectedType.includes("mp4")?"mp4":"webm"}`; document.body.appendChild(a); a.click(); setTimeout(()=>URL.revokeObjectURL(url),100); }; mediaRecorder.start(); isRecording = true; recInd.style.opacity = '1'; recBtn.innerText = "Stop"; recBtn.classList.add('bg-red-100','text-red-700','animate-pulse'); }
+function stopRecording() { if(mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop(); isRecording=false; recInd.style.opacity='0'; recBtn.innerText="Record"; recBtn.classList.remove('bg-red-100','text-red-700','animate-pulse'); }
+
+// Loop
+function loop() {
+    ctx.clearRect(0,0,width,height);
+    if(config.backgroundImage) { const img = config.backgroundImage; const scale = Math.max(width / img.width, height / img.height); const x = (width / 2) - (img.width / 2) * scale; const y = (height / 2) - (img.height / 2) * scale; ctx.drawImage(img, x, y, img.width * scale, img.height * scale); } 
+    else { const t=themes[config.currentThemeIndex]||themes[0]; const g=ctx.createLinearGradient(0,0,0,height); g.addColorStop(0,t.bg[0]); g.addColorStop(1,t.bg[1]); ctx.fillStyle=g; ctx.fillRect(0,0,width,height); }
+    for(let i=visualEntities.length-1; i>=0; i--) { visualEntities[i].update(); visualEntities[i].draw(ctx); if(visualEntities[i].isDead()) visualEntities.splice(i,1); }
+    for(let i=wordEntities.length-1; i>=0; i--) { wordEntities[i].update(); wordEntities[i].draw(ctx); if(wordEntities[i].isDead()) wordEntities.splice(i,1); }
+    for(let i=particles.length-1; i>=0; i--) { particles[i].update(); particles[i].draw(ctx); if(particles[i].isDead()) particles.splice(i,1); }
+    const themes = [ { bg: ['#e0c3fc', '#8ec5fc'], text: '#4a148c' }, { bg: ['#fad0c4', '#ffd1ff'], text: '#880e4f' }, { bg: ['#d299c2', '#fef9d7'], text: '#3e2723' }, { bg: ['#a1c4fd', '#c2e9fb'], text: '#01579b' }, { bg: ['#d4fc79', '#96e6a1'], text: '#1b5e20' } ];
+    requestAnimationFrame(loop); document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+}
+loop();
