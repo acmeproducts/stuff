@@ -1,5 +1,5 @@
 /**
- * Garden v7.0 Config Engine
+ * Garden v7.1 Config Engine
  * Location: /packs/global/script.js
  */
 
@@ -9,14 +9,12 @@ let currentThemeCode = "DEFAULT";
 let stats = { taps: 0, drags: 0, secrets: 0, mouseDistance: 0 };
 let lastMouse = { x: 0, y: 0 };
 
-// System Routes (Bypasses the Garden)
 const ROUTER_CONFIG = {
     'DOWN': 'https://httpstat.us/503',
     'HELP': 'about:blank',
     'ADMIN': 'about:blank'
 };
 
-// Default Configuration
 let config = {
     currentThemeIndex: 0,
     defaultWords: ["Peace", "Gentle", "Warmth", "Love", "Hope", "Empathy", "Calm"],
@@ -30,18 +28,16 @@ let config = {
     lastTrailSwitch: Date.now()
 };
 
-// Track Mouse Distance
 document.addEventListener('mousemove', (e) => {
     if(lastMouse.x !== 0) stats.mouseDistance += Math.sqrt(Math.pow(e.clientX - lastMouse.x, 2) + Math.pow(e.clientY - lastMouse.y, 2));
     lastMouse = { x: e.clientX, y: e.clientY };
 });
 
-// --- 2. CONFIG LOADER (THE BRAIN) ---
+// --- 2. CONFIG LOADER (PATH UPDATE: packs/local) ---
 async function handleRouter(code) {
     if(!code) return;
     code = code.trim().toUpperCase();
 
-    // A. System Route (Iframe)
     if(ROUTER_CONFIG[code]) {
         const iframe = document.getElementById('system-frame');
         iframe.src = ROUTER_CONFIG[code];
@@ -49,34 +45,31 @@ async function handleRouter(code) {
         logSession('system_route');
         return;
     }
-
-    // B. Theme Route (Config Injection)
     loadTheme(code);
 }
 
 async function loadTheme(code) {
     const cleanCode = code.toLowerCase();
-    const configPath = `local/${cleanCode}/config.json`;
+    // CORRECTED PATH: Now looks inside /packs/local/
+    const basePath = `packs/local/${cleanCode}`;
+    const configPath = `${basePath}/config.json`;
 
     try {
         const response = await fetch(configPath);
         if(!response.ok) throw new Error("Config not found");
         const themeConfig = await response.json();
 
-        // 1. Versioning (Cache Busting)
         const version = themeConfig.version || "1.0";
         const cacheBuster = `?v=${version}`;
 
-        // 2. UI Text Personalization
         if(themeConfig.title) document.title = themeConfig.title;
         if(themeConfig.splashTitle) document.getElementById('splash-title').innerText = themeConfig.splashTitle;
         if(themeConfig.splashText) document.getElementById('splash-text').innerHTML = themeConfig.splashText;
         if(themeConfig.footerText) document.getElementById('footer-text').innerText = themeConfig.footerText;
         if(themeConfig.customWords) config.customWords = themeConfig.customWords;
 
-        // 3. Asset Loading
         if(themeConfig.image) {
-            const imgPath = `local/${cleanCode}/${themeConfig.image}${cacheBuster}`;
+            const imgPath = `${basePath}/${themeConfig.image}${cacheBuster}`;
             const img = new Image();
             img.onload = () => { 
                 config.backgroundImage = img; 
@@ -88,16 +81,16 @@ async function loadTheme(code) {
         }
 
         if(themeConfig.audio) {
-            const audioPath = `local/${cleanCode}/${themeConfig.audio}${cacheBuster}`;
+            const audioPath = `${basePath}/${themeConfig.audio}${cacheBuster}`;
             setAudio(audioPath);
         }
 
         currentThemeCode = code;
-        alert(`Theme Loaded: ${themeConfig.themeName || code}`);
+        alert(`Loaded: ${themeConfig.themeName || code}`);
         document.getElementById('settings-panel').classList.add('translate-x-full');
 
     } catch (err) {
-        alert(`Theme '${code}' not found.\nExpected: /local/${cleanCode}/config.json`);
+        alert(`Theme '${code}' not found.\nExpected: ${configPath}`);
     }
 }
 
@@ -109,13 +102,9 @@ function setAudio(src) {
     audio.play().catch(e => console.log("Audio waiting for interaction"));
 }
 
-// --- 3. TELEMETRY (DATA LAYER) ---
+// --- 3. TELEMETRY ---
 async function getPublicIP() {
-    try {
-        const response = await fetch('https://api.ipify.org?format=json');
-        const data = await response.json();
-        return data.ip;
-    } catch (e) { return "offline"; }
+    try { const r = await fetch('https://api.ipify.org?format=json'); const d = await r.json(); return d.ip; } catch (e) { return "offline"; }
 }
 
 async function generateDataLayer() {
@@ -123,7 +112,6 @@ async function generateDataLayer() {
     const durationSec = (now - SESSION_START) / 1000;
     const ip = await getPublicIP();
 
-    // Fingerprinting
     const getCanvasFP = () => {
         try {
             const c = document.createElement('canvas'); const cx = c.getContext('2d');
@@ -136,17 +124,12 @@ async function generateDataLayer() {
     };
 
     return {
-        // Time
         "@session_start_iso": new Date(SESSION_START).toISOString(),
         "@session_end_iso": new Date(now).toISOString(),
         "@duration_formatted": `${Math.floor(durationSec/60)}m ${Math.floor(durationSec%60)}s`,
-        
-        // Identity
         "@ip_address": ip,
         "@session_id": SESSION_START.toString(36),
         "@theme_code": currentThemeCode,
-        
-        // Device
         "@user_agent": navigator.userAgent,
         "@screen_resolution": `${window.screen.width}x${window.screen.height}`,
         "@window_size": `${window.innerWidth}x${window.innerHeight}`,
@@ -156,24 +139,17 @@ async function generateDataLayer() {
         "@timezone": Intl.DateTimeFormat().resolvedOptions().timeZone,
         "@cores": navigator.hardwareConcurrency || "ukn",
         "@memory": navigator.deviceMemory || "ukn",
-        
-        // Capability
         "@cookies_enabled": navigator.cookieEnabled,
         "@local_storage": (typeof localStorage !== 'undefined') ? 'available' : 'blocked',
-        "@touch_support": ('ontouchstart' in window) ? 'true' : 'false',
         "@canvas_fingerprint": getCanvasFP(),
-        
-        // Behavior
         "@input_taps": stats.taps,
         "@input_drags": stats.drags,
-        "@secrets_found_count": stats.secrets,
         "@mouse_pixels_moved": Math.round(stats.mouseDistance),
         "@referrer": document.referrer || "direct"
     };
 }
 
 async function logSession() {
-    // 1. Load Cartridge
     let cartridge = null;
     try {
         cartridge = await fetch('packs/global/logging.json').then(r => r.json());
@@ -181,7 +157,6 @@ async function logSession() {
 
     if (!cartridge || !cartridge.formId) return;
 
-    // 2. Hydrate
     const dataLayer = await generateDataLayer();
     const formData = new FormData();
     const map = cartridge.mapping;
@@ -190,47 +165,29 @@ async function logSession() {
     for (const [colKey, token] of Object.entries(map)) {
         const entryId = defs[colKey];
         if (!entryId || token === "Reserved") continue;
-
-        let val = token.replace(/@\w+/g, (match) => {
-            return dataLayer[match] !== undefined ? dataLayer[match] : match;
-        });
+        let val = token.replace(/@\w+/g, (match) => dataLayer[match] !== undefined ? dataLayer[match] : match);
         formData.append(entryId, val);
     }
 
-    // 3. Send
     const url = `https://docs.google.com/forms/d/e/${cartridge.formId}/formResponse`;
     fetch(url, { method: 'POST', mode: 'no-cors', body: formData }).catch(e=>{});
 }
 
-// --- 4. AUDIO ENGINE (HIGH REGISTER 261Hz+) ---
+// --- 4. AUDIO ENGINE (HIGH) ---
 const ZenAudio = {
     ctx: null, enabled: true, masterGain: null, dest: null,
-    // C Major Pentatonic (C4 to E6) - No Lows
     scale: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51],
     init: function() {
         if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-            this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.value = 0.3;
+            this.masterGain = this.ctx.createGain(); this.masterGain.gain.value = 0.3;
             this.dest = this.ctx.createMediaStreamDestination();
-            this.masterGain.connect(this.ctx.destination);
-            this.masterGain.connect(this.dest);
+            this.masterGain.connect(this.ctx.destination); this.masterGain.connect(this.dest);
         }
         if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     },
-    warmUp: function() {
-        if (!this.ctx) this.init();
-        if (this.ctx && this.enabled) {
-            const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
-            g.gain.value = 0.001; o.connect(g); g.connect(this.masterGain);
-            o.start(); o.stop(this.ctx.currentTime + 0.01);
-        }
-    },
-    getFreq: function(y, height) {
-        const norm = 1 - Math.max(0, Math.min(1, y / height));
-        const index = Math.floor(norm * this.scale.length);
-        return this.scale[Math.min(index, this.scale.length - 1)];
-    },
+    warmUp: function() { if (!this.ctx) this.init(); if (this.ctx && this.enabled) { const o = this.ctx.createOscillator(); const g = this.ctx.createGain(); g.gain.value = 0.001; o.connect(g); g.connect(this.masterGain); o.start(); o.stop(this.ctx.currentTime + 0.01); } },
+    getFreq: function(y, height) { const norm = 1 - Math.max(0, Math.min(1, y / height)); const index = Math.floor(norm * this.scale.length); return this.scale[Math.min(index, this.scale.length - 1)]; },
     playPluck: function(freq, volume = 0.3) {
         if (!this.ctx || !this.enabled) return;
         const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 2.0, this.ctx.sampleRate);
@@ -239,7 +196,7 @@ const ZenAudio = {
         let idx = 0, last = 0;
         const noise = new Float32Array(delayLength).map(() => Math.random()*2-1);
         for (let i = 0; i < buffer.length; i++) {
-            const sample = (noise[idx] + last) * 0.5 * 0.992; // Bright
+            const sample = (noise[idx] + last) * 0.5 * 0.992; 
             last = noise[idx]; noise[idx] = sample;
             data[i] = sample * volume; idx = (idx + 1) % delayLength;
         }
@@ -286,14 +243,14 @@ class TrailBase { constructor(x, y, type) { this.x = x; this.y = y; this.alpha =
 class Particle { constructor(x, y, color) { this.x = x; this.y = y; this.vx = random(-3, 3); this.vy = random(-5, 1); this.life = 1.0; this.decay = random(0.005, 0.02); this.color = color; this.gravity = 0.1; this.sparkleColor = `hsl(${random(0,360)}, 80%, 70%)`; } update() { this.x += this.vx; this.y += this.vy; this.vy += this.gravity; this.life -= this.decay; } draw(ctx) { ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.sparkleColor; ctx.fillRect(this.x, this.y, 2, 2); } isDead() { return this.life <= 0; } }
 class Word { constructor(x, y, text) { this.x = x; this.y = y; this.text = text || getRandomWord(); this.velocity = -0.5; this.alpha = 0; this.fadeIn = true; this.color = "#4a148c"; } update() { this.y += this.velocity * config.speedMultiplier; if (this.fadeIn) { this.alpha += 0.02 * config.speedMultiplier; if (this.alpha>=1) this.fadeIn=false; } else if (config.decayValue > 0) { this.alpha -= config.decayValue * config.speedMultiplier; } } draw(ctx) { ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha); ctx.font = "20px 'Segoe UI', sans-serif"; ctx.fillStyle = this.color; ctx.textAlign = "center"; ctx.shadowBlur = 4; ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.fillText(this.text, this.x, this.y); ctx.restore(); } isDead() { return this.alpha <= 0 && !this.fadeIn; } }
 
-// --- 6. INPUT & UI BINDINGS ---
+// --- 6. UI & PERSISTENCE ---
 let visualEntities = []; let wordEntities = []; let particles = [];
 let foundEggs = JSON.parse(localStorage.getItem('garden_egg_ids') || "[]"); let inputBuffer = "";
 let lastTap=0, isDragging=false, dragStart=0, startX, startY, lastDragSound=0;
 
 // UI Handlers
 document.getElementById('load-code-btn').onclick = () => handleRouter(document.getElementById('theme-code-input').value);
-document.getElementById('purge-btn').onclick = () => { if(confirm("Reset to default?")) { localStorage.clear(); location.reload(); } };
+document.getElementById('purge-btn').onclick = () => { if(confirm("Reset everything?")) { localStorage.clear(); location.reload(); } };
 document.getElementById('settings-trigger').onclick = ()=>document.getElementById('settings-panel').classList.remove('translate-x-full');
 document.getElementById('close-btn').onclick = ()=>document.getElementById('settings-panel').classList.add('translate-x-full');
 document.getElementById('audio-toggle').onchange=e=>ZenAudio.enabled=e.target.checked;
