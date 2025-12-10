@@ -3,99 +3,223 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Web Viewer v11</title>
+    <title>Universal Web Tool v12</title>
     <style>
-        :root { --primary: #2c3e50; --accent: #3498db; --bg: #f4f4f9; --text: #333; }
-        body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); }
-        
-        /* Toolbar */
-        .toolbar { background: white; padding: 12px; display: flex; gap: 8px; border-bottom: 1px solid #ccc; align-items: center; flex-wrap: wrap; }
-        input { flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; min-width: 150px; }
-        button { padding: 10px 16px; background: var(--primary); color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: 600; font-size: 14px; }
-        button:hover { opacity: 0.9; }
-        button:disabled { background: #95a5a6; cursor: wait; }
-        .btn-green { background: #27ae60; }
-        .btn-red { background: #c0392b; }
-        .btn-grey { background: #7f8c8d; }
-        .btn-blue { background: var(--accent); }
-
-        /* Workspace */
-        .workspace { flex: 1; position: relative; display: flex; flex-direction: column; overflow: hidden; }
-        iframe { width: 100%; height: 100%; border: none; background: white; flex: 1; }
-
-        /* Logs Panel */
-        #log-panel { 
-            height: 100px; 
-            background: #222; 
-            color: #0f0; 
-            padding: 10px; 
-            font-family: 'Courier New', monospace; 
-            font-size: 12px; 
-            overflow-y: auto; 
-            border-top: 4px solid #444;
-            display: block; 
+        :root {
+            --primary: #2c3e50;
+            --accent: #3498db;
+            --bg: #f4f4f9;
+            --tab-active: #ffffff;
+            --tab-inactive: #e0e0e0;
+            --border: #ccc;
         }
-        .log-entry { margin-bottom: 4px; border-bottom: 1px solid #333; padding-bottom: 2px; }
-        .log-time { color: #888; margin-right: 8px; }
+
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            overflow: hidden;
+        }
+
+        /* --- 1. Top Navigation Bar (Address) --- */
+        .nav-bar {
+            background: #fff;
+            padding: 8px 12px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            z-index: 20;
+        }
+
+        .home-btn {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 8px 12px;
+            font-size: 18px;
+            transition: background 0.2s;
+        }
+        .home-btn:hover { background: #eee; }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 16px;
+            outline: none;
+        }
+        input[type="text"]:focus { border-color: var(--accent); }
+
+        .go-btn {
+            padding: 10px 20px;
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .go-btn:hover { opacity: 0.9; }
+        .go-btn:disabled { background-color: #95a5a6; cursor: wait; }
+
+        /* --- 2. Tab Controls --- */
+        .tab-bar {
+            display: flex;
+            background: var(--tab-inactive);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-weight: 600;
+            color: #666;
+            border-right: 1px solid #d1d1d1;
+            transition: background 0.2s;
+        }
+        .tab-btn:last-child { border-right: none; }
+        
+        .tab-btn.active {
+            background: var(--tab-active);
+            color: var(--accent);
+            border-bottom: 3px solid var(--accent);
+        }
+        .tab-btn:hover:not(.active) { background: #dcdcdc; }
+
+        /* --- 3. Main Content Areas --- */
+        .content-area {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: white;
+        }
+
+        /* Panel Visibility Logic */
+        .panel { display: none; width: 100%; height: 100%; flex-direction: column; }
+        .panel.active { display: flex; }
+
+        /* A. Browser Panel */
+        iframe { width: 100%; height: 100%; border: none; }
+        .browser-toolbar {
+            padding: 5px 10px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .reader-btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        /* B. Source Panel */
+        textarea.source-viewer {
+            flex: 1;
+            width: 100%;
+            padding: 15px;
+            background: #282c34;
+            color: #abb2bf;
+            font-family: 'Courier New', monospace;
+            border: none;
+            resize: none;
+            box-sizing: border-box;
+        }
+        .source-controls {
+            padding: 10px;
+            background: #eee;
+            border-bottom: 1px solid #ccc;
+            text-align: right;
+        }
+
+        /* C. Log Panel */
+        .log-container {
+            flex: 1;
+            background: #1e1e1e;
+            color: #00ff9d;
+            padding: 15px;
+            font-family: monospace;
+            overflow-y: auto;
+            font-size: 13px;
+        }
+        .log-entry { margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 2px; }
+        .log-time { color: #888; margin-right: 10px; }
+        .log-err { color: #ff6b6b; }
         .log-nav { color: #f1c40f; }
 
-        /* Reader Overlay */
+        /* --- Reader Overlay (Popup) --- */
         #reader-overlay {
             position: absolute; top: 0; left: 0; right: 0; bottom: 0;
             background: white; z-index: 100; display: none; flex-direction: column;
         }
         .reader-header { padding: 15px; background: #ecf0f1; border-bottom: 1px solid #bdc3c7; display: flex; justify-content: space-between; align-items: center; }
         .reader-body { flex: 1; padding: 40px; overflow-y: auto; max-width: 800px; margin: 0 auto; line-height: 1.8; font-size: 18px; color: #111; }
-        
-        /* Audio Highlight */
         .speaking { background-color: #fff3cd; border-left: 5px solid #f1c40f; padding-left: 10px; }
 
-        /* Source Overlay */
-        #source-overlay { position:absolute; inset:0; background:rgba(0,0,0,0.8); z-index:200; display:none; align-items:center; justify-content:center; }
-        .modal-box { background:white; width:90%; height:90%; display:flex; flex-direction:column; border-radius:8px; overflow:hidden; }
     </style>
 </head>
 <body>
 
-    <div class="toolbar">
-        <input type="text" id="urlInput" placeholder="Enter site (e.g. cnn)" />
-        <button id="btnGo">Go</button>
-        <button id="btnReader" class="btn-green">Reader & Audio</button>
-        <button id="btnSource" class="btn-grey">Source</button>
-        <button onclick="toggleLogs()" style="margin-left:auto; background: #333;">Logs</button>
+    <nav class="nav-bar">
+        <button class="home-btn" id="btnHome" title="Home (Startpage)">🏠</button>
+        <input type="text" id="urlInput" placeholder="Enter URL (e.g. cnn)" />
+        <button class="go-btn" id="btnGo">Go</button>
+    </nav>
+
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('browser')">Browser</button>
+        <button class="tab-btn" onclick="switchTab('source')">Source Code</button>
+        <button class="tab-btn" onclick="switchTab('logs')">System Logs</button>
     </div>
 
-    <div class="workspace">
-        <iframe id="main-frame" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
-
-        <div id="reader-overlay">
-            <div class="reader-header">
-                <strong>Reader Mode</strong>
-                <div style="display:flex; gap: 8px;">
-                    <button id="btnPlay" class="btn-green" onclick="startAudio()">🔊 Play</button>
-                    <button id="btnStop" class="btn-red" onclick="stopAudio()" style="display:none;">⏹ Stop</button>
-                    <button onclick="document.getElementById('reader-overlay').style.display='none'" class="btn-grey">Close</button>
-                </div>
+    <div class="content-area">
+        
+        <div id="panel-browser" class="panel active">
+            <div class="browser-toolbar">
+                <button class="reader-btn" id="btnReaderOpen">📖 Open Reader & Audio</button>
             </div>
-            <div id="reader-content" class="reader-body"></div>
-        </div>
-
-        <div id="source-overlay">
-            <div class="modal-box">
-                <div style="padding:10px; background:#eee; display:flex; justify-content:space-between; align-items:center;">
-                    <strong>Source Code</strong>
-                    <div style="display:flex; gap:10px;">
-                        <button id="btnCopySource" class="btn-blue" onclick="copySource()">Copy Code</button>
-                        <button onclick="document.getElementById('source-overlay').style.display='none'" class="btn-red">Close</button>
+            <iframe id="main-frame" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
+            
+            <div id="reader-overlay">
+                <div class="reader-header">
+                    <strong>Reader Mode</strong>
+                    <div style="display:flex; gap: 8px;">
+                        <button class="reader-btn" onclick="startAudio()">🔊 Play</button>
+                        <button class="reader-btn" style="background:#c0392b; display:none;" id="btnStopAudio" onclick="stopAudio()">⏹ Stop</button>
+                        <button class="home-btn" onclick="closeReader()">Close</button>
                     </div>
                 </div>
-                <textarea id="source-code" style="flex:1; padding:10px; font-family:monospace; background:#222; color:#eee; border:none; resize:none;" spellcheck="false"></textarea>
+                <div id="reader-content" class="reader-body"></div>
             </div>
         </div>
-    </div>
 
-    <div id="log-panel">
-        <div class="log-entry">System Ready. V11 Deduplicated.</div>
+        <div id="panel-source" class="panel">
+            <div class="source-controls">
+                <button class="go-btn" style="padding: 5px 15px;" id="btnCopySource" onclick="copySource()">Copy to Clipboard</button>
+            </div>
+            <textarea id="source-code" class="source-viewer" spellcheck="false" placeholder="Source code will appear here..."></textarea>
+        </div>
+
+        <div id="panel-logs" class="panel">
+            <div class="log-container" id="log-output">
+                <div class="log-entry">System Ready. Video Filter Active.</div>
+            </div>
+        </div>
+
     </div>
 
     <script>
@@ -112,67 +236,77 @@
         let audioQueue = [];
         let currentAudioIndex = 0;
 
-        // --- UTILS ---
+        // --- UI LOGIC ---
+        function switchTab(tabName) {
+            // Update Buttons
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update Panels
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.getElementById(`panel-${tabName}`).classList.add('active');
+
+            // Dynamic Source Update
+            if (tabName === 'source') {
+                document.getElementById('source-code').value = fetchedHtml || "No content loaded.";
+            }
+        }
+
         function log(msg, type="info") {
-            const panel = document.getElementById('log-panel');
+            const container = document.getElementById('log-output');
             const time = new Date().toLocaleTimeString();
             const color = type === 'error' ? 'log-err' : (type === 'nav' ? 'log-nav' : '');
+            
             const div = document.createElement('div');
             div.className = 'log-entry';
             div.innerHTML = `<span class="log-time">[${time}]</span><span class="${color}">${msg}</span>`;
-            panel.appendChild(div);
-            panel.scrollTop = panel.scrollHeight;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
         }
 
-        function toggleLogs() {
-            const p = document.getElementById('log-panel');
-            p.style.display = p.style.display === 'none' ? 'block' : 'none';
-        }
-
+        // --- URL & FETCH LOGIC ---
         function fixUrl(input) {
             let url = input.trim();
             if (!url) return null;
-            if (!url.includes('.') && !url.includes('://') && !url.includes('localhost')) {
-                url += '.com';
-            }
-            if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                url = 'https://' + url;
-            }
+            if (!url.includes('.') && !url.includes('://') && !url.includes('localhost')) url += '.com';
+            if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
             return url;
         }
 
-        // --- CORE LOAD LOGIC ---
         async function loadUrl(urlOverride) {
-            let raw = urlOverride || document.getElementById('urlInput').value;
+            const raw = urlOverride || document.getElementById('urlInput').value;
             const url = fixUrl(raw);
             if(!url) return alert("Invalid URL");
 
-            // 1. CLEAR STATE to prevent stale data
-            fetchedHtml = ""; 
-            stopAudio(); // Ensure audio stops on navigation
+            // Reset UI
             document.getElementById('urlInput').value = url;
-            
-            document.getElementById('btnGo').disabled = true;
             document.getElementById('btnGo').textContent = "...";
+            document.getElementById('btnGo').disabled = true;
+            fetchedHtml = "";
+            stopAudio();
+
             log(`Fetching: ${url}`);
 
             let success = false;
-            
+
             for (let proxy of PROXIES) {
                 if(success) break;
                 try {
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
-                    
+                    const timeoutId = setTimeout(() => controller.abort(), 12000);
                     const res = await fetch(proxy.url(url), { signal: controller.signal });
                     clearTimeout(timeoutId);
 
                     if(!res.ok) throw new Error(`HTTP ${res.status}`);
-                    const text = await res.text();
-                    if(!text || text.length < 200) throw new Error("Empty/Short content");
+                    let text = await res.text();
+                    if(!text || text.length < 200) throw new Error("Empty content");
 
-                    // 2. PREPARE HTML
-                    // Base tag for images, Script for navigation
+                    // --- VIDEO KILLER & CLEANUP ---
+                    // We parse the HTML string and remove problematic tags before rendering
+                    // This prevents the browser from even trying to load the video assets
+                    text = removeHeavyMedia(text);
+                    
+                    // --- PREPARE HTML ---
                     const baseTag = `<base href="${url}" target="_self">`;
                     const navScript = `
                         <script>
@@ -186,7 +320,6 @@
                         <\/script>
                     `;
 
-                    // Inject
                     if(text.includes('<head>')) {
                         fetchedHtml = text.replace('<head>', `<head>${baseTag}${navScript}`);
                     } else {
@@ -204,16 +337,35 @@
 
             if(!success) {
                 log("All proxies failed.", 'error');
-                // Fallback (might not work if blocked)
-                document.getElementById('main-frame').srcdoc = "";
-                document.getElementById('main-frame').src = url;
+                document.getElementById('main-frame').src = url; // Fallback
             }
 
-            document.getElementById('btnGo').disabled = false;
             document.getElementById('btnGo').textContent = "Go";
+            document.getElementById('btnGo').disabled = false;
         }
 
-        // --- INTERNAL NAVIGATION LISTENER ---
+        // --- HELPER: VIDEO KILLER ---
+        function removeHeavyMedia(htmlString) {
+            // Using DOMParser to safely remove tags
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlString, 'text/html');
+            
+            // Remove <video>, <audio>, and generic <embed>
+            const killers = ['video', 'audio', 'embed', 'object'];
+            killers.forEach(tag => {
+                doc.querySelectorAll(tag).forEach(el => {
+                    // Replace with a placeholder so the layout doesn't break entirely
+                    const placeholder = document.createElement('div');
+                    placeholder.style.cssText = "background:#eee; padding:10px; border:1px dashed #999; text-align:center; color:#555;";
+                    placeholder.innerText = `[${tag.toUpperCase()} REMOVED]`;
+                    el.replaceWith(placeholder);
+                });
+            });
+
+            return doc.documentElement.outerHTML;
+        }
+
+        // --- INTERNAL NAV LISTENER ---
         window.addEventListener('message', (event) => {
             if (event.data && event.data.type === 'internal_nav') {
                 log(`Navigating to: ${event.data.url}`, 'nav');
@@ -221,32 +373,28 @@
             }
         });
 
-        // --- READER MODE (Fixed Duplication) ---
-        document.getElementById('btnReader').onclick = () => {
-            if(!fetchedHtml) return alert("Content is loading or empty.");
+        // --- HOME BUTTON ---
+        document.getElementById('btnHome').onclick = () => {
+            log("Navigating Home (Startpage.com)...");
+            loadUrl('https://startpage.com');
+        };
+
+        // --- READER MODE ---
+        document.getElementById('btnReaderOpen').onclick = () => {
+            if(!fetchedHtml) return alert("Content loading...");
             
             const parser = new DOMParser();
             const doc = parser.parseFromString(fetchedHtml, 'text/html');
 
-            // Strip junk
             ['script','style','iframe','nav','footer','header','aside','svg','button','form'].forEach(t => doc.querySelectorAll(t).forEach(e => e.remove()));
 
             let contentHTML = "";
-            let lastText = ""; // Memory to prevent immediate duplicates
-
-            // CHANGED: Removed 'li' to prevent nested duplicates (e.g. li > p)
+            let lastText = "";
             const nodes = doc.querySelectorAll('h1, h2, h3, p, article');
-            
-            const badPhrases = ["Getty Images", "Source:", "Copyright", "All rights reserved", "Read More"];
+            const badPhrases = ["Getty Images", "Source:", "Copyright", "All rights reserved"];
 
             nodes.forEach(node => {
-                let text = node.innerText.trim();
-                text = text.replace(/\s+/g, ' '); // Normalize whitespace
-
-                // Filter Logic:
-                // 1. Length > 20
-                // 2. Not in bad phrases
-                // 3. Not identical to the previous paragraph (Exact Match Dedupe)
+                let text = node.innerText.trim().replace(/\s+/g, ' ');
                 if(text.length > 25 && !badPhrases.some(b => text.includes(b)) && text !== lastText) {
                     contentHTML += `<p>${text}</p>`;
                     lastText = text;
@@ -258,18 +406,20 @@
             document.getElementById('reader-overlay').style.display = 'flex';
         };
 
+        function closeReader() {
+            stopAudio();
+            document.getElementById('reader-overlay').style.display = 'none';
+        }
+
         // --- AUDIO ENGINE ---
         function startAudio() {
             const paras = document.querySelectorAll('#reader-content p');
             if(paras.length === 0) return;
-            
             stopAudio();
             audioQueue = Array.from(paras);
             currentAudioIndex = 0;
             isReading = true;
-            
-            document.getElementById('btnPlay').style.display = 'none';
-            document.getElementById('btnStop').style.display = 'inline-block';
+            document.getElementById('btnStopAudio').style.display = 'inline-block';
             playNextChunk();
         }
 
@@ -279,46 +429,37 @@
                 return;
             }
             const p = audioQueue[currentAudioIndex];
-            
             document.querySelectorAll('.speaking').forEach(e => e.classList.remove('speaking'));
             p.classList.add('speaking');
             p.scrollIntoView({ behavior: "smooth", block: "center" });
 
             const u = new SpeechSynthesisUtterance(p.innerText);
-            // Attempt to use English voice to avoid default system voice weirdness
             const enVoice = synth.getVoices().find(v => v.lang.startsWith('en'));
             if(enVoice) u.voice = enVoice;
 
             u.onend = () => { currentAudioIndex++; playNextChunk(); };
             u.onerror = () => { currentAudioIndex++; playNextChunk(); };
-            
             synth.speak(u);
         }
 
         function stopAudio() {
             isReading = false;
             synth.cancel();
+            document.getElementById('btnStopAudio').style.display = 'none';
             document.querySelectorAll('.speaking').forEach(e => e.classList.remove('speaking'));
-            document.getElementById('btnPlay').style.display = 'inline-block';
-            document.getElementById('btnStop').style.display = 'none';
         }
 
-        // --- COPY SOURCE ---
+        // --- SOURCE COPY ---
         function copySource() {
             const el = document.getElementById('source-code');
             el.select();
             document.execCommand('copy');
             const btn = document.getElementById('btnCopySource');
             btn.innerText = "Copied!";
-            setTimeout(() => btn.innerText = "Copy Code", 1500);
+            setTimeout(() => btn.innerText = "Copy to Clipboard", 1500);
         }
 
         // --- EVENTS ---
-        document.getElementById('btnSource').onclick = () => {
-            if(!fetchedHtml) return alert("Load a URL first");
-            document.getElementById('source-code').value = fetchedHtml;
-            document.getElementById('source-overlay').style.display = 'flex';
-        };
         document.getElementById('btnGo').onclick = () => loadUrl();
         document.getElementById('urlInput').addEventListener('keypress', e => { if(e.key==='Enter') loadUrl(); });
 
