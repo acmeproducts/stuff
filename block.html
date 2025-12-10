@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BlockBuilder DragStack</title>
+    <title>BlockBuilder Scroll</title>
     <style>
         :root {
             --bg: #1e293b;
             --panel: rgba(30, 41, 59, 0.95);
-            --border: #334155;
+            --border: #475569;
             --primary: #6366f1;
-            --text: #f8fafc;
             --danger: #ef4444;
+            --text: #f8fafc;
         }
         body { 
             margin: 0; overflow: hidden; background: var(--bg); 
@@ -20,79 +20,130 @@
         }
         #app { display: flex; flex-direction: column; height: 100vh; }
         
-        /* Toolbar */
-        header {
-            height: 64px; background: var(--panel); border-bottom: 1px solid var(--border);
-            display: flex; align-items: center; padding: 0 12px; gap: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2); z-index: 10;
+        /* Canvas Area */
+        #viewport { 
+            flex: 1; 
+            position: relative; 
+            background: radial-gradient(circle at center, #1e293b, #0f172a); 
+            overflow: hidden; 
         }
-        
-        .toolbar-group { display: flex; background: rgba(255,255,255,0.1); padding: 4px; border-radius: 12px; gap: 4px; }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* Scrollable Toolbar (Bottom) */
+        .toolbar-container {
+            background: var(--panel);
+            border-top: 1px solid var(--border);
+            padding: 10px 0;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.3);
+            z-index: 20;
+        }
+
+        .scroll-track {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            overflow-x: auto;
+            padding: 0 16px;
+            /* Hide scrollbar but allow scroll */
+            scrollbar-width: none; 
+            -ms-overflow-style: none;
+            -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
+        }
+        .scroll-track::-webkit-scrollbar { display: none; }
+
+        /* Toolbar Items */
+        .separator { width: 1px; height: 40px; background: var(--border); flex-shrink: 0; }
         
         button {
-            width: 48px; height: 48px; border: 1px solid transparent; background: transparent; border-radius: 8px;
-            cursor: pointer; display: flex; align-items: center; justify-content: center; color: #94a3b8; transition: all 0.2s;
+            width: 50px; height: 50px; 
+            border: 1px solid var(--border); 
+            background: rgba(255,255,255,0.05); 
+            border-radius: 10px;
+            cursor: pointer; 
+            display: flex; align-items: center; justify-content: center; 
+            color: #94a3b8; 
+            transition: all 0.1s;
+            flex-shrink: 0; /* Prevent squishing */
         }
-        button.active { background: var(--primary); color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        button.active.trash { background: var(--danger); }
-        button svg { width: 28px; height: 28px; fill: currentColor; }
+        button:active { transform: scale(0.95); }
+        button.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 0 10px rgba(99, 102, 241, 0.4); }
+        button.active.trash { background: var(--danger); border-color: var(--danger); box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
+        
+        button svg { width: 26px; height: 26px; fill: currentColor; }
 
-        .color-preview {
-            width: 48px; height: 48px; border-radius: 8px; overflow: hidden; position: relative;
-            border: 2px solid rgba(255,255,255,0.2);
+        /* Color Picker */
+        .color-wrap {
+            width: 50px; height: 50px; 
+            border-radius: 10px; 
+            overflow: hidden; 
+            position: relative;
+            border: 2px solid var(--border);
+            flex-shrink: 0;
         }
-
-        /* Canvas */
-        #viewport { flex: 1; position: relative; background: radial-gradient(circle at center, #1e293b, #0f172a); overflow: hidden; }
-        canvas { display: block; width: 100%; height: 100%; }
+        input[type="color"] {
+            position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            border: none; padding: 0; margin: 0; cursor: pointer;
+        }
 
         /* HUD */
         .hud {
             position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.8); color: white; padding: 8px 16px;
-            border-radius: 20px; font-size: 0.9rem; pointer-events: none;
+            background: rgba(0,0,0,0.8); color: white; padding: 6px 12px;
+            border-radius: 20px; font-size: 0.85rem; pointer-events: none;
             opacity: 0; transition: opacity 0.2s;
         }
         .hud.show { opacity: 1; }
-        
-        /* Guide */
-        .guide {
-            position: absolute; bottom: 20px; left: 0; width: 100%; text-align: center;
-            font-size: 0.8rem; color: rgba(255,255,255,0.4); pointer-events: none;
-        }
     </style>
 </head>
 <body>
 
 <div id="app">
-    <header>
-        <div class="color-preview" id="cDisp" style="background:#6366f1">
-            <input type="color" value="#6366f1" oninput="app.setColor(this.value)" style="position:absolute; top:-10px; left:-10px; width:70px; height:70px; opacity:0;">
-        </div>
-        
-        <div class="toolbar-group">
-            <button class="active" onclick="app.setMode('build', 'cube')" title="Cube"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/></svg></button>
-            <button onclick="app.setMode('build', 'slab')" title="Slab"><svg viewBox="0 0 24 24"><path d="M12 13l8 3.5v4l-8 3.5-8-3.5v-4L12 13z"/></svg></button>
-            <button onclick="app.setMode('build', 'pillar')" title="Pillar"><svg viewBox="0 0 24 24"><rect x="10" y="4" width="4" height="16" rx="1"/></svg></button>
-            <button onclick="app.setMode('build', 'beam')" title="Beam"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="4" rx="1"/></svg></button>
-        </div>
-
-        <div class="toolbar-group">
-            <button id="trashBtn" class="trash" onclick="app.setMode('delete')" title="Delete Mode"><svg viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
-        </div>
-
-        <div style="flex:1"></div>
-
-        <div class="toolbar-group">
-            <button onclick="app.save()"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/></svg></button>
-            <button onclick="app.clear()"><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20" transform="rotate(45 12 12)"/></svg></button>
-        </div>
-    </header>
-
     <div id="viewport">
         <canvas id="canvas"></canvas>
         <div id="hud" class="hud">Mode</div>
-        <div class="guide">1 Finger: Draw/Delete &bull; 2 Fingers: Pan/Zoom/Rotate</div>
+    </div>
+
+    <div class="toolbar-container">
+        <div class="scroll-track">
+            <div class="color-wrap" id="cDisp" style="background:#6366f1">
+                <input type="color" value="#6366f1" oninput="app.setColor(this.value)">
+            </div>
+            
+            <div class="separator"></div>
+
+            <button class="active" onclick="app.setTool('build', 'cube')" title="Cube">
+                <svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/></svg>
+            </button>
+            <button onclick="app.setTool('build', 'slab')" title="Slab (Floor)">
+                <svg viewBox="0 0 24 24"><path d="M12 13l8 3.5v4l-8 3.5-8-3.5v-4L12 13z"/></svg>
+            </button>
+            <button onclick="app.setTool('build', 'pillar')" title="Pillar">
+                <svg viewBox="0 0 24 24"><rect x="10" y="4" width="4" height="16" rx="1"/></svg>
+            </button>
+            <button onclick="app.setTool('build', 'beam')" title="Beam">
+                <svg viewBox="0 0 24 24"><rect x="2" y="10" width="20" height="4" rx="1"/></svg>
+            </button>
+
+            <div class="separator"></div>
+
+            <button id="btnTrash" class="trash" onclick="app.setTool('delete')" title="Delete">
+                <svg viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+            
+            <div class="separator"></div>
+
+            <button onclick="app.saveFile()" title="Export">
+                <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/></svg>
+            </button>
+            <button onclick="document.getElementById('fileIn').click()" title="Import">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+            <button onclick="app.clear()" title="Clear All">
+                <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            
+            <input type="file" id="fileIn" hidden onchange="app.importFile(this)">
+        </div>
     </div>
 </div>
 
@@ -103,104 +154,75 @@ class Engine {
         this.ctx = this.canvas.getContext('2d');
         this.container = document.getElementById('viewport');
         
-        // Settings
-        this.tileW = 60;
-        this.tileH = 40; // Higher angle (more top-down)
-        this.blockH = 40; 
+        // Config
+        this.tileW = 64; 
+        this.tileH = 32; 
+        this.blockH = 32;
         
         // State
         this.blocks = {};
-        this.cam = { x: 0, y: 0, zoom: 1, angle: 0 }; // angle: 0, 1, 2, 3 (x90 deg)
+        this.cam = { x: 0, y: 0, zoom: 1, angle: 0 };
         this.tool = { mode: 'build', shape: 'cube', color: '#6366f1' };
-        
-        // Input Tracking
-        this.lastGrid = null; // Tracks last grid coordinate modified during a drag
-        this.gestures = {
-            dist: 0,
-            angle: 0,
-            startZoom: 1,
-            startAngle: 0
-        };
+        this.cursor = null; // Shows where we are pointing
 
-        // Init
+        // Input
+        this.lastGrid = null;
+        this.gestures = { active: false, x:0, y:0, dist:0, startZoom:1 };
+        
         this.resize();
         this.load();
-        
+
         window.addEventListener('resize', () => this.resize());
-        
-        // Inputs
-        const c = this.canvas;
-        c.addEventListener('touchstart', e => this.onTouchStart(e), {passive:false});
-        c.addEventListener('touchmove', e => this.onTouchMove(e), {passive:false});
-        c.addEventListener('touchend', e => this.onTouchEnd(e), {passive:false});
-        c.addEventListener('mousedown', e => this.onMouseDown(e));
-        window.addEventListener('mousemove', e => this.onMouseMove(e));
-        window.addEventListener('mouseup', e => this.onMouseUp(e));
-        
+        this.bindInputs();
         this.loop();
     }
 
     resize() {
         this.canvas.width = this.container.clientWidth;
         this.canvas.height = this.container.clientHeight;
-        if(this.cam.x === 0) {
-            this.cam.x = this.canvas.width/2; 
-            this.cam.y = this.canvas.height/2;
-        }
+        if(this.cam.x===0) { this.cam.x = this.canvas.width/2; this.cam.y = this.canvas.height/2; }
     }
 
-    // --- Core Logic: Drag to Paint ---
-    
-    // Convert Screen X,Y to Rotated Grid X,Y (Ground Plane)
+    // --- Core Logic ---
+
     getGrid(mx, my) {
         const Z = this.cam.zoom;
         const adjX = (mx - this.cam.x) / Z;
         const adjY = (my - this.cam.y) / Z;
         
-        // Iso Projection Inverse
-        // For 0 rotation:
+        // Standard Isometric Inverse
+        // If angle changes, we rotate the inputs
         let gx = (adjX / this.tileW + adjY / this.tileH);
         let gy = (adjY / this.tileH - adjX / this.tileW);
-        
-        // Apply Rotation Logic (0, 90, 180, 270)
-        // 90 deg rotation transforms (x,y) -> (y, -x)
-        let rx = gx, ry = gy;
-        const a = this.cam.angle % 4;
-        
-        if(a === 1) { rx = gy; ry = -gx; }
-        else if(a === 2) { rx = -gx; ry = -gy; }
-        else if(a === 3) { rx = -gy; ry = gx; }
-        
-        return { x: Math.floor(rx), y: Math.floor(ry) };
+
+        // Snap
+        return { x: Math.floor(gx), y: Math.floor(gy) };
     }
 
-    handlePaint(mx, my) {
+    action(mx, my) {
         const g = this.getGrid(mx, my);
         const key = `${g.x},${g.y}`;
         
-        // Prevention: Don't trigger same tile twice in one drag frame if we haven't moved grid cells
+        // Prevent spamming same tile in one drag
         if(this.lastGrid === key) return;
         this.lastGrid = key;
 
-        // Logic
         if(this.tool.mode === 'delete') {
-            // Find highest Z and delete
-            let maxZ = -1;
+            // Find top block
+            let top = -1;
             let z = 0;
-            // Scan up to reasonable height
-            while(this.blocks[`${g.x},${g.y},${z}`]) { maxZ = z; z++; }
+            while(this.blocks[`${g.x},${g.y},${z}`]) { top = z; z++; }
             
-            if(maxZ > -1) {
-                delete this.blocks[`${g.x},${g.y},${maxZ}`];
+            if(top !== -1) {
+                delete this.blocks[`${g.x},${g.y},${top}`];
                 this.save();
             }
         } else {
-            // Build Mode: Stack Up
+            // Build
             let z = 0;
             while(this.blocks[`${g.x},${g.y},${z}`]) z++;
             
-            // Limit height just in case
-            if(z < 20) {
+            if(z < 32) {
                 this.blocks[`${g.x},${g.y},${z}`] = {
                     type: this.tool.shape,
                     color: this.tool.color
@@ -210,213 +232,128 @@ class Engine {
         }
     }
 
-    // --- Inputs ---
-
-    onTouchStart(e) {
-        e.preventDefault();
-        this.lastGrid = null; // Reset drag tracker
-
-        if(e.touches.length === 1) {
-            // 1 Finger: Paint / Delete immediately
-            this.handlePaint(e.touches[0].clientX, e.touches[0].clientY);
-        } 
-        else if(e.touches.length === 2) {
-            // 2 Fingers: Gesture
-            const t1 = e.touches[0]; const t2 = e.touches[1];
-            const dx = t1.clientX - t2.clientX;
-            const dy = t1.clientY - t2.clientY;
-            
-            this.gestures.dist = Math.hypot(dx, dy);
-            this.gestures.startZoom = this.cam.zoom;
-            
-            // Angle for Twist
-            this.gestures.angle = Math.atan2(dy, dx);
-            this.gestures.startAngle = this.cam.angle;
-            
-            // Center point for Pan
-            this.gestures.lastPanX = (t1.clientX + t2.clientX)/2;
-            this.gestures.lastPanY = (t1.clientY + t2.clientY)/2;
-        }
-    }
-
-    onTouchMove(e) {
-        e.preventDefault();
-        if(e.touches.length === 1) {
-            // Drag to Paint
-            this.handlePaint(e.touches[0].clientX, e.touches[0].clientY);
-        }
-        else if(e.touches.length === 2) {
-            // Gesture
-            const t1 = e.touches[0]; const t2 = e.touches[1];
-            
-            // 1. Pan
-            const cx = (t1.clientX + t2.clientX)/2;
-            const cy = (t1.clientY + t2.clientY)/2;
-            this.cam.x += cx - this.gestures.lastPanX;
-            this.cam.y += cy - this.gestures.lastPanY;
-            this.gestures.lastPanX = cx;
-            this.gestures.lastPanY = cy;
-
-            // 2. Zoom
-            const dx = t1.clientX - t2.clientX;
-            const dy = t1.clientY - t2.clientY;
-            const dist = Math.hypot(dx, dy);
-            const scale = dist / this.gestures.dist;
-            this.cam.zoom = Math.max(0.5, Math.min(3, this.gestures.startZoom * scale));
-            
-            // 3. Twist (Snap to 90)
-            const ang = Math.atan2(dy, dx);
-            const delta = ang - this.gestures.angle;
-            // Threshold for rotation (e.g., 45 degrees)
-            if(Math.abs(delta) > 0.5) { // ~30 degrees
-               // Calculate direction
-               if(delta > 0) this.rotateCamera(1);
-               else this.rotateCamera(-1);
-               
-               // Reset gesture baseline so it doesn't spin uncontrollably
-               this.gestures.angle = ang;
-            }
-        }
-    }
-
-    onTouchEnd(e) { e.preventDefault(); this.lastGrid = null; }
-
-    // Mouse Fallbacks
-    onMouseDown(e) { 
-        if(e.button === 0) { 
-            this.isDrawing = true; 
-            this.handlePaint(e.clientX, e.clientY);
-        }
-    }
-    onMouseMove(e) { if(this.isDrawing) this.handlePaint(e.clientX, e.clientY); }
-    onMouseUp(e) { this.isDrawing = false; this.lastGrid = null; }
-    
-    // --- Logic Helpers ---
-
-    rotateCamera(dir) {
-        // Debounce rotation slightly? No, snap is better
-        // Update angle 0-3
-        let a = this.cam.angle + dir;
-        if(a < 0) a = 3;
-        if(a > 3) a = 0;
-        this.cam.angle = a;
-        this.showHud(`Rotation: ${a*90}°`);
-    }
-
     // --- Rendering ---
 
-    loop() { this.draw(); requestAnimationFrame(()=>this.loop()); }
+    loop() {
+        this.draw();
+        requestAnimationFrame(() => this.loop());
+    }
 
     draw() {
         const ctx = this.ctx;
-        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        const W = this.canvas.width; 
+        const H = this.canvas.height;
+        ctx.clearRect(0, 0, W, H);
         
-        // Draw Grid (Infinite feel)
+        // 1. Grid
         this.drawGrid();
 
-        // Prepare Blocks
+        // 2. Cursor Highlight (The White Box)
+        if(this.cursor) {
+            const p = this.iso(this.cursor.x, this.cursor.y, 0);
+            this.drawPoly(p.x, p.y, this.tileW*this.cam.zoom, this.tileH*this.cam.zoom, 'rgba(255,255,255,0.1)', 'white', 2);
+        }
+
+        // 3. Blocks
         const list = Object.keys(this.blocks).map(k => {
             const [x,y,z] = k.split(',').map(Number);
             return { x, y, z, ...this.blocks[k] };
         });
 
-        // SORTING IS CRITICAL FOR ROTATION
-        // We must sort based on the Current View Angle
-        // Angle 0: x+y
-        // Angle 1 (90): y-x
-        // Angle 2 (180): -x-y
-        // Angle 3 (270): -y+x
-        
-        const a = this.cam.angle;
-        list.sort((a_blk, b_blk) => {
-            let d1, d2;
-            if(a===0) { d1 = a_blk.x + a_blk.y; d2 = b_blk.x + b_blk.y; }
-            else if(a===1) { d1 = a_blk.y - a_blk.x; d2 = b_blk.y - b_blk.x; }
-            else if(a===2) { d1 = -(a_blk.x + a_blk.y); d2 = -(b_blk.x + b_blk.y); }
-            else { d1 = a_blk.x - a_blk.y; d2 = b_blk.x - b_blk.y; }
-            
-            // Primary Sort: Depth. Secondary Sort: Z-Height
-            return (d1 - d2) || (a_blk.z - b_blk.z);
-        });
+        // Sort: Back to Front (x+y) then Bottom to Top (z)
+        list.sort((a,b) => (a.x + a.y) - (b.x + b.y) || a.z - b.z);
 
         list.forEach(b => this.drawBlock(b));
     }
 
     drawBlock(b) {
-        const ctx = this.ctx;
         const Z = this.cam.zoom;
-        
-        // ROTATE COORDINATES FOR RENDERING
-        let rx = b.x, ry = b.y;
-        const a = this.cam.angle;
-        if(a === 1) { rx = -b.y; ry = b.x; }
-        else if(a === 2) { rx = -b.x; ry = -b.y; }
-        else if(a === 3) { rx = b.y; ry = -b.x; }
-
-        const pos = this.iso(rx, ry, b.z);
+        const pos = this.iso(b.x, b.y, b.z);
         
         let w = this.tileW * Z;
         let d = this.tileH * Z;
         let h = this.blockH * Z;
         
-        // Shape Mods
-        if(b.type === 'slab') h *= 0.25;
-        if(b.type === 'pillar') { w*=0.3; d*=0.3; h*=1.2; }
-        if(b.type === 'beam') h*=0.4;
+        // GEOMETRY DEFINITIONS
+        // Slab: Full footprint, short height
+        if(b.type === 'slab') { h *= 0.25; }
+        
+        // Pillar: Thin footprint, full height
+        else if(b.type === 'pillar') { w *= 0.3; d *= 0.3; h *= 1.2; }
+        
+        // Beam: Wide X, Thin Y (Depth), Short Height
+        else if(b.type === 'beam') { 
+            d *= 0.3; // Thin depth
+            h *= 0.3; // Short height
+            // w remains full
+        }
 
         const cx = pos.x;
-        const cy = pos.y - (b.z * this.blockH * Z); // Stack visually
-        
-        // Shading
+        const cy = pos.y - (b.z * this.blockH * Z); // Stack height remains standard unit
+
         const c1 = b.color;
         const c2 = this.shade(b.color, -15);
         const c3 = this.shade(b.color, -25);
         
-        // Draw Prism
-        const hw = w/2, hd = d/2;
+        this.drawPrism(cx, cy, w, d, h, c1, c2, c3);
+    }
 
-        // Top
-        ctx.beginPath();
-        ctx.moveTo(cx, cy-h-hd); ctx.lineTo(cx+hw, cy-h); ctx.lineTo(cx, cy-h+hd); ctx.lineTo(cx-hw, cy-h);
-        ctx.closePath(); ctx.fillStyle = c1; ctx.fill(); 
-        ctx.lineWidth=0.5; ctx.strokeStyle='rgba(0,0,0,0.2)'; ctx.stroke();
+    drawPrism(cx, cy, w, d, h, cTop, cRight, cLeft) {
+        const ctx = this.ctx;
+        const hw = w/2; 
+        const hd = d/2;
 
-        // Right
+        // Top Face
         ctx.beginPath();
-        ctx.moveTo(cx, cy-h+hd); ctx.lineTo(cx+hw, cy-h); ctx.lineTo(cx+hw, cy); ctx.lineTo(cx, cy+hd);
-        ctx.closePath(); ctx.fillStyle = c2; ctx.fill(); ctx.stroke();
+        ctx.moveTo(cx, cy - h - hd);
+        ctx.lineTo(cx + hw, cy - h);
+        ctx.lineTo(cx, cy - h + hd);
+        ctx.lineTo(cx - hw, cy - h);
+        ctx.closePath();
+        ctx.fillStyle = cTop; ctx.fill(); 
+        ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 0.5; ctx.stroke();
 
-        // Left
+        // Right Face
         ctx.beginPath();
-        ctx.moveTo(cx, cy-h+hd); ctx.lineTo(cx-hw, cy-h); ctx.lineTo(cx-hw, cy); ctx.lineTo(cx, cy+hd);
-        ctx.closePath(); ctx.fillStyle = c3; ctx.fill(); ctx.stroke();
+        ctx.moveTo(cx, cy - h + hd);
+        ctx.lineTo(cx + hw, cy - h);
+        ctx.lineTo(cx + hw, cy);
+        ctx.lineTo(cx, cy + hd);
+        ctx.closePath();
+        ctx.fillStyle = cRight; ctx.fill(); ctx.stroke();
+
+        // Left Face
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - h + hd);
+        ctx.lineTo(cx - hw, cy - h);
+        ctx.lineTo(cx - hw, cy);
+        ctx.lineTo(cx, cy + hd);
+        ctx.closePath();
+        ctx.fillStyle = cLeft; ctx.fill(); ctx.stroke();
+    }
+
+    drawPoly(cx, cy, w, h, fill, stroke, lw=1) {
+        const ctx = this.ctx;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - h/2);
+        ctx.lineTo(cx + w/2, cy);
+        ctx.lineTo(cx, cy + h/2);
+        ctx.lineTo(cx - w/2, cy);
+        ctx.closePath();
+        if(fill) { ctx.fillStyle = fill; ctx.fill(); }
+        if(stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
     }
 
     drawGrid() {
         const ctx = this.ctx;
-        ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.05)';
         const range = 15;
-        
-        // Just draw a static grid relative to camera center for reference
-        // We won't rotate the grid lines themselves to keep "infinite" illusion simple, 
-        // or we can rotate points. Let's rotate points.
-        
         ctx.beginPath();
         for(let i=-range; i<=range; i++) {
-            // Lines need to rotate too visually
-            let ax = i, ay = -range;
-            let bx = i, by = range;
-            
-            // Apply rotation to grid visual
-            // (Skipping complex infinite math, just drawing local grid)
-            
-            let p1 = this.iso(ax, ay, 0); 
-            let p2 = this.iso(bx, by, 0);
+            let p1=this.iso(i,-range,0), p2=this.iso(i,range,0);
             ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
-            
-            p1 = this.iso(-range, i, 0);
-            p2 = this.iso(range, i, 0);
-            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+            let p3=this.iso(-range,i,0), p4=this.iso(range,i,0);
+            ctx.moveTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y);
         }
         ctx.stroke();
     }
@@ -427,7 +364,7 @@ class Engine {
             y: (x + y) * this.tileH * 0.5 * this.cam.zoom - (z * this.blockH * this.cam.zoom) + this.cam.y
         };
     }
-
+    
     shade(hex, p) {
         const num = parseInt(hex.replace("#",""), 16);
         const amt = Math.round(2.55 * p);
@@ -437,25 +374,99 @@ class Engine {
         return "#" + (0x1000000 + (R<255?R<1?0:R:255)*0x10000 + (G<255?G<1?0:G:255)*0x100 + (B<255?B<1?0:B:255)).toString(16).slice(1);
     }
 
-    // --- UI ---
-    setMode(m, s) {
-        this.tool.mode = m;
-        if(s) this.tool.shape = s;
+    // --- Inputs ---
+
+    bindInputs() {
+        const c = this.canvas;
         
-        document.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-        if(m==='delete') document.getElementById('trashBtn').classList.add('active');
-        else document.querySelector(`button[title="${s.charAt(0).toUpperCase() + s.slice(1)}"]`).classList.add('active');
+        // Touch
+        c.addEventListener('touchstart', e => {
+            e.preventDefault();
+            this.lastGrid = null;
+            if(e.touches.length === 1) {
+                // Paint Start
+                const t = e.touches[0];
+                this.action(t.clientX, t.clientY);
+            } else if(e.touches.length === 2) {
+                // Gesture Start
+                const t1=e.touches[0], t2=e.touches[1];
+                this.gestures.active = true;
+                this.gestures.dist = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
+                this.gestures.startZoom = this.cam.zoom;
+                this.gestures.x = (t1.clientX+t2.clientX)/2;
+                this.gestures.y = (t1.clientY+t2.clientY)/2;
+            }
+        }, {passive:false});
+
+        c.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if(e.touches.length === 1 && !this.gestures.active) {
+                // Drag Paint
+                const t = e.touches[0];
+                this.cursor = this.getGrid(t.clientX, t.clientY);
+                this.action(t.clientX, t.clientY);
+            } else if(e.touches.length === 2) {
+                // Gesture Move
+                const t1=e.touches[0], t2=e.touches[1];
+                
+                // Zoom
+                const dist = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
+                const scale = dist / this.gestures.dist;
+                this.cam.zoom = Math.max(0.5, Math.min(3, this.gestures.startZoom * scale));
+                
+                // Pan
+                const cx = (t1.clientX+t2.clientX)/2;
+                const cy = (t1.clientY+t2.clientY)/2;
+                this.cam.x += cx - this.gestures.x;
+                this.cam.y += cy - this.gestures.y;
+                this.gestures.x = cx; this.gestures.y = cy;
+            }
+        }, {passive:false});
+
+        c.addEventListener('touchend', e => {
+            e.preventDefault();
+            this.lastGrid = null;
+            if(e.touches.length === 0) this.gestures.active = false;
+        }, {passive:false});
         
-        this.showHud(m === 'delete' ? "DELETE MODE" : `BUILD: ${s.toUpperCase()}`);
+        // Mouse Fallbacks
+        let mDown = false;
+        c.addEventListener('mousedown', e => { mDown=true; this.lastGrid=null; this.action(e.clientX, e.clientY); });
+        window.addEventListener('mousemove', e => {
+            this.cursor = this.getGrid(e.clientX, e.clientY);
+            if(mDown) this.action(e.clientX, e.clientY);
+        });
+        window.addEventListener('mouseup', () => { mDown=false; this.lastGrid=null; });
     }
-    
+
+    // --- UI/IO ---
+    setTool(mode, shape) {
+        this.tool.mode = mode;
+        if(shape) this.tool.shape = shape;
+        document.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        
+        if(mode === 'delete') document.getElementById('btnTrash').classList.add('active');
+        else document.querySelector(`button[title="${shape.charAt(0).toUpperCase() + shape.slice(1)}"]`).classList.add('active');
+        
+        this.toast(mode === 'delete' ? "Delete Mode" : shape);
+    }
     setColor(c) { this.tool.color = c; document.getElementById('cDisp').style.background = c; }
+    toast(m) { const t=document.getElementById('hud'); t.innerText=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1000); }
     
-    showHud(m) { const h=document.getElementById('hud'); h.innerText=m; h.classList.add('show'); setTimeout(()=>h.classList.remove('show'), 1000); }
-    
-    save() { localStorage.setItem('dragStack', JSON.stringify(this.blocks)); }
-    load() { const d=localStorage.getItem('dragStack'); if(d) this.blocks = JSON.parse(d); }
+    saveFile() {
+        const a = document.createElement('a');
+        a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.blocks));
+        a.download = "blocks.json"; a.click();
+    }
+    importFile(el) {
+        const f=el.files[0]; if(f) {
+            const r=new FileReader(); r.onload=e=>{this.blocks=JSON.parse(e.target.result);this.save();};
+            r.readAsText(f);
+        }
+    }
     clear() { if(confirm("Clear All?")) { this.blocks={}; this.save(); } }
+    save() { localStorage.setItem('blockV8', JSON.stringify(this.blocks)); }
+    load() { const d=localStorage.getItem('blockV8'); if(d) this.blocks=JSON.parse(d); }
 }
 
 const app = new Engine();
