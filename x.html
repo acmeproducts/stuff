@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Web Tool v13</title>
+    <title>Universal Web Tool v14</title>
     <style>
         :root {
             --primary: #2c3e50;
@@ -24,7 +24,7 @@
             overflow: hidden;
         }
 
-        /* --- 1. Top Navigation Bar (Address) --- */
+        /* --- UI Components --- */
         .nav-bar {
             background: #fff;
             padding: 8px 12px;
@@ -32,7 +32,6 @@
             gap: 10px;
             align-items: center;
             border-bottom: 1px solid var(--border);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             z-index: 20;
         }
 
@@ -43,7 +42,6 @@
             cursor: pointer;
             padding: 8px 12px;
             font-size: 18px;
-            transition: background 0.2s;
         }
         .home-btn:hover { background: #eee; }
 
@@ -55,7 +53,6 @@
             font-size: 16px;
             outline: none;
         }
-        input[type="text"]:focus { border-color: var(--accent); }
 
         .go-btn {
             padding: 10px 20px;
@@ -66,10 +63,8 @@
             font-weight: 600;
             cursor: pointer;
         }
-        .go-btn:hover { opacity: 0.9; }
-        .go-btn:disabled { background-color: #95a5a6; cursor: wait; }
+        .go-btn:disabled { background-color: #95a5a6; cursor: not-allowed; }
 
-        /* --- 2. Tab Controls --- */
         .tab-bar {
             display: flex;
             background: var(--tab-inactive);
@@ -85,18 +80,13 @@
             font-weight: 600;
             color: #666;
             border-right: 1px solid #d1d1d1;
-            transition: background 0.2s;
         }
-        .tab-btn:last-child { border-right: none; }
-        
         .tab-btn.active {
             background: var(--tab-active);
             color: var(--accent);
             border-bottom: 3px solid var(--accent);
         }
-        .tab-btn:hover:not(.active) { background: #dcdcdc; }
 
-        /* --- 3. Main Content Areas --- */
         .content-area {
             flex: 1;
             position: relative;
@@ -104,49 +94,56 @@
             background: white;
         }
 
-        /* Panel Visibility Logic */
         .panel { display: none; width: 100%; height: 100%; flex-direction: column; }
         .panel.active { display: flex; }
 
-        /* A. Browser Panel */
         iframe { width: 100%; height: 100%; border: none; }
+        
         .browser-toolbar {
             padding: 5px 10px;
             background: #f8f9fa;
             border-bottom: 1px solid #ddd;
             display: flex;
             justify-content: flex-end;
+            align-items: center;
+            height: 40px;
         }
+        
         .reader-btn {
             background: #27ae60;
             color: white;
             border: none;
-            padding: 6px 12px;
+            padding: 8px 15px;
             border-radius: 4px;
             cursor: pointer;
             font-size: 13px;
+            font-weight: 600;
+        }
+        .reader-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+        /* Overlays */
+        #loading-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.9);
+            z-index: 50;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #555;
+            flex-direction: column;
+            gap: 15px;
         }
 
-        /* B. Source Panel */
-        textarea.source-viewer {
-            flex: 1;
-            width: 100%;
-            padding: 15px;
-            background: #282c34;
-            color: #abb2bf;
-            font-family: 'Courier New', monospace;
-            border: none;
-            resize: none;
-            box-sizing: border-box;
+        #reader-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: white; z-index: 100; display: none; flex-direction: column;
         }
-        .source-controls {
-            padding: 10px;
-            background: #eee;
-            border-bottom: 1px solid #ccc;
-            text-align: right;
-        }
+        .reader-header { padding: 15px; background: #ecf0f1; border-bottom: 1px solid #bdc3c7; display: flex; justify-content: space-between; align-items: center; }
+        .reader-body { flex: 1; padding: 40px; overflow-y: auto; max-width: 800px; margin: 0 auto; line-height: 1.8; font-size: 18px; color: #111; }
+        .speaking { background-color: #fff3cd; border-left: 5px solid #f1c40f; padding-left: 10px; }
 
-        /* C. Log Panel */
+        /* Logs */
         .log-container {
             flex: 1;
             background: #1e1e1e;
@@ -161,28 +158,28 @@
         .log-err { color: #ff6b6b; }
         .log-nav { color: #f1c40f; }
 
-        /* --- Reader Overlay (Popup) --- */
-        #reader-overlay {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-            background: white; z-index: 100; display: none; flex-direction: column;
+        /* Source View */
+        textarea.source-viewer {
+            flex: 1; width: 100%; padding: 15px; background: #282c34; color: #abb2bf; font-family: monospace; border: none; resize: none;
         }
-        .reader-header { padding: 15px; background: #ecf0f1; border-bottom: 1px solid #bdc3c7; display: flex; justify-content: space-between; align-items: center; }
-        .reader-body { flex: 1; padding: 40px; overflow-y: auto; max-width: 800px; margin: 0 auto; line-height: 1.8; font-size: 18px; color: #111; }
-        .speaking { background-color: #fff3cd; border-left: 5px solid #f1c40f; padding-left: 10px; }
-
     </style>
 </head>
 <body>
 
+    <div id="loading-overlay">
+        <div class="spinner">🔄</div>
+        <div id="loading-text">Fetching Content...</div>
+    </div>
+
     <nav class="nav-bar">
         <button class="home-btn" id="btnHome" title="Home (NPR.org)">🏠</button>
-        <input type="text" id="urlInput" placeholder="Enter URL (e.g. cnn)" />
+        <input type="text" id="urlInput" placeholder="Enter URL" />
         <button class="go-btn" id="btnGo">Go</button>
     </nav>
 
     <div class="tab-bar">
         <button class="tab-btn active" onclick="switchTab('browser')">Browser</button>
-        <button class="tab-btn" onclick="switchTab('source')">Source Code</button>
+        <button class="tab-btn" id="tabSource" onclick="switchTab('source')">Source Code</button>
         <button class="tab-btn" onclick="switchTab('logs')">System Logs</button>
     </div>
 
@@ -190,6 +187,7 @@
         
         <div id="panel-browser" class="panel active">
             <div class="browser-toolbar">
+                <span id="reader-status" style="margin-right:15px; color:#e74c3c; font-size:12px; display:none;">Reader Unavailable (Direct Mode)</span>
                 <button class="reader-btn" id="btnReaderOpen">📖 Open Reader & Audio</button>
             </div>
             <iframe id="main-frame" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
@@ -208,15 +206,15 @@
         </div>
 
         <div id="panel-source" class="panel">
-            <div class="source-controls">
-                <button class="go-btn" style="padding: 5px 15px;" id="btnCopySource" onclick="copySource()">Copy to Clipboard</button>
+            <div style="padding:10px; background:#eee; text-align:right; border-bottom:1px solid #ccc;">
+                <button class="go-btn" style="padding:5px 15px;" id="btnCopySource" onclick="copySource()">Copy to Clipboard</button>
             </div>
-            <textarea id="source-code" class="source-viewer" spellcheck="false" placeholder="Source code will appear here..."></textarea>
+            <textarea id="source-code" class="source-viewer" spellcheck="false"></textarea>
         </div>
 
         <div id="panel-logs" class="panel">
             <div class="log-container" id="log-output">
-                <div class="log-entry">System Ready. Video Filter Active.</div>
+                <div class="log-entry">System Ready. v14 NPR Fix.</div>
             </div>
         </div>
 
@@ -236,27 +234,11 @@
         let audioQueue = [];
         let currentAudioIndex = 0;
 
-        // --- UI LOGIC ---
-        function switchTab(tabName) {
-            // Update Buttons
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            event.target.classList.add('active');
-
-            // Update Panels
-            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-            document.getElementById(`panel-${tabName}`).classList.add('active');
-
-            // Dynamic Source Update
-            if (tabName === 'source') {
-                document.getElementById('source-code').value = fetchedHtml || "No content loaded.";
-            }
-        }
-
+        // --- UI & LOGS ---
         function log(msg, type="info") {
             const container = document.getElementById('log-output');
             const time = new Date().toLocaleTimeString();
             const color = type === 'error' ? 'log-err' : (type === 'nav' ? 'log-nav' : '');
-            
             const div = document.createElement('div');
             div.className = 'log-entry';
             div.innerHTML = `<span class="log-time">[${time}]</span><span class="${color}">${msg}</span>`;
@@ -264,7 +246,28 @@
             container.scrollTop = container.scrollHeight;
         }
 
-        // --- URL & FETCH LOGIC ---
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.getElementById(`panel-${tabName}`).classList.add('active');
+            if (tabName === 'source') {
+                document.getElementById('source-code').value = fetchedHtml || "Source not available in Direct Mode.";
+            }
+        }
+
+        function toggleLoading(show) {
+            document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+        }
+
+        function toggleReaderAvailability(available) {
+            document.getElementById('btnReaderOpen').disabled = !available;
+            document.getElementById('tabSource').disabled = !available;
+            document.getElementById('reader-status').style.display = available ? 'none' : 'block';
+            if(!available) fetchedHtml = ""; // Clear stale data
+        }
+
+        // --- URL LOGIC ---
         function fixUrl(input) {
             let url = input.trim();
             if (!url) return null;
@@ -278,13 +281,13 @@
             const url = fixUrl(raw);
             if(!url) return alert("Invalid URL");
 
-            // Reset UI
-            document.getElementById('urlInput').value = url;
-            document.getElementById('btnGo').textContent = "...";
-            document.getElementById('btnGo').disabled = true;
-            fetchedHtml = "";
+            // --- RESET STATE ---
             stopAudio();
-
+            document.getElementById('urlInput').value = url;
+            toggleLoading(true);
+            toggleReaderAvailability(true); // Assume success initially
+            fetchedHtml = ""; 
+            
             log(`Fetching: ${url}`);
 
             let success = false;
@@ -293,18 +296,19 @@
                 if(success) break;
                 try {
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 12000);
+                    const timeoutId = setTimeout(() => controller.abort(), 15000);
                     const res = await fetch(proxy.url(url), { signal: controller.signal });
                     clearTimeout(timeoutId);
 
                     if(!res.ok) throw new Error(`HTTP ${res.status}`);
                     let text = await res.text();
-                    if(!text || text.length < 200) throw new Error("Empty content");
+                    if(!text || text.length < 500) throw new Error("Empty/Short content");
 
-                    // --- VIDEO KILLER & CLEANUP ---
-                    text = removeHeavyMedia(text);
-                    
-                    // --- PREPARE HTML ---
+                    // --- CLEANUP ---
+                    // Remove Media AND Security Headers (CSP) to allow our script to run
+                    text = cleanHTML(text);
+
+                    // --- INJECTION ---
                     const baseTag = `<base href="${url}" target="_self">`;
                     const navScript = `
                         <script>
@@ -334,33 +338,32 @@
             }
 
             if(!success) {
-                log("All proxies failed.", 'error');
-                document.getElementById('main-frame').src = url; // Fallback
+                log("All proxies failed. Falling back to Direct Mode.", 'error');
+                // FALLBACK: Load directly, but DISABLE Reader because we can't read the content
+                document.getElementById('main-frame').src = url;
+                toggleReaderAvailability(false); 
             }
 
-            document.getElementById('btnGo').textContent = "Go";
-            document.getElementById('btnGo').disabled = false;
+            toggleLoading(false);
         }
 
-        // --- HELPER: VIDEO KILLER ---
-        function removeHeavyMedia(htmlString) {
+        // --- HELPER: CLEANER ---
+        function cleanHTML(htmlString) {
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlString, 'text/html');
             
-            const killers = ['video', 'audio', 'embed', 'object'];
-            killers.forEach(tag => {
-                doc.querySelectorAll(tag).forEach(el => {
-                    const placeholder = document.createElement('div');
-                    placeholder.style.cssText = "background:#eee; padding:10px; border:1px dashed #999; text-align:center; color:#555;";
-                    placeholder.innerText = `[${tag.toUpperCase()} REMOVED]`;
-                    el.replaceWith(placeholder);
-                });
+            // 1. Remove Heavy Media
+            ['video', 'audio', 'embed', 'object'].forEach(tag => {
+                doc.querySelectorAll(tag).forEach(el => el.replaceWith('[MEDIA REMOVED]'));
             });
+
+            // 2. Remove CSP Meta Tags (Fixes the "Script blocked" issue)
+            doc.querySelectorAll('meta[http-equiv="Content-Security-Policy"]').forEach(el => el.remove());
 
             return doc.documentElement.outerHTML;
         }
 
-        // --- INTERNAL NAV LISTENER ---
+        // --- NAVIGATION LISTENER ---
         window.addEventListener('message', (event) => {
             if (event.data && event.data.type === 'internal_nav') {
                 log(`Navigating to: ${event.data.url}`, 'nav');
@@ -368,7 +371,7 @@
             }
         });
 
-        // --- HOME BUTTON (UPDATED) ---
+        // --- HOME BUTTON ---
         document.getElementById('btnHome').onclick = () => {
             log("Navigating Home (NPR.org)...");
             loadUrl('https://npr.org');
@@ -376,7 +379,7 @@
 
         // --- READER MODE ---
         document.getElementById('btnReaderOpen').onclick = () => {
-            if(!fetchedHtml) return alert("Content loading...");
+            if(!fetchedHtml) return alert("Content unavailable in Direct Mode.");
             
             const parser = new DOMParser();
             const doc = parser.parseFromString(fetchedHtml, 'text/html');
@@ -386,11 +389,11 @@
             let contentHTML = "";
             let lastText = "";
             const nodes = doc.querySelectorAll('h1, h2, h3, p, article');
-            const badPhrases = ["Getty Images", "Source:", "Copyright", "All rights reserved"];
+            const badPhrases = ["Getty Images", "Source:", "Copyright", "All rights reserved", "enlarge image", "toggle caption"];
 
             nodes.forEach(node => {
                 let text = node.innerText.trim().replace(/\s+/g, ' ');
-                if(text.length > 25 && !badPhrases.some(b => text.includes(b)) && text !== lastText) {
+                if(text.length > 25 && !badPhrases.some(b => text.toLowerCase().includes(b.toLowerCase())) && text !== lastText) {
                     contentHTML += `<p>${text}</p>`;
                     lastText = text;
                 }
@@ -444,7 +447,6 @@
             document.querySelectorAll('.speaking').forEach(e => e.classList.remove('speaking'));
         }
 
-        // --- SOURCE COPY ---
         function copySource() {
             const el = document.getElementById('source-code');
             el.select();
@@ -454,9 +456,15 @@
             setTimeout(() => btn.innerText = "Copy to Clipboard", 1500);
         }
 
-        // --- EVENTS ---
+        // --- INIT ---
         document.getElementById('btnGo').onclick = () => loadUrl();
         document.getElementById('urlInput').addEventListener('keypress', e => { if(e.key==='Enter') loadUrl(); });
+        
+        // Auto-load Home
+        window.addEventListener('DOMContentLoaded', () => {
+             // Optional: Uncomment to auto-load NPR on start
+             // loadUrl('https://npr.org');
+        });
 
     </script>
 </body>
