@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Web Tool v14</title>
+    <title>Universal Web Tool v15</title>
     <style>
         :root {
             --primary: #2c3e50;
@@ -104,7 +104,7 @@
             background: #f8f9fa;
             border-bottom: 1px solid #ddd;
             display: flex;
-            justify-content: flex-end;
+            justify-content: space-between;
             align-items: center;
             height: 40px;
         }
@@ -124,15 +124,16 @@
         /* Overlays */
         #loading-overlay {
             position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.95);
             z-index: 50;
             display: none;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
-            color: #555;
+            font-size: 20px;
+            color: #333;
             flex-direction: column;
             gap: 15px;
+            font-weight: bold;
         }
 
         #reader-overlay {
@@ -167,7 +168,7 @@
 <body>
 
     <div id="loading-overlay">
-        <div class="spinner">🔄</div>
+        <div style="font-size: 40px;">🔄</div>
         <div id="loading-text">Fetching Content...</div>
     </div>
 
@@ -187,7 +188,7 @@
         
         <div id="panel-browser" class="panel active">
             <div class="browser-toolbar">
-                <span id="reader-status" style="margin-right:15px; color:#e74c3c; font-size:12px; display:none;">Reader Unavailable (Direct Mode)</span>
+                <div id="status-indicator" style="font-size:12px; color:#666;">Ready</div>
                 <button class="reader-btn" id="btnReaderOpen">📖 Open Reader & Audio</button>
             </div>
             <iframe id="main-frame" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
@@ -214,7 +215,7 @@
 
         <div id="panel-logs" class="panel">
             <div class="log-container" id="log-output">
-                <div class="log-entry">System Ready. v14 NPR Fix.</div>
+                <div class="log-entry">System Ready. V15 Aggressive Interceptor.</div>
             </div>
         </div>
 
@@ -260,13 +261,6 @@
             document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
         }
 
-        function toggleReaderAvailability(available) {
-            document.getElementById('btnReaderOpen').disabled = !available;
-            document.getElementById('tabSource').disabled = !available;
-            document.getElementById('reader-status').style.display = available ? 'none' : 'block';
-            if(!available) fetchedHtml = ""; // Clear stale data
-        }
-
         // --- URL LOGIC ---
         function fixUrl(input) {
             let url = input.trim();
@@ -284,9 +278,11 @@
             // --- RESET STATE ---
             stopAudio();
             document.getElementById('urlInput').value = url;
+            document.getElementById('status-indicator').textContent = "Fetching via Proxy...";
+            document.getElementById('status-indicator').style.color = "#e67e22";
             toggleLoading(true);
-            toggleReaderAvailability(true); // Assume success initially
-            fetchedHtml = ""; 
+            
+            fetchedHtml = ""; // CRITICAL: Wipe memory so we don't show old pages
             
             log(`Fetching: ${url}`);
 
@@ -305,20 +301,27 @@
                     if(!text || text.length < 500) throw new Error("Empty/Short content");
 
                     // --- CLEANUP ---
-                    // Remove Media AND Security Headers (CSP) to allow our script to run
                     text = cleanHTML(text);
 
                     // --- INJECTION ---
                     const baseTag = `<base href="${url}" target="_self">`;
+                    
+                    // THE AGGRESSIVE INTERCEPTOR
+                    // We use { capture: true } to catch the event BEFORE NPR's scripts
                     const navScript = `
                         <script>
-                            document.addEventListener('click', function(e) {
+                            window.addEventListener('click', function(e) {
                                 const link = e.target.closest('a');
-                                if (link && link.href && !link.href.startsWith('javascript')) {
+                                if (link && link.href && !link.href.startsWith('javascript') && !link.href.startsWith('#')) {
+                                    // STOP EVERYTHING
                                     e.preventDefault();
+                                    e.stopPropagation();
+                                    e.stopImmediatePropagation();
+                                    
+                                    console.log("Interceptor: Caught click to " + link.href);
                                     window.parent.postMessage({ type: 'internal_nav', url: link.href }, '*');
                                 }
-                            });
+                            }, true); // <--- TRUE IS CRITICAL (Capture Phase)
                         <\/script>
                     `;
 
@@ -329,6 +332,8 @@
                     }
 
                     document.getElementById('main-frame').srcdoc = fetchedHtml;
+                    document.getElementById('status-indicator').textContent = "Proxy Active";
+                    document.getElementById('status-indicator').style.color = "#27ae60";
                     log(`Loaded via ${proxy.name}`, 'nav');
                     success = true;
 
@@ -338,10 +343,13 @@
             }
 
             if(!success) {
-                log("All proxies failed. Falling back to Direct Mode.", 'error');
-                // FALLBACK: Load directly, but DISABLE Reader because we can't read the content
+                log("All proxies failed. Falling back to Direct Mode (Reader Disabled).", 'error');
                 document.getElementById('main-frame').src = url;
-                toggleReaderAvailability(false); 
+                document.getElementById('status-indicator').textContent = "Direct Mode (No Reader)";
+                document.getElementById('status-indicator').style.color = "#c0392b";
+                document.getElementById('btnReaderOpen').disabled = true;
+            } else {
+                document.getElementById('btnReaderOpen').disabled = false;
             }
 
             toggleLoading(false);
@@ -352,12 +360,12 @@
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlString, 'text/html');
             
-            // 1. Remove Heavy Media
+            // Remove Heavy Media
             ['video', 'audio', 'embed', 'object'].forEach(tag => {
                 doc.querySelectorAll(tag).forEach(el => el.replaceWith('[MEDIA REMOVED]'));
             });
 
-            // 2. Remove CSP Meta Tags (Fixes the "Script blocked" issue)
+            // Remove CSP Meta Tags to allow our Interceptor
             doc.querySelectorAll('meta[http-equiv="Content-Security-Policy"]').forEach(el => el.remove());
 
             return doc.documentElement.outerHTML;
@@ -366,7 +374,7 @@
         // --- NAVIGATION LISTENER ---
         window.addEventListener('message', (event) => {
             if (event.data && event.data.type === 'internal_nav') {
-                log(`Navigating to: ${event.data.url}`, 'nav');
+                log(`Interceptor Caught: ${event.data.url}`, 'nav');
                 loadUrl(event.data.url);
             }
         });
@@ -379,7 +387,7 @@
 
         // --- READER MODE ---
         document.getElementById('btnReaderOpen').onclick = () => {
-            if(!fetchedHtml) return alert("Content unavailable in Direct Mode.");
+            if(!fetchedHtml) return alert("Content unavailable.");
             
             const parser = new DOMParser();
             const doc = parser.parseFromString(fetchedHtml, 'text/html');
@@ -462,8 +470,7 @@
         
         // Auto-load Home
         window.addEventListener('DOMContentLoaded', () => {
-             // Optional: Uncomment to auto-load NPR on start
-             // loadUrl('https://npr.org');
+             // loadUrl('https://npr.org'); 
         });
 
     </script>
