@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Web Tool v16</title>
+    <title>Universal Web Tool v17</title>
     <style>
         :root {
             --primary: #202124;
@@ -161,6 +161,7 @@
         .log-time { color: #9aa0a6; margin-right: 10px; }
         .log-err { color: #ea4335; }
         .log-nav { color: #fbbc04; }
+        .log-sys { color: #8ab4f8; }
 
         /* Source View */
         textarea.source-viewer {
@@ -172,7 +173,7 @@
 
     <div id="loading-overlay">
         <div style="font-size: 40px;">🔎</div>
-        <div id="loading-text">Searching...</div>
+        <div id="loading-text">Fetching...</div>
     </div>
 
     <nav class="nav-bar">
@@ -218,7 +219,7 @@
 
         <div id="panel-logs" class="panel">
             <div class="log-container" id="log-output">
-                <div class="log-entry">System Ready. v16 Google Search Support.</div>
+                <div class="log-entry">System Ready. v17 Link Unwrapper.</div>
             </div>
         </div>
 
@@ -242,7 +243,7 @@
         function log(msg, type="info") {
             const container = document.getElementById('log-output');
             const time = new Date().toLocaleTimeString();
-            const color = type === 'error' ? 'log-err' : (type === 'nav' ? 'log-nav' : '');
+            const color = type === 'error' ? 'log-err' : (type === 'nav' ? 'log-nav' : (type === 'sys' ? 'log-sys' : ''));
             container.innerHTML += `<div class="log-entry"><span class="log-time">[${time}]</span><span class="${color}">${msg}</span></div>`;
             container.scrollTop = container.scrollHeight;
         }
@@ -266,11 +267,8 @@
             let url = input.trim();
             if (!url) return null;
             if (!url.includes('.') && !url.includes('://') && !url.includes('localhost')) {
-                // If it looks like a search query (no dots), search Google
-                if (url.includes(' ')) {
-                    return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
-                }
-                url += '.com';
+                // Smart Search
+                return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
             }
             if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
             return url;
@@ -321,7 +319,8 @@
                                     e.preventDefault();
                                     e.stopPropagation();
                                     e.stopImmediatePropagation();
-                                    console.log("Interceptor: " + link.href);
+                                    
+                                    // Send to parent for unwrapping
                                     window.parent.postMessage({ type: 'internal_nav', url: link.href }, '*');
                                 }
                             }, true);
@@ -329,7 +328,6 @@
                     `;
 
                     // --- GOOGLE CSS FIXES ---
-                    // Hide consent walls and banners that break iframe viewing
                     const googleCss = `
                         <style>
                             div[role="dialog"], div[aria-modal="true"], #lb, .bErdLd { display: none !important; }
@@ -355,9 +353,9 @@
             }
 
             if(!success) {
-                log("Proxies failed. Google likely blocked. Direct Mode (Reader Disabled).", 'error');
+                log("Proxies failed. Google likely blocked.", 'error');
                 document.getElementById('main-frame').src = url;
-                document.getElementById('status-indicator').textContent = "Direct Mode (No Reader)";
+                document.getElementById('status-indicator').textContent = "Direct Mode (Broken Features)";
                 document.getElementById('status-indicator').style.color = "#c0392b";
                 document.getElementById('btnReaderOpen').disabled = true;
             } else {
@@ -371,7 +369,7 @@
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlString, 'text/html');
             
-            // Remove Media & Scripts that cause hangs
+            // Remove Media & Scripts
             ['video', 'audio', 'embed', 'object', 'iframe'].forEach(tag => {
                 doc.querySelectorAll(tag).forEach(el => el.remove());
             });
@@ -382,10 +380,28 @@
             return doc.documentElement.outerHTML;
         }
 
+        // --- LINK UNWRAPPER LOGIC ---
         window.addEventListener('message', (event) => {
             if (event.data && event.data.type === 'internal_nav') {
-                log(`Interceptor Caught: ${event.data.url}`, 'nav');
-                loadUrl(event.data.url);
+                let targetUrl = event.data.url;
+                
+                // UNWRAP GOOGLE LINKS
+                // Google links look like: https://www.google.com/url?q=https://real-site.com&...
+                if (targetUrl.includes('google.com/url') || targetUrl.includes('google.co.uk/url')) {
+                    try {
+                        const urlObj = new URL(targetUrl);
+                        const realUrl = urlObj.searchParams.get('q') || urlObj.searchParams.get('url');
+                        if (realUrl) {
+                            log(`Unwrapped Google Link: ${realUrl}`, 'sys');
+                            targetUrl = realUrl;
+                        }
+                    } catch (e) {
+                        log("Failed to unwrap URL", 'error');
+                    }
+                }
+
+                log(`Navigating: ${targetUrl}`, 'nav');
+                loadUrl(targetUrl);
             }
         });
 
@@ -394,7 +410,7 @@
             loadUrl('https://npr.org');
         };
 
-        // --- SMART READER ---
+        // --- READER MODE ---
         document.getElementById('btnReaderOpen').onclick = () => {
             if(!fetchedHtml) return alert("Content unavailable.");
             
@@ -406,21 +422,15 @@
 
             let contentHTML = "";
             let lastText = "";
-            let isSearch = false;
-
-            // DETECT GOOGLE/SEARCH MODE
-            // Google results typically use h3 for titles and divs for snippets
+            
+            // GOOGLE SEARCH MODE DETECT
             if(document.getElementById('urlInput').value.includes('google')) {
-                isSearch = true;
-                log("Reader: Search Mode Detected");
-                
-                // Grab generic containers often used in search results
-                const items = doc.querySelectorAll('h3, .VwiC3b'); // .VwiC3b is a common Google snippet class
+                log("Reader: Search Mode");
+                const items = doc.querySelectorAll('h3, .VwiC3b, .BNeawe'); 
                 items.forEach(node => {
                     let text = node.innerText.trim();
                     if(text.length > 10 && text !== lastText) {
-                        // Tag headline vs snippet
-                        if(node.tagName === 'H3') {
+                        if(node.tagName === 'H3' || node.classList.contains('BNeawe')) {
                             contentHTML += `<h3>${text}</h3>`;
                         } else {
                             contentHTML += `<p>${text}</p><hr>`;
@@ -431,8 +441,7 @@
             } 
             
             if (!contentHTML) {
-                // FALLBACK: Standard Article Mode
-                isSearch = false;
+                // ARTICLE MODE
                 const nodes = doc.querySelectorAll('h1, h2, h3, p, article');
                 const badPhrases = ["Getty Images", "Source:", "Copyright", "All rights reserved", "enlarge image"];
 
@@ -456,10 +465,8 @@
         }
 
         function startAudio() {
-            // Read headers too if in search mode
             const selectors = document.getElementById('urlInput').value.includes('google') ? 'h3, p' : 'p';
             const paras = document.querySelectorAll(`#reader-content ${selectors}`);
-            
             if(paras.length === 0) return;
             stopAudio();
             audioQueue = Array.from(paras);
