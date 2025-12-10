@@ -16,12 +16,12 @@
         .modal.visible { opacity: 1; visibility: visible; pointer-events: auto; }
         .scale-in { transform: scale(1); } .scale-out { transform: scale(0.95); }
         #system-frame { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: none; z-index: 9999; background: #fff; display: none; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
     </style>
 </head>
 <body class="overflow-hidden h-screen w-screen font-sans text-slate-800">
 
     <canvas class="block absolute top-0 left-0 w-full h-full z-0" id="gameCanvas"></canvas>
-    
     <iframe id="system-frame"></iframe>
 
     <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10 transition-opacity duration-1000 opacity-100 text-white/90 text-center drop-shadow-md" id="overlay">
@@ -37,7 +37,7 @@
     </div>
 
     <div class="fixed bottom-3 right-4 text-[10px] text-white/60 pointer-events-none z-10 tracking-wider">
-        <span id="footer-text">v7.1 Config Driven</span> • <span id="clock">--:--</span>
+        <span id="footer-label">v7.2 Config Driven</span> • <span id="clock">--:--</span>
     </div>
 
     <button class="fixed top-5 right-5 w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/30 active:scale-95 transition-all shadow-lg z-50" id="settings-trigger">
@@ -47,12 +47,15 @@
     <aside class="fixed top-0 right-0 w-80 h-full bg-white/95 backdrop-blur-xl shadow-2xl transform transition-transform duration-300 translate-x-full z-50 flex flex-col no-scrollbar overflow-y-auto" id="settings-panel">
         <div class="p-6 flex justify-between items-center border-b border-gray-100">
             <h2 class="text-lg font-bold text-gray-700 tracking-wide uppercase">Control Panel</h2>
-            <button class="text-gray-400 hover:text-gray-700" id="close-btn"><span class="material-symbols-outlined text-3xl">close</span></button>
+            <button class="text-gray-400 hover:text-gray-700 transition-colors" id="close-btn">
+                <span class="material-symbols-outlined text-3xl">close</span>
+            </button>
         </div>
+
         <div class="p-6 space-y-8 flex-1">
             
             <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-2">
-                <label class="text-xs font-bold text-blue-700 uppercase tracking-wider block">Theme Code</label>
+                <label class="text-xs font-bold text-blue-700 uppercase tracking-wider block">Theme Access Code</label>
                 <div class="flex gap-2">
                     <input type="text" id="theme-code-input" class="flex-1 p-2 text-sm border rounded uppercase tracking-widest font-mono" placeholder="HAPPY">
                     <button id="load-code-btn" class="bg-blue-600 text-white px-3 rounded font-bold hover:bg-blue-700">LOAD</button>
@@ -62,35 +65,90 @@
 
             <div class="bg-red-50 p-4 rounded-xl border border-red-100 space-y-2">
                 <label class="text-xs font-bold text-red-700 uppercase tracking-wider block">System Reset</label>
-                <p class="text-[10px] text-red-400 mb-2">Purge local storage and revert to gradient.</p>
-                <button id="purge-btn" class="w-full py-2 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-700">PURGE & RESET</button>
+                <button id="purge-btn" class="w-full py-2 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-700">PURGE CACHE</button>
             </div>
 
-            <div class="space-y-3 pt-4 border-t">
-                <span class="text-xs font-bold text-gray-500 uppercase">Manual Override</span>
-                <button class="w-full py-2 bg-gray-200 text-xs font-bold rounded hover:bg-gray-300" onclick="document.getElementById('bg-upload').click()">Upload Image</button>
-                <input type="file" id="bg-upload" accept="image/*" hidden>
+            <div class="space-y-6">
+                <div class="space-y-2">
+                    <div class="flex justify-between"><span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Fade Rate</span></div>
+                    <input type="range" id="decay-slider" min="0" max="5" step="1" value="2" class="w-full bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                </div>
+                <div class="space-y-2">
+                    <div class="flex justify-between"><span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Growth Speed</span></div>
+                    <input type="range" id="speed-slider" min="1" max="100" value="50" class="w-full bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3 pt-4 border-t border-gray-100">
                 <button class="col-span-1 px-4 py-3 bg-orange-50 text-orange-700 text-sm font-semibold rounded-xl hover:bg-orange-100 transition" id="record-btn">Record</button>
                 <button class="col-span-1 px-4 py-3 bg-green-50 text-green-700 text-sm font-semibold rounded-xl hover:bg-green-100 transition" id="save-btn">Snapshot</button>
+                <button class="col-span-1 px-4 py-3 bg-gray-50 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-100 transition" id="theme-btn">Colors</button>
+                <button class="col-span-1 px-4 py-3 bg-red-50 text-red-700 text-sm font-medium rounded-xl hover:bg-red-100 transition" id="clear-btn">Clear</button>
+                
                 <button class="col-span-2 mt-2 py-4 bg-amber-50 text-amber-700 font-bold rounded-xl hover:bg-amber-100 transition flex items-center justify-center gap-2 border border-amber-200 shadow-sm" id="secrets-btn">
                     <span class="material-symbols-outlined">key</span> Open Secrets
+                </button>
+
+                <button class="col-span-1 mt-2 py-3 bg-blue-50 text-blue-700 text-sm font-bold rounded-xl hover:bg-blue-100 transition flex items-center justify-center gap-2 border border-blue-200" id="info-btn">
+                    <span class="material-symbols-outlined text-sm">code</span> Code
+                </button>
+                <button class="col-span-1 mt-2 py-3 bg-purple-50 text-purple-700 text-sm font-bold rounded-xl hover:bg-purple-100 transition flex items-center justify-center gap-2 border border-purple-200" id="req-btn">
+                    <span class="material-symbols-outlined text-sm">list</span> Reqs
                 </button>
             </div>
         </div>
     </aside>
 
     <div id="secrets-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center invisible modal">
-        <div class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-md p-6 transform scale-out modal-content">
+        <div id="secrets-content" class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-md p-6 transform scale-out modal-content">
             <div class="flex justify-between items-center mb-4 border-b pb-2">
-                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2"><span class="material-symbols-outlined text-amber-500">auto_awesome</span> Discoveries</h3>
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-amber-500">auto_awesome</span> Discoveries
+                </h3>
                 <button id="close-secrets" class="text-gray-400 hover:text-gray-800"><span class="material-symbols-outlined">close</span></button>
             </div>
             <div id="secrets-grid-view">
                 <div id="secrets-list" class="grid grid-cols-5 gap-2 max-h-60 overflow-y-auto p-1"></div>
                 <div class="text-center text-xs text-gray-400 mt-4">Found: <span id="secrets-count">0</span> / 20</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="code-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center invisible modal">
+        <div class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-4xl h-[80vh] p-6 transform scale-out modal-content flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-blue-500">code</span> Source Code
+                </h3>
+                <button id="close-code" class="text-gray-400 hover:text-gray-800"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="flex-1 overflow-auto bg-gray-50 p-4 rounded border border-gray-200 font-mono text-xs">
+                <pre id="source-code-display">Loading...</pre>
+            </div>
+            <div class="mt-4 flex justify-end shrink-0">
+                <button id="copy-code-btn" class="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition flex items-center gap-2">
+                    <span class="material-symbols-outlined text-sm">content_copy</span> Copy
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="req-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center invisible modal">
+        <div class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-lg p-6 transform scale-out modal-content">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-purple-500">checklist</span> Changes
+                </h3>
+                <button id="close-req" class="text-gray-400 hover:text-gray-800"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="overflow-y-auto max-h-[60vh] space-y-3 text-sm text-gray-700">
+                <p class="font-bold text-gray-900">v7.2 Changelog:</p>
+                <ul class="list-decimal pl-5 space-y-1">
+                    <li><strong>Architecture:</strong> Config-driven (/packs/local/CODE/).</li>
+                    <li><strong>Audio:</strong> High-register string synthesis (No lows).</li>
+                    <li><strong>Features:</strong> Full restoration of v4.0 modals and secrets.</li>
+                    <li><strong>Telemetry:</strong> Google Sheets pipeline integration.</li>
+                </ul>
             </div>
         </div>
     </div>
