@@ -2,181 +2,82 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
-    <title id="app-title">The Garden of Compassion</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title id="app-title">The Garden</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
     <style>
-        body { touch-action: none; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; background-color: #000; }
-        .no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #8ec5fc; cursor: pointer; margin-top: -6px; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
-        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #e2e8f0; border-radius: 2px; }
-        .modal { transition: opacity 0.3s ease, visibility 0.3s ease; }
-        .modal.invisible { opacity: 0; visibility: hidden; pointer-events: none; }
-        .modal.visible { opacity: 1; visibility: visible; pointer-events: auto; }
-        .scale-in { transform: scale(1); } .scale-out { transform: scale(0.95); }
-        #system-frame { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: none; z-index: 9999; background: #fff; display: none; }
-        pre { white-space: pre-wrap; word-wrap: break-word; }
+        body { touch-action: none; background: #000; overflow: hidden; user-select: none; -webkit-user-select: none; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #8ec5fc; cursor: pointer; margin-top: -6px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; }
+        /* Layers */
+        #gameCanvas { position: absolute; top: 0; left: 0; z-index: 0; }
+        #system-frame { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: none; z-index: 50; display: none; background: white; }
+        #overlay { z-index: 10; pointer-events: none; }
+        #ui-layer { z-index: 20; }
+        /* Panel Animation */
+        .slide-out { transform: translateX(100%); transition: transform 0.3s ease-in-out; }
+        .slide-in { transform: translateX(0); transition: transform 0.3s ease-in-out; }
     </style>
 </head>
-<body class="overflow-hidden h-screen w-screen font-sans text-slate-800">
+<body class="font-sans text-slate-800">
 
-    <canvas class="block absolute top-0 left-0 w-full h-full z-0" id="gameCanvas"></canvas>
+    <canvas id="gameCanvas" class="w-full h-full"></canvas>
+
     <iframe id="system-frame"></iframe>
 
-    <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10 transition-opacity duration-1000 opacity-100 text-white/90 text-center drop-shadow-md" id="overlay">
-        <h1 class="text-3xl md:text-5xl font-light mb-4 tracking-widest" id="splash-title">The Garden of Compassion</h1>
-        <p class="text-lg md:text-xl font-light leading-relaxed" id="splash-text">
-            Tap to Bloom<br>
-            Double Tap for Strum<br>
-            Hold for Chime<br>
-            <span class="text-sm opacity-70 mt-2 block">Drag to Play Strings</span>
-        </p>
+    <div id="overlay" class="absolute inset-0 flex flex-col items-center justify-center text-white/90 text-center drop-shadow-md transition-opacity duration-1000">
+        <h1 id="splash-title" class="text-3xl md:text-5xl font-light mb-4 tracking-widest">The Garden</h1>
+        <p id="splash-text" class="text-lg font-light">Tap to Bloom • Double Tap to Strum</p>
     </div>
 
-    <div class="fixed top-5 left-5 flex items-center gap-2 bg-black/40 backdrop-blur px-3 py-2 rounded-full text-white text-xs font-bold tracking-wide opacity-0 transition-opacity z-50 pointer-events-none" id="rec-indicator">
-        <div class="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>REC
-    </div>
-
-    <div class="fixed bottom-3 right-4 text-[10px] text-white/60 pointer-events-none z-10 tracking-wider">
-        <span id="footer-label">v8.0 Baseline Plus</span> • <span id="clock">--:--</span>
-    </div>
-
-    <button class="fixed top-5 right-5 w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/30 active:scale-95 transition-all shadow-lg z-50" id="settings-trigger">
-        <span class="material-symbols-outlined">settings</span>
-    </button>
-
-    <aside class="fixed top-0 right-0 w-80 h-full bg-white/95 backdrop-blur-xl shadow-2xl transform transition-transform duration-300 translate-x-full z-50 flex flex-col no-scrollbar overflow-y-auto" id="settings-panel">
-        <div class="p-6 flex justify-between items-center border-b border-gray-100">
-            <h2 class="text-lg font-bold text-gray-700 tracking-wide uppercase">Settings</h2>
-            <button class="text-gray-400 hover:text-gray-700 transition-colors" id="close-btn">
-                <span class="material-symbols-outlined text-3xl">close</span>
-            </button>
+    <div id="ui-layer">
+        <div id="rec-indicator" class="fixed top-5 left-5 flex items-center gap-2 bg-black/40 backdrop-blur px-3 py-2 rounded-full text-white text-xs font-bold opacity-0 transition-opacity">
+            <div class="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>REC
         </div>
 
-        <div class="p-6 space-y-8 flex-1">
+        <div class="fixed bottom-3 right-4 text-[10px] text-white/60 pointer-events-none">
+            <span id="footer-text">v9.0 Skeleton</span>
+        </div>
+
+        <button id="settings-trigger" class="fixed top-5 right-5 w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/30 active:scale-95 transition-all shadow-lg pointer-events-auto">
+            <span class="material-symbols-outlined">settings</span>
+        </button>
+
+        <aside id="settings-panel" class="fixed top-0 right-0 w-80 h-full bg-white/95 backdrop-blur-xl shadow-2xl slide-out flex flex-col no-scrollbar overflow-y-auto pointer-events-auto">
+            <div class="p-6 flex justify-between items-center border-b border-gray-100">
+                <h2 class="text-lg font-bold text-gray-700 uppercase">Controls</h2>
+                <button id="close-btn" class="text-gray-400 hover:text-gray-700"><span class="material-symbols-outlined text-3xl">close</span></button>
+            </div>
             
-            <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-2">
-                <label class="text-xs font-bold text-blue-700 uppercase tracking-wider block">Access Code</label>
-                <div class="flex gap-2">
-                    <input type="text" id="theme-code-input" class="flex-1 p-2 text-sm border rounded font-mono placeholder-gray-400" placeholder="Enter Code">
-                    <button id="load-code-btn" class="bg-blue-600 text-white px-3 rounded font-bold hover:bg-blue-700">LOAD</button>
+            <div class="p-6 space-y-8 flex-1">
+                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-2">
+                    <label class="text-xs font-bold text-blue-700 uppercase">Access Code</label>
+                    <div class="flex gap-2">
+                        <input id="theme-code-input" class="flex-1 p-2 text-sm border rounded font-mono" placeholder="Enter Code">
+                        <button id="load-code-btn" class="bg-blue-600 text-white px-3 rounded font-bold hover:bg-blue-700">GO</button>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-gray-500 uppercase">Sound</span>
+                        <input type="checkbox" id="audio-toggle" checked class="accent-blue-500 w-5 h-5">
+                    </div>
+                    <div>
+                        <span class="text-xs font-bold text-gray-500 uppercase">Fade Rate</span>
+                        <input type="range" id="decay-slider" min="0" max="5" step="1" value="2" class="w-full">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-4 border-t border-gray-100">
+                    <button id="record-btn" class="col-span-1 px-4 py-3 bg-orange-50 text-orange-700 text-sm font-bold rounded-xl">Record</button>
+                    <button id="save-btn" class="col-span-1 px-4 py-3 bg-green-50 text-green-700 text-sm font-bold rounded-xl">Snapshot</button>
+                    <button id="clear-btn" class="col-span-2 py-3 bg-red-50 text-red-700 text-sm font-bold rounded-xl">Clear Canvas</button>
                 </div>
             </div>
-
-            <div class="bg-red-50 p-4 rounded-xl border border-red-100 space-y-2">
-                <label class="text-xs font-bold text-red-700 uppercase tracking-wider block">System Reset</label>
-                <button id="purge-btn" class="w-full py-2 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-700">RESET TO DEFAULT</button>
-            </div>
-
-            <div class="flex justify-between items-center">
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Sound</span>
-                <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" id="audio-toggle" class="sr-only peer" checked>
-                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-300"></div>
-                </label>
-            </div>
-
-            <div class="space-y-3">
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider block">Background</span>
-                <div class="grid grid-cols-2 gap-2">
-                    <button class="w-full py-2 bg-blue-100 text-blue-700 text-xs font-semibold rounded hover:bg-blue-200" onclick="document.getElementById('bg-upload-input').click()">Apply Image</button>
-                    <button class="w-full py-2 bg-gray-100 text-gray-500 text-xs font-medium rounded hover:bg-gray-200" id="reset-bg-btn">Reset Gradient</button>
-                </div>
-                <input type="file" id="bg-upload-input" accept="image/*" hidden>
-            </div>
-
-            <div class="space-y-2">
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider block">Custom Words</span>
-                <textarea class="w-full p-3 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg focus:ring-blue-300 focus:border-blue-300 resize-none h-24" id="custom-words" placeholder="e.g. Joy, Peace, Kindness..."></textarea>
-            </div>
-
-            <div class="space-y-6">
-                <div class="space-y-2">
-                    <div class="flex justify-between"><span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Fade Rate</span></div>
-                    <input type="range" id="decay-slider" min="0" max="5" step="1" value="2" class="w-full bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                </div>
-                <div class="space-y-2">
-                    <div class="flex justify-between"><span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Trail Speed</span></div>
-                    <input type="range" id="trail-slider" min="1" max="10" step="1" value="5" class="w-full bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                </div>
-                <div class="space-y-2">
-                    <div class="flex justify-between"><span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Growth Speed</span></div>
-                    <input type="range" id="speed-slider" min="1" max="100" value="50" class="w-full bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3 pt-4 border-t border-gray-100">
-                <button class="col-span-1 px-4 py-3 bg-orange-50 text-orange-700 text-sm font-semibold rounded-xl hover:bg-orange-100 transition" id="record-btn">Record</button>
-                <button class="col-span-1 px-4 py-3 bg-green-50 text-green-700 text-sm font-semibold rounded-xl hover:bg-green-100 transition" id="save-btn">Snapshot</button>
-                <button class="col-span-1 px-4 py-3 bg-gray-50 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-100 transition" id="theme-btn">Theme</button>
-                <button class="col-span-1 px-4 py-3 bg-red-50 text-red-700 text-sm font-medium rounded-xl hover:bg-red-100 transition" id="clear-btn">Clear</button>
-                
-                <button class="col-span-2 mt-2 py-4 bg-amber-50 text-amber-700 font-bold rounded-xl hover:bg-amber-100 transition flex items-center justify-center gap-2 border border-amber-200 shadow-sm" id="secrets-btn">
-                    <span class="material-symbols-outlined">key</span> Open Secrets
-                </button>
-
-                <button class="col-span-1 mt-2 py-3 bg-blue-50 text-blue-700 text-sm font-bold rounded-xl hover:bg-blue-100 transition flex items-center justify-center gap-2 border border-blue-200" id="info-btn">
-                    <span class="material-symbols-outlined text-sm">code</span> Code
-                </button>
-                <button class="col-span-1 mt-2 py-3 bg-purple-50 text-purple-700 text-sm font-bold rounded-xl hover:bg-purple-100 transition flex items-center justify-center gap-2 border border-purple-200" id="req-btn">
-                    <span class="material-symbols-outlined text-sm">list</span> Reqs
-                </button>
-            </div>
-        </div>
-    </aside>
-
-    <div id="secrets-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center invisible modal">
-        <div id="secrets-content" class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-md p-6 transform scale-out modal-content">
-            <div class="flex justify-between items-center mb-4 border-b pb-2">
-                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-amber-500">auto_awesome</span> Discoveries
-                </h3>
-                <button id="close-secrets" class="text-gray-400 hover:text-gray-800"><span class="material-symbols-outlined">close</span></button>
-            </div>
-            <div id="secrets-grid-view">
-                <div id="secrets-list" class="grid grid-cols-5 gap-2 max-h-60 overflow-y-auto p-1"></div>
-                <div class="text-center text-xs text-gray-400 mt-4">Found: <span id="secrets-count">0</span> / 20</div>
-            </div>
-            <div id="secrets-detail-view" class="hidden flex flex-col">
-                <button id="back-to-grid" class="text-xs text-blue-500 mb-2 flex items-center hover:underline self-start">Back</button>
-                <div class="bg-amber-50 rounded-xl p-5 border border-amber-100 text-center space-y-4">
-                    <div id="detail-id" class="w-16 h-16 bg-amber-200 rounded-full flex items-center justify-center mx-auto text-amber-800 font-bold text-2xl shadow-inner">?</div>
-                    <div><h4 id="detail-title" class="text-lg font-bold text-amber-900"></h4><p id="detail-type" class="text-xs text-amber-700/70 uppercase font-bold mt-1"></p></div>
-                    <div class="text-left bg-white/60 p-4 rounded-lg text-sm border border-amber-100 shadow-sm"><p class="mb-2"><span class="font-bold text-gray-600 block text-xs uppercase mb-1">Trigger:</span><span id="detail-trigger" class="font-mono text-lg text-amber-600 tracking-wider bg-amber-50 px-2 py-1 rounded"></span></p><p><span class="font-bold text-gray-600 block text-xs uppercase mb-1">Effect:</span><span id="detail-reward" class="italic text-gray-700"></span></p></div>
-                    <button id="simulate-btn" class="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 text-white rounded-xl font-bold shadow-lg hover:from-amber-500 hover:to-amber-600 transition">Play Example</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="code-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center invisible modal">
-        <div class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-4xl h-[80vh] p-6 transform scale-out modal-content flex flex-col">
-            <div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0">
-                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2"><span class="material-symbols-outlined text-blue-500">code</span> Source</h3>
-                <button id="close-code" class="text-gray-400 hover:text-gray-800"><span class="material-symbols-outlined">close</span></button>
-            </div>
-            <div class="flex-1 overflow-auto bg-gray-50 p-4 rounded border border-gray-200 font-mono text-xs"><pre id="source-code-display">Loading...</pre></div>
-            <div class="mt-4 flex justify-end shrink-0"><button id="copy-code-btn" class="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 flex items-center gap-2"><span class="material-symbols-outlined text-sm">content_copy</span> Copy</button></div>
-        </div>
-    </div>
-
-    <div id="req-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center invisible modal">
-        <div class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-lg p-6 transform scale-out modal-content">
-            <div class="flex justify-between items-center mb-4 border-b pb-2">
-                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2"><span class="material-symbols-outlined text-purple-500">checklist</span> Info</h3>
-                <button id="close-req" class="text-gray-400 hover:text-gray-800"><span class="material-symbols-outlined">close</span></button>
-            </div>
-            <div class="overflow-y-auto max-h-[60vh] space-y-3 text-sm text-gray-700">
-                <p class="font-bold text-gray-900">v8.0 Baseline Plus:</p>
-                <ul class="list-decimal pl-5 space-y-1">
-                    <li><strong>Base:</strong> Full regression to love (3).html UI/Logic.</li>
-                    <li><strong>Audio:</strong> Swapped to High-Register Engine (No Lows).</li>
-                    <li><strong>Router:</strong> Added Config-Driven Theme Support (/packs/local/CODE).</li>
-                    <li><strong>Telemetry:</strong> Added Background Google Logging.</li>
-                </ul>
-            </div>
-        </div>
+        </aside>
     </div>
 
     <script src="packs/global/script.js"></script>
