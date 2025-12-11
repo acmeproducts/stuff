@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Web Tool v23</title>
+    <title>Universal Web Tool v24</title>
     <style>
         :root {
-            --primary: #202124;
-            --accent: #1a73e8;
+            --primary: #222;
+            --accent: #d93025; /* NPR Red / News Red */
             --bg: #f8f9fa;
             --console-bg: #242424;
             --console-text: #eee;
@@ -42,8 +42,8 @@
             border-radius: 20px;
             cursor: pointer;
             padding: 8px 16px;
-            font-size: 16px;
-            font-weight: 500;
+            font-size: 14px;
+            font-weight: 600;
             color: #5f6368;
             transition: 0.2s;
             display: flex;
@@ -61,7 +61,7 @@
             outline: none;
             background: #f1f3f4;
         }
-        input[type="text"]:focus { background: #fff; box-shadow: 0 1px 6px rgba(32,33,36,0.28); }
+        input[type="text"]:focus { background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,0.1); }
 
         .go-btn {
             padding: 10px 24px;
@@ -79,6 +79,7 @@
             display: flex;
             background: #fff;
             border-bottom: 1px solid var(--border);
+            overflow-x: auto;
         }
 
         .tab-btn {
@@ -90,6 +91,7 @@
             font-weight: 500;
             color: #5f6368;
             border-bottom: 3px solid transparent;
+            white-space: nowrap;
         }
         .tab-btn.active {
             color: var(--accent);
@@ -118,7 +120,7 @@
         }
         
         .reader-btn {
-            background: #34a853;
+            background: #28a745;
             color: white;
             border: none;
             padding: 8px 16px;
@@ -148,7 +150,7 @@
             position: absolute;
             top: 60px;
             left: 10px;
-            width: 250px;
+            width: 260px;
             background: white;
             border: 1px solid #dadce0;
             border-radius: 8px;
@@ -156,7 +158,8 @@
             display: none;
             flex-direction: column;
             z-index: 100;
-            overflow: hidden;
+            overflow-y: auto;
+            max-height: 70vh;
         }
         .bookmark-item {
             padding: 12px 16px;
@@ -167,6 +170,9 @@
             cursor: pointer;
             font-size: 14px;
             color: #3c4043;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         .bookmark-item:hover { background: #f8f9fa; color: var(--accent); }
 
@@ -219,9 +225,14 @@
     </div>
 
     <div id="bookmarks-modal">
+        <button class="bookmark-item" onclick="useBookmark('https://npr.org')">📻 NPR</button>
+        <button class="bookmark-item" onclick="useBookmark('https://bbc.com')">🇬🇧 BBC News</button>
+        <button class="bookmark-item" onclick="useBookmark('https://apnews.com')">📰 AP News</button>
+        <button class="bookmark-item" onclick="useBookmark('https://reuters.com')">📡 Reuters</button>
+        <button class="bookmark-item" onclick="useBookmark('https://theverge.com')">📱 The Verge</button>
+        <button class="bookmark-item" onclick="useBookmark('https://slashdot.org')">💻 Slashdot</button>
+        <button class="bookmark-item" onclick="useBookmark('https://alterslash.org')">⚡ Alterslash</button>
         <button class="bookmark-item" onclick="useBookmark('https://google.com')">🔍 Google Search</button>
-        <button class="bookmark-item" onclick="useBookmark('https://news.google.com')">📰 Google News</button>
-        <button class="bookmark-item" onclick="useBookmark('https://npr.org')">📻 NPR.org</button>
     </div>
 
     <nav class="nav-bar">
@@ -274,7 +285,7 @@
 
         <div id="panel-logs" class="panel">
             <div class="log-container" id="log-output">
-                <div class="log-entry">System Ready. v23 Smart Hub + Console.</div>
+                <div class="log-entry">System Ready. v24 News Suite.</div>
             </div>
         </div>
 
@@ -282,10 +293,12 @@
 
     <script>
         // --- CONFIG ---
+        // Enhanced Proxy List with CorsFix for better compatibility
         const PROXIES = [
             { name: "CodeTabs", url: t => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(t)}` },
             { name: "CORSProxy", url: t => `https://corsproxy.io/?${encodeURIComponent(t)}` },
-            { name: "AllOrigins", url: t => `https://api.allorigins.win/raw?url=${encodeURIComponent(t)}` }
+            { name: "AllOrigins", url: t => `https://api.allorigins.win/raw?url=${encodeURIComponent(t)}` },
+            { name: "CorsFix", url: t => `https://proxy.corsfix.com/?${encodeURIComponent(t)}` }
         ];
 
         let fetchedHtml = "";
@@ -358,7 +371,7 @@
             document.getElementById('urlInput').value = url;
             document.getElementById('status-indicator').textContent = "Fetching...";
             document.getElementById('status-indicator').style.color = "#e67e22";
-            document.getElementById('panel-console').innerHTML = ""; // Clear console
+            document.getElementById('panel-console').innerHTML = ""; 
             toggleLoading(true);
             
             fetchedHtml = ""; 
@@ -366,14 +379,7 @@
 
             let success = false;
 
-            // SPECIAL CASE: Google News often requires specific proxy handling
-            let proxyListToUse = PROXIES;
-            if(url.includes('news.google.com')) {
-                sysLog("Optimizing proxy order for Google News...", "nav");
-                proxyListToUse = [PROXIES[1], PROXIES[0], PROXIES[2]]; // CORSProxy first
-            }
-
-            for (let proxy of proxyListToUse) {
+            for (let proxy of PROXIES) {
                 if(success) break;
                 try {
                     const controller = new AbortController();
@@ -391,13 +397,9 @@
                     // --- INJECTION ---
                     const baseTag = `<base href="${url}" target="_self">`;
                     
-                    // THE "SMART HUB" INJECTOR SCRIPT
-                    // 1. Intercepts clicks (NPR PJAX + Google Unwrapping)
-                    // 2. Intercepts Console logs (for the new tab)
                     const hubScript = `
                         <script>
                         (function() {
-                            // --- CONSOLE SPY ---
                             const originalLog = console.log;
                             const originalWarn = console.warn;
                             const originalError = console.error;
@@ -413,16 +415,12 @@
                             console.warn = function(...args) { originalWarn.apply(console, args); sendLog('warn', args); };
                             console.error = function(...args) { originalError.apply(console, args); sendLog('error', args); };
 
-                            // --- CLICK INTERCEPTOR (Capture Phase) ---
                             window.addEventListener('click', function(e) {
                                 const link = e.target.closest('a');
                                 if (link && link.href && !link.href.startsWith('javascript') && !link.href.startsWith('#')) {
-                                    // STOP NPR Scripts (PJAX)
                                     e.preventDefault();
                                     e.stopPropagation();
                                     e.stopImmediatePropagation();
-                                    
-                                    // SEND URL TO PARENT
                                     window.parent.postMessage({ type: 'internal_nav', url: link.href }, '*');
                                 }
                             }, true);
@@ -430,7 +428,6 @@
                         <\/script>
                     `;
 
-                    // CSS Fixes (Shield Removal)
                     const unifiedCss = `
                         <style>
                             div[role="dialog"], div[aria-modal="true"], #lb, .bErdLd { display: none !important; }
@@ -447,7 +444,7 @@
 
                     document.getElementById('main-frame').srcdoc = fetchedHtml;
                     document.getElementById('status-indicator').textContent = "Proxy Active";
-                    document.getElementById('status-indicator').style.color = "#27ae60";
+                    document.getElementById('status-indicator').style.color = "#28a745";
                     sysLog(`Loaded via ${proxy.name}`, 'nav');
                     success = true;
 
@@ -477,31 +474,21 @@
             return doc.documentElement.outerHTML;
         }
 
-        // --- PARENT MESSAGE HUB ---
+        // --- NAVIGATION HUB ---
         window.addEventListener('message', (event) => {
             const data = event.data;
-            
-            // 1. Handle Navigation
             if (data.type === 'internal_nav') {
                 let targetUrl = data.url;
-                
-                // UNWRAP GOOGLE LINKS
                 if (targetUrl.includes('google.com/url') || targetUrl.includes('google.co.uk/url')) {
                     try {
                         const urlObj = new URL(targetUrl);
                         const realUrl = urlObj.searchParams.get('q') || urlObj.searchParams.get('url');
-                        if (realUrl) {
-                            sysLog(`Unwrapped Google Link`, 'sys');
-                            targetUrl = realUrl;
-                        }
+                        if (realUrl) targetUrl = realUrl;
                     } catch (e) {}
                 }
-
                 sysLog(`Navigating: ${targetUrl}`, 'nav');
                 loadUrl(targetUrl);
             }
-
-            // 2. Handle Console Forwarding
             if (data.type === 'console_forward') {
                 consoleLog(data.msg, data.level);
             }
@@ -518,27 +505,20 @@
             let contentHTML = "";
             let lastText = "";
             
-            // 1. GOOGLE SEARCH MODE
             if(document.getElementById('urlInput').value.includes('google')) {
                 const items = doc.querySelectorAll('h3, .VwiC3b, .BNeawe'); 
                 items.forEach(node => {
                     let text = node.innerText.trim();
                     if(text.length > 10 && text !== lastText) {
-                        if(node.tagName === 'H3' || node.classList.contains('BNeawe')) {
-                            contentHTML += `<h3>${text}</h3>`;
-                        } else {
-                            contentHTML += `<p>${text}</p><hr>`;
-                        }
+                        contentHTML += node.tagName === 'H3' || node.classList.contains('BNeawe') ? `<h3>${text}</h3>` : `<p>${text}</p><hr>`;
                         lastText = text;
                     }
                 });
             } 
             
-            // 2. ARTICLE MODE
             if (!contentHTML) {
                 const nodes = doc.querySelectorAll('h1, h2, h3, p, article, .story-text, .story-body');
                 const badPhrases = ["Getty Images", "Source:", "Copyright", "All rights reserved", "enlarge image", "toggle caption"];
-
                 nodes.forEach(node => {
                     let text = node.innerText.trim().replace(/\s+/g, ' ');
                     if(text.length > 25 && !badPhrases.some(b => text.toLowerCase().includes(b.toLowerCase())) && text !== lastText) {
@@ -606,8 +586,8 @@
         document.getElementById('btnGo').onclick = () => loadUrl();
         document.getElementById('urlInput').addEventListener('keypress', e => { if(e.key==='Enter') loadUrl(); });
         
-        // AUTO LOAD GOOGLE
-        window.addEventListener('DOMContentLoaded', () => loadUrl('https://google.com'));
+        // AUTO LOAD NPR
+        window.addEventListener('DOMContentLoaded', () => loadUrl('https://npr.org'));
 
     </script>
 </body>
