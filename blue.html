@@ -3,83 +3,385 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title id="app-title">The Garden</title>
+    <title>The Garden</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
     <style>
         body { touch-action: none; background: #000; overflow: hidden; user-select: none; -webkit-user-select: none; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #8ec5fc; cursor: pointer; margin-top: -6px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #8ec5fc; cursor: pointer; margin-top: -6px; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; }
-        /* Layers */
-        #gameCanvas { position: absolute; top: 0; left: 0; z-index: 0; }
-        #system-frame { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: none; z-index: 50; display: none; background: white; }
-        #overlay { z-index: 10; pointer-events: none; }
-        #ui-layer { z-index: 20; }
-        /* Panel Animation */
-        .slide-out { transform: translateX(100%); transition: transform 0.3s ease-in-out; }
-        .slide-in { transform: translateX(0); transition: transform 0.3s ease-in-out; }
+        
+        /* Modal Transitions */
+        .modal { transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .modal.invisible { opacity: 0; visibility: hidden; pointer-events: none; }
+        .modal.visible { opacity: 1; visibility: visible; pointer-events: auto; }
+        .scale-in { transform: scale(1); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); } 
+        .scale-out { transform: scale(0.95); }
+
+        /* Typography */
+        #splash-body a { color: #8ec5fc; text-decoration: underline; pointer-events: auto; }
+        #overlay { z-index: 50; pointer-events: none; }
+        #splash-content { pointer-events: auto; }
+        #ui-layer { z-index: 60; pointer-events: none; }
+        .interactive { pointer-events: auto; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
     </style>
 </head>
 <body class="font-sans text-slate-800">
 
-    <canvas id="gameCanvas" class="w-full h-full"></canvas>
+    <canvas id="gameCanvas" class="absolute top-0 left-0 w-full h-full z-0"></canvas>
 
-    <iframe id="system-frame"></iframe>
-
-    <div id="overlay" class="absolute inset-0 flex flex-col items-center justify-center text-white/90 text-center drop-shadow-md transition-opacity duration-1000">
-        <h1 id="splash-title" class="text-3xl md:text-5xl font-light mb-4 tracking-widest">The Garden</h1>
-        <p id="splash-text" class="text-lg font-light">Tap to Bloom • Double Tap to Strum</p>
+    <div id="overlay" class="absolute inset-0 flex flex-col items-center justify-center text-white/90 drop-shadow-md transition-opacity duration-1000 p-6">
+        <div id="splash-content" class="w-full max-w-2xl flex flex-col items-center gap-2">
+            <h1 id="splash-title" class="text-3xl md:text-5xl font-light tracking-widest text-center">The Garden</h1>
+            <h2 id="splash-subtitle" class="text-lg md:text-xl font-light text-center opacity-90">Tap to Bloom • Double Tap to Strum</h2>
+            <div id="splash-body" class="mt-6 text-sm md:text-base leading-relaxed text-left w-full bg-black/20 p-4 rounded-lg backdrop-blur-sm hidden"></div>
+        </div>
     </div>
 
-    <div id="ui-layer">
-        <div id="rec-indicator" class="fixed top-5 left-5 flex items-center gap-2 bg-black/40 backdrop-blur px-3 py-2 rounded-full text-white text-xs font-bold opacity-0 transition-opacity">
-            <div class="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>REC
-        </div>
-
-        <div class="fixed bottom-3 right-4 text-[10px] text-white/60 pointer-events-none">
-            <span id="footer-text">v9.0 Skeleton</span>
-        </div>
-
-        <button id="settings-trigger" class="fixed top-5 right-5 w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/30 active:scale-95 transition-all shadow-lg pointer-events-auto">
-            <span class="material-symbols-outlined">settings</span>
-        </button>
-
-        <aside id="settings-panel" class="fixed top-0 right-0 w-80 h-full bg-white/95 backdrop-blur-xl shadow-2xl slide-out flex flex-col no-scrollbar overflow-y-auto pointer-events-auto">
-            <div class="p-6 flex justify-between items-center border-b border-gray-100">
-                <h2 class="text-lg font-bold text-gray-700 uppercase">Controls</h2>
-                <button id="close-btn" class="text-gray-400 hover:text-gray-700"><span class="material-symbols-outlined text-3xl">close</span></button>
+    <div id="ui-layer" class="absolute inset-0 flex flex-col justify-between p-4">
+        <div class="flex justify-between items-start">
+            <div id="rec-indicator" class="flex items-center gap-2 bg-black/40 backdrop-blur px-3 py-2 rounded-full text-white text-xs font-bold opacity-0 transition-opacity">
+                <div class="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>REC
             </div>
+            <button id="settings-trigger" class="interactive w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/30 active:scale-95 transition-all shadow-lg">
+                <span class="material-symbols-outlined">settings</span>
+            </button>
+        </div>
+        <div class="text-right">
+            <div class="text-[10px] text-white/60">v11.0 GM • <span id="clock">--:--</span></div>
+        </div>
+    </div>
+
+    <aside id="settings-panel" class="fixed top-0 right-0 w-80 h-full bg-white/95 backdrop-blur-xl shadow-2xl transform translate-x-full transition-transform duration-300 z-70 flex flex-col no-scrollbar overflow-y-auto interactive">
+        <div class="p-6 flex justify-between items-center border-b border-gray-100">
+            <h2 class="text-lg font-bold text-gray-700 uppercase">Controls</h2>
+            <button id="close-btn" class="text-gray-400 hover:text-gray-700"><span class="material-symbols-outlined text-3xl">close</span></button>
+        </div>
+        <div class="p-6 space-y-8 flex-1">
             
-            <div class="p-6 space-y-8 flex-1">
-                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-2">
-                    <label class="text-xs font-bold text-blue-700 uppercase">Access Code</label>
-                    <div class="flex gap-2">
-                        <input id="theme-code-input" class="flex-1 p-2 text-sm border rounded font-mono" placeholder="Enter Code">
-                        <button id="load-code-btn" class="bg-blue-600 text-white px-3 rounded font-bold hover:bg-blue-700">GO</button>
-                    </div>
-                </div>
-
-                <div class="space-y-4">
-                    <div class="flex justify-between items-center">
-                        <span class="text-xs font-bold text-gray-500 uppercase">Sound</span>
-                        <input type="checkbox" id="audio-toggle" checked class="accent-blue-500 w-5 h-5">
-                    </div>
-                    <div>
-                        <span class="text-xs font-bold text-gray-500 uppercase">Fade Rate</span>
-                        <input type="range" id="decay-slider" min="0" max="5" step="1" value="2" class="w-full">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3 pt-4 border-t border-gray-100">
-                    <button id="record-btn" class="col-span-1 px-4 py-3 bg-orange-50 text-orange-700 text-sm font-bold rounded-xl">Record</button>
-                    <button id="save-btn" class="col-span-1 px-4 py-3 bg-green-50 text-green-700 text-sm font-bold rounded-xl">Snapshot</button>
-                    <button id="clear-btn" class="col-span-2 py-3 bg-red-50 text-red-700 text-sm font-bold rounded-xl">Clear Canvas</button>
-                </div>
+            <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-2">
+                <label class="text-xs font-bold text-blue-700 uppercase">Override Image</label>
+                <button class="w-full py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700" onclick="document.getElementById('bg-upload').click()">Upload</button>
+                <input type="file" id="bg-upload" accept="image/*" hidden>
+                <button id="reset-bg-btn" class="w-full py-2 bg-gray-200 text-gray-600 text-xs font-bold rounded hover:bg-gray-300">Reset to Default</button>
             </div>
-        </aside>
+
+            <div class="space-y-6">
+                <div class="flex justify-between items-center"><span class="text-xs font-bold text-gray-500 uppercase">Sound</span><input type="checkbox" id="audio-toggle" checked class="accent-blue-500 w-5 h-5"></div>
+                <div><span class="text-xs font-bold text-gray-500 uppercase">Fade Rate</span><input type="range" id="decay-slider" min="0" max="5" step="1" value="2" class="w-full"></div>
+                <div><span class="text-xs font-bold text-gray-500 uppercase">Growth Speed</span><input type="range" id="speed-slider" min="1" max="100" step="1" value="50" class="w-full"></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 pt-4 border-t border-gray-100">
+                <button id="record-btn" class="col-span-1 px-4 py-3 bg-orange-50 text-orange-700 text-sm font-bold rounded-xl">Record</button>
+                <button id="save-btn" class="col-span-1 px-4 py-3 bg-green-50 text-green-700 text-sm font-bold rounded-xl">Snap</button>
+                <button id="theme-btn" class="col-span-1 px-4 py-3 bg-gray-50 text-gray-700 text-sm font-bold rounded-xl">Theme</button>
+                <button id="clear-btn" class="col-span-1 px-4 py-3 bg-red-50 text-red-700 text-sm font-bold rounded-xl">Clear</button>
+                
+                <button id="secrets-btn" class="col-span-2 mt-2 py-4 bg-amber-50 text-amber-700 font-bold rounded-xl border border-amber-200 shadow-sm flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined">key</span> Open Secrets
+                </button>
+
+                <button id="info-btn" class="col-span-1 mt-2 py-3 bg-blue-50 text-blue-700 text-sm font-bold rounded-xl border border-blue-200">Code</button>
+                <button id="req-btn" class="col-span-1 mt-2 py-3 bg-purple-50 text-purple-700 text-sm font-bold rounded-xl border border-purple-200">Reqs</button>
+            </div>
+        </div>
+    </aside>
+
+    <div id="secrets-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center invisible modal">
+        <div class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-md p-6 transform scale-out modal-content">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2"><span class="material-symbols-outlined text-amber-500">auto_awesome</span> Discoveries</h3>
+                <button id="close-secrets" class="text-gray-400 hover:text-gray-800"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div id="secrets-grid-view">
+                <div id="secrets-list" class="grid grid-cols-5 gap-2 max-h-60 overflow-y-auto p-1"></div>
+                <div class="text-center text-xs text-gray-400 mt-4">Found: <span id="secrets-count">0</span> / 20</div>
+            </div>
+        </div>
     </div>
 
-    <script src="packs/global/script.js"></script>
+    <div id="code-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center invisible modal">
+        <div class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-4xl h-[80vh] p-6 transform scale-out modal-content flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2"><span class="material-symbols-outlined text-blue-500">code</span> Source</h3>
+                <button id="close-code" class="text-gray-400 hover:text-gray-800"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="flex-1 overflow-auto bg-gray-50 p-4 rounded border border-gray-200 font-mono text-xs"><pre id="source-code-display">Loading...</pre></div>
+            <div class="mt-4 flex justify-end shrink-0"><button id="copy-code-btn" class="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 flex items-center gap-2">Copy</button></div>
+        </div>
+    </div>
+
+    <div id="req-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center invisible modal">
+        <div class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-lg p-6 transform scale-out modal-content">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2"><span class="material-symbols-outlined text-purple-500">checklist</span> Details</h3>
+                <button id="close-req" class="text-gray-400 hover:text-gray-800"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="overflow-y-auto max-h-[60vh] space-y-3 text-sm text-gray-700">
+                <p><strong>v11.0 Master Build:</strong></p>
+                <ul class="list-disc pl-5">
+                    <li>Full Telemetry Pipeline (25 Metrics)</li>
+                    <li>Auto-Deployment (img/sound/msg detection)</li>
+                    <li>High-Register Audio (No Lows)</li>
+                    <li>Full Visual Suite (Particles, Clouds, 3D)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const FORM_ID = "1FAIpQLSe3k3uGy3zjEIJ8QVDhjpQOG6EAjWCZ9pCFlhDKle8NeUhg9w"; // Hardcoded for deployment
+        const SESSION_START = Date.now();
+        window.telemetryStats = { taps: 0, drags: 0, secrets: 0, mouseDist: 0 };
+        let cachedIP = "pending";
+
+        // Async IP Fetch
+        fetch('https://api.ipify.org?format=json')
+            .then(r => r.json()).then(d => cachedIP = d.ip).catch(e => cachedIP = "offline");
+
+        // Track Mouse Distance
+        let lastMouse = {x:0, y:0};
+        document.addEventListener('mousemove', e => {
+            if(lastMouse.x!==0) window.telemetryStats.mouseDist += Math.hypot(e.clientX-lastMouse.x, e.clientY-lastMouse.y);
+            lastMouse = {x:e.clientX, y:e.clientY};
+        });
+
+        // Fingerprinter
+        const getCanvasFP = () => {
+            try {
+                const c = document.createElement('canvas'); const cx = c.getContext('2d');
+                cx.textBaseline = "top"; cx.font = "14px 'Arial'"; cx.fillStyle = "#f60";
+                cx.fillRect(125,1,62,20); cx.fillStyle = "#069"; cx.fillText("Garden", 2, 15);
+                let b64 = c.toDataURL(); let hash=0; for(let i=0;i<b64.length;i++) hash=Math.imul(31,hash)+b64.charCodeAt(i)|0;
+                return Math.abs(hash).toString(16);
+            } catch(e) { return "err"; }
+        };
+
+        // Data Layer & Send
+        async function logSession() {
+            const now = Date.now();
+            const duration = (now - SESSION_START) / 1000;
+            
+            // Map c01-c25 to Data
+            const payload = {
+                "entry.320935448": new Date(now).toISOString(), // c01: End Time
+                "entry.674244912": "DEFAULT", // c02: Theme Code
+                "entry.711998658": cachedIP, // c03: IP
+                "entry.463387935": SESSION_START.toString(36), // c04: Session ID
+                "entry.856781419": `${Math.floor(duration/60)}m ${Math.floor(duration%60)}s`, // c05: Duration
+                "entry.799073583": window.telemetryStats.taps, // c06
+                "entry.1460702381": window.telemetryStats.drags, // c07
+                "entry.1854966723": Math.round(window.telemetryStats.mouseDist), // c08
+                "entry.406770144": navigator.userAgent, // c09
+                "entry.339302030": navigator.platform, // c10
+                "entry.1885869286": `${window.screen.width}x${window.screen.height}`, // c11
+                "entry.1550217446": `${window.innerWidth}x${window.innerHeight}`, // c12
+                "entry.581200255": window.devicePixelRatio || 1, // c13
+                "entry.720549735": window.screen.colorDepth, // c14
+                "entry.1134789700": navigator.hardwareConcurrency || "ukn", // c15
+                "entry.1076432340": navigator.deviceMemory || "ukn", // c16
+                "entry.854591687": navigator.language, // c17
+                "entry.101770949": Intl.DateTimeFormat().resolvedOptions().timeZone, // c18
+                "entry.2010953570": navigator.cookieEnabled, // c19
+                "entry.607664253": (typeof localStorage !== 'undefined') ? 'yes' : 'no', // c20
+                "entry.1399187003": getCanvasFP(), // c21
+                "entry.1854154093": document.referrer || "direct", // c22
+                "entry.1036649804": new Date(SESSION_START).toISOString(), // c23: Start Time
+                "entry.1683490369": window.telemetryStats.secrets, // c24: Secrets Found
+                "entry.1722638233": "v11.0" // c25: Version
+            };
+
+            const formData = new FormData();
+            for (const [id, val] of Object.entries(payload)) {
+                formData.append(id, val);
+            }
+
+            try {
+                await fetch(`https://docs.google.com/forms/d/e/${FORM_ID}/formResponse`, {
+                    method: 'POST', mode: 'no-cors', body: formData, keepalive: true
+                });
+            } catch(e) {}
+        }
+
+        // Triggers
+        window.addEventListener('beforeunload', logSession);
+        window.addEventListener('pagehide', logSession);
+        window.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden') logSession(); });
+    </script>
+
+    <script>
+        const AppState = { bgImage: null, useGradient: true };
+        async function initEnvironment() {
+            // Text
+            try {
+                const r = await fetch('msg.txt');
+                if (r.ok) {
+                    const text = await r.text();
+                    const parts = text.split('|');
+                    if(parts[0]) document.getElementById('splash-title').innerHTML = parts[0].trim();
+                    if(parts[1]) document.getElementById('splash-subtitle').innerHTML = parts[1].trim();
+                    if(parts[2]) {
+                        const b = document.getElementById('splash-body');
+                        b.innerHTML = parts[2].trim(); b.classList.remove('hidden');
+                    }
+                }
+            } catch(e){}
+            // Audio
+            try {
+                const r = await fetch('sound.mp3', {method:'HEAD'});
+                if(r.ok) {
+                    const a = document.createElement('audio'); a.id='bg-audio-track'; a.loop=true; a.src='sound.mp3'; a.volume=0.2; document.body.appendChild(a);
+                    const unlock = ()=>{ a.play().catch(()=>{}); document.removeEventListener('click', unlock); document.removeEventListener('touchstart', unlock); };
+                    document.addEventListener('click', unlock); document.addEventListener('touchstart', unlock);
+                }
+            } catch(e){}
+            // Image (Waterfall)
+            for(const ext of ['png','jpg','jpeg','gif']) {
+                try {
+                    const r = await fetch(`img.${ext}`, {method:'HEAD'});
+                    if(r.ok) {
+                        const i = new Image(); i.onload = ()=>{ AppState.bgImage=i; AppState.useGradient=false; }; i.src=`img.${ext}`; break;
+                    }
+                } catch(e){}
+            }
+        }
+        initEnvironment();
+    </script>
+
+    <script>
+        const ZenAudio = {
+            ctx: null, master: null, enabled: true,
+            // Scale C4+ (No Lows)
+            scale: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51],
+            init() {
+                if(!this.ctx && (window.AudioContext||window.webkitAudioContext)) { this.ctx = new (window.AudioContext||window.webkitAudioContext)(); this.master = this.ctx.createGain(); this.master.gain.value = 0.3; this.master.connect(this.ctx.destination); }
+                if(this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+            },
+            pluck(freq, vol=0.3) {
+                if(!this.ctx || !this.enabled) return;
+                const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+                o.frequency.value = freq; o.type = 'triangle'; g.connect(this.master); o.connect(g);
+                const now = this.ctx.currentTime; g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(vol, now+0.01); g.gain.exponentialRampToValueAtTime(0.001, now+1.5);
+                o.start(now); o.stop(now+1.5);
+            },
+            strum(baseFreq, count=3) {
+                if(!this.ctx || !this.enabled) return;
+                let baseIdx=0, closest=10000; this.scale.forEach((f,i)=>{ if(Math.abs(f-baseFreq)<closest){closest=Math.abs(f-baseFreq); baseIndex=i;} });
+                for(let i=0; i<count; i++) { let noteIdx = Math.min(this.scale.length-1, baseIndex+i*2); setTimeout(()=>{ this.pluck(this.scale[noteIdx], 0.2); }, i*60); }
+            },
+            chime(freq, vol=0.1) {
+                if(!this.ctx || !this.enabled) return;
+                const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+                o.frequency.value = freq*2; o.type = 'sine'; g.connect(this.master); o.connect(g);
+                const now = this.ctx.currentTime; g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.1, now+0.05); g.gain.exponentialRampToValueAtTime(0.001, now+2.0);
+                o.start(now); o.stop(now+2.0);
+            },
+            playDiscovery() { if(!this.ctx || !this.enabled) return; [0,2,4,6].forEach((offset, i) => { setTimeout(() => this.chime(this.scale[offset], 0.2), i * 150); }); },
+            getFreq(y, h) { const pct = 1-Math.max(0,Math.min(1, y/h)); const idx = Math.floor(pct*this.scale.length); return this.scale[Math.min(idx, this.scale.length-1)]; }
+        };
+    </script>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
+        let width, height; const config = { speedMultiplier: 1.0, decayValue: 0.005, trailDecay: 0.02, currentThemeIndex: 0, currentTrail: '♥', lastTrailSwitch: Date.now(), customWords: [], defaultWords: ["Peace", "Love", "Joy", "Hope", "Calm"] };
+        const themes = [{ bg: ['#e0c3fc', '#8ec5fc'], text: '#4a148c' }, { bg: ['#fad0c4', '#ffd1ff'], text: '#880e4f' }, { bg: ['#d299c2', '#fef9d7'], text: '#3e2723' }, { bg: ['#a1c4fd', '#c2e9fb'], text: '#01579b' }, { bg: ['#d4fc79', '#96e6a1'], text: '#1b5e20' }];
+        
+        function resize() { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resize); resize();
+        
+        const random = (min, max) => Math.random() * (max - min) + min;
+        function getPastelColor() { const hue = random(0, 360); return { hue: hue, str: `hsla(${hue}, 70%, 80%,` }; }
+        function getRandomWord() { if (config.customWords.length > 0) return config.customWords[Math.floor(Math.random() * config.customWords.length)]; return config.defaultWords[Math.floor(Math.random() * config.defaultWords.length)]; }
+
+        // ENTITIES (RESTORED)
+        class Particle { constructor(x, y, color) { this.x = x; this.y = y; this.vx = random(-3, 3); this.vy = random(-5, 1); this.life = 1.0; this.decay = random(0.005, 0.02); this.color = color; this.gravity = 0.1; this.sparkleColor = `hsl(${random(0,360)}, 80%, 70%)`; } update() { this.x += this.vx; this.y += this.vy; this.vy += this.gravity; this.life -= this.decay; } draw(ctx) { ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.sparkleColor; ctx.fillRect(this.x, this.y, 2, 2); } isDead() { return this.life <= 0; } }
+        class Word { constructor(x, y, text) { this.x = x; this.y = y; this.text = text || getRandomWord(); this.velocity = -0.5; this.alpha = 0; this.fadeIn = true; this.color = themes[config.currentThemeIndex].text; } update() { this.y += this.velocity * config.speedMultiplier; if (this.fadeIn) { this.alpha += 0.02 * config.speedMultiplier; if (this.alpha>=1) this.fadeIn=false; } else if (config.decayValue > 0) { this.alpha -= config.decayValue * config.speedMultiplier; } } draw(ctx) { ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha); ctx.font = "20px 'Segoe UI', sans-serif"; ctx.fillStyle = this.color; ctx.textAlign = "center"; ctx.shadowBlur = 4; ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.fillText(this.text, this.x, this.y); ctx.restore(); } isDead() { return this.alpha <= 0 && !this.fadeIn; } }
+        class Bloom { constructor(x, y, size=null) { this.x = x; this.y = y; this.size = 0; this.maxSize = size || random(30, 80); this.colorObj = getPastelColor(); this.colorBase = this.colorObj.str; this.petals = Math.floor(random(5, 9)); this.alpha = 1; this.compColor = `hsla(${(this.colorObj.hue + 180)%360}, 60%, 70%,`; this.rotation = random(0, Math.PI*2); const shapeRnd = Math.random(); if(shapeRnd > 0.6) this.shape = 'pointed'; else if (shapeRnd > 0.3) this.shape = 'round'; else this.shape = 'hybrid'; } update() { this.rotation += 0.002; if (this.size < this.maxSize) this.size += 0.5 * config.speedMultiplier; else if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier; } draw(ctx) { ctx.save(); if(foundEggs.includes(2)) { ctx.strokeStyle = `rgba(218, 165, 32, ${this.alpha * 0.6})`; ctx.lineWidth = 0.5; for(let i=0; i<5; i++) { const angle = (i/5) * Math.PI*2 + this.rotation; const len = this.size * 1.5; ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.bezierCurveTo(this.x + Math.cos(angle - 0.4) * len * 0.5, this.y + Math.sin(angle - 0.4) * len * 0.5, this.x + Math.cos(angle + 0.4) * len * 0.8, this.y + Math.sin(angle + 0.4) * len * 0.8, this.x + Math.cos(angle) * len, this.y + Math.sin(angle) * len); ctx.stroke(); } } for(let i=0; i<3; i++) { ctx.fillStyle = this.colorBase + (this.alpha * 0.7 * (1 - i*0.2)) + ')'; ctx.beginPath(); for (let j = 0; j < this.petals; j++) { const angle = (j / this.petals) * Math.PI * 2 + (i * 0.1) + this.rotation; const petalSize = (this.size - (i*5)); if (petalSize <= 0) continue; ctx.moveTo(this.x, this.y); if(this.shape === 'pointed') { ctx.quadraticCurveTo(this.x + Math.cos(angle - 0.3) * petalSize, this.y + Math.sin(angle - 0.3) * petalSize, this.x + Math.cos(angle) * petalSize * 1.2, this.y + Math.sin(angle) * petalSize * 1.2); ctx.quadraticCurveTo(this.x + Math.cos(angle + 0.3) * petalSize, this.y + Math.sin(angle + 0.3) * petalSize, this.x, this.y); } else { ctx.ellipse(this.x + Math.cos(angle)*(petalSize*0.5), this.y + Math.sin(angle)*(petalSize*0.5), petalSize*0.4, petalSize*0.2, angle, 0, Math.PI*2); } } ctx.fill(); } const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 0.25); const centerAlpha = foundEggs.includes(1) ? 0.9 : 0.7; grad.addColorStop(0, `rgba(255, 255, 255, ${centerAlpha})`); grad.addColorStop(1, this.compColor + "0)"); ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 0.25, 0, Math.PI*2); ctx.fill(); ctx.restore(); } isDead() { if (this.alpha <= 0 && foundEggs.includes(5)) { for(let k=0; k<10; k++) particles.push(new Particle(this.x, this.y, this.colorBase + '1)')); } return this.alpha <= 0; } }
+        class GrowingHeart { constructor(x, y) { this.x = x; this.y = y; this.size = 0; this.maxSize = random(40, 90); this.hue = random(0, 360); this.alpha = 1; } update() { if (this.size < this.maxSize) this.size += 0.5 * config.speedMultiplier; else if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier; } draw(ctx) { ctx.save(); ctx.translate(this.x, this.y); const scale = this.size / 30; ctx.scale(scale, scale); ctx.globalAlpha = Math.max(0, this.alpha); let grad = ctx.createRadialGradient(-5, -5, 2, 0, 0, 25); grad.addColorStop(0, "white"); grad.addColorStop(0.3, `hsl(${this.hue}, 100%, 70%)`); grad.addColorStop(1, `hsl(${this.hue}, 100%, 30%)`); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(-10, -10, -20, 0, 0, 20); ctx.bezierCurveTo(20, 0, 10, -10, 0, 0); ctx.fill(); ctx.restore(); } isDead() { return this.alpha <= 0; } }
+        class HeartBloom extends Bloom { draw(ctx) { ctx.save(); const layerCount = foundEggs.includes(3) ? 5 : 3; for(let i=0; i<layerCount; i++) { const scale = (this.size - (i*4)) / 20; if (scale <= 0) continue; const pCount = this.petals + (i%2); for (let j = 0; j < pCount; j++) { ctx.save(); const angle = (j / pCount) * Math.PI * 2 + this.rotation + (i*0.2); ctx.translate(this.x, this.y); ctx.rotate(angle + Math.PI/2); ctx.translate(0, -scale * 15); ctx.scale(scale, scale); let grad = ctx.createRadialGradient(-3, -3, 1, 0, 0, 15); grad.addColorStop(0, "rgba(255,255,255,0.4)"); grad.addColorStop(1, this.colorBase + (this.alpha * 0.8) + ')'); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(-5, -5, -10, 0, 0, 10); ctx.bezierCurveTo(10, 0, 5, -5, 0, 0); ctx.fill(); ctx.restore(); } } ctx.fillStyle = this.compColor + this.alpha + ')'; ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 0.1, 0, Math.PI*2); ctx.fill(); ctx.restore(); } }
+        class HeartCloud { constructor(x, y) { this.x = x; this.y = y; this.alpha = 1; this.hearts = []; const count = Math.floor(random(4, 12)); const colors = ["#ff0000", "#ff7f00", "#ffff00", "#00ff00", "#0000ff", "#4b0082", "#9400d3", "#ff1493"]; for(let i=0; i<count; i++) { this.hearts.push({ ox: random(-40, 40), oy: random(-40, 40), size: random(10, 25), color: colors[Math.floor(Math.random()*colors.length)], rot: random(-0.2, 0.2) }); } const freq = ZenAudio.getFreq(y, height); ZenAudio.strum(freq); } update() { this.y -= 0.5 * config.speedMultiplier; if (config.decayValue > 0) this.alpha -= config.decayValue * config.speedMultiplier; } draw(ctx) { ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha); this.hearts.forEach(h => { ctx.save(); ctx.translate(this.x + h.ox, this.y + h.oy); ctx.rotate(h.rot); const scale = h.size / 20; ctx.scale(scale, scale); let grad = ctx.createRadialGradient(-5, -5, 2, 0, 0, 20); grad.addColorStop(0, "white"); grad.addColorStop(0.3, h.color); grad.addColorStop(1, "#330000"); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(-10, -10, -20, 0, 0, 20); ctx.bezierCurveTo(20, 0, 10, -10, 0, 0); ctx.fill(); ctx.restore(); }); ctx.restore(); } isDead() { return this.alpha <= 0; } }
+        class TrailBase { constructor(x, y, type) { this.x = x; this.y = y; this.alpha = 1; this.size = random(10, 20); this.type = type; this.hue = random(0, 360); this.color = `hsl(${this.hue},100%,60%)`; this.cometColor = `hsl(${random(200,260)},100%,80%)`; } update() { this.y -= 1.0; this.alpha -= config.trailDecay; } draw(ctx) { ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha); if(this.type === "Comet") { ctx.fillStyle = this.cometColor; ctx.beginPath(); ctx.arc(this.x, this.y, this.size/3, 0, Math.PI*2); ctx.fill(); } else if (this.type === "♥" || this.type === "⭐") { ctx.translate(this.x, this.y); ctx.fillStyle = this.color; ctx.font = `${this.size}px serif`; ctx.fillText(this.type, 0, 0); } else { ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.font = `${this.size}px serif`; ctx.fillText(this.type, this.x, this.y); } ctx.restore(); } isDead() { return this.alpha <= 0; } }
+
+        // --- 6. INPUT & UI ---
+        let visualEntities = []; let wordEntities = []; let particles = [];
+        let foundEggs = JSON.parse(localStorage.getItem('garden_egg_ids') || "[]"); let inputBuffer = "";
+        let lastTap=0, isDragging=false, dragStart=0, startX, startY, lastDragSound=0;
+
+        // UI Event Listeners
+        document.getElementById('reset-bg-btn').addEventListener('click', ()=>{ localStorage.removeItem('garden_bg'); AppState.bgImage=null; AppState.useGradient=true; });
+        document.getElementById('bg-upload').addEventListener('change', (e) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (evt) => { try { localStorage.setItem('garden_bg', evt.target.result); } catch(e){} const i = new Image(); i.onload = ()=>{AppState.bgImage=i; AppState.useGradient=false;}; i.src=evt.target.result; }; r.readAsDataURL(f); });
+        
+        // Restore manual background
+        if(localStorage.getItem('garden_bg')){ const i=new Image(); i.onload=()=>{AppState.bgImage=i; AppState.useGradient=false;}; i.src=localStorage.getItem('garden_bg'); }
+
+        const panel = document.getElementById('settings-panel');
+        document.getElementById('settings-trigger').onclick = ()=>panel.classList.remove('translate-x-full');
+        document.getElementById('close-btn').onclick = ()=>panel.classList.add('translate-x-full');
+        document.getElementById('audio-toggle').onchange=e=>ZenAudio.enabled=e.target.checked;
+        document.getElementById('decay-slider').oninput=e=>config.decayValue=[0,0.002,0.005,0.01,0.02,0.05][e.target.value];
+        document.getElementById('speed-slider').oninput=e=>config.speedMultiplier=0.2+(e.target.value/100)*1.8;
+        document.getElementById('trail-slider').oninput=e=>{const v=parseInt(e.target.value); const d=[0.1,0.08,0.06,0.04,0.02,0.01,0.008,0.005,0.002,0.0005]; config.trailDecay=d[v-1];};
+        document.getElementById('theme-btn').onclick=()=>config.currentThemeIndex=(config.currentThemeIndex+1)%5;
+        document.getElementById('clear-btn').onclick=()=>{visualEntities=[];wordEntities=[];particles=[];};
+        document.getElementById('save-btn').onclick=()=>{const a=document.createElement('a');a.download='garden.png';a.href=canvas.toDataURL();a.click();};
+
+        // Modals
+        function toggleModal(id, show) { const el = document.getElementById(id); if(show) { el.classList.remove('invisible'); el.classList.add('visible'); el.querySelector('.modal-content').classList.add('scale-in'); } else { el.classList.remove('visible'); el.classList.add('invisible'); } }
+        document.getElementById('secrets-btn').onclick=()=>{ updateSecretsUI(); toggleModal('secrets-modal', true); };
+        document.getElementById('close-secrets').onclick=()=>toggleModal('secrets-modal', false);
+        document.getElementById('info-btn').onclick=()=>{ document.getElementById('source-code-display').textContent = document.documentElement.outerHTML; toggleModal('code-modal', true); };
+        document.getElementById('close-code').onclick=()=>toggleModal('code-modal', false);
+        document.getElementById('req-btn').onclick=()=>toggleModal('req-modal', true);
+        document.getElementById('close-req').onclick=()=>toggleModal('req-modal', false);
+        document.getElementById('copy-code-btn').onclick=()=>{ navigator.clipboard.writeText(document.documentElement.outerHTML); alert("Copied!"); };
+
+        // Secrets Logic
+        function updateSecretsUI() { const list=document.getElementById('secrets-list'); list.innerHTML=''; for(let i=1; i<=20; i++) { const u = foundEggs.includes(i); const b = document.createElement('div'); b.className = `aspect-square rounded flex items-center justify-center text-xs font-bold border transition-all ${u?'bg-amber-200 border-amber-400 text-amber-900 cursor-pointer':'bg-gray-100 text-gray-300'}`; b.innerText=i; list.appendChild(b); } document.getElementById('secrets-count').innerText=foundEggs.length; }
+        const rhythmSequences = [{ code: "TTT", id: 1 }, { code: "TTS", id: 2 }, { code: "TST", id: 3 }, { code: "SST", id: 4 }, { code: "TTTT", id: 5 }, { code: "SS", id: 6 }, { code: "TSTS", id: 7 }, { code: "STST", id: 8 }, { code: "TSS", id: 9 }, { code: "SSS", id: 10 }];
+        function registerInput(char) { inputBuffer += char; if(inputBuffer.length>5) inputBuffer=inputBuffer.slice(-5); rhythmSequences.forEach(seq => { if(inputBuffer.endsWith(seq.code)) triggerUnlock(seq.id); }); }
+        function triggerUnlock(id) { inputBuffer=""; if(!foundEggs.includes(id)) { foundEggs.push(id); window.telemetryStats.secrets++; localStorage.setItem('garden_egg_ids', JSON.stringify(foundEggs)); ZenAudio.playDiscovery(); updateSecretsUI(); } }
+        function checkDragUnlock(dur) { const sec = 10 + Math.floor(dur/1000) - 1; if(sec>10 && sec<=20) triggerUnlock(sec); }
+
+        function handleInputEnd(x,y) {
+            const now = Date.now(); const dur = now - dragStart; const freq = ZenAudio.getFreq(y, height);
+            if(dur < 300) {
+                if(now-lastTap < 300) { 
+                    visualEntities.push(new HeartCloud(x,y)); ZenAudio.strum(freq); window.telemetryStats.drags++;
+                } else { 
+                    let ent; if(foundEggs.includes(3) && Math.random() > 0.7) ent = new GrowingHeart(x,y); else if(foundEggs.includes(3) && Math.random() > 0.5) ent = new HeartBloom(x,y); else ent = new Bloom(x,y);
+                    visualEntities.push(ent); wordEntities.push(new Word(x,y-30)); ZenAudio.pluck(freq, 0.3); window.telemetryStats.taps++;
+                }
+                lastTap = now; registerInput('T');
+            } else { visualEntities.push(new Bloom(x, y, 150)); ZenAudio.chime(freq, 0.2); window.telemetryStats.drags++; }
+        }
+
+        // Listeners
+        canvas.addEventListener('mousedown',e=>{ZenAudio.init(); document.getElementById('overlay').style.opacity='0'; startX=e.clientX; startY=e.clientY; dragStart=Date.now(); isDragging=false;}); 
+        canvas.addEventListener('mousemove',e=>{if(!startX) return; if(Math.sqrt((e.clientX-startX)**2 + (e.clientY-startY)**2) > 10) { isDragging=true; if(Date.now()-lastDragSound>60){ if(Date.now() - config.lastTrailSwitch > 10000) { const options = ['♥', 'Comet', '☁️', '⭐']; config.currentTrail = options[Math.floor(Math.random() * options.length)]; config.lastTrailSwitch = Date.now(); } visualEntities.push(new TrailBase(e.clientX,e.clientY,config.currentTrail)); ZenAudio.pluck(ZenAudio.getFreq(e.clientY,height),0.1); lastDragSound=Date.now(); } }});
+        canvas.addEventListener('mouseup',e=>{if(isDragging){registerInput('S'); checkDragUnlock(Date.now()-dragStart);}else{handleInputEnd(e.clientX,e.clientY);} startX=null;});
+        canvas.addEventListener('touchstart',e=>{e.preventDefault(); ZenAudio.init(); document.getElementById('overlay').style.opacity='0'; startX=e.touches[0].clientX; startY=e.touches[0].clientY; dragStart=Date.now(); isDragging=false;}, {passive:false});
+        canvas.addEventListener('touchmove',e=>{e.preventDefault(); if(!startX) return; if(Math.sqrt((e.touches[0].clientX-startX)**2 + (e.touches[0].clientY-startY)**2) > 10) { isDragging=true; if(Date.now()-lastDragSound>60){ if(Date.now() - config.lastTrailSwitch > 10000) { const options = ['♥', 'Comet', '☁️', '⭐']; config.currentTrail = options[Math.floor(Math.random() * options.length)]; config.lastTrailSwitch = Date.now(); } visualEntities.push(new TrailBase(e.touches[0].clientX,e.touches[0].clientY,config.currentTrail)); ZenAudio.pluck(ZenAudio.getFreq(e.touches[0].clientY,height),0.1); lastDragSound=Date.now(); } } }, {passive:false});
+        canvas.addEventListener('touchend',e=>{e.preventDefault(); if(isDragging){registerInput('S'); checkDragUnlock(Date.now()-dragStart);}else if(e.changedTouches.length){handleInputEnd(e.changedTouches[0].clientX,e.changedTouches[0].clientY);} startX=null;});
+
+        // Recorder
+        let mediaRecorder, recordedChunks = [], isRecording = false; const recBtn = document.getElementById('record-btn'); const recInd = document.getElementById('rec-indicator');
+        recBtn.addEventListener('click', () => isRecording ? stopRecording() : startRecording());
+        function startRecording() { ZenAudio.init(); if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop(); mediaRecorder = null; recordedChunks = []; const stream = canvas.captureStream(60); if (ZenAudio.dest && ZenAudio.dest.stream.getAudioTracks().length > 0) stream.addTrack(ZenAudio.dest.stream.getAudioTracks()[0]); const mimeTypes = ["video/mp4", "video/webm;codecs=h264", "video/webm"]; let selectedType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type)); if (!selectedType) { alert("Recording not supported."); return; } try { mediaRecorder = new MediaRecorder(stream, { mimeType: selectedType }); } catch (e) { alert("Recording init failed."); return; } mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); }; mediaRecorder.onstop = () => { const blob = new Blob(recordedChunks, { type: selectedType }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.style.display="none"; a.href=url; a.download=`garden-${Date.now()}.${selectedType.includes("mp4")?"mp4":"webm"}`; document.body.appendChild(a); a.click(); setTimeout(()=>URL.revokeObjectURL(url),100); }; mediaRecorder.start(); isRecording = true; recInd.style.opacity = '1'; recBtn.innerText = "Stop"; recBtn.classList.add('bg-red-100','text-red-700','animate-pulse'); }
+        function stopRecording() { if(mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop(); isRecording=false; recInd.style.opacity='0'; recBtn.innerText="Record"; recBtn.classList.remove('bg-red-100','text-red-700','animate-pulse'); }
+
+        function loop() {
+            ctx.clearRect(0,0,width,height);
+            if(AppState.bgImage && !AppState.useGradient) { const img = AppState.bgImage; const scale = Math.max(width / img.width, height / img.height); const x = (width / 2) - (img.width / 2) * scale; const y = (height / 2) - (img.height / 2) * scale; ctx.drawImage(img, x, y, img.width * scale, img.height * scale); } 
+            else { const t=themes[config.currentThemeIndex]||themes[0]; const g=ctx.createLinearGradient(0,0,0,height); g.addColorStop(0,t.bg[0]); g.addColorStop(1,t.bg[1]); ctx.fillStyle=g; ctx.fillRect(0,0,width,height); }
+            for(let i=visualEntities.length-1; i>=0; i--) { visualEntities[i].update(); visualEntities[i].draw(ctx); if(visualEntities[i].isDead()) visualEntities.splice(i,1); }
+            for(let i=wordEntities.length-1; i>=0; i--) { wordEntities[i].update(); wordEntities[i].draw(ctx); if(wordEntities[i].isDead()) wordEntities.splice(i,1); }
+            for(let i=particles.length-1; i>=0; i--) { particles[i].update(); particles[i].draw(ctx); if(particles[i].isDead()) particles.splice(i,1); }
+            document.getElementById('clock').innerText = new Date().toLocaleTimeString(); requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
 </body>
 </html>
