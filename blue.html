@@ -305,8 +305,8 @@
         // --- 2. Audio Engine (MODIFIED: High Register) ---
         const ZenAudio = {
             ctx: null, enabled: true, masterGain: null, dest: null,
-            // MODIFIED: High Register Scale (C4+) to prevent mud
-            scale: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51],
+            // MODIFIED: Raised lower register (E4+) without boosting upper range
+            scale: [329.63, 369.99, 392.00, 440.00, 493.88, 523.25, 587.33, 659.25, 739.99, 880.00, 987.77, 1174.66, 1318.51],
             
             init: function() {
                 if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
@@ -724,7 +724,9 @@
         }
 
         // --- 4. Input Handling ---
-        let lastTap=0, isDragging=false, dragStart=0, startX, startY, lastDragSound=0;
+        let lastTap=0, lastTapX=null, lastTapY=null, isDragging=false, dragStart=0, startX, startY, lastDragSound=0;
+        const DOUBLE_TAP_WINDOW = 240; // tighten window to avoid false doubles
+        const DOUBLE_TAP_DISTANCE = 40; // require taps to be near each other
         
         // Immediate Audio Wake Up
         function wakeAudio() {
@@ -794,14 +796,19 @@
                 window.telemetryStats.taps++;
 
                 registerInput('T');
-                
-                if(now-lastTap < 300) { 
+
+                const isNearLastTap = lastTapX !== null && lastTapY !== null && Math.hypot(x - lastTapX, y - lastTapY) <= DOUBLE_TAP_DISTANCE;
+                const isDoubleTap = (now - lastTap) < DOUBLE_TAP_WINDOW && isNearLastTap;
+
+                if(isDoubleTap) {
                     visualEntities.push(new HeartCloud(x,y));
                     ZenAudio.playChord(idx);
                     // TELEMETRY DRAG (Chord)
                     window.telemetryStats.drags++;
                 }
-                lastTap=now;
+                lastTap = now;
+                lastTapX = x;
+                lastTapY = y;
             }
             startX=null; isDragging=false;
         }
