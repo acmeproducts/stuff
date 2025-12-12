@@ -55,8 +55,7 @@
         <h1 class="text-3xl md:text-5xl font-light mb-4 tracking-widest" id="main-title">A Gift for Joy</h1>
         <div id="main-subtitle-container">
             <p class="text-lg md:text-xl font-light leading-relaxed">
-                Tap to Bloom<br>
-                Double Tap for Hearts<br>
+                Tap to Bloom & Hearts<br>
                 <span class="text-sm opacity-70 mt-2 block">Drag to Strum</span>
             </p>
         </div>
@@ -724,9 +723,9 @@
         }
 
         // --- 4. Input Handling ---
-        let lastTap=0, lastTapX=null, lastTapY=null, isDragging=false, dragStart=0, startX, startY, lastDragSound=0;
-        const DOUBLE_TAP_WINDOW = 240; // tighten window to avoid false doubles
-        const DOUBLE_TAP_DISTANCE = 40; // require taps to be near each other
+        let isDragging=false, dragStart=0, startX, startY, lastDragSound=0;
+        const tapVisualCycle = ['bloom', 'heart-cloud'];
+        let tapCycleIndex = 0;
         
         // Immediate Audio Wake Up
         function wakeAudio() {
@@ -789,26 +788,20 @@
 
                 visualEntities.push(ent);
                 wordEntities.push(new Word(x,y-30));
-                
+
+                const tapVariant = tapVisualCycle[tapCycleIndex % tapVisualCycle.length];
+                tapCycleIndex++;
+                if (tapVariant === 'heart-cloud') {
+                    visualEntities.push(new HeartCloud(x,y));
+                    ZenAudio.playChord(idx);
+                }
+
                 ZenAudio.playPluck(freq, 0.3);
-                
+
                 // TELEMETRY TAP
                 window.telemetryStats.taps++;
 
                 registerInput('T');
-
-                const isNearLastTap = lastTapX !== null && lastTapY !== null && Math.hypot(x - lastTapX, y - lastTapY) <= DOUBLE_TAP_DISTANCE;
-                const isDoubleTap = (now - lastTap) < DOUBLE_TAP_WINDOW && isNearLastTap;
-
-                if(isDoubleTap) {
-                    visualEntities.push(new HeartCloud(x,y));
-                    ZenAudio.playChord(idx);
-                    // TELEMETRY DRAG (Chord)
-                    window.telemetryStats.drags++;
-                }
-                lastTap = now;
-                lastTapX = x;
-                lastTapY = y;
             }
             startX=null; isDragging=false;
         }
@@ -1140,6 +1133,7 @@
         const START_TIME = Date.now();
         window.telemetryStats = { taps: 0, drags: 0, secrets: 0, mouseDist: 0 };
         let cachedIP = "pending";
+        let sessionLogged = false;
 
         // --- 2. ASYNC IP FETCH ---
         fetch('https://api.ipify.org?format=json')
@@ -1164,6 +1158,8 @@
         };
 
         async function logSession() {
+            if (sessionLogged) return;
+            sessionLogged = true;
             const now = Date.now();
             const duration = (now - START_TIME) / 1000;
             const standardWordsString = config.defaultWords.join(', ');
