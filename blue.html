@@ -56,7 +56,6 @@
         <div id="main-subtitle-container">
             <p class="text-lg md:text-xl font-light leading-relaxed">
                 Tap to Bloom<br>
-                Double Tap for Hearts<br>
                 <span class="text-sm opacity-70 mt-2 block">Drag to Strum</span>
             </p>
         </div>
@@ -305,8 +304,8 @@
         // --- 2. Audio Engine (MODIFIED: High Register) ---
         const ZenAudio = {
             ctx: null, enabled: true, masterGain: null, dest: null,
-            // MODIFIED: High Register Scale (C4+) to prevent mud
-            scale: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51],
+            // MODIFIED: Raised lower register (E4+) without boosting upper range
+            scale: [329.63, 369.99, 392.00, 440.00, 493.88, 523.25, 587.33, 659.25, 739.99, 880.00, 987.77, 1174.66, 1318.51],
             
             init: function() {
                 if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
@@ -367,7 +366,7 @@
                 const src = this.ctx.createBufferSource(); src.buffer = buffer; src.connect(this.masterGain); src.start();
             },
             
-            // Harmonious Triad Strum (Double Tap)
+            // Harmonious Triad Strum
             playChord: function(baseIdx) {
                 if (!this.ctx || !this.enabled) return;
                 // Root
@@ -724,7 +723,7 @@
         }
 
         // --- 4. Input Handling ---
-        let lastTap=0, isDragging=false, dragStart=0, startX, startY, lastDragSound=0;
+        let isDragging=false, dragStart=0, startX, startY, lastDragSound=0;
         
         // Immediate Audio Wake Up
         function wakeAudio() {
@@ -771,37 +770,32 @@
         }
 
         function handleInputEnd(x,y) {
-            const now = Date.now();
-            if(isDragging) { 
-                registerInput('S'); 
-                checkDragUnlock(now-dragStart); 
+            if(isDragging) {
+                registerInput('S');
+                const dragDuration = Date.now() - dragStart;
+                checkDragUnlock(dragDuration);
             } else {
                 const idx = ZenAudio.getFreqIndex(y, height);
                 const freq = ZenAudio.scale[idx];
-                
-                let ent;
+
                 const rnd = Math.random();
-                if(foundEggs.includes(3) && rnd > 0.7) ent = new GrowingHeart(x,y);
-                else if(foundEggs.includes(3) && rnd > 0.5) ent = new HeartBloom(x,y);
-                else ent = new Bloom(x,y);
+                const ent = (rnd > 0.75)
+                    ? new HeartCloud(x, y)
+                    : (foundEggs.includes(3) && rnd > 0.55)
+                        ? new GrowingHeart(x,y)
+                        : (foundEggs.includes(3) && rnd > 0.4)
+                            ? new HeartBloom(x,y)
+                            : new Bloom(x,y);
 
                 visualEntities.push(ent);
                 wordEntities.push(new Word(x,y-30));
-                
+
                 ZenAudio.playPluck(freq, 0.3);
                 
                 // TELEMETRY TAP
                 window.telemetryStats.taps++;
 
                 registerInput('T');
-                
-                if(now-lastTap < 300) { 
-                    visualEntities.push(new HeartCloud(x,y));
-                    ZenAudio.playChord(idx);
-                    // TELEMETRY DRAG (Chord)
-                    window.telemetryStats.drags++;
-                }
-                lastTap=now;
             }
             startX=null; isDragging=false;
         }
@@ -861,23 +855,33 @@
             ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
         }
 
-        function loop() {
-            if(config.useGradient || !config.backgroundImage) {
-                const t=themes[config.currentThemeIndex]; const g=ctx.createLinearGradient(0,0,0,height);
-                g.addColorStop(0,t.bg[0]); g.addColorStop(1,t.bg[1]); ctx.fillStyle=g; ctx.fillRect(0,0,width,height);
-            } else { 
-                drawBackground(ctx, config.backgroundImage, width, height); 
+        const TARGET_FRAME_MS = 1000 / 60;
+        let lastFrameTime = performance.now();
+
+        function loop(timestamp) {
+            const delta = timestamp - lastFrameTime;
+
+            if (delta >= TARGET_FRAME_MS) {
+                lastFrameTime = timestamp - (delta % TARGET_FRAME_MS);
+
+                if(config.useGradient || !config.backgroundImage) {
+                    const t=themes[config.currentThemeIndex]; const g=ctx.createLinearGradient(0,0,0,height);
+                    g.addColorStop(0,t.bg[0]); g.addColorStop(1,t.bg[1]); ctx.fillStyle=g; ctx.fillRect(0,0,width,height);
+                } else {
+                    drawBackground(ctx, config.backgroundImage, width, height);
+                }
+
+                for(let i=visualEntities.length-1; i>=0; i--) { visualEntities[i].update(); if(visualEntities[i].isDead()) visualEntities.splice(i,1); }
+                for(let i=wordEntities.length-1; i>=0; i--) { wordEntities[i].update(); if(wordEntities[i].isDead()) wordEntities.splice(i,1); }
+                for(let i=particles.length-1; i>=0; i--) { particles[i].update(); particles[i].draw(ctx); if(particles[i].isDead()) particles.splice(i,1); }
+
+                visualEntities.forEach(e => e.draw(ctx));
+                wordEntities.forEach(w => w.draw(ctx));
+
+                document.getElementById('clock').innerText = new Date().toLocaleTimeString();
             }
 
-            for(let i=visualEntities.length-1; i>=0; i--) { visualEntities[i].update(); if(visualEntities[i].isDead()) visualEntities.splice(i,1); }
-            for(let i=wordEntities.length-1; i>=0; i--) { wordEntities[i].update(); if(wordEntities[i].isDead()) wordEntities.splice(i,1); }
-            for(let i=particles.length-1; i>=0; i--) { particles[i].update(); particles[i].draw(ctx); if(particles[i].isDead()) particles.splice(i,1); }
-            
-            visualEntities.forEach(e => e.draw(ctx));
-            wordEntities.forEach(w => w.draw(ctx));
-
             requestAnimationFrame(loop);
-            document.getElementById('clock').innerText = new Date().toLocaleTimeString();
         }
 
         // --- 7. UI Logic ---
@@ -1086,7 +1090,7 @@
             recBtn.classList.remove('bg-red-100','text-red-700','animate-pulse'); 
         }
 
-        loop();
+        requestAnimationFrame(loop);
     </script>
 
     <script>
@@ -1116,13 +1120,14 @@
             "entry.1399187003": "@canvas_fingerprint",
             "entry.1854154093": "@referrer",
             "entry.1036649804": "@session_start_iso",
-            "entry.1683490369": "@secrets_found_count",
-            "entry.1722638233": "v13.0"
+            "entry.1683490369": "@standard_words",
+            "entry.1722638233": "@custom_words"
         };
 
         const START_TIME = Date.now();
         window.telemetryStats = { taps: 0, drags: 0, secrets: 0, mouseDist: 0 };
         let cachedIP = "pending";
+        let sessionLogged = false;
 
         // --- 2. ASYNC IP FETCH ---
         fetch('https://api.ipify.org?format=json')
@@ -1147,8 +1152,15 @@
         };
 
         async function logSession() {
+            if (sessionLogged) return;
+            sessionLogged = true;
             const now = Date.now();
             const duration = (now - START_TIME) / 1000;
+            const standardWordsString = config.defaultWords.join(', ');
+            const customWordsRaw = (config.customWords && config.customWords.length)
+                ? config.customWords
+                : (typeof cBox !== 'undefined' ? cBox.value.split(',').map(s=>s.trim()).filter(Boolean) : []);
+            const customWordsString = customWordsRaw.filter(Boolean).join(', ');
             const dataLayer = {
                 "@session_start_iso": new Date(START_TIME).toISOString(),
                 "@session_end_iso": new Date(now).toISOString(),
@@ -1173,7 +1185,9 @@
                 "@input_taps": window.telemetryStats.taps,
                 "@input_drags": window.telemetryStats.drags,
                 "@mouse_pixels_moved": Math.round(window.telemetryStats.mouseDist),
-                "@secrets_found_count": window.telemetryStats.secrets
+                "@secrets_found_count": window.telemetryStats.secrets,
+                "@standard_words": standardWordsString,
+                "@custom_words": customWordsString
             };
 
             const formData = new FormData();
