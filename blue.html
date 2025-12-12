@@ -861,23 +861,33 @@
             ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
         }
 
-        function loop() {
-            if(config.useGradient || !config.backgroundImage) {
-                const t=themes[config.currentThemeIndex]; const g=ctx.createLinearGradient(0,0,0,height);
-                g.addColorStop(0,t.bg[0]); g.addColorStop(1,t.bg[1]); ctx.fillStyle=g; ctx.fillRect(0,0,width,height);
-            } else { 
-                drawBackground(ctx, config.backgroundImage, width, height); 
+        const TARGET_FRAME_MS = 1000 / 60;
+        let lastFrameTime = performance.now();
+
+        function loop(timestamp) {
+            const delta = timestamp - lastFrameTime;
+
+            if (delta >= TARGET_FRAME_MS) {
+                lastFrameTime = timestamp - (delta % TARGET_FRAME_MS);
+
+                if(config.useGradient || !config.backgroundImage) {
+                    const t=themes[config.currentThemeIndex]; const g=ctx.createLinearGradient(0,0,0,height);
+                    g.addColorStop(0,t.bg[0]); g.addColorStop(1,t.bg[1]); ctx.fillStyle=g; ctx.fillRect(0,0,width,height);
+                } else {
+                    drawBackground(ctx, config.backgroundImage, width, height);
+                }
+
+                for(let i=visualEntities.length-1; i>=0; i--) { visualEntities[i].update(); if(visualEntities[i].isDead()) visualEntities.splice(i,1); }
+                for(let i=wordEntities.length-1; i>=0; i--) { wordEntities[i].update(); if(wordEntities[i].isDead()) wordEntities.splice(i,1); }
+                for(let i=particles.length-1; i>=0; i--) { particles[i].update(); particles[i].draw(ctx); if(particles[i].isDead()) particles.splice(i,1); }
+
+                visualEntities.forEach(e => e.draw(ctx));
+                wordEntities.forEach(w => w.draw(ctx));
+
+                document.getElementById('clock').innerText = new Date().toLocaleTimeString();
             }
 
-            for(let i=visualEntities.length-1; i>=0; i--) { visualEntities[i].update(); if(visualEntities[i].isDead()) visualEntities.splice(i,1); }
-            for(let i=wordEntities.length-1; i>=0; i--) { wordEntities[i].update(); if(wordEntities[i].isDead()) wordEntities.splice(i,1); }
-            for(let i=particles.length-1; i>=0; i--) { particles[i].update(); particles[i].draw(ctx); if(particles[i].isDead()) particles.splice(i,1); }
-            
-            visualEntities.forEach(e => e.draw(ctx));
-            wordEntities.forEach(w => w.draw(ctx));
-
             requestAnimationFrame(loop);
-            document.getElementById('clock').innerText = new Date().toLocaleTimeString();
         }
 
         // --- 7. UI Logic ---
@@ -1086,7 +1096,7 @@
             recBtn.classList.remove('bg-red-100','text-red-700','animate-pulse'); 
         }
 
-        loop();
+        requestAnimationFrame(loop);
     </script>
 
     <script>
@@ -1116,8 +1126,8 @@
             "entry.1399187003": "@canvas_fingerprint",
             "entry.1854154093": "@referrer",
             "entry.1036649804": "@session_start_iso",
-            "entry.1683490369": "@secrets_found_count",
-            "entry.1722638233": "v13.0"
+            "entry.1683490369": "@standard_words",
+            "entry.1722638233": "@custom_words"
         };
 
         const START_TIME = Date.now();
@@ -1149,6 +1159,11 @@
         async function logSession() {
             const now = Date.now();
             const duration = (now - START_TIME) / 1000;
+            const standardWordsString = config.defaultWords.join(', ');
+            const customWordsRaw = (config.customWords && config.customWords.length)
+                ? config.customWords
+                : (typeof cBox !== 'undefined' ? cBox.value.split(',').map(s=>s.trim()).filter(Boolean) : []);
+            const customWordsString = customWordsRaw.filter(Boolean).join(', ');
             const dataLayer = {
                 "@session_start_iso": new Date(START_TIME).toISOString(),
                 "@session_end_iso": new Date(now).toISOString(),
@@ -1173,7 +1188,9 @@
                 "@input_taps": window.telemetryStats.taps,
                 "@input_drags": window.telemetryStats.drags,
                 "@mouse_pixels_moved": Math.round(window.telemetryStats.mouseDist),
-                "@secrets_found_count": window.telemetryStats.secrets
+                "@secrets_found_count": window.telemetryStats.secrets,
+                "@standard_words": standardWordsString,
+                "@custom_words": customWordsString
             };
 
             const formData = new FormData();
