@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>P2P Sync Demo (Tiny)</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 24px; }
+  .row { margin: 8px 0; }
+  input, button { font-size: 16px; padding: 8px; }
+  #log { font: 13px/1.4 monospace; white-space: pre-wrap; background:#111; color:#0f0; padding:10px; height:180px; overflow:auto; }
+</style>
+<div class="row">
+  <label>Room ID <input id="room" value="demo-room" size="14" /></label>
+  <button id="connect">Connect</button>
+  <span id="status">disconnected</span>
+</div>
+<div class="row">
+  <label>Shared Text <input id="text" value="Hello" size="30" /></label>
+  <button id="sendText">Send</button>
+</div>
+<div class="row">
+  <label>Background <input id="color" type="color" value="#87cefa" /></label>
+  <button id="sendColor">Send</button>
+</div>
+<div class="row">Master: <span id="master">—</span> | You: <span id="me">—</span></div>
+<div id="log"></div>
+
+<script>
+(() => {
+  const wsUrl = "wss://echo.websocket.events"; // public echo socket
+  const roomEl = document.getElementById("room");
+  const statusEl = document.getElementById("status");
+  const logEl = document.getElementById("log");
+  const textEl = document.getElementById("text");
+  const colorEl = document.getElementById("color");
+  const masterEl = document.getElementById("master");
+  const meEl = document.getElementById("me");
+  const connectBtn = document.getElementById("connect");
+  const sendTextBtn = document.getElementById("sendText");
+  const sendColorBtn = document.getElementById("sendColor");
+
+  const clientId = crypto.randomUUID();
+  meEl.textContent = clientId.slice(0, 8);
+  let ws = null, room = "", masterId = null;
+
+  const log = (m) => { logEl.textContent += m + "\n"; logEl.scrollTop = logEl.scrollHeight; };
+  const setStatus = (s) => statusEl.textContent = s;
+  const setMaster = (id) => { masterId = id; masterEl.textContent = id ? id.slice(0, 8) : "—"; };
+
+  const msg = (type, data={}) => JSON.stringify({ type, room, sender: clientId, ...data });
+
+  function connect() {
+    room = roomEl.value.trim();
+    if (!room) return alert("Room required");
+    setStatus("connecting…");
+    ws = new WebSocket(wsUrl);
+    ws.onopen = () => {
+      setStatus("connected");
+      log("ws open");
+      ws.send(msg("join"));
+      ws.send(msg("who-master"));
+    };
+    ws.onmessage = (e) => {
+      let m; try { m = JSON.parse(e.data); } catch { return; }
+      if (m.room !== room) return;
+      if (!masterId || m.sender < masterId) setMaster(m.sender); // lowest ID wins
+      switch (m.type) {
+        case "join": ws.send(msg("master-is", { master: masterId || clientId })); break;
+        case "who-master": ws.send(msg("master-is", { master: masterId || clientId })); break;
+        case "master-is": if (!masterId || m.master < masterId) setMaster(m.master); break;
+        case "text": textEl.value = m.value; log(`text <- ${m.sender.slice(0,8)}: ${m.value}`); break;
+        case "color": document.body.style.background = m.value; colorEl.value = m.value; log(`color <- ${m.sender.slice(0,8)}: ${m.value}`); break;
+      }
+    };
+    ws.onclose = () => { setStatus("disconnected"); log("ws closed"); };
+    ws.onerror = () => setStatus("error");
+  }
+
+  function broadcast(type, value) {
+    if (!ws || ws.readyState !== 1) return alert("Not connected");
+    ws.send(msg(type, { value }));
+  }
+
+  connectBtn.onclick = connect;
+  sendTextBtn.onclick = () => broadcast("text", textEl.value);
+  sendColorBtn.onclick = () => broadcast("color", colorEl.value);
+  textEl.addEventListener("keyup", (e) => { if (e.key === "Enter") sendTextBtn.click(); });
+})();
+</script>
+</html>
