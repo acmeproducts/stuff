@@ -2,7 +2,7 @@
 <html lang="en">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Peer-to-Peer Sync (Shareable URL, Ably realtime)</title>
+<title>Peer-to-Peer Sync (Ably only, shareable URL)</title>
 <style>
   :root { color-scheme: light dark; }
   body { font-family: system-ui, sans-serif; margin: 20px; transition: background 0.3s ease; }
@@ -38,7 +38,6 @@
 </div>
 
 <div class="row">You: <span id="me" class="pill">—</span></div>
-
 <div id="log"></div>
 
 <script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
@@ -98,7 +97,7 @@
     updateLink(room);
   };
 
-  const connect = () => {
+  const connectAbly = () => {
     if (channel) {
       channel.unsubscribe();
       channel.detach();
@@ -109,16 +108,20 @@
       ably = null;
     }
 
-    setStatus('connecting…');
+    setStatus('connecting');
     ably = new Ably.Realtime({ key: 'ably-public-demo', clientId });
-    ably.connection.on((state) => setStatus(state.current));
+    ably.connection.on((state) => {
+      setStatus(state.current);
+      if (state.reason) log('ably: ' + state.reason.message);
+    });
 
     channel = ably.channels.get('p2p-' + room);
     channel.subscribe('text', (msg) => applyIncoming(msg.data));
     channel.subscribe('color', (msg) => applyIncoming(msg.data));
     channel.subscribe('state', (msg) => applyIncomingState(msg.data));
 
-    channel.attach(() => {
+    channel.attach((err) => {
+      if (err) { setStatus('failed'); log('attach failed: ' + err.message); return; }
       log('joined room ' + room);
       publish('state', {
         text: textEl.value,
@@ -132,9 +135,7 @@
 
   const publish = (type, payload, silent) => {
     if (!channel) return alert('Not connected');
-    channel.publish(type, payload, (err) => {
-      if (err) log('publish error: ' + err.message);
-    });
+    channel.publish(type, payload, (err) => { if (err) log('publish error: ' + err.message); });
     if (!silent) log(type + ' -> ' + JSON.stringify(payload));
   };
 
@@ -169,17 +170,17 @@
     applyIncoming({ type: 'color', value: state.color, ts: state.tsColor, sender: state.sender });
   };
 
-  copyBtn.onclick = async () => {
-    try { await navigator.clipboard.writeText(linkEl.value); } catch (e) { log('copy failed'); }
-  };
-  regenBtn.onclick = () => { room = randomRoom(); roomEl.value = room; localStorage.setItem('p2p_room', room); updateLink(room); connect(); };
+  // UI actions
+  copyBtn.onclick = async () => { try { await navigator.clipboard.writeText(linkEl.value); } catch (e) { log('copy failed'); } };
+  regenBtn.onclick = () => { room = randomRoom(); roomEl.value = room; localStorage.setItem('p2p_room', room); updateLink(room); connectAbly(); };
   sendTextBtn.onclick = () => send('text', textEl.value);
   sendColorBtn.onclick = () => send('color', colorEl.value);
   textEl.addEventListener('keyup', (e) => { if (e.key === 'Enter') sendTextBtn.click(); });
-  roomEl.addEventListener('change', () => { room = roomEl.value.trim(); updateLink(room); localStorage.setItem('p2p_room', room); connect(); });
+  roomEl.addEventListener('change', () => { room = roomEl.value.trim(); updateLink(room); localStorage.setItem('p2p_room', room); connectAbly(); });
 
+  // Boot
   initRoom();
-  connect();
+  connectAbly();
 })();
 </script>
 </html>
