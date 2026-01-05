@@ -2,13 +2,13 @@
 <html lang="en">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>P2P Sync (shareable URL)</title>
+<title>Peer-to-Peer Sync (Shareable URL, Ably realtime)</title>
 <style>
   :root { color-scheme: light dark; }
   body { font-family: system-ui, sans-serif; margin: 20px; transition: background 0.3s ease; }
   .row { margin: 10px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   input, button { font-size: 16px; padding: 8px; }
-  #log { font: 13px/1.4 monospace; white-space: pre-wrap; background:#0b0b0b; color:#00e676; padding:10px; height:200px; overflow:auto; border-radius:8px; }
+  #log { font: 13px/1.45 monospace; white-space: pre-wrap; background:#0b0b0b; color:#00e676; padding:10px; height:200px; overflow:auto; border-radius:8px; }
   .pill { padding: 4px 10px; border-radius: 999px; background: #eee; color: #111; font-size: 13px; }
   .panel { border: 1px solid #ddd; border-radius: 10px; padding: 12px; background: #fafafa; }
 </style>
@@ -19,7 +19,7 @@
     <button id="regen">New Room</button>
     <span id="status" class="pill">disconnected</span>
   </div>
-  <div class="row" style="flex-wrap:wrap;">
+  <div class="row">
     <span>Shareable Link:</span>
     <input id="link" size="48" readonly />
     <button id="copy">Copy Link</button>
@@ -38,8 +38,10 @@
 </div>
 
 <div class="row">You: <span id="me" class="pill">—</span></div>
+
 <div id="log"></div>
 
+<script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
 <script>
 (() => {
   const roomEl = document.getElementById('room');
@@ -55,98 +57,121 @@
   const meEl = document.getElementById('me');
 
   const clientId = (crypto.randomUUID && crypto.randomUUID()) || ('c-' + Math.random().toString(16).slice(2));
-  meEl.textContent = clientId.slice(0,8);
+  meEl.textContent = clientId.slice(0, 8);
 
-  let ws = null;
   let room = '';
+  let ably = null;
+  let channel = null;
   const lastTs = { text: 0, color: 0 };
 
   const log = (m) => { logEl.textContent += m + '\n'; logEl.scrollTop = logEl.scrollHeight; };
   const setStatus = (s) => { statusEl.textContent = s; };
 
-  function randomRoom(len = 10) {
+  const randomRoom = (len = 10) => {
     const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     return Array.from(crypto.getRandomValues(new Uint32Array(len))).map(n => chars[n % chars.length]).join('');
-  }
+  };
 
-  function parseRoomFromUrl() {
+  const parseRoomFromUrl = () => {
     const params = new URLSearchParams(location.search);
     return (params.get('room') || '').trim();
-  }
+  };
 
-  function buildLink(r) {
+  const buildLink = (r) => {
     const url = new URL(location.href);
     url.searchParams.set('room', r);
     return url.toString();
-  }
+  };
 
-  function updateLink(r) {
+  const updateLink = (r) => {
     const link = buildLink(r);
     linkEl.value = link;
     history.replaceState(null, '', link);
-  }
+  };
 
-  function initRoom() {
+  const initRoom = () => {
     const fromUrl = parseRoomFromUrl();
     const cached = localStorage.getItem('p2p_room');
     room = fromUrl || cached || randomRoom();
     roomEl.value = room;
     localStorage.setItem('p2p_room', room);
     updateLink(room);
-  }
+  };
 
-  const buildMsg = (type, value) => JSON.stringify({ type, value, room, sender: clientId, ts: Date.now() });
+  const connect = () => {
+    if (channel) {
+      channel.unsubscribe();
+      channel.detach();
+      channel = null;
+    }
+    if (ably) {
+      ably.close();
+      ably = null;
+    }
 
-  function connect() {
-    if (ws) { ws.close(); ws = null; }
     setStatus('connecting…');
-    // PieSocket public demo endpoint (broadcasts to subscribers of same channel)
-    const channel = encodeURIComponent(room);
-    ws = new WebSocket(`wss://ws.piesocket.com/v3/1?api_key=DEMOKEY&notify_self=1&channel=${channel}`);
-    ws.onopen = () => {
-      setStatus('connected');
-      log('ws open');
-      // broadcast current state so newcomers sync up
-      send('text', textEl.value, true);
-      send('color', colorEl.value, true);
-    };
-    ws.onclose = () => { setStatus('disconnected'); log('ws closed'); };
-    ws.onerror = () => { setStatus('error'); log('ws error'); };
-    ws.onmessage = (evt) => {
-      let msg; try { msg = JSON.parse(evt.data); } catch { return; }
-      if (msg.room !== room || msg.sender === clientId) return;
-      applyIncoming(msg);
-    };
-  }
+    ably = new Ably.Realtime({ key: 'ably-public-demo', clientId });
+    ably.connection.on((state) => setStatus(state.current));
 
-  function send(type, value, silent) {
-    if (!ws || ws.readyState !== 1) { alert('Not connected'); return; }
-    const payload = buildMsg(type, value);
-    ws.send(payload);
+    channel = ably.channels.get('p2p-' + room);
+    channel.subscribe('text', (msg) => applyIncoming(msg.data));
+    channel.subscribe('color', (msg) => applyIncoming(msg.data));
+    channel.subscribe('state', (msg) => applyIncomingState(msg.data));
+
+    channel.attach(() => {
+      log('joined room ' + room);
+      publish('state', {
+        text: textEl.value,
+        color: colorEl.value,
+        tsText: lastTs.text,
+        tsColor: lastTs.color,
+        sender: clientId
+      }, true);
+    });
+  };
+
+  const publish = (type, payload, silent) => {
+    if (!channel) return alert('Not connected');
+    channel.publish(type, payload, (err) => {
+      if (err) log('publish error: ' + err.message);
+    });
+    if (!silent) log(type + ' -> ' + JSON.stringify(payload));
+  };
+
+  const send = (type, value) => {
     const now = Date.now();
     if (type === 'text') lastTs.text = now;
     if (type === 'color') { lastTs.color = now; document.body.style.background = value; }
-    if (!silent) log(`${type} -> ${value}`);
-  }
+    publish(type, { type, value, ts: now, sender: clientId });
+  };
 
-  function applyIncoming(msg) {
-    if (msg.type === 'text') {
-      if (msg.ts > lastTs.text || (msg.ts === lastTs.text && msg.sender > clientId)) {
-        lastTs.text = msg.ts;
-        textEl.value = msg.value;
-        log(`text <- ${msg.sender.slice(0,8)}: ${msg.value}`);
+  const applyIncoming = (data) => {
+    if (!data || data.sender === clientId) return;
+    if (data.type === 'text') {
+      if (data.ts > lastTs.text || (data.ts === lastTs.text && data.sender > clientId)) {
+        lastTs.text = data.ts;
+        textEl.value = data.value;
+        log('text <- ' + data.sender.slice(0,8) + ': ' + data.value);
       }
-    } else if (msg.type === 'color') {
-      if (msg.ts > lastTs.color || (msg.ts === lastTs.color && msg.sender > clientId)) {
-        lastTs.color = msg.ts;
-        colorEl.value = msg.value;
-        document.body.style.background = msg.value;
-        log(`color <- ${msg.sender.slice(0,8)}: ${msg.value}`);
+    } else if (data.type === 'color') {
+      if (data.ts > lastTs.color || (data.ts === lastTs.color && data.sender > clientId)) {
+        lastTs.color = data.ts;
+        colorEl.value = data.value;
+        document.body.style.background = data.value;
+        log('color <- ' + data.sender.slice(0,8) + ': ' + data.value);
       }
     }
-  }
+  };
 
-  copyBtn.onclick = async () => { try { await navigator.clipboard.writeText(linkEl.value); } catch { /* ignore */ } };
+  const applyIncomingState = (state) => {
+    if (!state || state.sender === clientId) return;
+    applyIncoming({ type: 'text', value: state.text, ts: state.tsText, sender: state.sender });
+    applyIncoming({ type: 'color', value: state.color, ts: state.tsColor, sender: state.sender });
+  };
+
+  copyBtn.onclick = async () => {
+    try { await navigator.clipboard.writeText(linkEl.value); } catch (e) { log('copy failed'); }
+  };
   regenBtn.onclick = () => { room = randomRoom(); roomEl.value = room; localStorage.setItem('p2p_room', room); updateLink(room); connect(); };
   sendTextBtn.onclick = () => send('text', textEl.value);
   sendColorBtn.onclick = () => send('color', colorEl.value);
