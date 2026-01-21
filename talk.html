@@ -19,6 +19,15 @@
         .scale-in { transform: scale(1); }
         .scale-out { transform: scale(0.98); }
         pre { white-space: pre-wrap; word-wrap: break-word; }
+        .client-view .control-panel { display: none; }
+        .config-view .chat-app { display: none; }
+        .config-view .status-panel { display: none; }
+        .config-view #action-drawer { display: none; }
+        .chat-bubble { font-size: var(--bubble-font-size, 0.875rem); }
+        .bubble-local { background: var(--bubble-local-bg, #eff6ff); color: var(--bubble-local-text, #1f2937); }
+        .bubble-peer { background: var(--bubble-peer-bg, #ffffff); color: var(--bubble-peer-text, #0f172a); }
+        .drawer-panel { transition: transform 0.2s ease; }
+        .drawer-collapsed { transform: translateY(calc(100% - 28px)); }
     </style>
 </head>
 <body class="min-h-screen text-slate-800">
@@ -38,7 +47,7 @@
             </div>
         </header>
 
-        <section class="bg-white/80 border border-slate-200 rounded-2xl px-4 py-4 shadow-sm">
+        <section class="bg-white/80 border border-slate-200 rounded-2xl px-4 py-4 shadow-sm control-panel">
             <div class="grid gap-3 md:grid-cols-[1.2fr_1.2fr_1.6fr_auto] md:items-end">
                 <label class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex flex-col gap-1">
                     Session name
@@ -63,10 +72,10 @@
                 </label>
                 <button id="launch-session" class="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 whitespace-nowrap">Build &amp; launch</button>
             </div>
-            <p class="text-xs text-slate-400 mt-2">Share the URL to reconnect seamlessly on any device.</p>
+            <p class="text-xs text-slate-400 mt-2">Launching opens a standalone chat client in a new tab.</p>
         </section>
 
-        <section class="flex items-center justify-between bg-white/80 border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+        <section class="flex items-center justify-between bg-white/80 border border-slate-200 rounded-2xl px-4 py-3 shadow-sm status-panel">
             <div>
                 <p class="text-xs uppercase tracking-wide text-slate-400">Status</p>
                 <p class="text-sm font-semibold" id="connection-status">Connecting…</p>
@@ -74,7 +83,7 @@
             <div class="text-xs text-slate-500" id="peer-status">Waiting for partner…</div>
         </section>
 
-        <main class="flex-1 bg-white/80 border border-slate-200 rounded-2xl shadow-sm flex flex-col">
+        <main class="flex-1 bg-white/80 border border-slate-200 rounded-2xl shadow-sm flex flex-col chat-app">
             <div id="chat-history" class="flex-1 overflow-y-auto px-4 py-5 space-y-4 no-scrollbar"></div>
             <div class="border-t border-slate-200 px-4 py-4">
                 <div class="flex flex-col gap-3">
@@ -113,6 +122,58 @@
             <div class="flex items-center justify-end gap-2 mt-4">
                 <button id="chat-attachment-download" class="px-3 py-2 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-lg hover:bg-emerald-100 transition">Download</button>
                 <button id="chat-attachment-share" class="px-3 py-2 bg-blue-50 text-blue-700 text-xs font-semibold rounded-lg hover:bg-blue-100 transition">Share</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="action-drawer" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-[min(96vw,720px)] z-40 drawer-panel drawer-collapsed">
+        <div id="drawer-handle" class="mx-auto w-24 h-6 bg-slate-200 rounded-t-2xl flex items-center justify-center text-slate-500 text-xs cursor-pointer">
+            <span class="material-symbols-outlined text-base">expand_less</span>
+        </div>
+        <div class="bg-white/90 border border-slate-200 rounded-2xl px-4 py-3 shadow-lg flex flex-wrap items-center justify-between gap-2">
+            <div class="text-xs text-slate-500">Actions</div>
+            <div class="flex flex-wrap gap-2">
+                <button id="drawer-clear" class="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 text-xs font-semibold hover:bg-rose-100">Clear</button>
+                <button id="drawer-export" class="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200">Export</button>
+                <button id="drawer-share" class="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold hover:bg-blue-100">Share</button>
+                <button id="drawer-config" class="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-semibold hover:bg-emerald-100">Config</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="style-config-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center invisible modal">
+        <div id="style-config-content" class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-xl p-6 transform scale-out modal-content">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="text-xl font-bold text-gray-800">Chat bubble style</h3>
+                <button id="close-style-config" class="text-gray-400 hover:text-gray-800 p-2 hover:bg-gray-100 rounded-full transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="grid gap-4 text-sm">
+                <label class="flex items-center justify-between gap-3">
+                    <span class="text-slate-600">Your bubble background</span>
+                    <input id="style-local-bg" type="color" class="h-9 w-20 border border-slate-200 rounded-lg">
+                </label>
+                <label class="flex items-center justify-between gap-3">
+                    <span class="text-slate-600">Your bubble text</span>
+                    <input id="style-local-text" type="color" class="h-9 w-20 border border-slate-200 rounded-lg">
+                </label>
+                <label class="flex items-center justify-between gap-3">
+                    <span class="text-slate-600">Partner bubble background</span>
+                    <input id="style-peer-bg" type="color" class="h-9 w-20 border border-slate-200 rounded-lg">
+                </label>
+                <label class="flex items-center justify-between gap-3">
+                    <span class="text-slate-600">Partner bubble text</span>
+                    <input id="style-peer-text" type="color" class="h-9 w-20 border border-slate-200 rounded-lg">
+                </label>
+                <label class="flex items-center justify-between gap-3">
+                    <span class="text-slate-600">Bubble font size</span>
+                    <input id="style-font-size" type="range" min="12" max="20" step="1" class="w-40">
+                </label>
+            </div>
+            <div class="flex justify-end gap-2 mt-5">
+                <button id="style-reset" class="px-3 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition">Reset</button>
+                <button id="style-save" class="px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition">Save</button>
             </div>
         </div>
     </div>
@@ -160,6 +221,8 @@
             'en-es',
             'en-it'
         ];
+        const view = params.get('view') || 'config';
+        const isClientView = view === 'client';
         let room = params.get('room') || defaultRoom;
         let pair = allowedPairs.includes(params.get('pair')) ? params.get('pair') : defaultPair;
         const parsePair = value => {
@@ -177,6 +240,7 @@
         pair = `${langA}-${langB}`;
         params.set('room', room);
         params.set('pair', `${langA}-${langB}`);
+        params.set('view', view);
         history.replaceState(null, '', url.toString());
 
         const RELAY_SESSION_ID = `talk:${room}:${langA}-${langB}`;
@@ -195,6 +259,7 @@
         const RELAY_CLIENT_ID = resolvedClientId;
         const CHAT_STORAGE_KEY = `talk_chat_${RELAY_SESSION_ID}`;
         const NAME_STORAGE_KEY = `talk_name_${RELAY_SESSION_ID}`;
+        const STYLE_STORAGE_KEY = `talk_style_${RELAY_SESSION_ID}`;
 
         function getDeviceType() {
             const ua = navigator.userAgent || '';
@@ -251,10 +316,62 @@
         const chatAttachmentStatus = document.getElementById('chat-attachments');
         const chatAttachmentClear = document.getElementById('chat-attachments-clear');
         const chatAttachmentPreview = document.getElementById('chat-attachments-preview');
+        const drawer = document.getElementById('action-drawer');
+        const drawerHandle = document.getElementById('drawer-handle');
+        const drawerClear = document.getElementById('drawer-clear');
+        const drawerExport = document.getElementById('drawer-export');
+        const drawerShare = document.getElementById('drawer-share');
+        const drawerConfig = document.getElementById('drawer-config');
+        const styleLocalBg = document.getElementById('style-local-bg');
+        const styleLocalText = document.getElementById('style-local-text');
+        const stylePeerBg = document.getElementById('style-peer-bg');
+        const stylePeerText = document.getElementById('style-peer-text');
+        const styleFontSize = document.getElementById('style-font-size');
+        const styleReset = document.getElementById('style-reset');
+        const styleSave = document.getElementById('style-save');
+        const closeStyleConfig = document.getElementById('close-style-config');
         const translationCache = new Map();
         const pendingTranslations = new Set();
         const relayState = { ws: null };
         const peerPresence = new Map();
+
+        document.body.classList.add(isClientView ? 'client-view' : 'config-view');
+
+        const defaultBubbleStyles = {
+            localBg: '#eff6ff',
+            localText: '#1f2937',
+            peerBg: '#ffffff',
+            peerText: '#0f172a',
+            fontSize: 14
+        };
+
+        function applyBubbleStyles(styles) {
+            const root = document.documentElement;
+            root.style.setProperty('--bubble-local-bg', styles.localBg);
+            root.style.setProperty('--bubble-local-text', styles.localText);
+            root.style.setProperty('--bubble-peer-bg', styles.peerBg);
+            root.style.setProperty('--bubble-peer-text', styles.peerText);
+            root.style.setProperty('--bubble-font-size', `${styles.fontSize}px`);
+        }
+
+        function loadBubbleStyles() {
+            try {
+                const raw = localStorage.getItem(STYLE_STORAGE_KEY);
+                if (raw) {
+                    return { ...defaultBubbleStyles, ...JSON.parse(raw) };
+                }
+            } catch (_) {}
+            return { ...defaultBubbleStyles };
+        }
+
+        function saveBubbleStyles(styles) {
+            try {
+                localStorage.setItem(STYLE_STORAGE_KEY, JSON.stringify(styles));
+            } catch (_) {}
+        }
+
+        let bubbleStyles = loadBubbleStyles();
+        applyBubbleStyles(bubbleStyles);
 
         roomPill.textContent = `Room: ${room}`;
         pairPill.textContent = `Pair: ${langA} ↔ ${langB}`;
@@ -288,6 +405,14 @@
             } else {
                 peerStatus.textContent = `${peerPresence.size} partner${peerPresence.size > 1 ? 's' : ''} connected.`;
             }
+        }
+
+        function buildClientUrl(nextRoom = room, nextPair = pair) {
+            const clientUrl = new URL(window.location.href);
+            clientUrl.searchParams.set('room', nextRoom);
+            clientUrl.searchParams.set('pair', nextPair);
+            clientUrl.searchParams.set('view', 'client');
+            return clientUrl.toString();
         }
 
         function saveChatHistory(history) {
@@ -565,6 +690,27 @@
             return new Blob([buffer], { type: mime });
         }
 
+        let currentAttachmentObjectUrl = null;
+
+        function openAttachmentInNewTab(att) {
+            if (currentAttachmentObjectUrl) {
+                URL.revokeObjectURL(currentAttachmentObjectUrl);
+                currentAttachmentObjectUrl = null;
+            }
+            const blob = dataUrlToBlob(att.dataUrl);
+            if (!blob) {
+                const link = document.createElement('a');
+                link.href = att.dataUrl;
+                link.download = getAttachmentLabel(att);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                return;
+            }
+            currentAttachmentObjectUrl = URL.createObjectURL(blob);
+            window.open(currentAttachmentObjectUrl, '_blank', 'noopener');
+        }
+
         function openChatAttachmentModal(att) {
             const modal = document.getElementById('chat-attachment-modal');
             const preview = document.getElementById('chat-attachment-preview');
@@ -582,11 +728,11 @@
             previewContent.classList.add('cursor-pointer');
             previewContent.title = 'Open attachment in new tab';
             previewContent.addEventListener('click', () => {
-                window.open(att.dataUrl, '_blank', 'noopener');
+                openAttachmentInNewTab(att);
             });
             preview.appendChild(previewContent);
             preview.onclick = () => {
-                window.open(att.dataUrl, '_blank', 'noopener');
+                openAttachmentInNewTab(att);
             };
             if (!navigator.share) {
                 shareBtn.disabled = true;
@@ -631,6 +777,10 @@
                 modal.classList.remove('visible');
                 content.classList.add('scale-out');
                 content.classList.remove('scale-in');
+                if (name === 'chat-attachment' && currentAttachmentObjectUrl) {
+                    URL.revokeObjectURL(currentAttachmentObjectUrl);
+                    currentAttachmentObjectUrl = null;
+                }
             }
         }
 
@@ -660,11 +810,10 @@
 
         function renderChat() {
             chatHistoryEl.innerHTML = '';
-            const ordered = chatHistory.slice().reverse();
-            ordered.forEach((entry, entryIndex) => {
+            chatHistory.forEach(entry => {
                 const bubble = document.createElement('div');
                 const isLocal = entry.from === 'local';
-                bubble.className = `p-3 rounded-2xl text-sm shadow-sm border ${isLocal ? 'bg-blue-50 border-blue-100 ml-auto' : 'bg-white border-slate-200 mr-auto'} max-w-[90%]`;
+                bubble.className = `chat-bubble p-3 rounded-2xl shadow-sm border ${isLocal ? 'bubble-local border-blue-100 ml-auto' : 'bubble-peer border-slate-200 mr-auto'} max-w-[90%]`;
 
                 const nameLine = document.createElement('div');
                 nameLine.className = 'text-[11px] uppercase font-semibold text-slate-400';
@@ -673,7 +822,7 @@
                 nameLine.appendChild(label);
 
                 const timeLine = document.createElement('div');
-                timeLine.className = 'text-[11px] text-slate-400 mb-2';
+                timeLine.className = 'text-xs text-slate-500 mb-2';
                 timeLine.textContent = `Sent ${formatTimestamp(entry.ts)}`;
 
                 const messageLine = document.createElement('div');
@@ -683,26 +832,13 @@
                 const table = document.createElement('table');
                 table.className = 'w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden';
                 const tbody = document.createElement('tbody');
-                const headerRow = document.createElement('tr');
-                headerRow.className = 'bg-slate-50 text-[10px] uppercase text-slate-500';
-                const headerA = document.createElement('th');
-                headerA.className = 'px-2 py-1 border-r border-slate-200';
-                headerA.textContent = languageLabel(langA);
-                const headerB = document.createElement('th');
-                headerB.className = 'px-2 py-1';
-                headerB.textContent = languageLabel(langB);
-                headerRow.appendChild(headerA);
-                headerRow.appendChild(headerB);
-
                 const messageRow = document.createElement('tr');
                 const langAText = document.createElement('td');
-                langAText.className = 'px-2 py-2 align-top border-r border-slate-200 text-slate-800';
+                langAText.className = 'px-2 py-2 align-top border-r border-slate-200';
                 const langBText = document.createElement('td');
-                langBText.className = 'px-2 py-2 align-top text-slate-800';
+                langBText.className = 'px-2 py-2 align-top';
                 messageRow.appendChild(langAText);
                 messageRow.appendChild(langBText);
-
-                tbody.appendChild(headerRow);
                 tbody.appendChild(messageRow);
                 table.appendChild(tbody);
 
@@ -748,13 +884,10 @@
                 bubble.appendChild(timeLine);
                 bubble.appendChild(messageLine);
                 chatHistoryEl.appendChild(bubble);
-
-                if (entryIndex === 0) {
-                    setTimeout(() => {
-                        chatHistoryEl.scrollTop = 0;
-                    }, 0);
-                }
             });
+            setTimeout(() => {
+                chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
+            }, 0);
         }
 
         function sendRelayMessage(payload) {
@@ -894,6 +1027,29 @@
             }
         }
 
+        let drawerOpen = false;
+        let drawerTouchStart = null;
+
+        function updateDrawerState() {
+            if (!drawer) return;
+            drawer.classList.toggle('drawer-collapsed', !drawerOpen);
+        }
+
+        function toggleDrawer(nextState) {
+            drawerOpen = typeof nextState === 'boolean' ? nextState : !drawerOpen;
+            updateDrawerState();
+        }
+
+        function openStyleConfig() {
+            if (!styleLocalBg || !styleLocalText || !stylePeerBg || !stylePeerText || !styleFontSize) return;
+            styleLocalBg.value = bubbleStyles.localBg;
+            styleLocalText.value = bubbleStyles.localText;
+            stylePeerBg.value = bubbleStyles.peerBg;
+            stylePeerText.value = bubbleStyles.peerText;
+            styleFontSize.value = bubbleStyles.fontSize;
+            toggleModal('style-config', true);
+        }
+
         function getFileExtension(filename) {
             if (!filename) return '';
             const parts = filename.split('.');
@@ -970,18 +1126,135 @@
             });
         }
 
+        if (drawerHandle) {
+            drawerHandle.addEventListener('click', () => toggleDrawer());
+            drawerHandle.addEventListener('touchstart', event => {
+                drawerTouchStart = event.touches[0].clientY;
+            }, { passive: true });
+            drawerHandle.addEventListener('touchend', event => {
+                if (drawerTouchStart === null) return;
+                const delta = event.changedTouches[0].clientY - drawerTouchStart;
+                if (delta > 30) {
+                    toggleDrawer(false);
+                } else if (delta < -30) {
+                    toggleDrawer(true);
+                }
+                drawerTouchStart = null;
+            });
+        }
+
+        if (drawerClear) {
+            drawerClear.addEventListener('click', () => {
+                const confirmed = window.confirm('Clear chat history for this room?');
+                if (!confirmed) return;
+                chatHistory = [];
+                saveChatHistory(chatHistory);
+                renderChat();
+            });
+        }
+
+        if (drawerExport) {
+            drawerExport.addEventListener('click', () => {
+                const payload = {
+                    room,
+                    pair,
+                    exportedAt: new Date().toISOString(),
+                    history: chatHistory
+                };
+                const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `talk-${room}-${Date.now()}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        if (drawerShare) {
+            drawerShare.addEventListener('click', async () => {
+                const payload = {
+                    room,
+                    pair,
+                    exportedAt: new Date().toISOString(),
+                    history: chatHistory
+                };
+                const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+                const file = new File([blob], `talk-${room}.json`, { type: 'application/json' });
+                if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+                    try {
+                        await navigator.share({ files: [file], title: `Talk export (${room})` });
+                        return;
+                    } catch (_) {}
+                }
+                try {
+                    await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+                    drawerShare.textContent = 'Copied!';
+                    setTimeout(() => {
+                        drawerShare.textContent = 'Share';
+                    }, 1500);
+                } catch (_) {}
+            });
+        }
+
+        if (drawerConfig) {
+            drawerConfig.addEventListener('click', () => {
+                openStyleConfig();
+            });
+        }
+
+        if (styleSave) {
+            styleSave.addEventListener('click', () => {
+                bubbleStyles = {
+                    localBg: styleLocalBg.value,
+                    localText: styleLocalText.value,
+                    peerBg: stylePeerBg.value,
+                    peerText: stylePeerText.value,
+                    fontSize: Number(styleFontSize.value)
+                };
+                saveBubbleStyles(bubbleStyles);
+                applyBubbleStyles(bubbleStyles);
+                toggleModal('style-config', false);
+                renderChat();
+            });
+        }
+
+        if (styleReset) {
+            styleReset.addEventListener('click', () => {
+                bubbleStyles = { ...defaultBubbleStyles };
+                saveBubbleStyles(bubbleStyles);
+                applyBubbleStyles(bubbleStyles);
+                openStyleConfig();
+                renderChat();
+            });
+        }
+
+        if (closeStyleConfig) {
+            closeStyleConfig.addEventListener('click', () => toggleModal('style-config', false));
+        }
+
+        const styleConfigModal = document.getElementById('style-config-modal');
+        if (styleConfigModal) {
+            styleConfigModal.addEventListener('click', event => {
+                if (event.target.id === 'style-config-modal') {
+                    toggleModal('style-config', false);
+                }
+            });
+        }
+
         if (launchSessionButton) {
             launchSessionButton.onclick = () => {
                 const nextRoom = (roomInput?.value || '').trim() || defaultRoom;
                 const nextPair = allowedPairs.includes(pairSelect?.value) ? pairSelect.value : defaultPair;
-                const nextUrl = new URL(window.location.href);
-                nextUrl.searchParams.set('room', nextRoom);
-                nextUrl.searchParams.set('pair', nextPair);
-                window.location.href = nextUrl.toString();
+                const clientUrl = buildClientUrl(nextRoom, nextPair);
+                window.open(clientUrl, '_blank', 'noopener');
             };
         }
 
         chatSend.onclick = () => {
+            if (!isClientView) return;
             const text = (chatInput.value || '').trim();
             if (!text && pendingChatAttachments.length === 0) return;
             if (text.length > CHAT_MAX_LENGTH) return;
@@ -1026,7 +1299,7 @@
 
         copyLinkButton.onclick = async () => {
             try {
-                await navigator.clipboard.writeText(window.location.href);
+                await navigator.clipboard.writeText(buildClientUrl());
                 copyLinkButton.textContent = 'Copied!';
                 setTimeout(() => {
                     copyLinkButton.innerHTML = '<span class="material-symbols-outlined text-sm">link</span>Copy link';
@@ -1034,25 +1307,28 @@
             } catch (_) {}
         };
 
-        renderChat();
+        updateDrawerState();
         updateChatAttachmentUI();
         updatePeerStatus();
-        connectRelay();
-        window.addEventListener('focus', connectRelay);
-        window.addEventListener('online', connectRelay);
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') {
-                connectRelay();
-            }
-        });
-        window.addEventListener('beforeunload', () => {
-            sendRelayMessage({ type: 'leave', name: joinName });
-        });
-        setInterval(() => {
-            if (!relayState.ws || relayState.ws.readyState === WebSocket.CLOSED) {
-                connectRelay();
-            }
-        }, 5000);
+        if (isClientView) {
+            renderChat();
+            connectRelay();
+            window.addEventListener('focus', connectRelay);
+            window.addEventListener('online', connectRelay);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    connectRelay();
+                }
+            });
+            window.addEventListener('beforeunload', () => {
+                sendRelayMessage({ type: 'leave', name: joinName });
+            });
+            setInterval(() => {
+                if (!relayState.ws || relayState.ws.readyState === WebSocket.CLOSED) {
+                    connectRelay();
+                }
+            }, 5000);
+        }
     </script>
 </body>
 </html>
