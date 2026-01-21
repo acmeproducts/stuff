@@ -10,6 +10,13 @@
         body {
             background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
         }
+        body.client-view {
+            height: 100vh;
+            overflow: hidden;
+        }
+        .client-view .app-shell {
+            height: 100vh;
+        }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .modal { transition: opacity 0.2s ease, visibility 0.2s ease; }
@@ -27,7 +34,10 @@
         .bubble-local { background: var(--bubble-local-bg, #eff6ff); color: var(--bubble-local-text, #1f2937); }
         .bubble-peer { background: var(--bubble-peer-bg, #ffffff); color: var(--bubble-peer-text, #0f172a); }
         .drawer-panel { transition: transform 0.2s ease; }
-        .drawer-collapsed { transform: translateY(calc(100% - 28px)); }
+        .drawer-collapsed { transform: translateY(calc(100% - 16px)); }
+        .drawer-panel { pointer-events: none; }
+        .drawer-panel .drawer-handle,
+        .drawer-panel .drawer-actions { pointer-events: auto; }
         .control-panel-body { max-height: 500px; opacity: 1; transition: max-height 0.25s ease, opacity 0.25s ease; overflow: hidden; }
         .control-panel.collapsed .control-panel-body { max-height: 0; opacity: 0; }
         .control-panel.collapsed .control-panel-toggle .toggle-icon { transform: rotate(180deg); }
@@ -35,21 +45,7 @@
     </style>
 </head>
 <body class="min-h-screen text-slate-800">
-    <div class="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-6 min-h-screen">
-        <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <h1 class="text-2xl font-semibold tracking-tight">Talk</h1>
-                <p class="text-sm text-slate-500">Auto-translates both ways. Both languages always shown.</p>
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
-                <div class="px-3 py-1.5 rounded-full bg-white shadow-sm border border-slate-200 text-xs font-semibold" id="room-pill">Room: --</div>
-                <div class="px-3 py-1.5 rounded-full bg-white shadow-sm border border-slate-200 text-xs font-semibold" id="pair-pill">Pair: --</div>
-                <button id="copy-link" class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-700">
-                    <span class="material-symbols-outlined text-sm">link</span>
-                    Copy link
-                </button>
-            </div>
-        </header>
+    <div class="app-shell max-w-5xl mx-auto px-4 py-6 flex flex-col gap-6 min-h-screen">
 
         <section id="control-panel" class="bg-white/90 border border-slate-200 rounded-2xl px-4 py-4 shadow-md control-panel backdrop-blur">
             <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -98,17 +94,28 @@
             </div>
         </section>
 
-        <section class="flex items-center justify-between bg-white/90 border border-slate-200 rounded-2xl px-4 py-3 shadow-md status-panel backdrop-blur">
-            <div>
-                <p class="text-xs uppercase tracking-wide text-slate-400">Status</p>
-                <p class="text-sm font-semibold" id="connection-status">Connecting…</p>
+        <section class="bg-white/90 border border-slate-200 rounded-2xl px-4 py-3 shadow-md status-panel backdrop-blur">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <p class="text-xs uppercase tracking-wide text-slate-400">Status</p>
+                    <p class="text-sm font-semibold" id="connection-status">Connecting…</p>
+                </div>
+                <div class="flex flex-col gap-1 text-xs text-slate-500" id="peer-status">
+                    <div class="flex items-center gap-2">
+                        <span class="h-2.5 w-2.5 rounded-full bg-emerald-400" id="local-presence-dot"></span>
+                        <span id="local-presence-label">Device 1 — --</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="h-2.5 w-2.5 rounded-full bg-slate-300" id="peer-presence-dot"></span>
+                        <span id="peer-presence-label">Device 2 — Waiting for partner…</span>
+                    </div>
+                </div>
             </div>
-            <div class="text-xs text-slate-500" id="peer-status">Waiting for partner…</div>
         </section>
 
-        <main class="flex-1 bg-white/90 border border-slate-200 rounded-2xl shadow-md flex flex-col chat-app backdrop-blur">
-            <div id="chat-history" class="flex-1 overflow-y-auto px-4 py-5 space-y-4 no-scrollbar bg-gradient-to-b from-white/60 to-slate-50/60 rounded-t-2xl"></div>
-            <div class="border-t border-slate-200 px-4 py-4">
+        <main class="flex-1 min-h-0 bg-white/90 border border-slate-200 rounded-2xl shadow-md flex flex-col overflow-hidden chat-app backdrop-blur">
+            <div id="chat-history" class="flex-1 overflow-y-auto px-4 py-4 space-y-3 no-scrollbar bg-gradient-to-b from-white/60 to-slate-50/60 rounded-t-2xl"></div>
+            <div class="border-t border-slate-200 px-4 py-3">
                 <div class="flex flex-col gap-3">
                     <div class="flex items-center gap-2">
                         <button id="chat-attach" type="button" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Attach files">
@@ -151,31 +158,28 @@
     </div>
 
     <div id="action-drawer" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-[min(96vw,720px)] z-40 drawer-panel drawer-collapsed">
-        <div id="drawer-handle" class="mx-auto w-24 h-6 bg-slate-200 rounded-t-2xl flex items-center justify-center text-slate-500 text-xs cursor-pointer">
-            <span class="material-symbols-outlined text-base">expand_less</span>
+        <div id="drawer-handle" class="drawer-handle mx-auto w-16 h-4 bg-slate-200 rounded-t-2xl flex items-center justify-center text-slate-500 text-[10px] cursor-pointer">
+            <span class="material-symbols-outlined text-sm">expand_less</span>
         </div>
-        <div class="bg-white/90 border border-slate-200 rounded-2xl px-4 py-3 shadow-lg flex flex-wrap items-center justify-between gap-2">
-            <div class="text-xs text-slate-500">Actions</div>
-            <div class="flex flex-wrap gap-2">
-                <button id="drawer-refresh" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Refresh chat">
+        <div class="drawer-actions bg-white/90 border border-slate-200 rounded-2xl px-4 py-3 shadow-lg flex flex-wrap items-center justify-center gap-2">
+            <button id="drawer-refresh" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Refresh chat" aria-label="Refresh chat">
                     <span class="material-symbols-outlined text-base">refresh</span>
-                </button>
-                <button id="drawer-import" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Import chat">
+            </button>
+            <button id="drawer-import" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Import chat" aria-label="Import chat">
                     <span class="material-symbols-outlined text-base">upload_file</span>
-                </button>
-                <button id="drawer-export" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Export chat">
+            </button>
+            <button id="drawer-export" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Export chat" aria-label="Export chat">
                     <span class="material-symbols-outlined text-base">download</span>
-                </button>
-                <button id="drawer-clear" class="p-2 rounded-full border border-rose-100 text-rose-500 hover:text-rose-600 hover:bg-rose-50" title="Export &amp; clear">
+            </button>
+            <button id="drawer-clear" class="p-2 rounded-full border border-rose-100 text-rose-500 hover:text-rose-600 hover:bg-rose-50" title="Export &amp; clear" aria-label="Export and clear">
                     <span class="material-symbols-outlined text-base">delete_sweep</span>
-                </button>
-                <button id="drawer-share" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Share export">
+            </button>
+            <button id="drawer-share" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Share export" aria-label="Share export">
                     <span class="material-symbols-outlined text-base">share</span>
-                </button>
-                <button id="drawer-config" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Bubble style">
+            </button>
+            <button id="drawer-config" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Bubble style" aria-label="Bubble style">
                     <span class="material-symbols-outlined text-base">tune</span>
-                </button>
-            </div>
+            </button>
         </div>
     </div>
     <input id="drawer-import-input" type="file" accept="application/json" class="hidden">
@@ -424,6 +428,10 @@
         const styleReset = document.getElementById('style-reset');
         const styleSave = document.getElementById('style-save');
         const closeStyleConfig = document.getElementById('close-style-config');
+        const localPresenceLabel = document.getElementById('local-presence-label');
+        const localPresenceDot = document.getElementById('local-presence-dot');
+        const peerPresenceLabel = document.getElementById('peer-presence-label');
+        const peerPresenceDot = document.getElementById('peer-presence-dot');
         const translationCache = new Map();
         const pendingTranslations = new Set();
         const relayState = { ws: null };
@@ -477,8 +485,8 @@
             };
         }
 
-        roomPill.textContent = `Room: ${room}`;
-        pairPill.textContent = `Pair: ${langA} ↔ ${langB}`;
+        if (roomPill) roomPill.textContent = `Room: ${room}`;
+        if (pairPill) pairPill.textContent = `Pair: ${langA} ↔ ${langB}`;
         if (roomInput) roomInput.value = room;
         if (pairSelect) pairSelect.value = pair;
         if (nameInput) nameInput.value = joinName;
@@ -502,24 +510,38 @@
 
         function updateConnectionStatus(state) {
             connectionStatus.textContent = state;
+            updatePeerStatus();
         }
 
         function updatePeerStatus() {
             const typingPeers = Array.from(peerTyping.values())
                 .filter(peer => peer?.active)
                 .map(peer => peer?.name || 'Partner');
-            if (typingPeers.length) {
-                if (typingPeers.length === 1) {
-                    peerStatus.textContent = `${typingPeers[0]} is typing…`;
-                } else {
-                    peerStatus.textContent = `${typingPeers.length} partners are typing…`;
-                }
-                return;
+            const connected = relayState.ws && relayState.ws.readyState === WebSocket.OPEN;
+            if (localPresenceLabel) {
+                localPresenceLabel.textContent = `Device 1 — ${joinName || 'You'}`;
+            }
+            if (localPresenceDot) {
+                localPresenceDot.className = `h-2.5 w-2.5 rounded-full ${connected ? 'bg-emerald-400' : 'bg-slate-300'}`;
             }
             if (peerPresence.size === 0) {
-                peerStatus.textContent = 'Waiting for partner…';
+                if (peerPresenceLabel) {
+                    peerPresenceLabel.textContent = 'Device 2 — Waiting for partner…';
+                }
+                if (peerPresenceDot) {
+                    peerPresenceDot.className = 'h-2.5 w-2.5 rounded-full bg-slate-300';
+                }
             } else {
-                peerStatus.textContent = `${peerPresence.size} partner${peerPresence.size > 1 ? 's' : ''} connected.`;
+                const names = Array.from(peerPresence.values()).map(peer => peer?.name || 'Partner');
+                const typingLabel = typingPeers.length
+                    ? ` (typing${typingPeers.length > 1 ? ` ${typingPeers.length}` : ''}…)`
+                    : '';
+                if (peerPresenceLabel) {
+                    peerPresenceLabel.textContent = `Device 2 — ${names.join(', ')}${typingLabel}`;
+                }
+                if (peerPresenceDot) {
+                    peerPresenceDot.className = 'h-2.5 w-2.5 rounded-full bg-emerald-400';
+                }
             }
         }
 
@@ -592,7 +614,7 @@
 
         function formatTimestamp(ts) {
             if (!ts) return '--';
-            return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            return new Date(ts).toLocaleString([], { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' });
         }
 
         async function translateText(text, target) {
@@ -653,6 +675,35 @@
             html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
             html = html.replace(/\n/g, '<br>');
             return html;
+        }
+
+        function renderPlainText(text) {
+            return escapeHtml(text || '').replace(/\n/g, '<br>');
+        }
+
+        function looksLikeHtml(text) {
+            return /<\/?[a-z][\s\S]*>/i.test(text || '');
+        }
+
+        function stripRtf(text) {
+            return (text || '')
+                .replace(/\\par[d]?/gi, '\n')
+                .replace(/\\'[0-9a-fA-F]{2}/g, match => String.fromCharCode(parseInt(match.slice(2), 16)))
+                .replace(/\\[a-z]+\d* ?/gi, '')
+                .replace(/[{}]/g, '')
+                .trim();
+        }
+
+        function renderChatContent(text) {
+            const raw = text || '';
+            if (!raw) return '';
+            if (raw.trim().startsWith('{\\rtf')) {
+                return renderPlainText(stripRtf(raw));
+            }
+            if (looksLikeHtml(raw)) {
+                return raw;
+            }
+            return renderMarkdown(raw);
         }
 
         function isLikelyLanguage(text, langCode) {
@@ -969,39 +1020,36 @@
             chatHistory.forEach((entry, index) => {
                 const bubble = document.createElement('div');
                 const isLocal = entry.from === 'local';
-                bubble.className = `chat-bubble p-3 rounded-2xl shadow-sm border ${isLocal ? 'bubble-local border-blue-100 ml-auto' : 'bubble-peer border-slate-200 mr-auto'} max-w-[90%]`;
+                bubble.className = `chat-bubble px-3 py-2 rounded-2xl shadow-sm border ${isLocal ? 'bubble-local border-blue-100 ml-auto' : 'bubble-peer border-slate-200 mr-auto'} max-w-[90%]`;
                 if (entry.style) {
                     bubble.style.background = entry.style.bg || '';
                     bubble.style.color = entry.style.text || '';
                     bubble.style.fontSize = entry.style.fontSize ? `${entry.style.fontSize}px` : '';
                 }
 
-                const nameLine = document.createElement('div');
-                nameLine.className = 'flex items-center justify-between text-[11px] uppercase font-semibold text-slate-400';
+                const headerLine = document.createElement('div');
+                headerLine.className = 'flex items-center justify-between text-[11px] font-semibold text-slate-400';
                 const label = document.createElement('span');
-                label.textContent = isLocal ? 'You' : (entry.name || peerName || 'Partner');
-                nameLine.appendChild(label);
-                if (isLocal && index === chatHistory.length - 1 && !entry.deleted) {
+                const senderName = entry.name || (isLocal ? joinName : peerName) || 'Device';
+                label.textContent = `${senderName} ${formatTimestamp(entry.ts)}`;
+                headerLine.appendChild(label);
+                if (!entry.deleted) {
                     const deleteBtn = document.createElement('button');
                     deleteBtn.type = 'button';
                     deleteBtn.className = 'text-slate-300 hover:text-rose-400 text-[14px] leading-none';
                     deleteBtn.textContent = '✕';
-                    deleteBtn.title = 'Delete last message';
+                    deleteBtn.title = 'Delete post';
                     deleteBtn.onclick = () => deleteChatEntry(entry.id);
-                    nameLine.appendChild(deleteBtn);
+                    headerLine.appendChild(deleteBtn);
                 }
 
-                const timeLine = document.createElement('div');
-                timeLine.className = 'text-xs text-slate-500 mb-2';
-                timeLine.textContent = `Sent ${formatTimestamp(entry.ts)}`;
-
                 const messageLine = document.createElement('div');
-                messageLine.className = 'space-y-2';
+                messageLine.className = 'space-y-2 mt-1 mb-1';
 
                 if (entry.deleted) {
                     const deletedLine = document.createElement('div');
                     deletedLine.className = 'text-xs text-slate-400 italic';
-                    deletedLine.textContent = 'Post deleted.';
+                    deletedLine.textContent = `Post deleted • ${formatTimestamp(entry.ts)}`;
                     messageLine.appendChild(deletedLine);
                 } else {
                     const originalLanguage = detectOriginalLanguage(entry.message);
@@ -1040,10 +1088,10 @@
                     };
 
                     if (originalLanguage === langA) {
-                        langAText.innerHTML = renderMarkdown(text);
+                        langAText.innerHTML = renderChatContent(text);
                         fillTranslated(langB, langBText);
                     } else if (originalLanguage === langB) {
-                        langBText.innerHTML = renderMarkdown(text);
+                        langBText.innerHTML = renderChatContent(text);
                         fillTranslated(langA, langAText);
                     } else {
                         fillTranslated(langA, langAText);
@@ -1057,8 +1105,7 @@
                     }
                 }
 
-                bubble.appendChild(nameLine);
-                bubble.appendChild(timeLine);
+                bubble.appendChild(headerLine);
                 bubble.appendChild(messageLine);
                 chatHistoryEl.appendChild(bubble);
             });
@@ -1270,6 +1317,7 @@
             if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
                 sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
             }
+            updatePeerStatus();
         }
 
         function persistPeerName(rawName) {
@@ -1277,6 +1325,7 @@
             peerName = trimmed || 'Partner';
             if (peerInput) peerInput.value = peerName;
             writeStorage(PEER_NAME_STORAGE_KEY, peerName);
+            updatePeerStatus();
         }
 
         let drawerOpen = false;
@@ -1673,15 +1722,17 @@
             }
         });
 
-        copyLinkButton.onclick = async () => {
-            try {
-                await navigator.clipboard.writeText(buildClientUrl({ nextName: peerName, nextPeer: joinName }));
-                copyLinkButton.textContent = 'Copied!';
-                setTimeout(() => {
-                    copyLinkButton.innerHTML = '<span class="material-symbols-outlined text-sm">link</span>Copy link';
-                }, 1500);
-            } catch (_) {}
-        };
+        if (copyLinkButton) {
+            copyLinkButton.onclick = async () => {
+                try {
+                    await navigator.clipboard.writeText(buildClientUrl({ nextName: peerName, nextPeer: joinName }));
+                    copyLinkButton.textContent = 'Copied!';
+                    setTimeout(() => {
+                        copyLinkButton.innerHTML = '<span class="material-symbols-outlined text-sm">link</span>Copy link';
+                    }, 1500);
+                } catch (_) {}
+            };
+        }
 
         updateDrawerState();
         updateChatAttachmentUI();
