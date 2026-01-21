@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Generative System – Multi Tab</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  background: black;
+  color: white;
+  overflow: hidden;
+  font-family: sans-serif;
+}
+
+#tabs {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  display: flex;
+  background: #111;
+  border-bottom: 1px solid #333;
+  z-index: 20;
+}
+
+#tabs button {
+  flex: 1;
+  background: #111;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+#tabs button.active {
+  background: #222;
+}
+
+.view {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: none;
+}
+
+.view.active {
+  display: block;
+}
+
+iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+#mashup iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+#mashup iframe.grid {
+  mix-blend-mode: screen;
+  opacity: 0.6;
+}
+
+#mashup iframe.genuary {
+  mix-blend-mode: lighten;
+  opacity: 0.6;
+}
+</style>
+</head>
+
+<body>
+
+<div id="tabs">
+  <button data-tab="sphere" class="active">Sphere</button>
+  <button data-tab="grid">Cube Grid</button>
+  <button data-tab="genuary">Genuary</button>
+  <button data-tab="mashup">Mashup</button>
+</div>
+
+<div id="sphere" class="view active"></div>
+
+<div id="grid" class="view">
+  <iframe src="https://cube-grid.vercel.app/"></iframe>
+</div>
+
+<div id="genuary" class="view">
+  <iframe src="https://spite.github.io/genuary-2026/1/"></iframe>
+</div>
+
+<div id="mashup" class="view">
+  <iframe class="grid" src="https://cube-grid.vercel.app/"></iframe>
+  <iframe class="genuary" src="https://spite.github.io/genuary-2026/1/"></iframe>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.3/lib/p5.min.js"></script>
+
+<script>
+let points = [];
+let particles = 120;
+let radius_ = 220;
+let angle = 0;
+let attraction = 0.02;
+let damping = 0.96;
+let repel_strength = 4;
+let repel_radius = 120;
+let pointSize = 2;
+
+new p5(p => {
+  p.setup = () => {
+    const c = p.createCanvas(window.innerWidth, window.innerHeight - 40);
+    c.parent("sphere");
+    p.pixelDensity(1);
+    p.strokeWeight(pointSize);
+    reset();
+  };
+
+  function reset() {
+    points = [];
+    angle = 0;
+    for (let i = 0; i < particles; i++) {
+      points.push({
+        index: i,
+        pos: p.createVector(0,0),
+        vel: p.createVector(0,0)
+      });
+    }
+    updateTargets();
+  }
+
+  p.draw = () => {
+    p.background(0);
+    p.translate(p.width/2, p.height/2);
+    p.stroke(255);
+
+    let mouse = p.createVector(p.mouseX - p.width/2, p.mouseY - p.height/2);
+
+    for (let pt of points) {
+      let i = pt.index;
+      let home = p.createVector(
+        Math.sin(i + angle) * Math.sin(i*i) * radius_,
+        Math.cos(i*i) * radius_
+      );
+
+      pt.vel.add(p5.Vector.sub(home, pt.pos).mult(attraction));
+
+      let away = p5.Vector.sub(pt.pos, mouse);
+      let d2 = away.magSq();
+      if (d2 > 0.1 && d2 < repel_radius*repel_radius) {
+        away.normalize();
+        away.mult(repel_strength * (1 - Math.sqrt(d2)/repel_radius));
+        pt.vel.add(away);
+      }
+
+      pt.vel.mult(damping);
+      pt.pos.add(pt.vel);
+      p.point(pt.pos.x, pt.pos.y);
+    }
+
+    angle += 0.01;
+  };
+
+  function updateTargets() {
+    for (let pt of points) {
+      let i = pt.index;
+      pt.pos.set(
+        Math.sin(i + angle) * Math.sin(i*i) * radius_,
+        Math.cos(i*i) * radius_
+      );
+    }
+  }
+});
+</script>
+
+<script>
+document.querySelectorAll("#tabs button").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll("#tabs button").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById(btn.dataset.tab).classList.add("active");
+  };
+});
+</script>
+
+</body>
+</html>
