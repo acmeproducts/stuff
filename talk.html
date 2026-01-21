@@ -38,6 +38,34 @@
             </div>
         </header>
 
+        <section class="bg-white/80 border border-slate-200 rounded-2xl px-4 py-4 shadow-sm">
+            <div class="grid gap-3 md:grid-cols-[1.2fr_1.2fr_1.6fr_auto] md:items-end">
+                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex flex-col gap-1">
+                    Session name
+                    <input id="room-input" class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300" placeholder="talk">
+                </label>
+                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex flex-col gap-1">
+                    Language pair
+                    <select id="pair-select" class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300">
+                        <option value="en-th">English → Thai</option>
+                        <option value="en-zh">English → Chinese</option>
+                        <option value="en-vi">English → Viet</option>
+                        <option value="en-lo">English → Lao</option>
+                        <option value="en-ms">English → Malay</option>
+                        <option value="en-id">English → Indonesian</option>
+                        <option value="en-es">English → Spanish</option>
+                        <option value="en-it">English → Italian</option>
+                    </select>
+                </label>
+                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex flex-col gap-1">
+                    Your device name
+                    <input id="name-input" class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300">
+                </label>
+                <button id="launch-session" class="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 whitespace-nowrap">Build &amp; launch</button>
+            </div>
+            <p class="text-xs text-slate-400 mt-2">Share the URL to reconnect seamlessly on any device.</p>
+        </section>
+
         <section class="flex items-center justify-between bg-white/80 border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
             <div>
                 <p class="text-xs uppercase tracking-wide text-slate-400">Status</p>
@@ -58,9 +86,12 @@
                         <textarea id="chat-input" rows="2" class="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 resize-none" placeholder="Type your message…"></textarea>
                         <button id="chat-send" class="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">Send</button>
                     </div>
-                    <div class="flex items-center justify-between text-xs text-slate-500" id="chat-attachments">
-                        <span>No attachments selected.</span>
-                        <button id="chat-attachments-clear" type="button" class="hidden text-blue-600 hover:text-blue-800">Clear</button>
+                    <div class="flex flex-col gap-2 text-xs text-slate-500" id="chat-attachments">
+                        <div class="flex items-center justify-between">
+                            <span>No attachments selected.</span>
+                            <button id="chat-attachments-clear" type="button" class="hidden text-blue-600 hover:text-blue-800">Clear</button>
+                        </div>
+                        <div id="chat-attachments-preview" class="flex flex-wrap gap-2"></div>
                     </div>
                 </div>
             </div>
@@ -117,9 +148,20 @@
 
         const url = new URL(window.location.href);
         const params = url.searchParams;
+        const defaultRoom = 'talk';
         const defaultPair = 'en-th';
-        let room = params.get('room');
-        let pair = params.get('pair') || defaultPair;
+        const allowedPairs = [
+            'en-th',
+            'en-zh',
+            'en-vi',
+            'en-lo',
+            'en-ms',
+            'en-id',
+            'en-es',
+            'en-it'
+        ];
+        let room = params.get('room') || defaultRoom;
+        let pair = allowedPairs.includes(params.get('pair')) ? params.get('pair') : defaultPair;
         const parsePair = value => {
             const parts = (value || '')
                 .toLowerCase()
@@ -133,10 +175,7 @@
         };
         const [langA, langB] = parsePair(pair);
         pair = `${langA}-${langB}`;
-        if (!room) {
-            room = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 10));
-            params.set('room', room);
-        }
+        params.set('room', room);
         params.set('pair', `${langA}-${langB}`);
         history.replaceState(null, '', url.toString());
 
@@ -156,23 +195,54 @@
         const RELAY_CLIENT_ID = resolvedClientId;
         const CHAT_STORAGE_KEY = `talk_chat_${RELAY_SESSION_ID}`;
         const NAME_STORAGE_KEY = `talk_name_${RELAY_SESSION_ID}`;
-        const joinName = (() => {
+
+        function getDeviceType() {
+            const ua = navigator.userAgent || '';
+            if (/Mobi|Android|iPhone|iPad|iPod/i.test(ua)) return 'Mobile';
+            return 'Desktop';
+        }
+
+        function getBrowserName() {
+            const ua = navigator.userAgent || '';
+            if (ua.includes('Edg/')) return 'Edge';
+            if (ua.includes('OPR/') || ua.includes('Opera')) return 'Opera';
+            if (ua.includes('Chrome/') && !ua.includes('Edg/')) return 'Chrome';
+            if (ua.includes('Firefox/')) return 'Firefox';
+            if (ua.includes('Safari/') && !ua.includes('Chrome/')) return 'Safari';
+            return 'Browser';
+        }
+
+        function buildDefaultName() {
+            const device = getDeviceType();
+            const browser = getBrowserName();
+            const language = navigator.language || 'en';
+            const timestamp = new Date().toLocaleString();
+            return `${device} ${browser} ${language} ${timestamp}`;
+        }
+
+        function loadJoinName() {
             try {
                 const stored = localStorage.getItem(NAME_STORAGE_KEY);
                 if (stored) return stored;
             } catch (_) {}
-            const fallback = `Guest-${RELAY_CLIENT_ID.slice(0, 4)}`;
+            const fallback = buildDefaultName();
             try {
                 localStorage.setItem(NAME_STORAGE_KEY, fallback);
             } catch (_) {}
             return fallback;
-        })();
+        }
+
+        let joinName = loadJoinName();
 
         const connectionStatus = document.getElementById('connection-status');
         const peerStatus = document.getElementById('peer-status');
         const roomPill = document.getElementById('room-pill');
         const pairPill = document.getElementById('pair-pill');
         const copyLinkButton = document.getElementById('copy-link');
+        const roomInput = document.getElementById('room-input');
+        const pairSelect = document.getElementById('pair-select');
+        const nameInput = document.getElementById('name-input');
+        const launchSessionButton = document.getElementById('launch-session');
         const chatHistoryEl = document.getElementById('chat-history');
         const chatInput = document.getElementById('chat-input');
         const chatSend = document.getElementById('chat-send');
@@ -180,6 +250,7 @@
         const chatAttachmentInput = document.getElementById('chat-attachments-input');
         const chatAttachmentStatus = document.getElementById('chat-attachments');
         const chatAttachmentClear = document.getElementById('chat-attachments-clear');
+        const chatAttachmentPreview = document.getElementById('chat-attachments-preview');
         const translationCache = new Map();
         const pendingTranslations = new Set();
         const relayState = { ws: null };
@@ -187,6 +258,9 @@
 
         roomPill.textContent = `Room: ${room}`;
         pairPill.textContent = `Pair: ${langA} ↔ ${langB}`;
+        if (roomInput) roomInput.value = room;
+        if (pairSelect) pairSelect.value = pair;
+        if (nameInput) nameInput.value = joinName;
 
         const languageNames = (() => {
             try {
@@ -504,7 +578,16 @@
             const sizeLabel = att.size ? ` • ${formatBytes(att.size)}` : '';
             meta.textContent = `${mime || 'Unknown'}${sizeLabel}`;
             preview.innerHTML = '';
-            preview.appendChild(createChatAttachmentPreview(att));
+            const previewContent = createChatAttachmentPreview(att);
+            previewContent.classList.add('cursor-pointer');
+            previewContent.title = 'Open attachment in new tab';
+            previewContent.addEventListener('click', () => {
+                window.open(att.dataUrl, '_blank', 'noopener');
+            });
+            preview.appendChild(previewContent);
+            preview.onclick = () => {
+                window.open(att.dataUrl, '_blank', 'noopener');
+            };
             if (!navigator.share) {
                 shareBtn.disabled = true;
                 shareBtn.classList.add('opacity-50', 'cursor-not-allowed');
@@ -577,42 +660,51 @@
 
         function renderChat() {
             chatHistoryEl.innerHTML = '';
-            chatHistory.forEach((entry, entryIndex) => {
+            const ordered = chatHistory.slice().reverse();
+            ordered.forEach((entry, entryIndex) => {
                 const bubble = document.createElement('div');
                 const isLocal = entry.from === 'local';
                 bubble.className = `p-3 rounded-2xl text-sm shadow-sm border ${isLocal ? 'bg-blue-50 border-blue-100 ml-auto' : 'bg-white border-slate-200 mr-auto'} max-w-[90%]`;
 
                 const nameLine = document.createElement('div');
-                nameLine.className = 'text-[11px] uppercase font-semibold text-slate-400 mb-1 flex items-center justify-between gap-2';
+                nameLine.className = 'text-[11px] uppercase font-semibold text-slate-400';
                 const label = document.createElement('span');
                 label.textContent = isLocal ? 'You' : (entry.name || 'Partner');
-                const time = document.createElement('span');
-                time.textContent = formatTimestamp(entry.ts);
                 nameLine.appendChild(label);
-                nameLine.appendChild(time);
+
+                const timeLine = document.createElement('div');
+                timeLine.className = 'text-[11px] text-slate-400 mb-2';
+                timeLine.textContent = `Sent ${formatTimestamp(entry.ts)}`;
 
                 const messageLine = document.createElement('div');
                 messageLine.className = 'space-y-2';
 
                 const originalLanguage = detectOriginalLanguage(entry.message);
-                const langAContainer = document.createElement('div');
-                const langALabel = document.createElement('div');
-                langALabel.className = 'text-[10px] uppercase font-semibold text-slate-400';
-                langALabel.textContent = languageLabel(langA);
-                const langAText = document.createElement('div');
-                langAText.className = 'text-slate-800';
+                const table = document.createElement('table');
+                table.className = 'w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden';
+                const tbody = document.createElement('tbody');
+                const headerRow = document.createElement('tr');
+                headerRow.className = 'bg-slate-50 text-[10px] uppercase text-slate-500';
+                const headerA = document.createElement('th');
+                headerA.className = 'px-2 py-1 border-r border-slate-200';
+                headerA.textContent = languageLabel(langA);
+                const headerB = document.createElement('th');
+                headerB.className = 'px-2 py-1';
+                headerB.textContent = languageLabel(langB);
+                headerRow.appendChild(headerA);
+                headerRow.appendChild(headerB);
 
-                const langBContainer = document.createElement('div');
-                const langBLabel = document.createElement('div');
-                langBLabel.className = 'text-[10px] uppercase font-semibold text-slate-400';
-                langBLabel.textContent = languageLabel(langB);
-                const langBText = document.createElement('div');
-                langBText.className = 'text-slate-800';
+                const messageRow = document.createElement('tr');
+                const langAText = document.createElement('td');
+                langAText.className = 'px-2 py-2 align-top border-r border-slate-200 text-slate-800';
+                const langBText = document.createElement('td');
+                langBText.className = 'px-2 py-2 align-top text-slate-800';
+                messageRow.appendChild(langAText);
+                messageRow.appendChild(langBText);
 
-                langAContainer.appendChild(langALabel);
-                langAContainer.appendChild(langAText);
-                langBContainer.appendChild(langBLabel);
-                langBContainer.appendChild(langBText);
+                tbody.appendChild(headerRow);
+                tbody.appendChild(messageRow);
+                table.appendChild(tbody);
 
                 const text = entry.message || '';
                 entry.translations = entry.translations || {};
@@ -646,20 +738,20 @@
                     fillTranslated(langB, langBText);
                 }
 
-                messageLine.appendChild(langAContainer);
-                messageLine.appendChild(langBContainer);
+                messageLine.appendChild(table);
 
                 if (Array.isArray(entry.attachments) && entry.attachments.length) {
                     appendChatAttachments(messageLine, entry.attachments);
                 }
 
                 bubble.appendChild(nameLine);
+                bubble.appendChild(timeLine);
                 bubble.appendChild(messageLine);
                 chatHistoryEl.appendChild(bubble);
 
-                if (entryIndex === chatHistory.length - 1) {
+                if (entryIndex === 0) {
                     setTimeout(() => {
-                        chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
+                        chatHistoryEl.scrollTop = 0;
                     }, 0);
                 }
             });
@@ -749,12 +841,56 @@
         function updateChatAttachmentUI() {
             const label = chatAttachmentStatus.querySelector('span');
             if (!label) return;
+            if (chatAttachmentPreview) {
+                chatAttachmentPreview.innerHTML = '';
+            }
             if (pendingChatAttachments.length) {
                 label.textContent = `${pendingChatAttachments.length} attachment${pendingChatAttachments.length > 1 ? 's' : ''} ready.`;
                 chatAttachmentClear.classList.remove('hidden');
+                if (chatAttachmentPreview) {
+                    pendingChatAttachments.forEach((att, index) => {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'relative w-20 h-16 border border-slate-200 rounded-lg bg-white overflow-hidden flex items-center justify-center';
+                        const removeBtn = document.createElement('button');
+                        removeBtn.type = 'button';
+                        removeBtn.className = 'absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-[10px] flex items-center justify-center shadow';
+                        removeBtn.textContent = '✕';
+                        removeBtn.onclick = () => {
+                            pendingChatAttachments.splice(index, 1);
+                            updateChatAttachmentUI();
+                        };
+                        const mime = getAttachmentMime(att);
+                        if (mime.startsWith('image/') || isImageDataUrl(att.dataUrl)) {
+                            const img = document.createElement('img');
+                            img.src = att.dataUrl;
+                            img.alt = getAttachmentLabel(att);
+                            img.className = 'w-full h-full object-cover';
+                            wrapper.appendChild(img);
+                        } else {
+                            const icon = document.createElement('span');
+                            icon.className = 'material-symbols-outlined text-blue-500 text-lg';
+                            icon.textContent = 'description';
+                            wrapper.appendChild(icon);
+                        }
+                        wrapper.appendChild(removeBtn);
+                        chatAttachmentPreview.appendChild(wrapper);
+                    });
+                }
             } else {
                 label.textContent = 'No attachments selected.';
                 chatAttachmentClear.classList.add('hidden');
+            }
+        }
+
+        function persistJoinName(rawName) {
+            const trimmed = (rawName || '').trim();
+            joinName = trimmed || buildDefaultName();
+            if (nameInput) nameInput.value = joinName;
+            try {
+                localStorage.setItem(NAME_STORAGE_KEY, joinName);
+            } catch (_) {}
+            if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
+                sendRelayMessage({ type: 'presence', name: joinName });
             }
         }
 
@@ -825,6 +961,26 @@
             updateChatAttachmentUI();
         };
 
+        if (nameInput) {
+            nameInput.addEventListener('change', event => {
+                persistJoinName(event.target.value);
+            });
+            nameInput.addEventListener('blur', event => {
+                persistJoinName(event.target.value);
+            });
+        }
+
+        if (launchSessionButton) {
+            launchSessionButton.onclick = () => {
+                const nextRoom = (roomInput?.value || '').trim() || defaultRoom;
+                const nextPair = allowedPairs.includes(pairSelect?.value) ? pairSelect.value : defaultPair;
+                const nextUrl = new URL(window.location.href);
+                nextUrl.searchParams.set('room', nextRoom);
+                nextUrl.searchParams.set('pair', nextPair);
+                window.location.href = nextUrl.toString();
+            };
+        }
+
         chatSend.onclick = () => {
             const text = (chatInput.value || '').trim();
             if (!text && pendingChatAttachments.length === 0) return;
@@ -883,6 +1039,20 @@
         updatePeerStatus();
         connectRelay();
         window.addEventListener('focus', connectRelay);
+        window.addEventListener('online', connectRelay);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                connectRelay();
+            }
+        });
+        window.addEventListener('beforeunload', () => {
+            sendRelayMessage({ type: 'leave', name: joinName });
+        });
+        setInterval(() => {
+            if (!relayState.ws || relayState.ws.readyState === WebSocket.CLOSED) {
+                connectRelay();
+            }
+        }, 5000);
     </script>
 </body>
 </html>
