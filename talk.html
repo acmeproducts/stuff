@@ -295,8 +295,8 @@
         history.replaceState(null, '', url.toString());
 
         const RELAY_SESSION_ID = `talk:${room}:${langA}-${langB}`;
-        const CLIENT_ID_STORAGE_KEY = `talk_client_id_${RELAY_SESSION_ID}`;
-        let storedClientId = null;
+        const DEVICE_ID_STORAGE_KEY = `talk_device_id_${RELAY_SESSION_ID}`;
+        let storedDeviceId = null;
         const storage = (() => {
             try {
                 const key = '__talk_storage_test__';
@@ -332,14 +332,15 @@
         }
 
         try {
-            storedClientId = readStorage(CLIENT_ID_STORAGE_KEY);
+            storedDeviceId = readStorage(DEVICE_ID_STORAGE_KEY);
         } catch (_) {}
-        let resolvedClientId = storedClientId;
-        if (!resolvedClientId) {
-            resolvedClientId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 12));
-            writeStorage(CLIENT_ID_STORAGE_KEY, resolvedClientId);
+        let resolvedDeviceId = storedDeviceId;
+        if (!resolvedDeviceId) {
+            resolvedDeviceId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 12));
+            writeStorage(DEVICE_ID_STORAGE_KEY, resolvedDeviceId);
         }
-        const RELAY_CLIENT_ID = resolvedClientId;
+        const RELAY_DEVICE_ID = resolvedDeviceId;
+        const RELAY_CLIENT_ID = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 12));
         const CHAT_STORAGE_KEY = `talk_chat_${RELAY_SESSION_ID}`;
         const NAME_STORAGE_KEY = `talk_name_${RELAY_SESSION_ID}`;
         const PEER_NAME_STORAGE_KEY = `talk_peer_name_${RELAY_SESSION_ID}`;
@@ -443,11 +444,14 @@
         const translationCache = new Map();
         const pendingTranslations = new Set();
         const relayState = { ws: null };
+        const outbox = [];
         const peerPresence = new Map();
         const peerTyping = new Map();
         const peerTypingTimeouts = new Map();
         const peerStyles = new Map();
         let controlPanelCollapsed = false;
+        let reconnectDelayMs = 1000;
+        let reconnectTimer = null;
 
         document.body.classList.add(isClientView ? 'client-view' : 'config-view');
 
@@ -597,7 +601,8 @@
                 ts: entry.ts || Date.now(),
                 translations: entry.translations || {},
                 deleted: Boolean(entry.deleted),
-                style: entry.style || null
+                style: entry.style || null,
+                pending: Boolean(entry.pending)
             };
         }
 
@@ -1039,7 +1044,8 @@
                 headerLine.className = 'flex items-center justify-between text-[11px] font-semibold text-slate-400';
                 const label = document.createElement('span');
                 const senderName = entry.name || (isLocal ? joinName : peerName) || 'Device';
-                label.textContent = `${senderName} ${formatTimestamp(entry.ts)}`;
+                const pendingSuffix = entry.pending ? ' • Sending…' : '';
+                label.textContent = `${senderName} ${formatTimestamp(entry.ts)}${pendingSuffix}`;
                 headerLine.appendChild(label);
                 if (!entry.deleted) {
                     const deleteBtn = document.createElement('button');
@@ -1129,6 +1135,7 @@
             entry.deleted = true;
             entry.message = 'Post deleted.';
             entry.attachments = [];
+            entry.pending = false;
             saveChatHistory(chatHistory);
             renderChat();
             sendRelayMessage({ type: 'delete', id: entryId });
@@ -1138,13 +1145,21 @@
             const message = {
                 session: RELAY_SESSION_ID,
                 from: RELAY_CLIENT_ID,
+                deviceId: RELAY_DEVICE_ID,
                 ts: Date.now(),
                 ...payload
             };
             if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
                 relayState.ws.send(JSON.stringify(message));
+                if (message.type === 'chat' && message.id) {
+                    markChatEntrySent(message.id);
+                }
                 return true;
             }
+            if (outbox.length >= 50) {
+                outbox.shift();
+            }
+            outbox.push(message);
             return false;
         }
 
@@ -1152,44 +1167,45 @@
             if (!message || message.session !== RELAY_SESSION_ID) return;
             if (message.from === RELAY_CLIENT_ID) return;
             const now = Date.now();
+            const senderDeviceId = message.deviceId || message.from;
             if (message.type === 'presence' || message.type === 'hello') {
-                peerPresence.set(message.from, { name: message.name || peerName || 'Partner', lastSeen: now });
+                peerPresence.set(senderDeviceId, { name: message.name || peerName || 'Partner', lastSeen: now });
                 if (message.style) {
-                    peerStyles.set(message.from, message.style);
+                    peerStyles.set(senderDeviceId, message.style);
                 }
                 updatePeerStatus();
                 return;
             }
             if (message.type === 'typing') {
                 if (message.active) {
-                    peerTyping.set(message.from, { active: true, name: message.name || peerName || 'Partner' });
-                    if (peerTypingTimeouts.has(message.from)) {
-                        clearTimeout(peerTypingTimeouts.get(message.from));
+                    peerTyping.set(senderDeviceId, { active: true, name: message.name || peerName || 'Partner' });
+                    if (peerTypingTimeouts.has(senderDeviceId)) {
+                        clearTimeout(peerTypingTimeouts.get(senderDeviceId));
                     }
                     const timeoutId = setTimeout(() => {
-                        peerTyping.delete(message.from);
-                        peerTypingTimeouts.delete(message.from);
+                        peerTyping.delete(senderDeviceId);
+                        peerTypingTimeouts.delete(senderDeviceId);
                         updatePeerStatus();
                     }, 2000);
-                    peerTypingTimeouts.set(message.from, timeoutId);
+                    peerTypingTimeouts.set(senderDeviceId, timeoutId);
                 } else {
-                    peerTyping.delete(message.from);
-                    if (peerTypingTimeouts.has(message.from)) {
-                        clearTimeout(peerTypingTimeouts.get(message.from));
-                        peerTypingTimeouts.delete(message.from);
+                    peerTyping.delete(senderDeviceId);
+                    if (peerTypingTimeouts.has(senderDeviceId)) {
+                        clearTimeout(peerTypingTimeouts.get(senderDeviceId));
+                        peerTypingTimeouts.delete(senderDeviceId);
                     }
                 }
                 updatePeerStatus();
                 return;
             }
             if (message.type === 'leave') {
-                peerPresence.delete(message.from);
-                peerTyping.delete(message.from);
-                if (peerTypingTimeouts.has(message.from)) {
-                    clearTimeout(peerTypingTimeouts.get(message.from));
-                    peerTypingTimeouts.delete(message.from);
+                peerPresence.delete(senderDeviceId);
+                peerTyping.delete(senderDeviceId);
+                if (peerTypingTimeouts.has(senderDeviceId)) {
+                    clearTimeout(peerTypingTimeouts.get(senderDeviceId));
+                    peerTypingTimeouts.delete(senderDeviceId);
                 }
-                peerStyles.delete(message.from);
+                peerStyles.delete(senderDeviceId);
                 updatePeerStatus();
                 return;
             }
@@ -1197,15 +1213,15 @@
                 const attachments = Array.isArray(message.attachments)
                     ? message.attachments.map(normalizeChatAttachment).filter(Boolean).slice(0, MAX_CHAT_ATTACHMENTS)
                     : [];
-                chatHistory.push({
+                chatHistory.push(normalizeChatEntry({
                     id: message.id || createEntryId(),
                     from: 'peer',
                     name: message.name || peerName || 'Partner',
                     message: message.text || '',
                     attachments,
-                    style: message.style || peerStyles.get(message.from) || null,
+                    style: message.style || peerStyles.get(senderDeviceId) || null,
                     ts: message.ts || now
-                });
+                }));
                 saveChatHistory(chatHistory);
                 renderChat();
                 return;
@@ -1218,9 +1234,22 @@
                     entry.deleted = true;
                     entry.message = 'Post deleted.';
                     entry.attachments = [];
+                    entry.pending = false;
                     saveChatHistory(chatHistory);
                     renderChat();
                 }
+                return;
+            }
+            if (message.type === 'sync-request') {
+                const since = Number(message.since) || 0;
+                const history = chatHistory.filter(entry => entry.ts > since).slice(-50);
+                sendRelayMessage({ type: 'sync-response', target: message.from, history });
+                return;
+            }
+            if (message.type === 'sync-response') {
+                if (message.target !== RELAY_CLIENT_ID) return;
+                if (!Array.isArray(message.history) || message.history.length === 0) return;
+                mergeChatHistory(message.history);
             }
         }
 
@@ -1231,6 +1260,13 @@
                 }
                 relayState.ws.close();
             }
+            if (reconnectTimer && !force) {
+                return;
+            }
+            if (reconnectTimer && force) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
             updateConnectionStatus('Connecting…');
             const url = new URL(RELAY_SIGNAL_WS_URL);
             url.searchParams.set('session', RELAY_SESSION_ID);
@@ -1240,8 +1276,15 @@
             ws.onopen = () => {
                 if (relayState.ws !== ws) return;
                 updateConnectionStatus('Connected');
+                reconnectDelayMs = 1000;
+                if (reconnectTimer) {
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = null;
+                }
                 sendRelayMessage({ type: 'hello', name: joinName, style: getSenderStyle() });
                 sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
+                flushOutbox();
+                sendRelayMessage({ type: 'sync-request', since: getLatestChatTimestamp() });
             };
             ws.onmessage = event => {
                 if (relayState.ws !== ws) return;
@@ -1253,11 +1296,59 @@
                 if (relayState.ws !== ws) return;
                 relayState.ws = null;
                 updateConnectionStatus('Offline');
+                scheduleReconnect();
             };
             ws.onerror = () => {
                 if (relayState.ws !== ws) return;
                 relayState.ws.close();
             };
+        }
+
+        function scheduleReconnect() {
+            if (reconnectTimer) return;
+            const jitter = Math.floor(Math.random() * 400);
+            const delay = Math.min(reconnectDelayMs + jitter, 30000);
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                connectRelay(true);
+                reconnectDelayMs = Math.min(reconnectDelayMs * 2, 30000);
+            }, delay);
+        }
+
+        function flushOutbox() {
+            if (!relayState.ws || relayState.ws.readyState !== WebSocket.OPEN) return;
+            while (outbox.length) {
+                const message = outbox.shift();
+                relayState.ws.send(JSON.stringify(message));
+                if (message.type === 'chat' && message.id) {
+                    markChatEntrySent(message.id);
+                }
+            }
+        }
+
+        function markChatEntrySent(entryId) {
+            const entry = chatHistory.find(item => item.id === entryId);
+            if (!entry || !entry.pending) return;
+            entry.pending = false;
+            saveChatHistory(chatHistory);
+            renderChat();
+        }
+
+        function getLatestChatTimestamp() {
+            if (!chatHistory.length) return 0;
+            return Math.max(...chatHistory.map(entry => entry.ts || 0));
+        }
+
+        function mergeChatHistory(incoming) {
+            const existing = new Map(chatHistory.map(entry => [entry.id, entry]));
+            incoming.map(normalizeChatEntry).filter(Boolean).forEach(entry => {
+                if (!existing.has(entry.id)) {
+                    existing.set(entry.id, entry);
+                }
+            });
+            chatHistory = Array.from(existing.values()).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+            saveChatHistory(chatHistory);
+            renderChat();
         }
 
         setInterval(() => {
@@ -1701,7 +1792,8 @@
                 message: text,
                 attachments,
                 style: getSenderStyle(),
-                ts: now
+                ts: now,
+                pending: true
             };
             chatHistory.push(entry);
             saveChatHistory(chatHistory);
@@ -1814,6 +1906,25 @@
                 }
             }, 2000);
         }
+        setInterval(() => {
+            const now = Date.now();
+            let changed = false;
+            peerPresence.forEach((value, key) => {
+                if (now - (value.lastSeen || 0) > 15000) {
+                    peerPresence.delete(key);
+                    peerTyping.delete(key);
+                    if (peerTypingTimeouts.has(key)) {
+                        clearTimeout(peerTypingTimeouts.get(key));
+                        peerTypingTimeouts.delete(key);
+                    }
+                    peerStyles.delete(key);
+                    changed = true;
+                }
+            });
+            if (changed) {
+                updatePeerStatus();
+            }
+        }, 5000);
     </script>
 </body>
 </html>
