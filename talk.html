@@ -506,7 +506,7 @@
         const messageWaiting = document.getElementById('message-waiting');
         const messageWaitingCount = document.getElementById('message-waiting-count');
         const translationCache = new Map();
-        const pendingTranslations = new Set();
+        const pendingTranslations = new Map();
         const relayState = { ws: null };
         const outbox = [];
         const peerPresence = new Map();
@@ -797,39 +797,44 @@
             if (!text || !target) return null;
             const cacheKey = `${target}|${text}`;
             if (translationCache.has(cacheKey)) return translationCache.get(cacheKey);
-            if (pendingTranslations.has(cacheKey)) return null;
-            pendingTranslations.add(cacheKey);
-            try {
-                const res = await fetch('https://libretranslate.de/translate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ q: text, source: 'auto', target, format: 'text' })
-                });
-                if (!res.ok) throw new Error('Translation failed');
-                const data = await res.json();
-                const translated = data?.translatedText || null;
-                if (translated) {
-                    translationCache.set(cacheKey, translated);
-                }
-                return translated;
-            } catch (_) {
+            if (pendingTranslations.has(cacheKey)) {
+                return pendingTranslations.get(cacheKey);
+            }
+            const pendingPromise = (async () => {
                 try {
-                    const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(target)}&dt=t&q=${encodeURIComponent(text)}`);
-                    if (!res.ok) throw new Error('Translation fallback failed');
+                    const res = await fetch('https://libretranslate.de/translate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ q: text, source: 'auto', target, format: 'text' })
+                    });
+                    if (!res.ok) throw new Error('Translation failed');
                     const data = await res.json();
-                    const translated = Array.isArray(data?.[0])
-                        ? data[0].map(part => part?.[0]).filter(Boolean).join('')
-                        : null;
+                    const translated = data?.translatedText || null;
                     if (translated) {
                         translationCache.set(cacheKey, translated);
                     }
                     return translated;
                 } catch (_) {
-                    return null;
+                    try {
+                        const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(target)}&dt=t&q=${encodeURIComponent(text)}`);
+                        if (!res.ok) throw new Error('Translation fallback failed');
+                        const data = await res.json();
+                        const translated = Array.isArray(data?.[0])
+                            ? data[0].map(part => part?.[0]).filter(Boolean).join('')
+                            : null;
+                        if (translated) {
+                            translationCache.set(cacheKey, translated);
+                        }
+                        return translated;
+                    } catch (_) {
+                        return null;
+                    }
+                } finally {
+                    pendingTranslations.delete(cacheKey);
                 }
-            } finally {
-                pendingTranslations.delete(cacheKey);
-            }
+            })();
+            pendingTranslations.set(cacheKey, pendingPromise);
+            return pendingPromise;
         }
 
         function escapeHtml(text) {
