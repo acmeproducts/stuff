@@ -161,7 +161,7 @@
                     <span class="material-symbols-outlined text-base">attach_file</span>
                 </button>
                 <input id="chat-attachments-input" type="file" accept="image/*,application/pdf,text/html,audio/mpeg,audio/wav,audio/x-wav,video/x-msvideo,video/mp4" multiple class="hidden">
-                <textarea id="chat-input" rows="2" class="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 resize-none" placeholder="Type your message…"></textarea>
+                <textarea id="chat-input" rows="2" class="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 resize-none" placeholder="Type your message… (Markdown, HTML, or RTF)"></textarea>
                 <button id="chat-send" class="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">Send</button>
             </div>
             <div class="flex flex-col gap-2 text-xs text-slate-500" id="chat-attachments">
@@ -864,6 +864,28 @@
 
         function looksLikeHtml(text) {
             return /<\/?[a-z][\s\S]*>/i.test(text || '');
+        }
+
+        function extractHtmlFragment(rawHtml) {
+            if (!rawHtml) return '';
+            try {
+                const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
+                return doc.body ? doc.body.innerHTML : rawHtml;
+            } catch (_) {
+                return rawHtml;
+            }
+        }
+
+        function insertTextAtCursor(input, text) {
+            if (!input || typeof text !== 'string') return;
+            const start = input.selectionStart || 0;
+            const end = input.selectionEnd || 0;
+            const value = input.value || '';
+            input.value = `${value.slice(0, start)}${text}${value.slice(end)}`;
+            const nextCursor = start + text.length;
+            input.selectionStart = nextCursor;
+            input.selectionEnd = nextCursor;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
         function stripRtf(text) {
@@ -2187,6 +2209,24 @@
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
                 chatSend.click();
+            }
+        });
+        chatInput.addEventListener('paste', event => {
+            const clipboard = event.clipboardData;
+            if (!clipboard) return;
+            const html = clipboard.getData('text/html');
+            const rtf = clipboard.getData('text/rtf');
+            if (html) {
+                event.preventDefault();
+                const fragment = extractHtmlFragment(html).trim();
+                if (fragment) {
+                    insertTextAtCursor(chatInput, fragment);
+                }
+                return;
+            }
+            if (rtf) {
+                event.preventDefault();
+                insertTextAtCursor(chatInput, rtf.trim());
             }
         });
         chatInput.addEventListener('input', () => {
