@@ -36,7 +36,7 @@
         .config-view .status-panel { display: none; }
         .config-view .chat-composer,
         .config-view #gear-fab { display: none; }
-        .chat-bubble { font-size: var(--bubble-font-size, 0.875rem); }
+        .chat-bubble { font-size: var(--bubble-font-size, 0.875rem); touch-action: pan-y; transition: transform 0.2s ease, box-shadow 0.2s ease; }
         .bubble-local { background: var(--bubble-local-bg, #eff6ff); color: var(--bubble-local-text, #1f2937); }
         .bubble-peer { background: var(--bubble-peer-bg, #ffffff); color: var(--bubble-peer-text, #0f172a); }
         .control-panel-body { max-height: 500px; opacity: 1; transition: max-height 0.25s ease, opacity 0.25s ease; overflow: hidden; }
@@ -46,6 +46,12 @@
         .chat-app { padding-bottom: calc(var(--composer-height) + env(safe-area-inset-bottom) + var(--keyboard-offset)); }
         .chat-composer { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + var(--keyboard-offset)); width: min(96vw, 720px); z-index: 40; }
         .gear-fab { position: fixed; z-index: 50; }
+        .chat-bubble.swiping { transition: none; }
+        .chat-bubble.swipe-ready { box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); }
+        .typing-indicator { opacity: 0; transform: translateY(-4px); transition: opacity 0.7s ease, transform 0.7s ease; }
+        .typing-indicator.active { opacity: 1; transform: translateY(0); }
+        .message-indicator { transition: opacity 0.3s ease, transform 0.3s ease; }
+        .reply-preview { border-left: 3px solid #60a5fa; }
     </style>
 </head>
 <body class="min-h-screen text-slate-800">
@@ -95,14 +101,33 @@
                     <button id="launch-session" class="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 whitespace-nowrap shadow-sm">Build &amp; launch</button>
                 </div>
                 <p class="text-xs text-slate-400 mt-2">Launching opens a standalone chat client in a new tab.</p>
+                <div class="mt-3 flex items-center justify-between text-xs text-slate-500 border border-slate-200 rounded-lg px-3 py-2 bg-white">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-base">notifications</span>
+                        Message waiting indicator
+                    </div>
+                    <label class="flex items-center gap-2">
+                        <input id="control-notifications-toggle" type="checkbox" class="h-4 w-4">
+                        <span>Enabled</span>
+                    </label>
+                </div>
             </div>
         </section>
 
         <section class="bg-white/90 border border-slate-200 rounded-2xl px-4 py-3 shadow-md status-panel backdrop-blur">
             <div class="flex flex-wrap items-center justify-between gap-3">
-                <div>
+                <div class="flex flex-col gap-1">
                     <p class="text-xs uppercase tracking-wide text-slate-400">Status</p>
                     <p class="text-sm font-semibold" id="connection-status">Connecting…</p>
+                    <div class="flex flex-col gap-1 text-xs text-slate-400">
+                        <div id="typing-indicator" class="typing-indicator hidden">Partner is typing…</div>
+                        <div id="message-waiting" class="message-indicator hidden">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[11px] font-semibold">
+                                <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
+                                <span id="message-waiting-count">Messages waiting</span>
+                            </span>
+                        </div>
+                    </div>
                 </div>
                 <div class="flex flex-col gap-1 text-xs text-slate-500" id="peer-status">
                     <div class="flex items-center gap-2">
@@ -124,6 +149,13 @@
 
     <div id="chat-composer" class="chat-composer">
         <div class="bg-white/95 border border-slate-200 rounded-2xl shadow-lg px-4 py-3 flex flex-col gap-3 backdrop-blur">
+            <div id="reply-preview" class="reply-preview hidden px-3 py-2 rounded-lg bg-slate-50 text-xs text-slate-600 flex items-start justify-between gap-3">
+                <div class="flex flex-col">
+                    <span class="text-[11px] uppercase tracking-wide text-slate-400">Replying to</span>
+                    <span id="reply-preview-text" class="font-semibold text-slate-600"></span>
+                </div>
+                <button id="reply-preview-clear" type="button" class="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
             <div class="flex items-center gap-2">
                 <button id="chat-attach" type="button" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Attach files">
                     <span class="material-symbols-outlined text-base">attach_file</span>
@@ -181,6 +213,13 @@
                     <span class="material-symbols-outlined text-base">refresh</span>
                     Refresh chat
                 </button>
+                <label class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600">
+                    <span class="flex items-center gap-3">
+                        <span class="material-symbols-outlined text-base">notifications</span>
+                        Message waiting indicator
+                    </span>
+                    <input id="notifications-toggle" type="checkbox" class="h-4 w-4">
+                </label>
                 <button id="drawer-import" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50">
                     <span class="material-symbols-outlined text-base">upload_file</span>
                     Import chat
@@ -360,6 +399,7 @@
         const STYLE_STORAGE_KEY = `talk_style_${RELAY_SESSION_ID}`;
         const CONTROL_PANEL_STORAGE_KEY = `talk_control_panel_${RELAY_SESSION_ID}`;
         const GEAR_STORAGE_KEY = `talk_gear_pos_${RELAY_SESSION_ID}`;
+        const NOTIFICATIONS_STORAGE_KEY = `talk_notifications_${RELAY_SESSION_ID}`;
 
         function getDeviceType() {
             const ua = navigator.userAgent || '';
@@ -420,6 +460,7 @@
         const controlPanel = document.getElementById('control-panel');
         const controlPanelToggle = document.getElementById('control-panel-toggle');
         const controlPanelRefresh = document.getElementById('control-panel-refresh');
+        const controlNotificationsToggle = document.getElementById('control-notifications-toggle');
         const roomInput = document.getElementById('room-input');
         const pairSelect = document.getElementById('pair-select');
         const nameInput = document.getElementById('name-input');
@@ -441,10 +482,14 @@
         const drawerImportInput = document.getElementById('drawer-import-input');
         const drawerShare = document.getElementById('drawer-share');
         const drawerConfig = document.getElementById('drawer-config');
+        const notificationsToggle = document.getElementById('notifications-toggle');
         const controlsModal = document.getElementById('controls-modal');
         const closeControls = document.getElementById('close-controls');
         const gearFab = document.getElementById('gear-fab');
         const chatComposer = document.getElementById('chat-composer');
+        const replyPreview = document.getElementById('reply-preview');
+        const replyPreviewText = document.getElementById('reply-preview-text');
+        const replyPreviewClear = document.getElementById('reply-preview-clear');
         const styleLocalBg = document.getElementById('style-local-bg');
         const styleLocalText = document.getElementById('style-local-text');
         const stylePeerBg = document.getElementById('style-peer-bg');
@@ -457,6 +502,9 @@
         const localPresenceDot = document.getElementById('local-presence-dot');
         const peerPresenceLabel = document.getElementById('peer-presence-label');
         const peerPresenceDot = document.getElementById('peer-presence-dot');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const messageWaiting = document.getElementById('message-waiting');
+        const messageWaitingCount = document.getElementById('message-waiting-count');
         const translationCache = new Map();
         const pendingTranslations = new Set();
         const relayState = { ws: null };
@@ -466,6 +514,10 @@
         const peerTypingTimeouts = new Map();
         const peerStyles = new Map();
         let controlPanelCollapsed = false;
+        let notificationsEnabled = true;
+        let unreadCount = 0;
+        let replyContext = null;
+        let typingIndicatorTimer = null;
         let reconnectDelayMs = 1000;
         let reconnectTimer = null;
 
@@ -502,8 +554,37 @@
             writeStorage(STYLE_STORAGE_KEY, JSON.stringify(styles));
         }
 
+        function loadNotificationsSetting() {
+            try {
+                const raw = readStorage(NOTIFICATIONS_STORAGE_KEY);
+                if (raw === null) return true;
+                return raw !== 'false';
+            } catch (_) {
+                return true;
+            }
+        }
+
+        function setNotificationsEnabled(enabled, { persist = true } = {}) {
+            notificationsEnabled = Boolean(enabled);
+            if (notificationsToggle) notificationsToggle.checked = notificationsEnabled;
+            if (controlNotificationsToggle) controlNotificationsToggle.checked = notificationsEnabled;
+            if (persist) {
+                writeStorage(NOTIFICATIONS_STORAGE_KEY, notificationsEnabled ? 'true' : 'false');
+            }
+            if (!notificationsEnabled) {
+                clearUnreadCount();
+                updateDocumentTitle();
+                if (messageWaiting) {
+                    messageWaiting.classList.add('hidden');
+                }
+            }
+        }
+
         let bubbleStyles = loadBubbleStyles();
         applyBubbleStyles(bubbleStyles);
+        setNotificationsEnabled(loadNotificationsSetting(), { persist: false });
+        updateMessageWaitingIndicator();
+        updateDocumentTitle();
 
         function getSenderStyle() {
             return {
@@ -541,6 +622,66 @@
             updatePeerStatus();
         }
 
+        function setTypingIndicator(active, labelText = 'Partner is typing…') {
+            if (!typingIndicator) return;
+            if (typingIndicatorTimer) {
+                clearTimeout(typingIndicatorTimer);
+                typingIndicatorTimer = null;
+            }
+            if (active) {
+                typingIndicator.textContent = labelText;
+                typingIndicator.classList.remove('hidden');
+                requestAnimationFrame(() => {
+                    typingIndicator.classList.add('active');
+                });
+            } else {
+                typingIndicator.classList.remove('active');
+                typingIndicatorTimer = setTimeout(() => {
+                    typingIndicator.classList.add('hidden');
+                }, 700);
+            }
+        }
+
+        function updateDocumentTitle() {
+            if (!notificationsEnabled) {
+                document.title = 'Talk';
+                return;
+            }
+            if (unreadCount > 0) {
+                document.title = `(${unreadCount}) Talk`;
+            } else {
+                document.title = 'Talk';
+            }
+        }
+
+        function updateMessageWaitingIndicator() {
+            if (!messageWaiting || !messageWaitingCount) return;
+            if (!notificationsEnabled || unreadCount <= 0) {
+                messageWaiting.classList.add('hidden');
+                return;
+            }
+            messageWaiting.classList.remove('hidden');
+            messageWaitingCount.textContent = unreadCount === 1 ? '1 message waiting' : `${unreadCount} messages waiting`;
+        }
+
+        function clearUnreadCount() {
+            unreadCount = 0;
+            updateMessageWaitingIndicator();
+            updateDocumentTitle();
+        }
+
+        function incrementUnreadCount() {
+            if (!notificationsEnabled) return;
+            unreadCount += 1;
+            updateMessageWaitingIndicator();
+            updateDocumentTitle();
+        }
+
+        function isChatAtBottom() {
+            if (!chatHistoryEl) return true;
+            return chatHistoryEl.scrollHeight - chatHistoryEl.scrollTop - chatHistoryEl.clientHeight < 80;
+        }
+
         function updatePeerStatus() {
             const typingPeers = Array.from(peerTyping.values())
                 .filter(peer => peer?.active)
@@ -561,15 +702,20 @@
                 }
             } else {
                 const names = Array.from(peerPresence.values()).map(peer => peer?.name || 'Partner');
-                const typingLabel = typingPeers.length
-                    ? ` (typing${typingPeers.length > 1 ? ` ${typingPeers.length}` : ''}…)`
-                    : '';
                 if (peerPresenceLabel) {
-                    peerPresenceLabel.textContent = `Device 2 — ${names.join(', ')}${typingLabel}`;
+                    peerPresenceLabel.textContent = `Device 2 — ${names.join(', ')}`;
                 }
                 if (peerPresenceDot) {
                     peerPresenceDot.className = 'h-2.5 w-2.5 rounded-full bg-emerald-400';
                 }
+            }
+            if (typingPeers.length) {
+                const label = typingPeers.length > 1
+                    ? `${typingPeers.length} people are typing…`
+                    : `${typingPeers[0]} is typing…`;
+                setTypingIndicator(true, label);
+            } else {
+                setTypingIndicator(false);
             }
         }
 
@@ -618,7 +764,8 @@
                 translations: entry.translations || {},
                 deleted: Boolean(entry.deleted),
                 style: entry.style || null,
-                pending: Boolean(entry.pending)
+                pending: Boolean(entry.pending),
+                replyTo: entry.replyTo || null
             };
         }
 
@@ -733,6 +880,105 @@
                 return raw;
             }
             return renderMarkdown(raw);
+        }
+
+        function getReplySnippet(entry) {
+            if (!entry || entry.deleted) return 'Deleted message';
+            const raw = (entry.message || '').replace(/\s+/g, ' ').trim();
+            if (raw) {
+                return raw.length > 120 ? `${raw.slice(0, 120)}…` : raw;
+            }
+            if (Array.isArray(entry.attachments) && entry.attachments.length) {
+                return `[${entry.attachments.length} attachment${entry.attachments.length > 1 ? 's' : ''}]`;
+            }
+            return 'Message';
+        }
+
+        function updateReplyPreview() {
+            if (!replyPreview || !replyPreviewText) return;
+            if (!replyContext) {
+                replyPreview.classList.add('hidden');
+                replyPreviewText.textContent = '';
+                return;
+            }
+            replyPreview.classList.remove('hidden');
+            replyPreviewText.textContent = `${replyContext.name || 'Partner'}: ${replyContext.snippet}`;
+        }
+
+        function setReplyContext(entry) {
+            if (!entry) return;
+            replyContext = {
+                id: entry.id,
+                name: entry.name || (entry.from === 'local' ? joinName : peerName) || 'Partner',
+                snippet: getReplySnippet(entry),
+                from: entry.from
+            };
+            updateReplyPreview();
+        }
+
+        function clearReplyContext() {
+            replyContext = null;
+            updateReplyPreview();
+        }
+
+        function attachSwipeReplyHandler(bubble, entry) {
+            if (!bubble || !entry) return;
+            let pointerId = null;
+            let startX = 0;
+            let startY = 0;
+            let currentX = 0;
+            let isSwiping = false;
+
+            const resetSwipe = () => {
+                bubble.classList.remove('swiping', 'swipe-ready');
+                bubble.style.transform = '';
+            };
+
+            bubble.addEventListener('pointerdown', event => {
+                if (event.button !== 0) return;
+                if (event.target.closest('button')) return;
+                pointerId = event.pointerId;
+                bubble.setPointerCapture(pointerId);
+                startX = event.clientX;
+                startY = event.clientY;
+                currentX = 0;
+                isSwiping = false;
+            });
+
+            bubble.addEventListener('pointermove', event => {
+                if (pointerId !== event.pointerId) return;
+                const dx = event.clientX - startX;
+                const dy = event.clientY - startY;
+                if (!isSwiping) {
+                    if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy)) return;
+                    isSwiping = true;
+                }
+                currentX = Math.max(Math.min(dx, 90), -90);
+                bubble.classList.add('swiping');
+                bubble.style.transform = `translateX(${currentX}px)`;
+                if (Math.abs(currentX) > 60) {
+                    bubble.classList.add('swipe-ready');
+                } else {
+                    bubble.classList.remove('swipe-ready');
+                }
+            });
+
+            bubble.addEventListener('pointerup', event => {
+                if (pointerId !== event.pointerId) return;
+                bubble.releasePointerCapture(pointerId);
+                if (Math.abs(currentX) > 60) {
+                    setReplyContext(entry);
+                }
+                pointerId = null;
+                resetSwipe();
+            });
+
+            bubble.addEventListener('pointercancel', event => {
+                if (pointerId !== event.pointerId) return;
+                bubble.releasePointerCapture(pointerId);
+                pointerId = null;
+                resetSwipe();
+            });
         }
 
         function isLikelyLanguage(text, langCode) {
@@ -1082,6 +1328,14 @@
                     deletedLine.textContent = `Post deleted • ${formatTimestamp(entry.ts)}`;
                     messageLine.appendChild(deletedLine);
                 } else {
+                    if (entry.replyTo) {
+                        const replyLine = document.createElement('div');
+                        replyLine.className = 'text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1';
+                        const replyName = entry.replyTo.name || 'Partner';
+                        const replyText = entry.replyTo.snippet || 'Message';
+                        replyLine.textContent = `↪ ${replyName}: ${replyText}`;
+                        messageLine.appendChild(replyLine);
+                    }
                     const originalLanguage = detectOriginalLanguage(entry.message);
                     const table = document.createElement('table');
                     table.className = 'w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden';
@@ -1138,6 +1392,7 @@
                 bubble.appendChild(headerLine);
                 bubble.appendChild(messageLine);
                 chatHistoryEl.appendChild(bubble);
+                attachSwipeReplyHandler(bubble, entry);
             });
             setTimeout(() => {
                 chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
@@ -1235,11 +1490,15 @@
                     name: message.name || peerName || 'Partner',
                     message: message.text || '',
                     attachments,
+                    replyTo: message.replyTo || null,
                     style: message.style || peerStyles.get(senderDeviceId) || null,
                     ts: message.ts || now
                 }));
                 saveChatHistory(chatHistory);
                 renderChat();
+                if (!document.hasFocus() || !isChatAtBottom()) {
+                    incrementUnreadCount();
+                }
                 return;
             }
             if (message.type === 'delete') {
@@ -1735,6 +1994,18 @@
             });
         }
 
+        if (notificationsToggle) {
+            notificationsToggle.addEventListener('change', event => {
+                setNotificationsEnabled(event.target.checked);
+            });
+        }
+
+        if (controlNotificationsToggle) {
+            controlNotificationsToggle.addEventListener('change', event => {
+                setNotificationsEnabled(event.target.checked);
+            });
+        }
+
         if (styleSave) {
             styleSave.addEventListener('click', () => {
                 bubbleStyles = {
@@ -1769,6 +2040,12 @@
 
         if (closeStyleConfig) {
             closeStyleConfig.addEventListener('click', () => toggleModal('style-config', false));
+        }
+
+        if (replyPreviewClear) {
+            replyPreviewClear.addEventListener('click', () => {
+                clearReplyContext();
+            });
         }
 
         const styleConfigModal = document.getElementById('style-config-modal');
@@ -1862,6 +2139,7 @@
                 name: joinName,
                 message: text,
                 attachments,
+                replyTo: replyContext ? { ...replyContext } : null,
                 style: getSenderStyle(),
                 ts: now,
                 pending: true
@@ -1876,6 +2154,7 @@
                 text,
                 attachments,
                 name: joinName,
+                replyTo: replyContext ? { ...replyContext } : null,
                 style: getSenderStyle()
             });
             setTypingState(false);
@@ -1883,6 +2162,7 @@
             pendingChatAttachments = [];
             setAttachmentAlert('');
             updateChatAttachmentUI();
+            clearReplyContext();
         };
 
         if (controlPanel && controlPanelToggle) {
@@ -1918,6 +2198,14 @@
             if (!isClientView) return;
             setTypingState(false);
         });
+
+        if (chatHistoryEl) {
+            chatHistoryEl.addEventListener('scroll', () => {
+                if (isChatAtBottom() && document.hasFocus()) {
+                    clearUnreadCount();
+                }
+            });
+        }
 
         document.getElementById('close-chat-attachment').onclick = () => toggleModal('chat-attachment', false);
         document.getElementById('chat-attachment-modal').addEventListener('click', event => {
@@ -1957,6 +2245,7 @@
             window.visualViewport.addEventListener('scroll', updateViewportMetrics);
         }
         updateChatAttachmentUI();
+        updateReplyPreview();
         updatePeerStatus();
         if (isClientView) {
             if (navigator.storage && navigator.storage.persist) {
@@ -1964,11 +2253,19 @@
             }
             renderChat();
             connectRelay();
-            window.addEventListener('focus', connectRelay);
+            window.addEventListener('focus', () => {
+                connectRelay();
+                if (isChatAtBottom()) {
+                    clearUnreadCount();
+                }
+            });
             window.addEventListener('online', connectRelay);
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible') {
                     connectRelay();
+                    if (isChatAtBottom()) {
+                        clearUnreadCount();
+                    }
                 }
             });
             window.addEventListener('pagehide', () => {
