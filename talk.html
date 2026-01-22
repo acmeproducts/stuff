@@ -8,9 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
     <style>
         :root {
-            --drawer-height: 0px;
-            --drawer-peek: 16px;
             --keyboard-offset: 0px;
+            --composer-height: 0px;
         }
         body {
             background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
@@ -35,21 +34,18 @@
         .client-view .control-panel { display: none; }
         .config-view .chat-app { display: none; }
         .config-view .status-panel { display: none; }
-        .config-view #action-drawer { display: none; }
+        .config-view .chat-composer,
+        .config-view #gear-fab { display: none; }
         .chat-bubble { font-size: var(--bubble-font-size, 0.875rem); }
         .bubble-local { background: var(--bubble-local-bg, #eff6ff); color: var(--bubble-local-text, #1f2937); }
         .bubble-peer { background: var(--bubble-peer-bg, #ffffff); color: var(--bubble-peer-text, #0f172a); }
-        .drawer-panel { transition: transform 0.2s ease; bottom: calc(env(safe-area-inset-bottom) + var(--keyboard-offset)); }
-        .drawer-collapsed { transform: translateY(calc(100% - var(--drawer-peek))); }
-        .drawer-panel { pointer-events: none; }
-        .drawer-panel .drawer-handle,
-        .drawer-panel .drawer-actions { pointer-events: auto; }
         .control-panel-body { max-height: 500px; opacity: 1; transition: max-height 0.25s ease, opacity 0.25s ease; overflow: hidden; }
         .control-panel.collapsed .control-panel-body { max-height: 0; opacity: 0; }
         .control-panel.collapsed .control-panel-toggle .toggle-icon { transform: rotate(180deg); }
         .control-panel-toggle .toggle-icon { transition: transform 0.2s ease; }
-        .client-view .chat-app { padding-bottom: calc(env(safe-area-inset-bottom) + var(--drawer-peek)); }
-        .client-view.drawer-open .chat-app { padding-bottom: calc(env(safe-area-inset-bottom) + var(--drawer-height)); }
+        .chat-app { padding-bottom: calc(var(--composer-height) + env(safe-area-inset-bottom) + var(--keyboard-offset)); }
+        .chat-composer { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + var(--keyboard-offset)); width: min(96vw, 720px); z-index: 40; }
+        .gear-fab { position: fixed; z-index: 50; }
     </style>
 </head>
 <body class="min-h-screen text-slate-800">
@@ -122,29 +118,34 @@
         </section>
 
         <main class="flex-1 min-h-0 bg-white/90 border border-slate-200 rounded-2xl shadow-md flex flex-col overflow-hidden chat-app backdrop-blur">
-            <div id="chat-history" class="flex-1 overflow-y-auto px-4 py-4 space-y-3 no-scrollbar bg-gradient-to-b from-white/60 to-slate-50/60 rounded-t-2xl"></div>
-            <div class="border-t border-slate-200 px-4 py-3">
-                <div class="flex flex-col gap-3">
-                    <div class="flex items-center gap-2">
-                        <button id="chat-attach" type="button" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Attach files">
-                            <span class="material-symbols-outlined text-base">attach_file</span>
-                        </button>
-                        <input id="chat-attachments-input" type="file" accept="image/*,application/pdf,text/html,audio/mpeg,audio/wav,audio/x-wav,video/x-msvideo,video/mp4" multiple class="hidden">
-                        <textarea id="chat-input" rows="2" class="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 resize-none" placeholder="Type your message…"></textarea>
-                        <button id="chat-send" class="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">Send</button>
-                    </div>
-                    <div class="flex flex-col gap-2 text-xs text-slate-500" id="chat-attachments">
-                        <div class="flex items-center justify-between">
-                            <span>No attachments selected.</span>
-                            <button id="chat-attachments-clear" type="button" class="hidden text-blue-600 hover:text-blue-800">Clear</button>
-                        </div>
-                        <div id="chat-attachments-alert" class="hidden text-rose-500"></div>
-                        <div id="chat-attachments-preview" class="flex flex-wrap gap-2"></div>
-                    </div>
-                </div>
-            </div>
+            <div id="chat-history" class="flex-1 overflow-y-auto px-4 py-4 space-y-3 no-scrollbar bg-gradient-to-b from-white/60 to-slate-50/60 rounded-2xl"></div>
         </main>
     </div>
+
+    <div id="chat-composer" class="chat-composer">
+        <div class="bg-white/95 border border-slate-200 rounded-2xl shadow-lg px-4 py-3 flex flex-col gap-3 backdrop-blur">
+            <div class="flex items-center gap-2">
+                <button id="chat-attach" type="button" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Attach files">
+                    <span class="material-symbols-outlined text-base">attach_file</span>
+                </button>
+                <input id="chat-attachments-input" type="file" accept="image/*,application/pdf,text/html,audio/mpeg,audio/wav,audio/x-wav,video/x-msvideo,video/mp4" multiple class="hidden">
+                <textarea id="chat-input" rows="2" class="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 resize-none" placeholder="Type your message…"></textarea>
+                <button id="chat-send" class="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">Send</button>
+            </div>
+            <div class="flex flex-col gap-2 text-xs text-slate-500" id="chat-attachments">
+                <div class="flex items-center justify-between">
+                    <span>No attachments selected.</span>
+                    <button id="chat-attachments-clear" type="button" class="hidden text-blue-600 hover:text-blue-800">Clear</button>
+                </div>
+                <div id="chat-attachments-alert" class="hidden text-rose-500"></div>
+                <div id="chat-attachments-preview" class="flex flex-wrap gap-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <button id="gear-fab" class="gear-fab w-12 h-12 rounded-full bg-white/90 border border-slate-200 shadow-lg flex items-center justify-center text-slate-600 hover:text-slate-800 hover:bg-white" aria-label="Open controls">
+        <span class="material-symbols-outlined text-[22px]">settings</span>
+    </button>
 
     <div id="chat-attachment-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center invisible modal">
         <div id="chat-attachment-content" class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-2xl p-6 transform scale-out modal-content">
@@ -165,32 +166,44 @@
         </div>
     </div>
 
-    <div id="action-drawer" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-[min(96vw,720px)] z-40 drawer-panel drawer-collapsed">
-        <div id="drawer-handle" class="drawer-handle mx-auto w-16 h-4 bg-slate-200 rounded-t-2xl flex items-center justify-center text-slate-500 text-[10px] cursor-pointer">
-            <span class="material-symbols-outlined text-sm">expand_less</span>
-        </div>
-        <div class="drawer-actions bg-white/90 border border-slate-200 rounded-2xl px-4 py-3 shadow-lg flex flex-wrap items-center justify-center gap-2">
-            <button id="drawer-refresh" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Refresh chat" aria-label="Refresh chat">
+    <input id="drawer-import-input" type="file" accept="application/json" class="hidden">
+
+    <div id="controls-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center invisible modal">
+        <div id="controls-content" class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-md p-6 transform scale-out modal-content">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="text-xl font-bold text-gray-800">Controls</h3>
+                <button id="close-controls" class="text-gray-400 hover:text-gray-800 p-2 hover:bg-gray-100 rounded-full transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="grid gap-3 text-sm">
+                <button id="drawer-refresh" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50">
                     <span class="material-symbols-outlined text-base">refresh</span>
-            </button>
-            <button id="drawer-import" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Import chat" aria-label="Import chat">
+                    Refresh chat
+                </button>
+                <button id="drawer-import" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50">
                     <span class="material-symbols-outlined text-base">upload_file</span>
-            </button>
-            <button id="drawer-export" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Export chat" aria-label="Export chat">
+                    Import chat
+                </button>
+                <button id="drawer-export" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50">
                     <span class="material-symbols-outlined text-base">download</span>
-            </button>
-            <button id="drawer-clear" class="p-2 rounded-full border border-rose-100 text-rose-500 hover:text-rose-600 hover:bg-rose-50" title="Export &amp; clear" aria-label="Export and clear">
-                    <span class="material-symbols-outlined text-base">delete_sweep</span>
-            </button>
-            <button id="drawer-share" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Share export" aria-label="Share export">
+                    Export chat
+                </button>
+                <button id="drawer-share" title="Share export" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50">
                     <span class="material-symbols-outlined text-base">share</span>
-            </button>
-            <button id="drawer-config" class="p-2 rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Bubble style" aria-label="Bubble style">
+                    Share export
+                </button>
+                <button id="drawer-config" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50">
                     <span class="material-symbols-outlined text-base">tune</span>
-            </button>
+                    Bubble style
+                </button>
+                <button id="drawer-clear" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-rose-100 text-rose-500 hover:text-rose-600 hover:bg-rose-50">
+                    <span class="material-symbols-outlined text-base">delete_sweep</span>
+                    Export &amp; clear
+                </button>
+            </div>
         </div>
     </div>
-    <input id="drawer-import-input" type="file" accept="application/json" class="hidden">
 
     <div id="style-config-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center invisible modal">
         <div id="style-config-content" class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-xl p-6 transform scale-out modal-content">
@@ -346,6 +359,7 @@
         const PEER_NAME_STORAGE_KEY = `talk_peer_name_${RELAY_SESSION_ID}`;
         const STYLE_STORAGE_KEY = `talk_style_${RELAY_SESSION_ID}`;
         const CONTROL_PANEL_STORAGE_KEY = `talk_control_panel_${RELAY_SESSION_ID}`;
+        const GEAR_STORAGE_KEY = `talk_gear_pos_${RELAY_SESSION_ID}`;
 
         function getDeviceType() {
             const ua = navigator.userAgent || '';
@@ -420,8 +434,6 @@
         const chatAttachmentClear = document.getElementById('chat-attachments-clear');
         const chatAttachmentAlert = document.getElementById('chat-attachments-alert');
         const chatAttachmentPreview = document.getElementById('chat-attachments-preview');
-        const drawer = document.getElementById('action-drawer');
-        const drawerHandle = document.getElementById('drawer-handle');
         const drawerClear = document.getElementById('drawer-clear');
         const drawerExport = document.getElementById('drawer-export');
         const drawerRefresh = document.getElementById('drawer-refresh');
@@ -429,6 +441,10 @@
         const drawerImportInput = document.getElementById('drawer-import-input');
         const drawerShare = document.getElementById('drawer-share');
         const drawerConfig = document.getElementById('drawer-config');
+        const controlsModal = document.getElementById('controls-modal');
+        const closeControls = document.getElementById('close-controls');
+        const gearFab = document.getElementById('gear-fab');
+        const chatComposer = document.getElementById('chat-composer');
         const styleLocalBg = document.getElementById('style-local-bg');
         const styleLocalText = document.getElementById('style-local-text');
         const stylePeerBg = document.getElementById('style-peer-bg');
@@ -1409,6 +1425,7 @@
                 label.textContent = 'No attachments selected.';
                 chatAttachmentClear.classList.add('hidden');
             }
+            setComposerMetrics();
         }
 
         function persistJoinName(rawName) {
@@ -1430,19 +1447,15 @@
             updatePeerStatus();
         }
 
-        let drawerOpen = false;
-        let drawerTouchStart = null;
+        let isDraggingGear = false;
+        let gearDragStart = null;
         let isTyping = false;
         let typingTimeout = null;
 
-        function setDrawerMetrics() {
-            if (!drawer) return;
-            const handle = drawer.querySelector('.drawer-handle');
-            const actions = drawer.querySelector('.drawer-actions');
-            const handleHeight = handle ? handle.getBoundingClientRect().height : 16;
-            const actionsHeight = actions ? actions.getBoundingClientRect().height : 0;
-            document.documentElement.style.setProperty('--drawer-peek', `${Math.max(12, handleHeight)}px`);
-            document.documentElement.style.setProperty('--drawer-height', `${Math.max(handleHeight, handleHeight + actionsHeight)}px`);
+        function setComposerMetrics() {
+            if (!chatComposer) return;
+            const height = chatComposer.getBoundingClientRect().height;
+            document.documentElement.style.setProperty('--composer-height', `${Math.max(0, height)}px`);
         }
 
         function updateViewportMetrics() {
@@ -1455,6 +1468,43 @@
             document.documentElement.style.setProperty('--keyboard-offset', `${offset}px`);
         }
 
+        function clampGearPosition(x, y) {
+            if (!gearFab) return { x, y };
+            const rect = gearFab.getBoundingClientRect();
+            const width = rect.width || 48;
+            const height = rect.height || 48;
+            const maxX = Math.max(8, window.innerWidth - width - 8);
+            const maxY = Math.max(8, window.innerHeight - height - 8);
+            return {
+                x: Math.min(Math.max(8, x), maxX),
+                y: Math.min(Math.max(8, y), maxY)
+            };
+        }
+
+        function setGearPosition(x, y) {
+            if (!gearFab) return;
+            const clamped = clampGearPosition(x, y);
+            gearFab.style.left = `${clamped.x}px`;
+            gearFab.style.top = `${clamped.y}px`;
+        }
+
+        function loadGearPosition() {
+            const fallback = { x: window.innerWidth - 72, y: window.innerHeight - 200 };
+            try {
+                const raw = readStorage(GEAR_STORAGE_KEY);
+                if (!raw) return fallback;
+                const parsed = JSON.parse(raw);
+                if (Number.isFinite(parsed?.x) && Number.isFinite(parsed?.y)) {
+                    return parsed;
+                }
+            } catch (_) {}
+            return fallback;
+        }
+
+        function saveGearPosition(position) {
+            writeStorage(GEAR_STORAGE_KEY, JSON.stringify(position));
+        }
+
         function setTypingState(active) {
             if (!isClientView) return;
             if (active === isTyping) return;
@@ -1464,18 +1514,6 @@
                 clearTimeout(typingTimeout);
                 typingTimeout = null;
             }
-        }
-
-        function updateDrawerState() {
-            if (!drawer) return;
-            drawer.classList.toggle('drawer-collapsed', !drawerOpen);
-            document.body.classList.toggle('drawer-open', drawerOpen);
-            setDrawerMetrics();
-        }
-
-        function toggleDrawer(nextState) {
-            drawerOpen = typeof nextState === 'boolean' ? nextState : !drawerOpen;
-            updateDrawerState();
         }
 
         function openStyleConfig() {
@@ -1588,30 +1626,9 @@
             });
         }
 
-        if (drawerHandle) {
-            drawerHandle.addEventListener('click', () => toggleDrawer());
-            drawerHandle.addEventListener('touchstart', event => {
-                drawerTouchStart = event.touches[0].clientY;
-            }, { passive: true });
-            drawerHandle.addEventListener('touchend', event => {
-                if (drawerTouchStart === null) return;
-                const delta = event.changedTouches[0].clientY - drawerTouchStart;
-                if (delta > 30) {
-                    toggleDrawer(false);
-                } else if (delta < -30) {
-                    toggleDrawer(true);
-                }
-                drawerTouchStart = null;
-            });
-        }
         if (chatInput) {
-            chatInput.addEventListener('focus', () => toggleDrawer(false));
+            chatInput.addEventListener('focus', () => setComposerMetrics());
         }
-        document.addEventListener('pointerdown', event => {
-            if (!drawerOpen || !drawer) return;
-            if (drawer.contains(event.target)) return;
-            toggleDrawer(false);
-        });
 
         function buildExportPayload() {
             return {
@@ -1763,6 +1780,60 @@
             });
         }
 
+        if (controlsModal) {
+            controlsModal.addEventListener('click', event => {
+                if (event.target.id === 'controls-modal') {
+                    toggleModal('controls', false);
+                }
+            });
+        }
+
+        if (closeControls) {
+            closeControls.addEventListener('click', () => toggleModal('controls', false));
+        }
+
+        if (gearFab) {
+            const initial = loadGearPosition();
+            setGearPosition(initial.x, initial.y);
+            gearFab.addEventListener('pointerdown', event => {
+                gearFab.setPointerCapture(event.pointerId);
+                const left = parseFloat(gearFab.style.left) || initial.x;
+                const top = parseFloat(gearFab.style.top) || initial.y;
+                gearDragStart = {
+                    pointerId: event.pointerId,
+                    startX: event.clientX,
+                    startY: event.clientY,
+                    originX: left,
+                    originY: top
+                };
+                isDraggingGear = false;
+            });
+            gearFab.addEventListener('pointermove', event => {
+                if (!gearDragStart) return;
+                const dx = event.clientX - gearDragStart.startX;
+                const dy = event.clientY - gearDragStart.startY;
+                if (Math.abs(dx) + Math.abs(dy) > 4) {
+                    isDraggingGear = true;
+                }
+                setGearPosition(gearDragStart.originX + dx, gearDragStart.originY + dy);
+            });
+            const finishGearDrag = event => {
+                if (!gearDragStart) return;
+                if (gearDragStart.pointerId !== event.pointerId) return;
+                gearFab.releasePointerCapture(event.pointerId);
+                const left = parseFloat(gearFab.style.left) || 0;
+                const top = parseFloat(gearFab.style.top) || 0;
+                saveGearPosition({ x: left, y: top });
+                gearDragStart = null;
+                if (!isDraggingGear) {
+                    toggleModal('controls', true);
+                }
+                isDraggingGear = false;
+            };
+            gearFab.addEventListener('pointerup', finishGearDrag);
+            gearFab.addEventListener('pointercancel', finishGearDrag);
+        }
+
         if (launchSessionButton) {
             launchSessionButton.onclick = () => {
                 const nextRoom = (roomInput?.value || '').trim() || defaultRoom;
@@ -1867,15 +1938,22 @@
             };
         }
 
-        updateDrawerState();
-        setDrawerMetrics();
+        setComposerMetrics();
         updateViewportMetrics();
         window.addEventListener('resize', () => {
-            setDrawerMetrics();
+            setComposerMetrics();
             updateViewportMetrics();
+            if (gearFab) {
+                const left = parseFloat(gearFab.style.left) || 0;
+                const top = parseFloat(gearFab.style.top) || 0;
+                setGearPosition(left, top);
+            }
         });
         if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', updateViewportMetrics);
+            window.visualViewport.addEventListener('resize', () => {
+                updateViewportMetrics();
+                setComposerMetrics();
+            });
             window.visualViewport.addEventListener('scroll', updateViewportMetrics);
         }
         updateChatAttachmentUI();
