@@ -1,195 +1,156 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang='en'>
 <head>
-<meta charset="UTF-8">
-<title>Generative System – Multi Tab</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+<meta charset='UTF-8'>
+<title>Generative Suite Reset v3</title>
+<meta name='viewport' content='width=device-width, initial-scale=1.0'>
 <style>
-html, body {
-  margin: 0;
-  padding: 0;
-  background: black;
-  color: white;
-  overflow: hidden;
-  font-family: sans-serif;
-}
-
-#tabs {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 40px;
-  display: flex;
-  background: #111;
-  border-bottom: 1px solid #333;
-  z-index: 20;
-}
-
-#tabs button {
-  flex: 1;
-  background: #111;
-  color: white;
-  border: none;
-  cursor: pointer;
-}
-
-#tabs button.active {
-  background: #222;
-}
-
-.view {
-  position: absolute;
-  top: 40px;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: none;
-}
-
-.view.active {
-  display: block;
-}
-
-iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
-}
-
-#mashup iframe {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-}
-
-#mashup iframe.grid {
-  mix-blend-mode: screen;
-  opacity: 0.6;
-}
-
-#mashup iframe.genuary {
-  mix-blend-mode: lighten;
-  opacity: 0.6;
-}
+html,body{margin:0;padding:0;background:#000;color:#fff;overflow:hidden;font-family:sans-serif}
+#tabs{position:fixed;top:0;left:0;right:0;height:40px;display:flex;background:#111;border-bottom:1px solid #333;z-index:10}
+#tabs button{flex:1;background:#111;color:#fff;border:none;cursor:pointer}
+#tabs button.active{background:#222}
+.view{position:absolute;top:40px;left:0;right:0;bottom:0;display:none}
+.view.active{display:block}
+canvas{display:block}
+#panelA{position:fixed;top:40px;left:0;width:260px;height:calc(100vh - 40px);background:rgba(0,0,0,0.85);padding:10px;border-right:1px solid #333;overflow-y:auto;z-index:5}
+label{display:block;margin-top:8px;font-size:12px}
+input,button{width:100%}
 </style>
 </head>
-
 <body>
 
-<div id="tabs">
-  <button data-tab="sphere" class="active">Sphere</button>
-  <button data-tab="grid">Cube Grid</button>
-  <button data-tab="genuary">Genuary</button>
-  <button data-tab="mashup">Mashup</button>
+<div id='tabs'>
+<button data-tab='A' class='active'>A Sphere</button>
+<button data-tab='B'>B Cube Grid</button>
+<button data-tab='C'>C Genuary</button>
+<button data-tab='D'>D Mashup</button>
 </div>
 
-<div id="sphere" class="view active"></div>
-
-<div id="grid" class="view">
-  <iframe src="https://cube-grid.vercel.app/"></iframe>
+<div id='A' class='view active'>
+<div id='panelA'>
+<label>Particle Count<input type='number' id='A_count' min='10' max='400' value='120'></label>
+<label>Radius<input type='range' id='A_radius' min='50' max='400' value='220'></label>
+<label>Attraction<input type='range' id='A_attraction' min='0' max='0.1' step='0.001' value='0.02'></label>
+<label>Damping<input type='range' id='A_damping' min='0.8' max='0.999' step='0.001' value='0.96'></label>
+<label>Mouse Repel Strength<input type='range' id='A_repelStrength' min='0' max='10' step='0.1' value='4'></label>
+<label>Mouse Repel Radius<input type='range' id='A_repelRadius' min='10' max='300' value='120'></label>
+<label>Particle Size<input type='range' id='A_size' min='1' max='5' step='0.5' value='2'></label>
+<label>Color<input type='color' id='A_color' value='#ffffff'></label>
+<label><input type='checkbox' id='A_collisions'> Enable Collisions</label>
+<button id='A_reset'>Reset</button>
+</div>
+<div id='canvasA'></div>
 </div>
 
-<div id="genuary" class="view">
-  <iframe src="https://spite.github.io/genuary-2026/1/"></iframe>
-</div>
+<div id='B' class='view'><div id='canvasB'></div></div>
+<div id='C' class='view'><div id='canvasC'></div></div>
+<div id='D' class='view'><div id='canvasD'></div></div>
 
-<div id="mashup" class="view">
-  <iframe class="grid" src="https://cube-grid.vercel.app/"></iframe>
-  <iframe class="genuary" src="https://spite.github.io/genuary-2026/1/"></iframe>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/p5@1.9.3/lib/p5.min.js"></script>
+<script src='https://cdn.jsdelivr.net/npm/p5@1.9.3/lib/p5.min.js'></script>
 
 <script>
-let points = [];
-let particles = 120;
-let radius_ = 220;
-let angle = 0;
-let attraction = 0.02;
-let damping = 0.96;
-let repel_strength = 4;
-let repel_radius = 120;
-let pointSize = 2;
+document.querySelectorAll('#tabs button').forEach(btn=>{
+ btn.onclick=()=>{
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(btn.dataset.tab).classList.add('active');
+ };
+});
 
-new p5(p => {
-  p.setup = () => {
-    const c = p.createCanvas(window.innerWidth, window.innerHeight - 40);
-    c.parent("sphere");
-    p.pixelDensity(1);
-    p.strokeWeight(pointSize);
-    reset();
-  };
+let A_points=[],A_particles=120,A_radius=220,A_angle=0;
+let A_attraction=0.02,A_damping=0.96,A_repelStrength=4,A_repelRadius=120,A_pointSize=2,A_color='#ffffff',A_collisions=false;
 
-  function reset() {
-    points = [];
-    angle = 0;
-    for (let i = 0; i < particles; i++) {
-      points.push({
-        index: i,
-        pos: p.createVector(0,0),
-        vel: p.createVector(0,0)
-      });
-    }
-    updateTargets();
+new p5(p=>{
+ p.setup=()=>{let c=p.createCanvas(window.innerWidth,window.innerHeight-40);c.parent('canvasA');p.pixelDensity(1);A_reset();};
+ p.windowResized=()=>p.resizeCanvas(window.innerWidth,window.innerHeight-40);
+ function A_reset(){A_points=[];A_angle=0;for(let i=0;i<A_particles;i++){A_points.push({i,pos:p.createVector(0,0),vel:p.createVector(0,0)});} A_targets();}
+ p.draw=()=>{
+  p.background(0);p.translate(p.width/2,p.height/2);p.stroke(A_color);p.strokeWeight(A_pointSize);
+  let mouse=p.createVector(p.mouseX-p.width/2,p.mouseY-p.height/2);
+  for(let pt of A_points){
+   let i=pt.i;
+   let home=p.createVector(Math.sin(i+A_angle)*Math.sin(i*i)*A_radius,Math.cos(i*i)*A_radius);
+   pt.vel.add(p5.Vector.sub(home,pt.pos).mult(A_attraction));
+   let away=p5.Vector.sub(pt.pos,mouse);let d2=away.magSq();
+   if(d2>0.1&&d2<A_repelRadius*A_repelRadius){away.normalize();away.mult(A_repelStrength*(1-Math.sqrt(d2)/A_repelRadius));pt.vel.add(away);}
+   pt.vel.mult(A_damping);pt.pos.add(pt.vel);
   }
+  if(A_collisions){for(let i=0;i<A_points.length;i++){for(let j=i+1;j<A_points.length;j++){let a=A_points[i],b=A_points[j];let d=p5.Vector.sub(b.pos,a.pos);let dist=d.mag();let min=A_pointSize*2;if(dist>0&&dist<min){d.normalize();let o=(min-dist)*0.5;d.mult(o);b.pos.add(d);a.pos.sub(d);}}}}
+  for(let pt of A_points){p.point(pt.pos.x,pt.pos.y);} A_angle+=0.01;
+ };
+ function A_targets(){for(let pt of A_points){let i=pt.i;pt.pos.set(Math.sin(i+A_angle)*Math.sin(i*i)*A_radius,Math.cos(i*i)*A_radius);}}
+ document.getElementById('A_count').oninput=e=>{A_particles=+e.target.value;A_reset();};
+ document.getElementById('A_radius').oninput=e=>A_radius=+e.target.value;
+ document.getElementById('A_attraction').oninput=e=>A_attraction=+e.target.value;
+ document.getElementById('A_damping').oninput=e=>A_damping=+e.target.value;
+ document.getElementById('A_repelStrength').oninput=e=>A_repelStrength=+e.target.value;
+ document.getElementById('A_repelRadius').oninput=e=>A_repelRadius=+e.target.value;
+ document.getElementById('A_size').oninput=e=>A_pointSize=+e.target.value;
+ document.getElementById('A_color').oninput=e=>A_color=e.target.value;
+ document.getElementById('A_collisions').onchange=e=>A_collisions=e.target.checked;
+ document.getElementById('A_reset').onclick=A_reset;
+});
 
-  p.draw = () => {
-    p.background(0);
-    p.translate(p.width/2, p.height/2);
-    p.stroke(255);
-
-    let mouse = p.createVector(p.mouseX - p.width/2, p.mouseY - p.height/2);
-
-    for (let pt of points) {
-      let i = pt.index;
-      let home = p.createVector(
-        Math.sin(i + angle) * Math.sin(i*i) * radius_,
-        Math.cos(i*i) * radius_
-      );
-
-      pt.vel.add(p5.Vector.sub(home, pt.pos).mult(attraction));
-
-      let away = p5.Vector.sub(pt.pos, mouse);
-      let d2 = away.magSq();
-      if (d2 > 0.1 && d2 < repel_radius*repel_radius) {
-        away.normalize();
-        away.mult(repel_strength * (1 - Math.sqrt(d2)/repel_radius));
-        pt.vel.add(away);
-      }
-
-      pt.vel.mult(damping);
-      pt.pos.add(pt.vel);
-      p.point(pt.pos.x, pt.pos.y);
-    }
-
-    angle += 0.01;
-  };
-
-  function updateTargets() {
-    for (let pt of points) {
-      let i = pt.index;
-      pt.pos.set(
-        Math.sin(i + angle) * Math.sin(i*i) * radius_,
-        Math.cos(i*i) * radius_
-      );
-    }
+new p5(p=>{
+ let t=0,grid=12,sz=60;
+ p.setup=()=>{let c=p.createCanvas(window.innerWidth,window.innerHeight-40);c.parent('canvasB');};
+ p.windowResized=()=>p.resizeCanvas(window.innerWidth,window.innerHeight-40);
+ function iso(x,y,z){return {x:(x-y)*0.866,y:(x+y)*0.5-z};}
+ p.draw=()=>{
+  p.background(0);p.translate(p.width/2,p.height/3);
+  for(let y=0;y<grid;y++)for(let x=0;x<grid;x++){
+   let h=60+Math.sin(t+x*0.6+y*0.6)*40;
+   let a=iso(x*sz,y*sz,h),b=iso((x+1)*sz,y*sz,h),c1=iso((x+1)*sz,(y+1)*sz,h),d=iso(x*sz,(y+1)*sz,h);
+   p.noStroke();p.fill(180);p.beginShape();p.vertex(a.x,a.y);p.vertex(b.x,b.y);p.vertex(c1.x,c1.y);p.vertex(d.x,d.y);p.endShape();
   }
+  t+=0.02;
+ };
+});
+
+new p5(p=>{
+ let t=0;
+ p.setup=()=>{let c=p.createCanvas(window.innerWidth,window.innerHeight-40);c.parent('canvasC');p.background(0);};
+ p.windowResized=()=>p.resizeCanvas(window.innerWidth,window.innerHeight-40);
+ p.draw=()=>{
+  p.noStroke();p.fill(0,20);p.rect(0,0,p.width,p.height);
+  p.stroke(255,80);
+  for(let i=0;i<200;i++){
+   let x=Math.random()*p.width,y=Math.random()*p.height;
+   let a=p.noise(x*0.002,y*0.002,t)*Math.PI*4;
+   p.line(x,y,x+Math.cos(a)*20,y+Math.sin(a)*20);
+  }
+  t+=0.005;
+ };
+});
+
+new p5(p=>{
+ let objs=[],repelR=120,repelS=4;
+ p.setup=()=>{let c=p.createCanvas(window.innerWidth,window.innerHeight-40);c.parent('canvasD');};
+ p.windowResized=()=>p.resizeCanvas(window.innerWidth,window.innerHeight-40);
+ function spawn(){objs.push({x:Math.random()*p.width,y:Math.random()*p.height,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4,r:12,color:[255,255,255]});}
+ for(let i=0;i<20;i++)spawn();
+ p.draw=()=>{
+  p.background(0);
+  let mx=p.mouseX,my=p.mouseY;
+  for(let o of objs){
+   let dx=o.x-mx,dy=o.y-my,d=Math.hypot(dx,dy);
+   if(d<repelR){o.vx+=dx/d*repelS*0.05;o.vy+=dy/d*repelS*0.05;}
+   o.x+=o.vx;o.y+=o.vy;o.vx*=0.99;o.vy*=0.99;
+   if(o.x<0)o.x+=p.width;if(o.x>p.width)o.x-=p.width;
+   if(o.y<0)o.y+=p.height;if(o.y>p.height)o.y-=p.height;
+  }
+  for(let i=0;i<objs.length;i++)for(let j=i+1;j<objs.length;j++){
+   let a=objs[i],b=objs[j];let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
+   if(d<24&&d>0){let nx=dx/d,ny=dy/d;let p1=a.vx*nx+a.vy*ny,p2=b.vx*nx+b.vy*ny;
+    let m=(p1-p2);a.vx-=m*nx;b.vx+=m*nx;a.vy-=m*ny;b.vy+=m*ny;
+    a.color=[255,0,0];b.color=[0,255,0];
+   }
+  }
+  for(let o of objs){p.fill(o.color);p.noStroke();p.circle(o.x,o.y,o.r*2);}
+ };
+ p.mousePressed=()=>spawn();
 });
 </script>
-
-<script>
-document.querySelectorAll("#tabs button").forEach(btn => {
-  btn.onclick = () => {
-    document.querySelectorAll("#tabs button").forEach(b => b.classList.remove("active"));
-    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
-    btn.classList.add("active");
-    document.getElementById(btn.dataset.tab).classList.add("active");
-  };
-});
-</script>
-
 </body>
 </html>
