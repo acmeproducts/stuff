@@ -547,6 +547,7 @@
         const CONTROL_PANEL_STORAGE_KEY = `talk_control_panel_${RELAY_SESSION_ID}`;
         const GEAR_STORAGE_KEY = `talk_gear_pos_${RELAY_SESSION_ID}`;
         const NOTIFICATIONS_STORAGE_KEY = `talk_notifications_${RELAY_SESSION_ID}`;
+        const PEER_DEVICE_NAME_STORAGE_KEY = `talk_peer_device_names_${RELAY_SESSION_ID}`;
         const SESSION_LIST_STORAGE_KEY = 'talk_sessions_v1';
         const SESSION_LIST_LIMIT = 25;
         const PRESENCE_STALE_MS = 120000;
@@ -666,6 +667,7 @@
         const peerTyping = new Map();
         const peerTypingTimeouts = new Map();
         const peerStyles = new Map();
+        const peerDeviceNames = new Map(Object.entries(loadPeerDeviceNames()));
         let controlPanelCollapsed = false;
         let notificationsEnabled = true;
         let unreadCount = 0;
@@ -717,6 +719,20 @@
             }
         }
 
+        function loadPeerDeviceNames() {
+            try {
+                const raw = readStorage(PEER_DEVICE_NAME_STORAGE_KEY);
+                const parsed = raw ? JSON.parse(raw) : {};
+                return parsed && typeof parsed === 'object' ? parsed : {};
+            } catch (_) {
+                return {};
+            }
+        }
+
+        function persistPeerDeviceNames(payload) {
+            writeStorage(PEER_DEVICE_NAME_STORAGE_KEY, JSON.stringify(payload));
+        }
+
         function setNotificationsEnabled(enabled, { persist = true } = {}) {
             notificationsEnabled = Boolean(enabled);
             if (notificationsToggle) notificationsToggle.checked = notificationsEnabled;
@@ -731,6 +747,22 @@
                     messageWaiting.classList.add('hidden');
                 }
             }
+        }
+
+        function resolvePeerName(deviceId, fallback = '') {
+            if (deviceId && peerDeviceNames.has(deviceId)) {
+                return peerDeviceNames.get(deviceId);
+            }
+            return fallback;
+        }
+
+        function rememberPeerName(deviceId, name) {
+            if (!deviceId) return;
+            const trimmed = (name || '').trim();
+            if (!trimmed) return;
+            if (peerDeviceNames.get(deviceId) === trimmed) return;
+            peerDeviceNames.set(deviceId, trimmed);
+            persistPeerDeviceNames(Object.fromEntries(peerDeviceNames));
         }
 
         let bubbleStyles = loadBubbleStyles();
@@ -959,6 +991,7 @@
                 id: entry.id || createEntryId(),
                 from: entry.from,
                 name: entry.name,
+                deviceId: entry.deviceId || null,
                 message: entry.message || '',
                 attachments: Array.isArray(entry.attachments)
                     ? entry.attachments.map(normalizeChatAttachment).filter(Boolean)
@@ -997,7 +1030,12 @@
             }
         }
 
-        let chatHistory = loadChatHistory();
+        let chatHistory = loadChatHistory().map(entry => {
+            if (entry?.from === 'peer' && !entry.name) {
+                entry.name = resolvePeerName(entry.deviceId, peerName);
+            }
+            return entry;
+        });
         let lastChatSentAt = 0;
         let pendingChatAttachments = [];
 
@@ -1545,7 +1583,9 @@
                 const headerLine = document.createElement('div');
                 headerLine.className = 'flex items-center justify-between text-[11px] font-semibold text-slate-400';
                 const label = document.createElement('span');
-                const senderName = entry.name || (isLocal ? joinName : peerName) || 'Device';
+                const senderName = entry.name
+                    || (isLocal ? joinName : resolvePeerName(entry.deviceId, peerName))
+                    || 'Device';
                 const pendingSuffix = entry.pending ? ' • Sending…' : '';
                 label.textContent = `${senderName} ${formatTimestamp(entry.ts)}${pendingSuffix}`;
                 if (isLocal && isClientView) {
@@ -1695,7 +1735,11 @@
             const now = Date.now();
             const senderDeviceId = message.deviceId || message.from;
             if (message.type === 'presence' || message.type === 'hello') {
-                peerPresence.set(senderDeviceId, { name: message.name || peerName || 'Partner', lastSeen: now });
+                rememberPeerName(senderDeviceId, message.name);
+                peerPresence.set(senderDeviceId, {
+                    name: resolvePeerName(senderDeviceId, message.name || peerName || 'Partner'),
+                    lastSeen: now
+                });
                 if (message.style) {
                     peerStyles.set(senderDeviceId, message.style);
                 }
@@ -1704,7 +1748,11 @@
             }
             if (message.type === 'typing') {
                 if (message.active) {
-                    peerTyping.set(senderDeviceId, { active: true, name: message.name || peerName || 'Partner' });
+                    rememberPeerName(senderDeviceId, message.name);
+                    peerTyping.set(senderDeviceId, {
+                        active: true,
+                        name: resolvePeerName(senderDeviceId, message.name || peerName || 'Partner')
+                    });
                     if (peerTypingTimeouts.has(senderDeviceId)) {
                         clearTimeout(peerTypingTimeouts.get(senderDeviceId));
                     }
@@ -1736,13 +1784,15 @@
                 return;
             }
             if (message.type === 'chat') {
+                rememberPeerName(senderDeviceId, message.name);
                 const attachments = Array.isArray(message.attachments)
                     ? message.attachments.map(normalizeChatAttachment).filter(Boolean).slice(0, MAX_CHAT_ATTACHMENTS)
                     : [];
                 chatHistory.push(normalizeChatEntry({
                     id: message.id || createEntryId(),
                     from: 'peer',
-                    name: message.name || peerName || 'Partner',
+                    name: resolvePeerName(senderDeviceId, message.name || peerName || 'Partner'),
+                    deviceId: senderDeviceId,
                     message: message.text || '',
                     attachments,
                     replyTo: message.replyTo || null,
