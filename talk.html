@@ -2,20 +2,26 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
     <title>Talk</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
     <style>
+        :root {
+            --drawer-height: 0px;
+            --drawer-peek: 16px;
+            --keyboard-offset: 0px;
+        }
         body {
             background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            min-height: 100dvh;
         }
         body.client-view {
-            height: 100vh;
+            height: 100dvh;
             overflow: hidden;
         }
         .client-view .app-shell {
-            height: 100vh;
+            height: 100dvh;
         }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -33,8 +39,8 @@
         .chat-bubble { font-size: var(--bubble-font-size, 0.875rem); }
         .bubble-local { background: var(--bubble-local-bg, #eff6ff); color: var(--bubble-local-text, #1f2937); }
         .bubble-peer { background: var(--bubble-peer-bg, #ffffff); color: var(--bubble-peer-text, #0f172a); }
-        .drawer-panel { transition: transform 0.2s ease; }
-        .drawer-collapsed { transform: translateY(calc(100% - 16px)); }
+        .drawer-panel { transition: transform 0.2s ease; bottom: calc(env(safe-area-inset-bottom) + var(--keyboard-offset)); }
+        .drawer-collapsed { transform: translateY(calc(100% - var(--drawer-peek))); }
         .drawer-panel { pointer-events: none; }
         .drawer-panel .drawer-handle,
         .drawer-panel .drawer-actions { pointer-events: auto; }
@@ -42,6 +48,8 @@
         .control-panel.collapsed .control-panel-body { max-height: 0; opacity: 0; }
         .control-panel.collapsed .control-panel-toggle .toggle-icon { transform: rotate(180deg); }
         .control-panel-toggle .toggle-icon { transition: transform 0.2s ease; }
+        .client-view .chat-app { padding-bottom: calc(env(safe-area-inset-bottom) + var(--drawer-peek)); }
+        .client-view.drawer-open .chat-app { padding-bottom: calc(env(safe-area-inset-bottom) + var(--drawer-height)); }
     </style>
 </head>
 <body class="min-h-screen text-slate-800">
@@ -1216,9 +1224,12 @@
             }
         }
 
-        function connectRelay() {
+        function connectRelay(force = false) {
             if (relayState.ws && (relayState.ws.readyState === WebSocket.OPEN || relayState.ws.readyState === WebSocket.CONNECTING)) {
-                return;
+                if (!force) {
+                    return;
+                }
+                relayState.ws.close();
             }
             updateConnectionStatus('Connecting…');
             const url = new URL(RELAY_SIGNAL_WS_URL);
@@ -1333,6 +1344,26 @@
         let isTyping = false;
         let typingTimeout = null;
 
+        function setDrawerMetrics() {
+            if (!drawer) return;
+            const handle = drawer.querySelector('.drawer-handle');
+            const actions = drawer.querySelector('.drawer-actions');
+            const handleHeight = handle ? handle.getBoundingClientRect().height : 16;
+            const actionsHeight = actions ? actions.getBoundingClientRect().height : 0;
+            document.documentElement.style.setProperty('--drawer-peek', `${Math.max(12, handleHeight)}px`);
+            document.documentElement.style.setProperty('--drawer-height', `${Math.max(handleHeight, handleHeight + actionsHeight)}px`);
+        }
+
+        function updateViewportMetrics() {
+            const viewport = window.visualViewport;
+            if (!viewport) {
+                document.documentElement.style.setProperty('--keyboard-offset', '0px');
+                return;
+            }
+            const offset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+            document.documentElement.style.setProperty('--keyboard-offset', `${offset}px`);
+        }
+
         function setTypingState(active) {
             if (!isClientView) return;
             if (active === isTyping) return;
@@ -1347,6 +1378,8 @@
         function updateDrawerState() {
             if (!drawer) return;
             drawer.classList.toggle('drawer-collapsed', !drawerOpen);
+            document.body.classList.toggle('drawer-open', drawerOpen);
+            setDrawerMetrics();
         }
 
         function toggleDrawer(nextState) {
@@ -1480,6 +1513,14 @@
                 drawerTouchStart = null;
             });
         }
+        if (chatInput) {
+            chatInput.addEventListener('focus', () => toggleDrawer(false));
+        }
+        document.addEventListener('pointerdown', event => {
+            if (!drawerOpen || !drawer) return;
+            if (drawer.contains(event.target)) return;
+            toggleDrawer(false);
+        });
 
         function buildExportPayload() {
             return {
@@ -1526,14 +1567,14 @@
         if (drawerRefresh) {
             drawerRefresh.addEventListener('click', () => {
                 refreshChatHistory();
-                connectRelay();
+                connectRelay(true);
             });
         }
 
         if (controlPanelRefresh) {
             controlPanelRefresh.addEventListener('click', () => {
                 refreshChatHistory();
-                connectRelay();
+                connectRelay(true);
             });
         }
 
@@ -1735,6 +1776,16 @@
         }
 
         updateDrawerState();
+        setDrawerMetrics();
+        updateViewportMetrics();
+        window.addEventListener('resize', () => {
+            setDrawerMetrics();
+            updateViewportMetrics();
+        });
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', updateViewportMetrics);
+            window.visualViewport.addEventListener('scroll', updateViewportMetrics);
+        }
         updateChatAttachmentUI();
         updatePeerStatus();
         if (isClientView) {
