@@ -32,6 +32,7 @@
         .scale-out { transform: scale(0.98); }
         pre { white-space: pre-wrap; word-wrap: break-word; }
         .client-view .control-panel { display: none; }
+        .client-view #session-list-panel { display: none; }
         .config-view .chat-app { display: none; }
         .config-view .status-panel { display: none; }
         .config-view .chat-composer,
@@ -115,6 +116,18 @@
             </div>
         </section>
 
+        <section id="session-list-panel" class="bg-white/90 border border-slate-200 rounded-2xl px-4 py-4 shadow-md backdrop-blur">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <p class="text-xs uppercase tracking-wide text-slate-400">Running chats</p>
+                    <p class="text-sm font-semibold text-slate-700">Built &amp; launched sessions</p>
+                </div>
+                <span class="text-xs text-slate-400">Click a name to relaunch</span>
+            </div>
+            <div id="session-empty" class="text-xs text-slate-400 mt-3">No sessions launched yet.</div>
+            <ul id="session-list" class="mt-3 space-y-3"></ul>
+        </section>
+
         <section class="bg-white/90 border border-slate-200 rounded-2xl px-4 py-3 shadow-md status-panel backdrop-blur">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="flex flex-col gap-1">
@@ -144,6 +157,17 @@
         </section>
 
         <main class="flex-1 min-h-0 bg-white/90 border border-slate-200 rounded-2xl shadow-md flex flex-col overflow-hidden chat-app backdrop-blur">
+            <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 bg-white/80">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span id="room-pill" class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold">
+                        Session
+                    </span>
+                    <span id="pair-pill" class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold">
+                        Pair
+                    </span>
+                </div>
+                <span class="text-[11px] uppercase tracking-wide text-slate-400">Live chat</span>
+            </div>
             <div id="chat-history" class="flex-1 overflow-y-auto px-4 py-4 space-y-3 no-scrollbar bg-gradient-to-b from-white/60 to-slate-50/60 rounded-2xl"></div>
         </main>
     </div>
@@ -282,6 +306,7 @@
         </div>
     </div>
 
+
     <script>
         const RELAY_SIGNAL_HTTP_URL = 'https://gift-signal.myacctfortracking.workers.dev/signal';
         const RELAY_SIGNAL_WS_URL = 'wss://gift-signal.myacctfortracking.workers.dev/signal';
@@ -341,6 +366,11 @@
             }
             return parts;
         };
+        const normalizePair = value => {
+            const [fromLang, toLang] = parsePair(value);
+            return `${fromLang}-${toLang}`;
+        };
+        const buildSessionId = (roomName, pairValue) => `talk:${roomName}:${normalizePair(pairValue)}`;
         const [langA, langB] = parsePair(pair);
         pair = `${langA}-${langB}`;
         params.set('room', room);
@@ -385,6 +415,128 @@
             } catch (_) {}
         }
 
+        function loadSessionList() {
+            const raw = readStorage(SESSION_LIST_STORAGE_KEY);
+            if (!raw) return [];
+            try {
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (_) {
+                return [];
+            }
+        }
+
+        function saveSessionList(list) {
+            if (!storage) return;
+            const trimmed = list.slice(0, SESSION_LIST_LIMIT);
+            writeStorage(SESSION_LIST_STORAGE_KEY, JSON.stringify(trimmed));
+        }
+
+        function upsertSessionEntry(entry) {
+            if (!entry || !entry.id) return;
+            const list = loadSessionList();
+            const index = list.findIndex(item => item.id === entry.id);
+            const now = Date.now();
+            if (index === -1) {
+                const newEntry = {
+                    createdAt: now,
+                    updatedAt: now,
+                    unreadCount: 0,
+                    devices: [],
+                    ...entry
+                };
+                list.unshift(newEntry);
+            } else {
+                const current = list[index];
+                const updatedEntry = {
+                    ...current,
+                    ...entry,
+                    createdAt: current.createdAt || entry.createdAt || now,
+                    updatedAt: entry.updatedAt || current.updatedAt || now
+                };
+                list.splice(index, 1);
+                list.unshift(updatedEntry);
+            }
+            saveSessionList(list);
+            renderSessionList();
+        }
+
+        function removeSessionEntry(sessionId) {
+            if (!sessionId) return;
+            const list = loadSessionList().filter(item => item.id !== sessionId);
+            saveSessionList(list);
+            renderSessionList();
+        }
+
+        function formatDateTime(timestamp) {
+            if (!timestamp) return '--';
+            return new Date(timestamp).toLocaleString();
+        }
+
+        function formatElapsedMinutes(timestamp) {
+            if (!timestamp) return '--';
+            const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+            return minutes === 0 ? 'just now' : `${minutes} min ago`;
+        }
+
+        function buildSessionLaunchUrl(session) {
+            if (!session) return buildClientUrl({});
+            return buildClientUrl({
+                nextRoom: session.room || room,
+                nextPair: normalizePair(session.pair || pair),
+                nextName: session.name || joinName,
+                nextPeer: session.peer || peerName
+            });
+        }
+
+        function renderSessionList() {
+            if (!sessionList || !sessionEmpty || !sessionListPanel || isClientView) return;
+            const list = loadSessionList();
+            sessionList.innerHTML = '';
+            if (list.length === 0) {
+                sessionEmpty.classList.remove('hidden');
+                return;
+            }
+            sessionEmpty.classList.add('hidden');
+            list.forEach(entry => {
+                const item = document.createElement('li');
+                item.className = 'border border-slate-200 rounded-xl px-3 py-3 bg-white/80 shadow-sm';
+                const unreadBadge = entry.unreadCount > 0
+                    ? `<span class="inline-flex items-center justify-center min-w-[20px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[11px] font-semibold">${entry.unreadCount}</span>`
+                    : '';
+                const devices = Array.isArray(entry.devices) ? entry.devices : [];
+                const now = Date.now();
+                const deviceDots = devices.map(device => {
+                    const isOnline = now - (device.lastSeen || 0) < PRESENCE_STALE_MS;
+                    const color = isOnline ? 'bg-emerald-400' : 'bg-slate-300';
+                    const title = escapeHtml(device.name || 'Device');
+                    return `<span class="h-2.5 w-2.5 rounded-full ${color}" title="${title}"></span>`;
+                }).join('');
+                const onlineCount = devices.filter(device => now - (device.lastSeen || 0) < PRESENCE_STALE_MS).length;
+                item.innerHTML = `
+                    <div class="flex items-start justify-between gap-3">
+                        <button class="session-launch text-left text-sm font-semibold text-slate-800 hover:text-blue-600" data-session-id="${escapeHtml(entry.id)}">
+                            ${escapeHtml(entry.room || 'Session')}
+                        </button>
+                        <div class="flex items-center gap-2">
+                            ${unreadBadge}
+                            <button class="session-remove text-slate-400 hover:text-rose-500" data-session-id="${escapeHtml(entry.id)}" aria-label="Remove session">✕</button>
+                        </div>
+                    </div>
+                    <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                        <span>Created: ${escapeHtml(formatDateTime(entry.createdAt))}</span>
+                        <span>Last updated: ${escapeHtml(formatDateTime(entry.updatedAt))}</span>
+                        <span class="text-slate-400">(${escapeHtml(formatElapsedMinutes(entry.updatedAt))})</span>
+                    </div>
+                    <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <div class="flex items-center gap-1">${deviceDots || '<span class="h-2.5 w-2.5 rounded-full bg-slate-200"></span>'}</div>
+                        <span>${onlineCount} online</span>
+                    </div>
+                `;
+                sessionList.appendChild(item);
+            });
+        }
+
         try {
             storedDeviceId = readStorage(DEVICE_ID_STORAGE_KEY);
         } catch (_) {}
@@ -402,6 +554,9 @@
         const CONTROL_PANEL_STORAGE_KEY = `talk_control_panel_${RELAY_SESSION_ID}`;
         const GEAR_STORAGE_KEY = `talk_gear_pos_${RELAY_SESSION_ID}`;
         const NOTIFICATIONS_STORAGE_KEY = `talk_notifications_${RELAY_SESSION_ID}`;
+        const SESSION_LIST_STORAGE_KEY = 'talk_sessions_v1';
+        const SESSION_LIST_LIMIT = 25;
+        const PRESENCE_STALE_MS = 120000;
 
         function getDeviceType() {
             const ua = navigator.userAgent || '';
@@ -463,6 +618,9 @@
         const controlPanelToggle = document.getElementById('control-panel-toggle');
         const controlPanelRefresh = document.getElementById('control-panel-refresh');
         const controlNotificationsToggle = document.getElementById('control-notifications-toggle');
+        const sessionListPanel = document.getElementById('session-list-panel');
+        const sessionList = document.getElementById('session-list');
+        const sessionEmpty = document.getElementById('session-empty');
         const roomInput = document.getElementById('room-input');
         const pairSelect = document.getElementById('pair-select');
         const nameInput = document.getElementById('name-input');
@@ -596,7 +754,7 @@
             };
         }
 
-        if (roomPill) roomPill.textContent = `Room: ${room}`;
+        if (roomPill) roomPill.textContent = `Session: ${room}`;
         if (pairPill) pairPill.textContent = `Pair: ${langA} ↔ ${langB}`;
         if (roomInput) roomInput.value = room;
         if (pairSelect) pairSelect.value = pair;
@@ -670,6 +828,16 @@
             unreadCount = 0;
             updateMessageWaitingIndicator();
             updateDocumentTitle();
+            if (isClientView) {
+                upsertSessionEntry({
+                    id: RELAY_SESSION_ID,
+                    room,
+                    pair,
+                    name: joinName,
+                    peer: peerName,
+                    unreadCount: 0
+                });
+            }
         }
 
         function incrementUnreadCount() {
@@ -677,11 +845,50 @@
             unreadCount += 1;
             updateMessageWaitingIndicator();
             updateDocumentTitle();
+            if (isClientView) {
+                upsertSessionEntry({
+                    id: RELAY_SESSION_ID,
+                    room,
+                    pair,
+                    name: joinName,
+                    peer: peerName,
+                    unreadCount
+                });
+            }
         }
 
         function isChatAtBottom() {
             if (!chatHistoryEl) return true;
             return chatHistoryEl.scrollHeight - chatHistoryEl.scrollTop - chatHistoryEl.clientHeight < 80;
+        }
+
+        function syncSessionPresence() {
+            if (!isClientView) return;
+            const now = Date.now();
+            const devices = [
+                {
+                    id: RELAY_DEVICE_ID,
+                    name: joinName || 'You',
+                    lastSeen: now,
+                    isLocal: true
+                }
+            ];
+            peerPresence.forEach((peer, deviceId) => {
+                devices.push({
+                    id: deviceId,
+                    name: peer?.name || peerName || 'Partner',
+                    lastSeen: peer?.lastSeen || now,
+                    isLocal: false
+                });
+            });
+            upsertSessionEntry({
+                id: RELAY_SESSION_ID,
+                room,
+                pair,
+                name: joinName,
+                peer: peerName,
+                devices
+            });
         }
 
         function updatePeerStatus() {
@@ -719,6 +926,7 @@
             } else {
                 setTypingIndicator(false);
             }
+            syncSessionPresence();
         }
 
         function updateControlPanelUI() {
@@ -774,6 +982,16 @@
         function saveChatHistory(history) {
             const payload = history.slice(-200).map(normalizeChatEntry).filter(Boolean);
             writeStorage(CHAT_STORAGE_KEY, JSON.stringify(payload));
+            if (isClientView) {
+                upsertSessionEntry({
+                    id: RELAY_SESSION_ID,
+                    room,
+                    pair,
+                    name: joinName,
+                    peer: peerName,
+                    updatedAt: Date.now()
+                });
+            }
         }
 
         function loadChatHistory() {
@@ -1736,6 +1954,15 @@
                 sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
             }
             updatePeerStatus();
+            if (isClientView) {
+                upsertSessionEntry({
+                    id: RELAY_SESSION_ID,
+                    room,
+                    pair,
+                    name: joinName,
+                    peer: peerName
+                });
+            }
         }
 
         function updateLocalChatNames() {
@@ -1766,6 +1993,15 @@
             if (peerInput) peerInput.value = peerName;
             writeStorage(PEER_NAME_STORAGE_KEY, peerName);
             updatePeerStatus();
+            if (isClientView) {
+                upsertSessionEntry({
+                    id: RELAY_SESSION_ID,
+                    room,
+                    pair,
+                    name: joinName,
+                    peer: peerName
+                });
+            }
         }
 
         let isDraggingGear = false;
@@ -2173,6 +2409,32 @@
             gearFab.addEventListener('pointercancel', finishGearDrag);
         }
 
+        if (sessionList && sessionListPanel && !isClientView) {
+            renderSessionList();
+            sessionList.addEventListener('click', event => {
+                const removeButton = event.target.closest('.session-remove');
+                if (removeButton) {
+                    const sessionId = removeButton.dataset.sessionId;
+                    removeSessionEntry(sessionId);
+                    return;
+                }
+                const launchButton = event.target.closest('.session-launch');
+                if (launchButton) {
+                    const sessionId = launchButton.dataset.sessionId;
+                    const sessions = loadSessionList();
+                    const session = sessions.find(item => item.id === sessionId);
+                    const clientUrl = buildSessionLaunchUrl(session);
+                    window.open(clientUrl, '_blank', 'noopener');
+                }
+            });
+            window.addEventListener('storage', event => {
+                if (event.key === SESSION_LIST_STORAGE_KEY) {
+                    renderSessionList();
+                }
+            });
+            setInterval(renderSessionList, 60000);
+        }
+
         if (launchSessionButton) {
             launchSessionButton.onclick = () => {
                 const nextRoom = (roomInput?.value || '').trim() || defaultRoom;
@@ -2181,6 +2443,15 @@
                 const nextPeer = (peerInput?.value || '').trim() || peerName;
                 persistJoinName(nextName);
                 persistPeerName(nextPeer);
+                const sessionId = buildSessionId(nextRoom, nextPair);
+                upsertSessionEntry({
+                    id: sessionId,
+                    room: nextRoom,
+                    pair: normalizePair(nextPair),
+                    name: nextName,
+                    peer: nextPeer,
+                    updatedAt: Date.now()
+                });
                 const clientUrl = buildClientUrl({ nextRoom, nextPair, nextName, nextPeer });
                 window.open(clientUrl, '_blank', 'noopener');
             };
@@ -2336,6 +2607,14 @@
         updateReplyPreview();
         updatePeerStatus();
         if (isClientView) {
+            upsertSessionEntry({
+                id: RELAY_SESSION_ID,
+                room,
+                pair,
+                name: joinName,
+                peer: peerName,
+                updatedAt: Date.now()
+            });
             if (navigator.storage && navigator.storage.persist) {
                 navigator.storage.persist().catch(() => {});
             }
