@@ -88,6 +88,7 @@
                             <option value="en-id">English → Indonesian</option>
                             <option value="en-es">English → Spanish</option>
                             <option value="en-it">English → Italian</option>
+                            <option value="en-en">English → English (no translation)</option>
                         </select>
                     </label>
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex flex-col gap-1">
@@ -322,7 +323,8 @@
             'en-ms',
             'en-id',
             'en-es',
-            'en-it'
+            'en-it',
+            'en-en'
         ];
         const view = params.get('view') || 'config';
         const isClientView = view === 'client';
@@ -1335,6 +1337,14 @@
                 const senderName = entry.name || (isLocal ? joinName : peerName) || 'Device';
                 const pendingSuffix = entry.pending ? ' • Sending…' : '';
                 label.textContent = `${senderName} ${formatTimestamp(entry.ts)}${pendingSuffix}`;
+                if (isLocal && isClientView) {
+                    label.classList.add('cursor-pointer', 'hover:text-slate-500');
+                    label.title = 'Click to rename device';
+                    label.addEventListener('click', event => {
+                        event.stopPropagation();
+                        requestJoinNameUpdate();
+                    });
+                }
                 headerLine.appendChild(label);
                 if (!entry.deleted) {
                     const deleteBtn = document.createElement('button');
@@ -1398,7 +1408,10 @@
                         node.innerHTML = renderMarkdown(translated);
                     };
 
-                    if (originalLanguage === langA) {
+                    if (langA === langB) {
+                        langAText.innerHTML = renderChatContent(text);
+                        langBText.innerHTML = renderChatContent(text);
+                    } else if (originalLanguage === langA) {
                         langAText.innerHTML = renderChatContent(text);
                         fillTranslated(langB, langBText);
                     } else if (originalLanguage === langB) {
@@ -1723,6 +1736,28 @@
                 sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
             }
             updatePeerStatus();
+        }
+
+        function updateLocalChatNames() {
+            let changed = false;
+            chatHistory.forEach(entry => {
+                if (entry.from === 'local' && entry.name !== joinName) {
+                    entry.name = joinName;
+                    changed = true;
+                }
+            });
+            if (changed) {
+                saveChatHistory(chatHistory);
+                renderChat();
+            }
+        }
+
+        function requestJoinNameUpdate() {
+            if (!isClientView) return;
+            const nextName = window.prompt('Update device name', joinName);
+            if (nextName === null) return;
+            persistJoinName(nextName);
+            updateLocalChatNames();
         }
 
         function persistPeerName(rawName) {
@@ -2249,6 +2284,14 @@
                 if (isChatAtBottom() && document.hasFocus()) {
                     clearUnreadCount();
                 }
+            });
+        }
+
+        if (localPresenceLabel && isClientView) {
+            localPresenceLabel.classList.add('cursor-pointer');
+            localPresenceLabel.title = 'Click to rename device';
+            localPresenceLabel.addEventListener('click', () => {
+                requestJoinNameUpdate();
             });
         }
 
