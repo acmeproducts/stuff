@@ -675,6 +675,7 @@
         let typingIndicatorTimer = null;
         let reconnectDelayMs = 1000;
         let reconnectTimer = null;
+        const notificationSupport = 'Notification' in window;
 
         document.body.classList.add(isClientView ? 'client-view' : 'config-view');
 
@@ -733,6 +734,13 @@
             writeStorage(PEER_DEVICE_NAME_STORAGE_KEY, JSON.stringify(payload));
         }
 
+        function requestNotificationPermission() {
+            if (!notificationSupport) return Promise.resolve('unsupported');
+            if (Notification.permission === 'granted') return Promise.resolve('granted');
+            if (Notification.permission === 'denied') return Promise.resolve('denied');
+            return Notification.requestPermission();
+        }
+
         function setNotificationsEnabled(enabled, { persist = true } = {}) {
             notificationsEnabled = Boolean(enabled);
             if (notificationsToggle) notificationsToggle.checked = notificationsEnabled;
@@ -746,6 +754,49 @@
                 if (messageWaiting) {
                     messageWaiting.classList.add('hidden');
                 }
+            }
+        }
+
+        function buildNotificationBody(entry) {
+            const messageText = (entry.message || '').trim();
+            if (messageText) {
+                return messageText.length > 140 ? `${messageText.slice(0, 137)}…` : messageText;
+            }
+            if (entry.attachments && entry.attachments.length) {
+                const count = entry.attachments.length;
+                return `${count} attachment${count === 1 ? '' : 's'}`;
+            }
+            return 'New message received.';
+        }
+
+        function showBrowserNotification(entry) {
+            if (!notificationsEnabled || !notificationSupport) return;
+            if (Notification.permission !== 'granted') return;
+            const title = `${entry.name || peerName || 'Partner'} — Talk`;
+            const body = buildNotificationBody(entry);
+            try {
+                const notification = new Notification(title, {
+                    body,
+                    tag: entry.id || `talk_${RELAY_SESSION_ID}`,
+                    renotify: true
+                });
+                notification.onclick = () => {
+                    window.focus();
+                    notification.close();
+                };
+            } catch (_) {}
+        }
+
+        async function handleNotificationsToggleChange(checked) {
+            if (!checked) {
+                setNotificationsEnabled(false);
+                return;
+            }
+            const permission = await requestNotificationPermission();
+            if (permission === 'granted' || permission === 'unsupported') {
+                setNotificationsEnabled(true);
+            } else {
+                setNotificationsEnabled(false);
             }
         }
 
@@ -1788,7 +1839,7 @@
                 const attachments = Array.isArray(message.attachments)
                     ? message.attachments.map(normalizeChatAttachment).filter(Boolean).slice(0, MAX_CHAT_ATTACHMENTS)
                     : [];
-                chatHistory.push(normalizeChatEntry({
+                const entry = normalizeChatEntry({
                     id: message.id || createEntryId(),
                     from: 'peer',
                     name: resolvePeerName(senderDeviceId, message.name || peerName || 'Partner'),
@@ -1798,11 +1849,13 @@
                     replyTo: message.replyTo || null,
                     style: message.style || peerStyles.get(senderDeviceId) || null,
                     ts: message.ts || now
-                }));
+                });
+                chatHistory.push(entry);
                 saveChatHistory(chatHistory);
                 renderChat();
                 if (!document.hasFocus() || !isChatAtBottom()) {
                     incrementUnreadCount();
+                    showBrowserNotification(entry);
                 }
                 return;
             }
@@ -2341,13 +2394,13 @@
 
         if (notificationsToggle) {
             notificationsToggle.addEventListener('change', event => {
-                setNotificationsEnabled(event.target.checked);
+                handleNotificationsToggleChange(event.target.checked);
             });
         }
 
         if (controlNotificationsToggle) {
             controlNotificationsToggle.addEventListener('change', event => {
-                setNotificationsEnabled(event.target.checked);
+                handleNotificationsToggleChange(event.target.checked);
             });
         }
 
