@@ -53,6 +53,13 @@
         .typing-indicator.active { opacity: 1; transform: translateY(0); }
         .message-indicator { transition: opacity 0.3s ease, transform 0.3s ease; }
         .reply-preview { border-left: 3px solid #60a5fa; }
+        .peer-panel-body { max-height: 320px; opacity: 1; transition: max-height 0.25s ease, opacity 0.25s ease; overflow: hidden; }
+        .peer-panel.collapsed .peer-panel-body { max-height: 0; opacity: 0; }
+        .peer-panel.collapsed .peer-panel-toggle .toggle-icon { transform: rotate(180deg); }
+        .peer-panel-toggle .toggle-icon { transition: transform 0.2s ease; }
+        .read-dot { width: 10px; height: 10px; border-radius: 9999px; display: inline-block; }
+        .read-dot.read { background: #0f172a; }
+        .read-dot.unread { background: #cbd5f5; }
     </style>
 </head>
 <body class="min-h-screen text-slate-800">
@@ -113,6 +120,9 @@
                         <span>Enabled</span>
                     </label>
                 </div>
+                <div id="control-notifications-info" class="hidden mt-2 text-[11px] text-slate-400">
+                    Browser notifications are blocked. Enable them in your browser settings.
+                </div>
             </div>
         </section>
 
@@ -146,13 +156,33 @@
                 <div class="flex flex-col gap-1 text-xs text-slate-500" id="peer-status">
                     <div class="flex items-center gap-2">
                         <span class="h-2.5 w-2.5 rounded-full bg-emerald-400" id="local-presence-dot"></span>
-                        <span id="local-presence-label">Device 1 — --</span>
+                        <span id="local-presence-label">You — --</span>
                     </div>
                     <div class="flex items-center gap-2">
                         <span class="h-2.5 w-2.5 rounded-full bg-slate-300" id="peer-presence-dot"></span>
-                        <span id="peer-presence-label">Device 2 — Waiting for partner…</span>
+                        <span id="peer-presence-label">Peers — Waiting for partners…</span>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <section id="peer-list-panel" class="bg-white/90 border border-slate-200 rounded-2xl px-4 py-4 shadow-md backdrop-blur peer-panel">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-slate-400">Peers</p>
+                        <p class="text-sm font-semibold text-slate-700">Connected devices</p>
+                    </div>
+                    <span id="peer-count-pill" class="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">0 online</span>
+                </div>
+                <button id="peer-panel-toggle" class="peer-panel-toggle flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100">
+                    <span class="peer-panel-label">Collapse</span>
+                    <span class="material-symbols-outlined text-base toggle-icon">expand_less</span>
+                </button>
+            </div>
+            <div class="peer-panel-body">
+                <div id="peer-list-empty" class="text-xs text-slate-400 mt-3">No peers connected yet.</div>
+                <ul id="peer-list" class="mt-3 space-y-2 text-sm"></ul>
             </div>
         </section>
 
@@ -245,6 +275,9 @@
                     </span>
                     <input id="notifications-toggle" type="checkbox" class="h-4 w-4">
                 </label>
+                <div id="notifications-info" class="hidden text-[11px] text-slate-400 px-3">
+                    Browser notifications are blocked. Enable them in your browser settings.
+                </div>
                 <button id="drawer-import" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50">
                     <span class="material-symbols-outlined text-base">upload_file</span>
                     Import chat
@@ -545,6 +578,7 @@
         const PEER_NAME_STORAGE_KEY = `talk_peer_name_${RELAY_SESSION_ID}`;
         const STYLE_STORAGE_KEY = `talk_style_${RELAY_SESSION_ID}`;
         const CONTROL_PANEL_STORAGE_KEY = `talk_control_panel_${RELAY_SESSION_ID}`;
+        const PEER_PANEL_STORAGE_KEY = `talk_peer_panel_${RELAY_SESSION_ID}`;
         const GEAR_STORAGE_KEY = `talk_gear_pos_${RELAY_SESSION_ID}`;
         const NOTIFICATIONS_STORAGE_KEY = `talk_notifications_${RELAY_SESSION_ID}`;
         const PEER_DEVICE_NAME_STORAGE_KEY = `talk_peer_device_names_${RELAY_SESSION_ID}`;
@@ -612,9 +646,15 @@
         const controlPanelToggle = document.getElementById('control-panel-toggle');
         const controlPanelRefresh = document.getElementById('control-panel-refresh');
         const controlNotificationsToggle = document.getElementById('control-notifications-toggle');
+        const controlNotificationsInfo = document.getElementById('control-notifications-info');
         const sessionListPanel = document.getElementById('session-list-panel');
         const sessionList = document.getElementById('session-list');
         const sessionEmpty = document.getElementById('session-empty');
+        const peerListPanel = document.getElementById('peer-list-panel');
+        const peerList = document.getElementById('peer-list');
+        const peerListEmpty = document.getElementById('peer-list-empty');
+        const peerPanelToggle = document.getElementById('peer-panel-toggle');
+        const peerCountPill = document.getElementById('peer-count-pill');
         const roomInput = document.getElementById('room-input');
         const pairSelect = document.getElementById('pair-select');
         const nameInput = document.getElementById('name-input');
@@ -637,6 +677,7 @@
         const drawerShare = document.getElementById('drawer-share');
         const drawerConfig = document.getElementById('drawer-config');
         const notificationsToggle = document.getElementById('notifications-toggle');
+        const notificationsInfo = document.getElementById('notifications-info');
         const controlsModal = document.getElementById('controls-modal');
         const closeControls = document.getElementById('close-controls');
         const gearFab = document.getElementById('gear-fab');
@@ -668,7 +709,9 @@
         const peerTypingTimeouts = new Map();
         const peerStyles = new Map();
         const peerDeviceNames = new Map(Object.entries(loadPeerDeviceNames()));
+        const readSentForMessages = new Set();
         let controlPanelCollapsed = false;
+        let peerPanelCollapsed = false;
         let notificationsEnabled = true;
         let unreadCount = 0;
         let replyContext = null;
@@ -757,6 +800,16 @@
             }
         }
 
+        function updateNotificationsInfo() {
+            const showBlocked = notificationSupport && Notification.permission === 'denied';
+            if (notificationsInfo) {
+                notificationsInfo.classList.toggle('hidden', !showBlocked);
+            }
+            if (controlNotificationsInfo) {
+                controlNotificationsInfo.classList.toggle('hidden', !showBlocked);
+            }
+        }
+
         function buildNotificationBody(entry) {
             const messageText = (entry.message || '').trim();
             if (messageText) {
@@ -790,6 +843,7 @@
         async function handleNotificationsToggleChange(checked) {
             if (!checked) {
                 setNotificationsEnabled(false);
+                updateNotificationsInfo();
                 return;
             }
             const permission = await requestNotificationPermission();
@@ -798,6 +852,7 @@
             } else {
                 setNotificationsEnabled(false);
             }
+            updateNotificationsInfo();
         }
 
         function resolvePeerName(deviceId, fallback = '') {
@@ -819,6 +874,7 @@
         let bubbleStyles = loadBubbleStyles();
         applyBubbleStyles(bubbleStyles);
         setNotificationsEnabled(loadNotificationsSetting(), { persist: false });
+        updateNotificationsInfo();
         updateMessageWaitingIndicator();
         updateDocumentTitle();
 
@@ -904,6 +960,7 @@
             unreadCount = 0;
             updateMessageWaitingIndicator();
             updateDocumentTitle();
+            markMessagesRead();
             if (isClientView) {
                 upsertSessionEntry({
                     id: RELAY_SESSION_ID,
@@ -967,20 +1024,74 @@
             });
         }
 
+        function getPeerRoster() {
+            const roster = new Map();
+            peerPresence.forEach((peer, deviceId) => {
+                roster.set(deviceId, {
+                    id: deviceId,
+                    name: peer?.name || resolvePeerName(deviceId, peerName) || 'Partner',
+                    lastSeen: peer?.lastSeen || 0
+                });
+            });
+            peerDeviceNames.forEach((name, deviceId) => {
+                if (!roster.has(deviceId)) {
+                    roster.set(deviceId, { id: deviceId, name: name || 'Partner', lastSeen: 0 });
+                }
+            });
+            return roster;
+        }
+
+        function renderPeerList() {
+            if (!peerListPanel || !peerList || !peerListEmpty) return;
+            const roster = getPeerRoster();
+            peerList.innerHTML = '';
+            if (roster.size === 0) {
+                peerListEmpty.classList.remove('hidden');
+            } else {
+                peerListEmpty.classList.add('hidden');
+            }
+            const now = Date.now();
+            const localEntry = {
+                id: RELAY_DEVICE_ID,
+                name: joinName || 'You',
+                lastSeen: now,
+                isLocal: true
+            };
+            const items = [localEntry, ...Array.from(roster.values()).map(peer => ({ ...peer, isLocal: false }))];
+            items.forEach(peer => {
+                const li = document.createElement('li');
+                li.className = 'flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 bg-white/70';
+                const isOnline = peer.isLocal || now - (peer.lastSeen || 0) < PRESENCE_STALE_MS;
+                const name = peer.name || 'Device';
+                li.innerHTML = `
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="h-2.5 w-2.5 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-slate-300'}"></span>
+                        <span class="truncate text-sm ${peer.isLocal ? 'font-semibold text-slate-700' : 'text-slate-600'}">${escapeHtml(name)}${peer.isLocal ? ' (You)' : ''}</span>
+                    </div>
+                    <span class="text-[11px] text-slate-400">${isOnline ? 'Online' : `Seen ${formatElapsedMinutes(peer.lastSeen)}`}</span>
+                `;
+                peerList.appendChild(li);
+            });
+            if (peerCountPill) {
+                const onlineCount = items.filter(peer => peer.isLocal || now - (peer.lastSeen || 0) < PRESENCE_STALE_MS).length;
+                peerCountPill.textContent = `${onlineCount} online`;
+            }
+        }
+
         function updatePeerStatus() {
             const typingPeers = Array.from(peerTyping.values())
                 .filter(peer => peer?.active)
                 .map(peer => peer?.name || 'Partner');
             const connected = relayState.ws && relayState.ws.readyState === WebSocket.OPEN;
             if (localPresenceLabel) {
-                localPresenceLabel.textContent = `Device 1 — ${joinName || 'You'}`;
+                localPresenceLabel.textContent = `You — ${joinName || 'Device'}`;
             }
             if (localPresenceDot) {
                 localPresenceDot.className = `h-2.5 w-2.5 rounded-full ${connected ? 'bg-emerald-400' : 'bg-slate-300'}`;
             }
             if (peerPresence.size === 0) {
                 if (peerPresenceLabel) {
-                    peerPresenceLabel.textContent = 'Device 2 — Waiting for partner…';
+                    peerPresenceLabel.textContent = 'Peers — Waiting for partners…';
                 }
                 if (peerPresenceDot) {
                     peerPresenceDot.className = 'h-2.5 w-2.5 rounded-full bg-slate-300';
@@ -988,7 +1099,7 @@
             } else {
                 const names = Array.from(peerPresence.values()).map(peer => peer?.name || 'Partner');
                 if (peerPresenceLabel) {
-                    peerPresenceLabel.textContent = `Device 2 — ${names.join(', ')}`;
+                    peerPresenceLabel.textContent = `Peers — ${names.join(', ')}`;
                 }
                 if (peerPresenceDot) {
                     peerPresenceDot.className = 'h-2.5 w-2.5 rounded-full bg-emerald-400';
@@ -1003,6 +1114,7 @@
                 setTypingIndicator(false);
             }
             syncSessionPresence();
+            renderPeerList();
         }
 
         function updateControlPanelUI() {
@@ -1011,6 +1123,15 @@
             const label = controlPanelToggle.querySelector('.control-panel-label');
             if (label) {
                 label.textContent = controlPanelCollapsed ? 'Expand' : 'Collapse';
+            }
+        }
+
+        function updatePeerPanelUI() {
+            if (!peerListPanel || !peerPanelToggle) return;
+            peerListPanel.classList.toggle('collapsed', peerPanelCollapsed);
+            const label = peerPanelToggle.querySelector('.peer-panel-label');
+            if (label) {
+                label.textContent = peerPanelCollapsed ? 'Expand' : 'Collapse';
             }
         }
 
@@ -1052,7 +1173,8 @@
                 deleted: Boolean(entry.deleted),
                 style: entry.style || null,
                 pending: Boolean(entry.pending),
-                replyTo: entry.replyTo || null
+                replyTo: entry.replyTo || null,
+                reads: entry.reads || {}
             };
         }
 
@@ -1737,6 +1859,32 @@
 
                 bubble.appendChild(headerLine);
                 bubble.appendChild(messageLine);
+                const footerLine = document.createElement('div');
+                footerLine.className = 'mt-1 flex items-center justify-end gap-2 text-[10px] text-slate-400';
+                const readIndicators = document.createElement('div');
+                readIndicators.className = 'flex items-center gap-1';
+                const { readPeers, unreadPeers } = getReadStatus(entry);
+                if (readPeers.length === 0 && unreadPeers.length === 0) {
+                    const dot = document.createElement('span');
+                    dot.className = 'read-dot unread';
+                    dot.title = 'No peers connected yet.';
+                    readIndicators.appendChild(dot);
+                } else {
+                    if (unreadPeers.length) {
+                        const dot = document.createElement('span');
+                        dot.className = 'read-dot unread';
+                        dot.title = `Unread: ${unreadPeers.map(peer => peer.name || 'Partner').join(', ')}`;
+                        readIndicators.appendChild(dot);
+                    }
+                    if (readPeers.length) {
+                        const dot = document.createElement('span');
+                        dot.className = 'read-dot read';
+                        dot.title = `Read by: ${readPeers.map(peer => `${peer.name || 'Partner'} (${formatTimestamp(peer.ts)})`).join(', ')}`;
+                        readIndicators.appendChild(dot);
+                    }
+                }
+                footerLine.appendChild(readIndicators);
+                bubble.appendChild(footerLine);
                 chatHistoryEl.appendChild(bubble);
                 attachSwipeReplyHandler(bubble, entry);
             });
@@ -1857,6 +2005,16 @@
                     incrementUnreadCount();
                     showBrowserNotification(entry);
                 }
+                if (document.hasFocus() && isChatAtBottom()) {
+                    markMessagesRead();
+                }
+                return;
+            }
+            if (message.type === 'read') {
+                const messageId = message.id;
+                if (!messageId) return;
+                applyReadReceipt(messageId, senderDeviceId, message.readerName || message.name || resolvePeerName(senderDeviceId, peerName), message.readAt || now, { persist: true });
+                renderChat();
                 return;
             }
             if (message.type === 'delete') {
@@ -1965,6 +2123,80 @@
             entry.pending = false;
             saveChatHistory(chatHistory);
             renderChat();
+        }
+
+        function getPeersForMessage(entry) {
+            const roster = getPeerRoster();
+            const peers = new Map();
+            if (entry?.from === 'local') {
+                roster.forEach(peer => {
+                    peers.set(peer.id, peer);
+                });
+            } else {
+                peers.set(RELAY_DEVICE_ID, { id: RELAY_DEVICE_ID, name: joinName || 'You' });
+                roster.forEach(peer => {
+                    if (peer.id !== entry?.deviceId) {
+                        peers.set(peer.id, peer);
+                    }
+                });
+            }
+            return Array.from(peers.values());
+        }
+
+        function getReadStatus(entry) {
+            const peers = getPeersForMessage(entry);
+            const reads = entry?.reads || {};
+            const readPeers = [];
+            const unreadPeers = [];
+            peers.forEach(peer => {
+                const readInfo = reads[peer.id];
+                if (readInfo && readInfo.ts) {
+                    readPeers.push({ ...peer, ts: readInfo.ts });
+                } else {
+                    unreadPeers.push(peer);
+                }
+            });
+            return { readPeers, unreadPeers };
+        }
+
+        function applyReadReceipt(entryId, readerId, readerName, readAt, { persist = false } = {}) {
+            if (!entryId || !readerId) return false;
+            const entry = chatHistory.find(item => item.id === entryId);
+            if (!entry || entry.deleted) return false;
+            entry.reads = entry.reads || {};
+            const current = entry.reads[readerId];
+            const nextTs = readAt || Date.now();
+            if (current && current.ts >= nextTs) {
+                return false;
+            }
+            entry.reads[readerId] = {
+                name: readerName || resolvePeerName(readerId, peerName) || 'Partner',
+                ts: nextTs
+            };
+            if (persist) {
+                saveChatHistory(chatHistory);
+            }
+            return true;
+        }
+
+        function markMessagesRead() {
+            if (!isClientView || !document.hasFocus() || !isChatAtBottom()) return;
+            const now = Date.now();
+            let changed = false;
+            chatHistory.forEach(entry => {
+                if (!entry || entry.deleted || entry.from === 'local') return;
+                if (readSentForMessages.has(entry.id)) return;
+                const updated = applyReadReceipt(entry.id, RELAY_DEVICE_ID, joinName || 'You', now);
+                if (updated) {
+                    changed = true;
+                }
+                readSentForMessages.add(entry.id);
+                sendRelayMessage({ type: 'read', id: entry.id, readerName: joinName, readAt: now });
+            });
+            if (changed) {
+                saveChatHistory(chatHistory);
+                renderChat();
+            }
         }
 
         function getLatestChatTimestamp() {
@@ -2336,12 +2568,12 @@
             });
         }
 
-        if (controlPanelRefresh) {
-            controlPanelRefresh.addEventListener('click', () => {
-                refreshChatHistory();
-                connectRelay(true);
-            });
-        }
+            if (controlPanelRefresh) {
+                controlPanelRefresh.addEventListener('click', () => {
+                    refreshChatHistory();
+                    connectRelay(true);
+                });
+            }
 
         if (drawerImport && drawerImportInput) {
             drawerImport.addEventListener('click', () => drawerImportInput.click());
@@ -2509,6 +2741,19 @@
             gearFab.addEventListener('pointercancel', finishGearDrag);
         }
 
+        if (peerListPanel && peerPanelToggle) {
+            try {
+                const storedPeerPanelState = readStorage(PEER_PANEL_STORAGE_KEY);
+                peerPanelCollapsed = storedPeerPanelState === 'collapsed';
+            } catch (_) {}
+            updatePeerPanelUI();
+            peerPanelToggle.addEventListener('click', () => {
+                peerPanelCollapsed = !peerPanelCollapsed;
+                updatePeerPanelUI();
+                writeStorage(PEER_PANEL_STORAGE_KEY, peerPanelCollapsed ? 'collapsed' : 'expanded');
+            });
+        }
+
         if (sessionList && sessionListPanel && !isClientView) {
             renderSessionList();
             sessionList.addEventListener('click', event => {
@@ -2654,6 +2899,7 @@
             chatHistoryEl.addEventListener('scroll', () => {
                 if (isChatAtBottom() && document.hasFocus()) {
                     clearUnreadCount();
+                    markMessagesRead();
                 }
             });
         }
@@ -2706,6 +2952,7 @@
         updateChatAttachmentUI();
         updateReplyPreview();
         updatePeerStatus();
+        renderPeerList();
         if (isClientView) {
             upsertSessionEntry({
                 id: RELAY_SESSION_ID,
@@ -2724,6 +2971,7 @@
                 connectRelay();
                 if (isChatAtBottom()) {
                     clearUnreadCount();
+                    markMessagesRead();
                 }
             });
             window.addEventListener('online', connectRelay);
@@ -2732,6 +2980,7 @@
                     connectRelay();
                     if (isChatAtBottom()) {
                         clearUnreadCount();
+                        markMessagesRead();
                     }
                 }
             });
