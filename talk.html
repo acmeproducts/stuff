@@ -36,6 +36,7 @@
         .config-view .chat-app { display: none; }
         .config-view .chat-composer,
         .config-view #gear-fab { display: none; }
+        .config-view #peer-list-panel { display: none; }
         .chat-bubble { font-size: var(--bubble-font-size, 0.875rem); touch-action: pan-y; transition: transform 0.2s ease, box-shadow 0.2s ease; }
         .bubble-local { background: var(--bubble-local-bg, #eff6ff); color: var(--bubble-local-text, #1f2937); }
         .bubble-peer { background: var(--bubble-peer-bg, #ffffff); color: var(--bubble-peer-text, #0f172a); }
@@ -50,14 +51,16 @@
         .chat-bubble.swipe-ready { box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); }
         .typing-indicator { opacity: 0; transform: translateY(-4px); transition: opacity 0.7s ease, transform 0.7s ease; }
         .typing-indicator.active { opacity: 1; transform: translateY(0); }
+        .typing-indicator-bar { position: sticky; top: 0; z-index: 10; background: rgba(248, 250, 252, 0.95); border-bottom: 1px solid rgba(226, 232, 240, 0.8); }
         .message-indicator { transition: opacity 0.3s ease, transform 0.3s ease; }
         .reply-preview { border-left: 3px solid #60a5fa; }
         .peer-panel-body { max-height: 320px; opacity: 1; transition: max-height 0.25s ease, opacity 0.25s ease; overflow: hidden; }
         .peer-panel.collapsed .peer-panel-body { max-height: 0; opacity: 0; }
         .peer-panel-toggle .toggle-icon { transition: color 0.2s ease; }
         .read-dot { width: 10px; height: 10px; border-radius: 9999px; display: inline-block; }
-        .read-dot.read { background: #0f172a; }
-        .read-dot.unread { background: #cbd5f5; }
+        .read-dot.active { background: #16a34a; }
+        .read-dot.empty { background: #94a3b8; }
+        .gear-fab { touch-action: none; }
     </style>
 </head>
 <body class="min-h-screen text-slate-800">
@@ -78,7 +81,7 @@
                 </button>
             </div>
             <div class="control-panel-body">
-                <div class="grid gap-3 md:grid-cols-[1.1fr_1.1fr_1.4fr_1.4fr_auto] md:items-end">
+                <div class="grid gap-3 md:grid-cols-[1.2fr_1.2fr_1.4fr_auto] md:items-end">
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex flex-col gap-1">
                         Session name
                         <input id="room-input" class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white" placeholder="talk">
@@ -86,6 +89,7 @@
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex flex-col gap-1">
                         Language pair
                         <select id="pair-select" class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white">
+                            <option value="en-en">English → English (no translation)</option>
                             <option value="en-th">English → Thai</option>
                             <option value="en-zh">English → Chinese</option>
                             <option value="en-vi">English → Viet</option>
@@ -94,33 +98,15 @@
                             <option value="en-id">English → Indonesian</option>
                             <option value="en-es">English → Spanish</option>
                             <option value="en-it">English → Italian</option>
-                            <option value="en-en">English → English (no translation)</option>
                         </select>
                     </label>
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex flex-col gap-1">
                         Your device name
                         <input id="name-input" class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white">
                     </label>
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex flex-col gap-1">
-                        Partner name
-                        <input id="peer-input" class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white" placeholder="Partner">
-                    </label>
                     <button id="launch-session" class="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 whitespace-nowrap shadow-sm">Build &amp; launch</button>
                 </div>
                 <p class="text-xs text-slate-400 mt-2">Launching opens a standalone chat client in a new tab.</p>
-                <div class="mt-3 flex items-center justify-between text-xs text-slate-500 border border-slate-200 rounded-lg px-3 py-2 bg-white">
-                    <div class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-base">notifications</span>
-                        Message waiting indicator
-                    </div>
-                    <label class="flex items-center gap-2">
-                        <input id="control-notifications-toggle" type="checkbox" class="h-4 w-4">
-                        <span>Enabled</span>
-                    </label>
-                </div>
-                <div id="control-notifications-info" class="hidden mt-2 text-[11px] text-slate-400">
-                    Browser notifications are blocked. Enable them in your browser settings.
-                </div>
             </div>
         </section>
 
@@ -137,25 +123,30 @@
         </section>
 
         <section id="peer-list-panel" class="bg-white/90 border border-slate-200 rounded-2xl px-4 py-4 shadow-md backdrop-blur peer-panel">
-            <div class="flex items-center justify-between gap-2">
-                <span id="peer-count-pill" class="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">0 online</span>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span id="peer-count-pill" class="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">0 online</span>
+                    <span id="session-name-chip" class="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">Session</span>
+                    <span id="session-unread-chip" class="inline-flex items-center px-2.5 py-1 rounded-full bg-amber-50 text-[11px] font-semibold text-amber-600">0 waiting</span>
+                </div>
                 <button id="peer-panel-toggle" class="peer-panel-toggle flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 text-[11px] font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100">
                     <span class="peer-panel-label">Expand</span>
                     <span class="material-symbols-outlined text-[16px] toggle-icon">expand_more</span>
                 </button>
             </div>
-            <div class="peer-panel-body">
-                <div class="text-xs text-slate-500 mt-2">
-                    Session: <span id="peer-session-name" class="font-semibold text-slate-600">--</span>
-                </div>
-                <div id="peer-list-empty" class="text-xs text-slate-400 mt-3">No peers connected yet.</div>
-                <ul id="peer-list" class="mt-3 space-y-2 text-sm"></ul>
+            <div class="peer-panel-body mt-3 space-y-3">
+                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex flex-col gap-1">
+                    Your name
+                    <input id="client-name-input" class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white">
+                </label>
+                <div id="peer-list-empty" class="text-xs text-slate-400">No peers connected yet.</div>
+                <ul id="peer-list" class="space-y-2 text-sm"></ul>
             </div>
         </section>
 
         <main class="flex-1 min-h-0 bg-white/90 border border-slate-200 rounded-2xl shadow-md flex flex-col overflow-hidden chat-app backdrop-blur">
             <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 bg-white/80">
-                <span class="text-[11px] uppercase tracking-wide text-slate-400">Live chat</span>
+                <span class="text-[11px] uppercase tracking-wide text-slate-400">&nbsp;</span>
                 <div id="message-waiting" class="message-indicator hidden">
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[11px] font-semibold">
                         <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
@@ -163,8 +154,8 @@
                     </span>
                 </div>
             </div>
-            <div class="px-4 pt-2 text-xs text-slate-400">
-                <div id="typing-indicator" class="typing-indicator hidden">Partner is typing…</div>
+            <div class="typing-indicator-bar px-4 py-2 text-xs text-slate-500">
+                <div id="typing-indicator" class="typing-indicator hidden font-semibold text-slate-600">Partner is typing…</div>
             </div>
             <div id="chat-history" class="flex-1 overflow-y-auto px-4 py-4 space-y-3 no-scrollbar bg-gradient-to-b from-white/60 to-slate-50/60 rounded-2xl"></div>
         </main>
@@ -179,11 +170,7 @@
                 </div>
                 <button id="reply-preview-clear" type="button" class="text-slate-400 hover:text-slate-600">✕</button>
             </div>
-            <div class="flex flex-col gap-1 text-xs text-slate-500 min-h-[32px]" id="chat-attachments">
-                <div class="flex items-center justify-between">
-                    <span>No attachments selected.</span>
-                    <button id="chat-attachments-clear" type="button" class="hidden text-blue-600 hover:text-blue-800">Clear</button>
-                </div>
+            <div class="flex flex-col gap-1 text-xs text-slate-500 min-h-[24px]" id="chat-attachments">
                 <div id="chat-attachments-alert" class="hidden text-rose-500"></div>
                 <div id="chat-attachments-preview" class="flex flex-wrap gap-2"></div>
             </div>
@@ -218,6 +205,18 @@
                 <button id="chat-attachment-download" class="px-3 py-2 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-lg hover:bg-emerald-100 transition">Download</button>
                 <button id="chat-attachment-share" class="px-3 py-2 bg-blue-50 text-blue-700 text-xs font-semibold rounded-lg hover:bg-blue-100 transition">Share</button>
             </div>
+        </div>
+    </div>
+
+    <div id="read-status-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center invisible modal">
+        <div id="read-status-content" class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-md p-6 transform scale-out modal-content">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="text-xl font-bold text-gray-800">Message reads</h3>
+                <button id="close-read-status" class="text-gray-400 hover:text-gray-800 p-2 hover:bg-gray-100 rounded-full transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div id="read-status-body" class="space-y-2 text-sm text-slate-600"></div>
         </div>
     </div>
 
@@ -339,8 +338,8 @@
 
         const url = new URL(window.location.href);
         const params = url.searchParams;
-        const defaultRoom = 'talk';
-        const defaultPair = 'en-th';
+        const defaultRoom = new Date().toLocaleString();
+        const defaultPair = 'en-en';
         const allowedPairs = [
             'en-th',
             'en-zh',
@@ -467,6 +466,14 @@
             return new Date(timestamp).toLocaleString();
         }
 
+        function resolveDisplayName(name, fallbackTimestamp) {
+            const trimmed = (name || '').trim();
+            if (!trimmed || trimmed.toLowerCase() === DEFAULT_DEVICE_NAME.toLowerCase()) {
+                return formatDateTime(fallbackTimestamp || Date.now());
+            }
+            return trimmed;
+        }
+
         function formatElapsedMinutes(timestamp) {
             if (!timestamp) return '--';
             const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
@@ -490,8 +497,7 @@
             return buildClientUrl({
                 nextRoom: session.room || room,
                 nextPair: normalizePair(session.pair || pair),
-                nextName: session.name || joinName,
-                nextPeer: session.peer || peerName
+                nextName: session.name || joinName
             });
         }
 
@@ -555,7 +561,6 @@
         const RELAY_CLIENT_ID = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 12));
         const CHAT_STORAGE_KEY = `talk_chat_${RELAY_SESSION_ID}`;
         const NAME_STORAGE_KEY = `talk_name_${RELAY_SESSION_ID}`;
-        const PEER_NAME_STORAGE_KEY = `talk_peer_name_${RELAY_SESSION_ID}`;
         const STYLE_STORAGE_KEY = `talk_style_${RELAY_SESSION_ID}`;
         const CONTROL_PANEL_STORAGE_KEY = `talk_control_panel_${RELAY_SESSION_ID}`;
         const PEER_PANEL_STORAGE_KEY = `talk_peer_panel_${RELAY_SESSION_ID}`;
@@ -565,28 +570,10 @@
         const SESSION_LIST_LIMIT = 25;
         const PRESENCE_STALE_MS = 120000;
 
-        function getDeviceType() {
-            const ua = navigator.userAgent || '';
-            if (/Mobi|Android|iPhone|iPad|iPod/i.test(ua)) return 'Mobile';
-            return 'Desktop';
-        }
-
-        function getBrowserName() {
-            const ua = navigator.userAgent || '';
-            if (ua.includes('Edg/')) return 'Edge';
-            if (ua.includes('OPR/') || ua.includes('Opera')) return 'Opera';
-            if (ua.includes('Chrome/') && !ua.includes('Edg/')) return 'Chrome';
-            if (ua.includes('Firefox/')) return 'Firefox';
-            if (ua.includes('Safari/') && !ua.includes('Chrome/')) return 'Safari';
-            return 'Browser';
-        }
+        const DEFAULT_DEVICE_NAME = 'Anonymous';
 
         function buildDefaultName() {
-            const device = getDeviceType();
-            const browser = getBrowserName();
-            const language = navigator.language || 'en';
-            const timestamp = new Date().toLocaleString();
-            return `${device} ${browser} ${language} ${timestamp}`;
+            return DEFAULT_DEVICE_NAME;
         }
 
         function loadJoinName() {
@@ -602,21 +589,8 @@
             return fallback;
         }
 
-        function loadPeerName() {
-            const paramPeer = (params.get('peer') || '').trim();
-            if (paramPeer) {
-                writeStorage(PEER_NAME_STORAGE_KEY, paramPeer);
-                return paramPeer;
-            }
-            const stored = readStorage(PEER_NAME_STORAGE_KEY);
-            if (stored) return stored;
-            return 'Partner';
-        }
-
         let joinName = loadJoinName();
-        let peerName = loadPeerName();
 
-        const peerSessionName = document.getElementById('peer-session-name');
         const copyLinkButton = document.getElementById('copy-link');
         const controlPanel = document.getElementById('control-panel');
         const controlPanelToggle = document.getElementById('control-panel-toggle');
@@ -631,18 +605,18 @@
         const peerListEmpty = document.getElementById('peer-list-empty');
         const peerPanelToggle = document.getElementById('peer-panel-toggle');
         const peerCountPill = document.getElementById('peer-count-pill');
+        const sessionNameChip = document.getElementById('session-name-chip');
+        const sessionUnreadChip = document.getElementById('session-unread-chip');
         const roomInput = document.getElementById('room-input');
         const pairSelect = document.getElementById('pair-select');
         const nameInput = document.getElementById('name-input');
-        const peerInput = document.getElementById('peer-input');
+        const clientNameInput = document.getElementById('client-name-input');
         const launchSessionButton = document.getElementById('launch-session');
         const chatHistoryEl = document.getElementById('chat-history');
         const chatInput = document.getElementById('chat-input');
         const chatSend = document.getElementById('chat-send');
         const chatAttachmentButton = document.getElementById('chat-attach');
         const chatAttachmentInput = document.getElementById('chat-attachments-input');
-        const chatAttachmentStatus = document.getElementById('chat-attachments');
-        const chatAttachmentClear = document.getElementById('chat-attachments-clear');
         const chatAttachmentAlert = document.getElementById('chat-attachments-alert');
         const chatAttachmentPreview = document.getElementById('chat-attachments-preview');
         const drawerClear = document.getElementById('drawer-clear');
@@ -672,6 +646,8 @@
         const typingIndicator = document.getElementById('typing-indicator');
         const messageWaiting = document.getElementById('message-waiting');
         const messageWaitingCount = document.getElementById('message-waiting-count');
+        const readStatusBody = document.getElementById('read-status-body');
+        const closeReadStatus = document.getElementById('close-read-status');
         const translationCache = new Map();
         const pendingTranslations = new Map();
         const relayState = { ws: null };
@@ -783,7 +759,7 @@
         function showBrowserNotification(entry) {
             if (!notificationsEnabled || !notificationSupport) return;
             if (Notification.permission !== 'granted') return;
-            const title = `${entry.name || peerName || 'Partner'} — Talk`;
+            const title = `${resolveDisplayName(entry.name, entry.ts)} — Talk`;
             const body = buildNotificationBody(entry);
             try {
                 const notification = new Notification(title, {
@@ -813,8 +789,10 @@
             updateNotificationsInfo();
         }
 
-        function resolvePeerName(_deviceId, fallback = '') {
-            return fallback || peerName || 'Partner';
+        function resolvePeerName(deviceId, fallback = '') {
+            const peer = peerPresence.get(deviceId);
+            const timestamp = peer?.connectedAt || peer?.lastSeen || Date.now();
+            return resolveDisplayName(fallback, timestamp);
         }
 
         let bubbleStyles = loadBubbleStyles();
@@ -832,11 +810,11 @@
             };
         }
 
-        if (peerSessionName) peerSessionName.textContent = room;
         if (roomInput) roomInput.value = room;
         if (pairSelect) pairSelect.value = pair;
         if (nameInput) nameInput.value = joinName;
-        if (peerInput) peerInput.value = peerName;
+        if (clientNameInput) clientNameInput.value = joinName;
+        if (sessionNameChip) sessionNameChip.textContent = room;
 
         const languageNames = (() => {
             try {
@@ -891,6 +869,9 @@
         }
 
         function updateMessageWaitingIndicator() {
+            if (sessionUnreadChip) {
+                sessionUnreadChip.textContent = unreadCount === 1 ? '1 waiting' : `${unreadCount} waiting`;
+            }
             if (!messageWaiting || !messageWaitingCount) return;
             if (!notificationsEnabled || unreadCount <= 0) {
                 messageWaiting.classList.add('hidden');
@@ -911,7 +892,6 @@
                     room,
                     pair,
                     name: joinName,
-                    peer: peerName,
                     unreadCount: 0
                 });
             }
@@ -928,7 +908,6 @@
                     room,
                     pair,
                     name: joinName,
-                    peer: peerName,
                     unreadCount
                 });
             }
@@ -945,7 +924,7 @@
             const devices = [
                 {
                     id: RELAY_DEVICE_ID,
-                    name: joinName || 'You',
+                    name: resolveDisplayName(joinName, localConnectedAt),
                     lastSeen: now,
                     isLocal: true
                 }
@@ -953,7 +932,7 @@
             peerPresence.forEach((peer, deviceId) => {
                 devices.push({
                     id: deviceId,
-                    name: peer?.name || peerName || 'Partner',
+                    name: resolveDisplayName(peer?.name, peer?.connectedAt || peer?.lastSeen || now),
                     lastSeen: peer?.lastSeen || now,
                     isLocal: false
                 });
@@ -963,7 +942,6 @@
                 room,
                 pair,
                 name: joinName,
-                peer: peerName,
                 devices
             });
         }
@@ -973,7 +951,7 @@
             peerPresence.forEach((peer, deviceId) => {
                 roster.set(deviceId, {
                     id: deviceId,
-                    name: peer?.name || resolvePeerName(deviceId, peerName) || 'Partner',
+                    name: peer?.name || '',
                     lastSeen: peer?.lastSeen || 0,
                     connectedAt: peer?.connectedAt || peer?.lastSeen || 0
                 });
@@ -994,7 +972,7 @@
             }
             const localEntry = {
                 id: RELAY_DEVICE_ID,
-                name: joinName || 'You',
+                name: joinName || '',
                 lastSeen: now,
                 connectedAt: localConnectedAt,
                 isLocal: true
@@ -1003,7 +981,7 @@
             items.forEach(peer => {
                 const li = document.createElement('li');
                 li.className = 'flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 bg-white/70';
-                const name = peer.name || 'Device';
+                const name = resolveDisplayName(peer.name, peer.connectedAt || now);
                 const connectedLabel = formatElapsedDuration(peer.connectedAt || peer.lastSeen || now);
                 li.title = `Connected for ${connectedLabel}`;
                 li.innerHTML = `
@@ -1018,12 +996,15 @@
             if (peerCountPill) {
                 peerCountPill.textContent = `${onlinePeers.length} online`;
             }
+            if (sessionNameChip) {
+                sessionNameChip.textContent = room;
+            }
         }
 
         function updatePeerStatus() {
             const typingPeers = Array.from(peerTyping.values())
                 .filter(peer => peer?.active)
-                .map(peer => peer?.name || 'Partner');
+                .map(peer => resolveDisplayName(peer?.name, peer?.connectedAt || Date.now()));
             if (typingPeers.length) {
                 const label = typingPeers.length > 1
                     ? `${typingPeers.length} people are typing…`
@@ -1058,7 +1039,7 @@
             }
         }
 
-        function buildClientUrl({ nextRoom = room, nextPair = pair, nextName = joinName, nextPeer = peerName } = {}) {
+        function buildClientUrl({ nextRoom = room, nextPair = pair, nextName = joinName } = {}) {
             const clientUrl = new URL(window.location.href);
             clientUrl.searchParams.set('room', nextRoom);
             clientUrl.searchParams.set('pair', nextPair);
@@ -1067,11 +1048,6 @@
                 clientUrl.searchParams.set('name', nextName);
             } else {
                 clientUrl.searchParams.delete('name');
-            }
-            if (nextPeer) {
-                clientUrl.searchParams.set('peer', nextPeer);
-            } else {
-                clientUrl.searchParams.delete('peer');
             }
             return clientUrl.toString();
         }
@@ -1110,7 +1086,6 @@
                     room,
                     pair,
                     name: joinName,
-                    peer: peerName,
                     updatedAt: Date.now()
                 });
             }
@@ -1128,7 +1103,7 @@
 
         let chatHistory = loadChatHistory().map(entry => {
             if (entry?.from === 'peer' && !entry.name) {
-                entry.name = resolvePeerName(entry.deviceId, peerName);
+                entry.name = resolvePeerName(entry.deviceId, entry.name || '');
             }
             return entry;
         });
@@ -1276,14 +1251,17 @@
                 return;
             }
             replyPreview.classList.remove('hidden');
-            replyPreviewText.textContent = `${replyContext.name || 'Partner'}: ${replyContext.snippet}`;
+            replyPreviewText.textContent = `${replyContext.name}: ${replyContext.snippet}`;
         }
 
         function setReplyContext(entry) {
             if (!entry) return;
             replyContext = {
                 id: entry.id,
-                name: entry.name || (entry.from === 'local' ? joinName : peerName) || 'Partner',
+                name: resolveDisplayName(
+                    entry.name || (entry.from === 'local' ? joinName : resolvePeerName(entry.deviceId, '')),
+                    entry.ts
+                ),
                 snippet: getReplySnippet(entry),
                 from: entry.from
             };
@@ -1679,9 +1657,10 @@
                 const headerLine = document.createElement('div');
                 headerLine.className = 'flex items-center justify-between text-[11px] font-semibold text-slate-400';
                 const label = document.createElement('span');
-                const senderName = entry.name
-                    || (isLocal ? joinName : resolvePeerName(entry.deviceId, peerName))
-                    || 'Device';
+                const senderName = resolveDisplayName(
+                    entry.name || (isLocal ? joinName : resolvePeerName(entry.deviceId, '')),
+                    entry.ts
+                );
                 const pendingSuffix = entry.pending ? ' • Sending…' : '';
                 label.textContent = `${senderName} ${formatTimestamp(entry.ts)}${pendingSuffix}`;
                 if (isLocal && isClientView) {
@@ -1693,6 +1672,22 @@
                     });
                 }
                 headerLine.appendChild(label);
+                const headerActions = document.createElement('div');
+                headerActions.className = 'flex items-center gap-2';
+                const readButton = document.createElement('button');
+                readButton.type = 'button';
+                readButton.className = 'flex items-center gap-1';
+                const peers = getPeersForMessage(entry);
+                const hasPeers = peers.length > 0;
+                const dot = document.createElement('span');
+                dot.className = `read-dot ${hasPeers ? 'active' : 'empty'}`;
+                readButton.title = hasPeers ? 'View read status' : 'No peers connected yet';
+                readButton.appendChild(dot);
+                readButton.addEventListener('click', event => {
+                    event.stopPropagation();
+                    openReadStatusModal(entry);
+                });
+                headerActions.appendChild(readButton);
                 if (!entry.deleted) {
                     const deleteBtn = document.createElement('button');
                     deleteBtn.type = 'button';
@@ -1700,8 +1695,9 @@
                     deleteBtn.textContent = '✕';
                     deleteBtn.title = 'Delete post';
                     deleteBtn.onclick = () => deleteChatEntry(entry.id);
-                    headerLine.appendChild(deleteBtn);
+                    headerActions.appendChild(deleteBtn);
                 }
+                headerLine.appendChild(headerActions);
 
                 const messageLine = document.createElement('div');
                 messageLine.className = 'space-y-2 mt-1 mb-1';
@@ -1782,32 +1778,6 @@
 
                 bubble.appendChild(headerLine);
                 bubble.appendChild(messageLine);
-                const footerLine = document.createElement('div');
-                footerLine.className = 'mt-1 flex items-center justify-end gap-2 text-[10px] text-slate-400';
-                const readIndicators = document.createElement('div');
-                readIndicators.className = 'flex items-center gap-1';
-                const { readPeers, unreadPeers } = getReadStatus(entry);
-                if (readPeers.length === 0 && unreadPeers.length === 0) {
-                    const dot = document.createElement('span');
-                    dot.className = 'read-dot unread';
-                    dot.title = 'No peers connected yet.';
-                    readIndicators.appendChild(dot);
-                } else {
-                    if (unreadPeers.length) {
-                        const dot = document.createElement('span');
-                        dot.className = 'read-dot unread';
-                        dot.title = `Unread: ${unreadPeers.map(peer => peer.name || 'Partner').join(', ')}`;
-                        readIndicators.appendChild(dot);
-                    }
-                    if (readPeers.length) {
-                        const dot = document.createElement('span');
-                        dot.className = 'read-dot read';
-                        dot.title = `Read by: ${readPeers.map(peer => `${peer.name || 'Partner'} (${formatTimestamp(peer.ts)})`).join(', ')}`;
-                        readIndicators.appendChild(dot);
-                    }
-                }
-                footerLine.appendChild(readIndicators);
-                bubble.appendChild(footerLine);
                 chatHistoryEl.appendChild(bubble);
                 attachSwipeReplyHandler(bubble, entry);
             });
@@ -1859,7 +1829,7 @@
             if (message.type === 'presence' || message.type === 'hello') {
                 const existing = peerPresence.get(senderDeviceId);
                 peerPresence.set(senderDeviceId, {
-                    name: resolvePeerName(senderDeviceId, message.name || peerName || 'Partner'),
+                    name: resolvePeerName(senderDeviceId, message.name || ''),
                     lastSeen: now,
                     connectedAt: existing?.connectedAt || now
                 });
@@ -1873,7 +1843,7 @@
                 if (message.active) {
                     peerTyping.set(senderDeviceId, {
                         active: true,
-                        name: resolvePeerName(senderDeviceId, message.name || peerName || 'Partner')
+                        name: resolvePeerName(senderDeviceId, message.name || '')
                     });
                     if (peerTypingTimeouts.has(senderDeviceId)) {
                         clearTimeout(peerTypingTimeouts.get(senderDeviceId));
@@ -1882,7 +1852,7 @@
                         peerTyping.delete(senderDeviceId);
                         peerTypingTimeouts.delete(senderDeviceId);
                         updatePeerStatus();
-                    }, 2000);
+                    }, 4000);
                     peerTypingTimeouts.set(senderDeviceId, timeoutId);
                 } else {
                     peerTyping.delete(senderDeviceId);
@@ -1912,7 +1882,7 @@
                 const entry = normalizeChatEntry({
                     id: message.id || createEntryId(),
                     from: 'peer',
-                    name: resolvePeerName(senderDeviceId, message.name || peerName || 'Partner'),
+                    name: resolvePeerName(senderDeviceId, message.name || ''),
                     deviceId: senderDeviceId,
                     message: message.text || '',
                     attachments,
@@ -1923,8 +1893,11 @@
                 chatHistory.push(entry);
                 saveChatHistory(chatHistory);
                 renderChat();
-                if (!document.hasFocus() || !isChatAtBottom()) {
+                const isOutOfFocus = !document.hasFocus() || document.visibilityState !== 'visible';
+                if (isOutOfFocus || !isChatAtBottom()) {
                     incrementUnreadCount();
+                }
+                if (isOutOfFocus) {
                     showBrowserNotification(entry);
                 }
                 if (document.hasFocus() && isChatAtBottom()) {
@@ -1935,7 +1908,7 @@
             if (message.type === 'read') {
                 const messageId = message.id;
                 if (!messageId) return;
-                applyReadReceipt(messageId, senderDeviceId, message.readerName || message.name || resolvePeerName(senderDeviceId, peerName), message.readAt || now, { persist: true });
+                applyReadReceipt(messageId, senderDeviceId, message.readerName || message.name || resolvePeerName(senderDeviceId, ''), message.readAt || now, { persist: true });
                 renderChat();
                 return;
             }
@@ -2055,7 +2028,7 @@
                     peers.set(peer.id, peer);
                 });
             } else {
-                peers.set(RELAY_DEVICE_ID, { id: RELAY_DEVICE_ID, name: joinName || 'You' });
+                peers.set(RELAY_DEVICE_ID, { id: RELAY_DEVICE_ID, name: joinName || '', connectedAt: localConnectedAt });
                 roster.forEach(peer => {
                     if (peer.id !== entry?.deviceId) {
                         peers.set(peer.id, peer);
@@ -2081,6 +2054,37 @@
             return { readPeers, unreadPeers };
         }
 
+        function openReadStatusModal(entry) {
+            if (!readStatusBody || !entry) return;
+            readStatusBody.innerHTML = '';
+            const peers = getPeersForMessage(entry);
+            if (!peers.length) {
+                const empty = document.createElement('div');
+                empty.className = 'text-sm text-slate-500';
+                empty.textContent = 'No peers connected yet.';
+                readStatusBody.appendChild(empty);
+                toggleModal('read-status', true);
+                return;
+            }
+            const reads = entry.reads || {};
+            peers.forEach(peer => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between gap-3 border border-slate-200 rounded-lg px-3 py-2 bg-slate-50';
+                const name = resolveDisplayName(peer.name, peer.connectedAt || entry.ts);
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'text-sm font-semibold text-slate-700';
+                nameSpan.textContent = name;
+                const readInfo = reads[peer.id];
+                const status = document.createElement('span');
+                status.className = 'text-xs text-slate-500';
+                status.textContent = readInfo?.ts ? formatDateTime(readInfo.ts) : 'Unread';
+                row.appendChild(nameSpan);
+                row.appendChild(status);
+                readStatusBody.appendChild(row);
+            });
+            toggleModal('read-status', true);
+        }
+
         function applyReadReceipt(entryId, readerId, readerName, readAt, { persist = false } = {}) {
             if (!entryId || !readerId) return false;
             const entry = chatHistory.find(item => item.id === entryId);
@@ -2092,7 +2096,7 @@
                 return false;
             }
             entry.reads[readerId] = {
-                name: readerName || resolvePeerName(readerId, peerName) || 'Partner',
+                name: readerName || resolvePeerName(readerId, ''),
                 ts: nextTs
             };
             if (persist) {
@@ -2155,18 +2159,15 @@
         }
 
         function updateChatAttachmentUI() {
-            const label = chatAttachmentStatus.querySelector('span');
-            if (!label) return;
             if (chatAttachmentPreview) {
                 chatAttachmentPreview.innerHTML = '';
             }
             if (pendingChatAttachments.length) {
-                label.textContent = `${pendingChatAttachments.length} attachment${pendingChatAttachments.length > 1 ? 's' : ''} ready.`;
-                chatAttachmentClear.classList.remove('hidden');
                 if (chatAttachmentPreview) {
                     pendingChatAttachments.forEach((att, index) => {
                         const wrapper = document.createElement('div');
                         wrapper.className = 'relative w-20 h-16 border border-slate-200 rounded-lg bg-white overflow-hidden flex items-center justify-center';
+                        wrapper.title = getAttachmentLabel(att);
                         const removeBtn = document.createElement('button');
                         removeBtn.type = 'button';
                         removeBtn.className = 'absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-[10px] flex items-center justify-center shadow';
@@ -2193,8 +2194,9 @@
                     });
                 }
             } else {
-                label.textContent = 'No attachments selected.';
-                chatAttachmentClear.classList.add('hidden');
+                if (chatAttachmentPreview) {
+                    chatAttachmentPreview.innerHTML = '';
+                }
             }
             setComposerMetrics();
         }
@@ -2203,6 +2205,7 @@
             const trimmed = (rawName || '').trim();
             joinName = trimmed || buildDefaultName();
             if (nameInput) nameInput.value = joinName;
+            if (clientNameInput) clientNameInput.value = joinName;
             writeStorage(NAME_STORAGE_KEY, joinName);
             if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
                 sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
@@ -2213,8 +2216,7 @@
                     id: RELAY_SESSION_ID,
                     room,
                     pair,
-                    name: joinName,
-                    peer: peerName
+                    name: joinName
                 });
             }
         }
@@ -2239,23 +2241,6 @@
             if (nextName === null) return;
             persistJoinName(nextName);
             updateLocalChatNames();
-        }
-
-        function persistPeerName(rawName) {
-            const trimmed = (rawName || '').trim();
-            peerName = trimmed || 'Partner';
-            if (peerInput) peerInput.value = peerName;
-            writeStorage(PEER_NAME_STORAGE_KEY, peerName);
-            updatePeerStatus();
-            if (isClientView) {
-                upsertSessionEntry({
-                    id: RELAY_SESSION_ID,
-                    room,
-                    pair,
-                    name: joinName,
-                    peer: peerName
-                });
-            }
         }
 
         let isDraggingGear = false;
@@ -2414,12 +2399,6 @@
             updateChatAttachmentUI();
         };
 
-        chatAttachmentClear.onclick = () => {
-            pendingChatAttachments = [];
-            setAttachmentAlert('');
-            updateChatAttachmentUI();
-        };
-
         if (nameInput) {
             nameInput.addEventListener('change', event => {
                 persistJoinName(event.target.value);
@@ -2428,15 +2407,16 @@
                 persistJoinName(event.target.value);
             });
         }
-        if (peerInput) {
-            peerInput.addEventListener('change', event => {
-                persistPeerName(event.target.value);
+        if (clientNameInput) {
+            clientNameInput.addEventListener('change', event => {
+                persistJoinName(event.target.value);
+                updateLocalChatNames();
             });
-            peerInput.addEventListener('blur', event => {
-                persistPeerName(event.target.value);
+            clientNameInput.addEventListener('blur', event => {
+                persistJoinName(event.target.value);
+                updateLocalChatNames();
             });
         }
-
         if (chatInput) {
             chatInput.addEventListener('focus', () => setComposerMetrics());
         }
@@ -2609,6 +2589,19 @@
             });
         }
 
+        const readStatusModal = document.getElementById('read-status-modal');
+        if (readStatusModal) {
+            readStatusModal.addEventListener('click', event => {
+                if (event.target.id === 'read-status-modal') {
+                    toggleModal('read-status', false);
+                }
+            });
+        }
+
+        if (closeReadStatus) {
+            closeReadStatus.addEventListener('click', () => toggleModal('read-status', false));
+        }
+
         if (controlsModal) {
             controlsModal.addEventListener('click', event => {
                 if (event.target.id === 'controls-modal') {
@@ -2625,6 +2618,7 @@
             const initial = loadGearPosition();
             setGearPosition(initial.x, initial.y);
             gearFab.addEventListener('pointerdown', event => {
+                event.preventDefault();
                 gearFab.setPointerCapture(event.pointerId);
                 const left = parseFloat(gearFab.style.left) || initial.x;
                 const top = parseFloat(gearFab.style.top) || initial.y;
@@ -2639,6 +2633,7 @@
             });
             gearFab.addEventListener('pointermove', event => {
                 if (!gearDragStart) return;
+                event.preventDefault();
                 const dx = event.clientX - gearDragStart.startX;
                 const dy = event.clientY - gearDragStart.startY;
                 if (Math.abs(dx) + Math.abs(dy) > 4) {
@@ -2666,7 +2661,7 @@
         if (peerListPanel && peerPanelToggle) {
             try {
                 const storedPeerPanelState = readStorage(PEER_PANEL_STORAGE_KEY);
-                peerPanelCollapsed = storedPeerPanelState === 'collapsed';
+                peerPanelCollapsed = storedPeerPanelState ? storedPeerPanelState === 'collapsed' : true;
             } catch (_) {}
             updatePeerPanelUI();
             peerPanelToggle.addEventListener('click', () => {
@@ -2707,19 +2702,16 @@
                 const nextRoom = (roomInput?.value || '').trim() || defaultRoom;
                 const nextPair = allowedPairs.includes(pairSelect?.value) ? pairSelect.value : defaultPair;
                 const nextName = (nameInput?.value || '').trim() || joinName;
-                const nextPeer = (peerInput?.value || '').trim() || peerName;
                 persistJoinName(nextName);
-                persistPeerName(nextPeer);
                 const sessionId = buildSessionId(nextRoom, nextPair);
                 upsertSessionEntry({
                     id: sessionId,
                     room: nextRoom,
                     pair: normalizePair(nextPair),
                     name: nextName,
-                    peer: nextPeer,
                     updatedAt: Date.now()
                 });
-                const clientUrl = buildClientUrl({ nextRoom, nextPair, nextName, nextPeer });
+                const clientUrl = buildClientUrl({ nextRoom, nextPair, nextName });
                 window.open(clientUrl, '_blank', 'noopener');
             };
         }
@@ -2766,10 +2758,7 @@
         };
 
         if (controlPanel && controlPanelToggle) {
-            try {
-                const storedPanelState = readStorage(CONTROL_PANEL_STORAGE_KEY);
-                controlPanelCollapsed = storedPanelState === 'collapsed';
-            } catch (_) {}
+            controlPanelCollapsed = true;
             updateControlPanelUI();
             controlPanelToggle.addEventListener('click', () => {
                 controlPanelCollapsed = !controlPanelCollapsed;
@@ -2810,7 +2799,7 @@
             }
             typingTimeout = setTimeout(() => {
                 setTypingState(false);
-            }, 1200);
+            }, 3000);
         });
         chatInput.addEventListener('blur', () => {
             if (!isClientView) return;
@@ -2836,7 +2825,7 @@
         if (copyLinkButton) {
             copyLinkButton.onclick = async () => {
                 try {
-                    await navigator.clipboard.writeText(buildClientUrl({ nextName: peerName, nextPeer: joinName }));
+                    await navigator.clipboard.writeText(buildClientUrl({ nextName: joinName }));
                     copyLinkButton.textContent = 'Copied!';
                     setTimeout(() => {
                         copyLinkButton.innerHTML = '<span class="material-symbols-outlined text-sm">link</span>Copy link';
@@ -2873,7 +2862,6 @@
                 room,
                 pair,
                 name: joinName,
-                peer: peerName,
                 updatedAt: Date.now()
             });
             if (navigator.storage && navigator.storage.persist) {
