@@ -38,6 +38,9 @@
         .config-view #gear-fab { display: none; }
         .config-view #peer-list-panel { display: none; }
         .chat-bubble { font-size: var(--bubble-font-size, 0.875rem); touch-action: pan-y; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .chat-bubble .bubble-meta { font-size: 0.75em; }
+        .chat-bubble .bubble-body { font-size: 0.95em; }
+        .chat-bubble .bubble-subtle { font-size: 0.8em; }
         .bubble-local { background: var(--bubble-local-bg, #eff6ff); color: var(--bubble-local-text, #1f2937); }
         .bubble-peer { background: var(--bubble-peer-bg, #ffffff); color: var(--bubble-peer-text, #0f172a); }
         .control-panel-body { max-height: 500px; opacity: 1; transition: max-height 0.25s ease, opacity 0.25s ease; overflow: hidden; }
@@ -51,15 +54,17 @@
         .chat-bubble.swipe-ready { box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); }
         .typing-indicator { opacity: 0; transform: translateY(-4px); transition: opacity 0.7s ease, transform 0.7s ease; }
         .typing-indicator.active { opacity: 1; transform: translateY(0); }
-        .typing-indicator-bar { position: sticky; top: 0; z-index: 10; background: rgba(248, 250, 252, 0.95); border-bottom: 1px solid rgba(226, 232, 240, 0.8); }
+        .typing-indicator-bar { position: sticky; top: 0; z-index: 10; background: transparent; border-bottom: none; }
         .message-indicator { transition: opacity 0.3s ease, transform 0.3s ease; }
         .reply-preview { border-left: 3px solid #60a5fa; }
         .peer-panel-body { max-height: 320px; opacity: 1; transition: max-height 0.25s ease, opacity 0.25s ease; overflow: hidden; }
         .peer-panel.collapsed .peer-panel-body { max-height: 0; opacity: 0; }
         .peer-panel-toggle .toggle-icon { transition: color 0.2s ease; }
         .read-dot { width: 10px; height: 10px; border-radius: 9999px; display: inline-block; }
-        .read-dot.active { background: #16a34a; }
-        .read-dot.empty { background: #94a3b8; }
+        .read-dot.read-all { background: #16a34a; }
+        .read-dot.read-some { background: #facc15; }
+        .read-dot.read-none { background: #94a3b8; }
+        #chat-history { scroll-padding-bottom: calc(var(--composer-height) + 20px); }
         .gear-fab { touch-action: none; }
     </style>
 </head>
@@ -123,11 +128,22 @@
         </section>
 
         <section id="peer-list-panel" class="bg-white/90 border border-slate-200 rounded-2xl px-4 py-2 shadow-md backdrop-blur peer-panel">
-            <div class="flex flex-nowrap items-center gap-1">
-                <div class="flex flex-nowrap items-center gap-1">
+            <div class="flex flex-nowrap items-center gap-2">
+                <div class="flex flex-nowrap items-center gap-2 min-w-0">
                     <span id="peer-count-pill" class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">0 online</span>
-                    <span id="session-name-chip" class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">Session</span>
-                    <span id="session-unread-chip" class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-amber-50 text-[11px] font-semibold text-amber-600">0 waiting</span>
+                    <button id="session-unread-chip" type="button" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 text-[11px] font-semibold text-amber-600">
+                        <span id="session-name-chip">Session</span>
+                        <span class="text-slate-400">•</span>
+                        <span id="session-unread-count">0 waiting</span>
+                    </button>
+                    <span class="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                        You:
+                        <span id="client-name-inline" class="px-1.5 py-0.5 rounded-md bg-white/80 border border-slate-200 text-slate-600 font-semibold outline-none" contenteditable="true" role="textbox" aria-label="Edit your name"></span>
+                    </span>
+                    <button id="peer-filter-chip" type="button" class="hidden items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">
+                        <span id="peer-filter-label">Filtered</span>
+                        <span class="material-symbols-outlined text-[12px]">close</span>
+                    </button>
                 </div>
                 <button id="peer-panel-toggle" class="peer-panel-toggle ml-auto shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 text-[11px] font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100">
                     <span class="peer-panel-label">Expand</span>
@@ -135,29 +151,16 @@
                 </button>
             </div>
             <div class="peer-panel-body mt-2 space-y-3">
-                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex flex-col gap-1">
-                    Your name
-                    <input id="client-name-input" class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white">
-                </label>
                 <div id="peer-list-empty" class="text-xs text-slate-400">No peers connected yet.</div>
                 <ul id="peer-list" class="space-y-2 text-sm"></ul>
             </div>
         </section>
 
         <main class="flex-1 min-h-0 bg-white/90 border border-slate-200 rounded-2xl shadow-md flex flex-col overflow-hidden chat-app backdrop-blur">
-            <div class="flex items-center justify-between gap-3 px-4 py-2 border-b border-slate-100 bg-white/80">
-                <span class="text-[11px] uppercase tracking-wide text-slate-400">&nbsp;</span>
-                <div id="message-waiting" class="message-indicator hidden">
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[11px] font-semibold">
-                        <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
-                        <span id="message-waiting-count">Messages waiting</span>
-                    </span>
-                </div>
-            </div>
-            <div class="typing-indicator-bar px-3 py-1 text-xs text-slate-500">
+            <div class="typing-indicator-bar px-3 py-0 text-xs text-slate-500">
                 <div id="typing-indicator" class="typing-indicator hidden font-semibold text-slate-600">Partner is typing…</div>
             </div>
-            <div id="chat-history" class="flex-1 overflow-y-auto px-4 py-2 pb-6 space-y-3 no-scrollbar bg-gradient-to-b from-white/60 to-slate-50/60 rounded-2xl"></div>
+            <div id="chat-history" class="flex-1 overflow-y-auto px-4 pt-0 pb-6 space-y-3 no-scrollbar bg-gradient-to-b from-white/60 to-slate-50/60 rounded-2xl"></div>
         </main>
     </div>
 
@@ -170,13 +173,13 @@
                 </div>
                 <button id="reply-preview-clear" type="button" class="text-slate-400 hover:text-slate-600">✕</button>
             </div>
-            <div class="flex flex-col gap-1 text-xs text-slate-500 min-h-[18px]" id="chat-attachments">
+            <div class="flex flex-col gap-1 text-xs text-slate-500 min-h-[12px]" id="chat-attachments">
                 <div id="chat-attachments-alert" class="hidden text-rose-500"></div>
                 <div id="chat-attachments-preview" class="flex flex-wrap gap-1.5"></div>
             </div>
             <div class="flex items-center gap-1.5 flex-nowrap">
-                <button id="chat-attach" type="button" class="w-8 h-8 flex items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Attach files">
-                    <span class="material-symbols-outlined text-[16px]">attach_file</span>
+                <button id="chat-attach" type="button" class="w-7 h-7 flex items-center justify-center rounded-md border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-100 bg-white" title="Attach files">
+                    <span class="material-symbols-outlined text-[14px]">attach_file</span>
                 </button>
                 <input id="chat-attachments-input" type="file" accept="image/*,application/pdf,text/html,audio/mpeg,audio/wav,audio/x-wav,video/x-msvideo,video/mp4" multiple class="hidden">
                 <textarea id="chat-input" rows="1" class="flex-1 min-w-0 px-3 py-1.5 leading-5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 resize-none" placeholder="Type your message…"></textarea>
@@ -296,7 +299,7 @@
                 </label>
                 <label class="flex items-center justify-between gap-3">
                     <span class="text-slate-600">Bubble font size</span>
-                    <input id="style-font-size" type="range" min="12" max="20" step="1" class="w-40">
+                    <input id="style-font-size" type="range" min="12" max="36" step="1" class="w-40">
                 </label>
             </div>
             <div class="flex justify-end gap-2 mt-5">
@@ -607,10 +610,13 @@
         const peerCountPill = document.getElementById('peer-count-pill');
         const sessionNameChip = document.getElementById('session-name-chip');
         const sessionUnreadChip = document.getElementById('session-unread-chip');
+        const sessionUnreadCount = document.getElementById('session-unread-count');
+        const clientNameInline = document.getElementById('client-name-inline');
+        const peerFilterChip = document.getElementById('peer-filter-chip');
+        const peerFilterLabel = document.getElementById('peer-filter-label');
         const roomInput = document.getElementById('room-input');
         const pairSelect = document.getElementById('pair-select');
         const nameInput = document.getElementById('name-input');
-        const clientNameInput = document.getElementById('client-name-input');
         const launchSessionButton = document.getElementById('launch-session');
         const chatHistoryEl = document.getElementById('chat-history');
         const chatInput = document.getElementById('chat-input');
@@ -644,8 +650,6 @@
         const styleSave = document.getElementById('style-save');
         const closeStyleConfig = document.getElementById('close-style-config');
         const typingIndicator = document.getElementById('typing-indicator');
-        const messageWaiting = document.getElementById('message-waiting');
-        const messageWaitingCount = document.getElementById('message-waiting-count');
         const readStatusBody = document.getElementById('read-status-body');
         const closeReadStatus = document.getElementById('close-read-status');
         const translationCache = new Map();
@@ -666,6 +670,9 @@
         let typingIndicatorTimer = null;
         let reconnectDelayMs = 1000;
         let reconnectTimer = null;
+        let selectedPeerId = null;
+        let selectedPeerName = '';
+        let firstUnreadMessageId = null;
         const notificationSupport = 'Notification' in window;
 
         document.body.classList.add(isClientView ? 'client-view' : 'config-view');
@@ -725,13 +732,8 @@
             if (persist) {
                 writeStorage(NOTIFICATIONS_STORAGE_KEY, notificationsEnabled ? 'true' : 'false');
             }
-            if (!notificationsEnabled) {
-                clearUnreadCount();
-                updateDocumentTitle();
-                if (messageWaiting) {
-                    messageWaiting.classList.add('hidden');
-                }
-            }
+            updateDocumentTitle();
+            updateMessageWaitingIndicator();
         }
 
         function updateNotificationsInfo() {
@@ -813,7 +815,7 @@
         if (roomInput) roomInput.value = room;
         if (pairSelect) pairSelect.value = pair;
         if (nameInput) nameInput.value = joinName;
-        if (clientNameInput) clientNameInput.value = joinName;
+        if (clientNameInline) clientNameInline.textContent = joinName;
         if (sessionNameChip) sessionNameChip.textContent = room;
 
         const languageNames = (() => {
@@ -869,20 +871,20 @@
         }
 
         function updateMessageWaitingIndicator() {
+            if (sessionUnreadCount) {
+                sessionUnreadCount.textContent = unreadCount === 1 ? '1 waiting' : `${unreadCount} waiting`;
+            }
             if (sessionUnreadChip) {
-                sessionUnreadChip.textContent = unreadCount === 1 ? '1 waiting' : `${unreadCount} waiting`;
+                sessionUnreadChip.classList.toggle('bg-amber-50', unreadCount > 0);
+                sessionUnreadChip.classList.toggle('text-amber-600', unreadCount > 0);
+                sessionUnreadChip.classList.toggle('bg-slate-100', unreadCount === 0);
+                sessionUnreadChip.classList.toggle('text-slate-500', unreadCount === 0);
             }
-            if (!messageWaiting || !messageWaitingCount) return;
-            if (!notificationsEnabled || unreadCount <= 0) {
-                messageWaiting.classList.add('hidden');
-                return;
-            }
-            messageWaiting.classList.remove('hidden');
-            messageWaitingCount.textContent = unreadCount === 1 ? '1 message waiting' : `${unreadCount} messages waiting`;
         }
 
         function clearUnreadCount() {
             unreadCount = 0;
+            firstUnreadMessageId = null;
             updateMessageWaitingIndicator();
             updateDocumentTitle();
             markMessagesRead();
@@ -897,9 +899,11 @@
             }
         }
 
-        function incrementUnreadCount() {
-            if (!notificationsEnabled) return;
+        function incrementUnreadCount(messageId = null) {
             unreadCount += 1;
+            if (!firstUnreadMessageId && messageId) {
+                firstUnreadMessageId = messageId;
+            }
             updateMessageWaitingIndicator();
             updateDocumentTitle();
             if (isClientView) {
@@ -916,6 +920,13 @@
         function isChatAtBottom() {
             if (!chatHistoryEl) return true;
             return chatHistoryEl.scrollHeight - chatHistoryEl.scrollTop - chatHistoryEl.clientHeight < 80;
+        }
+
+        function scrollToFirstUnread() {
+            if (!chatHistoryEl || !firstUnreadMessageId) return;
+            const target = chatHistoryEl.querySelector(`[data-entry-id="${firstUnreadMessageId}"]`);
+            if (!target) return;
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         function syncSessionPresence() {
@@ -962,6 +973,13 @@
         function renderPeerList() {
             if (!peerListPanel || !peerList || !peerListEmpty) return;
             const roster = getPeerRoster();
+            if (selectedPeerId && !roster.has(selectedPeerId)) {
+                selectedPeerId = null;
+                selectedPeerName = '';
+                if (peerFilterChip) {
+                    peerFilterChip.classList.add('hidden');
+                }
+            }
             peerList.innerHTML = '';
             const now = Date.now();
             const onlinePeers = Array.from(roster.values()).filter(peer => now - (peer.lastSeen || 0) < PRESENCE_STALE_MS);
@@ -980,10 +998,13 @@
             const items = [localEntry, ...onlinePeers.map(peer => ({ ...peer, isLocal: false }))];
             items.forEach(peer => {
                 const li = document.createElement('li');
-                li.className = 'flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 bg-white/70';
+                const isSelected = selectedPeerId && peer.id === selectedPeerId;
+                li.className = `flex items-center justify-between gap-3 rounded-lg border px-3 py-2 bg-white/70 cursor-pointer transition ${isSelected ? 'border-blue-300 bg-blue-50/60' : 'border-slate-200 hover:border-slate-300'}`;
                 const name = resolveDisplayName(peer.name, peer.connectedAt || now);
                 const connectedLabel = formatElapsedDuration(peer.connectedAt || peer.lastSeen || now);
                 li.title = `Connected for ${connectedLabel}`;
+                li.dataset.peerId = peer.id;
+                li.dataset.peerName = name;
                 li.innerHTML = `
                     <div class="flex items-center gap-2 min-w-0">
                         <span class="h-2.5 w-2.5 rounded-full bg-emerald-400"></span>
@@ -991,6 +1012,11 @@
                     </div>
                     <span class="text-[11px] text-slate-400">Online</span>
                 `;
+                if (!peer.isLocal) {
+                    li.addEventListener('click', () => {
+                        setPeerFilter(peer.id, name);
+                    });
+                }
                 peerList.appendChild(li);
             });
             if (peerCountPill) {
@@ -999,6 +1025,27 @@
             if (sessionNameChip) {
                 sessionNameChip.textContent = room;
             }
+        }
+
+        function setPeerFilter(peerId, peerName = '') {
+            if (selectedPeerId === peerId) {
+                selectedPeerId = null;
+                selectedPeerName = '';
+            } else {
+                selectedPeerId = peerId;
+                selectedPeerName = peerName;
+            }
+            if (peerFilterChip && peerFilterLabel) {
+                if (selectedPeerId) {
+                    peerFilterLabel.textContent = `Filtered: ${selectedPeerName}`;
+                    peerFilterChip.classList.remove('hidden');
+                } else {
+                    peerFilterLabel.textContent = 'Filtered';
+                    peerFilterChip.classList.add('hidden');
+                }
+            }
+            renderPeerList();
+            renderChat();
         }
 
         function updatePeerStatus() {
@@ -1644,10 +1691,15 @@
 
         function renderChat() {
             chatHistoryEl.innerHTML = '';
-            chatHistory.forEach((entry, index) => {
+            const visibleHistory = selectedPeerId
+                ? chatHistory.filter(entry => entry.from === 'local' || entry.deviceId === selectedPeerId)
+                : chatHistory;
+            visibleHistory.forEach((entry, index) => {
                 const bubble = document.createElement('div');
                 const isLocal = entry.from === 'local';
-                bubble.className = `chat-bubble px-3 py-2 rounded-2xl shadow-sm border ${isLocal ? 'bubble-local border-blue-100 ml-auto' : 'bubble-peer border-slate-200 mr-auto'} max-w-[90%]`;
+                const isFirstUnread = entry.id && entry.id === firstUnreadMessageId;
+                bubble.className = `chat-bubble px-3 py-2 rounded-2xl shadow-sm border ${isLocal ? 'bubble-local border-blue-100 ml-auto' : 'bubble-peer border-slate-200 mr-auto'} max-w-[90%] ${isFirstUnread ? 'ring-2 ring-amber-300' : ''}`;
+                bubble.dataset.entryId = entry.id;
                 if (entry.style) {
                     bubble.style.background = entry.style.bg || '';
                     bubble.style.color = entry.style.text || '';
@@ -1655,7 +1707,7 @@
                 }
 
                 const headerLine = document.createElement('div');
-                headerLine.className = 'flex items-center justify-between text-[11px] font-semibold text-slate-400';
+                headerLine.className = 'bubble-meta flex items-center justify-between font-semibold text-slate-400';
                 const label = document.createElement('span');
                 const senderName = resolveDisplayName(
                     entry.name || (isLocal ? joinName : resolvePeerName(entry.deviceId, '')),
@@ -1677,11 +1729,13 @@
                 const readButton = document.createElement('button');
                 readButton.type = 'button';
                 readButton.className = 'flex items-center gap-1';
-                const peers = getPeersForMessage(entry);
-                const hasPeers = peers.length > 0;
+                const { readPeers, unreadPeers } = getReadStatus(entry);
+                const totalPeers = readPeers.length + unreadPeers.length;
+                const allRead = totalPeers > 0 && unreadPeers.length === 0;
+                const someRead = readPeers.length > 0 && unreadPeers.length > 0;
                 const dot = document.createElement('span');
-                dot.className = `read-dot ${hasPeers ? 'active' : 'empty'}`;
-                readButton.title = hasPeers ? 'View read status' : 'No peers connected yet';
+                dot.className = `read-dot ${allRead ? 'read-all' : someRead ? 'read-some' : 'read-none'}`;
+                readButton.title = totalPeers > 0 ? 'View read status' : 'No peers connected yet';
                 readButton.appendChild(dot);
                 readButton.addEventListener('click', event => {
                     event.stopPropagation();
@@ -1700,17 +1754,17 @@
                 headerLine.appendChild(headerActions);
 
                 const messageLine = document.createElement('div');
-                messageLine.className = 'space-y-2 mt-1 mb-1';
+                messageLine.className = 'bubble-body space-y-2 mt-1 mb-1';
 
                 if (entry.deleted) {
                     const deletedLine = document.createElement('div');
-                    deletedLine.className = 'text-xs text-slate-400 italic';
+                    deletedLine.className = 'bubble-subtle text-slate-400 italic';
                     deletedLine.textContent = `Post deleted • ${formatTimestamp(entry.ts)}`;
                     messageLine.appendChild(deletedLine);
                 } else {
                     if (entry.replyTo) {
                         const replyLine = document.createElement('div');
-                        replyLine.className = 'text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1';
+                        replyLine.className = 'bubble-subtle text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1';
                         const replyName = entry.replyTo.name || 'Partner';
                         const replyText = entry.replyTo.snippet || 'Message';
                         replyLine.textContent = `↪ ${replyName}: ${replyText}`;
@@ -1740,12 +1794,12 @@
 
                     if (langA === langB) {
                         const singleColumn = document.createElement('div');
-                        singleColumn.className = 'text-xs border border-slate-200 rounded-lg px-2 py-2 bg-white/70';
+                        singleColumn.className = 'border border-slate-200 rounded-lg px-2 py-2 bg-white/70';
                         singleColumn.innerHTML = renderChatContent(text);
                         messageLine.appendChild(singleColumn);
                     } else {
                         const table = document.createElement('table');
-                        table.className = 'w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden';
+                        table.className = 'w-full text-left border border-slate-200 rounded-lg overflow-hidden';
                         const tbody = document.createElement('tbody');
                         const messageRow = document.createElement('tr');
                         const langAText = document.createElement('td');
@@ -1895,7 +1949,7 @@
                 renderChat();
                 const isOutOfFocus = !document.hasFocus() || document.visibilityState !== 'visible';
                 if (isOutOfFocus || !isChatAtBottom()) {
-                    incrementUnreadCount();
+                    incrementUnreadCount(entry.id);
                 }
                 if (isOutOfFocus) {
                     showBrowserNotification(entry);
@@ -2130,6 +2184,11 @@
             return Math.max(...chatHistory.map(entry => entry.ts || 0));
         }
 
+        function requestChatSync() {
+            if (!relayState.ws || relayState.ws.readyState !== WebSocket.OPEN) return;
+            sendRelayMessage({ type: 'sync-request', since: getLatestChatTimestamp() });
+        }
+
         function mergeChatHistory(incoming) {
             const existing = new Map(chatHistory.map(entry => [entry.id, entry]));
             incoming.map(normalizeChatEntry).filter(Boolean).forEach(entry => {
@@ -2166,7 +2225,7 @@
                 if (chatAttachmentPreview) {
                     pendingChatAttachments.forEach((att, index) => {
                         const wrapper = document.createElement('div');
-                        wrapper.className = 'relative w-16 h-12 border border-slate-200 rounded-lg bg-white overflow-hidden flex items-center justify-center scale-90';
+                        wrapper.className = 'relative w-12 h-10 border border-slate-200 rounded-lg bg-white overflow-hidden flex items-center justify-center';
                         wrapper.title = getAttachmentLabel(att);
                         const removeBtn = document.createElement('button');
                         removeBtn.type = 'button';
@@ -2176,6 +2235,7 @@
                             pendingChatAttachments.splice(index, 1);
                             updateChatAttachmentUI();
                         };
+                        removeBtn.addEventListener('click', event => event.stopPropagation());
                         const mime = getAttachmentMime(att);
                         if (mime.startsWith('image/') || isImageDataUrl(att.dataUrl)) {
                             const img = document.createElement('img');
@@ -2185,11 +2245,12 @@
                             wrapper.appendChild(img);
                         } else {
                             const icon = document.createElement('span');
-                            icon.className = 'material-symbols-outlined text-blue-500 text-base';
+                            icon.className = 'material-symbols-outlined text-slate-400 text-base';
                             icon.textContent = 'description';
                             wrapper.appendChild(icon);
                         }
                         wrapper.appendChild(removeBtn);
+                        wrapper.addEventListener('click', () => openChatAttachmentModal(att));
                         chatAttachmentPreview.appendChild(wrapper);
                     });
                 }
@@ -2205,7 +2266,7 @@
             const trimmed = (rawName || '').trim();
             joinName = trimmed || buildDefaultName();
             if (nameInput) nameInput.value = joinName;
-            if (clientNameInput) clientNameInput.value = joinName;
+            if (clientNameInline) clientNameInline.textContent = joinName;
             writeStorage(NAME_STORAGE_KEY, joinName);
             if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
                 sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
@@ -2235,12 +2296,13 @@
             }
         }
 
+        updateLocalChatNames();
+
         function requestJoinNameUpdate() {
             if (!isClientView) return;
-            const nextName = window.prompt('Update device name', joinName);
-            if (nextName === null) return;
-            persistJoinName(nextName);
-            updateLocalChatNames();
+            if (!clientNameInline) return;
+            clientNameInline.focus();
+            document.getSelection()?.selectAllChildren(clientNameInline);
         }
 
         let isDraggingGear = false;
@@ -2413,13 +2475,15 @@
                 persistJoinName(event.target.value);
             });
         }
-        if (clientNameInput) {
-            clientNameInput.addEventListener('change', event => {
-                persistJoinName(event.target.value);
-                updateLocalChatNames();
+        if (clientNameInline) {
+            clientNameInline.addEventListener('keydown', event => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    clientNameInline.blur();
+                }
             });
-            clientNameInput.addEventListener('blur', event => {
-                persistJoinName(event.target.value);
+            clientNameInline.addEventListener('blur', () => {
+                persistJoinName(clientNameInline.textContent);
                 updateLocalChatNames();
             });
         }
@@ -2541,6 +2605,18 @@
         if (controlNotificationsToggle) {
             controlNotificationsToggle.addEventListener('change', event => {
                 handleNotificationsToggleChange(event.target.checked);
+            });
+        }
+
+        if (sessionUnreadChip) {
+            sessionUnreadChip.addEventListener('click', () => {
+                scrollToFirstUnread();
+            });
+        }
+
+        if (peerFilterChip) {
+            peerFilterChip.addEventListener('click', () => {
+                setPeerFilter(null);
             });
         }
 
@@ -2877,6 +2953,7 @@
             connectRelay();
             window.addEventListener('focus', () => {
                 connectRelay();
+                requestChatSync();
                 if (isChatAtBottom()) {
                     clearUnreadCount();
                     markMessagesRead();
@@ -2886,6 +2963,7 @@
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible') {
                     connectRelay();
+                    requestChatSync();
                     if (isChatAtBottom()) {
                         clearUnreadCount();
                         markMessagesRead();
@@ -2898,6 +2976,17 @@
             window.addEventListener('beforeunload', () => {
                 setTypingState(false);
                 sendRelayMessage({ type: 'leave', name: joinName });
+            });
+            window.addEventListener('storage', event => {
+                if (event.key === CHAT_STORAGE_KEY) {
+                    const incoming = loadChatHistory();
+                    mergeChatHistory(incoming);
+                }
+                if (event.key === NAME_STORAGE_KEY) {
+                    const storedName = readStorage(NAME_STORAGE_KEY) || joinName;
+                    persistJoinName(storedName);
+                    updateLocalChatNames();
+                }
             });
             setInterval(() => {
                 if (!relayState.ws || relayState.ws.readyState === WebSocket.CLOSED) {
