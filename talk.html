@@ -264,6 +264,9 @@
                 <div id="notifications-status" class="text-[11px] text-slate-500 px-3">
                     Notifications are off.
                 </div>
+                <button id="notifications-cta" class="hidden w-full text-left text-[11px] text-blue-600 px-3 py-2 rounded-lg border border-blue-100 bg-blue-50/70 hover:bg-blue-100">
+                    Enable notifications
+                </button>
                 <div id="notifications-info" class="hidden text-[11px] text-slate-400 px-3">
                     Browser notifications are blocked or not granted. Enable them in your browser settings.
                 </div>
@@ -688,6 +691,7 @@
         const notificationsToggle = document.getElementById('notifications-toggle');
         const notificationsFocusToggle = document.getElementById('notifications-focus-toggle');
         const notificationsStatus = document.getElementById('notifications-status');
+        const notificationsCta = document.getElementById('notifications-cta');
         const notificationsInfo = document.getElementById('notifications-info');
         const controlsModal = document.getElementById('controls-modal');
         const closeControls = document.getElementById('close-controls');
@@ -857,27 +861,30 @@
             }
         }
 
+        function updateNotificationsCta() {
+            if (!notificationsCta) return;
+            const shouldShow = notificationsEnabled && notificationSupport && Notification.permission === 'default';
+            notificationsCta.classList.toggle('hidden', !shouldShow);
+        }
+
         function updateNotificationsStatus() {
             if (!notificationsStatus) return;
+            let statusText = '';
             if (!notificationSupport) {
-                notificationsStatus.textContent = 'Browser notifications are not supported here.';
-                return;
+                statusText = 'Browser notifications are not supported here.';
+            } else if (Notification.permission === 'denied') {
+                statusText = 'Notifications are blocked in this browser.';
+            } else if (Notification.permission === 'default') {
+                statusText = 'Notifications need permission to appear.';
+            } else if (!notificationsEnabled) {
+                statusText = 'Notifications are off.';
+            } else {
+                statusText = notifyWhenFocused
+                    ? 'Notifications are on (including when active).'
+                    : 'Notifications are on.';
             }
-            if (Notification.permission === 'denied') {
-                notificationsStatus.textContent = 'Notifications are blocked in this browser.';
-                return;
-            }
-            if (Notification.permission === 'default') {
-                notificationsStatus.textContent = 'Notifications need permission to appear.';
-                return;
-            }
-            if (!notificationsEnabled) {
-                notificationsStatus.textContent = 'Notifications are off.';
-                return;
-            }
-            notificationsStatus.textContent = notifyWhenFocused
-                ? 'Notifications are on (including when active).'
-                : 'Notifications are on.';
+            notificationsStatus.textContent = statusText;
+            updateNotificationsCta();
         }
 
         function showNotificationFallback(entry) {
@@ -972,6 +979,7 @@
         setNotifyWhenFocused(loadNotifyWhenFocusedSetting(), { persist: false });
         updateNotificationsInfo();
         updateNotificationsStatus();
+        updateNotificationsCta();
         updateMessageWaitingIndicator();
         updateDocumentTitle();
 
@@ -2891,6 +2899,14 @@
         if (notificationsToggle) {
             notificationsToggle.addEventListener('change', event => {
                 handleNotificationsToggleChange(event.target.checked);
+            });
+        }
+
+        if (notificationsCta) {
+            notificationsCta.addEventListener('click', async () => {
+                await requestNotificationPermission();
+                updateNotificationsInfo();
+                updateNotificationsStatus();
             });
         }
 
