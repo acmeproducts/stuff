@@ -668,6 +668,7 @@
         const peerTypingTimeouts = new Map();
         const peerStyles = new Map();
         const peerDeviceNames = new Map(Object.entries(loadPeerDeviceNames()));
+        let localPresenceActive = resolveLocalPresenceActive();
         let controlPanelCollapsed = false;
         let notificationsEnabled = true;
         let unreadCount = 0;
@@ -675,6 +676,29 @@
         let typingIndicatorTimer = null;
         let reconnectDelayMs = 1000;
         let reconnectTimer = null;
+
+        function resolveLocalPresenceActive() {
+            return document.visibilityState === 'visible' && document.hasFocus();
+        }
+
+        function sendPresenceUpdate() {
+            if (!isClientView) return;
+            sendRelayMessage({
+                type: 'presence',
+                name: joinName,
+                style: getSenderStyle(),
+                active: localPresenceActive
+            });
+        }
+
+        function updateLocalPresenceActive({ force = false } = {}) {
+            const nextActive = resolveLocalPresenceActive();
+            if (!force && nextActive === localPresenceActive) return;
+            localPresenceActive = nextActive;
+            sendPresenceUpdate();
+            updatePeerStatus();
+            syncSessionPresence();
+        }
 
         document.body.classList.add(isClientView ? 'client-view' : 'config-view');
 
@@ -895,6 +919,7 @@
                     id: RELAY_DEVICE_ID,
                     name: joinName || 'You',
                     lastSeen: now,
+                    active: localPresenceActive,
                     isLocal: true
                 }
             ];
@@ -903,6 +928,7 @@
                     id: deviceId,
                     name: peer?.name || peerName || 'Partner',
                     lastSeen: peer?.lastSeen || now,
+                    active: peer?.active ?? true,
                     isLocal: false
                 });
             });
@@ -925,7 +951,8 @@
                 localPresenceLabel.textContent = `Device 1 — ${joinName || 'You'}`;
             }
             if (localPresenceDot) {
-                localPresenceDot.className = `h-2.5 w-2.5 rounded-full ${connected ? 'bg-emerald-400' : 'bg-slate-300'}`;
+                const isLocalActive = connected && localPresenceActive;
+                localPresenceDot.className = `h-2.5 w-2.5 rounded-full ${isLocalActive ? 'bg-emerald-400' : 'bg-slate-300'}`;
             }
             if (peerPresence.size === 0) {
                 if (peerPresenceLabel) {
@@ -936,11 +963,12 @@
                 }
             } else {
                 const names = Array.from(peerPresence.values()).map(peer => peer?.name || 'Partner');
+                const hasActivePeers = Array.from(peerPresence.values()).some(peer => peer?.active ?? true);
                 if (peerPresenceLabel) {
                     peerPresenceLabel.textContent = `Device 2 — ${names.join(', ')}`;
                 }
                 if (peerPresenceDot) {
-                    peerPresenceDot.className = 'h-2.5 w-2.5 rounded-full bg-emerald-400';
+                    peerPresenceDot.className = `h-2.5 w-2.5 rounded-full ${hasActivePeers ? 'bg-emerald-400' : 'bg-slate-300'}`;
                 }
             }
             if (typingPeers.length) {
@@ -1736,9 +1764,12 @@
             const senderDeviceId = message.deviceId || message.from;
             if (message.type === 'presence' || message.type === 'hello') {
                 rememberPeerName(senderDeviceId, message.name);
+                const existing = peerPresence.get(senderDeviceId);
+                const nextActive = typeof message.active === 'boolean' ? message.active : existing?.active ?? true;
                 peerPresence.set(senderDeviceId, {
                     name: resolvePeerName(senderDeviceId, message.name || peerName || 'Partner'),
-                    lastSeen: now
+                    lastSeen: now,
+                    active: nextActive
                 });
                 if (message.style) {
                     peerStyles.set(senderDeviceId, message.style);
@@ -1862,7 +1893,7 @@
                     reconnectTimer = null;
                 }
                 sendRelayMessage({ type: 'hello', name: joinName, style: getSenderStyle() });
-                sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
+                sendPresenceUpdate();
                 flushOutbox();
                 sendRelayMessage({ type: 'sync-request', since: getLatestChatTimestamp() });
             };
@@ -1933,7 +1964,7 @@
 
         setInterval(() => {
             if (!relayState.ws || relayState.ws.readyState !== WebSocket.OPEN) return;
-            sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
+            sendPresenceUpdate();
         }, 5000);
 
         function setAttachmentAlert(message) {
@@ -1998,7 +2029,7 @@
             if (nameInput) nameInput.value = joinName;
             writeStorage(NAME_STORAGE_KEY, joinName);
             if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
-                sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
+                sendPresenceUpdate();
             }
             updatePeerStatus();
             if (isClientView) {
@@ -2363,7 +2394,7 @@
                 saveBubbleStyles(bubbleStyles);
                 applyBubbleStyles(bubbleStyles);
                 if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
-                    sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
+                    sendPresenceUpdate();
                 }
                 toggleModal('style-config', false);
                 renderChat();
@@ -2376,7 +2407,7 @@
                 saveBubbleStyles(bubbleStyles);
                 applyBubbleStyles(bubbleStyles);
                 if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
-                    sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
+                    sendPresenceUpdate();
                 }
                 openStyleConfig();
                 renderChat();
@@ -2668,13 +2699,18 @@
             renderChat();
             connectRelay();
             window.addEventListener('focus', () => {
+                updateLocalPresenceActive({ force: true });
                 connectRelay();
                 if (isChatAtBottom()) {
                     clearUnreadCount();
                 }
             });
+            window.addEventListener('blur', () => {
+                updateLocalPresenceActive({ force: true });
+            });
             window.addEventListener('online', connectRelay);
             document.addEventListener('visibilitychange', () => {
+                updateLocalPresenceActive({ force: true });
                 if (document.visibilityState === 'visible') {
                     connectRelay();
                     if (isChatAtBottom()) {

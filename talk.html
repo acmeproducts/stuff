@@ -750,6 +750,7 @@
         const peerStyles = new Map();
         const readSentForMessages = new Set();
         const localConnectedAt = Date.now();
+        let localPresenceActive = resolveLocalPresenceActive();
         let controlPanelCollapsed = false;
         let peerPanelCollapsed = false;
         let notificationsEnabled = true;
@@ -766,6 +767,29 @@
         const notificationSupport = 'Notification' in window;
         const serviceWorkerSupported = 'serviceWorker' in navigator;
         let notificationServiceWorkerRegistration = null;
+
+        function resolveLocalPresenceActive() {
+            return document.visibilityState === 'visible' && document.hasFocus();
+        }
+
+        function sendPresenceUpdate() {
+            if (!isClientView) return;
+            sendRelayMessage({
+                type: 'presence',
+                name: joinName,
+                style: getSenderStyle(),
+                active: localPresenceActive
+            });
+        }
+
+        function updateLocalPresenceActive({ force = false } = {}) {
+            const nextActive = resolveLocalPresenceActive();
+            if (!force && nextActive === localPresenceActive) return;
+            localPresenceActive = nextActive;
+            sendPresenceUpdate();
+            renderPeerList();
+            syncSessionPresence();
+        }
 
         document.body.classList.add(isClientView ? 'client-view' : 'config-view');
 
@@ -1086,7 +1110,7 @@
                 persistJoinName(trimmed);
                 updateLocalChatNames();
                 if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
-                    sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
+                    sendPresenceUpdate();
                 }
                 renderPeerList();
                 return;
@@ -1250,6 +1274,7 @@
                     id: RELAY_DEVICE_ID,
                     name: resolveDisplayName(joinName),
                     lastSeen: now,
+                    active: localPresenceActive,
                     isLocal: true
                 }
             ];
@@ -1258,6 +1283,7 @@
                     id: deviceId,
                     name: resolveDisplayName(peer?.name),
                     lastSeen: peer?.lastSeen || now,
+                    active: peer?.active ?? true,
                     isLocal: false
                 });
             });
@@ -1277,7 +1303,8 @@
                     id: deviceId,
                     name: peer?.name || '',
                     lastSeen: peer?.lastSeen || 0,
-                    connectedAt: peer?.connectedAt || peer?.lastSeen || 0
+                    connectedAt: peer?.connectedAt || peer?.lastSeen || 0,
+                    active: peer?.active ?? true
                 });
             });
             return roster;
@@ -1301,6 +1328,7 @@
                 name: joinName || '',
                 lastSeen: now,
                 connectedAt: localConnectedAt,
+                active: localPresenceActive,
                 isLocal: true
             };
             const items = [localEntry, ...onlinePeers.map(peer => ({ ...peer, isLocal: false }))];
@@ -1311,10 +1339,11 @@
                 const name = peer.isLocal ? resolveDisplayName(joinName) : resolvePeerName(peer.id, peer.name);
                 li.dataset.peerId = peer.id;
                 li.dataset.peerName = name;
+                const isActive = peer.isLocal ? localPresenceActive : peer.active ?? true;
                 const nameWrap = document.createElement('div');
                 nameWrap.className = 'flex items-center gap-2 min-w-0';
                 const dot = document.createElement('span');
-                dot.className = 'h-2.5 w-2.5 rounded-full bg-emerald-400';
+                dot.className = `h-2.5 w-2.5 rounded-full ${isActive ? 'bg-emerald-400' : 'bg-slate-300'}`;
                 const nameSpan = document.createElement('span');
                 nameSpan.className = `truncate text-sm outline-none ${peer.isLocal ? 'font-semibold text-slate-700' : 'text-slate-600'}`;
                 nameSpan.textContent = name;
@@ -1349,7 +1378,7 @@
                 }
                 const status = document.createElement('span');
                 status.className = 'text-[11px] text-slate-400';
-                status.textContent = 'Online';
+                status.textContent = isActive ? 'Active' : 'Away';
                 li.appendChild(nameWrap);
                 li.appendChild(status);
                 if (!peer.isLocal) {
@@ -2251,10 +2280,12 @@
             if (message.type === 'presence' || message.type === 'hello') {
                 const existing = peerPresence.get(senderDeviceId);
                 const nextName = resolveDisplayName(message.name || '');
+                const nextActive = typeof message.active === 'boolean' ? message.active : existing?.active ?? true;
                 peerPresence.set(senderDeviceId, {
                     name: nextName,
                     lastSeen: now,
-                    connectedAt: existing?.connectedAt || now
+                    connectedAt: existing?.connectedAt || now,
+                    active: nextActive
                 });
                 if (message.style) {
                     peerStyles.set(senderDeviceId, message.style);
@@ -2405,7 +2436,7 @@
                     reconnectTimer = null;
                 }
                 sendRelayMessage({ type: 'hello', name: joinName, style: getSenderStyle() });
-                sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
+                sendPresenceUpdate();
                 flushOutbox();
                 sendRelayMessage({ type: 'sync-request', since: getLatestChatTimestamp() });
             };
@@ -2648,7 +2679,7 @@
 
         setInterval(() => {
             if (!relayState.ws || relayState.ws.readyState !== WebSocket.OPEN) return;
-            sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
+            sendPresenceUpdate();
         }, 5000);
 
         function setAttachmentAlert(message) {
@@ -2755,7 +2786,7 @@
             if (nameInput) nameInput.value = joinName;
             writeStorage(NAME_STORAGE_KEY, joinName);
             if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
-                sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
+                sendPresenceUpdate();
             }
             updatePeerStatus();
             if (isClientView) {
@@ -3175,7 +3206,7 @@
                 saveChatBackground(chatBackground);
                 applyChatBackgroundStyles(chatBackground);
                 if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
-                    sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
+                    sendPresenceUpdate();
                 }
                 toggleModal('style-config', false);
                 renderChat();
@@ -3199,7 +3230,7 @@
                 saveBubbleStyles(bubbleStyles);
                 applyBubbleStyles(bubbleStyles);
                 if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
-                    sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
+                    sendPresenceUpdate();
                 }
                 openStyleConfig();
                 renderChat();
@@ -3506,6 +3537,7 @@
             renderChat();
             connectRelay();
             window.addEventListener('focus', () => {
+                updateLocalPresenceActive({ force: true });
                 connectRelay();
                 requestChatSync();
                 if (isChatAtBottom()) {
@@ -3513,8 +3545,12 @@
                     markMessagesRead();
                 }
             });
+            window.addEventListener('blur', () => {
+                updateLocalPresenceActive({ force: true });
+            });
             window.addEventListener('online', connectRelay);
             document.addEventListener('visibilitychange', () => {
+                updateLocalPresenceActive({ force: true });
                 if (document.visibilityState === 'visible') {
                     connectRelay();
                     requestChatSync();
