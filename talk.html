@@ -67,6 +67,11 @@
         #chat-history {
             scroll-padding-bottom: calc(var(--composer-height) + 20px);
             padding-bottom: calc(var(--composer-height) + 20px);
+            background-color: var(--chat-bg-color, #ffffff);
+            background-image: var(--chat-bg-image, linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, rgba(248, 250, 252, 0.6) 100%));
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
         }
         .gear-fab { touch-action: none; }
     </style>
@@ -322,6 +327,26 @@
                     <span class="text-slate-600">Bubble font size</span>
                     <input id="style-font-size" type="range" min="12" max="36" step="1" class="w-40">
                 </label>
+            </div>
+            <div class="mt-5 border-t pt-4">
+                <p class="text-xs uppercase tracking-wide text-slate-400 mb-3">Chat background</p>
+                <div class="grid gap-4 text-sm">
+                    <label class="flex items-center justify-between gap-3">
+                        <span class="text-slate-600">Base background color</span>
+                        <input id="style-chat-bg" type="color" class="h-9 w-20 border border-slate-200 rounded-lg">
+                    </label>
+                    <label class="flex flex-col gap-2 text-slate-600">
+                        <span>Background image URL</span>
+                        <input id="style-chat-bg-url" type="text" placeholder="https://example.com/background.jpg" class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300">
+                    </label>
+                    <label class="flex items-center justify-between gap-3 text-slate-600">
+                        <span>Upload background image</span>
+                        <input id="style-chat-bg-file" type="file" accept="image/*" class="block text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200">
+                    </label>
+                </div>
+                <div class="flex justify-end mt-3">
+                    <button id="style-bg-reset" class="px-3 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition">Reset background</button>
+                </div>
             </div>
             <div class="flex justify-end gap-2 mt-5">
                 <button id="style-reset" class="px-3 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition">Reset</button>
@@ -586,6 +611,7 @@
         const CHAT_STORAGE_KEY = `talk_chat_${RELAY_SESSION_ID}`;
         const NAME_STORAGE_KEY = `talk_name_${RELAY_SESSION_ID}`;
         const STYLE_STORAGE_KEY = `talk_style_${RELAY_SESSION_ID}`;
+        const BACKGROUND_STORAGE_KEY = `talk_background_${RELAY_SESSION_ID}`;
         const CONTROL_PANEL_STORAGE_KEY = `talk_control_panel_${RELAY_SESSION_ID}`;
         const PEER_PANEL_STORAGE_KEY = `talk_peer_panel_${RELAY_SESSION_ID}`;
         const GEAR_STORAGE_KEY = `talk_gear_pos_${RELAY_SESSION_ID}`;
@@ -676,6 +702,10 @@
         const stylePeerBg = document.getElementById('style-peer-bg');
         const stylePeerText = document.getElementById('style-peer-text');
         const styleFontSize = document.getElementById('style-font-size');
+        const styleChatBg = document.getElementById('style-chat-bg');
+        const styleChatBgUrl = document.getElementById('style-chat-bg-url');
+        const styleChatBgFile = document.getElementById('style-chat-bg-file');
+        const styleBackgroundReset = document.getElementById('style-bg-reset');
         const styleReset = document.getElementById('style-reset');
         const styleSave = document.getElementById('style-save');
         const closeStyleConfig = document.getElementById('close-style-config');
@@ -716,6 +746,10 @@
             peerText: '#0f172a',
             fontSize: 14
         };
+        const defaultChatBackground = {
+            color: '#ffffff',
+            image: ''
+        };
 
         function applyBubbleStyles(styles) {
             const root = document.documentElement;
@@ -724,6 +758,18 @@
             root.style.setProperty('--bubble-peer-bg', styles.peerBg);
             root.style.setProperty('--bubble-peer-text', styles.peerText);
             root.style.setProperty('--bubble-font-size', `${styles.fontSize}px`);
+        }
+
+        function applyChatBackgroundStyles(background) {
+            const root = document.documentElement;
+            const color = background?.color || defaultChatBackground.color;
+            root.style.setProperty('--chat-bg-color', color);
+            if (background?.image) {
+                const safeImage = background.image.replace(/"/g, '\\"');
+                root.style.setProperty('--chat-bg-image', `url("${safeImage}")`);
+            } else {
+                root.style.removeProperty('--chat-bg-image');
+            }
         }
 
         function loadBubbleStyles() {
@@ -738,6 +784,20 @@
 
         function saveBubbleStyles(styles) {
             writeStorage(STYLE_STORAGE_KEY, JSON.stringify(styles));
+        }
+
+        function loadChatBackground() {
+            try {
+                const raw = readStorage(BACKGROUND_STORAGE_KEY);
+                if (raw) {
+                    return { ...defaultChatBackground, ...JSON.parse(raw) };
+                }
+            } catch (_) {}
+            return { ...defaultChatBackground };
+        }
+
+        function saveChatBackground(background) {
+            writeStorage(BACKGROUND_STORAGE_KEY, JSON.stringify(background));
         }
 
         function loadNotificationsSetting() {
@@ -906,6 +966,8 @@
 
         let bubbleStyles = loadBubbleStyles();
         applyBubbleStyles(bubbleStyles);
+        let chatBackground = loadChatBackground();
+        applyChatBackgroundStyles(chatBackground);
         setNotificationsEnabled(loadNotificationsSetting(), { persist: false });
         setNotifyWhenFocused(loadNotifyWhenFocusedSetting(), { persist: false });
         updateNotificationsInfo();
@@ -2587,6 +2649,15 @@
             stylePeerBg.value = bubbleStyles.peerBg;
             stylePeerText.value = bubbleStyles.peerText;
             styleFontSize.value = bubbleStyles.fontSize;
+            if (styleChatBg) {
+                styleChatBg.value = chatBackground.color;
+            }
+            if (styleChatBgUrl) {
+                styleChatBgUrl.value = chatBackground.image || '';
+            }
+            if (styleChatBgFile) {
+                styleChatBgFile.value = '';
+            }
             toggleModal('style-config', true);
         }
 
@@ -2847,6 +2918,17 @@
             });
         }
 
+        if (styleChatBgFile && styleChatBgUrl) {
+            styleChatBgFile.addEventListener('change', async () => {
+                const file = styleChatBgFile.files?.[0];
+                if (!file) return;
+                try {
+                    const dataUrl = await readFileAsDataUrl(file);
+                    styleChatBgUrl.value = typeof dataUrl === 'string' ? dataUrl : '';
+                } catch (_) {}
+            });
+        }
+
         if (styleSave) {
             styleSave.addEventListener('click', () => {
                 bubbleStyles = {
@@ -2856,13 +2938,31 @@
                     peerText: stylePeerText.value,
                     fontSize: Number(styleFontSize.value)
                 };
+                const nextChatBackground = {
+                    color: styleChatBg?.value || defaultChatBackground.color,
+                    image: styleChatBgUrl?.value?.trim() || ''
+                };
                 saveBubbleStyles(bubbleStyles);
                 applyBubbleStyles(bubbleStyles);
+                chatBackground = nextChatBackground;
+                saveChatBackground(chatBackground);
+                applyChatBackgroundStyles(chatBackground);
                 if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
                     sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
                 }
                 toggleModal('style-config', false);
                 renderChat();
+            });
+        }
+
+        if (styleBackgroundReset) {
+            styleBackgroundReset.addEventListener('click', () => {
+                chatBackground = { ...defaultChatBackground };
+                saveChatBackground(chatBackground);
+                applyChatBackgroundStyles(chatBackground);
+                if (styleChatBg) styleChatBg.value = chatBackground.color;
+                if (styleChatBgUrl) styleChatBgUrl.value = '';
+                if (styleChatBgFile) styleChatBgFile.value = '';
             });
         }
 
