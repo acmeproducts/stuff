@@ -166,6 +166,12 @@
         </main>
     </div>
 
+    <div id="notification-fallback" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 hidden">
+        <div class="px-4 py-2 rounded-full bg-slate-900/90 text-white text-xs font-semibold shadow-lg">
+            Notifications are blocked. New messages will show here instead.
+        </div>
+    </div>
+
     <div id="chat-composer" class="chat-composer">
         <div class="bg-white/95 border border-slate-200 rounded-2xl shadow-lg px-3 py-2 flex flex-col gap-2.5 backdrop-blur">
             <div id="reply-preview" class="reply-preview hidden px-3 py-2 rounded-lg bg-slate-50 text-xs text-slate-600 flex items-start justify-between gap-3">
@@ -250,9 +256,19 @@
                     </span>
                     <input id="notifications-toggle" type="checkbox" class="h-4 w-4">
                 </label>
-                <div id="notifications-info" class="hidden text-[11px] text-slate-400 px-3">
-                    Browser notifications are blocked. Enable them in your browser settings.
+                <div id="notifications-status" class="text-[11px] text-slate-500 px-3">
+                    Notifications are off.
                 </div>
+                <div id="notifications-info" class="hidden text-[11px] text-slate-400 px-3">
+                    Browser notifications are blocked or not granted. Enable them in your browser settings.
+                </div>
+                <label class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600">
+                    <span class="flex items-center gap-3">
+                        <span class="material-symbols-outlined text-base">visibility</span>
+                        Notify when active
+                    </span>
+                    <input id="notifications-focus-toggle" type="checkbox" class="h-4 w-4">
+                </label>
                 <button id="drawer-import" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50">
                     <span class="material-symbols-outlined text-base">upload_file</span>
                     Import chat
@@ -574,6 +590,7 @@
         const PEER_PANEL_STORAGE_KEY = `talk_peer_panel_${RELAY_SESSION_ID}`;
         const GEAR_STORAGE_KEY = `talk_gear_pos_${RELAY_SESSION_ID}`;
         const NOTIFICATIONS_STORAGE_KEY = `talk_notifications_${RELAY_SESSION_ID}`;
+        const NOTIFICATIONS_FOCUS_STORAGE_KEY = `talk_notifications_focus_${RELAY_SESSION_ID}`;
         const SESSION_LIST_STORAGE_KEY = 'talk_sessions_v1';
         const SESSION_LIST_LIMIT = 25;
         const PRESENCE_STALE_MS = 120000;
@@ -643,11 +660,14 @@
         const drawerShare = document.getElementById('drawer-share');
         const drawerConfig = document.getElementById('drawer-config');
         const notificationsToggle = document.getElementById('notifications-toggle');
+        const notificationsFocusToggle = document.getElementById('notifications-focus-toggle');
+        const notificationsStatus = document.getElementById('notifications-status');
         const notificationsInfo = document.getElementById('notifications-info');
         const controlsModal = document.getElementById('controls-modal');
         const closeControls = document.getElementById('close-controls');
         const gearFab = document.getElementById('gear-fab');
         const chatComposer = document.getElementById('chat-composer');
+        const notificationFallback = document.getElementById('notification-fallback');
         const replyPreview = document.getElementById('reply-preview');
         const replyPreviewText = document.getElementById('reply-preview-text');
         const replyPreviewClear = document.getElementById('reply-preview-clear');
@@ -675,6 +695,8 @@
         let controlPanelCollapsed = false;
         let peerPanelCollapsed = false;
         let notificationsEnabled = true;
+        let notifyWhenFocused = false;
+        let notificationFallbackTimer = null;
         let unreadCount = 0;
         let replyContext = null;
         let typingIndicatorTimer = null;
@@ -728,6 +750,15 @@
             }
         }
 
+        function loadNotifyWhenFocusedSetting() {
+            try {
+                const raw = readStorage(NOTIFICATIONS_FOCUS_STORAGE_KEY);
+                return raw === 'true';
+            } catch (_) {
+                return false;
+            }
+        }
+
         function requestNotificationPermission() {
             if (!notificationSupport) return Promise.resolve('unsupported');
             if (Notification.permission === 'granted') return Promise.resolve('granted');
@@ -744,16 +775,66 @@
             }
             updateDocumentTitle();
             updateMessageWaitingIndicator();
+            updateNotificationsStatus();
+        }
+
+        function setNotifyWhenFocused(enabled, { persist = true } = {}) {
+            notifyWhenFocused = Boolean(enabled);
+            if (notificationsFocusToggle) notificationsFocusToggle.checked = notifyWhenFocused;
+            if (persist) {
+                writeStorage(NOTIFICATIONS_FOCUS_STORAGE_KEY, notifyWhenFocused ? 'true' : 'false');
+            }
+            updateNotificationsStatus();
         }
 
         function updateNotificationsInfo() {
-            const showBlocked = notificationSupport && Notification.permission === 'denied';
+            const showBlocked = notificationSupport && Notification.permission !== 'granted';
             if (notificationsInfo) {
                 notificationsInfo.classList.toggle('hidden', !showBlocked);
             }
             if (controlNotificationsInfo) {
                 controlNotificationsInfo.classList.toggle('hidden', !showBlocked);
             }
+        }
+
+        function updateNotificationsStatus() {
+            if (!notificationsStatus) return;
+            if (!notificationSupport) {
+                notificationsStatus.textContent = 'Browser notifications are not supported here.';
+                return;
+            }
+            if (Notification.permission === 'denied') {
+                notificationsStatus.textContent = 'Notifications are blocked in this browser.';
+                return;
+            }
+            if (Notification.permission === 'default') {
+                notificationsStatus.textContent = 'Notifications need permission to appear.';
+                return;
+            }
+            if (!notificationsEnabled) {
+                notificationsStatus.textContent = 'Notifications are off.';
+                return;
+            }
+            notificationsStatus.textContent = notifyWhenFocused
+                ? 'Notifications are on (including when active).'
+                : 'Notifications are on.';
+        }
+
+        function showNotificationFallback(entry) {
+            if (!notificationFallback) return;
+            if (notificationFallbackTimer) {
+                clearTimeout(notificationFallbackTimer);
+                notificationFallbackTimer = null;
+            }
+            const body = buildNotificationBody(entry);
+            const fallbackText = notificationFallback.querySelector('div');
+            if (fallbackText) {
+                fallbackText.textContent = `New message: ${body}`;
+            }
+            notificationFallback.classList.remove('hidden');
+            notificationFallbackTimer = setTimeout(() => {
+                notificationFallback.classList.add('hidden');
+            }, 3500);
         }
 
         function buildNotificationBody(entry) {
@@ -780,8 +861,8 @@
         }
 
         function showBrowserNotification(entry) {
-            if (!notificationsEnabled || !notificationSupport) return;
-            if (Notification.permission !== 'granted') return;
+            if (!notificationsEnabled || !notificationSupport) return false;
+            if (Notification.permission !== 'granted') return false;
             const title = `${resolveDisplayName(entry.name)} — Talk`;
             const body = buildNotificationBody(entry);
             try {
@@ -796,7 +877,10 @@
                     requestAnimationFrame(() => focusChatBubble(entry.id));
                     notification.close();
                 };
-            } catch (_) {}
+                return true;
+            } catch (_) {
+                return false;
+            }
         }
 
         async function handleNotificationsToggleChange(checked) {
@@ -812,6 +896,7 @@
                 setNotificationsEnabled(false);
             }
             updateNotificationsInfo();
+            updateNotificationsStatus();
         }
 
         function resolvePeerName(deviceId, fallback = '') {
@@ -822,7 +907,9 @@
         let bubbleStyles = loadBubbleStyles();
         applyBubbleStyles(bubbleStyles);
         setNotificationsEnabled(loadNotificationsSetting(), { persist: false });
+        setNotifyWhenFocused(loadNotifyWhenFocusedSetting(), { persist: false });
         updateNotificationsInfo();
+        updateNotificationsStatus();
         updateMessageWaitingIndicator();
         updateDocumentTitle();
 
@@ -898,7 +985,7 @@
             }
             if (messageWaitingDot) {
                 messageWaitingDot.classList.remove('read-all', 'read-some', 'read-none');
-                const notificationsBlocked = !notificationsEnabled || (notificationSupport && Notification.permission === 'denied');
+                const notificationsBlocked = !notificationsEnabled || (notificationSupport && Notification.permission !== 'granted');
                 if (notificationsBlocked) {
                     messageWaitingDot.classList.add('read-none');
                 } else if (unreadCount > 0) {
@@ -2007,8 +2094,12 @@
                 if (isOutOfFocus || !isChatAtBottom()) {
                     incrementUnreadCount(entry.id);
                 }
-                if (isOutOfFocus) {
-                    showBrowserNotification(entry);
+                const shouldNotify = notificationsEnabled && (isOutOfFocus || notifyWhenFocused);
+                if (shouldNotify) {
+                    const shown = showBrowserNotification(entry);
+                    if (!shown) {
+                        showNotificationFallback(entry);
+                    }
                 }
                 if (document.hasFocus() && isChatAtBottom()) {
                     markMessagesRead();
@@ -2738,6 +2829,12 @@
             });
         }
 
+        if (notificationsFocusToggle) {
+            notificationsFocusToggle.addEventListener('change', event => {
+                setNotifyWhenFocused(event.target.checked);
+            });
+        }
+
         if (messageWaitingIndicator) {
             messageWaitingIndicator.addEventListener('click', () => {
                 scrollToFirstUnread();
@@ -2935,6 +3032,12 @@
             if (text.length > CHAT_MAX_LENGTH) return;
             const now = Date.now();
             if (now - lastChatSentAt < CHAT_COOLDOWN_MS) return;
+            if (notificationsEnabled && notificationSupport && Notification.permission === 'default') {
+                requestNotificationPermission().then(() => {
+                    updateNotificationsInfo();
+                    updateNotificationsStatus();
+                });
+            }
             const attachments = pendingChatAttachments.slice();
             const entryId = createEntryId();
             const entry = {
