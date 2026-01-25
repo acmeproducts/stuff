@@ -6,6 +6,7 @@
     <title>Talk</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
+    <link rel="manifest" href="talk.webmanifest">
     <style>
         :root {
             --keyboard-offset: 0px;
@@ -763,6 +764,8 @@
         let selectedPeerName = '';
         let firstUnreadMessageId = null;
         const notificationSupport = 'Notification' in window;
+        const serviceWorkerSupported = 'serviceWorker' in navigator;
+        let notificationServiceWorkerRegistration = null;
 
         document.body.classList.add(isClientView ? 'client-view' : 'config-view');
 
@@ -853,6 +856,18 @@
             return Notification.requestPermission();
         }
 
+        async function registerNotificationServiceWorker() {
+            if (!serviceWorkerSupported) return null;
+            if (notificationServiceWorkerRegistration) return notificationServiceWorkerRegistration;
+            try {
+                const registration = await navigator.serviceWorker.register('talk-notifications-sw.js');
+                notificationServiceWorkerRegistration = registration;
+                return registration;
+            } catch (_) {
+                return null;
+            }
+        }
+
         function setNotificationsEnabled(enabled, { persist = true } = {}) {
             notificationsEnabled = Boolean(enabled);
             if (notificationsToggle) notificationsToggle.checked = notificationsEnabled;
@@ -910,13 +925,6 @@
             updateNotificationsCta();
         }
 
-        async function ensureNotificationsReady() {
-            if (!notificationSupport || !notificationsEnabled) return;
-            await requestNotificationPermission();
-            updateNotificationsInfo();
-            updateNotificationsStatus();
-        }
-
         function showNotificationFallback(entry) {
             if (!notificationFallback) return;
             if (notificationFallbackTimer) {
@@ -964,6 +972,17 @@
             const title = `${displayName} — Talk`;
             const body = buildNotificationBody(entry);
             try {
+                if (notificationServiceWorkerRegistration) {
+                    notificationServiceWorkerRegistration.showNotification(title, {
+                        body,
+                        tag: entry.id || `talk_${RELAY_SESSION_ID}`,
+                        renotify: true,
+                        data: {
+                            url: window.location.href
+                        }
+                    }).catch(() => {});
+                    return true;
+                }
                 const notification = new Notification(title, {
                     body,
                     tag: entry.id || `talk_${RELAY_SESSION_ID}`,
@@ -990,6 +1009,9 @@
             const permission = await requestNotificationPermission();
             if (permission === 'granted' || permission === 'unsupported') {
                 setNotificationsEnabled(true);
+                if (permission === 'granted') {
+                    await registerNotificationServiceWorker();
+                }
             } else {
                 setNotificationsEnabled(false);
             }
@@ -1081,9 +1103,15 @@
         updateNotificationsInfo();
         updateNotificationsStatus();
         updateNotificationsCta();
-        ensureNotificationsReady();
         updateMessageWaitingIndicator();
         updateDocumentTitle();
+        if (serviceWorkerSupported) {
+            navigator.serviceWorker.getRegistration().then(registration => {
+                if (registration) {
+                    notificationServiceWorkerRegistration = registration;
+                }
+            }).catch(() => {});
+        }
 
         function getSenderStyle() {
             return {
@@ -3084,7 +3112,10 @@
 
         if (notificationsCta) {
             notificationsCta.addEventListener('click', async () => {
-                await requestNotificationPermission();
+                const permission = await requestNotificationPermission();
+                if (permission === 'granted' && notificationsEnabled) {
+                    await registerNotificationServiceWorker();
+                }
                 updateNotificationsInfo();
                 updateNotificationsStatus();
             });
@@ -3328,12 +3359,6 @@
             if (text.length > CHAT_MAX_LENGTH) return;
             const now = Date.now();
             if (now - lastChatSentAt < CHAT_COOLDOWN_MS) return;
-            if (notificationsEnabled && notificationSupport && Notification.permission === 'default') {
-                requestNotificationPermission().then(() => {
-                    updateNotificationsInfo();
-                    updateNotificationsStatus();
-                });
-            }
             const attachments = pendingChatAttachments.slice();
             const entryId = createEntryId();
             const entry = {
