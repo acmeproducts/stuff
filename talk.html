@@ -1036,6 +1036,24 @@
             }
         }
 
+        function updatePeerPresenceNameInHistory(deviceId, rawName) {
+            const trimmed = (rawName || '').trim();
+            if (!trimmed) return;
+            let changed = false;
+            chatHistory.forEach(entry => {
+                if (entry.deviceId !== deviceId || entry.from !== 'peer') return;
+                if (entry.name !== trimmed) {
+                    entry.name = trimmed;
+                    entry.updatedAt = Date.now();
+                    changed = true;
+                }
+            });
+            if (changed) {
+                saveChatHistory(chatHistory);
+                renderChat();
+            }
+        }
+
         function applyPeerNameEdit(deviceId, rawName, { isLocal = false } = {}) {
             const trimmed = (rawName || '').trim();
             if (isLocal || deviceId === RELAY_DEVICE_ID) {
@@ -1047,15 +1065,7 @@
                 renderPeerList();
                 return;
             }
-            setPeerAlias(deviceId, trimmed);
-            updatePeerAliasInHistory(deviceId, trimmed);
-            if (selectedPeerId === deviceId) {
-                selectedPeerName = resolveDisplayName(trimmed || getPeerPresenceName(deviceId));
-                if (peerFilterChip && peerFilterLabel) {
-                    peerFilterLabel.textContent = `Filtered: ${selectedPeerName}`;
-                }
-            }
-            renderPeerList();
+            return;
         }
 
         let bubbleStyles = loadBubbleStyles();
@@ -1276,25 +1286,27 @@
                 const nameSpan = document.createElement('span');
                 nameSpan.className = `truncate text-sm outline-none ${peer.isLocal ? 'font-semibold text-slate-700' : 'text-slate-600'}`;
                 nameSpan.textContent = name;
-                nameSpan.contentEditable = 'true';
-                nameSpan.setAttribute('role', 'textbox');
-                nameSpan.setAttribute('aria-label', peer.isLocal ? 'Edit your name' : `Edit ${name}`);
-                nameSpan.dataset.peerNameEditor = 'true';
-                nameSpan.dataset.peerId = peer.id;
-                nameSpan.addEventListener('focus', () => {
-                    requestAnimationFrame(() => {
-                        document.getSelection()?.selectAllChildren(nameSpan);
+                if (peer.isLocal) {
+                    nameSpan.contentEditable = 'true';
+                    nameSpan.setAttribute('role', 'textbox');
+                    nameSpan.setAttribute('aria-label', 'Edit your name');
+                    nameSpan.dataset.peerNameEditor = 'true';
+                    nameSpan.dataset.peerId = peer.id;
+                    nameSpan.addEventListener('focus', () => {
+                        requestAnimationFrame(() => {
+                            document.getSelection()?.selectAllChildren(nameSpan);
+                        });
                     });
-                });
-                nameSpan.addEventListener('keydown', event => {
-                    if (event.key === 'Enter') {
-                        event.preventDefault();
-                        nameSpan.blur();
-                    }
-                });
-                nameSpan.addEventListener('blur', () => {
-                    applyPeerNameEdit(peer.id, nameSpan.textContent, { isLocal: peer.isLocal });
-                });
+                    nameSpan.addEventListener('keydown', event => {
+                        if (event.key === 'Enter') {
+                            event.preventDefault();
+                            nameSpan.blur();
+                        }
+                    });
+                    nameSpan.addEventListener('blur', () => {
+                        applyPeerNameEdit(peer.id, nameSpan.textContent, { isLocal: peer.isLocal });
+                    });
+                }
                 nameWrap.appendChild(dot);
                 nameWrap.appendChild(nameSpan);
                 if (peer.isLocal) {
@@ -2206,13 +2218,23 @@
             const senderDeviceId = message.deviceId || message.from;
             if (message.type === 'presence' || message.type === 'hello') {
                 const existing = peerPresence.get(senderDeviceId);
+                const nextName = resolveDisplayName(message.name || '');
                 peerPresence.set(senderDeviceId, {
-                    name: resolveDisplayName(message.name || ''),
+                    name: nextName,
                     lastSeen: now,
                     connectedAt: existing?.connectedAt || now
                 });
                 if (message.style) {
                     peerStyles.set(senderDeviceId, message.style);
+                }
+                if (nextName && nextName !== (existing?.name || '')) {
+                    updatePeerPresenceNameInHistory(senderDeviceId, nextName);
+                    if (selectedPeerId === senderDeviceId) {
+                        selectedPeerName = nextName;
+                        if (peerFilterChip && peerFilterLabel) {
+                            peerFilterLabel.textContent = `Filtered: ${selectedPeerName}`;
+                        }
+                    }
                 }
                 updatePeerStatus();
                 return;
