@@ -172,10 +172,6 @@
                 </div>
                 <button id="reply-preview-clear" type="button" class="text-slate-400 hover:text-slate-600">✕</button>
             </div>
-            <div class="flex flex-col gap-1 text-xs text-slate-500 min-h-[12px]" id="chat-attachments">
-                <div id="chat-attachments-alert" class="hidden text-rose-500"></div>
-                <div id="chat-attachments-preview" class="flex flex-wrap gap-1.5"></div>
-            </div>
             <div class="flex items-center gap-1.5 flex-nowrap">
                 <button id="chat-attach" type="button" class="w-7 h-7 flex items-center justify-center rounded-md border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-100 bg-white" title="Attach files">
                     <span class="material-symbols-outlined text-[14px]">attach_file</span>
@@ -202,8 +198,15 @@
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
+            <div id="chat-attachments-alert" class="hidden text-xs text-rose-500 mb-3"></div>
+            <div id="chat-attachment-list" class="hidden space-y-3 max-h-[55vh] overflow-auto"></div>
+            <div id="chat-attachment-empty" class="hidden text-sm text-slate-500">No pending attachments yet.</div>
             <div id="chat-attachment-preview" class="bg-gray-50 border border-gray-200 rounded-lg p-4 max-h-[60vh] overflow-auto flex items-center justify-center"></div>
-            <div class="flex items-center justify-end gap-2 mt-4">
+            <div id="chat-attachment-bulk-actions" class="hidden items-center justify-between gap-2 mt-4">
+                <p class="text-xs text-slate-400">These files will be sent with your next message.</p>
+                <button id="chat-attachment-clear-all" class="px-3 py-2 bg-rose-50 text-rose-700 text-xs font-semibold rounded-lg hover:bg-rose-100 transition">Clear all</button>
+            </div>
+            <div id="chat-attachment-actions" class="flex items-center justify-end gap-2 mt-4">
                 <button id="chat-attachment-download" class="px-3 py-2 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-lg hover:bg-emerald-100 transition">Download</button>
                 <button id="chat-attachment-share" class="px-3 py-2 bg-blue-50 text-blue-700 text-xs font-semibold rounded-lg hover:bg-blue-100 transition">Share</button>
             </div>
@@ -625,7 +628,10 @@
         const chatAttachmentButton = document.getElementById('chat-attach');
         const chatAttachmentInput = document.getElementById('chat-attachments-input');
         const chatAttachmentAlert = document.getElementById('chat-attachments-alert');
-        const chatAttachmentPreview = document.getElementById('chat-attachments-preview');
+        const chatAttachmentList = document.getElementById('chat-attachment-list');
+        const chatAttachmentEmpty = document.getElementById('chat-attachment-empty');
+        const chatAttachmentBulkActions = document.getElementById('chat-attachment-bulk-actions');
+        const chatAttachmentClearAll = document.getElementById('chat-attachment-clear-all');
         const drawerClear = document.getElementById('drawer-clear');
         const drawerExport = document.getElementById('drawer-export');
         const drawerRefresh = document.getElementById('drawer-refresh');
@@ -1607,6 +1613,25 @@
             window.open(currentAttachmentObjectUrl, '_blank', 'noopener');
         }
 
+        function setChatAttachmentModalMode(mode) {
+            const modal = document.getElementById('chat-attachment-modal');
+            const preview = document.getElementById('chat-attachment-preview');
+            const downloadBtn = document.getElementById('chat-attachment-download');
+            const shareBtn = document.getElementById('chat-attachment-share');
+            const actions = document.getElementById('chat-attachment-actions');
+            const isList = mode === 'list';
+            if (modal) {
+                modal.dataset.mode = mode;
+            }
+            if (preview) preview.classList.toggle('hidden', isList);
+            if (chatAttachmentList) chatAttachmentList.classList.toggle('hidden', !isList);
+            if (chatAttachmentEmpty) chatAttachmentEmpty.classList.toggle('hidden', !isList || pendingChatAttachments.length > 0);
+            if (chatAttachmentBulkActions) chatAttachmentBulkActions.classList.toggle('hidden', !isList || pendingChatAttachments.length === 0);
+            if (downloadBtn) downloadBtn.classList.toggle('hidden', isList);
+            if (shareBtn) shareBtn.classList.toggle('hidden', isList);
+            if (actions) actions.classList.toggle('hidden', isList);
+        }
+
         function openChatAttachmentModal(att) {
             const modal = document.getElementById('chat-attachment-modal');
             const preview = document.getElementById('chat-attachment-preview');
@@ -1615,6 +1640,7 @@
             const downloadBtn = document.getElementById('chat-attachment-download');
             const shareBtn = document.getElementById('chat-attachment-share');
             if (!modal || !preview || !title || !meta || !downloadBtn || !shareBtn) return;
+            setChatAttachmentModalMode('single');
             const mime = getAttachmentMime(att);
             title.textContent = getAttachmentLabel(att);
             const sizeLabel = att.size ? ` • ${formatBytes(att.size)}` : '';
@@ -1656,6 +1682,19 @@
                     await navigator.share({ files: [file], title: fileName });
                 } catch (_) {}
             };
+            toggleModal('chat-attachment', true);
+        }
+
+        function openPendingAttachmentModal() {
+            const modal = document.getElementById('chat-attachment-modal');
+            const title = document.getElementById('chat-attachment-title');
+            const meta = document.getElementById('chat-attachment-meta');
+            if (!modal || !title || !meta) return;
+            const count = pendingChatAttachments.length;
+            title.textContent = count ? `Attachments (${count})` : 'Attachments';
+            meta.textContent = count ? `${count} file${count === 1 ? '' : 's'} ready to send.` : 'No pending attachments.';
+            setChatAttachmentModalMode('list');
+            renderPendingAttachmentList();
             toggleModal('chat-attachment', true);
         }
 
@@ -2231,47 +2270,89 @@
             }
         }
 
+        function updateAttachmentButtonState() {
+            if (!chatAttachmentButton) return;
+            const hasAttachments = pendingChatAttachments.length > 0;
+            chatAttachmentButton.classList.toggle('text-slate-400', !hasAttachments);
+            chatAttachmentButton.classList.toggle('text-slate-900', hasAttachments);
+            chatAttachmentButton.classList.toggle('border-slate-200', !hasAttachments);
+            chatAttachmentButton.classList.toggle('border-slate-400', hasAttachments);
+            chatAttachmentButton.setAttribute('aria-pressed', hasAttachments ? 'true' : 'false');
+        }
+
+        function renderPendingAttachmentList() {
+            if (!chatAttachmentList || !chatAttachmentEmpty) return;
+            chatAttachmentList.innerHTML = '';
+            const hasAttachments = pendingChatAttachments.length > 0;
+            chatAttachmentEmpty.classList.toggle('hidden', hasAttachments);
+            chatAttachmentList.classList.toggle('hidden', !hasAttachments);
+            if (!hasAttachments) return;
+            pendingChatAttachments.forEach((att, index) => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm';
+                const thumb = document.createElement('div');
+                thumb.className = 'w-12 h-10 rounded-md border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden';
+                const mime = getAttachmentMime(att);
+                if (mime.startsWith('image/') || isImageDataUrl(att.dataUrl)) {
+                    const img = document.createElement('img');
+                    img.src = att.dataUrl;
+                    img.alt = getAttachmentLabel(att);
+                    img.className = 'w-full h-full object-cover';
+                    thumb.appendChild(img);
+                } else {
+                    const icon = document.createElement('span');
+                    icon.className = 'material-symbols-outlined text-slate-400 text-base';
+                    icon.textContent = 'description';
+                    thumb.appendChild(icon);
+                }
+                const meta = document.createElement('div');
+                meta.className = 'min-w-0 flex-1';
+                const name = document.createElement('div');
+                name.className = 'text-sm font-semibold text-slate-700 truncate';
+                name.textContent = getAttachmentLabel(att);
+                const details = document.createElement('div');
+                details.className = 'text-xs text-slate-500';
+                const sizeLabel = att.size ? ` • ${formatBytes(att.size)}` : '';
+                details.textContent = `${mime || 'Unknown'}${sizeLabel}`;
+                meta.appendChild(name);
+                meta.appendChild(details);
+                const actions = document.createElement('div');
+                actions.className = 'flex items-center gap-2';
+                const previewBtn = document.createElement('button');
+                previewBtn.type = 'button';
+                previewBtn.className = 'px-2.5 py-1 text-xs font-semibold rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50';
+                previewBtn.textContent = 'Preview';
+                previewBtn.addEventListener('click', () => openChatAttachmentModal(att));
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'px-2.5 py-1 text-xs font-semibold rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50';
+                removeBtn.textContent = 'Remove';
+                removeBtn.addEventListener('click', () => {
+                    pendingChatAttachments.splice(index, 1);
+                    updateChatAttachmentUI();
+                });
+                actions.appendChild(previewBtn);
+                actions.appendChild(removeBtn);
+                item.appendChild(thumb);
+                item.appendChild(meta);
+                item.appendChild(actions);
+                chatAttachmentList.appendChild(item);
+            });
+        }
+
         function updateChatAttachmentUI() {
-            if (chatAttachmentPreview) {
-                chatAttachmentPreview.innerHTML = '';
+            updateAttachmentButtonState();
+            renderPendingAttachmentList();
+            if (chatAttachmentBulkActions) {
+                chatAttachmentBulkActions.classList.toggle('hidden', pendingChatAttachments.length === 0);
             }
-            if (pendingChatAttachments.length) {
-                if (chatAttachmentPreview) {
-                    pendingChatAttachments.forEach((att, index) => {
-                        const wrapper = document.createElement('div');
-                        wrapper.className = 'relative w-12 h-10 border border-slate-200 rounded-lg bg-white overflow-hidden flex items-center justify-center';
-                        wrapper.title = getAttachmentLabel(att);
-                        const removeBtn = document.createElement('button');
-                        removeBtn.type = 'button';
-                        removeBtn.className = 'absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-[10px] flex items-center justify-center shadow';
-                        removeBtn.textContent = '✕';
-                        removeBtn.onclick = () => {
-                            pendingChatAttachments.splice(index, 1);
-                            updateChatAttachmentUI();
-                        };
-                        removeBtn.addEventListener('click', event => event.stopPropagation());
-                        const mime = getAttachmentMime(att);
-                        if (mime.startsWith('image/') || isImageDataUrl(att.dataUrl)) {
-                            const img = document.createElement('img');
-                            img.src = att.dataUrl;
-                            img.alt = getAttachmentLabel(att);
-                            img.className = 'w-full h-full object-cover';
-                            wrapper.appendChild(img);
-                        } else {
-                            const icon = document.createElement('span');
-                            icon.className = 'material-symbols-outlined text-slate-400 text-base';
-                            icon.textContent = 'description';
-                            wrapper.appendChild(icon);
-                        }
-                        wrapper.appendChild(removeBtn);
-                        wrapper.addEventListener('click', () => openChatAttachmentModal(att));
-                        chatAttachmentPreview.appendChild(wrapper);
-                    });
-                }
-            } else {
-                if (chatAttachmentPreview) {
-                    chatAttachmentPreview.innerHTML = '';
-                }
+            const modal = document.getElementById('chat-attachment-modal');
+            const title = document.getElementById('chat-attachment-title');
+            const meta = document.getElementById('chat-attachment-meta');
+            if (modal?.dataset.mode === 'list' && title && meta) {
+                const count = pendingChatAttachments.length;
+                title.textContent = count ? `Attachments (${count})` : 'Attachments';
+                meta.textContent = count ? `${count} file${count === 1 ? '' : 's'} ready to send.` : 'No pending attachments.';
             }
             setComposerMetrics();
         }
@@ -2438,7 +2519,13 @@
             });
         }
 
-        chatAttachmentButton.onclick = () => chatAttachmentInput.click();
+        chatAttachmentButton.onclick = () => {
+            if (pendingChatAttachments.length) {
+                openPendingAttachmentModal();
+                return;
+            }
+            chatAttachmentInput.click();
+        };
         chatAttachmentInput.onchange = async () => {
             const files = Array.from(chatAttachmentInput.files || []);
             if (!files.length) return;
@@ -2491,6 +2578,13 @@
             }
             updateChatAttachmentUI();
         };
+        if (chatAttachmentClearAll) {
+            chatAttachmentClearAll.addEventListener('click', () => {
+                pendingChatAttachments = [];
+                setAttachmentAlert('');
+                updateChatAttachmentUI();
+            });
+        }
 
         if (nameInput) {
             nameInput.addEventListener('change', event => {
