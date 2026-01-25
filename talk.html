@@ -161,16 +161,6 @@
                 </button>
             </div>
             <div class="peer-panel-body mt-2 space-y-3">
-                <div id="client-name-section" class="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                    <span class="text-xs uppercase tracking-wide text-slate-400">You</span>
-                    <span id="client-name-inline" class="px-1.5 py-0.5 rounded-md bg-white/80 border border-slate-200 text-slate-600 font-semibold outline-none" contenteditable="true" role="textbox" aria-label="Edit your name"></span>
-                    <span class="text-slate-300">•</span>
-                    <div id="message-waiting-indicator" class="message-indicator inline-flex items-center gap-1 text-xs text-slate-500">
-                        <span id="message-waiting-dot" class="read-dot read-none"></span>
-                        <span id="session-unread-count">0 waiting</span>
-                    </div>
-                </div>
-                <div id="peer-list-empty" class="text-xs text-slate-400">No peers connected yet.</div>
                 <ul id="peer-list" class="space-y-2 text-sm"></ul>
             </div>
         </section>
@@ -625,6 +615,7 @@
         const RELAY_CLIENT_ID = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 12));
         const CHAT_STORAGE_KEY = `talk_chat_${RELAY_SESSION_ID}`;
         const NAME_STORAGE_KEY = `talk_name_${RELAY_SESSION_ID}`;
+        const PEER_ALIAS_STORAGE_KEY = `talk_peer_aliases_${RELAY_SESSION_ID}`;
         const STYLE_STORAGE_KEY = `talk_style_${RELAY_SESSION_ID}`;
         const BACKGROUND_STORAGE_KEY = `talk_background_${RELAY_SESSION_ID}`;
         const CONTROL_PANEL_STORAGE_KEY = `talk_control_panel_${RELAY_SESSION_ID}`;
@@ -655,7 +646,26 @@
             return fallback;
         }
 
+        function loadPeerAliases() {
+            try {
+                const raw = readStorage(PEER_ALIAS_STORAGE_KEY);
+                if (!raw) return new Map();
+                const parsed = JSON.parse(raw);
+                if (!parsed || typeof parsed !== 'object') return new Map();
+                return new Map(Object.entries(parsed));
+            } catch (_) {
+                return new Map();
+            }
+        }
+
+        function savePeerAliases() {
+            if (!storage) return;
+            const payload = Object.fromEntries(peerAliases.entries());
+            writeStorage(PEER_ALIAS_STORAGE_KEY, JSON.stringify(payload));
+        }
+
         let joinName = loadJoinName();
+        const peerAliases = loadPeerAliases();
 
         const copyLinkButton = document.getElementById('copy-link');
         const controlPanel = document.getElementById('control-panel');
@@ -668,15 +678,12 @@
         const sessionEmpty = document.getElementById('session-empty');
         const peerListPanel = document.getElementById('peer-list-panel');
         const peerList = document.getElementById('peer-list');
-        const peerListEmpty = document.getElementById('peer-list-empty');
         const peerPanelToggle = document.getElementById('peer-panel-toggle');
         const peerCountPill = document.getElementById('peer-count-pill');
         const sessionNameChip = document.getElementById('session-name-chip');
         const sessionUnreadCount = document.getElementById('session-unread-count');
         const messageWaitingIndicator = document.getElementById('message-waiting-indicator');
         const messageWaitingDot = document.getElementById('message-waiting-dot');
-        const clientNameInline = document.getElementById('client-name-inline');
-        const clientNameSection = document.getElementById('client-name-section');
         const peerFilterChip = document.getElementById('peer-filter-chip');
         const peerFilterLabel = document.getElementById('peer-filter-label');
         const roomInput = document.getElementById('room-input');
@@ -899,6 +906,13 @@
             updateNotificationsCta();
         }
 
+        async function ensureNotificationsReady() {
+            if (!notificationSupport || !notificationsEnabled) return;
+            await requestNotificationPermission();
+            updateNotificationsInfo();
+            updateNotificationsStatus();
+        }
+
         function showNotificationFallback(entry) {
             if (!notificationFallback) return;
             if (notificationFallbackTimer) {
@@ -942,7 +956,8 @@
         function showBrowserNotification(entry) {
             if (!notificationsEnabled || !notificationSupport) return false;
             if (Notification.permission !== 'granted') return false;
-            const title = `${resolveDisplayName(entry.name)} — Talk`;
+            const displayName = entry.deviceId ? resolvePeerName(entry.deviceId, entry.name || '') : resolveDisplayName(entry.name);
+            const title = `${displayName} — Talk`;
             const body = buildNotificationBody(entry);
             try {
                 const notification = new Notification(title, {
@@ -979,8 +994,68 @@
         }
 
         function resolvePeerName(deviceId, fallback = '') {
+            const alias = peerAliases.get(deviceId);
+            if (alias) {
+                return resolveDisplayName(alias);
+            }
             const peer = peerPresence.get(deviceId);
             return resolveDisplayName(fallback || peer?.name || '');
+        }
+
+        function getPeerPresenceName(deviceId) {
+            const peer = peerPresence.get(deviceId);
+            return resolveDisplayName(peer?.name || '');
+        }
+
+        function setPeerAlias(deviceId, rawName) {
+            if (!deviceId) return;
+            const trimmed = (rawName || '').trim();
+            if (trimmed) {
+                peerAliases.set(deviceId, trimmed);
+            } else {
+                peerAliases.delete(deviceId);
+            }
+            savePeerAliases();
+        }
+
+        function updatePeerAliasInHistory(deviceId, rawName) {
+            let changed = false;
+            const trimmed = (rawName || '').trim();
+            chatHistory.forEach(entry => {
+                if (entry.deviceId !== deviceId || entry.from !== 'peer') return;
+                const nextName = trimmed || getPeerPresenceName(deviceId);
+                if (nextName && entry.name !== nextName) {
+                    entry.name = nextName;
+                    entry.updatedAt = Date.now();
+                    changed = true;
+                }
+            });
+            if (changed) {
+                saveChatHistory(chatHistory);
+                renderChat();
+            }
+        }
+
+        function applyPeerNameEdit(deviceId, rawName, { isLocal = false } = {}) {
+            const trimmed = (rawName || '').trim();
+            if (isLocal || deviceId === RELAY_DEVICE_ID) {
+                persistJoinName(trimmed);
+                updateLocalChatNames();
+                if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
+                    sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
+                }
+                renderPeerList();
+                return;
+            }
+            setPeerAlias(deviceId, trimmed);
+            updatePeerAliasInHistory(deviceId, trimmed);
+            if (selectedPeerId === deviceId) {
+                selectedPeerName = resolveDisplayName(trimmed || getPeerPresenceName(deviceId));
+                if (peerFilterChip && peerFilterLabel) {
+                    peerFilterLabel.textContent = `Filtered: ${selectedPeerName}`;
+                }
+            }
+            renderPeerList();
         }
 
         let bubbleStyles = loadBubbleStyles();
@@ -992,6 +1067,7 @@
         updateNotificationsInfo();
         updateNotificationsStatus();
         updateNotificationsCta();
+        ensureNotificationsReady();
         updateMessageWaitingIndicator();
         updateDocumentTitle();
 
@@ -1006,7 +1082,6 @@
         if (roomInput) roomInput.value = room;
         if (pairSelect) pairSelect.value = pair;
         if (nameInput) nameInput.value = joinName;
-        if (clientNameInline) clientNameInline.textContent = joinName;
         if (sessionNameChip) sessionNameChip.textContent = room;
 
         const languageNames = (() => {
@@ -1167,7 +1242,7 @@
         }
 
         function renderPeerList() {
-            if (!peerListPanel || !peerList || !peerListEmpty) return;
+            if (!peerListPanel || !peerList) return;
             const roster = getPeerRoster();
             if (selectedPeerId && !roster.has(selectedPeerId)) {
                 selectedPeerId = null;
@@ -1179,11 +1254,6 @@
             peerList.innerHTML = '';
             const now = Date.now();
             const onlinePeers = Array.from(roster.values()).filter(peer => now - (peer.lastSeen || 0) < PRESENCE_STALE_MS);
-            if (onlinePeers.length === 0) {
-                peerListEmpty.classList.remove('hidden');
-            } else {
-                peerListEmpty.classList.add('hidden');
-            }
             const localEntry = {
                 id: RELAY_DEVICE_ID,
                 name: joinName || '',
@@ -1196,18 +1266,51 @@
                 const li = document.createElement('li');
                 const isSelected = selectedPeerId && peer.id === selectedPeerId;
                 li.className = `flex items-center justify-between gap-3 rounded-lg border px-3 py-2 bg-white/70 cursor-pointer transition ${isSelected ? 'border-blue-300 bg-blue-50/60' : 'border-slate-200 hover:border-slate-300'}`;
-                const name = resolveDisplayName(peer.name);
+                const name = peer.isLocal ? resolveDisplayName(joinName) : resolvePeerName(peer.id, peer.name);
                 li.dataset.peerId = peer.id;
                 li.dataset.peerName = name;
-                li.innerHTML = `
-                    <div class="flex items-center gap-2 min-w-0">
-                        <span class="h-2.5 w-2.5 rounded-full bg-emerald-400"></span>
-                        <span class="truncate text-sm ${peer.isLocal ? 'font-semibold text-slate-700' : 'text-slate-600'}">${escapeHtml(name)}${peer.isLocal ? ' (You)' : ''}</span>
-                    </div>
-                    <span class="text-[11px] text-slate-400">Online</span>
-                `;
+                const nameWrap = document.createElement('div');
+                nameWrap.className = 'flex items-center gap-2 min-w-0';
+                const dot = document.createElement('span');
+                dot.className = 'h-2.5 w-2.5 rounded-full bg-emerald-400';
+                const nameSpan = document.createElement('span');
+                nameSpan.className = `truncate text-sm outline-none ${peer.isLocal ? 'font-semibold text-slate-700' : 'text-slate-600'}`;
+                nameSpan.textContent = name;
+                nameSpan.contentEditable = 'true';
+                nameSpan.setAttribute('role', 'textbox');
+                nameSpan.setAttribute('aria-label', peer.isLocal ? 'Edit your name' : `Edit ${name}`);
+                nameSpan.dataset.peerNameEditor = 'true';
+                nameSpan.dataset.peerId = peer.id;
+                nameSpan.addEventListener('focus', () => {
+                    requestAnimationFrame(() => {
+                        document.getSelection()?.selectAllChildren(nameSpan);
+                    });
+                });
+                nameSpan.addEventListener('keydown', event => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        nameSpan.blur();
+                    }
+                });
+                nameSpan.addEventListener('blur', () => {
+                    applyPeerNameEdit(peer.id, nameSpan.textContent, { isLocal: peer.isLocal });
+                });
+                nameWrap.appendChild(dot);
+                nameWrap.appendChild(nameSpan);
+                if (peer.isLocal) {
+                    const localChip = document.createElement('span');
+                    localChip.className = 'text-[10px] uppercase tracking-wide text-slate-400';
+                    localChip.textContent = 'You';
+                    nameWrap.appendChild(localChip);
+                }
+                const status = document.createElement('span');
+                status.className = 'text-[11px] text-slate-400';
+                status.textContent = 'Online';
+                li.appendChild(nameWrap);
+                li.appendChild(status);
                 if (!peer.isLocal) {
-                    li.addEventListener('click', () => {
+                    li.addEventListener('click', event => {
+                        if (event.target.closest('[data-peer-name-editor]')) return;
                         setPeerFilter(peer.id, name);
                     });
                 }
@@ -1275,9 +1378,6 @@
                 icon.textContent = peerPanelCollapsed ? 'expand_more' : 'expand_less';
             }
             peerPanelToggle.setAttribute('aria-expanded', peerPanelCollapsed ? 'false' : 'true');
-            if (clientNameSection) {
-                clientNameSection.classList.toggle('hidden', peerPanelCollapsed);
-            }
         }
 
         function buildClientUrl({ nextRoom = room, nextPair = pair, nextName = joinName } = {}) {
@@ -1309,6 +1409,7 @@
                     ? entry.attachments.map(normalizeChatAttachment).filter(Boolean)
                     : [],
                 ts: entry.ts || Date.now(),
+                updatedAt: entry.updatedAt || entry.ts || Date.now(),
                 translations: entry.translations || {},
                 deleted: Boolean(entry.deleted),
                 style: entry.style || null,
@@ -1497,11 +1598,10 @@
 
         function setReplyContext(entry) {
             if (!entry) return;
+            const isLocal = entry.from === 'local';
             replyContext = {
                 id: entry.id,
-                name: resolveDisplayName(
-                    entry.name || (entry.from === 'local' ? joinName : resolvePeerName(entry.deviceId, ''))
-                ),
+                name: resolveDisplayName(isLocal ? joinName : resolvePeerName(entry.deviceId, entry.name || '')),
                 snippet: getReplySnippet(entry),
                 from: entry.from
             };
@@ -1935,9 +2035,7 @@
                 const headerLine = document.createElement('div');
                 headerLine.className = 'bubble-meta flex items-center justify-between font-semibold text-slate-400';
                 const label = document.createElement('span');
-                const senderName = resolveDisplayName(
-                    entry.name || (isLocal ? joinName : resolvePeerName(entry.deviceId, ''))
-                );
+                const senderName = resolveDisplayName(isLocal ? joinName : resolvePeerName(entry.deviceId, entry.name || ''));
                 const pendingSuffix = entry.pending ? ' • Sending…' : '';
                 label.textContent = `${senderName} ${formatTimestamp(entry.ts)}${pendingSuffix}`;
                 if (isLocal && isClientView) {
@@ -2073,6 +2171,7 @@
             entry.message = 'Post deleted.';
             entry.attachments = [];
             entry.pending = false;
+            entry.updatedAt = Date.now();
             saveChatHistory(chatHistory);
             renderChat();
             sendRelayMessage({ type: 'delete', id: entryId });
@@ -2108,7 +2207,7 @@
             if (message.type === 'presence' || message.type === 'hello') {
                 const existing = peerPresence.get(senderDeviceId);
                 peerPresence.set(senderDeviceId, {
-                    name: resolvePeerName(senderDeviceId, message.name || ''),
+                    name: resolveDisplayName(message.name || ''),
                     lastSeen: now,
                     connectedAt: existing?.connectedAt || now
                 });
@@ -2204,6 +2303,7 @@
                     entry.message = 'Post deleted.';
                     entry.attachments = [];
                     entry.pending = false;
+                    entry.updatedAt = message.ts || now;
                     saveChatHistory(chatHistory);
                     renderChat();
                 }
@@ -2211,7 +2311,7 @@
             }
             if (message.type === 'sync-request') {
                 const since = Number(message.since) || 0;
-                const history = chatHistory.filter(entry => entry.ts > since).slice(-50);
+                const history = chatHistory.filter(entry => Math.max(entry.ts || 0, entry.updatedAt || 0) > since).slice(-50);
                 sendRelayMessage({ type: 'sync-response', target: message.from, history });
                 return;
             }
@@ -2382,6 +2482,7 @@
                 name: readerName || resolvePeerName(readerId, ''),
                 ts: nextTs
             };
+            entry.updatedAt = Math.max(entry.updatedAt || entry.ts || 0, nextTs);
             if (persist) {
                 saveChatHistory(chatHistory);
             }
@@ -2410,7 +2511,7 @@
 
         function getLatestChatTimestamp() {
             if (!chatHistory.length) return 0;
-            return Math.max(...chatHistory.map(entry => entry.ts || 0));
+            return Math.max(...chatHistory.map(entry => Math.max(entry.ts || 0, entry.updatedAt || 0)));
         }
 
         function requestChatSync() {
@@ -2418,16 +2519,77 @@
             sendRelayMessage({ type: 'sync-request', since: getLatestChatTimestamp() });
         }
 
-        function mergeChatHistory(incoming) {
-            const existing = new Map(chatHistory.map(entry => [entry.id, entry]));
-            incoming.map(normalizeChatEntry).filter(Boolean).forEach(entry => {
-                if (!existing.has(entry.id)) {
-                    existing.set(entry.id, entry);
+        function mergeReadReceipts(currentReads = {}, incomingReads = {}) {
+            const mergedReads = { ...currentReads };
+            Object.entries(incomingReads || {}).forEach(([readerId, info]) => {
+                if (!readerId || !info?.ts) return;
+                const current = mergedReads[readerId];
+                if (!current || current.ts < info.ts) {
+                    mergedReads[readerId] = info;
                 }
             });
-            chatHistory = Array.from(existing.values()).sort((a, b) => (a.ts || 0) - (b.ts || 0));
-            saveChatHistory(chatHistory);
-            renderChat();
+            return mergedReads;
+        }
+
+        function mergeChatEntry(current, incoming) {
+            let changed = false;
+            const currentUpdated = Math.max(current.updatedAt || 0, current.ts || 0);
+            const incomingUpdated = Math.max(incoming.updatedAt || 0, incoming.ts || 0);
+            const merged = { ...current };
+            if (incomingUpdated > currentUpdated) {
+                merged.name = incoming.name || merged.name;
+                merged.message = incoming.message || merged.message;
+                merged.attachments = Array.isArray(incoming.attachments) ? incoming.attachments : merged.attachments;
+                merged.translations = incoming.translations || merged.translations;
+                merged.deleted = incoming.deleted || merged.deleted;
+                merged.replyTo = incoming.replyTo || merged.replyTo;
+                merged.style = incoming.style || merged.style;
+                if (typeof incoming.pending === 'boolean') {
+                    merged.pending = incoming.pending && merged.pending;
+                }
+                merged.updatedAt = incomingUpdated;
+                changed = true;
+            }
+            const mergedReads = mergeReadReceipts(merged.reads, incoming.reads);
+            if (JSON.stringify(mergedReads) !== JSON.stringify(merged.reads || {})) {
+                merged.reads = mergedReads;
+                merged.updatedAt = Math.max(merged.updatedAt || 0, incomingUpdated);
+                changed = true;
+            }
+            if (incoming.deleted && !current.deleted) {
+                merged.deleted = true;
+                merged.updatedAt = Math.max(merged.updatedAt || 0, incomingUpdated);
+                changed = true;
+            }
+            if (incoming.pending === false && current.pending) {
+                merged.pending = false;
+                merged.updatedAt = Math.max(merged.updatedAt || 0, incomingUpdated);
+                changed = true;
+            }
+            return changed ? merged : current;
+        }
+
+        function mergeChatHistory(incoming) {
+            const existing = new Map(chatHistory.map(entry => [entry.id, entry]));
+            let changed = false;
+            incoming.map(normalizeChatEntry).filter(Boolean).forEach(entry => {
+                const current = existing.get(entry.id);
+                if (!current) {
+                    existing.set(entry.id, entry);
+                    changed = true;
+                    return;
+                }
+                const merged = mergeChatEntry(current, entry);
+                if (merged !== current) {
+                    existing.set(entry.id, merged);
+                    changed = true;
+                }
+            });
+            if (changed) {
+                chatHistory = Array.from(existing.values()).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+                saveChatHistory(chatHistory);
+                renderChat();
+            }
         }
 
         setInterval(() => {
@@ -2537,7 +2699,6 @@
             const trimmed = (rawName || '').trim();
             joinName = trimmed || buildDefaultName();
             if (nameInput) nameInput.value = joinName;
-            if (clientNameInline) clientNameInline.textContent = joinName;
             writeStorage(NAME_STORAGE_KEY, joinName);
             if (relayState.ws && relayState.ws.readyState === WebSocket.OPEN) {
                 sendRelayMessage({ type: 'presence', name: joinName, style: getSenderStyle() });
@@ -2581,9 +2742,10 @@
 
         function requestJoinNameUpdate() {
             if (!isClientView) return;
-            if (!clientNameInline) return;
-            clientNameInline.focus();
-            document.getSelection()?.selectAllChildren(clientNameInline);
+            const editor = peerList?.querySelector(`[data-peer-name-editor][data-peer-id="${RELAY_DEVICE_ID}"]`);
+            if (!editor) return;
+            editor.focus();
+            document.getSelection()?.selectAllChildren(editor);
         }
 
         let isDraggingGear = false;
@@ -2777,26 +2939,6 @@
             });
             nameInput.addEventListener('blur', event => {
                 persistJoinName(event.target.value);
-            });
-        }
-        if (clientNameInline) {
-            clientNameInline.addEventListener('focus', () => {
-                requestAnimationFrame(() => {
-                    document.getSelection()?.selectAllChildren(clientNameInline);
-                });
-            });
-            clientNameInline.addEventListener('keydown', event => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    clientNameInline.blur();
-                }
-            });
-            clientNameInline.addEventListener('input', () => {
-                scheduleJoinNamePersist(clientNameInline.textContent);
-            });
-            clientNameInline.addEventListener('blur', () => {
-                persistJoinName(clientNameInline.textContent);
-                updateLocalChatNames();
             });
         }
         if (chatInput) {
@@ -3349,6 +3491,9 @@
                     updateLocalChatNames();
                 }
             });
+            setInterval(() => {
+                requestChatSync();
+            }, 7000);
             setInterval(() => {
                 if (!relayState.ws || relayState.ws.readyState === WebSocket.CLOSED) {
                     connectRelay();
