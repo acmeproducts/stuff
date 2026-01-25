@@ -128,26 +128,25 @@
         </section>
 
         <section id="peer-list-panel" class="bg-white/90 border border-slate-200 rounded-2xl px-4 py-2 shadow-md backdrop-blur peer-panel">
-            <div class="flex flex-nowrap items-center gap-2">
-                <div class="flex flex-nowrap items-center gap-2 min-w-0">
-                    <span id="peer-count-pill" class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">0 online</span>
-                    <button id="session-unread-chip" type="button" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 text-[11px] font-semibold text-amber-600">
-                        <span id="session-name-chip">Session</span>
-                        <span class="text-slate-400">•</span>
-                        <span id="session-unread-count">0 waiting</span>
-                    </button>
-                    <span class="inline-flex items-center gap-1 text-[11px] text-slate-500">
-                        You:
-                        <span id="client-name-inline" class="px-1.5 py-0.5 rounded-md bg-white/80 border border-slate-200 text-slate-600 font-semibold outline-none" contenteditable="true" role="textbox" aria-label="Edit your name"></span>
-                    </span>
-                    <button id="peer-filter-chip" type="button" class="hidden items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">
-                        <span id="peer-filter-label">Filtered</span>
-                        <span class="material-symbols-outlined text-[12px]">close</span>
-                    </button>
-                </div>
-                <button id="peer-panel-toggle" class="peer-panel-toggle ml-auto shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 text-[11px] font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100">
-                    <span class="peer-panel-label">Expand</span>
+            <div class="flex flex-wrap items-center gap-2">
+                <button id="peer-panel-toggle" class="peer-panel-toggle flex items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-slate-900">
+                    <span id="session-name-chip" class="peer-panel-label truncate max-w-[180px]">Session</span>
                     <span class="material-symbols-outlined text-[16px] toggle-icon">expand_more</span>
+                </button>
+                <span class="text-xs text-slate-400">•</span>
+                <span id="peer-count-pill" class="text-xs font-semibold text-slate-500">0 connected</span>
+                <span class="text-xs text-slate-400">•</span>
+                <div id="message-waiting-indicator" class="message-indicator inline-flex items-center gap-1 text-xs text-slate-500">
+                    <span id="message-waiting-dot" class="read-dot read-none"></span>
+                    <span id="session-unread-count">0 waiting</span>
+                </div>
+                <span class="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                    You:
+                    <span id="client-name-inline" class="px-1.5 py-0.5 rounded-md bg-white/80 border border-slate-200 text-slate-600 font-semibold outline-none" contenteditable="true" role="textbox" aria-label="Edit your name"></span>
+                </span>
+                <button id="peer-filter-chip" type="button" class="hidden items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">
+                    <span id="peer-filter-label">Filtered</span>
+                    <span class="material-symbols-outlined text-[12px]">close</span>
                 </button>
             </div>
             <div class="peer-panel-body mt-2 space-y-3">
@@ -469,10 +468,10 @@
             return new Date(timestamp).toLocaleString();
         }
 
-        function resolveDisplayName(name, fallbackTimestamp) {
+        function resolveDisplayName(name) {
             const trimmed = (name || '').trim();
             if (!trimmed || trimmed.toLowerCase() === DEFAULT_DEVICE_NAME.toLowerCase()) {
-                return formatDateTime(fallbackTimestamp || Date.now());
+                return DEFAULT_DEVICE_NAME;
             }
             return trimmed;
         }
@@ -609,8 +608,9 @@
         const peerPanelToggle = document.getElementById('peer-panel-toggle');
         const peerCountPill = document.getElementById('peer-count-pill');
         const sessionNameChip = document.getElementById('session-name-chip');
-        const sessionUnreadChip = document.getElementById('session-unread-chip');
         const sessionUnreadCount = document.getElementById('session-unread-count');
+        const messageWaitingIndicator = document.getElementById('message-waiting-indicator');
+        const messageWaitingDot = document.getElementById('message-waiting-dot');
         const clientNameInline = document.getElementById('client-name-inline');
         const peerFilterChip = document.getElementById('peer-filter-chip');
         const peerFilterLabel = document.getElementById('peer-filter-label');
@@ -758,10 +758,21 @@
             return 'New message received.';
         }
 
+        function focusChatBubble(entryId) {
+            if (!entryId || !chatHistoryEl) return;
+            const target = chatHistoryEl.querySelector(`[data-entry-id="${entryId}"]`);
+            if (!target) return;
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            target.classList.add('ring-2', 'ring-blue-300');
+            setTimeout(() => {
+                target.classList.remove('ring-2', 'ring-blue-300');
+            }, 2000);
+        }
+
         function showBrowserNotification(entry) {
             if (!notificationsEnabled || !notificationSupport) return;
             if (Notification.permission !== 'granted') return;
-            const title = `${resolveDisplayName(entry.name, entry.ts)} — Talk`;
+            const title = `${resolveDisplayName(entry.name)} — Talk`;
             const body = buildNotificationBody(entry);
             try {
                 const notification = new Notification(title, {
@@ -771,6 +782,8 @@
                 });
                 notification.onclick = () => {
                     window.focus();
+                    firstUnreadMessageId = entry.id || firstUnreadMessageId;
+                    requestAnimationFrame(() => focusChatBubble(entry.id));
                     notification.close();
                 };
             } catch (_) {}
@@ -793,8 +806,7 @@
 
         function resolvePeerName(deviceId, fallback = '') {
             const peer = peerPresence.get(deviceId);
-            const timestamp = peer?.connectedAt || peer?.lastSeen || Date.now();
-            return resolveDisplayName(fallback, timestamp);
+            return resolveDisplayName(fallback || peer?.name || '');
         }
 
         let bubbleStyles = loadBubbleStyles();
@@ -874,11 +886,16 @@
             if (sessionUnreadCount) {
                 sessionUnreadCount.textContent = unreadCount === 1 ? '1 waiting' : `${unreadCount} waiting`;
             }
-            if (sessionUnreadChip) {
-                sessionUnreadChip.classList.toggle('bg-amber-50', unreadCount > 0);
-                sessionUnreadChip.classList.toggle('text-amber-600', unreadCount > 0);
-                sessionUnreadChip.classList.toggle('bg-slate-100', unreadCount === 0);
-                sessionUnreadChip.classList.toggle('text-slate-500', unreadCount === 0);
+            if (messageWaitingDot) {
+                messageWaitingDot.classList.remove('read-all', 'read-some', 'read-none');
+                const notificationsBlocked = !notificationsEnabled || (notificationSupport && Notification.permission === 'denied');
+                if (notificationsBlocked) {
+                    messageWaitingDot.classList.add('read-none');
+                } else if (unreadCount > 0) {
+                    messageWaitingDot.classList.add('read-some');
+                } else {
+                    messageWaitingDot.classList.add('read-all');
+                }
             }
         }
 
@@ -935,7 +952,7 @@
             const devices = [
                 {
                     id: RELAY_DEVICE_ID,
-                    name: resolveDisplayName(joinName, localConnectedAt),
+                    name: resolveDisplayName(joinName),
                     lastSeen: now,
                     isLocal: true
                 }
@@ -943,7 +960,7 @@
             peerPresence.forEach((peer, deviceId) => {
                 devices.push({
                     id: deviceId,
-                    name: resolveDisplayName(peer?.name, peer?.connectedAt || peer?.lastSeen || now),
+                    name: resolveDisplayName(peer?.name),
                     lastSeen: peer?.lastSeen || now,
                     isLocal: false
                 });
@@ -1000,9 +1017,7 @@
                 const li = document.createElement('li');
                 const isSelected = selectedPeerId && peer.id === selectedPeerId;
                 li.className = `flex items-center justify-between gap-3 rounded-lg border px-3 py-2 bg-white/70 cursor-pointer transition ${isSelected ? 'border-blue-300 bg-blue-50/60' : 'border-slate-200 hover:border-slate-300'}`;
-                const name = resolveDisplayName(peer.name, peer.connectedAt || now);
-                const connectedLabel = formatElapsedDuration(peer.connectedAt || peer.lastSeen || now);
-                li.title = `Connected for ${connectedLabel}`;
+                const name = resolveDisplayName(peer.name);
                 li.dataset.peerId = peer.id;
                 li.dataset.peerName = name;
                 li.innerHTML = `
@@ -1020,7 +1035,7 @@
                 peerList.appendChild(li);
             });
             if (peerCountPill) {
-                peerCountPill.textContent = `${onlinePeers.length} online`;
+                peerCountPill.textContent = `${onlinePeers.length} connected`;
             }
             if (sessionNameChip) {
                 sessionNameChip.textContent = room;
@@ -1051,7 +1066,7 @@
         function updatePeerStatus() {
             const typingPeers = Array.from(peerTyping.values())
                 .filter(peer => peer?.active)
-                .map(peer => resolveDisplayName(peer?.name, peer?.connectedAt || Date.now()));
+                .map(peer => resolveDisplayName(peer?.name));
             if (typingPeers.length) {
                 const label = typingPeers.length > 1
                     ? `${typingPeers.length} people are typing…`
@@ -1076,14 +1091,11 @@
         function updatePeerPanelUI() {
             if (!peerListPanel || !peerPanelToggle) return;
             peerListPanel.classList.toggle('collapsed', peerPanelCollapsed);
-            const label = peerPanelToggle.querySelector('.peer-panel-label');
             const icon = peerPanelToggle.querySelector('.toggle-icon');
-            if (label) {
-                label.textContent = peerPanelCollapsed ? 'Expand' : 'Collapse';
-            }
             if (icon) {
                 icon.textContent = peerPanelCollapsed ? 'expand_more' : 'expand_less';
             }
+            peerPanelToggle.setAttribute('aria-expanded', peerPanelCollapsed ? 'false' : 'true');
         }
 
         function buildClientUrl({ nextRoom = room, nextPair = pair, nextName = joinName } = {}) {
@@ -1306,8 +1318,7 @@
             replyContext = {
                 id: entry.id,
                 name: resolveDisplayName(
-                    entry.name || (entry.from === 'local' ? joinName : resolvePeerName(entry.deviceId, '')),
-                    entry.ts
+                    entry.name || (entry.from === 'local' ? joinName : resolvePeerName(entry.deviceId, ''))
                 ),
                 snippet: getReplySnippet(entry),
                 from: entry.from
@@ -1710,8 +1721,7 @@
                 headerLine.className = 'bubble-meta flex items-center justify-between font-semibold text-slate-400';
                 const label = document.createElement('span');
                 const senderName = resolveDisplayName(
-                    entry.name || (isLocal ? joinName : resolvePeerName(entry.deviceId, '')),
-                    entry.ts
+                    entry.name || (isLocal ? joinName : resolvePeerName(entry.deviceId, ''))
                 );
                 const pendingSuffix = entry.pending ? ' • Sending…' : '';
                 label.textContent = `${senderName} ${formatTimestamp(entry.ts)}${pendingSuffix}`;
@@ -2124,7 +2134,7 @@
             peers.forEach(peer => {
                 const row = document.createElement('div');
                 row.className = 'flex items-center justify-between gap-3 border border-slate-200 rounded-lg px-3 py-2 bg-slate-50';
-                const name = resolveDisplayName(peer.name, peer.connectedAt || entry.ts);
+                const name = resolveDisplayName(peer.name);
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'text-sm font-semibold text-slate-700';
                 nameSpan.textContent = name;
@@ -2282,6 +2292,16 @@
             }
         }
 
+        function scheduleJoinNamePersist(rawName) {
+            if (nameEditTimer) {
+                clearTimeout(nameEditTimer);
+            }
+            nameEditTimer = setTimeout(() => {
+                persistJoinName(rawName);
+                updateLocalChatNames();
+            }, 200);
+        }
+
         function updateLocalChatNames() {
             let changed = false;
             chatHistory.forEach(entry => {
@@ -2309,6 +2329,7 @@
         let gearDragStart = null;
         let isTyping = false;
         let typingTimeout = null;
+        let nameEditTimer = null;
 
         function setComposerMetrics() {
             if (!chatComposer) return;
@@ -2476,11 +2497,19 @@
             });
         }
         if (clientNameInline) {
+            clientNameInline.addEventListener('focus', () => {
+                requestAnimationFrame(() => {
+                    document.getSelection()?.selectAllChildren(clientNameInline);
+                });
+            });
             clientNameInline.addEventListener('keydown', event => {
                 if (event.key === 'Enter') {
                     event.preventDefault();
                     clientNameInline.blur();
                 }
+            });
+            clientNameInline.addEventListener('input', () => {
+                scheduleJoinNamePersist(clientNameInline.textContent);
             });
             clientNameInline.addEventListener('blur', () => {
                 persistJoinName(clientNameInline.textContent);
@@ -2608,8 +2637,8 @@
             });
         }
 
-        if (sessionUnreadChip) {
-            sessionUnreadChip.addEventListener('click', () => {
+        if (messageWaitingIndicator) {
+            messageWaitingIndicator.addEventListener('click', () => {
                 scrollToFirstUnread();
             });
         }
