@@ -287,12 +287,6 @@
         </main>
     </div>
 
-    <div id="notification-fallback" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 hidden">
-        <div class="px-4 py-2 rounded-full bg-slate-900/90 text-white text-xs font-semibold shadow-lg">
-            Notifications are blocked. New messages will show here instead.
-        </div>
-    </div>
-
     <div id="chat-composer" class="hidden"></div>
     <div class="hidden">
         <button id="chat-attach" type="button">Attach</button>
@@ -404,29 +398,6 @@
                     <span class="material-symbols-outlined text-base">refresh</span>
                     Refresh chat
                 </button>
-                <label class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600">
-                    <span class="flex items-center gap-3">
-                        <span class="material-symbols-outlined text-base">notifications</span>
-                        Message waiting indicator
-                    </span>
-                    <input id="notifications-toggle" type="checkbox" class="h-4 w-4">
-                </label>
-                <div id="notifications-status" class="text-[11px] text-slate-500 px-3">
-                    Notifications fire only when this tab is inactive unless “Notify when active” is enabled.
-                </div>
-                <button id="notifications-cta" class="hidden w-full text-left text-[11px] text-blue-600 px-3 py-2 rounded-lg border border-blue-100 bg-blue-50/70 hover:bg-blue-100">
-                    Enable notifications
-                </button>
-                <div id="notifications-info" class="hidden text-[11px] text-slate-400 px-3">
-                    Browser notifications are blocked or not granted. Enable them in your browser settings.
-                </div>
-                <label class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600">
-                    <span class="flex items-center gap-3">
-                        <span class="material-symbols-outlined text-base">visibility</span>
-                        Notify when active
-                    </span>
-                    <input id="notifications-focus-toggle" type="checkbox" class="h-4 w-4">
-                </label>
                 <label class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600">
                     <span class="flex items-center gap-3">
                         <span class="material-symbols-outlined text-base">timer</span>
@@ -773,8 +744,6 @@
         const CONTROL_PANEL_STORAGE_KEY = `talk_control_panel_${RELAY_SESSION_ID}`;
         const PEER_PANEL_STORAGE_KEY = `talk_peer_panel_${RELAY_SESSION_ID}`;
         const GEAR_STORAGE_KEY = `talk_gear_pos_${RELAY_SESSION_ID}`;
-        const NOTIFICATIONS_STORAGE_KEY = `talk_notifications_${RELAY_SESSION_ID}`;
-        const NOTIFICATIONS_FOCUS_STORAGE_KEY = `talk_notifications_focus_${RELAY_SESSION_ID}`;
         const TYPING_PAUSE_STORAGE_KEY = `talk_typing_pause_${RELAY_SESSION_ID}`;
         const SESSION_LIST_STORAGE_KEY = 'talk_sessions_v1';
         const SESSION_LIST_LIMIT = 25;
@@ -832,8 +801,6 @@
         const controlPanel = document.getElementById('control-panel');
         const controlPanelToggle = document.getElementById('control-panel-toggle');
         const controlPanelRefresh = document.getElementById('control-panel-refresh');
-        const controlNotificationsToggle = document.getElementById('control-notifications-toggle');
-        const controlNotificationsInfo = document.getElementById('control-notifications-info');
         const sessionListPanel = document.getElementById('session-list-panel');
         const sessionList = document.getElementById('session-list');
         const sessionEmpty = document.getElementById('session-empty');
@@ -843,8 +810,6 @@
         const peerCountPill = document.getElementById('peer-count-pill');
         const sessionNameChip = document.getElementById('session-name-chip');
         const sessionUnreadCount = document.getElementById('session-unread-count');
-        const messageWaitingIndicator = document.getElementById('message-waiting-indicator');
-        const messageWaitingDot = document.getElementById('message-waiting-dot');
         const peerFilterChip = document.getElementById('peer-filter-chip');
         const peerFilterLabel = document.getElementById('peer-filter-label');
         const roomInput = document.getElementById('room-input');
@@ -879,17 +844,11 @@
         const drawerImport = document.getElementById('drawer-import');
         const drawerImportInput = document.getElementById('drawer-import-input');
         const drawerShare = document.getElementById('drawer-share');
-        const notificationsToggle = document.getElementById('notifications-toggle');
-        const notificationsFocusToggle = document.getElementById('notifications-focus-toggle');
-        const notificationsStatus = document.getElementById('notifications-status');
-        const notificationsCta = document.getElementById('notifications-cta');
-        const notificationsInfo = document.getElementById('notifications-info');
         const controlsModal = document.getElementById('controls-modal');
         const closeControls = document.getElementById('close-controls');
         const gearFab = document.getElementById('gear-fab');
         const chatComposer = document.getElementById('chat-composer');
         const speakerToggle = document.getElementById('speaker-toggle');
-        const notificationFallback = document.getElementById('notification-fallback');
         const replyPreview = document.getElementById('reply-preview');
         const replyPreviewText = document.getElementById('reply-preview-text');
         const replyPreviewClear = document.getElementById('reply-preview-clear');
@@ -921,9 +880,6 @@
         let localPresenceActive = resolveLocalPresenceActive();
         let controlPanelCollapsed = false;
         let peerPanelCollapsed = false;
-        let notificationsEnabled = true;
-        let notifyWhenFocused = false;
-        let notificationFallbackTimer = null;
         let unreadCount = 0;
         let replyContext = null;
         let typingIndicatorTimer = null;
@@ -940,9 +896,6 @@
         let speakerFlipTimer = null;
         const DEFAULT_TYPING_PAUSE_MS = 3000;
         let typingPauseMs = DEFAULT_TYPING_PAUSE_MS;
-        const notificationSupport = 'Notification' in window;
-        const serviceWorkerSupported = 'serviceWorker' in navigator;
-        let notificationServiceWorkerRegistration = null;
 
         function resolveLocalPresenceActive() {
             return document.visibilityState === 'visible' && document.hasFocus();
@@ -1051,25 +1004,6 @@
             writeStorage(BACKGROUND_STORAGE_KEY, JSON.stringify(background));
         }
 
-        function loadNotificationsSetting() {
-            try {
-                const raw = readStorage(NOTIFICATIONS_STORAGE_KEY);
-                if (raw === null) return true;
-                return raw !== 'false';
-            } catch (_) {
-                return true;
-            }
-        }
-
-        function loadNotifyWhenFocusedSetting() {
-            try {
-                const raw = readStorage(NOTIFICATIONS_FOCUS_STORAGE_KEY);
-                return raw === 'true';
-            } catch (_) {
-                return false;
-            }
-        }
-
         function loadTypingPauseMs() {
             try {
                 const raw = readStorage(TYPING_PAUSE_STORAGE_KEY);
@@ -1092,115 +1026,6 @@
             }
         }
 
-        function requestNotificationPermission() {
-            if (!notificationSupport) return Promise.resolve('unsupported');
-            if (Notification.permission === 'granted') return Promise.resolve('granted');
-            if (Notification.permission === 'denied') return Promise.resolve('denied');
-            return Notification.requestPermission();
-        }
-
-        async function registerNotificationServiceWorker() {
-            if (!serviceWorkerSupported) return null;
-            if (notificationServiceWorkerRegistration) return notificationServiceWorkerRegistration;
-            try {
-                const registration = await navigator.serviceWorker.register('talk-notifications-sw.js');
-                notificationServiceWorkerRegistration = registration;
-                try {
-                    const readyRegistration = await navigator.serviceWorker.ready;
-                    notificationServiceWorkerRegistration = readyRegistration || registration;
-                } catch (_) {}
-                return registration;
-            } catch (_) {
-                return null;
-            }
-        }
-
-        function setNotificationsEnabled(enabled, { persist = true } = {}) {
-            notificationsEnabled = Boolean(enabled);
-            if (notificationsToggle) notificationsToggle.checked = notificationsEnabled;
-            if (controlNotificationsToggle) controlNotificationsToggle.checked = notificationsEnabled;
-            if (persist) {
-                writeStorage(NOTIFICATIONS_STORAGE_KEY, notificationsEnabled ? 'true' : 'false');
-            }
-            updateDocumentTitle();
-            updateMessageWaitingIndicator();
-            updateNotificationsStatus();
-        }
-
-        function setNotifyWhenFocused(enabled, { persist = true } = {}) {
-            notifyWhenFocused = Boolean(enabled);
-            if (notificationsFocusToggle) notificationsFocusToggle.checked = notifyWhenFocused;
-            if (persist) {
-                writeStorage(NOTIFICATIONS_FOCUS_STORAGE_KEY, notifyWhenFocused ? 'true' : 'false');
-            }
-            updateNotificationsStatus();
-        }
-
-        function updateNotificationsInfo() {
-            const showBlocked = notificationSupport && Notification.permission !== 'granted';
-            if (notificationsInfo) {
-                notificationsInfo.classList.toggle('hidden', !showBlocked);
-            }
-            if (controlNotificationsInfo) {
-                controlNotificationsInfo.classList.toggle('hidden', !showBlocked);
-            }
-        }
-
-        function updateNotificationsCta() {
-            if (!notificationsCta) return;
-            const shouldShow = notificationsEnabled && notificationSupport && Notification.permission === 'default';
-            notificationsCta.classList.toggle('hidden', !shouldShow);
-        }
-
-        function updateNotificationsStatus() {
-            if (!notificationsStatus) return;
-            let statusText = '';
-            if (!notificationSupport) {
-                statusText = 'Browser notifications are not supported here.';
-            } else if (Notification.permission === 'denied') {
-                statusText = 'Notifications are blocked in this browser.';
-            } else if (Notification.permission === 'default') {
-                statusText = 'Notifications need permission to appear.';
-            } else if (!notificationsEnabled) {
-                statusText = 'Notifications are off.';
-            } else {
-                statusText = notifyWhenFocused
-                    ? 'Notifications are on (including when active).'
-                    : 'Notifications are on.';
-            }
-            notificationsStatus.textContent = statusText;
-            updateNotificationsCta();
-        }
-
-        function showNotificationFallback(entry) {
-            if (!notificationFallback) return;
-            if (notificationFallbackTimer) {
-                clearTimeout(notificationFallbackTimer);
-                notificationFallbackTimer = null;
-            }
-            const body = buildNotificationBody(entry);
-            const fallbackText = notificationFallback.querySelector('div');
-            if (fallbackText) {
-                fallbackText.textContent = `New message: ${body}`;
-            }
-            notificationFallback.classList.remove('hidden');
-            notificationFallbackTimer = setTimeout(() => {
-                notificationFallback.classList.add('hidden');
-            }, 3500);
-        }
-
-        function buildNotificationBody(entry) {
-            const messageText = (entry.message || '').trim();
-            if (messageText) {
-                return messageText.length > 140 ? `${messageText.slice(0, 137)}…` : messageText;
-            }
-            if (entry.attachments && entry.attachments.length) {
-                const count = entry.attachments.length;
-                return `${count} attachment${count === 1 ? '' : 's'}`;
-            }
-            return 'New message received.';
-        }
-
         function findChatEntryElement(entryId) {
             if (!entryId) return null;
             for (const column of chatHistoryEls) {
@@ -1220,68 +1045,6 @@
             setTimeout(() => {
                 target.classList.remove('ring-2', 'ring-blue-300');
             }, 2000);
-        }
-
-        function showBrowserNotification(entry) {
-            if (!notificationsEnabled || !notificationSupport) return false;
-            if (Notification.permission !== 'granted') return false;
-            const displayName = entry.deviceId ? resolvePeerName(entry.deviceId, entry.name || '') : resolveDisplayName(entry.name);
-            const title = `${displayName} — Talk`;
-            const body = buildNotificationBody(entry);
-            try {
-                if (notificationServiceWorkerRegistration?.showNotification) {
-                    notificationServiceWorkerRegistration.showNotification(title, {
-                        body,
-                        tag: entry.id || `talk_${RELAY_SESSION_ID}`,
-                        renotify: true,
-                        data: {
-                            url: window.location.href
-                        }
-                    }).catch(() => {
-                        try {
-                            new Notification(title, {
-                                body,
-                                tag: entry.id || `talk_${RELAY_SESSION_ID}`,
-                                renotify: true
-                            });
-                        } catch (_) {}
-                    });
-                    return true;
-                }
-                const notification = new Notification(title, {
-                    body,
-                    tag: entry.id || `talk_${RELAY_SESSION_ID}`,
-                    renotify: true
-                });
-                notification.onclick = () => {
-                    window.focus();
-                    firstUnreadMessageId = entry.id || firstUnreadMessageId;
-                    requestAnimationFrame(() => focusChatBubble(entry.id));
-                    notification.close();
-                };
-                return true;
-            } catch (_) {
-                return false;
-            }
-        }
-
-        async function handleNotificationsToggleChange(checked) {
-            if (!checked) {
-                setNotificationsEnabled(false);
-                updateNotificationsInfo();
-                return;
-            }
-            const permission = await requestNotificationPermission();
-            if (permission === 'granted' || permission === 'unsupported') {
-                setNotificationsEnabled(true);
-                if (permission === 'granted') {
-                    await registerNotificationServiceWorker();
-                }
-            } else {
-                setNotificationsEnabled(false);
-            }
-            updateNotificationsInfo();
-            updateNotificationsStatus();
         }
 
         function resolvePeerName(deviceId, fallback = '') {
@@ -1364,24 +1127,7 @@
         let chatBackground = loadChatBackground();
         applyChatBackgroundStyles(chatBackground);
         openStyleConfig();
-        setNotificationsEnabled(loadNotificationsSetting(), { persist: false });
-        setNotifyWhenFocused(loadNotifyWhenFocusedSetting(), { persist: false });
         setTypingPauseMs(loadTypingPauseMs(), { persist: false });
-        updateNotificationsInfo();
-        updateNotificationsStatus();
-        updateNotificationsCta();
-        updateMessageWaitingIndicator();
-        updateDocumentTitle();
-        if (notificationSupport && Notification.permission === 'granted') {
-            registerNotificationServiceWorker();
-        }
-        if (serviceWorkerSupported) {
-            navigator.serviceWorker.getRegistration().then(registration => {
-                if (registration) {
-                    notificationServiceWorkerRegistration = registration;
-                }
-            }).catch(() => {});
-        }
 
         function getSenderStyle() {
             return {
@@ -1441,40 +1187,9 @@
             }
         }
 
-        function updateDocumentTitle() {
-            if (!notificationsEnabled) {
-                document.title = 'Talk';
-                return;
-            }
-            if (unreadCount > 0) {
-                document.title = `(${unreadCount}) Talk`;
-            } else {
-                document.title = 'Talk';
-            }
-        }
-
-        function updateMessageWaitingIndicator() {
-            if (sessionUnreadCount) {
-                sessionUnreadCount.textContent = unreadCount === 1 ? '1 waiting' : `${unreadCount} waiting`;
-            }
-            if (messageWaitingDot) {
-                messageWaitingDot.classList.remove('read-all', 'read-some', 'read-none');
-                const notificationsBlocked = !notificationsEnabled || (notificationSupport && Notification.permission !== 'granted');
-                if (notificationsBlocked) {
-                    messageWaitingDot.classList.add('read-none');
-                } else if (unreadCount > 0) {
-                    messageWaitingDot.classList.add('read-some');
-                } else {
-                    messageWaitingDot.classList.add('read-all');
-                }
-            }
-        }
-
         function clearUnreadCount() {
             unreadCount = 0;
             firstUnreadMessageId = null;
-            updateMessageWaitingIndicator();
-            updateDocumentTitle();
             markMessagesRead();
             if (isClientView) {
                 upsertSessionEntry({
@@ -1492,8 +1207,6 @@
             if (!firstUnreadMessageId && messageId) {
                 firstUnreadMessageId = messageId;
             }
-            updateMessageWaitingIndicator();
-            updateDocumentTitle();
             if (isClientView) {
                 upsertSessionEntry({
                     id: RELAY_SESSION_ID,
@@ -2621,13 +2334,6 @@
                 if (isOutOfFocus || !isChatAtBottom()) {
                     incrementUnreadCount(entry.id);
                 }
-                const shouldNotify = notificationsEnabled && (isOutOfFocus || notifyWhenFocused);
-                if (shouldNotify) {
-                    const shown = showBrowserNotification(entry);
-                    if (!shown) {
-                        showNotificationFallback(entry);
-                    }
-                }
                 if (document.hasFocus() && isChatAtBottom()) {
                     markMessagesRead();
                 }
@@ -3443,35 +3149,6 @@
             });
         }
 
-        if (notificationsToggle) {
-            notificationsToggle.addEventListener('change', event => {
-                handleNotificationsToggleChange(event.target.checked);
-            });
-        }
-
-        if (notificationsCta) {
-            notificationsCta.addEventListener('click', async () => {
-                const permission = await requestNotificationPermission();
-                if (permission === 'granted' && notificationsEnabled) {
-                    await registerNotificationServiceWorker();
-                }
-                updateNotificationsInfo();
-                updateNotificationsStatus();
-            });
-        }
-
-        if (controlNotificationsToggle) {
-            controlNotificationsToggle.addEventListener('change', event => {
-                handleNotificationsToggleChange(event.target.checked);
-            });
-        }
-
-        if (notificationsFocusToggle) {
-            notificationsFocusToggle.addEventListener('change', event => {
-                setNotifyWhenFocused(event.target.checked);
-            });
-        }
-
         if (typingPauseInput) {
             const commitPauseChange = () => {
                 const seconds = Number(typingPauseInput.value);
@@ -3482,11 +3159,6 @@
             typingPauseInput.addEventListener('blur', commitPauseChange);
         }
 
-        if (messageWaitingIndicator) {
-            messageWaitingIndicator.addEventListener('click', () => {
-                scrollToFirstUnread();
-            });
-        }
 
         if (peerFilterChip) {
             peerFilterChip.addEventListener('click', () => {
