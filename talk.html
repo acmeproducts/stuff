@@ -1,8 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" translate="no">
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+    <meta name="google" content="notranslate">
+    <meta name="googlebot" content="notranslate">
     <title>Talk</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
@@ -42,6 +44,10 @@
         .chat-bubble .bubble-meta { font-size: 0.75em; }
         .chat-bubble .bubble-body { font-size: 0.95em; }
         .chat-bubble .bubble-subtle { font-size: 0.8em; }
+        .chat-bubble.latest-bubble { border-width: 3px; font-weight: 700; }
+        .chat-bubble.latest-bubble .bubble-meta,
+        .chat-bubble.latest-bubble .bubble-body,
+        .chat-bubble.latest-bubble .bubble-subtle { font-weight: 700; }
         .bubble-local { background: var(--bubble-local-bg, #eff6ff); color: var(--bubble-local-text, #1f2937); }
         .bubble-peer { background: var(--bubble-peer-bg, #ffffff); color: var(--bubble-peer-text, #0f172a); }
         .control-panel-body { max-height: 500px; opacity: 1; transition: max-height 0.25s ease, opacity 0.25s ease; overflow: hidden; }
@@ -117,6 +123,9 @@
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex flex-col gap-1">
                         Your device name
                         <input id="name-input" class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white">
+                        <button id="name-save" type="button" class="self-start px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100">
+                            Save name
+                        </button>
                     </label>
                     <button id="launch-session" class="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 whitespace-nowrap shadow-sm">Build &amp; launch</button>
                 </div>
@@ -688,6 +697,7 @@
         const roomInput = document.getElementById('room-input');
         const pairSelect = document.getElementById('pair-select');
         const nameInput = document.getElementById('name-input');
+        const nameSave = document.getElementById('name-save');
         const launchSessionButton = document.getElementById('launch-session');
         const chatHistoryEl = document.getElementById('chat-history');
         const chatInput = document.getElementById('chat-input');
@@ -880,6 +890,10 @@
             try {
                 const registration = await navigator.serviceWorker.register('talk-notifications-sw.js');
                 notificationServiceWorkerRegistration = registration;
+                try {
+                    const readyRegistration = await navigator.serviceWorker.ready;
+                    notificationServiceWorkerRegistration = readyRegistration || registration;
+                } catch (_) {}
                 return registration;
             } catch (_) {
                 return null;
@@ -990,7 +1004,7 @@
             const title = `${displayName} — Talk`;
             const body = buildNotificationBody(entry);
             try {
-                if (notificationServiceWorkerRegistration) {
+                if (notificationServiceWorkerRegistration?.showNotification) {
                     notificationServiceWorkerRegistration.showNotification(title, {
                         body,
                         tag: entry.id || `talk_${RELAY_SESSION_ID}`,
@@ -1366,6 +1380,8 @@
                     nameSpan.dataset.peerNameEditor = 'true';
                     nameSpan.dataset.peerId = peer.id;
                     nameSpan.addEventListener('focus', () => {
+                        nameSpan.dataset.originalName = nameSpan.textContent || '';
+                        nameSpan.dataset.editCommitted = 'false';
                         requestAnimationFrame(() => {
                             document.getSelection()?.selectAllChildren(nameSpan);
                         });
@@ -1373,11 +1389,23 @@
                     nameSpan.addEventListener('keydown', event => {
                         if (event.key === 'Enter') {
                             event.preventDefault();
+                            nameSpan.dataset.editCommitted = 'true';
+                            nameSpan.blur();
+                        }
+                        if (event.key === 'Escape') {
+                            event.preventDefault();
+                            nameSpan.textContent = nameSpan.dataset.originalName || '';
+                            nameSpan.dataset.editCommitted = 'false';
                             nameSpan.blur();
                         }
                     });
                     nameSpan.addEventListener('blur', () => {
-                        applyPeerNameEdit(peer.id, nameSpan.textContent, { isLocal: peer.isLocal });
+                        if (nameSpan.dataset.editCommitted === 'true') {
+                            applyPeerNameEdit(peer.id, nameSpan.textContent, { isLocal: peer.isLocal });
+                        } else {
+                            nameSpan.textContent = nameSpan.dataset.originalName || nameSpan.textContent;
+                        }
+                        nameSpan.dataset.editCommitted = 'false';
                     });
                 }
                 nameWrap.appendChild(dot);
@@ -2106,10 +2134,11 @@
                 ? chatHistory.filter(entry => entry.from === 'local' || entry.deviceId === selectedPeerId)
                 : chatHistory;
             visibleHistory.forEach((entry, index) => {
+                const isLatest = index === visibleHistory.length - 1;
                 const bubble = document.createElement('div');
                 const isLocal = entry.from === 'local';
                 const isFirstUnread = entry.id && entry.id === firstUnreadMessageId;
-                bubble.className = `chat-bubble px-3 py-2 rounded-2xl shadow-sm border ${isLocal ? 'bubble-local border-blue-100 ml-auto' : 'bubble-peer border-slate-200 mr-auto'} max-w-[90%] ${isFirstUnread ? 'ring-2 ring-amber-300' : ''}`;
+                bubble.className = `chat-bubble px-3 py-2 rounded-2xl shadow-sm border ${isLocal ? 'bubble-local border-blue-100 ml-auto' : 'bubble-peer border-slate-200 mr-auto'} max-w-[90%] ${isFirstUnread ? 'ring-2 ring-amber-300' : ''} ${isLatest ? 'latest-bubble' : ''}`;
                 bubble.dataset.entryId = entry.id;
                 if (entry.style) {
                     bubble.style.background = entry.style.bg || '';
@@ -2801,6 +2830,7 @@
                 sendPresenceUpdate();
             }
             updatePeerStatus();
+            updateLocalChatNames();
             if (isClientView) {
                 upsertSessionEntry({
                     id: RELAY_SESSION_ID,
@@ -3031,12 +3061,20 @@
         }
 
         if (nameInput) {
-            nameInput.addEventListener('change', event => {
-                persistJoinName(event.target.value);
+            const commitNameInput = () => {
+                persistJoinName(nameInput.value);
+            };
+            nameInput.addEventListener('keydown', event => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    commitNameInput();
+                }
             });
-            nameInput.addEventListener('blur', event => {
-                persistJoinName(event.target.value);
-            });
+            if (nameSave) {
+                nameSave.addEventListener('click', () => {
+                    commitNameInput();
+                });
+            }
         }
         if (chatInput) {
             chatInput.addEventListener('focus', () => setComposerMetrics());
