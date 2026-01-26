@@ -126,7 +126,25 @@
             grid-template-columns: 1fr 1fr;
             gap: 12px;
             font-size: var(--bubble-font-size, 0.95rem);
+            position: relative;
         }
+        .bubble-delete {
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            background: rgba(248, 250, 252, 0.9);
+            color: rgba(100, 116, 139, 0.9);
+            font-size: 14px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .bubble-delete:hover { color: rgba(15, 23, 42, 0.9); }
         .message-bubble.local {
             background: var(--bubble-local-bg, #eff6ff);
             color: var(--bubble-local-text, #1f2937);
@@ -178,7 +196,7 @@
             box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
         }
         .tabletop-talk:active { transform: scale(0.98); }
-        .tabletop-south { transform: rotate(180deg); }
+        .tabletop-north { transform: rotate(180deg); }
         .speaker-indicator {
             position: absolute;
             inset: 0;
@@ -336,12 +354,12 @@
                     <button id="chat-send" class="tabletop-talk" type="button" aria-label="Talk north">
                         <span class="material-symbols-outlined text-base">mic</span>
                     </button>
-                    <textarea id="chat-input" rows="1" class="tabletop-input" placeholder="Type…"></textarea>
+                    <textarea id="chat-input" rows="1" class="tabletop-input" placeholder="enter text or speak"></textarea>
                 </div>
             </div>
             <div class="speaker-indicator">
-                <button id="speaker-toggle" type="button" data-active="north" aria-label="Toggle active speaker">
-                    <span class="material-symbols-outlined speaker-arrow">arrow_downward</span>
+                <button id="speaker-toggle" type="button" data-active="south" aria-label="Toggle active speaker">
+                    <span class="material-symbols-outlined speaker-arrow">arrow_upward</span>
                 </button>
             </div>
             <div class="tabletop-half tabletop-south">
@@ -350,7 +368,7 @@
                     <button id="chat-send-south" class="tabletop-talk" type="button" aria-label="Talk south">
                         <span class="material-symbols-outlined text-base">mic</span>
                     </button>
-                    <textarea id="chat-input-south" rows="1" class="tabletop-input" placeholder="Type…"></textarea>
+                    <textarea id="chat-input-south" rows="1" class="tabletop-input" placeholder="enter text or speak"></textarea>
                 </div>
             </div>
         </main>
@@ -989,13 +1007,13 @@
         let selectedPeerId = null;
         let selectedPeerName = '';
         let firstUnreadMessageId = null;
-        let activeSpeaker = 'north';
+        let activeSpeaker = 'south';
         let northLanguage = langA;
         let southLanguage = langB;
         let northAutoDetect = true;
         let southAutoDetect = true;
         let speakerFlipTimer = null;
-        const SPEAKER_AUTO_FLIP_MS = 9000;
+        const SPEAKER_AUTO_FLIP_MS = 1800;
         const notificationSupport = 'Notification' in window;
         const serviceWorkerSupported = 'serviceWorker' in navigator;
         let notificationServiceWorkerRegistration = null;
@@ -1042,7 +1060,6 @@
             if (!nextSpeaker) return;
             activeSpeaker = nextSpeaker;
             updateSpeakerIndicator();
-            scheduleSpeakerAutoFlip();
         }
 
         document.body.classList.add(isClientView ? 'client-view' : 'config-view');
@@ -2416,6 +2433,7 @@
             const visibleHistory = selectedPeerId
                 ? chatHistory.filter(entry => entry.from === 'local' || entry.deviceId === selectedPeerId)
                 : chatHistory;
+            const activeHistory = visibleHistory.filter(entry => !entry.deleted);
 
             const resolveSpeaker = entry => entry.speaker || (entry.from === 'local' ? 'north' : 'south');
             const resolveSourceLanguage = speaker => {
@@ -2429,7 +2447,7 @@
             };
             const resolveTargetLanguage = speaker => (speaker === 'north' ? southLanguage : northLanguage);
 
-            visibleHistory.forEach(entry => {
+            activeHistory.forEach(entry => {
                 const speaker = resolveSpeaker(entry);
                 const isLocal = entry.from === 'local';
                 const text = entry.message || '';
@@ -2448,11 +2466,21 @@
                         bubble.style.fontSize = entry.style.fontSize ? `${entry.style.fontSize}px` : '';
                     }
 
+                    const deleteButton = document.createElement('button');
+                    deleteButton.className = 'bubble-delete';
+                    deleteButton.type = 'button';
+                    deleteButton.setAttribute('aria-label', 'Delete message');
+                    deleteButton.textContent = '×';
+                    deleteButton.addEventListener('click', event => {
+                        event.stopPropagation();
+                        deleteChatEntry(entry.id);
+                    });
+
                     const sourceCol = document.createElement('div');
                     sourceCol.className = 'bubble-col';
                     const translationCol = document.createElement('div');
                     translationCol.className = 'bubble-col';
-                    bubble.append(sourceCol, translationCol);
+                    bubble.append(deleteButton, sourceCol, translationCol);
                     row.appendChild(bubble);
                     attachSwipeReplyHandler(bubble, entry);
 
@@ -2476,20 +2504,14 @@
                         translationCol.innerHTML = renderMarkdown(translated);
                     };
 
-                    if (entry.deleted) {
-                        const deletedText = entry.message || 'Post deleted.';
-                        sourceCol.textContent = deletedText;
-                        translationCol.textContent = deletedText;
+                    sourceCol.innerHTML = renderChatContent(text);
+                    if (sourceLanguage === targetLanguage || !targetLanguage) {
+                        translationCol.innerHTML = renderChatContent(text);
                     } else {
-                        sourceCol.innerHTML = renderChatContent(text);
-                        if (sourceLanguage === targetLanguage || !targetLanguage) {
-                            translationCol.innerHTML = renderChatContent(text);
-                        } else {
-                            fillTranslated();
-                        }
-                        if (Array.isArray(entry.attachments) && entry.attachments.length) {
-                            appendChatAttachments(sourceCol, entry.attachments);
-                        }
+                        fillTranslated();
+                    }
+                    if (Array.isArray(entry.attachments) && entry.attachments.length) {
+                        appendChatAttachments(sourceCol, entry.attachments);
                     }
                     return row;
                 };
@@ -2632,6 +2654,7 @@
                 saveChatHistory(chatHistory);
                 renderChat();
                 setActiveSpeaker(incomingSpeaker);
+                scheduleSpeakerAutoFlip();
                 const isOutOfFocus = !document.hasFocus() || document.visibilityState !== 'visible';
                 if (isOutOfFocus || !isChatAtBottom()) {
                     incrementUnreadCount(entry.id);
@@ -3635,13 +3658,9 @@
 
         if (speakerToggle) {
             updateSpeakerIndicator();
-            if (isClientView) {
-                scheduleSpeakerAutoFlip();
-            }
             speakerToggle.addEventListener('click', () => {
                 activeSpeaker = activeSpeaker === 'north' ? 'south' : 'north';
                 updateSpeakerIndicator();
-                scheduleSpeakerAutoFlip();
             });
         }
 
@@ -3749,6 +3768,7 @@
             updateChatAttachmentUI();
             clearReplyContext();
             setActiveSpeaker(resolvedSpeaker);
+            scheduleSpeakerAutoFlip();
         }
 
         if (chatSend) {
