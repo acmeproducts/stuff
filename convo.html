@@ -1846,6 +1846,77 @@
             }
         }
 
+        function sanitizeHtml(rawHtml) {
+            if (!rawHtml) return '';
+            try {
+                const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
+                const allowedTags = new Set([
+                    'a',
+                    'b',
+                    'blockquote',
+                    'br',
+                    'code',
+                    'div',
+                    'em',
+                    'i',
+                    'li',
+                    'ol',
+                    'p',
+                    'pre',
+                    'span',
+                    'strong',
+                    'u',
+                    'ul'
+                ]);
+                const allowedAttributes = {
+                    a: ['href', 'target', 'rel']
+                };
+                const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT, null);
+                const nodes = [];
+                while (walker.nextNode()) {
+                    nodes.push(walker.currentNode);
+                }
+                nodes.forEach(node => {
+                    const tagName = node.tagName.toLowerCase();
+                    if (!allowedTags.has(tagName)) {
+                        const parent = node.parentNode;
+                        if (!parent) return;
+                        while (node.firstChild) {
+                            parent.insertBefore(node.firstChild, node);
+                        }
+                        parent.removeChild(node);
+                        return;
+                    }
+                    const allowed = allowedAttributes[tagName] || [];
+                    Array.from(node.attributes).forEach(attribute => {
+                        const name = attribute.name.toLowerCase();
+                        if (!allowed.includes(name)) {
+                            node.removeAttribute(attribute.name);
+                            return;
+                        }
+                        if (tagName === 'a' && name === 'href') {
+                            const value = attribute.value.trim();
+                            if (!/^https?:\/\//i.test(value)) {
+                                node.removeAttribute(attribute.name);
+                            }
+                        }
+                    });
+                    if (tagName === 'a') {
+                        if (node.getAttribute('href')) {
+                            node.setAttribute('target', '_blank');
+                            node.setAttribute('rel', 'noopener noreferrer');
+                        } else {
+                            node.removeAttribute('target');
+                            node.removeAttribute('rel');
+                        }
+                    }
+                });
+                return doc.body ? doc.body.innerHTML : '';
+            } catch (_) {
+                return renderPlainText(rawHtml);
+            }
+        }
+
         function insertTextAtCursor(input, text) {
             if (!input || typeof text !== 'string') return;
             const start = input.selectionStart || 0;
@@ -1874,7 +1945,7 @@
                 return renderPlainText(stripRtf(raw));
             }
             if (looksLikeHtml(raw)) {
-                return raw;
+                return sanitizeHtml(raw);
             }
             return renderMarkdown(raw);
         }
