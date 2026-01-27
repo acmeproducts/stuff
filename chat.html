@@ -38,7 +38,7 @@
         }
         .tabletop-half {
             display: flex;
-            align-items: center;
+            align-items: stretch;
             justify-content: center;
             padding: 16px;
             min-height: 0;
@@ -46,7 +46,7 @@
         .tabletop-north { transform: rotate(180deg); }
         .client-shell {
             width: min(92%, 520px);
-            height: min(92%, 520px);
+            height: 100%;
             border-radius: 28px;
             border: 1px solid rgba(226, 232, 240, 0.9);
             background: rgba(255, 255, 255, 0.9);
@@ -177,10 +177,10 @@
             <div class="client-shell">
                 <div id="peer-transcript" class="tabletop-transcript no-scrollbar"></div>
                 <div class="tabletop-composer">
+                    <textarea id="peer-input" rows="1" class="tabletop-input" placeholder="Enter peer text"></textarea>
                     <button id="peer-send" class="tabletop-talk" type="button" aria-label="Send peer message">
                         <span class="material-symbols-outlined text-base">send</span>
                     </button>
-                    <textarea id="peer-input" rows="1" class="tabletop-input" placeholder="Enter peer text"></textarea>
                 </div>
             </div>
         </div>
@@ -193,10 +193,10 @@
             <div class="client-shell">
                 <div id="local-transcript" class="tabletop-transcript no-scrollbar"></div>
                 <div class="tabletop-composer">
+                    <textarea id="local-input" rows="1" class="tabletop-input" placeholder="Enter local text"></textarea>
                     <button id="local-send" class="tabletop-talk" type="button" aria-label="Send local message">
                         <span class="material-symbols-outlined text-base">send</span>
                     </button>
-                    <textarea id="local-input" rows="1" class="tabletop-input" placeholder="Enter local text"></textarea>
                 </div>
             </div>
         </div>
@@ -209,14 +209,14 @@
     <input id="drawer-import-input" type="file" accept="application/json" class="hidden">
 
     <div id="controls-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center invisible modal">
-        <div id="controls-content" class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-md p-6 transform scale-out modal-content">
+        <div id="controls-content" class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-md p-6 transform scale-out modal-content flex flex-col max-h-[90vh]">
             <div class="flex justify-between items-center mb-4 border-b pb-2">
                 <h3 class="text-xl font-bold text-gray-800">Controls</h3>
                 <button id="close-controls" class="text-gray-400 hover:text-gray-800 p-2 hover:bg-gray-100 rounded-full transition-colors">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
-            <div class="grid gap-4 text-sm">
+            <div class="grid gap-3 text-sm flex-1 overflow-y-auto pr-1">
                 <div class="grid gap-3">
                     <div class="flex items-center gap-2 text-slate-600">
                         <span class="material-symbols-outlined text-base">arrow_upward</span>
@@ -582,11 +582,19 @@
                 column.innerHTML = '';
             });
             const lastEntryId = chatHistory.length ? chatHistory[chatHistory.length - 1].id : null;
+            let shouldSaveHistory = false;
             chatHistory.forEach(entry => {
                 const speaker = entry.speaker;
                 const bubbleClass = speaker === 'local' ? 'local' : 'peer';
-                const sourceLanguage = speaker === 'local' ? settings.localLanguage : settings.peerLanguage;
-                const targetLanguage = speaker === 'local' ? settings.peerLanguage : settings.localLanguage;
+                const defaultSource = speaker === 'local' ? settings.localLanguage : settings.peerLanguage;
+                const defaultTarget = speaker === 'local' ? settings.peerLanguage : settings.localLanguage;
+                const sourceLanguage = entry.sourceLanguage || defaultSource;
+                const targetLanguage = entry.targetLanguage || defaultTarget;
+                if (!entry.sourceLanguage || !entry.targetLanguage) {
+                    entry.sourceLanguage = sourceLanguage;
+                    entry.targetLanguage = targetLanguage;
+                    shouldSaveHistory = true;
+                }
                 const text = entry.message || '';
                 const translationKey = `${sourceLanguage}|${targetLanguage}`;
                 entry.translations = entry.translations || {};
@@ -635,18 +643,25 @@
                     });
                 }
             });
+            if (shouldSaveHistory) {
+                saveHistory();
+            }
             scrollTranscriptsToBottom();
         }
 
         function addChatEntry(message, speaker) {
             const trimmed = (message || '').trim();
             if (!trimmed) return;
+            const sourceLanguage = speaker === 'local' ? settings.localLanguage : settings.peerLanguage;
+            const targetLanguage = speaker === 'local' ? settings.peerLanguage : settings.localLanguage;
             chatHistory.push({
                 id: createEntryId(),
                 message: trimmed,
                 speaker,
                 ts: Date.now(),
-                translations: {}
+                translations: {},
+                sourceLanguage,
+                targetLanguage
             });
             saveHistory();
             renderChat();
