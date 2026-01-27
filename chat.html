@@ -17,9 +17,12 @@
             --bubble-font-size: 14px;
             --chat-bg-color: #ffffff;
         }
+        html,
         body {
             background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
             min-height: 100dvh;
+            height: 100%;
+            overflow: hidden;
         }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -30,17 +33,18 @@
         .scale-in { transform: scale(1); }
         .scale-out { transform: scale(0.98); }
         .tabletop-view {
-            position: relative;
+            position: fixed;
+            inset: 0;
             display: grid;
             grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
             height: 100dvh;
-            gap: 4px;
+            gap: 2px;
         }
         .tabletop-half {
             display: flex;
             align-items: stretch;
             justify-content: center;
-            padding: 6px;
+            padding: 4px;
             min-height: 0;
         }
         .tabletop-north { transform: rotate(180deg); }
@@ -109,9 +113,9 @@
         .message-row.peer { justify-content: flex-start; }
         .message-row.local { justify-content: flex-end; }
         .message-bubble {
-            max-width: 90%;
+            max-width: 96%;
             border-radius: 20px;
-            padding: 10px 14px;
+            padding: 10px 40px 10px 14px;
             border: 1px solid rgba(226, 232, 240, 0.9);
             box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
             display: grid;
@@ -274,7 +278,7 @@
         </div>
     </main>
 
-    <button id="gear-fab" class="fixed bottom-5 right-5 w-12 h-12 rounded-full bg-white/90 border border-slate-200 shadow-lg flex items-center justify-center text-slate-600 hover:text-slate-800 hover:bg-white" aria-label="Open controls">
+    <button id="gear-fab" class="fixed w-12 h-12 rounded-full bg-white/90 border border-slate-200 shadow-lg flex items-center justify-center text-slate-600 hover:text-slate-800 hover:bg-white" aria-label="Open controls">
         <span class="material-symbols-outlined text-[22px]">settings</span>
     </button>
 
@@ -438,6 +442,21 @@
         const translationCache = new Map();
         const pendingTranslations = new Map();
         let availableVoices = [];
+        let gearWasDragged = false;
+        let gearPositionLocked = false;
+
+        const LANGUAGE_PREFIXES = {
+            en: 'en',
+            zh: 'zh',
+            km: 'km',
+            id: 'id',
+            ja: 'ja',
+            ko: 'ko',
+            lo: 'lo',
+            ms: 'ms',
+            th: 'th',
+            vi: 'vi'
+        };
 
         function readStorage(key) {
             try {
@@ -845,15 +864,60 @@
             const defaultOption = '<option value="">Default voice</option>';
             localVoiceSelect.innerHTML = defaultOption;
             peerVoiceSelect.innerHTML = defaultOption;
-            availableVoices.forEach(voice => {
-                const option = document.createElement('option');
-                option.value = voice.name;
-                option.textContent = `${voice.name} (${voice.lang})`;
-                localVoiceSelect.appendChild(option.cloneNode(true));
-                peerVoiceSelect.appendChild(option);
-            });
+            const localCandidates = filterVoicesByLanguage(settings.localLanguage);
+            const peerCandidates = filterVoicesByLanguage(settings.peerLanguage);
+            populateVoiceOptions(localVoiceSelect, localCandidates);
+            populateVoiceOptions(peerVoiceSelect, peerCandidates);
+            if (settings.localVoice && !localCandidates.some(voice => voice.name === settings.localVoice)) {
+                settings.localVoice = '';
+            }
+            if (settings.peerVoice && !peerCandidates.some(voice => voice.name === settings.peerVoice)) {
+                settings.peerVoice = '';
+            }
             localVoiceSelect.value = settings.localVoice || '';
             peerVoiceSelect.value = settings.peerVoice || '';
+            saveSettings();
+        }
+
+        function filterVoicesByLanguage(languageCode) {
+            const prefix = (LANGUAGE_PREFIXES[languageCode] || languageCode || '').toLowerCase();
+            if (!prefix) return [];
+            return availableVoices.filter(voice => (voice.lang || '').toLowerCase().startsWith(prefix));
+        }
+
+        function guessVoiceGender(voice) {
+            const name = (voice.name || '').toLowerCase();
+            if (/(female|woman|girl|zira|susan|kate|samantha|victoria|karen|moira|tessa|veena|aria|jenny|olivia|emily|emma|amy|linda|zoe|serena|luna)/.test(name)) {
+                return 'female';
+            }
+            if (/(male|man|boy|david|mark|alex|daniel|tom|liam|guy|fred|jorge|kiko|matthew|michael|ryan|sean|george|paul|jorge)/.test(name)) {
+                return 'male';
+            }
+            return 'neutral';
+        }
+
+        function populateVoiceOptions(selectEl, voices) {
+            const groups = {
+                female: [],
+                male: [],
+                neutral: []
+            };
+            voices.forEach(voice => {
+                groups[guessVoiceGender(voice)].push(voice);
+            });
+            const labels = {
+                female: 'Female',
+                male: 'Male',
+                neutral: 'Neutral'
+            };
+            ['female', 'male', 'neutral'].forEach(group => {
+                groups[group].forEach(voice => {
+                    const option = document.createElement('option');
+                    option.value = voice.name;
+                    option.textContent = `${voice.name} (${voice.lang}, ${labels[group]})`;
+                    selectEl.appendChild(option);
+                });
+            });
         }
 
         function speakIfEnabled(message, speaker) {
@@ -896,7 +960,10 @@
 
         function restoreGearPosition() {
             const stored = readStorage('tabletop_chat_gear_position');
-            if (!stored) return;
+            if (!stored) {
+                positionGearDefault();
+                return;
+            }
             try {
                 const { left, top } = JSON.parse(stored);
                 if (Number.isFinite(left) && Number.isFinite(top)) {
@@ -904,8 +971,25 @@
                     gearFab.style.top = `${top}px`;
                     gearFab.style.right = 'auto';
                     gearFab.style.bottom = 'auto';
+                    gearPositionLocked = true;
+                    return;
                 }
             } catch (_) {}
+            positionGearDefault();
+        }
+
+        function positionGearDefault() {
+            if (!gearFab || !speakerToggle) return;
+            const anchorRect = speakerToggle.getBoundingClientRect();
+            const fabRect = gearFab.getBoundingClientRect();
+            const desiredLeft = anchorRect.right + 12;
+            const desiredTop = anchorRect.top + (anchorRect.height / 2) - (fabRect.height / 2);
+            const clampedLeft = Math.min(window.innerWidth - fabRect.width - 8, Math.max(8, desiredLeft));
+            const clampedTop = Math.min(window.innerHeight - fabRect.height - 8, Math.max(8, desiredTop));
+            gearFab.style.left = `${clampedLeft}px`;
+            gearFab.style.top = `${clampedTop}px`;
+            gearFab.style.right = 'auto';
+            gearFab.style.bottom = 'auto';
         }
 
         function enableGearDrag() {
@@ -913,10 +997,12 @@
             let isDragging = false;
             let offsetX = 0;
             let offsetY = 0;
+            let hasMoved = false;
             const onMove = event => {
                 if (!isDragging) return;
                 const x = event.clientX - offsetX;
                 const y = event.clientY - offsetY;
+                hasMoved = true;
                 gearFab.style.left = `${Math.max(8, x)}px`;
                 gearFab.style.top = `${Math.max(8, y)}px`;
                 gearFab.style.right = 'auto';
@@ -928,14 +1014,20 @@
                 gearFab.classList.remove('dragging');
                 document.removeEventListener('pointermove', onMove);
                 document.removeEventListener('pointerup', onUp);
-                writeStorage('tabletop_chat_gear_position', JSON.stringify({
-                    left: gearFab.offsetLeft,
-                    top: gearFab.offsetTop
-                }));
+                if (hasMoved) {
+                    writeStorage('tabletop_chat_gear_position', JSON.stringify({
+                        left: gearFab.offsetLeft,
+                        top: gearFab.offsetTop
+                    }));
+                    gearPositionLocked = true;
+                    gearWasDragged = true;
+                }
             };
             gearFab.addEventListener('pointerdown', event => {
                 if (event.button !== 0) return;
                 isDragging = true;
+                hasMoved = false;
+                gearWasDragged = false;
                 gearFab.classList.add('dragging');
                 const rect = gearFab.getBoundingClientRect();
                 offsetX = event.clientX - rect.left;
@@ -953,6 +1045,11 @@
         applyBackground();
         restoreGearPosition();
         enableGearDrag();
+        window.addEventListener('resize', () => {
+            if (!gearPositionLocked) {
+                positionGearDefault();
+            }
+        });
         if ('speechSynthesis' in window) {
             loadVoices();
             speechSynthesis.addEventListener('voiceschanged', loadVoices);
@@ -966,7 +1063,13 @@
             saveSettings();
         });
 
-        gearFab.addEventListener('click', () => toggleModal(true));
+        gearFab.addEventListener('click', () => {
+            if (gearWasDragged) {
+                gearWasDragged = false;
+                return;
+            }
+            toggleModal(true);
+        });
         closeControls.addEventListener('click', () => toggleModal(false));
         controlsModal.addEventListener('click', event => {
             if (event.target === controlsModal) toggleModal(false);
@@ -1004,11 +1107,13 @@
         peerLanguageSelect.addEventListener('change', () => {
             settings.peerLanguage = peerLanguageSelect.value;
             saveSettings();
+            updateVoiceSelectors();
             renderChat();
         });
         localLanguageSelect.addEventListener('change', () => {
             settings.localLanguage = localLanguageSelect.value;
             saveSettings();
+            updateVoiceSelectors();
             renderChat();
         });
 
@@ -1040,13 +1145,18 @@
         });
 
         styleSave.addEventListener('click', () => {
+            const clampFontSize = (value, fallback) => {
+                const numberValue = Number(value);
+                if (!Number.isFinite(numberValue)) return fallback;
+                return Math.min(48, Math.max(10, Math.round(numberValue)));
+            };
             styles = {
                 localBg: styleLocalBg.value,
                 localText: styleLocalText.value,
                 peerBg: stylePeerBg.value,
                 peerText: stylePeerText.value,
-                localFontSize: Number(styleLocalFontSize.value),
-                peerFontSize: Number(stylePeerFontSize.value)
+                localFontSize: clampFontSize(styleLocalFontSize.value, DEFAULT_STYLES.localFontSize),
+                peerFontSize: clampFontSize(stylePeerFontSize.value, DEFAULT_STYLES.peerFontSize)
             };
             background = {
                 localColor: styleLocalBgPanel.value,
@@ -1054,6 +1164,7 @@
             };
             applyStyles();
             applyBackground();
+            updateControls();
             saveStyles();
             saveBackground();
         });
