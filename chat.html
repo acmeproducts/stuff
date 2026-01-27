@@ -34,13 +34,13 @@
             display: grid;
             grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
             height: 100dvh;
-            gap: 12px;
+            gap: 4px;
         }
         .tabletop-half {
             display: flex;
             align-items: stretch;
             justify-content: center;
-            padding: 16px;
+            padding: 6px;
             min-height: 0;
         }
         .tabletop-north { transform: rotate(180deg); }
@@ -58,11 +58,17 @@
         .tabletop-transcript {
             flex: 1;
             overflow-y: auto;
-            padding: 16px;
+            padding: 12px;
             display: flex;
             flex-direction: column;
             gap: 12px;
             background-color: var(--chat-bg-color);
+        }
+        #peer-transcript {
+            background-color: var(--chat-bg-peer, var(--chat-bg-color));
+        }
+        #local-transcript {
+            background-color: var(--chat-bg-local, var(--chat-bg-color));
         }
         .tabletop-composer {
             display: flex;
@@ -112,15 +118,18 @@
             grid-template-columns: 1fr 1fr;
             gap: 12px;
             font-size: var(--bubble-font-size, 0.95rem);
+            position: relative;
         }
         .message-bubble.latest-bubble { border-width: 3px; font-weight: 600; }
         .message-bubble.local {
             background: var(--bubble-local-bg);
             color: var(--bubble-local-text);
+            font-size: var(--bubble-font-size-local, var(--bubble-font-size, 0.95rem));
         }
         .message-bubble.peer {
             background: var(--bubble-peer-bg);
             color: var(--bubble-peer-text);
+            font-size: var(--bubble-font-size-peer, var(--bubble-font-size, 0.95rem));
         }
         .message-bubble .bubble-col {
             min-width: 0;
@@ -139,7 +148,7 @@
             align-items: center;
             justify-content: center;
             pointer-events: none;
-            height: 56px;
+            height: 40px;
         }
         .speaker-indicator::before {
             content: '';
@@ -169,6 +178,63 @@
             transition: transform 0.25s ease;
         }
         #speaker-toggle[data-active="peer"] .speaker-arrow { transform: rotate(180deg); }
+        .bubble-delete {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 24px;
+            height: 24px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            background: rgba(255, 255, 255, 0.9);
+            color: rgba(71, 85, 105, 0.9);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+        .bubble-delete:hover { color: rgba(239, 68, 68, 0.9); }
+        .tts-toggle {
+            width: 36px;
+            height: 36px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            background: rgba(226, 232, 240, 0.6);
+            color: rgba(100, 116, 139, 0.9);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .tts-toggle[data-enabled="true"] {
+            background: rgba(191, 219, 254, 0.8);
+            color: rgba(30, 64, 175, 0.9);
+            border-color: rgba(147, 197, 253, 0.9);
+        }
+        .settings-matrix {
+            display: grid;
+            grid-template-columns: 120px minmax(0, 1fr) minmax(0, 1fr);
+            gap: 10px;
+            align-items: center;
+        }
+        .settings-matrix .matrix-head {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #94a3b8;
+        }
+        .settings-matrix .matrix-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+        }
+        #gear-fab {
+            cursor: grab;
+            touch-action: none;
+        }
+        #gear-fab.dragging {
+            cursor: grabbing;
+        }
     </style>
 </head>
 <body class="min-h-screen text-slate-800">
@@ -177,6 +243,9 @@
             <div class="client-shell">
                 <div id="peer-transcript" class="tabletop-transcript no-scrollbar"></div>
                 <div class="tabletop-composer">
+                    <button id="peer-tts-toggle" class="tts-toggle" type="button" aria-label="Toggle peer text to speech">
+                        <span class="material-symbols-outlined text-base">volume_off</span>
+                    </button>
                     <textarea id="peer-input" rows="1" class="tabletop-input" placeholder="Enter peer text"></textarea>
                     <button id="peer-send" class="tabletop-talk" type="button" aria-label="Send peer message">
                         <span class="material-symbols-outlined text-base">send</span>
@@ -193,6 +262,9 @@
             <div class="client-shell">
                 <div id="local-transcript" class="tabletop-transcript no-scrollbar"></div>
                 <div class="tabletop-composer">
+                    <button id="local-tts-toggle" class="tts-toggle" type="button" aria-label="Toggle local text to speech">
+                        <span class="material-symbols-outlined text-base">volume_off</span>
+                    </button>
                     <textarea id="local-input" rows="1" class="tabletop-input" placeholder="Enter local text"></textarea>
                     <button id="local-send" class="tabletop-talk" type="button" aria-label="Send local message">
                         <span class="material-symbols-outlined text-base">send</span>
@@ -216,13 +288,14 @@
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
-            <div class="grid gap-3 text-sm flex-1 overflow-y-auto pr-1">
-                <div class="grid gap-3">
-                    <div class="flex items-center gap-2 text-slate-600">
-                        <span class="material-symbols-outlined text-base">arrow_upward</span>
-                        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Peer</span>
-                    </div>
-                    <select id="peer-language-select" class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white">
+            <div class="grid gap-4 text-sm flex-1 overflow-y-auto pr-1">
+                <div class="settings-matrix">
+                    <div></div>
+                    <div class="matrix-head">Local</div>
+                    <div class="matrix-head">Peer</div>
+
+                    <div class="matrix-label">Language</div>
+                    <select id="local-language-select" class="px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white">
                         <option value="en">English</option>
                         <option value="zh">Chinese</option>
                         <option value="km">Cambodian</option>
@@ -234,13 +307,7 @@
                         <option value="th">Thai</option>
                         <option value="vi">Vietnamese</option>
                     </select>
-                </div>
-                <div class="grid gap-3">
-                    <div class="flex items-center gap-2 text-slate-600">
-                        <span class="material-symbols-outlined text-base">arrow_downward</span>
-                        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Local</span>
-                    </div>
-                    <select id="local-language-select" class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white">
+                    <select id="peer-language-select" class="px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white">
                         <option value="en">English</option>
                         <option value="zh">Chinese</option>
                         <option value="km">Cambodian</option>
@@ -252,6 +319,26 @@
                         <option value="th">Thai</option>
                         <option value="vi">Vietnamese</option>
                     </select>
+
+                    <div class="matrix-label">Bubble color</div>
+                    <input id="style-local-bg" type="color" class="h-8 w-full border border-slate-200 rounded-lg">
+                    <input id="style-peer-bg" type="color" class="h-8 w-full border border-slate-200 rounded-lg">
+
+                    <div class="matrix-label">Font color</div>
+                    <input id="style-local-text" type="color" class="h-8 w-full border border-slate-200 rounded-lg">
+                    <input id="style-peer-text" type="color" class="h-8 w-full border border-slate-200 rounded-lg">
+
+                    <div class="matrix-label">Font size</div>
+                    <input id="style-local-font-size" type="number" min="10" max="48" step="1" class="w-full px-2 py-1 text-xs border border-slate-200 rounded-lg text-slate-700">
+                    <input id="style-peer-font-size" type="number" min="10" max="48" step="1" class="w-full px-2 py-1 text-xs border border-slate-200 rounded-lg text-slate-700">
+
+                    <div class="matrix-label">Bkrnd color</div>
+                    <input id="style-local-bg-panel" type="color" class="h-8 w-full border border-slate-200 rounded-lg">
+                    <input id="style-peer-bg-panel" type="color" class="h-8 w-full border border-slate-200 rounded-lg">
+
+                    <div class="matrix-label">TTS voice</div>
+                    <select id="local-voice-select" class="px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white"></select>
+                    <select id="peer-voice-select" class="px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white"></select>
                 </div>
                 <label class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600">
                     <span class="flex items-center gap-3">
@@ -260,38 +347,9 @@
                     </span>
                     <input id="typing-pause-input" type="number" min="1" max="10" step="0.5" class="w-20 px-2 py-1 text-xs border border-slate-200 rounded-lg text-slate-700">
                 </label>
-                <div class="border border-slate-200/70 rounded-xl p-3 grid gap-3">
-                    <div class="text-[11px] uppercase tracking-wide text-slate-400">UI colors</div>
-                    <div class="grid gap-3">
-                        <label class="flex items-center justify-between text-xs text-slate-500">
-                            Local bubble
-                            <input id="style-local-bg" type="color" class="h-8 w-20 border border-slate-200 rounded-lg">
-                        </label>
-                        <label class="flex items-center justify-between text-xs text-slate-500">
-                            Local text
-                            <input id="style-local-text" type="color" class="h-8 w-20 border border-slate-200 rounded-lg">
-                        </label>
-                        <label class="flex items-center justify-between text-xs text-slate-500">
-                            Peer bubble
-                            <input id="style-peer-bg" type="color" class="h-8 w-20 border border-slate-200 rounded-lg">
-                        </label>
-                        <label class="flex items-center justify-between text-xs text-slate-500">
-                            Peer text
-                            <input id="style-peer-text" type="color" class="h-8 w-20 border border-slate-200 rounded-lg">
-                        </label>
-                    </div>
-                    <label class="flex items-center justify-between text-xs text-slate-500">
-                        UI size
-                        <input id="style-font-size" type="range" min="12" max="36" step="1" class="w-40">
-                    </label>
-                    <label class="flex items-center justify-between text-xs text-slate-500">
-                        Background
-                        <input id="style-chat-bg" type="color" class="h-8 w-20 border border-slate-200 rounded-lg">
-                    </label>
-                    <div class="flex justify-end gap-2">
-                        <button id="style-reset" class="px-3 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition">Reset</button>
-                        <button id="style-save" class="px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition">Save</button>
-                    </div>
+                <div class="flex justify-end gap-2">
+                    <button id="style-reset" class="px-3 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition">Reset</button>
+                    <button id="style-save" class="px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition">Save</button>
                 </div>
                 <button id="drawer-import" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50">
                     <span class="material-symbols-outlined text-base">upload_file</span>
@@ -320,17 +378,23 @@
             peerLanguage: 'en',
             localLanguage: 'en',
             typingPauseMs: 3000,
-            activeSpeaker: 'local'
+            activeSpeaker: 'local',
+            ttsEnabledLocal: false,
+            ttsEnabledPeer: false,
+            localVoice: '',
+            peerVoice: ''
         };
         const DEFAULT_STYLES = {
             localBg: '#eff6ff',
             localText: '#1f2937',
             peerBg: '#ffffff',
             peerText: '#0f172a',
-            fontSize: 14
+            localFontSize: 14,
+            peerFontSize: 14
         };
         const DEFAULT_BACKGROUND = {
-            color: '#ffffff'
+            localColor: '#ffffff',
+            peerColor: '#ffffff'
         };
 
         const peerTranscript = document.getElementById('peer-transcript');
@@ -339,6 +403,8 @@
         const localInput = document.getElementById('local-input');
         const peerSend = document.getElementById('peer-send');
         const localSend = document.getElementById('local-send');
+        const peerTtsToggle = document.getElementById('peer-tts-toggle');
+        const localTtsToggle = document.getElementById('local-tts-toggle');
         const speakerToggle = document.getElementById('speaker-toggle');
         const gearFab = document.getElementById('gear-fab');
         const controlsModal = document.getElementById('controls-modal');
@@ -351,8 +417,12 @@
         const styleLocalText = document.getElementById('style-local-text');
         const stylePeerBg = document.getElementById('style-peer-bg');
         const stylePeerText = document.getElementById('style-peer-text');
-        const styleFontSize = document.getElementById('style-font-size');
-        const styleChatBg = document.getElementById('style-chat-bg');
+        const styleLocalFontSize = document.getElementById('style-local-font-size');
+        const stylePeerFontSize = document.getElementById('style-peer-font-size');
+        const styleLocalBgPanel = document.getElementById('style-local-bg-panel');
+        const stylePeerBgPanel = document.getElementById('style-peer-bg-panel');
+        const localVoiceSelect = document.getElementById('local-voice-select');
+        const peerVoiceSelect = document.getElementById('peer-voice-select');
         const styleReset = document.getElementById('style-reset');
         const styleSave = document.getElementById('style-save');
         const drawerImport = document.getElementById('drawer-import');
@@ -367,6 +437,7 @@
         let typingTimer = null;
         const translationCache = new Map();
         const pendingTranslations = new Map();
+        let availableVoices = [];
 
         function readStorage(key) {
             try {
@@ -445,12 +516,15 @@
             root.style.setProperty('--bubble-local-text', styles.localText);
             root.style.setProperty('--bubble-peer-bg', styles.peerBg);
             root.style.setProperty('--bubble-peer-text', styles.peerText);
-            root.style.setProperty('--bubble-font-size', `${styles.fontSize}px`);
+            root.style.setProperty('--bubble-font-size-local', `${styles.localFontSize}px`);
+            root.style.setProperty('--bubble-font-size-peer', `${styles.peerFontSize}px`);
         }
 
         function applyBackground() {
             const root = document.documentElement;
-            root.style.setProperty('--chat-bg-color', background.color || DEFAULT_BACKGROUND.color);
+            root.style.setProperty('--chat-bg-local', background.localColor || DEFAULT_BACKGROUND.localColor);
+            root.style.setProperty('--chat-bg-peer', background.peerColor || DEFAULT_BACKGROUND.peerColor);
+            root.style.setProperty('--chat-bg-color', DEFAULT_BACKGROUND.localColor);
         }
 
         function updateControls() {
@@ -461,8 +535,13 @@
             styleLocalText.value = styles.localText;
             stylePeerBg.value = styles.peerBg;
             stylePeerText.value = styles.peerText;
-            styleFontSize.value = styles.fontSize;
-            styleChatBg.value = background.color;
+            styleLocalFontSize.value = styles.localFontSize;
+            stylePeerFontSize.value = styles.peerFontSize;
+            styleLocalBgPanel.value = background.localColor;
+            stylePeerBgPanel.value = background.peerColor;
+            updateTtsToggle(localTtsToggle, settings.ttsEnabledLocal);
+            updateTtsToggle(peerTtsToggle, settings.ttsEnabledPeer);
+            updateVoiceSelectors();
             updateSpeakerIndicator();
         }
 
@@ -611,7 +690,13 @@
                     sourceCol.className = 'bubble-col';
                     const translationCol = document.createElement('div');
                     translationCol.className = 'bubble-col';
+                    const deleteButton = document.createElement('button');
+                    deleteButton.type = 'button';
+                    deleteButton.className = 'bubble-delete material-symbols-outlined';
+                    deleteButton.textContent = 'close';
+                    deleteButton.dataset.entryId = entry.id;
                     bubble.append(sourceCol, translationCol);
+                    bubble.appendChild(deleteButton);
                     row.appendChild(bubble);
 
                     sourceCol.innerHTML = renderMarkdown(text);
@@ -666,6 +751,7 @@
             saveHistory();
             renderChat();
             scrollTranscriptsToBottom();
+            speakIfEnabled(trimmed, speaker);
         }
 
         function handleSubmit(input, speaker) {
@@ -739,12 +825,138 @@
             renderChat();
         }
 
+        function updateTtsToggle(button, enabled) {
+            if (!button) return;
+            button.dataset.enabled = enabled ? 'true' : 'false';
+            const icon = button.querySelector('.material-symbols-outlined');
+            if (icon) {
+                icon.textContent = enabled ? 'volume_up' : 'volume_off';
+            }
+        }
+
+        function loadVoices() {
+            if (!('speechSynthesis' in window)) return;
+            availableVoices = speechSynthesis.getVoices().slice().sort((a, b) => a.name.localeCompare(b.name));
+            updateVoiceSelectors();
+        }
+
+        function updateVoiceSelectors() {
+            if (!localVoiceSelect || !peerVoiceSelect) return;
+            const defaultOption = '<option value="">Default voice</option>';
+            localVoiceSelect.innerHTML = defaultOption;
+            peerVoiceSelect.innerHTML = defaultOption;
+            availableVoices.forEach(voice => {
+                const option = document.createElement('option');
+                option.value = voice.name;
+                option.textContent = `${voice.name} (${voice.lang})`;
+                localVoiceSelect.appendChild(option.cloneNode(true));
+                peerVoiceSelect.appendChild(option);
+            });
+            localVoiceSelect.value = settings.localVoice || '';
+            peerVoiceSelect.value = settings.peerVoice || '';
+        }
+
+        function speakIfEnabled(message, speaker) {
+            const enabled = speaker === 'local' ? settings.ttsEnabledLocal : settings.ttsEnabledPeer;
+            if (!enabled || !('speechSynthesis' in window)) return;
+            const receiverLanguage = speaker === 'local' ? settings.peerLanguage : settings.localLanguage;
+            const sourceLanguage = speaker === 'local' ? settings.localLanguage : settings.peerLanguage;
+            const voiceName = speaker === 'local' ? settings.peerVoice : settings.localVoice;
+            const speak = text => {
+                const utterance = new SpeechSynthesisUtterance(text);
+                if (receiverLanguage) {
+                    utterance.lang = receiverLanguage;
+                }
+                if (voiceName) {
+                    const voice = availableVoices.find(item => item.name === voiceName);
+                    if (voice) utterance.voice = voice;
+                }
+                speechSynthesis.speak(utterance);
+            };
+            if (!receiverLanguage || receiverLanguage === sourceLanguage) {
+                speak(message);
+                return;
+            }
+            translateText(message, receiverLanguage, sourceLanguage).then(translated => {
+                if (translated) {
+                    speak(translated);
+                } else {
+                    speak(message);
+                }
+            });
+        }
+
+        function deleteEntryById(entryId) {
+            const next = chatHistory.filter(entry => entry.id !== entryId);
+            if (next.length === chatHistory.length) return;
+            chatHistory = next;
+            saveHistory();
+            renderChat();
+        }
+
+        function restoreGearPosition() {
+            const stored = readStorage('tabletop_chat_gear_position');
+            if (!stored) return;
+            try {
+                const { left, top } = JSON.parse(stored);
+                if (Number.isFinite(left) && Number.isFinite(top)) {
+                    gearFab.style.left = `${left}px`;
+                    gearFab.style.top = `${top}px`;
+                    gearFab.style.right = 'auto';
+                    gearFab.style.bottom = 'auto';
+                }
+            } catch (_) {}
+        }
+
+        function enableGearDrag() {
+            if (!gearFab) return;
+            let isDragging = false;
+            let offsetX = 0;
+            let offsetY = 0;
+            const onMove = event => {
+                if (!isDragging) return;
+                const x = event.clientX - offsetX;
+                const y = event.clientY - offsetY;
+                gearFab.style.left = `${Math.max(8, x)}px`;
+                gearFab.style.top = `${Math.max(8, y)}px`;
+                gearFab.style.right = 'auto';
+                gearFab.style.bottom = 'auto';
+            };
+            const onUp = () => {
+                if (!isDragging) return;
+                isDragging = false;
+                gearFab.classList.remove('dragging');
+                document.removeEventListener('pointermove', onMove);
+                document.removeEventListener('pointerup', onUp);
+                writeStorage('tabletop_chat_gear_position', JSON.stringify({
+                    left: gearFab.offsetLeft,
+                    top: gearFab.offsetTop
+                }));
+            };
+            gearFab.addEventListener('pointerdown', event => {
+                if (event.button !== 0) return;
+                isDragging = true;
+                gearFab.classList.add('dragging');
+                const rect = gearFab.getBoundingClientRect();
+                offsetX = event.clientX - rect.left;
+                offsetY = event.clientY - rect.top;
+                document.addEventListener('pointermove', onMove);
+                document.addEventListener('pointerup', onUp);
+            });
+        }
+
         settings = loadSettings();
         styles = loadStyles();
         background = loadBackground();
         chatHistory = loadHistory();
         applyStyles();
         applyBackground();
+        restoreGearPosition();
+        enableGearDrag();
+        if ('speechSynthesis' in window) {
+            loadVoices();
+            speechSynthesis.addEventListener('voiceschanged', loadVoices);
+        }
         updateControls();
         renderChat();
 
@@ -762,6 +974,16 @@
 
         peerSend.addEventListener('click', () => handleSubmit(peerInput, 'peer'));
         localSend.addEventListener('click', () => handleSubmit(localInput, 'local'));
+        localTtsToggle.addEventListener('click', () => {
+            settings.ttsEnabledLocal = !settings.ttsEnabledLocal;
+            updateTtsToggle(localTtsToggle, settings.ttsEnabledLocal);
+            saveSettings();
+        });
+        peerTtsToggle.addEventListener('click', () => {
+            settings.ttsEnabledPeer = !settings.ttsEnabledPeer;
+            updateTtsToggle(peerTtsToggle, settings.ttsEnabledPeer);
+            saveSettings();
+        });
 
         peerInput.addEventListener('keydown', event => {
             if (event.key === 'Enter' && !event.shiftKey) {
@@ -798,6 +1020,15 @@
             }
         });
 
+        localVoiceSelect.addEventListener('change', () => {
+            settings.localVoice = localVoiceSelect.value;
+            saveSettings();
+        });
+        peerVoiceSelect.addEventListener('change', () => {
+            settings.peerVoice = peerVoiceSelect.value;
+            saveSettings();
+        });
+
         styleReset.addEventListener('click', () => {
             styles = { ...DEFAULT_STYLES };
             background = { ...DEFAULT_BACKGROUND };
@@ -814,15 +1045,28 @@
                 localText: styleLocalText.value,
                 peerBg: stylePeerBg.value,
                 peerText: stylePeerText.value,
-                fontSize: Number(styleFontSize.value)
+                localFontSize: Number(styleLocalFontSize.value),
+                peerFontSize: Number(stylePeerFontSize.value)
             };
             background = {
-                color: styleChatBg.value
+                localColor: styleLocalBgPanel.value,
+                peerColor: stylePeerBgPanel.value
             };
             applyStyles();
             applyBackground();
             saveStyles();
             saveBackground();
+        });
+
+        [peerTranscript, localTranscript].forEach(column => {
+            if (!column) return;
+            column.addEventListener('click', event => {
+                const target = event.target;
+                if (!(target instanceof HTMLElement)) return;
+                if (target.classList.contains('bubble-delete')) {
+                    deleteEntryById(target.dataset.entryId);
+                }
+            });
         });
 
         drawerImport.addEventListener('click', () => drawerImportInput.click());
