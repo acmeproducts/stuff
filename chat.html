@@ -106,6 +106,10 @@
             border: none;
             box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
         }
+        .tabletop-talk[data-listening="true"] {
+            background: linear-gradient(135deg, rgba(248, 113, 113, 0.95), rgba(239, 68, 68, 0.95));
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.35);
+        }
         .tabletop-talk:active { transform: scale(0.98); }
         .message-row {
             display: flex;
@@ -247,12 +251,11 @@
             <div class="client-shell">
                 <div id="peer-transcript" class="tabletop-transcript no-scrollbar"></div>
                 <div class="tabletop-composer">
-                    <button id="peer-tts-toggle" class="tts-toggle" type="button" aria-label="Toggle peer text to speech">
+                    <button id="peer-tts-toggle" class="tts-toggle" type="button" aria-label="Toggle peer read aloud">
                         <span class="material-symbols-outlined text-base">volume_off</span>
                     </button>
-                    <textarea id="peer-input" rows="1" class="tabletop-input" placeholder="Enter peer text"></textarea>
-                    <button id="peer-send" class="tabletop-talk" type="button" aria-label="Send peer message">
-                        <span class="material-symbols-outlined text-base">send</span>
+                    <button id="peer-talk" class="tabletop-talk" type="button" aria-label="Hold to talk" aria-pressed="false">
+                        <span class="material-symbols-outlined text-base">mic</span>
                     </button>
                 </div>
             </div>
@@ -351,15 +354,6 @@
                     </span>
                     <input id="typing-pause-input" type="number" min="1" max="10" step="0.5" class="w-20 px-2 py-1 text-xs border border-slate-200 rounded-lg text-slate-700">
                 </label>
-                <div class="rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2 text-xs text-slate-600">
-                    <div class="flex items-center gap-2 font-semibold text-slate-700">
-                        <span class="material-symbols-outlined text-base">keyboard</span>
-                        Voice typing tip
-                    </div>
-                    <p class="mt-2">
-                        The local user can use the default keyboard for voice typing. For the peer, open the on-screen keyboard in their language so it pops up on their side and use its voice typing capability.
-                    </p>
-                </div>
                 <div class="flex justify-end gap-2">
                     <button id="style-reset" class="px-3 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition">Reset</button>
                     <button id="style-save" class="px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition">Save</button>
@@ -412,9 +406,8 @@
 
         const peerTranscript = document.getElementById('peer-transcript');
         const localTranscript = document.getElementById('local-transcript');
-        const peerInput = document.getElementById('peer-input');
         const localInput = document.getElementById('local-input');
-        const peerSend = document.getElementById('peer-send');
+        const peerTalk = document.getElementById('peer-talk');
         const localSend = document.getElementById('local-send');
         const peerTtsToggle = document.getElementById('peer-tts-toggle');
         const localTtsToggle = document.getElementById('local-tts-toggle');
@@ -453,6 +446,8 @@
         let availableVoices = [];
         let gearWasDragged = false;
         let gearPositionLocked = false;
+        let peerRecognizer = null;
+        let peerListening = false;
 
         const LANGUAGE_PREFIXES = {
             en: 'en',
@@ -819,6 +814,47 @@
             scheduleAutoSubmit(input, speaker);
         }
 
+        function updatePeerTalkState(isListening) {
+            peerListening = isListening;
+            if (!peerTalk) return;
+            peerTalk.dataset.listening = isListening ? 'true' : 'false';
+            peerTalk.setAttribute('aria-pressed', isListening ? 'true' : 'false');
+            const icon = peerTalk.querySelector('.material-symbols-outlined');
+            if (icon) {
+                icon.textContent = isListening ? 'stop_circle' : 'mic';
+            }
+        }
+
+        function initPeerRecognizer() {
+            if (peerRecognizer || !peerTalk) return;
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                peerTalk.disabled = true;
+                peerTalk.setAttribute('aria-label', 'Voice input not supported');
+                return;
+            }
+            peerRecognizer = new SpeechRecognition();
+            peerRecognizer.interimResults = false;
+            peerRecognizer.maxAlternatives = 1;
+            peerRecognizer.continuous = false;
+            peerRecognizer.addEventListener('start', () => updatePeerTalkState(true));
+            peerRecognizer.addEventListener('end', () => updatePeerTalkState(false));
+            peerRecognizer.addEventListener('error', () => updatePeerTalkState(false));
+            peerRecognizer.addEventListener('result', event => {
+                const transcript = Array.from(event.results || [])
+                    .map(result => result?.[0]?.transcript)
+                    .filter(Boolean)
+                    .join(' ')
+                    .trim();
+                if (!transcript) return;
+                settings.activeSpeaker = 'peer';
+                updateSpeakerIndicator();
+                saveSettings();
+                addChatEntry(transcript, 'peer');
+                flipActiveSpeaker();
+            });
+        }
+
         function exportChat() {
             const payload = {
                 history: chatHistory,
@@ -1112,7 +1148,6 @@
             if (event.target === controlsModal) toggleModal(false);
         });
 
-        peerSend.addEventListener('click', () => handleSubmit(peerInput, 'peer'));
         localSend.addEventListener('click', () => handleSubmit(localInput, 'local'));
         localTtsToggle.addEventListener('click', () => {
             settings.ttsEnabledLocal = !settings.ttsEnabledLocal;
@@ -1125,12 +1160,6 @@
             saveSettings();
         });
 
-        peerInput.addEventListener('keydown', event => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                handleSubmit(peerInput, 'peer');
-            }
-        });
         localInput.addEventListener('keydown', event => {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
@@ -1138,8 +1167,20 @@
             }
         });
 
-        peerInput.addEventListener('input', () => handleTyping(peerInput, 'peer'));
         localInput.addEventListener('input', () => handleTyping(localInput, 'local'));
+
+        initPeerRecognizer();
+        if (peerTalk) {
+            peerTalk.addEventListener('click', () => {
+                if (!peerRecognizer) return;
+                if (peerListening) {
+                    peerRecognizer.stop();
+                    return;
+                }
+                peerRecognizer.lang = settings.peerLanguage || 'en';
+                peerRecognizer.start();
+            });
+        }
 
         peerLanguageSelect.addEventListener('change', () => {
             settings.peerLanguage = peerLanguageSelect.value;
