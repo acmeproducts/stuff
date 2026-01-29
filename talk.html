@@ -414,6 +414,7 @@
             'en-en'
         ];
         const view = params.get('view') || 'config';
+        const urlDeviceName = (params.get('name') || '').trim();
         const isClientView = view === 'client';
         let room = params.get('room') || defaultRoom;
         let pair = allowedPairs.includes(params.get('pair')) ? params.get('pair') : defaultPair;
@@ -438,6 +439,7 @@
         params.set('room', room);
         params.set('pair', `${langA}-${langB}`);
         params.set('view', view);
+        params.delete('name');
         history.replaceState(null, '', url.toString());
 
         const RELAY_SESSION_ID = `talk:${room}:${langA}-${langB}`;
@@ -453,21 +455,54 @@
                 return null;
             }
         })();
-
-        function readStorage(key) {
-            if (!storage) return null;
+        const sessionStore = (() => {
             try {
-                return storage.getItem(key);
+                const key = '__talk_session_storage_test__';
+                sessionStorage.setItem(key, '1');
+                sessionStorage.removeItem(key);
+                return sessionStorage;
+            } catch (_) {
+                return null;
+            }
+        })();
+
+        function readFromStorage(storageRef, key) {
+            if (!storageRef) return null;
+            try {
+                return storageRef.getItem(key);
             } catch (_) {
                 return null;
             }
         }
 
-        function writeStorage(key, value) {
-            if (!storage) return;
+        function writeToStorage(storageRef, key, value) {
+            if (!storageRef) return;
             try {
-                storage.setItem(key, value);
+                storageRef.setItem(key, value);
             } catch (_) {}
+        }
+
+        function removeFromStorage(storageRef, key) {
+            if (!storageRef) return;
+            try {
+                storageRef.removeItem(key);
+            } catch (_) {}
+        }
+
+        function readStorage(key) {
+            return readFromStorage(storage, key);
+        }
+
+        function writeStorage(key, value) {
+            writeToStorage(storage, key, value);
+        }
+
+        function readSessionStorage(key) {
+            return readFromStorage(sessionStore, key);
+        }
+
+        function removeSessionStorage(key) {
+            removeFromStorage(sessionStore, key);
         }
 
         function loadSessionList() {
@@ -558,8 +593,7 @@
             if (!session) return buildClientUrl({});
             return buildClientUrl({
                 nextRoom: session.room || room,
-                nextPair: normalizePair(session.pair || pair),
-                nextName: session.name || joinName
+                nextPair: normalizePair(session.pair || pair)
             });
         }
 
@@ -611,6 +645,33 @@
             });
         }
 
+        function hydrateSessionEntryNames(session) {
+            if (!session || !session.id) return session;
+            const storedName = readStorage(NAME_STORAGE_KEY) || joinName;
+            const sessionDeviceId = readStorage(`talk_device_id_${session.id}`);
+            const aliases = loadPeerAliasesForSession(session.id);
+            const devices = Array.isArray(session.devices)
+                ? session.devices.map(device => {
+                    const nextDevice = { ...device };
+                    if (sessionDeviceId && device.id === sessionDeviceId && storedName) {
+                        nextDevice.name = storedName;
+                    }
+                    const alias = aliases.get(device.id);
+                    if (alias) {
+                        nextDevice.name = alias;
+                    }
+                    return nextDevice;
+                })
+                : session.devices;
+            const hydrated = {
+                ...session,
+                name: storedName || session.name,
+                devices
+            };
+            upsertSessionEntry(hydrated);
+            return hydrated;
+        }
+
         try {
             storedDeviceId = readStorage(DEVICE_ID_STORAGE_KEY);
         } catch (_) {}
@@ -622,7 +683,8 @@
         const RELAY_DEVICE_ID = resolvedDeviceId;
         const RELAY_CLIENT_ID = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 12));
         const CHAT_STORAGE_KEY = `talk_chat_${RELAY_SESSION_ID}`;
-        const NAME_STORAGE_KEY = `talk_name_${RELAY_SESSION_ID}`;
+        const NAME_STORAGE_KEY = 'talk_name_global_v1';
+        const LEGACY_NAME_STORAGE_KEY = `talk_name_${RELAY_SESSION_ID}`;
         const PEER_ALIAS_STORAGE_KEY = `talk_peer_aliases_${RELAY_SESSION_ID}`;
         const STYLE_STORAGE_KEY = `talk_style_${RELAY_SESSION_ID}`;
         const BACKGROUND_STORAGE_KEY = `talk_background_${RELAY_SESSION_ID}`;
@@ -642,13 +704,21 @@
         }
 
         function loadJoinName() {
-            const paramName = (params.get('name') || '').trim();
-            if (paramName) {
-                writeStorage(NAME_STORAGE_KEY, paramName);
-                return paramName;
+            if (urlDeviceName) {
+                writeStorage(NAME_STORAGE_KEY, urlDeviceName);
+                removeSessionStorage(LEGACY_NAME_STORAGE_KEY);
+                removeFromStorage(storage, LEGACY_NAME_STORAGE_KEY);
+                return urlDeviceName;
             }
             const stored = readStorage(NAME_STORAGE_KEY);
             if (stored) return stored;
+            const legacyStored = readSessionStorage(LEGACY_NAME_STORAGE_KEY) || readStorage(LEGACY_NAME_STORAGE_KEY);
+            if (legacyStored) {
+                writeStorage(NAME_STORAGE_KEY, legacyStored);
+                removeSessionStorage(LEGACY_NAME_STORAGE_KEY);
+                removeFromStorage(storage, LEGACY_NAME_STORAGE_KEY);
+                return legacyStored;
+            }
             const fallback = buildDefaultName();
             writeStorage(NAME_STORAGE_KEY, fallback);
             return fallback;
@@ -657,6 +727,19 @@
         function loadPeerAliases() {
             try {
                 const raw = readStorage(PEER_ALIAS_STORAGE_KEY);
+                if (!raw) return new Map();
+                const parsed = JSON.parse(raw);
+                if (!parsed || typeof parsed !== 'object') return new Map();
+                return new Map(Object.entries(parsed));
+            } catch (_) {
+                return new Map();
+            }
+        }
+
+        function loadPeerAliasesForSession(sessionId) {
+            if (!sessionId) return new Map();
+            try {
+                const raw = readStorage(`talk_peer_aliases_${sessionId}`);
                 if (!raw) return new Map();
                 const parsed = JSON.parse(raw);
                 if (!parsed || typeof parsed !== 'object') return new Map();
@@ -1493,16 +1576,12 @@
             peerPanelToggle.setAttribute('aria-expanded', peerPanelCollapsed ? 'false' : 'true');
         }
 
-        function buildClientUrl({ nextRoom = room, nextPair = pair, nextName = joinName } = {}) {
+        function buildClientUrl({ nextRoom = room, nextPair = pair } = {}) {
             const clientUrl = new URL(window.location.href);
             clientUrl.searchParams.set('room', nextRoom);
             clientUrl.searchParams.set('pair', nextPair);
             clientUrl.searchParams.set('view', 'client');
-            if (nextName) {
-                clientUrl.searchParams.set('name', nextName);
-            } else {
-                clientUrl.searchParams.delete('name');
-            }
+            clientUrl.searchParams.delete('name');
             return clientUrl.toString();
         }
 
@@ -2841,6 +2920,15 @@
             }
         }
 
+        function refreshJoinNameFromStorage() {
+            const storedName = readStorage(NAME_STORAGE_KEY);
+            if (storedName && storedName !== joinName) {
+                joinName = storedName;
+                if (nameInput) nameInput.value = joinName;
+            }
+            return joinName;
+        }
+
         function scheduleJoinNamePersist(rawName) {
             if (nameEditTimer) {
                 clearTimeout(nameEditTimer);
@@ -3402,7 +3490,9 @@
                     const sessionId = launchButton.dataset.sessionId;
                     const sessions = loadSessionList();
                     const session = sessions.find(item => item.id === sessionId);
-                    const clientUrl = buildSessionLaunchUrl(session);
+                    refreshJoinNameFromStorage();
+                    const hydratedSession = hydrateSessionEntryNames(session);
+                    const clientUrl = buildSessionLaunchUrl(hydratedSession);
                     window.open(clientUrl, '_blank', 'noopener');
                 }
             });
@@ -3428,7 +3518,7 @@
                     name: nextName,
                     updatedAt: Date.now()
                 });
-                const clientUrl = buildClientUrl({ nextRoom, nextPair, nextName });
+                const clientUrl = buildClientUrl({ nextRoom, nextPair });
                 window.open(clientUrl, '_blank', 'noopener');
             };
         }
@@ -3542,7 +3632,7 @@
         if (copyLinkButton) {
             copyLinkButton.onclick = async () => {
                 try {
-                    await navigator.clipboard.writeText(buildClientUrl({ nextName: joinName }));
+                    await navigator.clipboard.writeText(buildClientUrl());
                     copyLinkButton.textContent = 'Copied!';
                     setTimeout(() => {
                         copyLinkButton.innerHTML = '<span class="material-symbols-outlined text-sm">link</span>Copy link';
