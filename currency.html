@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Offline USD ⇄ MYR ⇄ THB Converter</title>
+<style>
+html,body{margin:0;padding:0;font-family:Arial,sans-serif;height:100%}
+.container{padding:16px;max-width:520px;margin:auto}
+.topbar{display:flex;justify-content:space-between;align-items:center}
+.close,.gear{font-size:22px;cursor:pointer;padding:4px 8px}
+.field{margin-top:14px}
+.label{font-size:14px;margin-bottom:4px;display:block}
+input{width:100%;padding:8px;font-size:20px}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none}
+.modal{background:#fff;margin:10% auto;padding:16px;max-width:400px}
+.modal h3{margin-top:0}
+button{padding:8px 12px;font-size:14px;margin-top:10px}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="topbar">
+    <strong>Currency Converter</strong>
+    <div>
+      <span class="gear" onclick="openSettings()">⚙</span>
+      <span class="close" onclick="closeApp()">×</span>
+    </div>
+  </div>
+
+  <div class="field">
+    <span class="label">USD</span>
+    <input id="usd" type="text" inputmode="decimal" autocomplete="off" placeholder="0">
+  </div>
+
+  <div class="field">
+    <span class="label">MYR</span>
+    <input id="myr" type="text" inputmode="decimal" autocomplete="off" placeholder="0">
+  </div>
+
+  <div class="field">
+    <span class="label">THB</span>
+    <input id="thb" type="text" inputmode="decimal" autocomplete="off" placeholder="0">
+  </div>
+</div>
+
+<div class="modal-backdrop" id="backdrop">
+  <div class="modal">
+    <h3>Exchange Rates (USD base)</h3>
+
+    <div class="field">
+      <span class="label">1 USD = MYR</span>
+      <input id="rateMyr" type="text" inputmode="decimal" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <span class="label">1 USD = THB</span>
+      <input id="rateThb" type="text" inputmode="decimal" autocomplete="off">
+    </div>
+
+    <button onclick="saveRates()">Save</button>
+    <button onclick="closeSettings()">Cancel</button>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+const DEFAULT_RATES = { myr: 4.72, thb: 35.05 };
+const STORAGE_KEY = "offline_fx_rates_v1";
+
+const usdEl=document.getElementById("usd");
+const myrEl=document.getElementById("myr");
+const thbEl=document.getElementById("thb");
+
+const rateMyrEl=document.getElementById("rateMyr");
+const rateThbEl=document.getElementById("rateThb");
+
+let rates=loadRates();
+
+function loadRates(){
+  try{
+    const s=JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if(s&&s.myr>0&&s.thb>0)return s;
+  }catch(e){}
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(DEFAULT_RATES));
+  return {...DEFAULT_RATES};
+}
+
+function saveRates(){
+  const m=parseFloat(rateMyrEl.value);
+  const t=parseFloat(rateThbEl.value);
+  if(!isFinite(m)||!isFinite(t)||m<=0||t<=0)return;
+  rates={myr:m,thb:t};
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(rates));
+  closeSettings();
+}
+
+function parse(v){
+  const n=parseFloat(v.replace(/,/g,"").trim());
+  return isNaN(n)?null:n;
+}
+function fmt(n){return parseFloat(n.toFixed(4)).toString();}
+
+function clear(){usdEl.value=myrEl.value=thbEl.value="";}
+
+function fromUSD(){
+  const v=parse(usdEl.value); if(v===null)return clear();
+  myrEl.value=fmt(v*rates.myr);
+  thbEl.value=fmt(v*rates.thb);
+}
+function fromMYR(){
+  const v=parse(myrEl.value); if(v===null)return clear();
+  const usd=v/rates.myr;
+  usdEl.value=fmt(usd);
+  thbEl.value=fmt(usd*rates.thb);
+}
+function fromTHB(){
+  const v=parse(thbEl.value); if(v===null)return clear();
+  const usd=v/rates.thb;
+  usdEl.value=fmt(usd);
+  myrEl.value=fmt(usd*rates.myr);
+}
+
+usdEl.onblur=fromUSD;
+myrEl.onblur=fromMYR;
+thbEl.onblur=fromTHB;
+
+[usdEl,myrEl,thbEl].forEach(el=>{
+  el.onkeydown=e=>{if(e.key==="Enter")el.blur();}
+});
+
+window.openSettings=function(){
+  rateMyrEl.value=rates.myr;
+  rateThbEl.value=rates.thb;
+  document.getElementById("backdrop").style.display="block";
+};
+window.closeSettings=function(){
+  document.getElementById("backdrop").style.display="none";
+};
+window.closeApp=function(){
+  try{window.close();}catch(e){}
+  try{history.back();}catch(e){}
+  document.body.innerHTML="";
+};
+
+})();
+</script>
+</body>
+</html>
