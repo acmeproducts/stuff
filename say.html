@@ -219,6 +219,29 @@
       align-items: center;
     }
 
+    .toggle-group {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+      background: #f8fafc;
+    }
+
+    .toggle-btn {
+      border: none;
+      background: transparent;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--muted);
+    }
+
+    .toggle-btn.active {
+      background: #eff6ff;
+      color: var(--accent);
+    }
+
     .chip {
       padding: 6px 10px;
       border-radius: 999px;
@@ -266,7 +289,7 @@
 
     .language-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
     }
 
@@ -347,6 +370,87 @@
       font-size: 12px;
       color: #475569;
       display: none;
+    }
+
+    .mindmap {
+      border: 1px dashed var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      background: #f8fafc;
+      display: none;
+    }
+
+    .mindmap.active { display: block; }
+
+    .mindmap-body {
+      display: grid;
+      grid-template-columns: 180px minmax(0, 1fr);
+      gap: 20px;
+      align-items: center;
+    }
+
+    .mindmap-hub {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 2px solid var(--accent);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      text-align: center;
+      padding: 12px;
+    }
+
+    .mindmap-spokes {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      position: relative;
+    }
+
+    .mindmap-node {
+      position: relative;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .mindmap-node::before {
+      content: '';
+      position: absolute;
+      left: -18px;
+      top: 50%;
+      width: 16px;
+      height: 2px;
+      background: var(--border);
+    }
+
+    .mindmap-popover {
+      position: absolute;
+      left: 10px;
+      top: calc(100% + 8px);
+      width: 220px;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      display: none;
+      z-index: 5;
+    }
+
+    .mindmap-node:hover .mindmap-popover,
+    .mindmap-node.active .mindmap-popover {
+      display: block;
+    }
+
+    .mindmap-popover p {
+      margin: 0 0 6px;
+      font-size: 12px;
     }
 
     .back-translation.visible { display: block; }
@@ -531,6 +635,12 @@
       .grid.use { grid-template-columns: 1fr; }
       header { flex-direction: column; align-items: flex-start; gap: 8px; }
     }
+
+    @media (max-width: 700px) {
+      .language-grid { grid-template-columns: 1fr; }
+      .mindmap-body { grid-template-columns: 1fr; }
+      .mindmap-node::before { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -577,6 +687,18 @@
               <div id="selectedCategory">Travel → Airport</div>
             </div>
             <div class="control-group">
+              <div class="toggle-group" role="group" aria-label="Catalog view">
+                <button class="toggle-btn active" data-view="list">Card list</button>
+                <button class="toggle-btn" data-view="mindmap">Mind map</button>
+              </div>
+            </div>
+            <div class="control-group">
+              <div class="toggle-group" role="group" aria-label="Language direction">
+                <button class="toggle-btn active" data-direction="source-target">English → Spanish</button>
+                <button class="toggle-btn" data-direction="target-source">Spanish → English</button>
+              </div>
+            </div>
+            <div class="control-group">
               <label for="sortSelect" class="section-label" style="margin:0;">Sort</label>
               <select id="sortSelect" aria-label="Sort cards">
                 <option>Alpha</option>
@@ -588,6 +710,7 @@
             </div>
             <button class="secondary-btn" id="addCardBtn">+ New card</button>
           </div>
+          <div class="mindmap" id="mindmapView"></div>
           <div class="card-list" id="cardList"></div>
         </div>
       </div>
@@ -833,13 +956,35 @@
     ];
 
     let activeCategoryIndex = 0;
+    let languageDirection = 'source-target';
+    let catalogView = 'list';
 
     const categoryList = document.getElementById('categoryList');
     const cardList = document.getElementById('cardList');
+    const mindmapView = document.getElementById('mindmapView');
     const selectedCategory = document.getElementById('selectedCategory');
     const favoriteList = document.getElementById('favoriteList');
     const historyList = document.getElementById('historyList');
     const versionList = document.getElementById('versionList');
+
+    function getLanguageConfig() {
+      if (languageDirection === 'target-source') {
+        return {
+          primaryKey: 'target',
+          secondaryKey: 'source',
+          primaryLabel: 'Spanish',
+          secondaryLabel: 'English',
+          oppositeVoice: 'source'
+        };
+      }
+      return {
+        primaryKey: 'source',
+        secondaryKey: 'target',
+        primaryLabel: 'English',
+        secondaryLabel: 'Spanish',
+        oppositeVoice: 'target'
+      };
+    }
 
     function renderCategories() {
       categoryList.innerHTML = '';
@@ -861,9 +1006,12 @@
 
     function renderCards() {
       const category = categories[activeCategoryIndex];
+      const languageConfig = getLanguageConfig();
       selectedCategory.textContent = `${category.name} → ${category.subcategories[0]}`;
       cardList.innerHTML = '';
       category.cards.forEach(card => {
+        const primaryText = languageConfig.primaryKey === 'source' ? card.source : card.target;
+        const secondaryText = languageConfig.secondaryKey === 'source' ? card.source : card.target;
         const cardItem = document.createElement('div');
         cardItem.className = 'card-item';
         cardItem.innerHTML = `
@@ -872,23 +1020,23 @@
             <div class="language-grid">
               <div class="language-block">
                 <div class="language-header">
-                  Source
-                  <button class="icon-btn small" data-action="speak" data-id="${card.id}" data-voice="source">
+                  ${languageConfig.primaryLabel}
+                  <button class="icon-btn small" data-action="speak" data-id="${card.id}" data-voice="${languageConfig.primaryKey}">
                     <span class="material-symbols-outlined">volume_up</span>
                     Speak
                   </button>
                 </div>
-                <textarea>${card.source}</textarea>
+                <textarea>${primaryText}</textarea>
               </div>
               <div class="language-block">
                 <div class="language-header">
-                  Target
-                  <button class="icon-btn small" data-action="speak" data-id="${card.id}" data-voice="target">
+                  ${languageConfig.secondaryLabel}
+                  <button class="icon-btn small" data-action="speak" data-id="${card.id}" data-voice="${languageConfig.secondaryKey}">
                     <span class="material-symbols-outlined">volume_up</span>
                     Speak
                   </button>
                 </div>
-                <textarea>${card.target}</textarea>
+                <textarea>${secondaryText}</textarea>
               </div>
             </div>
             <div class="back-translation" id="bt-${card.id}">${card.backTranslation}</div>
@@ -913,6 +1061,7 @@
         cardList.appendChild(cardItem);
       });
       renderFavorites();
+      renderMindmap();
     }
 
     function handleCardAction(card, button) {
@@ -967,6 +1116,52 @@
       });
     }
 
+    function renderMindmap() {
+      const category = categories[activeCategoryIndex];
+      const languageConfig = getLanguageConfig();
+      const nodes = category.cards.map(card => {
+        const primaryText = languageConfig.primaryKey === 'source' ? card.source : card.target;
+        const secondaryText = languageConfig.secondaryKey === 'source' ? card.source : card.target;
+        return `
+          <div class="mindmap-node" data-id="${card.id}">
+            <strong>${primaryText}</strong>
+            <div class="mindmap-popover">
+              <p><strong>${languageConfig.primaryLabel}:</strong> ${primaryText}</p>
+              <p><strong>${languageConfig.secondaryLabel}:</strong> ${secondaryText}</p>
+              <button class="icon-btn small" data-action="speak" data-id="${card.id}" data-voice="${languageConfig.oppositeVoice}">
+                <span class="material-symbols-outlined">volume_up</span>
+                Speak opposite
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      mindmapView.innerHTML = `
+        <div class="section-label">Summary mind map</div>
+        <div class="mindmap-body">
+          <div class="mindmap-hub">${category.name}</div>
+          <div class="mindmap-spokes">${nodes}</div>
+        </div>
+      `;
+
+      mindmapView.querySelectorAll('.mindmap-node').forEach(node => {
+        node.addEventListener('click', () => {
+          node.classList.toggle('active');
+        });
+      });
+
+      mindmapView.querySelectorAll('button').forEach(button => {
+        const card = category.cards.find(item => item.id === button.dataset.id);
+        if (card) {
+          button.addEventListener('click', event => {
+            event.stopPropagation();
+            handleCardAction(card, button);
+          });
+        }
+      });
+    }
+
     function renderHistory() {
       historyList.innerHTML = '';
       history.forEach(entry => {
@@ -1009,6 +1204,35 @@
           document.getElementById(button.dataset.tab).classList.add('active');
         });
       });
+    }
+
+    function setupCatalogToggles() {
+      const viewButtons = document.querySelectorAll('[data-view]');
+      const directionButtons = document.querySelectorAll('[data-direction]');
+
+      viewButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          viewButtons.forEach(btn => btn.classList.remove('active'));
+          button.classList.add('active');
+          catalogView = button.dataset.view;
+          updateCatalogView();
+        });
+      });
+
+      directionButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          directionButtons.forEach(btn => btn.classList.remove('active'));
+          button.classList.add('active');
+          languageDirection = button.dataset.direction;
+          renderCards();
+        });
+      });
+    }
+
+    function updateCatalogView() {
+      const isMindmap = catalogView === 'mindmap';
+      mindmapView.classList.toggle('active', isMindmap);
+      cardList.style.display = isMindmap ? 'none' : 'grid';
     }
 
     function setupModal() {
@@ -1083,6 +1307,8 @@
     });
 
     setupTabs();
+    setupCatalogToggles();
+    updateCatalogView();
     setupModal();
     setupCurationFlow();
     renderCategories();
