@@ -319,6 +319,14 @@
       flex-wrap: wrap;
     }
 
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
     .icon-btn {
       border: 1px solid var(--border);
       background: #f8fafc;
@@ -556,6 +564,34 @@
       color: var(--muted);
     }
 
+    .advanced {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      background: #f8fafc;
+      margin: 12px 0;
+    }
+
+    .advanced summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .advanced[open] summary {
+      color: var(--accent);
+    }
+
+    .empty-state {
+      padding: 18px;
+      border-radius: 12px;
+      border: 1px dashed var(--border);
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
     .version-list {
       display: grid;
       gap: 8px;
@@ -647,45 +683,88 @@
   <div class="app">
     <header>
       <div class="title">
-        <h1>Say — Planning & Wireframe</h1>
-        <span>Mockup aligned to chat.html patterns: language pair, voice controls, usage logging.</span>
+        <h1>Say — Catalogs, Cards, Live Use</h1>
+        <span>Workflow-first layout aligned to chat.html patterns: side-by-side language fields, voice controls, usage logging.</span>
       </div>
       <div class="header-meta">
         <span class="status-pill">Offline prototype</span>
         <div>Last used: 2 hours ago · <a href="#" id="logToggle">View log</a></div>
-        <div class="log-panel" id="logPanel">Stub: Usage log toggled. Latest action: TTS playback.</div>
+        <div class="log-panel" id="logPanel">Ready. Usage entries show here.</div>
       </div>
     </header>
 
     <nav class="tabs" aria-label="Primary">
-      <button class="tab-btn active" data-tab="catalog">Catalog</button>
-      <button class="tab-btn" data-tab="use">Use</button>
-      <button class="tab-btn" data-tab="curation">Curation</button>
+      <button class="tab-btn active" data-tab="catalogs">Catalogs</button>
+      <button class="tab-btn" data-tab="cards">Cards</button>
+      <button class="tab-btn" data-tab="live">Live Use</button>
     </nav>
 
     <!-- Single source of truth:
-      - Card is atomic; copying to other categories/subcategories is allowed.
-      - One-level subcategories only.
-      - Topic cards are separate type; answers are cards chosen from category library.
-      - Back-translation generated on creation; chevron reveals/refreshes.
-      - Usage increments on TTS playback or back-translation reveal.
-      - Sorting: alpha, last used, created, updated, priority; drag-and-drop only in custom/priority.
+      - Card is atomic and assigned to a catalog.
+      - Catalogs group cards; cards can be reassigned across catalogs.
+      - Back-translation is editable; chevron reveals preview.
+      - Usage increments on play/speak and logs to global history.
+      - Sorting: alpha, last used, created, updated, priority.
       - Favorites are catalog-scoped; history is global with deep links.
       - Export versioning keeps latest + last 5; merge default with replace option.
     -->
 
-    <section class="panel active" id="catalog">
+    <section class="panel active" id="catalogs">
       <div class="grid catalog">
         <div class="card">
-          <h2>Categories</h2>
-          <div class="category-list" id="categoryList"></div>
+          <div class="controls">
+            <div>
+              <div class="section-label">Catalogs</div>
+              <div class="notice">Create, rename, or remove catalogs.</div>
+            </div>
+            <div class="control-group">
+              <input id="newCatalogName" placeholder="New catalog name">
+              <button class="primary-btn" id="addCatalogBtn">Create</button>
+            </div>
+          </div>
+          <div class="category-list" id="catalogList"></div>
         </div>
         <div class="card">
           <div class="controls">
             <div>
-              <div class="section-label">Selected</div>
-              <div id="selectedCategory">Travel → Airport</div>
+              <div class="section-label">Selected catalog</div>
+              <div id="selectedCatalog">Travel</div>
             </div>
+            <div class="control-group">
+              <button class="secondary-btn" id="renameCatalogBtn">Rename</button>
+              <button class="secondary-btn" id="deleteCatalogBtn">Delete</button>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div>
+              <label for="catalogNameInput">Catalog name</label>
+              <input id="catalogNameInput">
+            </div>
+            <div>
+              <label for="catalogNoteInput">Focus / notes</label>
+              <input id="catalogNoteInput" placeholder="Optional tags or travel context">
+            </div>
+          </div>
+          <div class="notice" id="catalogSummary"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="cards">
+      <div class="card">
+        <div class="controls">
+          <div>
+            <div class="section-label">Selected catalog</div>
+            <div id="selectedCatalogLabel">Travel</div>
+          </div>
+          <div class="control-group">
+            <input id="cardSearch" placeholder="Search cards">
+            <button class="secondary-btn" id="addCardBtn">+ New card</button>
+          </div>
+        </div>
+        <details class="advanced" open>
+          <summary>Advanced options</summary>
+          <div class="controls">
             <div class="control-group">
               <div class="toggle-group" role="group" aria-label="Catalog view">
                 <button class="toggle-btn active" data-view="list">Card list</button>
@@ -694,8 +773,8 @@
             </div>
             <div class="control-group">
               <div class="toggle-group" role="group" aria-label="Language direction">
-                <button class="toggle-btn active" data-direction="source-target">English → Spanish</button>
-                <button class="toggle-btn" data-direction="target-source">Spanish → English</button>
+                <button class="toggle-btn active" data-direction="source-target">Source → Target</button>
+                <button class="toggle-btn" data-direction="target-source">Target → Source</button>
               </div>
             </div>
             <div class="control-group">
@@ -708,100 +787,73 @@
                 <option>Priority</option>
               </select>
             </div>
-            <button class="secondary-btn" id="addCardBtn">+ New card</button>
           </div>
-          <div class="mindmap" id="mindmapView"></div>
-          <div class="card-list" id="cardList"></div>
-        </div>
+        </details>
+        <details class="advanced" id="composerDetails">
+          <summary>Create new card</summary>
+          <div class="form-grid">
+            <div>
+              <label for="newSourceText">Source phrase</label>
+              <input id="newSourceText" placeholder="Enter the phrase to say">
+            </div>
+            <div>
+              <label for="newTargetText">Target translation</label>
+              <input id="newTargetText" placeholder="Enter the translation">
+            </div>
+            <div>
+              <label for="newBackTranslation">Back-translation</label>
+              <input id="newBackTranslation" placeholder="Optional back-translation">
+            </div>
+            <div>
+              <label for="newCardCatalog">Assign catalog</label>
+              <select id="newCardCatalog"></select>
+            </div>
+            <div>
+              <label for="newCardPriority">Priority</label>
+              <select id="newCardPriority">
+                <option>Standard</option>
+                <option>High</option>
+                <option>Custom (manual order)</option>
+              </select>
+            </div>
+          </div>
+          <div class="controls" style="margin-top:16px;">
+            <button class="secondary-btn" id="resetComposerBtn">Clear</button>
+            <button class="primary-btn" id="createCardBtn">Add card</button>
+          </div>
+        </details>
+        <div class="mindmap" id="mindmapView"></div>
+        <div class="card-list" id="cardList"></div>
       </div>
     </section>
 
-    <section class="panel" id="use">
+    <section class="panel" id="live">
       <div class="grid use">
         <div class="card">
-          <h2>Quick Speak</h2>
           <div class="controls">
-            <div class="control-group">
-              <span class="chip active">Travel</span>
-              <span class="chip">Food</span>
-              <span class="chip">Care</span>
+            <div>
+              <div class="section-label">Favorites</div>
+              <div class="notice" id="liveCatalogLabel">Travel favorites</div>
             </div>
             <button class="secondary-btn" id="playLatestBtn">▶ Play latest</button>
           </div>
           <div class="use-list" id="favoriteList"></div>
         </div>
         <div class="card">
-          <h2>History (global)</h2>
-          <div class="notice">Time-scoped, deep links back to catalog cards.</div>
+          <div class="controls">
+            <div>
+              <div class="section-label">Usage history</div>
+              <div class="notice">Recent plays across catalogs.</div>
+            </div>
+            <button class="secondary-btn" id="clearHistoryBtn">Clear history</button>
+          </div>
           <div class="use-list" id="historyList"></div>
         </div>
       </div>
     </section>
 
-    <section class="panel" id="curation">
-      <div class="card">
-        <h2>Card Curation Flow</h2>
-        <div class="stepper" id="curationStepper">
-          <div class="step active" data-step="1">1. Draft</div>
-          <div class="step" data-step="2">2. Translate</div>
-          <div class="step" data-step="3">3. Classify</div>
-          <div class="step" data-step="4">4. Priority</div>
-        </div>
-        <div class="form-grid">
-          <div>
-            <label for="sourceText">Source phrase</label>
-            <input id="sourceText" value="Where is the baggage claim?">
-          </div>
-          <div>
-            <label for="targetText">Target translation</label>
-            <input id="targetText" value="¿Dónde está la cinta de equipaje?">
-          </div>
-          <div>
-            <label for="backTranslation">Back-translation preview</label>
-            <input id="backTranslation" value="Where is the luggage belt?">
-          </div>
-          <div>
-            <label for="topicType">Card type</label>
-            <select id="topicType">
-              <option>Answer card</option>
-              <option>Topic card</option>
-            </select>
-          </div>
-          <div>
-            <label for="categorySelect">Category</label>
-            <select id="categorySelect">
-              <option>Travel</option>
-              <option>Food</option>
-              <option>Care</option>
-            </select>
-          </div>
-          <div>
-            <label for="subcategorySelect">Subcategory</label>
-            <select id="subcategorySelect">
-              <option>Airport</option>
-              <option>Hotel</option>
-              <option>Street</option>
-            </select>
-          </div>
-          <div>
-            <label for="priority">Priority</label>
-            <select id="priority">
-              <option>Standard</option>
-              <option>High</option>
-              <option>Custom (manual order)</option>
-            </select>
-          </div>
-        </div>
-        <div class="controls" style="margin-top:16px;">
-          <button class="secondary-btn" id="prevStep">Back</button>
-          <button class="secondary-btn" id="autoTranslate">Auto-translate + preview</button>
-          <button class="primary-btn" id="saveCard">Save card</button>
-        </div>
-      </div>
-    </section>
-
     <footer>
-      Prototype only. Events log to the console to represent persistence and usage tracking.
+      Prototype only. Events update UI state to represent persistence and usage tracking.
     </footer>
   </div>
 
@@ -876,73 +928,85 @@
   </div>
 
   <script>
-    const categories = [
+    const catalogs = [
+      { id: 'catalog-travel', name: 'Travel', note: 'Airport + transit', createdAt: Date.now() - 1000 * 60 * 60 * 24 * 3 },
+      { id: 'catalog-food', name: 'Food', note: 'Dining + groceries', createdAt: Date.now() - 1000 * 60 * 60 * 24 * 2 },
+      { id: 'catalog-care', name: 'Care', note: 'Medical + pharmacy', createdAt: Date.now() - 1000 * 60 * 60 * 24 }
+    ];
+
+    const cards = [
       {
-        name: 'Travel',
-        subcategories: ['Airport', 'Hotel', 'Street'],
-        cards: [
-          {
-            id: 'travel-1',
-            source: 'Where is the baggage claim?',
-            target: '¿Dónde está la cinta de equipaje?',
-            backTranslation: 'Where is the luggage belt?',
-            usage: 24,
-            favorite: true,
-          },
-          {
-            id: 'travel-2',
-            source: 'I need a taxi to the hotel.',
-            target: 'Necesito un taxi al hotel.',
-            backTranslation: 'I need a taxi to the hotel.',
-            usage: 13,
-            favorite: false,
-          }
-        ]
+        id: 'card-travel-1',
+        catalogId: 'catalog-travel',
+        source: 'Where is the baggage claim?',
+        target: '¿Dónde está la cinta de equipaje?',
+        backTranslation: 'Where is the luggage belt?',
+        usage: 24,
+        favorite: true,
+        priority: 'High',
+        createdAt: Date.now() - 1000 * 60 * 60 * 24 * 2,
+        updatedAt: Date.now() - 1000 * 60 * 60 * 2,
+        lastUsedAt: Date.now() - 1000 * 60 * 60 * 3
       },
       {
-        name: 'Food',
-        subcategories: ['Restaurant', 'Market'],
-        cards: [
-          {
-            id: 'food-1',
-            source: 'Do you have vegetarian options?',
-            target: '¿Tiene opciones vegetarianas?',
-            backTranslation: 'Do you have vegetarian options?',
-            usage: 9,
-            favorite: true,
-          }
-        ]
+        id: 'card-travel-2',
+        catalogId: 'catalog-travel',
+        source: 'I need a taxi to the hotel.',
+        target: 'Necesito un taxi al hotel.',
+        backTranslation: 'I need a taxi to the hotel.',
+        usage: 13,
+        favorite: false,
+        priority: 'Standard',
+        createdAt: Date.now() - 1000 * 60 * 60 * 24 * 2,
+        updatedAt: Date.now() - 1000 * 60 * 60 * 5,
+        lastUsedAt: Date.now() - 1000 * 60 * 60 * 4
       },
       {
-        name: 'Care',
-        subcategories: ['Pharmacy', 'Clinic'],
-        cards: [
-          {
-            id: 'care-1',
-            source: 'I need a doctor.',
-            target: 'Necesito un médico.',
-            backTranslation: 'I need a doctor.',
-            usage: 6,
-            favorite: false,
-          }
-        ]
+        id: 'card-food-1',
+        catalogId: 'catalog-food',
+        source: 'Do you have vegetarian options?',
+        target: '¿Tiene opciones vegetarianas?',
+        backTranslation: 'Do you have vegetarian options?',
+        usage: 9,
+        favorite: true,
+        priority: 'Standard',
+        createdAt: Date.now() - 1000 * 60 * 60 * 24 * 2,
+        updatedAt: Date.now() - 1000 * 60 * 60 * 6,
+        lastUsedAt: Date.now() - 1000 * 60 * 60 * 9
+      },
+      {
+        id: 'card-care-1',
+        catalogId: 'catalog-care',
+        source: 'I need a doctor.',
+        target: 'Necesito un médico.',
+        backTranslation: 'I need a doctor.',
+        usage: 6,
+        favorite: false,
+        priority: 'Standard',
+        createdAt: Date.now() - 1000 * 60 * 60 * 24,
+        updatedAt: Date.now() - 1000 * 60 * 60 * 6,
+        lastUsedAt: Date.now() - 1000 * 60 * 60 * 12
       }
     ];
 
     const history = [
       {
-        id: 'travel-1',
+        id: 'history-1',
+        cardId: 'card-travel-1',
+        catalogId: 'catalog-travel',
         source: 'Where is the baggage claim?',
         target: '¿Dónde está la cinta de equipaje?',
-        time: '2 hours ago',
-        link: '#catalog?card=travel-1'
+        action: 'Played',
+        timestamp: Date.now() - 1000 * 60 * 60 * 2
       },
       {
-        id: 'food-1',
+        id: 'history-2',
+        cardId: 'card-food-1',
+        catalogId: 'catalog-food',
         source: 'Do you have vegetarian options?',
         target: '¿Tiene opciones vegetarianas?',
-        time: 'Yesterday',
-        link: '#catalog?card=food-1'
+        action: 'Played',
+        timestamp: Date.now() - 1000 * 60 * 60 * 24
       }
     ];
 
@@ -955,106 +1019,287 @@
       { label: 'v1.10', date: '5 days ago', status: 'Backup' }
     ];
 
-    let activeCategoryIndex = 0;
+    let activeCatalogId = catalogs[0]?.id || null;
     let languageDirection = 'source-target';
     let catalogView = 'list';
+    let sortMode = 'Alpha';
+    let searchTerm = '';
 
-    const categoryList = document.getElementById('categoryList');
+    const catalogList = document.getElementById('catalogList');
     const cardList = document.getElementById('cardList');
     const mindmapView = document.getElementById('mindmapView');
-    const selectedCategory = document.getElementById('selectedCategory');
+    const selectedCatalog = document.getElementById('selectedCatalog');
+    const selectedCatalogLabel = document.getElementById('selectedCatalogLabel');
+    const liveCatalogLabel = document.getElementById('liveCatalogLabel');
     const favoriteList = document.getElementById('favoriteList');
     const historyList = document.getElementById('historyList');
     const versionList = document.getElementById('versionList');
+    const newCatalogName = document.getElementById('newCatalogName');
+    const catalogNameInput = document.getElementById('catalogNameInput');
+    const catalogNoteInput = document.getElementById('catalogNoteInput');
+    const catalogSummary = document.getElementById('catalogSummary');
+    const newCardCatalog = document.getElementById('newCardCatalog');
+    const cardSearch = document.getElementById('cardSearch');
+    const sortSelect = document.getElementById('sortSelect');
+    const logPanel = document.getElementById('logPanel');
+    const sourceLangSelect = document.getElementById('sourceLang');
+    const targetLangSelect = document.getElementById('targetLang');
+    const composerDetails = document.getElementById('composerDetails');
+    const newSourceText = document.getElementById('newSourceText');
+    const newTargetText = document.getElementById('newTargetText');
+    const newBackTranslation = document.getElementById('newBackTranslation');
+    const newCardPriority = document.getElementById('newCardPriority');
 
     function getLanguageConfig() {
+      const sourceLabel = sourceLangSelect?.value || 'English';
+      const targetLabel = targetLangSelect?.value || 'Spanish';
       if (languageDirection === 'target-source') {
         return {
           primaryKey: 'target',
           secondaryKey: 'source',
-          primaryLabel: 'Spanish',
-          secondaryLabel: 'English',
+          primaryLabel: targetLabel,
+          secondaryLabel: sourceLabel,
           oppositeVoice: 'source'
         };
       }
       return {
         primaryKey: 'source',
         secondaryKey: 'target',
-        primaryLabel: 'English',
-        secondaryLabel: 'Spanish',
+        primaryLabel: sourceLabel,
+        secondaryLabel: targetLabel,
         oppositeVoice: 'target'
       };
     }
 
-    function renderCategories() {
-      categoryList.innerHTML = '';
-      categories.forEach((category, index) => {
-        const item = document.createElement('div');
-        item.className = `category-item ${index === activeCategoryIndex ? 'active' : ''}`;
-        item.innerHTML = `
-          <strong>${category.name}</strong>
-          <div class="subcategory">${category.subcategories.join(' · ')}</div>
-        `;
-        item.addEventListener('click', () => {
-          activeCategoryIndex = index;
-          renderCategories();
-          renderCards();
-        });
-        categoryList.appendChild(item);
+    function createId(prefix = 'id') {
+      if (crypto.randomUUID) {
+        return `${prefix}-${crypto.randomUUID()}`;
+      }
+      return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    function escapeHtml(text) {
+      return (text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function renderMarkdown(text) {
+      let html = escapeHtml(text || '');
+      html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      html = html.replace(/\n/g, '<br>');
+      return html;
+    }
+
+    function formatDate(timestamp) {
+      if (!timestamp) return '—';
+      return new Date(timestamp).toLocaleString();
+    }
+
+    function getActiveCatalog() {
+      return catalogs.find(catalog => catalog.id === activeCatalogId) || catalogs[0] || null;
+    }
+
+    function getCardsForCatalog(catalogId) {
+      return cards.filter(card => card.catalogId === catalogId);
+    }
+
+    function renderCatalogOptions(select, selectedId) {
+      select.innerHTML = '';
+      catalogs.forEach(catalog => {
+        const option = document.createElement('option');
+        option.value = catalog.id;
+        option.textContent = catalog.name;
+        if (catalog.id === selectedId) {
+          option.selected = true;
+        }
+        select.appendChild(option);
       });
     }
 
+    function renderCatalogs() {
+      catalogList.innerHTML = '';
+      catalogs.forEach(catalog => {
+        const item = document.createElement('div');
+        const count = getCardsForCatalog(catalog.id).length;
+        item.className = `category-item ${catalog.id === activeCatalogId ? 'active' : ''}`;
+        item.innerHTML = `
+          <strong>${catalog.name}</strong>
+          <div class="subcategory">${catalog.note || 'No notes'} · ${count} cards</div>
+        `;
+        item.addEventListener('click', () => {
+          activeCatalogId = catalog.id;
+          renderAll();
+        });
+        catalogList.appendChild(item);
+      });
+    }
+
+    function renderCatalogDetails() {
+      const catalog = getActiveCatalog();
+      if (!catalog) return;
+      selectedCatalog.textContent = catalog.name;
+      selectedCatalogLabel.textContent = catalog.name;
+      liveCatalogLabel.textContent = `${catalog.name} favorites`;
+      catalogNameInput.value = catalog.name;
+      catalogNoteInput.value = catalog.note || '';
+      catalogSummary.textContent = `${getCardsForCatalog(catalog.id).length} cards · Created ${formatDate(catalog.createdAt)}`;
+      renderCatalogOptions(newCardCatalog, catalog.id);
+    }
+
+    function getFilteredCards() {
+      const activeCards = getCardsForCatalog(activeCatalogId);
+      const term = searchTerm.trim().toLowerCase();
+      const filtered = term
+        ? activeCards.filter(card => [card.source, card.target, card.backTranslation].some(value => value && value.toLowerCase().includes(term)))
+        : activeCards;
+      const sorted = [...filtered];
+      const priorityWeight = { High: 0, Standard: 1, 'Custom (manual order)': 2 };
+      const mode = sortMode || sortSelect.value;
+      sorted.sort((a, b) => {
+        if (mode === 'Alpha') {
+          return (a.source || '').localeCompare(b.source || '');
+        }
+        if (mode === 'Last used') {
+          return (b.lastUsedAt || 0) - (a.lastUsedAt || 0);
+        }
+        if (mode === 'Created') {
+          return (b.createdAt || 0) - (a.createdAt || 0);
+        }
+        if (mode === 'Updated') {
+          return (b.updatedAt || 0) - (a.updatedAt || 0);
+        }
+        if (mode === 'Priority') {
+          return (priorityWeight[a.priority] ?? 3) - (priorityWeight[b.priority] ?? 3);
+        }
+        return 0;
+      });
+      return sorted;
+    }
+
     function renderCards() {
-      const category = categories[activeCategoryIndex];
       const languageConfig = getLanguageConfig();
-      selectedCategory.textContent = `${category.name} → ${category.subcategories[0]}`;
+      const filteredCards = getFilteredCards();
       cardList.innerHTML = '';
-      category.cards.forEach(card => {
+      if (!filteredCards.length) {
+        cardList.innerHTML = '<div class="empty-state">No cards found. Create a new card or adjust filters.</div>';
+        renderFavorites();
+        renderMindmap();
+        return;
+      }
+      filteredCards.forEach(card => {
         const primaryText = languageConfig.primaryKey === 'source' ? card.source : card.target;
         const secondaryText = languageConfig.secondaryKey === 'source' ? card.source : card.target;
         const cardItem = document.createElement('div');
         cardItem.className = 'card-item';
         cardItem.innerHTML = `
-          <div>
-            <div class="meta">Usage ${card.usage} · Card ID ${card.id}</div>
-            <div class="language-grid">
-              <div class="language-block">
-                <div class="language-header">
-                  ${languageConfig.primaryLabel}
-                  <button class="icon-btn small" data-action="speak" data-id="${card.id}" data-voice="${languageConfig.primaryKey}">
-                    <span class="material-symbols-outlined">volume_up</span>
-                    Speak
-                  </button>
-                </div>
-                <textarea>${primaryText}</textarea>
-              </div>
-              <div class="language-block">
-                <div class="language-header">
-                  ${languageConfig.secondaryLabel}
-                  <button class="icon-btn small" data-action="speak" data-id="${card.id}" data-voice="${languageConfig.secondaryKey}">
-                    <span class="material-symbols-outlined">volume_up</span>
-                    Speak
-                  </button>
-                </div>
-                <textarea>${secondaryText}</textarea>
-              </div>
-            </div>
-            <div class="back-translation" id="bt-${card.id}">${card.backTranslation}</div>
-            <div class="card-footer">
-              <span>Back-translation preview</span>
-              <button class="footer-toggle" data-action="back" data-id="${card.id}">
-                <span class="material-symbols-outlined">expand_more</span>
-                Reveal
+          <div class="card-head">
+            <div class="meta">Usage ${card.usage} · Updated ${formatDate(card.updatedAt)}</div>
+            <div class="card-actions">
+              <button class="icon-btn ${card.favorite ? 'active' : ''}" data-action="favorite" data-id="${card.id}">
+                <span class="material-symbols-outlined">star</span>
+                Favorite
+              </button>
+              <button class="icon-btn" data-action="play" data-id="${card.id}">
+                <span class="material-symbols-outlined">play_arrow</span>
+                Play
               </button>
             </div>
           </div>
-          <div class="card-actions">
-            <button class="icon-btn ${card.favorite ? 'active' : ''}" data-action="favorite" data-id="${card.id}">
-              <span class="material-symbols-outlined">star</span>
-              Favorite
+          <div class="language-grid">
+            <div class="language-block">
+              <div class="language-header">
+                ${languageConfig.primaryLabel}
+                <button class="icon-btn small" data-action="speak" data-id="${card.id}" data-voice="${languageConfig.primaryKey}">
+                  <span class="material-symbols-outlined">volume_up</span>
+                  Speak
+                </button>
+              </div>
+              <textarea data-field="${languageConfig.primaryKey}"></textarea>
+            </div>
+            <div class="language-block">
+              <div class="language-header">
+                ${languageConfig.secondaryLabel}
+                <button class="icon-btn small" data-action="speak" data-id="${card.id}" data-voice="${languageConfig.secondaryKey}">
+                  <span class="material-symbols-outlined">volume_up</span>
+                  Speak
+                </button>
+              </div>
+              <textarea data-field="${languageConfig.secondaryKey}"></textarea>
+            </div>
+          </div>
+          <details class="advanced">
+            <summary>Card options</summary>
+            <div class="form-grid">
+              <div>
+                <label>Assign catalog</label>
+                <select data-field="catalogId"></select>
+              </div>
+              <div>
+                <label>Priority</label>
+                <select data-field="priority">
+                  <option>Standard</option>
+                  <option>High</option>
+                  <option>Custom (manual order)</option>
+                </select>
+              </div>
+              <div>
+                <label>Back-translation</label>
+                <textarea data-field="backTranslation"></textarea>
+              </div>
+            </div>
+            <div class="controls" style="margin-top:12px;">
+              <button class="secondary-btn" data-action="delete" data-id="${card.id}">Delete card</button>
+            </div>
+          </details>
+          <div class="back-translation" id="bt-${card.id}">${escapeHtml(card.backTranslation || 'No back-translation yet.')}</div>
+          <div class="card-footer">
+            <span>Back-translation preview</span>
+            <button class="footer-toggle" data-action="back" data-id="${card.id}">
+              <span class="material-symbols-outlined">expand_more</span>
+              Reveal
             </button>
           </div>
         `;
+        const primaryArea = cardItem.querySelector(`textarea[data-field="${languageConfig.primaryKey}"]`);
+        const secondaryArea = cardItem.querySelector(`textarea[data-field="${languageConfig.secondaryKey}"]`);
+        primaryArea.value = primaryText || '';
+        secondaryArea.value = secondaryText || '';
+
+        const catalogSelect = cardItem.querySelector('select[data-field="catalogId"]');
+        renderCatalogOptions(catalogSelect, card.catalogId);
+        const prioritySelect = cardItem.querySelector('select[data-field="priority"]');
+        prioritySelect.value = card.priority || 'Standard';
+        const backTranslationArea = cardItem.querySelector('textarea[data-field="backTranslation"]');
+        const backTranslationPreview = cardItem.querySelector(`#bt-${card.id}`);
+        backTranslationArea.value = card.backTranslation || '';
+
+        [primaryArea, secondaryArea, backTranslationArea].forEach(area => {
+          area.addEventListener('input', () => {
+            card[area.dataset.field] = area.value;
+            card.updatedAt = Date.now();
+            if (area.dataset.field === 'backTranslation' && backTranslationPreview) {
+              backTranslationPreview.textContent = area.value || 'No back-translation yet.';
+            }
+            renderFavorites();
+          });
+        });
+
+        catalogSelect.addEventListener('change', () => {
+          card.catalogId = catalogSelect.value;
+          card.updatedAt = Date.now();
+          renderAll();
+        });
+
+        prioritySelect.addEventListener('change', () => {
+          card.priority = prioritySelect.value;
+          card.updatedAt = Date.now();
+        });
+
         cardItem.querySelectorAll('button').forEach(btn => {
           btn.addEventListener('click', () => handleCardAction(card, btn));
         });
@@ -1075,28 +1320,38 @@
       if (action === 'back') {
         const panel = document.getElementById(`bt-${card.id}`);
         panel.classList.toggle('visible');
-        card.usage += 1;
-        renderCards();
         console.log('Back-translation reveal', card.id);
       }
-      if (action === 'speak') {
-        card.usage += 1;
+      if (action === 'speak' || action === 'play') {
+        logUsage(card, action === 'play' ? 'Played' : 'Spoken');
         renderCards();
-        console.log('TTS playback', card.id);
+        console.log('Usage logged', card.id);
+      }
+      if (action === 'delete') {
+        const confirmed = confirm('Delete this card?');
+        if (!confirmed) return;
+        const index = cards.findIndex(item => item.id === card.id);
+        if (index !== -1) {
+          cards.splice(index, 1);
+        }
+        renderAll();
       }
     }
 
     function renderFavorites() {
-      const category = categories[activeCategoryIndex];
-      const favorites = category.cards.filter(card => card.favorite);
+      const favorites = getCardsForCatalog(activeCatalogId).filter(card => card.favorite);
       favoriteList.innerHTML = '';
+      if (!favorites.length) {
+        favoriteList.innerHTML = '<div class="empty-state">No favorites yet. Star cards to surface them here.</div>';
+        return;
+      }
       favorites.forEach(card => {
         const item = document.createElement('div');
         item.className = 'use-item';
         item.innerHTML = `
           <div>
-            <strong>${card.source}</strong>
-            <small>${card.target}</small>
+            <strong>${renderMarkdown(card.source)}</strong>
+            <small>${renderMarkdown(card.target)}</small>
           </div>
           <div class="card-actions">
             <button class="icon-btn small" data-action="speak" data-id="${card.id}" data-voice="source">
@@ -1117,9 +1372,10 @@
     }
 
     function renderMindmap() {
-      const category = categories[activeCategoryIndex];
+      const catalog = getActiveCatalog();
+      if (!catalog) return;
       const languageConfig = getLanguageConfig();
-      const nodes = category.cards.map(card => {
+      const nodes = getFilteredCards().map(card => {
         const primaryText = languageConfig.primaryKey === 'source' ? card.source : card.target;
         const secondaryText = languageConfig.secondaryKey === 'source' ? card.source : card.target;
         return `
@@ -1140,7 +1396,7 @@
       mindmapView.innerHTML = `
         <div class="section-label">Summary mind map</div>
         <div class="mindmap-body">
-          <div class="mindmap-hub">${category.name}</div>
+          <div class="mindmap-hub">${catalog.name}</div>
           <div class="mindmap-spokes">${nodes}</div>
         </div>
       `;
@@ -1152,7 +1408,7 @@
       });
 
       mindmapView.querySelectorAll('button').forEach(button => {
-        const card = category.cards.find(item => item.id === button.dataset.id);
+        const card = cards.find(item => item.id === button.dataset.id);
         if (card) {
           button.addEventListener('click', event => {
             event.stopPropagation();
@@ -1164,14 +1420,20 @@
 
     function renderHistory() {
       historyList.innerHTML = '';
+      if (!history.length) {
+        historyList.innerHTML = '<div class="empty-state">No usage yet. Play a card to build history.</div>';
+        return;
+      }
       history.forEach(entry => {
+        const catalog = catalogs.find(item => item.id === entry.catalogId);
         const item = document.createElement('div');
         item.className = 'history-item';
         item.innerHTML = `
-          <strong>${entry.source}</strong>
-          <small>${entry.target}</small>
-          <div>${entry.time}</div>
-          <a href="${entry.link}">Open in catalog</a>
+          <strong>${renderMarkdown(entry.source)}</strong>
+          <small>${renderMarkdown(entry.target)}</small>
+          <div>${entry.action} · ${formatDate(entry.timestamp)}</div>
+          <a href="#cards?card=${entry.cardId}">Open in cards</a>
+          <div class="notice">${catalog ? catalog.name : 'Unknown catalog'}</div>
         `;
         historyList.appendChild(item);
       });
@@ -1257,46 +1519,157 @@
       });
     }
 
-    function setupCurationFlow() {
-      const steps = Array.from(document.querySelectorAll('.step'));
-      let currentStep = 1;
-
-      function updateSteps() {
-        steps.forEach(step => step.classList.toggle('active', Number(step.dataset.step) === currentStep));
+    function logUsage(card, action) {
+      card.usage += 1;
+      card.lastUsedAt = Date.now();
+      card.updatedAt = Date.now();
+      history.unshift({
+        id: createId('history'),
+        cardId: card.id,
+        catalogId: card.catalogId,
+        source: card.source,
+        target: card.target,
+        action,
+        timestamp: Date.now()
+      });
+      if (history.length > 40) {
+        history.pop();
       }
+      logPanel.textContent = `${action} · ${card.source}`;
+      renderHistory();
+    }
 
-      document.getElementById('prevStep').addEventListener('click', () => {
-        currentStep = Math.max(1, currentStep - 1);
-        updateSteps();
-      });
+    function resetComposer() {
+      newSourceText.value = '';
+      newTargetText.value = '';
+      newBackTranslation.value = '';
+      newCardPriority.value = 'Standard';
+    }
 
-      document.getElementById('autoTranslate').addEventListener('click', () => {
-        currentStep = Math.min(4, currentStep + 1);
-        document.getElementById('targetText').value = '¿Dónde está el reclamo de equipaje?';
-        document.getElementById('backTranslation').value = 'Where is the baggage claim?';
-        updateSteps();
-        console.log('Auto-translate step');
-      });
+    function createCard() {
+      const source = newSourceText.value.trim();
+      const target = newTargetText.value.trim();
+      if (!source && !target) {
+        alert('Add a source or target phrase to create a card.');
+        return;
+      }
+      const card = {
+        id: createId('card'),
+        catalogId: newCardCatalog.value || activeCatalogId,
+        source,
+        target,
+        backTranslation: newBackTranslation.value.trim(),
+        usage: 0,
+        favorite: false,
+        priority: newCardPriority.value || 'Standard',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lastUsedAt: null
+      };
+      cards.unshift(card);
+      resetComposer();
+      composerDetails.open = false;
+      renderAll();
+    }
 
-      document.getElementById('saveCard').addEventListener('click', () => {
-        currentStep = 1;
-        updateSteps();
-        console.log('Card saved');
-      });
-
-      updateSteps();
+    function renderAll() {
+      renderCatalogs();
+      renderCatalogDetails();
+      renderCards();
+      renderHistory();
+      renderVersions();
+      updateCatalogView();
     }
 
     document.getElementById('addCardBtn').addEventListener('click', () => {
-      alert('Stub: open card creation flow.');
+      composerDetails.open = true;
+      newSourceText.focus();
+    });
+
+    document.getElementById('resetComposerBtn').addEventListener('click', resetComposer);
+    document.getElementById('createCardBtn').addEventListener('click', createCard);
+
+    document.getElementById('addCatalogBtn').addEventListener('click', () => {
+      const name = newCatalogName.value.trim();
+      if (!name) {
+        alert('Name the catalog first.');
+        return;
+      }
+      const catalog = {
+        id: createId('catalog'),
+        name,
+        note: '',
+        createdAt: Date.now()
+      };
+      catalogs.push(catalog);
+      activeCatalogId = catalog.id;
+      newCatalogName.value = '';
+      renderAll();
+    });
+
+    document.getElementById('renameCatalogBtn').addEventListener('click', () => {
+      const catalog = getActiveCatalog();
+      if (!catalog) return;
+      const name = catalogNameInput.value.trim();
+      if (!name) {
+        alert('Catalog name cannot be empty.');
+        return;
+      }
+      catalog.name = name;
+      catalog.note = catalogNoteInput.value.trim();
+      renderAll();
+    });
+
+    document.getElementById('deleteCatalogBtn').addEventListener('click', () => {
+      const catalog = getActiveCatalog();
+      if (!catalog) return;
+      const confirmed = confirm(`Delete the ${catalog.name} catalog and its cards?`);
+      if (!confirmed) return;
+      const catalogIndex = catalogs.findIndex(item => item.id === catalog.id);
+      if (catalogIndex !== -1) {
+        catalogs.splice(catalogIndex, 1);
+      }
+      for (let i = cards.length - 1; i >= 0; i -= 1) {
+        if (cards[i].catalogId === catalog.id) {
+          cards.splice(i, 1);
+        }
+      }
+      activeCatalogId = catalogs[0]?.id || null;
+      if (!activeCatalogId) {
+        const fallbackCatalog = { id: createId('catalog'), name: 'New Catalog', note: '', createdAt: Date.now() };
+        catalogs.push(fallbackCatalog);
+        activeCatalogId = fallbackCatalog.id;
+      }
+      renderAll();
+    });
+
+    catalogNoteInput.addEventListener('input', () => {
+      const catalog = getActiveCatalog();
+      if (!catalog) return;
+      catalog.note = catalogNoteInput.value;
+      renderCatalogs();
+    });
+
+    cardSearch.addEventListener('input', () => {
+      searchTerm = cardSearch.value;
+      renderCards();
+    });
+
+    sortSelect.addEventListener('change', () => {
+      sortMode = sortSelect.value;
+      renderCards();
     });
 
     document.getElementById('playLatestBtn').addEventListener('click', () => {
-      const category = categories[activeCategoryIndex];
-      if (category.cards.length) {
-        category.cards[0].usage += 1;
+      const catalogCards = getCardsForCatalog(activeCatalogId);
+      if (!catalogCards.length) return;
+      const latest = catalogCards.reduce((current, next) => {
+        if (!current) return next;
+        return (next.lastUsedAt || 0) > (current.lastUsedAt || 0) ? next : current;
+      }, null);
+      if (latest) {
+        logUsage(latest, 'Played');
         renderCards();
-        console.log('Play latest', category.cards[0].id);
       }
     });
 
@@ -1306,15 +1679,20 @@
       console.log('Usage log toggled');
     });
 
+    document.getElementById('clearHistoryBtn').addEventListener('click', () => {
+      history.length = 0;
+      renderHistory();
+      logPanel.textContent = 'History cleared.';
+    });
+
+    [sourceLangSelect, targetLangSelect].forEach(select => {
+      select.addEventListener('change', renderCards);
+    });
+
     setupTabs();
     setupCatalogToggles();
-    updateCatalogView();
     setupModal();
-    setupCurationFlow();
-    renderCategories();
-    renderCards();
-    renderHistory();
-    renderVersions();
+    renderAll();
   </script>
 </body>
 </html>
