@@ -1,0 +1,1682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thai Transcriber</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&family=JetBrains+Mono:wght@400&display=swap');
+        
+        :root {
+            --bg: #0d0d12;
+            --surface: #16161d;
+            --elevated: #1e1e27;
+            --border: #2a2a35;
+            --text: #e4e4eb;
+            --text-dim: #8888a0;
+            --text-muted: #55556a;
+            --gold: #d4a853;
+            --gold-dim: #a08040;
+            --thai: #3a9fc4;
+            --english: #9a7bc4;
+            --success: #4a9d6a;
+            --warning: #c4883a;
+            --error: #c45a5a;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+        
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 1.5rem;
+        }
+        
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 300;
+            letter-spacing: 0.15em;
+            background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.8rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.75rem;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+        
+        .status-dot.ready { background: var(--success); }
+        .status-dot.loading { background: var(--warning); animation: pulse 1s infinite; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 1.5rem;
+        }
+        
+        @media (max-width: 900px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+        
+        .card-header {
+            padding: 0.875rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .card-body { padding: 1rem; }
+        
+        /* Resume Banner */
+        .resume-banner {
+            display: none;
+            background: linear-gradient(135deg, rgba(212, 168, 83, 0.15), rgba(160, 128, 64, 0.1));
+            border: 1px solid var(--gold-dim);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .resume-banner.visible { display: block; }
+        
+        .resume-banner-title {
+            font-weight: 600;
+            color: var(--gold);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .resume-banner-info {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-bottom: 0.75rem;
+        }
+        
+        .resume-banner-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        /* Setup Overlay */
+        .setup-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(13, 13, 18, 0.95);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        
+        .setup-overlay.hidden { display: none; }
+        
+        .setup-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 480px;
+        }
+        
+        .setup-title {
+            font-size: 1.25rem;
+            font-weight: 400;
+            text-align: center;
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--gold);
+        }
+        
+        .setup-content { padding: 1.5rem; }
+        
+        .setup-step { display: none; }
+        .setup-step.active { display: block; }
+        
+        .setup-label {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            margin-bottom: 1rem;
+        }
+        
+        .option {
+            padding: 0.875rem 1rem;
+            background: var(--elevated);
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        
+        .option:hover { border-color: var(--text-muted); }
+        .option.selected { border-color: var(--gold); background: rgba(212, 168, 83, 0.08); }
+        
+        .option-title { font-weight: 500; margin-bottom: 0.15rem; }
+        .option-desc { font-size: 0.8rem; color: var(--text-muted); }
+        
+        .setup-progress { margin: 1.5rem 0; display: none; }
+        .setup-progress.visible { display: block; }
+        
+        .progress-track {
+            height: 6px;
+            background: var(--elevated);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--gold), var(--gold-dim));
+            width: 0%;
+            transition: width 0.2s;
+        }
+        
+        .progress-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            text-align: center;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .setup-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+        
+        /* Buttons */
+        .btn {
+            padding: 0.6rem 1.25rem;
+            border: none;
+            border-radius: 5px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+            color: var(--bg);
+        }
+        
+        .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
+        
+        .btn-secondary {
+            background: var(--elevated);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover:not(:disabled) { background: var(--border); }
+        
+        .btn-ghost {
+            background: none;
+            color: var(--text-dim);
+            padding: 0.4rem 0.6rem;
+        }
+        
+        .btn-ghost:hover { color: var(--text); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-lg { padding: 0.875rem 1.5rem; font-size: 0.95rem; }
+        .btn-block { width: 100%; justify-content: center; }
+        .btn-sm { padding: 0.4rem 0.75rem; font-size: 0.8rem; }
+        
+        /* Upload */
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            padding: 2rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .upload-area:hover { border-color: var(--gold-dim); }
+        .upload-area.dragover { border-color: var(--gold); background: rgba(212, 168, 83, 0.05); }
+        .upload-area.has-file { border-style: solid; border-color: var(--success); }
+        
+        .upload-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+        .upload-text { color: var(--text-dim); font-size: 0.9rem; }
+        .upload-hint { color: var(--text-muted); font-size: 0.75rem; margin-top: 0.25rem; }
+        
+        .file-info {
+            display: none;
+            margin-top: 1rem;
+            padding: 0.875rem;
+            background: var(--elevated);
+            border-radius: 6px;
+        }
+        
+        .file-info.visible { display: block; }
+        
+        .file-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+        
+        .file-name {
+            font-weight: 500;
+            color: var(--gold);
+            word-break: break-all;
+            font-size: 0.9rem;
+        }
+        
+        .file-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .file-remove {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1.25rem;
+            line-height: 1;
+        }
+        
+        .file-remove:hover { color: var(--error); }
+        
+        .file-audio { margin-top: 0.75rem; }
+        .file-audio audio { width: 100%; height: 32px; }
+        
+        /* Stages */
+        .stages { margin: 1.25rem 0; }
+        
+        .stage {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        
+        .stage.active { color: var(--text); }
+        .stage.done { color: var(--success); }
+        .stage.error { color: var(--error); }
+        
+        .stage-num {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--elevated);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        
+        .stage.active .stage-num { border-color: var(--gold); color: var(--gold); }
+        .stage.done .stage-num { background: var(--success); border-color: var(--success); color: white; }
+        .stage.error .stage-num { background: var(--error); border-color: var(--error); color: white; }
+        
+        .stage-text { flex: 1; }
+        .stage-detail {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .stage.active .stage-detail { color: var(--text-dim); }
+        
+        .main-progress { display: none; margin: 1rem 0; }
+        .main-progress.visible { display: block; }
+        
+        /* Transcript */
+        .transcript-scroll {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        
+        .transcript-empty {
+            padding: 3rem 1rem;
+            text-align: center;
+            color: var(--text-muted);
+        }
+        
+        .transcript-empty-icon {
+            font-size: 3rem;
+            margin-bottom: 0.75rem;
+            opacity: 0.4;
+        }
+        
+        .segment {
+            padding: 0.875rem;
+            margin-bottom: 0.5rem;
+            background: var(--elevated);
+            border-radius: 6px;
+            border-left: 3px solid var(--thai);
+        }
+        
+        .segment.en { border-color: var(--english); }
+        
+        .segment-head {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.4rem;
+        }
+        
+        .segment-lang {
+            font-size: 0.6rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 0.1rem 0.35rem;
+            border-radius: 3px;
+            background: rgba(58, 159, 196, 0.15);
+            color: var(--thai);
+        }
+        
+        .segment.en .segment-lang {
+            background: rgba(154, 123, 196, 0.15);
+            color: var(--english);
+        }
+        
+        .segment-time {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .segment-text { line-height: 1.7; }
+        
+        .segment-translation {
+            margin-top: 0.5rem;
+            padding-left: 0.75rem;
+            border-left: 2px solid var(--gold-dim);
+            color: var(--gold);
+            font-style: italic;
+            font-size: 0.95rem;
+        }
+        
+        .storage-info {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: var(--elevated);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .storage-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.25rem;
+        }
+        
+        .storage-row:last-child { margin-bottom: 0; }
+        
+        .toast-area {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 200;
+        }
+        
+        .toast {
+            padding: 0.75rem 1rem;
+            background: var(--elevated);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-top: 0.5rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            animation: slideIn 0.2s;
+            font-size: 0.85rem;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .toast.success { border-color: var(--success); }
+        .toast.error { border-color: var(--error); }
+        .toast.warning { border-color: var(--warning); }
+        
+        .hidden { display: none !important; }
+        input[type="file"] { display: none; }
+    </style>
+</head>
+<body>
+    <!-- Setup Overlay -->
+    <div class="setup-overlay" id="setupOverlay">
+        <div class="setup-box">
+            <div class="setup-title">Thai Transcriber Setup</div>
+            <div class="setup-content">
+                <div class="setup-step active" data-step="1">
+                    <div class="setup-label">Select transcription model:</div>
+                    <div class="option" data-value="tiny">
+                        <div class="option-title">🚀 Tiny (~40 MB)</div>
+                        <div class="option-desc">Fastest, good for clear audio</div>
+                    </div>
+                    <div class="option selected" data-value="base">
+                        <div class="option-title">⚖️ Base (~75 MB) — Recommended</div>
+                        <div class="option-desc">Balanced speed and accuracy</div>
+                    </div>
+                    <div class="option" data-value="small">
+                        <div class="option-title">🎯 Small (~250 MB)</div>
+                        <div class="option-desc">Most accurate, slower</div>
+                    </div>
+                </div>
+                
+                <div class="setup-step" data-step="2">
+                    <div class="setup-label">Translation settings:</div>
+                    <div class="option selected" data-value="yes">
+                        <div class="option-title">🔄 Enable Thai→English translation</div>
+                        <div class="option-desc">Downloads additional ~50 MB model</div>
+                    </div>
+                    <div class="option" data-value="no">
+                        <div class="option-title">📝 Transcription only</div>
+                        <div class="option-desc">Skip translation</div>
+                    </div>
+                </div>
+                
+                <div class="setup-step" data-step="3">
+                    <div class="setup-label">Downloading AI models (cached locally)...</div>
+                    <div class="setup-progress visible">
+                        <div class="progress-track">
+                            <div class="progress-fill" id="setupProgress"></div>
+                        </div>
+                        <div class="progress-label" id="setupProgressLabel">Initializing...</div>
+                    </div>
+                </div>
+                
+                <div class="setup-step" data-step="4">
+                    <div style="text-align: center; padding: 1rem 0;">
+                        <div style="font-size: 3rem; margin-bottom: 0.5rem;">✅</div>
+                        <div style="font-size: 1.1rem; color: var(--success);">Setup Complete</div>
+                        <div style="color: var(--text-dim); font-size: 0.9rem; margin-top: 0.5rem;">Models cached locally</div>
+                    </div>
+                </div>
+            </div>
+            <div class="setup-footer">
+                <button class="btn btn-secondary hidden" id="setupBack">← Back</button>
+                <button class="btn btn-primary" id="setupNext">Next →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div class="container">
+        <header>
+            <div class="logo">THAI TRANSCRIBER</div>
+            <div class="status-pill">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">Loading...</span>
+            </div>
+        </header>
+        
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    Audio Input
+                    <button class="btn btn-ghost" id="settingsBtn" title="Settings">⚙️</button>
+                </div>
+                <div class="card-body">
+                    <!-- Resume Banner -->
+                    <div class="resume-banner" id="resumeBanner">
+                        <div class="resume-banner-title">
+                            ⏸️ Incomplete Processing Found
+                        </div>
+                        <div class="resume-banner-info" id="resumeInfo">
+                            Processing was interrupted. Resume where you left off?
+                        </div>
+                        <div class="resume-banner-actions">
+                            <button class="btn btn-primary btn-sm" id="resumeBtn">▶️ Resume</button>
+                            <button class="btn btn-secondary btn-sm" id="discardBtn">🗑️ Discard</button>
+                        </div>
+                    </div>
+                    
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-icon">🎵</div>
+                        <div class="upload-text">Drop audio file or click to browse</div>
+                        <div class="upload-hint">M4A, MP3, WAV • Up to 500 MB</div>
+                    </div>
+                    <input type="file" id="fileInput" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm">
+                    
+                    <div class="file-info" id="fileInfo">
+                        <div class="file-row">
+                            <div>
+                                <div class="file-name" id="fileName"></div>
+                                <div class="file-meta" id="fileMeta"></div>
+                            </div>
+                            <button class="file-remove" id="fileRemove">×</button>
+                        </div>
+                        <div class="file-audio">
+                            <audio id="audioEl" controls></audio>
+                        </div>
+                    </div>
+                    
+                    <div class="stages" id="stages">
+                        <div class="stage" data-stage="store">
+                            <div class="stage-num">1</div>
+                            <div class="stage-text">
+                                <div>Store & Decode</div>
+                                <div class="stage-detail" id="storeDetail">—</div>
+                            </div>
+                        </div>
+                        <div class="stage" data-stage="transcribe">
+                            <div class="stage-num">2</div>
+                            <div class="stage-text">
+                                <div>Transcribe</div>
+                                <div class="stage-detail" id="transcribeDetail">—</div>
+                            </div>
+                        </div>
+                        <div class="stage" data-stage="translate">
+                            <div class="stage-num">3</div>
+                            <div class="stage-text">
+                                <div>Translate</div>
+                                <div class="stage-detail" id="translateDetail">—</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="main-progress" id="mainProgress">
+                        <div class="progress-track">
+                            <div class="progress-fill" id="mainProgressFill"></div>
+                        </div>
+                        <div class="progress-label" id="mainProgressLabel">0%</div>
+                    </div>
+                    
+                    <button class="btn btn-primary btn-lg btn-block" id="transcribeBtn" disabled>
+                        ▶️ Transcribe
+                    </button>
+                    <button class="btn btn-secondary btn-lg btn-block hidden" id="cancelBtn">
+                        ⏹ Cancel
+                    </button>
+                    
+                    <div class="storage-info" id="storageInfo">
+                        <div class="storage-row">
+                            <span>Audio:</span>
+                            <span id="storedAudioInfo">None</span>
+                        </div>
+                        <div class="storage-row">
+                            <span>Chunks prepared:</span>
+                            <span id="chunksInfo">0</span>
+                        </div>
+                        <div class="storage-row">
+                            <span>Progress:</span>
+                            <span id="progressInfo">Idle</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    Transcript
+                    <div>
+                        <button class="btn btn-ghost" id="copyBtn" title="Copy">📋</button>
+                        <button class="btn btn-ghost" id="exportBtn" title="Export">💾</button>
+                        <button class="btn btn-ghost" id="clearBtn" title="Clear">🗑️</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="transcript-scroll" id="transcriptArea">
+                        <div class="transcript-empty">
+                            <div class="transcript-empty-icon">🎧</div>
+                            <div>Load audio and click Transcribe</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="toast-area" id="toastArea"></div>
+
+    <script type="module">
+        // ============================================
+        // THAI TRANSCRIBER v4 - Full Resume Support
+        // ============================================
+        
+        const DB_NAME = 'ThaiTranscriberDB';
+        const DB_VERSION = 2;
+        const STORE_CONFIG = 'config';
+        const STORE_AUDIO = 'audio';
+        const STORE_CHUNKS = 'chunks';
+        const STORE_PROGRESS = 'progress';
+        const STORE_SEGMENTS = 'segments';
+        
+        // ============================================
+        // IndexedDB Storage Manager
+        // ============================================
+        
+        class Storage {
+            constructor() {
+                this.db = null;
+            }
+            
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const req = indexedDB.open(DB_NAME, DB_VERSION);
+                    req.onerror = () => reject(req.error);
+                    req.onsuccess = () => { this.db = req.result; resolve(); };
+                    req.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        
+                        // Delete old stores if upgrading
+                        for (const name of db.objectStoreNames) {
+                            db.deleteObjectStore(name);
+                        }
+                        
+                        db.createObjectStore(STORE_CONFIG);
+                        db.createObjectStore(STORE_AUDIO);
+                        db.createObjectStore(STORE_CHUNKS);  // Stores decoded audio chunks
+                        db.createObjectStore(STORE_PROGRESS);
+                        db.createObjectStore(STORE_SEGMENTS, { keyPath: 'id', autoIncrement: true });
+                    };
+                });
+            }
+            
+            async get(store, key) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(store, 'readonly');
+                    const req = tx.objectStore(store).get(key);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+            
+            async set(store, key, value) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(store, 'readwrite');
+                    const req = tx.objectStore(store).put(value, key);
+                    req.onsuccess = () => resolve();
+                    req.onerror = () => reject(req.error);
+                });
+            }
+            
+            async delete(store, key) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(store, 'readwrite');
+                    const req = tx.objectStore(store).delete(key);
+                    req.onsuccess = () => resolve();
+                    req.onerror = () => reject(req.error);
+                });
+            }
+            
+            async getAll(store) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(store, 'readonly');
+                    const req = tx.objectStore(store).getAll();
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+            
+            async getAllKeys(store) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(store, 'readonly');
+                    const req = tx.objectStore(store).getAllKeys();
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+            
+            async clear(store) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(store, 'readwrite');
+                    const req = tx.objectStore(store).clear();
+                    req.onsuccess = () => resolve();
+                    req.onerror = () => reject(req.error);
+                });
+            }
+            
+            async add(store, value) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(store, 'readwrite');
+                    const req = tx.objectStore(store).add(value);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+        }
+        
+        // ============================================
+        // State
+        // ============================================
+        
+        const storage = new Storage();
+        
+        const state = {
+            config: {
+                whisperModel: 'base',
+                enableTranslation: true,
+                setupComplete: false
+            },
+            setupStep: 1,
+            audioMeta: null,
+            isProcessing: false,
+            isCancelled: false,
+            segments: [],
+            whisperPipeline: null,
+            translatorPipeline: null,
+            // Resume state
+            totalChunks: 0,
+            processedChunks: 0,
+            hasIncompleteJob: false
+        };
+        
+        // ============================================
+        // Transformers.js
+        // ============================================
+        
+        let transformers = null;
+        
+        async function loadTransformers() {
+            if (transformers) return transformers;
+            transformers = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+            return transformers;
+        }
+        
+        async function loadWhisper(onProgress) {
+            if (state.whisperPipeline) return state.whisperPipeline;
+            const tf = await loadTransformers();
+            state.whisperPipeline = await tf.pipeline(
+                'automatic-speech-recognition',
+                `Xenova/whisper-${state.config.whisperModel}`,
+                {
+                    quantized: true,
+                    progress_callback: (p) => {
+                        if (p.status === 'progress' && onProgress) onProgress(p.progress, p.file);
+                    }
+                }
+            );
+            return state.whisperPipeline;
+        }
+        
+        async function loadTranslator(onProgress) {
+            if (!state.config.enableTranslation) return null;
+            if (state.translatorPipeline) return state.translatorPipeline;
+            const tf = await loadTransformers();
+            state.translatorPipeline = await tf.pipeline(
+                'translation',
+                'Xenova/opus-mt-th-en',
+                {
+                    quantized: true,
+                    progress_callback: (p) => {
+                        if (p.status === 'progress' && onProgress) onProgress(p.progress, p.file);
+                    }
+                }
+            );
+            return state.translatorPipeline;
+        }
+        
+        // ============================================
+        // Audio Processing
+        // ============================================
+        
+        let audioContext = null;
+        
+        function getAudioContext() {
+            if (!audioContext || audioContext.state === 'closed') {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+            }
+            return audioContext;
+        }
+        
+        async function decodeAudio(arrayBuffer) {
+            const ctx = getAudioContext();
+            if (ctx.state === 'suspended') await ctx.resume();
+            return await ctx.decodeAudioData(arrayBuffer.slice(0));
+        }
+        
+        function extractMono(audioBuffer) {
+            const length = audioBuffer.length;
+            const mono = new Float32Array(length);
+            
+            if (audioBuffer.numberOfChannels === 1) {
+                audioBuffer.copyFromChannel(mono, 0);
+            } else {
+                const left = new Float32Array(length);
+                const right = new Float32Array(length);
+                audioBuffer.copyFromChannel(left, 0);
+                audioBuffer.copyFromChannel(right, 1);
+                for (let i = 0; i < length; i++) mono[i] = (left[i] + right[i]) / 2;
+            }
+            
+            if (audioBuffer.sampleRate !== 16000) {
+                return resample(mono, audioBuffer.sampleRate, 16000);
+            }
+            return mono;
+        }
+        
+        function resample(data, fromRate, toRate) {
+            const ratio = fromRate / toRate;
+            const newLen = Math.round(data.length / ratio);
+            const result = new Float32Array(newLen);
+            for (let i = 0; i < newLen; i++) {
+                const idx = i * ratio;
+                const lo = Math.floor(idx);
+                const hi = Math.min(lo + 1, data.length - 1);
+                result[i] = data[lo] * (1 - (idx - lo)) + data[hi] * (idx - lo);
+            }
+            return result;
+        }
+        
+        // ============================================
+        // Chunk Management
+        // ============================================
+        
+        async function prepareAndStoreChunks(audioBuffer) {
+            const mono = extractMono(audioBuffer);
+            const chunkSec = 30;
+            const sampleRate = 16000;
+            const chunkLen = chunkSec * sampleRate;
+            const totalChunks = Math.ceil(mono.length / chunkLen);
+            
+            // Clear existing chunks
+            await storage.clear(STORE_CHUNKS);
+            
+            // Store each chunk separately
+            for (let i = 0; i < totalChunks; i++) {
+                const start = i * chunkLen;
+                const end = Math.min(start + chunkLen, mono.length);
+                const chunkData = mono.slice(start, end);
+                
+                await storage.set(STORE_CHUNKS, `chunk_${i}`, {
+                    index: i,
+                    data: Array.from(chunkData), // Convert to regular array for storage
+                    startTime: start / sampleRate,
+                    endTime: end / sampleRate
+                });
+            }
+            
+            // Store chunk metadata
+            await storage.set(STORE_PROGRESS, 'chunks', {
+                total: totalChunks,
+                duration: mono.length / sampleRate,
+                prepared: true
+            });
+            
+            return totalChunks;
+        }
+        
+        async function getChunk(index) {
+            const chunk = await storage.get(STORE_CHUNKS, `chunk_${index}`);
+            if (chunk) {
+                return {
+                    ...chunk,
+                    data: new Float32Array(chunk.data) // Convert back to Float32Array
+                };
+            }
+            return null;
+        }
+        
+        // ============================================
+        // Processing
+        // ============================================
+        
+        async function transcribeChunk(audioData) {
+            const result = await state.whisperPipeline(audioData, {
+                language: 'th',
+                task: 'transcribe',
+                return_timestamps: false
+            });
+            return result.text?.trim() || '';
+        }
+        
+        async function translateText(text) {
+            if (!text || !state.translatorPipeline) return '';
+            if (!/[\u0E00-\u0E7F]/.test(text)) return '';
+            try {
+                const result = await state.translatorPipeline(text, { max_length: 512 });
+                return result[0]?.translation_text || '';
+            } catch (e) {
+                console.warn('Translation error:', e);
+                return '';
+            }
+        }
+        
+        function detectLang(text) {
+            const thai = (text.match(/[\u0E00-\u0E7F]/g) || []).length;
+            const total = text.replace(/\s/g, '').length;
+            return total > 0 && thai / total > 0.3 ? 'th' : 'en';
+        }
+        
+        // ============================================
+        // Main Processing (with Resume)
+        // ============================================
+        
+        async function runProcessing(resumeFrom = 0) {
+            if (state.isProcessing) return;
+            
+            state.isProcessing = true;
+            state.isCancelled = false;
+            
+            updateUI('processing', true);
+            document.getElementById('resumeBanner').classList.remove('visible');
+            
+            try {
+                // Get progress info
+                let chunkInfo = await storage.get(STORE_PROGRESS, 'chunks');
+                
+                // If no chunks prepared, we need to decode first
+                if (!chunkInfo?.prepared) {
+                    setStage('store', 'active', 'Decoding audio...');
+                    
+                    const storedAudio = await storage.get(STORE_AUDIO, 'current');
+                    if (!storedAudio) throw new Error('No audio in storage');
+                    
+                    setStage('store', 'active', 'Decoding...');
+                    const audioBuffer = await decodeAudio(storedAudio.data);
+                    
+                    setStage('store', 'active', 'Preparing chunks...');
+                    const totalChunks = await prepareAndStoreChunks(audioBuffer);
+                    
+                    chunkInfo = { total: totalChunks, prepared: true };
+                    setStage('store', 'done', `${totalChunks} chunks prepared`);
+                } else {
+                    setStage('store', 'done', `${chunkInfo.total} chunks ready`);
+                }
+                
+                state.totalChunks = chunkInfo.total;
+                
+                // Restore existing segments if resuming
+                if (resumeFrom > 0) {
+                    const existingSegments = await storage.getAll(STORE_SEGMENTS);
+                    existingSegments.sort((a, b) => a.startTime - b.startTime);
+                    
+                    clearTranscript();
+                    for (const seg of existingSegments) {
+                        state.segments.push(seg);
+                        addSegment(seg);
+                    }
+                    
+                    toast('success', `Resuming from chunk ${resumeFrom + 1}/${chunkInfo.total}`);
+                } else {
+                    state.segments = [];
+                    clearTranscript();
+                    await storage.clear(STORE_SEGMENTS);
+                }
+                
+                // Load models
+                setStage('transcribe', 'active', 'Loading model...');
+                if (!state.whisperPipeline) {
+                    await loadWhisper((p) => setStage('transcribe', 'active', `Loading: ${Math.round(p)}%`));
+                }
+                
+                if (state.config.enableTranslation && !state.translatorPipeline) {
+                    setStage('translate', 'active', 'Loading model...');
+                    await loadTranslator((p) => setStage('translate', 'active', `Loading: ${Math.round(p)}%`));
+                }
+                
+                // Process chunks starting from resumeFrom
+                for (let i = resumeFrom; i < chunkInfo.total; i++) {
+                    if (state.isCancelled) {
+                        // Save progress for resume
+                        await storage.set(STORE_PROGRESS, 'current', {
+                            chunkIndex: i,
+                            total: chunkInfo.total,
+                            interrupted: true,
+                            timestamp: Date.now()
+                        });
+                        throw new Error('Cancelled');
+                    }
+                    
+                    state.processedChunks = i;
+                    
+                    const pct = Math.round((i / chunkInfo.total) * 100);
+                    setStage('transcribe', 'active', `Chunk ${i + 1}/${chunkInfo.total}`);
+                    updateProgress(pct, `Processing ${i + 1}/${chunkInfo.total}`);
+                    
+                    // Get chunk from storage
+                    const chunk = await getChunk(i);
+                    if (!chunk) {
+                        console.warn(`Chunk ${i} not found, skipping`);
+                        continue;
+                    }
+                    
+                    // Transcribe
+                    const text = await transcribeChunk(chunk.data);
+                    
+                    if (text) {
+                        const segment = {
+                            chunkIndex: i,
+                            startTime: chunk.startTime,
+                            endTime: chunk.endTime,
+                            text,
+                            language: detectLang(text),
+                            translation: null
+                        };
+                        
+                        // Translate if Thai
+                        if (state.config.enableTranslation && segment.language === 'th') {
+                            setStage('translate', 'active', 'Translating...');
+                            segment.translation = await translateText(text);
+                        }
+                        
+                        // Add to UI and storage immediately
+                        state.segments.push(segment);
+                        addSegment(segment);
+                        await storage.add(STORE_SEGMENTS, segment);
+                    }
+                    
+                    // Save progress after each chunk
+                    await storage.set(STORE_PROGRESS, 'current', {
+                        chunkIndex: i + 1,
+                        total: chunkInfo.total,
+                        interrupted: false,
+                        timestamp: Date.now()
+                    });
+                    
+                    updateStorageInfo();
+                }
+                
+                setStage('transcribe', 'done', `${state.segments.length} segments`);
+                setStage('translate', 'done', state.config.enableTranslation ? 'Complete' : 'Skipped');
+                
+                updateProgress(100, 'Done!');
+                toast('success', 'Transcription complete!');
+                
+                // Clear progress since we're done
+                await storage.delete(STORE_PROGRESS, 'current');
+                
+            } catch (e) {
+                if (e.message === 'Cancelled') {
+                    toast('warning', 'Paused - can resume later');
+                    state.hasIncompleteJob = true;
+                } else {
+                    console.error(e);
+                    toast('error', e.message);
+                }
+            } finally {
+                state.isProcessing = false;
+                updateUI('processing', false);
+                updateStorageInfo();
+                await checkForIncompleteJob();
+            }
+        }
+        
+        function cancelProcessing() {
+            state.isCancelled = true;
+        }
+        
+        async function discardProgress() {
+            await storage.clear(STORE_CHUNKS);
+            await storage.clear(STORE_SEGMENTS);
+            await storage.delete(STORE_PROGRESS, 'current');
+            await storage.delete(STORE_PROGRESS, 'chunks');
+            
+            state.segments = [];
+            state.hasIncompleteJob = false;
+            
+            clearTranscript();
+            resetStages();
+            updateStorageInfo();
+            document.getElementById('resumeBanner').classList.remove('visible');
+            
+            toast('success', 'Progress discarded');
+        }
+        
+        // ============================================
+        // Resume Detection
+        // ============================================
+        
+        async function checkForIncompleteJob() {
+            const progress = await storage.get(STORE_PROGRESS, 'current');
+            const chunkInfo = await storage.get(STORE_PROGRESS, 'chunks');
+            
+            if (progress && chunkInfo && progress.chunkIndex < chunkInfo.total) {
+                state.hasIncompleteJob = true;
+                state.processedChunks = progress.chunkIndex;
+                state.totalChunks = chunkInfo.total;
+                
+                const banner = document.getElementById('resumeBanner');
+                const info = document.getElementById('resumeInfo');
+                
+                info.textContent = `Chunk ${progress.chunkIndex}/${chunkInfo.total} completed • ${formatTime(progress.chunkIndex * 30)} processed`;
+                banner.classList.add('visible');
+                
+                return true;
+            }
+            
+            document.getElementById('resumeBanner').classList.remove('visible');
+            state.hasIncompleteJob = false;
+            return false;
+        }
+        
+        async function resumeProcessing() {
+            const progress = await storage.get(STORE_PROGRESS, 'current');
+            if (progress) {
+                await runProcessing(progress.chunkIndex);
+            }
+        }
+        
+        // ============================================
+        // File Handling
+        // ============================================
+        
+        async function handleFile(file) {
+            if (!file) return;
+            
+            state.audioMeta = { name: file.name, size: file.size, type: file.type };
+            
+            // Store raw audio
+            const arrayBuffer = await file.arrayBuffer();
+            await storage.set(STORE_AUDIO, 'current', {
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                data: arrayBuffer,
+                storedAt: Date.now()
+            });
+            
+            // Clear any existing progress (new file = new job)
+            await storage.clear(STORE_CHUNKS);
+            await storage.clear(STORE_SEGMENTS);
+            await storage.delete(STORE_PROGRESS, 'current');
+            await storage.delete(STORE_PROGRESS, 'chunks');
+            
+            state.segments = [];
+            state.hasIncompleteJob = false;
+            
+            // Update UI
+            document.getElementById('uploadArea').classList.add('has-file');
+            document.getElementById('fileInfo').classList.add('visible');
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileMeta').textContent = `${formatBytes(file.size)} • ${file.type || 'audio'}`;
+            document.getElementById('audioEl').src = URL.createObjectURL(file);
+            document.getElementById('transcribeBtn').disabled = false;
+            document.getElementById('resumeBanner').classList.remove('visible');
+            
+            resetStages();
+            clearTranscript();
+            updateStorageInfo();
+            toast('success', 'Audio stored');
+        }
+        
+        async function removeFile() {
+            state.audioMeta = null;
+            state.segments = [];
+            
+            await storage.delete(STORE_AUDIO, 'current');
+            await storage.clear(STORE_CHUNKS);
+            await storage.clear(STORE_SEGMENTS);
+            await storage.delete(STORE_PROGRESS, 'current');
+            await storage.delete(STORE_PROGRESS, 'chunks');
+            
+            document.getElementById('uploadArea').classList.remove('has-file');
+            document.getElementById('fileInfo').classList.remove('visible');
+            document.getElementById('audioEl').src = '';
+            document.getElementById('transcribeBtn').disabled = true;
+            document.getElementById('resumeBanner').classList.remove('visible');
+            
+            resetStages();
+            clearTranscript();
+            updateStorageInfo();
+        }
+        
+        async function restoreFromStorage() {
+            const stored = await storage.get(STORE_AUDIO, 'current');
+            
+            if (stored) {
+                state.audioMeta = { name: stored.name, size: stored.size, type: stored.type };
+                
+                document.getElementById('uploadArea').classList.add('has-file');
+                document.getElementById('fileInfo').classList.add('visible');
+                document.getElementById('fileName').textContent = stored.name;
+                document.getElementById('fileMeta').textContent = `${formatBytes(stored.size)} • restored`;
+                
+                const blob = new Blob([stored.data], { type: stored.type || 'audio/mpeg' });
+                document.getElementById('audioEl').src = URL.createObjectURL(blob);
+                document.getElementById('transcribeBtn').disabled = false;
+                
+                // Restore segments
+                const segments = await storage.getAll(STORE_SEGMENTS);
+                if (segments.length > 0) {
+                    segments.sort((a, b) => a.startTime - b.startTime);
+                    state.segments = segments;
+                    clearTranscript();
+                    segments.forEach(addSegment);
+                }
+                
+                return true;
+            }
+            return false;
+        }
+        
+        // ============================================
+        // UI Helpers
+        // ============================================
+        
+        function setStage(name, status, detail) {
+            const el = document.querySelector(`.stage[data-stage="${name}"]`);
+            if (!el) return;
+            
+            el.classList.remove('active', 'done', 'error');
+            if (status) el.classList.add(status);
+            
+            const num = el.querySelector('.stage-num');
+            if (status === 'done') num.textContent = '✓';
+            else if (status === 'error') num.textContent = '✗';
+            
+            const detailEl = document.getElementById(`${name}Detail`);
+            if (detailEl && detail) detailEl.textContent = detail;
+        }
+        
+        function resetStages() {
+            document.querySelectorAll('.stage').forEach((el, i) => {
+                el.classList.remove('active', 'done', 'error');
+                el.querySelector('.stage-num').textContent = i + 1;
+            });
+            document.getElementById('storeDetail').textContent = '—';
+            document.getElementById('transcribeDetail').textContent = '—';
+            document.getElementById('translateDetail').textContent = '—';
+        }
+        
+        function updateProgress(pct, label) {
+            document.getElementById('mainProgressFill').style.width = `${pct}%`;
+            document.getElementById('mainProgressLabel').textContent = label || `${Math.round(pct)}%`;
+        }
+        
+        function updateUI(mode, value) {
+            if (mode === 'processing') {
+                document.getElementById('transcribeBtn').classList.toggle('hidden', value);
+                document.getElementById('cancelBtn').classList.toggle('hidden', !value);
+                document.getElementById('mainProgress').classList.toggle('visible', value);
+                document.getElementById('uploadArea').style.pointerEvents = value ? 'none' : '';
+                document.getElementById('fileRemove').disabled = value;
+            }
+        }
+        
+        function updateModelStatus() {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            
+            if (state.whisperPipeline) {
+                dot.className = 'status-dot ready';
+                text.textContent = `Whisper ${state.config.whisperModel} ready`;
+            } else if (state.config.setupComplete) {
+                dot.className = 'status-dot';
+                text.textContent = 'Models cached';
+            } else {
+                dot.className = 'status-dot';
+                text.textContent = 'Setup required';
+            }
+        }
+        
+        async function updateStorageInfo() {
+            const stored = await storage.get(STORE_AUDIO, 'current');
+            const chunkInfo = await storage.get(STORE_PROGRESS, 'chunks');
+            const progress = await storage.get(STORE_PROGRESS, 'current');
+            
+            document.getElementById('storedAudioInfo').textContent = stored 
+                ? `${stored.name.substring(0, 20)}... (${formatBytes(stored.size)})` 
+                : 'None';
+            
+            document.getElementById('chunksInfo').textContent = chunkInfo 
+                ? `${chunkInfo.total} (${formatTime(chunkInfo.duration)})` 
+                : '0';
+            
+            document.getElementById('progressInfo').textContent = progress 
+                ? `${progress.chunkIndex}/${progress.total} chunks`
+                : 'Idle';
+        }
+        
+        function clearTranscript() {
+            state.segments = [];
+            document.getElementById('transcriptArea').innerHTML = `
+                <div class="transcript-empty">
+                    <div class="transcript-empty-icon">🎧</div>
+                    <div>Load audio and click Transcribe</div>
+                </div>
+            `;
+        }
+        
+        function addSegment(seg) {
+            const area = document.getElementById('transcriptArea');
+            const empty = area.querySelector('.transcript-empty');
+            if (empty) empty.remove();
+            
+            const div = document.createElement('div');
+            div.className = `segment ${seg.language === 'en' ? 'en' : ''}`;
+            
+            div.innerHTML = `
+                <div class="segment-head">
+                    <span class="segment-lang">${seg.language === 'th' ? '🇹🇭 Thai' : '🇺🇸 Eng'}</span>
+                    <span class="segment-time">${formatTime(seg.startTime)} → ${formatTime(seg.endTime)}</span>
+                </div>
+                <div class="segment-text">${escapeHtml(seg.text)}</div>
+                ${seg.translation ? `<div class="segment-translation">${escapeHtml(seg.translation)}</div>` : ''}
+            `;
+            
+            area.appendChild(div);
+            area.scrollTop = area.scrollHeight;
+        }
+        
+        // ============================================
+        // Setup Wizard
+        // ============================================
+        
+        function showSetup() {
+            document.getElementById('setupOverlay').classList.remove('hidden');
+            state.setupStep = 1;
+            updateSetupUI();
+        }
+        
+        function hideSetup() {
+            document.getElementById('setupOverlay').classList.add('hidden');
+        }
+        
+        function updateSetupUI() {
+            document.querySelectorAll('.setup-step').forEach(el => {
+                el.classList.toggle('active', el.dataset.step == state.setupStep);
+            });
+            document.getElementById('setupBack').classList.toggle('hidden', state.setupStep <= 1);
+            
+            const next = document.getElementById('setupNext');
+            if (state.setupStep === 3) next.textContent = 'Download';
+            else if (state.setupStep === 4) next.textContent = 'Start →';
+            else next.textContent = 'Next →';
+        }
+        
+        async function setupNext() {
+            const next = document.getElementById('setupNext');
+            
+            if (state.setupStep === 1) {
+                const sel = document.querySelector('.setup-step[data-step="1"] .option.selected');
+                state.config.whisperModel = sel?.dataset.value || 'base';
+                state.setupStep = 2;
+            } else if (state.setupStep === 2) {
+                const sel = document.querySelector('.setup-step[data-step="2"] .option.selected');
+                state.config.enableTranslation = sel?.dataset.value === 'yes';
+                state.setupStep = 3;
+            } else if (state.setupStep === 3) {
+                next.disabled = true;
+                next.textContent = 'Downloading...';
+                
+                const prog = document.getElementById('setupProgress');
+                const label = document.getElementById('setupProgressLabel');
+                
+                try {
+                    label.textContent = 'Loading transcription model...';
+                    await loadWhisper((p) => {
+                        prog.style.width = `${p * 0.7}%`;
+                        label.textContent = `Whisper: ${Math.round(p)}%`;
+                    });
+                    
+                    if (state.config.enableTranslation) {
+                        label.textContent = 'Loading translation model...';
+                        await loadTranslator((p) => {
+                            prog.style.width = `${70 + p * 0.3}%`;
+                            label.textContent = `Translation: ${Math.round(p)}%`;
+                        });
+                    }
+                    
+                    prog.style.width = '100%';
+                    label.textContent = 'Models cached!';
+                    
+                    state.config.setupComplete = true;
+                    await storage.set(STORE_CONFIG, 'main', state.config);
+                    
+                    state.setupStep = 4;
+                } catch (e) {
+                    label.textContent = `Error: ${e.message}`;
+                    toast('error', 'Download failed');
+                }
+                
+                next.disabled = false;
+            } else if (state.setupStep === 4) {
+                hideSetup();
+                updateModelStatus();
+            }
+            
+            updateSetupUI();
+        }
+        
+        function setupBack() {
+            if (state.setupStep > 1) {
+                state.setupStep--;
+                updateSetupUI();
+            }
+        }
+        
+        // ============================================
+        // Export
+        // ============================================
+        
+        function copyTranscript() {
+            if (state.segments.length === 0) return toast('warning', 'No transcript');
+            
+            const text = state.segments.map(s => {
+                let line = `[${formatTime(s.startTime)}] ${s.text}`;
+                if (s.translation) line += `\n  → ${s.translation}`;
+                return line;
+            }).join('\n\n');
+            
+            navigator.clipboard.writeText(text)
+                .then(() => toast('success', 'Copied'))
+                .catch(() => toast('error', 'Copy failed'));
+        }
+        
+        function exportTranscript() {
+            if (state.segments.length === 0) return toast('warning', 'No transcript');
+            
+            const name = (state.audioMeta?.name || 'transcript').replace(/\.[^/.]+$/, '');
+            
+            const txt = state.segments.map(s => {
+                let line = `[${formatTime(s.startTime)} - ${formatTime(s.endTime)}] (${s.language.toUpperCase()})\n${s.text}`;
+                if (s.translation) line += `\n→ ${s.translation}`;
+                return line;
+            }).join('\n\n---\n\n');
+            
+            download(`${name}.txt`, txt, 'text/plain');
+            
+            const json = JSON.stringify({ segments: state.segments }, null, 2);
+            setTimeout(() => download(`${name}.json`, json, 'application/json'), 300);
+            
+            toast('success', 'Exported');
+        }
+        
+        function download(filename, content, type) {
+            const blob = new Blob([content], { type });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
+        }
+        
+        // ============================================
+        // Utilities
+        // ============================================
+        
+        function formatTime(sec) {
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+        
+        function formatBytes(b) {
+            if (b < 1024) return b + ' B';
+            if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+            return (b / 1048576).toFixed(1) + ' MB';
+        }
+        
+        function escapeHtml(t) {
+            const d = document.createElement('div');
+            d.textContent = t;
+            return d.innerHTML;
+        }
+        
+        function toast(type, msg) {
+            const area = document.getElementById('toastArea');
+            const t = document.createElement('div');
+            t.className = `toast ${type}`;
+            t.textContent = msg;
+            area.appendChild(t);
+            setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000);
+        }
+        
+        // ============================================
+        // Event Listeners
+        // ============================================
+        
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+        uploadArea.addEventListener('drop', e => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+        
+        document.getElementById('fileRemove').addEventListener('click', removeFile);
+        document.getElementById('transcribeBtn').addEventListener('click', () => runProcessing(0));
+        document.getElementById('cancelBtn').addEventListener('click', cancelProcessing);
+        document.getElementById('copyBtn').addEventListener('click', copyTranscript);
+        document.getElementById('exportBtn').addEventListener('click', exportTranscript);
+        document.getElementById('clearBtn').addEventListener('click', async () => {
+            clearTranscript();
+            await storage.clear(STORE_SEGMENTS);
+        });
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            state.setupStep = 1;
+            showSetup();
+            updateSetupUI();
+        });
+        
+        document.getElementById('resumeBtn').addEventListener('click', resumeProcessing);
+        document.getElementById('discardBtn').addEventListener('click', discardProgress);
+        
+        document.getElementById('setupNext').addEventListener('click', setupNext);
+        document.getElementById('setupBack').addEventListener('click', setupBack);
+        
+        document.querySelectorAll('.option').forEach(opt => {
+            opt.addEventListener('click', () => {
+                opt.closest('.setup-step').querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+                opt.classList.add('selected');
+            });
+        });
+        
+        // Reload pipelines when tab becomes visible
+        document.addEventListener('visibilitychange', async () => {
+            if (!document.hidden && state.config.setupComplete && !state.isProcessing) {
+                if (!state.whisperPipeline) {
+                    console.log('Reloading models...');
+                    try {
+                        await loadWhisper();
+                        if (state.config.enableTranslation) await loadTranslator();
+                        updateModelStatus();
+                    } catch (e) {
+                        console.log('Model reload deferred');
+                    }
+                }
+            }
+        });
+        
+        // ============================================
+        // Init
+        // ============================================
+        
+        async function init() {
+            await storage.init();
+            
+            const savedConfig = await storage.get(STORE_CONFIG, 'main');
+            if (savedConfig) state.config = { ...state.config, ...savedConfig };
+            
+            if (!state.config.setupComplete) {
+                showSetup();
+            } else {
+                hideSetup();
+                
+                // Restore audio and segments
+                const restored = await restoreFromStorage();
+                if (restored) toast('success', 'Session restored');
+                
+                // Check for incomplete job
+                const hasIncomplete = await checkForIncompleteJob();
+                if (hasIncomplete) {
+                    toast('warning', 'Incomplete processing found');
+                }
+                
+                // Pre-load models
+                try {
+                    await loadWhisper();
+                    if (state.config.enableTranslation) await loadTranslator();
+                } catch (e) {
+                    console.log('Models will load on use');
+                }
+            }
+            
+            updateModelStatus();
+            updateStorageInfo();
+        }
+        
+        init();
+    </script>
+</body>
+</html>
