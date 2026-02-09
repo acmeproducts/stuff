@@ -3,828 +3,3714 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thai Transcriber</title>
+    <title>Thai Transcriber v7</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&family=JetBrains+Mono:wght@400&display=swap');
-        :root {
-            --bg: #0d0d12; --surface: #14141b; --elevated: #1c1c25; --border: #2a2a38;
-            --text: #e4e4eb; --text-dim: #8888a0; --text-muted: #55556a;
-            --gold: #d4a853; --gold-dim: #a08040; --thai: #3a9fc4; --english: #9a7bc4;
-            --success: #4a9d6a; --warning: #c4883a; --error: #c45a5a;
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+        
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.6; }
-        .container { max-width: 1400px; margin: 0 auto; padding: 1rem; }
-        header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
-        .logo { font-size: 1rem; font-weight: 300; letter-spacing: 0.15em; background: linear-gradient(135deg, var(--gold), var(--gold-dim)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .header-controls { display: flex; align-items: center; gap: 0.75rem; }
-        .status-pill { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.6rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; font-size: 0.65rem; }
-        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); }
-        .status-dot.ready { background: var(--success); }
-        .status-dot.working { background: var(--warning); animation: pulse 1s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-        .main-grid { display: grid; grid-template-columns: 320px 1fr; gap: 1rem; height: calc(100vh - 90px); }
-        @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; height: auto; } }
-        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
-        .card-header { padding: 0.6rem 0.875rem; border-bottom: 1px solid var(--border); font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); display: flex; align-items: center; justify-content: space-between; }
-        .card-body { padding: 0.875rem; flex: 1; overflow-y: auto; }
-        .btn { padding: 0.45rem 0.875rem; border: none; border-radius: 4px; font-family: inherit; font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 0.25rem; }
-        .btn-primary { background: linear-gradient(135deg, var(--gold), var(--gold-dim)); color: var(--bg); }
-        .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
-        .btn-secondary { background: var(--elevated); color: var(--text); border: 1px solid var(--border); }
-        .btn-ghost { background: none; color: var(--text-dim); padding: 0.25rem 0.4rem; }
-        .btn-ghost:hover { color: var(--text); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-block { width: 100%; justify-content: center; }
-        .btn-sm { padding: 0.3rem 0.5rem; font-size: 0.7rem; }
-        .upload-area { border: 2px dashed var(--border); border-radius: 6px; padding: 1.25rem 0.75rem; text-align: center; cursor: pointer; }
-        .upload-area:hover { border-color: var(--gold-dim); }
-        .upload-area.has-file { border-style: solid; border-color: var(--success); }
-        .upload-icon { font-size: 1.25rem; }
-        .upload-text { color: var(--text-dim); font-size: 0.75rem; }
-        .file-info { display: none; margin-top: 0.6rem; padding: 0.5rem; background: var(--elevated); border-radius: 4px; font-size: 0.75rem; }
-        .file-info.visible { display: block; }
-        .file-name { font-weight: 500; color: var(--gold); word-break: break-all; }
-        .file-meta { font-size: 0.65rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
-        .workers-panel { margin-top: 0.75rem; padding: 0.6rem; background: var(--elevated); border-radius: 6px; }
-        .workers-header { display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-dim); margin-bottom: 0.5rem; }
-        .worker-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.4rem; }
-        .worker-card { padding: 0.4rem 0.5rem; background: var(--bg); border-radius: 4px; border-left: 3px solid var(--border); font-size: 0.65rem; }
-        .worker-card.loading { border-color: var(--warning); }
-        .worker-card.ready { border-color: var(--success); }
-        .worker-card.working { border-color: var(--gold); }
-        .worker-card.error { border-color: var(--error); }
-        .worker-card-header { display: flex; justify-content: space-between; }
-        .worker-id { font-weight: 600; color: var(--text-dim); }
-        .worker-status { font-size: 0.6rem; color: var(--text-muted); }
-        .worker-card.working .worker-status { color: var(--gold); }
-        .worker-card.ready .worker-status { color: var(--success); }
-        .worker-task { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-muted); margin-top: 0.15rem; }
-        .worker-card.working .worker-task { color: var(--gold); }
-        .progress-section { margin-top: 0.75rem; padding: 0.6rem; background: var(--elevated); border-radius: 6px; display: none; }
-        .progress-section.visible { display: block; }
-        .progress-header { display: flex; justify-content: space-between; font-size: 0.7rem; margin-bottom: 0.4rem; }
-        .progress-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
-        .progress-fill { height: 100%; background: var(--gold); width: 0%; transition: width 0.2s; }
-        .progress-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.3rem; margin-top: 0.5rem; font-size: 0.6rem; }
-        .stat-item { display: flex; justify-content: space-between; color: var(--text-muted); }
-        .stat-value { color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
-        .chunk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(24px, 1fr)); gap: 2px; margin-top: 0.5rem; max-height: 120px; overflow-y: auto; }
-        .chunk-cell { aspect-ratio: 1; background: var(--border); border-radius: 2px; font-size: 0.45rem; display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
-        .chunk-cell.pending { background: var(--warning); color: var(--bg); }
-        .chunk-cell.done { background: var(--success); color: white; }
-        .chunk-cell.filtered { background: var(--text-muted); }
-        .chunk-cell.error { background: var(--error); color: white; }
-        .tabs { display: flex; border-bottom: 1px solid var(--border); }
-        .tab { padding: 0.5rem 0.875rem; background: none; border: none; color: var(--text-muted); font-family: inherit; font-size: 0.7rem; cursor: pointer; position: relative; }
-        .tab.active { color: var(--gold); }
-        .tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--gold); }
-        .tab-badge { background: var(--elevated); padding: 0.1rem 0.35rem; border-radius: 6px; font-size: 0.6rem; margin-left: 0.25rem; }
-        .tab-content { display: none; height: calc(100% - 33px); overflow-y: auto; }
-        .tab-content.active { display: block; }
-        .chunk-list { padding: 0.5rem; }
-        .chunk-item { padding: 0.6rem; margin-bottom: 0.4rem; background: var(--elevated); border-radius: 5px; border-left: 3px solid var(--border); }
-        .chunk-item.th { border-color: var(--thai); }
-        .chunk-item.en { border-color: var(--english); }
-        .chunk-item.filtered { opacity: 0.5; }
-        .chunk-header { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.3rem; flex-wrap: wrap; }
-        .chunk-id { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-muted); background: var(--bg); padding: 0.1rem 0.3rem; border-radius: 2px; }
-        .chunk-time { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-muted); }
-        .chunk-lang { font-size: 0.55rem; font-weight: 600; padding: 0.1rem 0.25rem; border-radius: 2px; }
-        .chunk-item.th .chunk-lang { background: rgba(58, 159, 196, 0.2); color: var(--thai); }
-        .chunk-item.en .chunk-lang { background: rgba(154, 123, 196, 0.2); color: var(--english); }
-        .chunk-original { font-size: 0.85rem; line-height: 1.5; }
-        .chunk-translation { font-size: 0.8rem; color: var(--gold); font-style: italic; padding-left: 0.6rem; border-left: 2px solid var(--gold-dim); margin-top: 0.3rem; }
-        .chunk-warning { font-size: 0.65rem; color: var(--warning); margin-top: 0.2rem; }
-        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); padding: 2rem; }
-        .empty-icon { font-size: 2rem; margin-bottom: 0.4rem; opacity: 0.4; }
-        .overlay { position: fixed; inset: 0; background: rgba(13, 13, 18, 0.95); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem; }
-        .overlay.hidden { display: none; }
-        .setup-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; width: 100%; max-width: 450px; }
-        .setup-title { font-size: 1rem; text-align: center; padding: 1rem; border-bottom: 1px solid var(--border); color: var(--gold); }
-        .setup-content { padding: 1rem; }
-        .setup-step { display: none; }
-        .setup-step.active { display: block; }
-        .setup-label { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.6rem; }
-        .option { padding: 0.6rem 0.75rem; background: var(--elevated); border: 2px solid var(--border); border-radius: 5px; margin-bottom: 0.35rem; cursor: pointer; }
-        .option:hover { border-color: var(--text-muted); }
-        .option.selected { border-color: var(--gold); }
-        .option-title { font-weight: 500; font-size: 0.85rem; }
-        .option-desc { font-size: 0.7rem; color: var(--text-muted); }
-        .slider-container { margin: 1rem 0; }
-        .slider-label { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.5rem; }
-        .slider-value { font-family: 'JetBrains Mono', monospace; color: var(--gold); font-weight: 600; }
-        .slider { width: 100%; height: 6px; border-radius: 3px; background: var(--border); -webkit-appearance: none; }
-        .slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--gold); cursor: pointer; }
-        .worker-estimate { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem; padding: 0.5rem; background: var(--bg); border-radius: 4px; }
-        .setup-workers-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.3rem; margin-top: 0.75rem; }
-        .setup-worker-cell { padding: 0.4rem; background: var(--bg); border-radius: 4px; text-align: center; font-size: 0.7rem; }
-        .setup-worker-cell .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); margin: 0 auto 0.2rem; }
-        .setup-worker-cell.loading .dot { background: var(--warning); animation: pulse 1s infinite; }
-        .setup-worker-cell.ready .dot { background: var(--success); }
-        .setup-worker-cell.error .dot { background: var(--error); }
-        .setup-footer { padding: 0.75rem 1rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; }
-        .resume-banner { display: none; padding: 0.6rem; background: rgba(212, 168, 83, 0.1); border: 1px solid var(--gold-dim); border-radius: 5px; margin-bottom: 0.6rem; }
-        .resume-banner.visible { display: block; }
-        .resume-title { font-size: 0.75rem; font-weight: 500; color: var(--gold); }
-        .resume-info { font-size: 0.65rem; color: var(--text-dim); margin: 0.25rem 0; }
-        .resume-actions { display: flex; gap: 0.3rem; margin-top: 0.4rem; }
-        .toast-area { position: fixed; bottom: 1rem; right: 1rem; z-index: 200; }
-        .toast { padding: 0.5rem 0.875rem; background: var(--elevated); border: 1px solid var(--border); border-radius: 4px; margin-top: 0.3rem; font-size: 0.75rem; }
-        .toast.success { border-color: var(--success); }
-        .toast.error { border-color: var(--error); }
-        .hidden { display: none !important; }
-        input[type="file"] { display: none; }
+        
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a24;
+            --bg-elevated: #22222e;
+            --border-primary: #2a2a3a;
+            --border-secondary: #363648;
+            --text-primary: #e8e8f0;
+            --text-secondary: #a0a0b8;
+            --text-muted: #606078;
+            --accent-gold: #d4a853;
+            --accent-gold-dim: #a07830;
+            --accent-thai: #4a90c2;
+            --accent-english: #9a70c2;
+            --status-success: #48a068;
+            --status-warning: #c08840;
+            --status-error: #c05050;
+            --status-info: #5080c0;
+        }
+        
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        body {
+            font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            font-size: 14px;
+        }
+        
+        /* ============================================
+           LAYOUT
+           ============================================ */
+        
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .app-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-primary);
+            flex-shrink: 0;
+            z-index: 50;
+        }
+        
+        .app-logo {
+            font-size: 1rem;
+            font-weight: 300;
+            letter-spacing: 0.2em;
+            background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dim));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .app-header-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .worker-status-display {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0.75rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .worker-dots {
+            display: flex;
+            gap: 3px;
+        }
+        
+        .worker-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border-secondary);
+            transition: background 0.2s;
+        }
+        
+        .worker-dot.loading {
+            background: var(--status-warning);
+            animation: pulse 1s infinite;
+        }
+        
+        .worker-dot.ready {
+            background: var(--status-success);
+        }
+        
+        .worker-dot.working {
+            background: var(--accent-gold);
+            animation: pulse 0.5s infinite;
+        }
+        
+        .worker-dot.error {
+            background: var(--status-error);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        
+        .app-main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        /* ============================================
+           SIDEBAR
+           ============================================ */
+        
+        .sidebar {
+            width: 240px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-primary);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            transition: width 0.2s, margin 0.2s;
+            overflow: hidden;
+        }
+        
+        .sidebar.collapsed {
+            width: 0;
+            margin-left: -1px;
+        }
+        
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-primary);
+            flex-shrink: 0;
+        }
+        
+        .sidebar-title {
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+        }
+        
+        .sidebar-sessions {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+        
+        .session-card {
+            padding: 0.6rem 0.75rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+        }
+        
+        .session-card:hover {
+            border-color: var(--border-secondary);
+            background: var(--bg-elevated);
+        }
+        
+        .session-card.active {
+            border-color: var(--accent-gold);
+            background: rgba(212, 168, 83, 0.08);
+        }
+        
+        .session-card-date {
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.15rem;
+        }
+        
+        .session-card-name {
+            font-size: 0.75rem;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 0.3rem;
+        }
+        
+        .session-card-progress {
+            display: flex;
+            gap: 2px;
+        }
+        
+        .session-card-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--border-secondary);
+        }
+        
+        .session-card-dot.filled {
+            background: var(--status-success);
+        }
+        
+        .session-card-dot.partial {
+            background: var(--status-warning);
+        }
+        
+        .session-card-delete {
+            position: absolute;
+            top: 0.4rem;
+            right: 0.4rem;
+            width: 20px;
+            height: 20px;
+            border: none;
+            background: var(--status-error);
+            color: white;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .session-card:hover .session-card-delete {
+            opacity: 1;
+        }
+        
+        .sidebar-footer {
+            padding: 0.75rem;
+            border-top: 1px solid var(--border-primary);
+            flex-shrink: 0;
+        }
+        
+        .new-session-btn {
+            width: 100%;
+            padding: 0.6rem;
+            background: var(--bg-tertiary);
+            border: 2px dashed var(--border-secondary);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+        }
+        
+        .new-session-btn:hover {
+            border-color: var(--accent-gold);
+            color: var(--accent-gold);
+            background: rgba(212, 168, 83, 0.05);
+        }
+        
+        /* ============================================
+           MAIN CONTENT
+           ============================================ */
+        
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--bg-primary);
+        }
+        
+        .content-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-primary);
+            flex-shrink: 0;
+            gap: 1rem;
+        }
+        
+        .content-header-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .sidebar-toggle {
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--border-primary);
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+        
+        .sidebar-toggle:hover {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+        }
+        
+        .session-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .session-name-input {
+            background: transparent;
+            border: none;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            width: 100%;
+            padding: 0.2rem 0;
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.15s;
+        }
+        
+        .session-name-input:hover {
+            border-bottom-color: var(--border-secondary);
+        }
+        
+        .session-name-input:focus {
+            outline: none;
+            border-bottom-color: var(--accent-gold);
+        }
+        
+        .session-meta {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            margin-top: 0.15rem;
+        }
+        
+        .content-header-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-shrink: 0;
+        }
+        
+        /* ============================================
+           BUTTONS
+           ============================================ */
+        
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 5px;
+            font-family: inherit;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            white-space: nowrap;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dim));
+            color: var(--bg-primary);
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            filter: brightness(1.1);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-primary);
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--bg-elevated);
+            border-color: var(--border-secondary);
+        }
+        
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
+            padding: 0.35rem 0.5rem;
+        }
+        
+        .btn-ghost:hover:not(:disabled) {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+        
+        .btn-icon {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            border-radius: 6px;
+        }
+        
+        .btn-sm {
+            padding: 0.3rem 0.6rem;
+            font-size: 0.7rem;
+        }
+        
+        .btn-xs {
+            padding: 0.2rem 0.4rem;
+            font-size: 0.65rem;
+        }
+        
+        /* ============================================
+           DUAL COLUMN TRANSCRIPT VIEW
+           ============================================ */
+        
+        .transcript-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .transcript-columns-header {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            border-bottom: 1px solid var(--border-primary);
+            background: var(--bg-secondary);
+            flex-shrink: 0;
+        }
+        
+        .column-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.6rem 1rem;
+        }
+        
+        .column-header:first-child {
+            border-right: 1px solid var(--border-primary);
+        }
+        
+        .column-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+        }
+        
+        .column-title.thai {
+            color: var(--accent-thai);
+        }
+        
+        .column-title.english {
+            color: var(--accent-english);
+        }
+        
+        .transcript-scroll {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
+        .chunk-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            border-bottom: 1px solid var(--border-primary);
+            transition: background 0.1s;
+        }
+        
+        .chunk-row:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        .chunk-row.filtered {
+            opacity: 0.5;
+        }
+        
+        .chunk-cell {
+            padding: 0.75rem 1rem;
+            min-height: 80px;
+            position: relative;
+        }
+        
+        .chunk-cell:first-child {
+            border-right: 1px solid var(--border-primary);
+        }
+        
+        .chunk-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .chunk-id {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.6rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            background: var(--bg-tertiary);
+            padding: 0.15rem 0.4rem;
+            border-radius: 3px;
+        }
+        
+        .chunk-time {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.6rem;
+            color: var(--text-muted);
+        }
+        
+        .chunk-lang {
+            font-size: 0.6rem;
+            font-weight: 600;
+            padding: 0.1rem 0.35rem;
+            border-radius: 3px;
+        }
+        
+        .chunk-lang.th {
+            background: rgba(74, 144, 194, 0.15);
+            color: var(--accent-thai);
+        }
+        
+        .chunk-lang.en {
+            background: rgba(154, 112, 194, 0.15);
+            color: var(--accent-english);
+        }
+        
+        .chunk-play-btn {
+            width: 22px;
+            height: 22px;
+            border: 1px solid var(--border-secondary);
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border-radius: 50%;
+            font-size: 0.6rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+        
+        .chunk-play-btn:hover {
+            background: var(--accent-gold);
+            border-color: var(--accent-gold);
+            color: var(--bg-primary);
+        }
+        
+        .chunk-text {
+            font-size: 0.9rem;
+            line-height: 1.7;
+            color: var(--text-primary);
+        }
+        
+        .chunk-text.empty {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+        
+        .chunk-text.filtered-msg {
+            color: var(--status-warning);
+            font-size: 0.8rem;
+        }
+        
+        .chunk-actions {
+            display: flex;
+            gap: 0.3rem;
+            margin-top: 0.5rem;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+        
+        .chunk-row:hover .chunk-actions {
+            opacity: 1;
+        }
+        
+        .chunk-action-btn {
+            padding: 0.2rem 0.4rem;
+            font-size: 0.6rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            color: var(--text-secondary);
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 0.2rem;
+        }
+        
+        .chunk-action-btn:hover {
+            background: var(--bg-elevated);
+            border-color: var(--border-secondary);
+            color: var(--text-primary);
+        }
+        
+        .back-translation {
+            margin-top: 0.6rem;
+            padding: 0.5rem 0.6rem;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            border-left: 2px solid var(--accent-gold-dim);
+        }
+        
+        .back-translation-label {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .back-translation-text {
+            font-size: 0.8rem;
+            color: var(--accent-gold);
+            font-style: italic;
+            line-height: 1.5;
+        }
+        
+        /* ============================================
+           EMPTY STATE
+           ============================================ */
+        
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+        
+        .empty-state-title {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state-desc {
+            font-size: 0.8rem;
+            max-width: 300px;
+        }
+        
+        .drop-zone {
+            margin-top: 1.5rem;
+            padding: 2rem 3rem;
+            border: 2px dashed var(--border-secondary);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .drop-zone:hover {
+            border-color: var(--accent-gold);
+            background: rgba(212, 168, 83, 0.05);
+        }
+        
+        .drop-zone.dragover {
+            border-color: var(--accent-gold);
+            background: rgba(212, 168, 83, 0.1);
+            transform: scale(1.02);
+        }
+        
+        .drop-zone-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .drop-zone-text {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .drop-zone-hint {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+        
+        /* ============================================
+           PROGRESS BAR (Bottom)
+           ============================================ */
+        
+        .progress-bar-container {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-primary);
+            padding: 0.6rem 1rem;
+            flex-shrink: 0;
+            display: none;
+        }
+        
+        .progress-bar-container.visible {
+            display: block;
+        }
+        
+        .progress-bar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.4rem;
+        }
+        
+        .progress-bar-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+        
+        .progress-bar-stats {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.65rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted);
+        }
+        
+        .progress-bar-track {
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+            overflow: hidden;
+            display: flex;
+        }
+        
+        .progress-bar-fill {
+            height: 100%;
+            transition: width 0.3s;
+        }
+        
+        .progress-bar-fill.transcribe {
+            background: var(--accent-thai);
+        }
+        
+        .progress-bar-fill.translate {
+            background: var(--accent-gold);
+        }
+
+        /* ============================================
+           SETUP OVERLAY
+           ============================================ */
+        
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 10, 15, 0.95);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            backdrop-filter: blur(4px);
+        }
+        
+        .overlay.hidden {
+            display: none;
+        }
+        
+        .setup-modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .setup-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border-primary);
+            text-align: center;
+        }
+        
+        .setup-title {
+            font-size: 1.1rem;
+            font-weight: 400;
+            color: var(--accent-gold);
+        }
+        
+        .setup-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+        
+        .setup-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .setup-step {
+            display: none;
+        }
+        
+        .setup-step.active {
+            display: block;
+        }
+        
+        .setup-step-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+        }
+        
+        .setup-option {
+            padding: 0.75rem 1rem;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border-primary);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        
+        .setup-option:hover {
+            border-color: var(--border-secondary);
+            background: var(--bg-elevated);
+        }
+        
+        .setup-option.selected {
+            border-color: var(--accent-gold);
+            background: rgba(212, 168, 83, 0.08);
+        }
+        
+        .setup-option-title {
+            font-weight: 500;
+            font-size: 0.9rem;
+            margin-bottom: 0.15rem;
+        }
+        
+        .setup-option-desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .setup-slider-container {
+            margin: 1.5rem 0;
+        }
+        
+        .setup-slider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        
+        .setup-slider-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        
+        .setup-slider-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--accent-gold);
+        }
+        
+        .setup-slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: var(--bg-tertiary);
+            -webkit-appearance: none;
+            appearance: none;
+            cursor: pointer;
+        }
+        
+        .setup-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--accent-gold);
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        .setup-slider::-moz-range-thumb {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--accent-gold);
+            cursor: pointer;
+            border: none;
+        }
+        
+        .setup-estimate {
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            background: var(--bg-primary);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+        
+        .setup-workers-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+        
+        .setup-worker-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: 8px;
+            padding: 0.75rem;
+        }
+        
+        .setup-worker-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .setup-worker-id {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        
+        .setup-worker-status {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+        }
+        
+        .setup-worker-card.loading .setup-worker-status {
+            color: var(--status-warning);
+        }
+        
+        .setup-worker-card.ready .setup-worker-status {
+            color: var(--status-success);
+        }
+        
+        .setup-worker-card.error .setup-worker-status {
+            color: var(--status-error);
+        }
+        
+        .setup-worker-progress {
+            height: 4px;
+            background: var(--bg-primary);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 0.3rem;
+        }
+        
+        .setup-worker-progress-fill {
+            height: 100%;
+            background: var(--accent-gold);
+            width: 0%;
+            transition: width 0.2s;
+        }
+        
+        .setup-worker-card.ready .setup-worker-progress-fill {
+            background: var(--status-success);
+            width: 100%;
+        }
+        
+        .setup-worker-task {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .setup-complete-icon {
+            font-size: 3rem;
+            text-align: center;
+            margin-bottom: 0.75rem;
+        }
+        
+        .setup-complete-title {
+            font-size: 1.1rem;
+            color: var(--status-success);
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .setup-complete-summary {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+        
+        .setup-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border-primary);
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+        
+        .setup-footer .btn {
+            min-width: 100px;
+        }
+        
+        /* ============================================
+           INGEST OVERLAY
+           ============================================ */
+        
+        .ingest-modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 450px;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .ingest-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            animation: bounce 1s infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        
+        .ingest-title {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .ingest-status {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+        
+        .ingest-progress {
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+        }
+        
+        .ingest-progress-fill {
+            height: 100%;
+            background: var(--accent-gold);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .ingest-detail {
+            font-size: 0.7rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted);
+        }
+        
+        /* ============================================
+           TOAST NOTIFICATIONS
+           ============================================ */
+        
+        .toast-container {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .toast {
+            padding: 0.75rem 1rem;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-primary);
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            animation: toastIn 0.2s ease-out;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            max-width: 350px;
+        }
+        
+        @keyframes toastIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .toast.success {
+            border-color: var(--status-success);
+        }
+        
+        .toast.error {
+            border-color: var(--status-error);
+        }
+        
+        .toast.warning {
+            border-color: var(--status-warning);
+        }
+        
+        .toast.info {
+            border-color: var(--status-info);
+        }
+        
+        /* ============================================
+           UTILITY CLASSES
+           ============================================ */
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        /* ============================================
+           RESPONSIVE
+           ============================================ */
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                z-index: 100;
+                width: 280px;
+                transform: translateX(-100%);
+                transition: transform 0.2s;
+            }
+            
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            
+            .sidebar.collapsed {
+                width: 280px;
+                margin-left: 0;
+            }
+            
+            .chunk-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .chunk-cell:first-child {
+                border-right: none;
+                border-bottom: 1px solid var(--border-primary);
+            }
+            
+            .transcript-columns-header {
+                grid-template-columns: 1fr;
+            }
+            
+            .column-header:first-child {
+                border-right: none;
+                border-bottom: 1px solid var(--border-primary);
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- Setup Overlay -->
     <div class="overlay" id="setupOverlay">
-        <div class="setup-box">
-            <div class="setup-title">Thai Transcriber Setup</div>
-            <div class="setup-content">
+        <div class="setup-modal">
+            <div class="setup-header">
+                <div class="setup-title">Thai Transcriber Setup</div>
+                <div class="setup-subtitle">Configure your transcription environment</div>
+            </div>
+            <div class="setup-body">
+                <!-- Step 1: Model Selection -->
                 <div class="setup-step active" data-step="1">
-                    <div class="setup-label">Transcription Model:</div>
-                    <div class="option" data-value="tiny"><div class="option-title">🚀 Tiny (~40 MB/worker)</div><div class="option-desc">Fast, less accurate</div></div>
-                    <div class="option selected" data-value="base"><div class="option-title">⚖️ Base (~75 MB/worker)</div><div class="option-desc">Recommended</div></div>
-                    <div class="option" data-value="small"><div class="option-title">🎯 Small (~250 MB/worker)</div><div class="option-desc">Most accurate</div></div>
-                </div>
-                <div class="setup-step" data-step="2">
-                    <div class="setup-label">Translation:</div>
-                    <div class="option selected" data-value="yes"><div class="option-title">🔄 Thai → English (+50 MB/worker)</div></div>
-                    <div class="option" data-value="no"><div class="option-title">📝 Transcription only</div></div>
-                </div>
-                <div class="setup-step" data-step="3">
-                    <div class="setup-label">Parallel Workers (1-8):</div>
-                    <div class="slider-container">
-                        <div class="slider-label"><span>Workers</span><span class="slider-value" id="workerCountDisplay">4</span></div>
-                        <input type="range" class="slider" id="workerCountSlider" min="1" max="8" value="4">
-                        <div class="worker-estimate" id="workerEstimate">~500 MB RAM • 4× faster</div>
+                    <div class="setup-step-label">Select Whisper Model</div>
+                    <div class="setup-option" data-value="tiny">
+                        <div class="setup-option-title">🚀 Tiny</div>
+                        <div class="setup-option-desc">~40 MB per worker • Fastest, less accurate</div>
                     </div>
-                    <div style="font-size:0.7rem;color:var(--text-muted);">Each worker loads its own model. More = faster but more RAM.</div>
+                    <div class="setup-option selected" data-value="base">
+                        <div class="setup-option-title">⚖️ Base (Recommended)</div>
+                        <div class="setup-option-desc">~75 MB per worker • Good balance</div>
+                    </div>
+                    <div class="setup-option" data-value="small">
+                        <div class="setup-option-title">🎯 Small</div>
+                        <div class="setup-option-desc">~250 MB per worker • Most accurate</div>
+                    </div>
                 </div>
-                <div class="setup-step" data-step="4">
-                    <div class="setup-label">Initializing workers...</div>
-                    <div class="progress-bar"><div class="progress-fill" id="setupProgress"></div></div>
+                
+                <!-- Step 2: Worker Count -->
+                <div class="setup-step" data-step="2">
+                    <div class="setup-step-label">Number of Parallel Workers</div>
+                    <div class="setup-slider-container">
+                        <div class="setup-slider-header">
+                            <span class="setup-slider-label">Workers</span>
+                            <span class="setup-slider-value" id="setupWorkerCount">4</span>
+                        </div>
+                        <input type="range" class="setup-slider" id="setupWorkerSlider" min="1" max="8" value="4">
+                    </div>
+                    <div class="setup-estimate" id="setupEstimate">
+                        ~500 MB RAM • 4× parallel processing
+                    </div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.75rem; line-height: 1.5;">
+                        Each worker loads its own model copy. More workers = faster processing, but requires more memory.
+                        <br><br>
+                        Models include: Whisper (transcription) + Thai↔English translators
+                    </div>
+                </div>
+                
+                <!-- Step 3: Worker Initialization -->
+                <div class="setup-step" data-step="3">
+                    <div class="setup-step-label">Initializing Workers...</div>
                     <div class="setup-workers-grid" id="setupWorkersGrid"></div>
                 </div>
-                <div class="setup-step" data-step="5">
-                    <div style="text-align:center;padding:1rem 0;">
-                        <div style="font-size:2rem;">✅</div>
-                        <div style="color:var(--success);">Ready!</div>
-                        <div style="color:var(--text-dim);font-size:0.75rem;" id="setupSummary"></div>
+                
+                <!-- Step 4: Complete -->
+                <div class="setup-step" data-step="4">
+                    <div class="setup-complete-icon">✅</div>
+                    <div class="setup-complete-title">Setup Complete</div>
+                    <div class="setup-complete-summary" id="setupSummary">
+                        4 workers ready • Whisper Base
                     </div>
                 </div>
             </div>
             <div class="setup-footer">
-                <button class="btn btn-secondary hidden" id="setupBack">← Back</button>
-                <button class="btn btn-primary" id="setupNext">Next →</button>
+                <button class="btn btn-secondary hidden" id="setupBackBtn">← Back</button>
+                <div style="flex: 1;"></div>
+                <button class="btn btn-primary" id="setupNextBtn">Next →</button>
             </div>
         </div>
     </div>
-
-    <div class="container">
-        <header>
-            <div class="logo">THAI TRANSCRIBER</div>
-            <div class="header-controls">
-                <div class="status-pill"><span class="status-dot" id="statusDot"></span><span id="statusText">Loading</span></div>
-                <button class="btn btn-ghost" id="restartBtn" title="Restart">🔄</button>
-                <button class="btn btn-ghost" id="settingsBtn" title="Settings">⚙️</button>
+    
+    <!-- Ingest Overlay -->
+    <div class="overlay hidden" id="ingestOverlay">
+        <div class="ingest-modal">
+            <div class="ingest-icon">📂</div>
+            <div class="ingest-title" id="ingestTitle">Processing Audio</div>
+            <div class="ingest-status" id="ingestStatus">Reading file...</div>
+            <div class="ingest-progress">
+                <div class="ingest-progress-fill" id="ingestProgressFill"></div>
+            </div>
+            <div class="ingest-detail" id="ingestDetail">0%</div>
+        </div>
+    </div>
+    
+    <!-- Main App -->
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="app-logo">THAI TRANSCRIBER</div>
+            <div class="app-header-controls">
+                <div class="worker-status-display">
+                    <div class="worker-dots" id="workerDots"></div>
+                    <span id="workerStatusText">Loading...</span>
+                </div>
+                <button class="btn btn-ghost btn-icon" id="restartWorkersBtn" title="Restart Workers">🔄</button>
+                <button class="btn btn-ghost btn-icon" id="settingsBtn" title="Settings">⚙️</button>
             </div>
         </header>
-        <div class="main-grid">
-            <div class="card">
-                <div class="card-header">Input</div>
-                <div class="card-body">
-                    <div class="resume-banner" id="resumeBanner">
-                        <div class="resume-title">⏸️ Incomplete Job</div>
-                        <div class="resume-info" id="resumeInfo"></div>
-                        <div class="resume-actions">
-                            <button class="btn btn-primary btn-sm" id="resumeBtn">▶️ Resume</button>
-                            <button class="btn btn-secondary btn-sm" id="discardBtn">🗑️ Discard</button>
-                        </div>
-                    </div>
-                    <div class="upload-area" id="uploadArea">
-                        <div class="upload-icon">🎵</div>
-                        <div class="upload-text">Drop audio file</div>
-                    </div>
-                    <input type="file" id="fileInput" accept="audio/*,.m4a">
-                    <div class="file-info" id="fileInfo">
-                        <div class="file-name" id="fileName"></div>
-                        <div class="file-meta" id="fileMeta"></div>
-                    </div>
-                    <div class="workers-panel" id="workersPanel">
-                        <div class="workers-header"><span>Workers</span><span id="workersReady">0/0</span></div>
-                        <div class="worker-cards" id="workerCards"></div>
-                    </div>
-                    <div class="progress-section" id="progressSection">
-                        <div class="progress-header"><span id="progressLabel">Processing</span><span id="progressPct">0%</span></div>
-                        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-                        <div class="progress-stats">
-                            <div class="stat-item"><span>Done</span><span class="stat-value" id="statChunks">0/0</span></div>
-                            <div class="stat-item"><span>Translated</span><span class="stat-value" id="statTranslated">0</span></div>
-                            <div class="stat-item"><span>Filtered</span><span class="stat-value" id="statFiltered">0</span></div>
-                            <div class="stat-item"><span>Errors</span><span class="stat-value" id="statErrors">0</span></div>
-                        </div>
-                        <div class="chunk-grid" id="chunkGrid"></div>
-                    </div>
-                    <div style="margin-top:0.75rem;">
-                        <button class="btn btn-primary btn-block" id="startBtn" disabled>▶️ Start</button>
-                        <button class="btn btn-secondary btn-block hidden" id="stopBtn">⏹ Stop</button>
-                    </div>
+        
+        <!-- Main Content -->
+        <div class="app-main">
+            <!-- Sidebar -->
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <span class="sidebar-title">Sessions</span>
+                    <span class="sidebar-title" id="sessionCount">0</span>
+                </div>
+                <div class="sidebar-sessions" id="sessionsList"></div>
+                <div class="sidebar-footer">
+                    <button class="new-session-btn" id="newSessionBtn">
+                        <span>+</span> New Recording
+                    </button>
+                </div>
+            </aside>
+            
+            <!-- Content Area -->
+            <main class="content-area" id="contentArea">
+                <!-- Will be populated dynamically -->
+            </main>
+        </div>
+        
+        <!-- Progress Bar -->
+        <div class="progress-bar-container" id="progressBarContainer">
+            <div class="progress-bar-header">
+                <span class="progress-bar-label" id="progressLabel">Processing...</span>
+                <div class="progress-bar-stats">
+                    <span id="progressTranscribe">Transcribe: 0/0</span>
+                    <span id="progressTranslate">Translate: 0/0</span>
                 </div>
             </div>
-            <div class="card">
-                <div class="tabs">
-                    <button class="tab active" data-tab="chunks">Chunks <span class="tab-badge" id="chunkCount">0</span></button>
-                    <button class="tab" data-tab="export">Export</button>
-                </div>
-                <div class="tab-content active" id="tab-chunks">
-                    <div class="chunk-list" id="chunkList">
-                        <div class="empty-state"><div class="empty-icon">🎧</div><div>Load audio to begin</div></div>
-                    </div>
-                </div>
-                <div class="tab-content" id="tab-export">
-                    <div style="padding:0.875rem;">
-                        <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:0.4rem;">Export Format:</div>
-                        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
-                            <button class="btn btn-secondary btn-sm" id="exportMd">📄 Markdown</button>
-                            <button class="btn btn-secondary btn-sm" id="exportJson">📋 JSON</button>
-                            <button class="btn btn-secondary btn-sm" id="exportTxt">📝 Text</button>
-                            <button class="btn btn-secondary btn-sm" id="copyAll">📋 Copy All</button>
-                        </div>
-                    </div>
-                </div>
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill transcribe" id="progressFillTranscribe" style="width: 0%;"></div>
+                <div class="progress-bar-fill translate" id="progressFillTranslate" style="width: 0%;"></div>
             </div>
         </div>
     </div>
-    <div class="toast-area" id="toastArea"></div>
+    
+    <!-- File Input -->
+    <input type="file" id="fileInput" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.flac">
+    
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
 
+    <!-- Worker Code (Blob) -->
     <script id="workerCode" type="text/js-worker">
-        let pipeline = null;
-        let translator = null;
-        let workerId = null;
+        // ================================================
+        // TRANSCRIPTION WORKER
+        // Each worker has its own model instances
+        // ================================================
         
-        self.onmessage = async function(e) {
-            const { type, data } = e.data;
+        let workerId = null;
+        let whisperPipeline = null;
+        let translatorThEn = null;
+        let translatorEnTh = null;
+        
+        // Message handler
+        self.onmessage = async function(event) {
+            const { type, data } = event.data;
             
-            if (type === 'init') {
-                workerId = data.workerId;
-                try {
-                    const { pipeline: pipelineFn } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
-                    self.postMessage({ type: 'status', workerId, status: 'loading_whisper' });
-                    pipeline = await pipelineFn('automatic-speech-recognition', data.whisperModel, {
-                        quantized: true,
-                        progress_callback: (p) => {
-                            if (p.status === 'progress') self.postMessage({ type: 'model_progress', workerId, progress: p.progress });
-                        }
-                    });
-                    if (data.enableTranslation) {
-                        self.postMessage({ type: 'status', workerId, status: 'loading_translator' });
-                        translator = await pipelineFn('translation', 'Xenova/opus-mt-th-en', { quantized: true });
-                    }
-                    self.postMessage({ type: 'ready', workerId });
-                } catch (err) {
-                    self.postMessage({ type: 'error', workerId, error: err.message });
-                }
-            }
-            
-            if (type === 'transcribe') {
-                const { chunkIndex, audioData, startTime, endTime } = data;
-                try {
-                    self.postMessage({ type: 'chunk_start', workerId, chunkIndex });
-                    const audio = new Float32Array(audioData);
-                    const result = await pipeline(audio, { language: 'th', task: 'transcribe', return_timestamps: false });
-                    let text = result.text?.trim() || '';
-                    let translation = null;
-                    let filtered = false;
-                    let filterReason = null;
-                    
-                    if (text) {
-                        const rep = detectRepetition(text);
-                        if (rep.isRepetitive) { filtered = true; filterReason = rep.reason; text = rep.cleaned || ''; }
-                    }
-                    
-                    const lang = detectLanguage(text);
-                    if (text && lang === 'th' && translator && !filtered) {
-                        try {
-                            const tr = await translator(text, { max_length: 512 });
-                            translation = tr[0]?.translation_text || null;
-                        } catch (e) {}
-                    }
-                    
-                    self.postMessage({ type: 'chunk_done', workerId, chunkIndex, result: { chunkIndex, startTime, endTime, text, language: lang, translation, filtered, filterReason } });
-                } catch (err) {
-                    self.postMessage({ type: 'chunk_error', workerId, chunkIndex, error: err.message });
-                }
+            switch (type) {
+                case 'init':
+                    await handleInit(data);
+                    break;
+                case 'transcribe':
+                    await handleTranscribe(data);
+                    break;
+                case 'translate':
+                    await handleTranslate(data);
+                    break;
+                case 'backTranslate':
+                    await handleBackTranslate(data);
+                    break;
             }
         };
         
-        function detectLanguage(text) {
-            if (!text) return 'unknown';
-            const thai = (text.match(/[\u0E00-\u0E7F]/g) || []).length;
-            const total = text.replace(/\s/g, '').length;
-            return total > 0 && thai / total > 0.3 ? 'th' : 'en';
+        // Initialize models
+        async function handleInit(data) {
+            workerId = data.workerId;
+            
+            try {
+                const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+                
+                // Load Whisper
+                sendStatus('loading', 'Loading Whisper...');
+                whisperPipeline = await pipeline(
+                    'automatic-speech-recognition',
+                    `Xenova/whisper-${data.model}`,
+                    {
+                        quantized: true,
+                        progress_callback: (progress) => {
+                            if (progress.status === 'progress') {
+                                sendProgress('whisper', progress.progress);
+                            }
+                        }
+                    }
+                );
+                sendProgress('whisper', 100);
+                
+                // Load Thai -> English translator
+                sendStatus('loading', 'Loading TH→EN...');
+                translatorThEn = await pipeline(
+                    'translation',
+                    'Xenova/opus-mt-th-en',
+                    {
+                        quantized: true,
+                        progress_callback: (progress) => {
+                            if (progress.status === 'progress') {
+                                sendProgress('th-en', progress.progress);
+                            }
+                        }
+                    }
+                );
+                sendProgress('th-en', 100);
+                
+                // Load English -> Thai translator
+                sendStatus('loading', 'Loading EN→TH...');
+                translatorEnTh = await pipeline(
+                    'translation',
+                    'Xenova/opus-mt-en-mul',
+                    {
+                        quantized: true,
+                        progress_callback: (progress) => {
+                            if (progress.status === 'progress') {
+                                sendProgress('en-th', progress.progress);
+                            }
+                        }
+                    }
+                );
+                sendProgress('en-th', 100);
+                
+                sendStatus('ready', 'Ready');
+                self.postMessage({ type: 'ready', workerId });
+                
+            } catch (error) {
+                sendStatus('error', error.message);
+                self.postMessage({ type: 'error', workerId, error: error.message });
+            }
         }
         
+        // Transcribe audio chunk
+        async function handleTranscribe(data) {
+            const { sessionId, chunkIndex, audioData, startTime, endTime } = data;
+            
+            try {
+                sendStatus('working', `Chunk ${chunkIndex + 1}`);
+                self.postMessage({ type: 'chunkStart', workerId, sessionId, chunkIndex });
+                
+                const audio = new Float32Array(audioData);
+                
+                // Pre-check: Silence detection
+                const isSilent = detectSilence(audio);
+                if (isSilent) {
+                    self.postMessage({
+                        type: 'chunkComplete',
+                        workerId,
+                        sessionId,
+                        chunkIndex,
+                        result: {
+                            transcript: '',
+                            transcriptLang: 'unknown',
+                            filtered: true,
+                            filterReason: 'Silence detected'
+                        }
+                    });
+                    sendStatus('ready', 'Ready');
+                    return;
+                }
+                
+                // Transcribe with Whisper
+                const result = await whisperPipeline(audio, {
+                    language: 'th',
+                    task: 'transcribe',
+                    return_timestamps: false
+                });
+                
+                let transcript = result.text?.trim() || '';
+                let filtered = false;
+                let filterReason = null;
+                
+                // Post-check: Repetition detection
+                if (transcript) {
+                    const repCheck = detectRepetition(transcript);
+                    if (repCheck.isRepetitive) {
+                        filtered = true;
+                        filterReason = repCheck.reason;
+                        transcript = repCheck.cleaned || '';
+                    }
+                }
+                
+                // Detect language
+                const transcriptLang = detectLanguage(transcript);
+                
+                self.postMessage({
+                    type: 'chunkComplete',
+                    workerId,
+                    sessionId,
+                    chunkIndex,
+                    result: {
+                        transcript,
+                        transcriptLang,
+                        filtered,
+                        filterReason
+                    }
+                });
+                
+                sendStatus('ready', 'Ready');
+                
+            } catch (error) {
+                self.postMessage({
+                    type: 'chunkError',
+                    workerId,
+                    sessionId,
+                    chunkIndex,
+                    error: error.message
+                });
+                sendStatus('ready', 'Ready');
+            }
+        }
+        
+        // Translate text
+        async function handleTranslate(data) {
+            const { sessionId, chunkIndex, text, sourceLang } = data;
+            
+            try {
+                sendStatus('working', `Translating ${chunkIndex + 1}`);
+                
+                let translation = '';
+                let targetLang = '';
+                
+                if (sourceLang === 'th' && translatorThEn) {
+                    const result = await translatorThEn(text, { max_length: 512 });
+                    translation = result[0]?.translation_text || '';
+                    targetLang = 'en';
+                } else if (sourceLang === 'en' && translatorEnTh) {
+                    const result = await translatorEnTh(text, { max_length: 512 });
+                    translation = result[0]?.translation_text || '';
+                    targetLang = 'th';
+                }
+                
+                self.postMessage({
+                    type: 'translateComplete',
+                    workerId,
+                    sessionId,
+                    chunkIndex,
+                    result: {
+                        translation,
+                        translationLang: targetLang
+                    }
+                });
+                
+                sendStatus('ready', 'Ready');
+                
+            } catch (error) {
+                self.postMessage({
+                    type: 'translateError',
+                    workerId,
+                    sessionId,
+                    chunkIndex,
+                    error: error.message
+                });
+                sendStatus('ready', 'Ready');
+            }
+        }
+        
+        // Back-translate
+        async function handleBackTranslate(data) {
+            const { sessionId, chunkIndex, text, sourceLang } = data;
+            
+            try {
+                sendStatus('working', `Back-translating ${chunkIndex + 1}`);
+                
+                let backTranslation = '';
+                
+                // Back-translate: if source was TH (translation is EN), translate EN->TH
+                // if source was EN (translation is TH), translate TH->EN
+                if (sourceLang === 'th' && translatorEnTh) {
+                    // Translation is EN, back-translate to TH
+                    const result = await translatorEnTh(text, { max_length: 512 });
+                    backTranslation = result[0]?.translation_text || '';
+                } else if (sourceLang === 'en' && translatorThEn) {
+                    // Translation is TH, back-translate to EN
+                    const result = await translatorThEn(text, { max_length: 512 });
+                    backTranslation = result[0]?.translation_text || '';
+                }
+                
+                self.postMessage({
+                    type: 'backTranslateComplete',
+                    workerId,
+                    sessionId,
+                    chunkIndex,
+                    result: { backTranslation }
+                });
+                
+                sendStatus('ready', 'Ready');
+                
+            } catch (error) {
+                self.postMessage({
+                    type: 'backTranslateError',
+                    workerId,
+                    sessionId,
+                    chunkIndex,
+                    error: error.message
+                });
+                sendStatus('ready', 'Ready');
+            }
+        }
+        
+        // Utility: Send status update
+        function sendStatus(status, task) {
+            self.postMessage({ type: 'status', workerId, status, task });
+        }
+        
+        // Utility: Send progress update
+        function sendProgress(model, progress) {
+            self.postMessage({ type: 'progress', workerId, model, progress });
+        }
+        
+        // Utility: Detect silence (RMS threshold)
+        function detectSilence(audioData) {
+            if (!audioData || audioData.length === 0) return true;
+            
+            let sumSquares = 0;
+            for (let i = 0; i < audioData.length; i++) {
+                sumSquares += audioData[i] * audioData[i];
+            }
+            
+            const rms = Math.sqrt(sumSquares / audioData.length);
+            const db = 20 * Math.log10(rms + 1e-10);
+            
+            // Consider silent if below -40 dB
+            return db < -40;
+        }
+        
+        // Utility: Detect repetition/hallucination
         function detectRepetition(text) {
-            const words = text.split(/\s+/);
-            if (words.length < 5) return { isRepetitive: false };
-            if (/(.{2,})\1{5,}/.test(text)) return { isRepetitive: true, reason: 'Loop detected', cleaned: null };
-            const counts = {};
-            for (const w of words) counts[w] = (counts[w] || 0) + 1;
-            const max = Math.max(...Object.values(counts));
-            if (max > words.length * 0.5 && words.length > 8) return { isRepetitive: true, reason: 'Repetition', cleaned: null };
+            if (!text || text.length < 20) {
+                return { isRepetitive: false };
+            }
+            
+            // Check for character-level repetition (Thai characters repeating)
+            const charRepeatPattern = /([\u0E00-\u0E7F]{1,5})\1{5,}/;
+            if (charRepeatPattern.test(text)) {
+                return {
+                    isRepetitive: true,
+                    reason: 'Character repetition loop',
+                    cleaned: null
+                };
+            }
+            
+            // Check for word-level repetition
+            const words = text.split(/\s+/).filter(w => w.length > 0);
+            if (words.length < 5) {
+                return { isRepetitive: false };
+            }
+            
+            // Count word frequencies
+            const wordCounts = {};
+            for (const word of words) {
+                wordCounts[word] = (wordCounts[word] || 0) + 1;
+            }
+            
+            // If any word appears more than 50% of the time, it's repetitive
+            const maxCount = Math.max(...Object.values(wordCounts));
+            if (maxCount > words.length * 0.5 && words.length > 8) {
+                return {
+                    isRepetitive: true,
+                    reason: 'Word repetition loop',
+                    cleaned: null
+                };
+            }
+            
+            // Check for phrase repetition (same 2-4 word sequence repeating)
+            for (let phraseLen = 2; phraseLen <= 4; phraseLen++) {
+                if (words.length < phraseLen * 5) continue;
+                
+                const phrase = words.slice(0, phraseLen).join(' ');
+                let repeatCount = 0;
+                
+                for (let i = 0; i <= words.length - phraseLen; i++) {
+                    const testPhrase = words.slice(i, i + phraseLen).join(' ');
+                    if (testPhrase === phrase) repeatCount++;
+                }
+                
+                if (repeatCount >= 4) {
+                    return {
+                        isRepetitive: true,
+                        reason: 'Phrase repetition loop',
+                        cleaned: phrase
+                    };
+                }
+            }
+            
             return { isRepetitive: false };
+        }
+        
+        // Utility: Detect language
+        function detectLanguage(text) {
+            if (!text || text.trim().length === 0) {
+                return 'unknown';
+            }
+            
+            const thaiChars = (text.match(/[\u0E00-\u0E7F]/g) || []).length;
+            const totalChars = text.replace(/\s/g, '').length;
+            
+            if (totalChars === 0) return 'unknown';
+            
+            const thaiRatio = thaiChars / totalChars;
+            
+            if (thaiRatio > 0.3) return 'th';
+            return 'en';
         }
     </script>
 
+    <!-- Main Application Script -->
     <script type="module">
-        const DB_NAME = 'ThaiTranscriberV6';
+        // ================================================
+        // THAI TRANSCRIBER v7 - Main Application
+        // ================================================
+        
+        // ============================================
+        // CONSTANTS
+        // ============================================
+        
+        const DB_NAME = 'ThaiTranscriberV7';
         const DB_VERSION = 1;
+        const MAX_SESSIONS = 10;
+        const CHUNK_DURATION_SEC = 30;
+        const SAMPLE_RATE = 16000;
+        
+        // ============================================
+        // STORAGE CLASS (IndexedDB)
+        // ============================================
         
         class Storage {
-            constructor() { this.db = null; }
+            constructor() {
+                this.db = null;
+                this.initPromise = null;
+            }
+            
             async init() {
-                return new Promise((resolve, reject) => {
-                    const req = indexedDB.open(DB_NAME, DB_VERSION);
-                    req.onerror = () => reject(req.error);
-                    req.onsuccess = () => { this.db = req.result; resolve(); };
-                    req.onupgradeneeded = (e) => {
-                        const db = e.target.result;
-                        ['config', 'audio', 'chunks', 'results', 'progress'].forEach(s => {
-                            if (!db.objectStoreNames.contains(s)) db.createObjectStore(s);
-                        });
+                if (this.initPromise) return this.initPromise;
+                
+                this.initPromise = new Promise((resolve, reject) => {
+                    const request = indexedDB.open(DB_NAME, DB_VERSION);
+                    
+                    request.onerror = () => {
+                        console.error('IndexedDB error:', request.error);
+                        reject(request.error);
+                    };
+                    
+                    request.onsuccess = () => {
+                        this.db = request.result;
+                        console.log('IndexedDB initialized');
+                        resolve();
+                    };
+                    
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        
+                        // Sessions store
+                        if (!db.objectStoreNames.contains('sessions')) {
+                            const sessionsStore = db.createObjectStore('sessions', { keyPath: 'id' });
+                            sessionsStore.createIndex('createdAt', 'createdAt', { unique: false });
+                        }
+                        
+                        // Chunks store
+                        if (!db.objectStoreNames.contains('chunks')) {
+                            const chunksStore = db.createObjectStore('chunks', { keyPath: 'key' });
+                            chunksStore.createIndex('sessionId', 'sessionId', { unique: false });
+                        }
+                        
+                        // Config store
+                        if (!db.objectStoreNames.contains('config')) {
+                            db.createObjectStore('config', { keyPath: 'key' });
+                        }
                     };
                 });
+                
+                return this.initPromise;
             }
-            async get(store, key) {
+            
+            async ensureDb() {
                 if (!this.db) await this.init();
-                return new Promise((res, rej) => { const r = this.db.transaction(store, 'readonly').objectStore(store).get(key); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
             }
-            async set(store, key, value) {
-                if (!this.db) await this.init();
-                return new Promise((res, rej) => { const r = this.db.transaction(store, 'readwrite').objectStore(store).put(value, key); r.onsuccess = () => res(); r.onerror = () => rej(r.error); });
+            
+            // Generic operations
+            async get(storeName, key) {
+                await this.ensureDb();
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(storeName, 'readonly');
+                    const store = tx.objectStore(storeName);
+                    const request = store.get(key);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
             }
-            async getAll(store) {
-                if (!this.db) await this.init();
-                return new Promise((res, rej) => { const r = this.db.transaction(store, 'readonly').objectStore(store).getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+            
+            async put(storeName, data) {
+                await this.ensureDb();
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(storeName, 'readwrite');
+                    const store = tx.objectStore(storeName);
+                    const request = store.put(data);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
             }
-            async clear(store) {
-                if (!this.db) await this.init();
-                return new Promise((res, rej) => { const r = this.db.transaction(store, 'readwrite').objectStore(store).clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); });
+            
+            async delete(storeName, key) {
+                await this.ensureDb();
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(storeName, 'readwrite');
+                    const store = tx.objectStore(storeName);
+                    const request = store.delete(key);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
             }
-            async delete(store, key) {
-                if (!this.db) await this.init();
-                return new Promise((res, rej) => { const r = this.db.transaction(store, 'readwrite').objectStore(store).delete(key); r.onsuccess = () => res(); r.onerror = () => rej(r.error); });
+            
+            async getAll(storeName) {
+                await this.ensureDb();
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(storeName, 'readonly');
+                    const store = tx.objectStore(storeName);
+                    const request = store.getAll();
+                    request.onsuccess = () => resolve(request.result || []);
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            
+            async getAllByIndex(storeName, indexName, value) {
+                await this.ensureDb();
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(storeName, 'readonly');
+                    const store = tx.objectStore(storeName);
+                    const index = store.index(indexName);
+                    const request = index.getAll(value);
+                    request.onsuccess = () => resolve(request.result || []);
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            
+            async clear(storeName) {
+                await this.ensureDb();
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(storeName, 'readwrite');
+                    const store = tx.objectStore(storeName);
+                    const request = store.clear();
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            
+            // Session-specific operations
+            async getAllSessions() {
+                const sessions = await this.getAll('sessions');
+                return sessions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            }
+            
+            async getSession(sessionId) {
+                return this.get('sessions', sessionId);
+            }
+            
+            async saveSession(session) {
+                return this.put('sessions', session);
+            }
+            
+            async deleteSession(sessionId) {
+                // Delete all chunks for this session
+                const chunks = await this.getAllByIndex('chunks', 'sessionId', sessionId);
+                for (const chunk of chunks) {
+                    await this.delete('chunks', chunk.key);
+                }
+                // Delete session
+                await this.delete('sessions', sessionId);
+            }
+            
+            async getChunksForSession(sessionId) {
+                const chunks = await this.getAllByIndex('chunks', 'sessionId', sessionId);
+                return chunks.sort((a, b) => a.index - b.index);
+            }
+            
+            async getChunk(sessionId, chunkIndex) {
+                const key = `${sessionId}_${chunkIndex}`;
+                return this.get('chunks', key);
+            }
+            
+            async saveChunk(chunk) {
+                chunk.key = `${chunk.sessionId}_${chunk.index}`;
+                return this.put('chunks', chunk);
+            }
+            
+            // Config operations
+            async getConfig() {
+                const config = await this.get('config', 'main');
+                return config || {
+                    key: 'main',
+                    whisperModel: 'base',
+                    workerCount: 4,
+                    setupComplete: false
+                };
+            }
+            
+            async saveConfig(config) {
+                config.key = 'main';
+                return this.put('config', config);
+            }
+            
+            // Cleanup old sessions (keep only MAX_SESSIONS)
+            async cleanupOldSessions() {
+                const sessions = await this.getAllSessions();
+                if (sessions.length >= MAX_SESSIONS) {
+                    const toDelete = sessions.slice(MAX_SESSIONS - 1);
+                    for (const session of toDelete) {
+                        await this.deleteSession(session.id);
+                        console.log('Cleaned up old session:', session.id);
+                    }
+                }
             }
         }
         
+        // ============================================
+        // APPLICATION STATE
+        // ============================================
+        
         const storage = new Storage();
+        
         const state = {
-            config: { whisperModel: 'base', enableTranslation: true, workerCount: 4, setupComplete: false },
-            setupStep: 1, audioMeta: null, totalChunks: 0, results: new Map(),
-            pendingChunks: new Set(), completedChunks: new Set(), errorChunks: new Set(),
-            filteredCount: 0, isProcessing: false, workers: [], workerStates: new Map(),
-            readyWorkers: new Set(), chunkQueue: []
+            // Config
+            config: {
+                whisperModel: 'base',
+                workerCount: 4,
+                setupComplete: false
+            },
+            
+            // Setup wizard
+            setupStep: 1,
+            
+            // Workers
+            workers: [],
+            workerStates: new Map(), // workerId -> { status, task, progress }
+            readyWorkers: new Set(),
+            
+            // Current session
+            currentSession: null,
+            chunks: new Map(), // chunkIndex -> chunk data
+            
+            // Processing state
+            isProcessing: false,
+            transcribeQueue: [],
+            translateQueue: [],
+            
+            // Stats
+            stats: {
+                totalChunks: 0,
+                transcribedChunks: 0,
+                translatedChunks: 0,
+                filteredChunks: 0,
+                errorChunks: 0
+            }
         };
         
-        function createWorker(id) {
-            const code = document.getElementById('workerCode').textContent;
-            const blob = new Blob([code], { type: 'application/javascript' });
-            const worker = new Worker(URL.createObjectURL(blob), { type: 'module' });
-            worker.onmessage = (e) => handleWorkerMessage(id, e.data);
-            worker.onerror = (e) => { state.workerStates.set(id, 'error'); updateWorkerUI(id, 'error', 'Error'); };
+        // ============================================
+        // WORKER MANAGEMENT
+        // ============================================
+        
+        function createWorker(workerId) {
+            const workerCode = document.getElementById('workerCode').textContent;
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            const url = URL.createObjectURL(blob);
+            const worker = new Worker(url, { type: 'module' });
+            
+            worker.onmessage = (event) => handleWorkerMessage(workerId, event.data);
+            worker.onerror = (error) => handleWorkerError(workerId, error);
+            
             return worker;
         }
         
-        function handleWorkerMessage(workerId, msg) {
-            const { type } = msg;
-            if (type === 'status') {
-                updateWorkerUI(workerId, 'loading', msg.status === 'loading_whisper' ? 'Whisper...' : 'Translator...');
-                if (!state.config.setupComplete) updateSetupWorker(workerId, 'loading');
-            } else if (type === 'ready') {
-                state.readyWorkers.add(workerId);
-                state.workerStates.set(workerId, 'ready');
-                updateWorkerUI(workerId, 'ready', 'Ready');
-                updateWorkersHeader();
-                if (!state.config.setupComplete) { updateSetupWorker(workerId, 'ready'); checkAllWorkersReady(); }
-                if (state.isProcessing) assignChunkToWorker(workerId);
-            } else if (type === 'error') {
-                state.workerStates.set(workerId, 'error');
-                updateWorkerUI(workerId, 'error', msg.error?.substring(0, 15) || 'Error');
-                if (!state.config.setupComplete) updateSetupWorker(workerId, 'error');
-            } else if (type === 'chunk_start') {
-                state.pendingChunks.add(msg.chunkIndex);
-                state.workerStates.set(workerId, 'working');
-                updateWorkerUI(workerId, 'working', `#${msg.chunkIndex + 1}`);
-                updateChunkCell(msg.chunkIndex, 'pending');
-                updateStats();
-            } else if (type === 'chunk_done') {
-                handleChunkDone(workerId, msg.chunkIndex, msg.result);
-            } else if (type === 'chunk_error') {
-                handleChunkError(workerId, msg.chunkIndex, msg.error);
+        function handleWorkerMessage(workerId, message) {
+            const { type } = message;
+            
+            switch (type) {
+                case 'status':
+                    updateWorkerState(workerId, message.status, message.task);
+                    break;
+                    
+                case 'progress':
+                    updateWorkerProgress(workerId, message.model, message.progress);
+                    break;
+                    
+                case 'ready':
+                    state.readyWorkers.add(workerId);
+                    updateWorkerState(workerId, 'ready', 'Ready');
+                    checkAllWorkersReady();
+                    break;
+                    
+                case 'error':
+                    updateWorkerState(workerId, 'error', message.error);
+                    break;
+                    
+                case 'chunkStart':
+                    // Worker started processing a chunk
+                    break;
+                    
+                case 'chunkComplete':
+                    handleChunkComplete(message);
+                    break;
+                    
+                case 'chunkError':
+                    handleChunkError(message);
+                    break;
+                    
+                case 'translateComplete':
+                    handleTranslateComplete(message);
+                    break;
+                    
+                case 'translateError':
+                    handleTranslateError(message);
+                    break;
+                    
+                case 'backTranslateComplete':
+                    handleBackTranslateComplete(message);
+                    break;
+                    
+                case 'backTranslateError':
+                    handleBackTranslateError(message);
+                    break;
             }
         }
         
-        async function handleChunkDone(workerId, chunkIndex, result) {
-            state.pendingChunks.delete(chunkIndex);
-            state.completedChunks.add(chunkIndex);
-            state.results.set(chunkIndex, result);
-            if (result.filtered) state.filteredCount++;
-            
-            await storage.set('results', `chunk_${chunkIndex}`, result);
-            await storage.set('progress', 'current', { completed: Array.from(state.completedChunks), total: state.totalChunks });
-            
-            updateChunkCell(chunkIndex, result.filtered ? 'filtered' : 'done');
-            updateChunkList(result);
-            updateStats();
-            
-            state.workerStates.set(workerId, 'ready');
-            updateWorkerUI(workerId, 'ready', 'Ready');
-            assignChunkToWorker(workerId);
-            checkComplete();
+        function handleWorkerError(workerId, error) {
+            console.error(`Worker ${workerId} error:`, error);
+            updateWorkerState(workerId, 'error', 'Worker error');
         }
         
-        function handleChunkError(workerId, chunkIndex, error) {
-            state.pendingChunks.delete(chunkIndex);
-            state.errorChunks.add(chunkIndex);
-            updateChunkCell(chunkIndex, 'error');
-            updateStats();
-            state.workerStates.set(workerId, 'ready');
-            updateWorkerUI(workerId, 'ready', 'Ready');
-            assignChunkToWorker(workerId);
-            checkComplete();
+        function updateWorkerState(workerId, status, task) {
+            state.workerStates.set(workerId, {
+                status,
+                task,
+                progress: state.workerStates.get(workerId)?.progress || {}
+            });
+            updateWorkerUI();
         }
         
-        async function assignChunkToWorker(workerId) {
-            if (!state.isProcessing || state.chunkQueue.length === 0) return;
-            const chunkIndex = state.chunkQueue.shift();
-            const chunk = await storage.get('chunks', `chunk_${chunkIndex}`);
-            if (chunk) {
-                state.workers[workerId].postMessage({
-                    type: 'transcribe',
-                    data: { chunkIndex, audioData: chunk.data, startTime: chunk.startTime, endTime: chunk.endTime }
-                });
-            }
-        }
-        
-        function checkComplete() {
-            if (state.completedChunks.size + state.errorChunks.size >= state.totalChunks && state.isProcessing) {
-                state.isProcessing = false;
-                document.getElementById('startBtn').classList.remove('hidden');
-                document.getElementById('stopBtn').classList.add('hidden');
-                toast('success', 'Complete!');
-                updateStatus('ready', `${state.workers.length} workers`);
-            }
+        function updateWorkerProgress(workerId, model, progress) {
+            const workerState = state.workerStates.get(workerId) || { status: 'loading', task: '', progress: {} };
+            workerState.progress[model] = progress;
+            state.workerStates.set(workerId, workerState);
+            updateSetupWorkerUI(workerId);
         }
         
         async function initWorkers() {
-            state.workers.forEach(w => w.terminate());
+            // Terminate existing workers
+            for (const worker of state.workers) {
+                worker.terminate();
+            }
             state.workers = [];
             state.workerStates.clear();
             state.readyWorkers.clear();
             
             const count = state.config.workerCount;
-            const container = document.getElementById('workerCards');
-            container.innerHTML = '';
             
-            for (let i = 0; i < count; i++) {
-                const card = document.createElement('div');
-                card.className = 'worker-card';
-                card.id = `worker-card-${i}`;
-                card.innerHTML = `<div class="worker-card-header"><span class="worker-id">W${i + 1}</span><span class="worker-status">Init</span></div><div class="worker-task">—</div>`;
-                container.appendChild(card);
-                state.workerStates.set(i, 'idle');
-            }
-            updateWorkersHeader();
+            // Create worker dots UI
+            createWorkerDotsUI(count);
             
+            // Create and init workers
             for (let i = 0; i < count; i++) {
+                state.workerStates.set(i, { status: 'loading', task: 'Initializing...', progress: {} });
+                
                 const worker = createWorker(i);
                 state.workers.push(worker);
-                updateWorkerUI(i, 'loading', 'Init...');
+                
                 worker.postMessage({
                     type: 'init',
-                    data: { workerId: i, whisperModel: `Xenova/whisper-${state.config.whisperModel}`, enableTranslation: state.config.enableTranslation }
+                    data: {
+                        workerId: i,
+                        model: state.config.whisperModel
+                    }
                 });
             }
-        }
-        
-        function updateWorkerUI(id, status, task) {
-            const card = document.getElementById(`worker-card-${id}`);
-            if (!card) return;
-            card.className = `worker-card ${status}`;
-            card.querySelector('.worker-status').textContent = status === 'ready' ? 'Ready' : status === 'working' ? 'Working' : status === 'loading' ? 'Loading' : status === 'error' ? 'Error' : 'Idle';
-            card.querySelector('.worker-task').textContent = task || '—';
-        }
-        
-        function updateWorkersHeader() {
-            document.getElementById('workersReady').textContent = `${state.readyWorkers.size}/${state.workers.length}`;
-            if (state.readyWorkers.size === state.workers.length && state.workers.length > 0) updateStatus('ready', `${state.workers.length} workers`);
-        }
-        
-        async function handleFile(file) {
-            state.audioMeta = { name: file.name, size: file.size };
-            const arrayBuffer = await file.arrayBuffer();
-            await storage.set('audio', 'current', { name: file.name, size: file.size, data: arrayBuffer });
             
-            updateStatus('working', 'Decoding...');
-            const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-            const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-            
-            const length = audioBuffer.length;
-            const mono = new Float32Array(length);
-            if (audioBuffer.numberOfChannels === 1) { audioBuffer.copyFromChannel(mono, 0); }
-            else {
-                const left = new Float32Array(length), right = new Float32Array(length);
-                audioBuffer.copyFromChannel(left, 0); audioBuffer.copyFromChannel(right, 1);
-                for (let i = 0; i < length; i++) mono[i] = (left[i] + right[i]) / 2;
-            }
-            
-            let resampled = mono;
-            if (audioBuffer.sampleRate !== 16000) {
-                const ratio = audioBuffer.sampleRate / 16000;
-                const newLen = Math.round(mono.length / ratio);
-                resampled = new Float32Array(newLen);
-                for (let i = 0; i < newLen; i++) {
-                    const idx = i * ratio, lo = Math.floor(idx);
-                    resampled[i] = mono[lo] * (1 - (idx - lo)) + mono[Math.min(lo + 1, mono.length - 1)] * (idx - lo);
-                }
-            }
-            
-            await storage.clear('chunks');
-            await storage.clear('results');
-            
-            const chunkLen = 30 * 16000;
-            state.totalChunks = Math.ceil(resampled.length / chunkLen);
-            
-            for (let i = 0; i < state.totalChunks; i++) {
-                const start = i * chunkLen, end = Math.min(start + chunkLen, resampled.length);
-                await storage.set('chunks', `chunk_${i}`, { index: i, data: Array.from(resampled.slice(start, end)), startTime: start / 16000, endTime: end / 16000 });
-            }
-            
-            await storage.set('progress', 'meta', { totalChunks: state.totalChunks, duration: resampled.length / 16000, fileName: file.name });
-            
-            state.results.clear(); state.pendingChunks.clear(); state.completedChunks.clear(); state.errorChunks.clear(); state.filteredCount = 0; state.chunkQueue = [];
-            
-            document.getElementById('uploadArea').classList.add('has-file');
-            document.getElementById('fileInfo').classList.add('visible');
-            document.getElementById('fileName').textContent = file.name;
-            document.getElementById('fileMeta').textContent = `${formatBytes(file.size)} • ${formatTime(resampled.length / 16000)} • ${state.totalChunks} chunks`;
-            document.getElementById('startBtn').disabled = state.readyWorkers.size === 0;
-            document.getElementById('progressSection').classList.add('visible');
-            
-            initChunkGrid();
-            clearChunkList();
-            updateStats();
-            updateStatus('ready', `${state.workers.length} workers`);
-            toast('success', 'Audio ready');
-        }
-        
-        async function startProcessing(resumeFrom = new Set()) {
-            if (state.readyWorkers.size === 0) { toast('error', 'No workers'); return; }
-            state.isProcessing = true;
-            state.completedChunks = resumeFrom;
-            document.getElementById('startBtn').classList.add('hidden');
-            document.getElementById('stopBtn').classList.remove('hidden');
-            document.getElementById('resumeBanner').classList.remove('visible');
-            
-            state.chunkQueue = [];
-            for (let i = 0; i < state.totalChunks; i++) {
-                if (!state.completedChunks.has(i)) state.chunkQueue.push(i);
-            }
-            updateStatus('working', 'Processing...');
-            for (const wid of state.readyWorkers) assignChunkToWorker(wid);
-        }
-        
-        function stopProcessing() {
-            state.isProcessing = false; state.chunkQueue = [];
-            document.getElementById('startBtn').classList.remove('hidden');
-            document.getElementById('stopBtn').classList.add('hidden');
-            updateStatus('ready', `${state.workers.length} workers`);
-            toast('success', 'Paused');
-        }
-        
-        async function discardProgress() {
-            await storage.clear('chunks'); await storage.clear('results');
-            await storage.delete('progress', 'current'); await storage.delete('progress', 'meta');
-            state.results.clear(); state.pendingChunks.clear(); state.completedChunks.clear(); state.errorChunks.clear();
-            state.totalChunks = 0; state.chunkQueue = [];
-            document.getElementById('resumeBanner').classList.remove('visible');
-            document.getElementById('progressSection').classList.remove('visible');
-            clearChunkList();
-            toast('success', 'Discarded');
-        }
-        
-        function updateStatus(type, text) {
-            document.getElementById('statusDot').className = `status-dot ${type}`;
-            document.getElementById('statusText').textContent = text;
-        }
-        
-        function updateStats() {
-            const done = state.completedChunks.size, total = state.totalChunks;
-            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-            document.getElementById('progressFill').style.width = `${pct}%`;
-            document.getElementById('progressPct').textContent = `${pct}%`;
-            document.getElementById('statChunks').textContent = `${done}/${total}`;
-            document.getElementById('statTranslated').textContent = Array.from(state.results.values()).filter(r => r.translation).length;
-            document.getElementById('statFiltered').textContent = state.filteredCount;
-            document.getElementById('statErrors').textContent = state.errorChunks.size;
-            document.getElementById('chunkCount').textContent = done;
-        }
-        
-        function initChunkGrid() {
-            const grid = document.getElementById('chunkGrid');
-            grid.innerHTML = '';
-            for (let i = 0; i < state.totalChunks; i++) {
-                const cell = document.createElement('div');
-                cell.className = 'chunk-cell'; cell.id = `cell-${i}`; cell.textContent = i + 1;
-                grid.appendChild(cell);
-            }
-        }
-        
-        function updateChunkCell(index, status) {
-            const cell = document.getElementById(`cell-${index}`);
-            if (cell) cell.className = `chunk-cell ${status}`;
-        }
-        
-        function clearChunkList() {
-            document.getElementById('chunkList').innerHTML = '<div class="empty-state"><div class="empty-icon">🎧</div><div>Load audio</div></div>';
-        }
-        
-        function updateChunkList(result) {
-            const list = document.getElementById('chunkList');
-            const empty = list.querySelector('.empty-state'); if (empty) empty.remove();
-            let item = document.getElementById(`chunk-${result.chunkIndex}`);
-            if (!item) {
-                item = document.createElement('div'); item.id = `chunk-${result.chunkIndex}`;
-                const items = list.querySelectorAll('.chunk-item');
-                let inserted = false;
-                for (const ex of items) { if (result.chunkIndex < parseInt(ex.id.replace('chunk-', ''))) { list.insertBefore(item, ex); inserted = true; break; } }
-                if (!inserted) list.appendChild(item);
-            }
-            const lang = result.language === 'th' ? 'th' : 'en';
-            item.className = `chunk-item ${lang} ${result.filtered ? 'filtered' : ''}`;
-            item.innerHTML = `<div class="chunk-header"><span class="chunk-id">${String(result.chunkIndex + 1).padStart(3, '0')}</span><span class="chunk-time">${formatTime(result.startTime)}→${formatTime(result.endTime)}</span><span class="chunk-lang">${result.language === 'th' ? '🇹🇭' : '🇺🇸'}</span></div>${result.text ? `<div class="chunk-original">${escapeHtml(result.text)}</div>` : '<div class="chunk-original" style="color:var(--text-muted);">(empty)</div>'}${result.translation ? `<div class="chunk-translation">${escapeHtml(result.translation)}</div>` : ''}${result.filtered ? `<div class="chunk-warning">⚠️ ${result.filterReason}</div>` : ''}`;
-        }
-        
-        function showSetup() { document.getElementById('setupOverlay').classList.remove('hidden'); state.setupStep = 1; updateSetupUI(); }
-        function hideSetup() { document.getElementById('setupOverlay').classList.add('hidden'); }
-        
-        function updateSetupUI() {
-            document.querySelectorAll('.setup-step').forEach(el => el.classList.toggle('active', el.dataset.step == state.setupStep));
-            document.getElementById('setupBack').classList.toggle('hidden', state.setupStep <= 1);
-            const next = document.getElementById('setupNext');
-            next.textContent = state.setupStep === 4 ? 'Loading...' : state.setupStep === 5 ? 'Done →' : 'Next →';
-            next.disabled = state.setupStep === 4;
-        }
-        
-        function updateWorkerEstimate() {
-            const count = parseInt(document.getElementById('workerCountSlider').value);
-            document.getElementById('workerCountDisplay').textContent = count;
-            const sizes = { tiny: 40, base: 75, small: 250 };
-            const mb = (sizes[state.config.whisperModel] || 75) + (state.config.enableTranslation ? 50 : 0);
-            document.getElementById('workerEstimate').textContent = `~${mb * count} MB RAM • ${count}× parallel`;
-        }
-        
-        function initSetupWorkersGrid() {
-            const grid = document.getElementById('setupWorkersGrid');
-            grid.innerHTML = '';
-            for (let i = 0; i < state.config.workerCount; i++) {
-                const cell = document.createElement('div');
-                cell.className = 'setup-worker-cell loading'; cell.id = `setup-w-${i}`;
-                cell.innerHTML = `<div class="dot"></div><div>W${i + 1}</div>`;
-                grid.appendChild(cell);
-            }
-        }
-        
-        function updateSetupWorker(id, status) {
-            const cell = document.getElementById(`setup-w-${id}`);
-            if (cell) cell.className = `setup-worker-cell ${status}`;
-            const ready = state.readyWorkers.size, total = state.config.workerCount;
-            document.getElementById('setupProgress').style.width = `${(ready / total) * 100}%`;
+            updateWorkerUI();
         }
         
         function checkAllWorkersReady() {
             if (state.readyWorkers.size === state.config.workerCount) {
-                state.config.setupComplete = true;
-                storage.set('config', 'main', state.config);
-                document.getElementById('setupSummary').textContent = `${state.config.workerCount} workers • Whisper ${state.config.whisperModel}`;
-                state.setupStep = 5;
-                updateSetupUI();
+                if (!state.config.setupComplete) {
+                    // Setup wizard complete
+                    state.config.setupComplete = true;
+                    storage.saveConfig(state.config);
+                    
+                    document.getElementById('setupSummary').textContent = 
+                        `${state.config.workerCount} workers ready • Whisper ${state.config.whisperModel}`;
+                    
+                    state.setupStep = 4;
+                    updateSetupUI();
+                }
+                
+                updateWorkerStatusText();
+                
+                // Resume any pending processing
+                if (state.isProcessing) {
+                    processNextInQueue();
+                }
             }
         }
         
-        async function setupNext() {
-            if (state.setupStep === 1) {
-                const sel = document.querySelector('.setup-step[data-step="1"] .option.selected');
-                state.config.whisperModel = sel?.dataset.value || 'base';
-                state.setupStep = 2;
-            } else if (state.setupStep === 2) {
-                const sel = document.querySelector('.setup-step[data-step="2"] .option.selected');
-                state.config.enableTranslation = sel?.dataset.value === 'yes';
-                state.setupStep = 3;
-                updateWorkerEstimate();
-            } else if (state.setupStep === 3) {
-                state.config.workerCount = parseInt(document.getElementById('workerCountSlider').value);
-                state.setupStep = 4;
-                updateSetupUI();
-                initSetupWorkersGrid();
-                await initWorkers();
-            } else if (state.setupStep === 5) {
-                hideSetup();
+        function getAvailableWorker() {
+            for (let i = 0; i < state.workers.length; i++) {
+                const workerState = state.workerStates.get(i);
+                if (workerState?.status === 'ready' && state.readyWorkers.has(i)) {
+                    return i;
+                }
             }
+            return null;
+        }
+
+        // ============================================
+        // AUDIO PROCESSING
+        // ============================================
+        
+        async function ingestAudioFile(file) {
+            showIngestOverlay();
+            
+            try {
+                // Phase 1: Read file
+                updateIngestStatus('Reading file...', 0);
+                const arrayBuffer = await readFileWithProgress(file);
+                
+                // Phase 2: Decode audio
+                updateIngestStatus('Decoding audio...', 30);
+                const audioData = await decodeAudioWithProgress(arrayBuffer);
+                
+                // Phase 3: Create chunks
+                updateIngestStatus('Creating chunks...', 70);
+                const chunks = createChunks(audioData);
+                
+                // Phase 4: Create session
+                updateIngestStatus('Creating session...', 90);
+                const session = await createSession(file, audioData.duration, chunks.length);
+                
+                // Phase 5: Store chunks
+                updateIngestStatus('Storing data...', 95);
+                await storeChunks(session.id, chunks);
+                
+                // Complete
+                updateIngestStatus('Complete!', 100);
+                
+                hideIngestOverlay();
+                
+                // Load the new session
+                await loadSession(session.id);
+                
+                // Start processing
+                startProcessing();
+                
+            } catch (error) {
+                console.error('Ingest error:', error);
+                hideIngestOverlay();
+                showToast('error', `Failed to process audio: ${error.message}`);
+            }
+        }
+        
+        function readFileWithProgress(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                
+                reader.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        const pct = (event.loaded / event.total) * 30;
+                        updateIngestProgress(pct);
+                        updateIngestDetail(`${formatBytes(event.loaded)} / ${formatBytes(event.total)}`);
+                    }
+                };
+                
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error);
+                
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        
+        async function decodeAudioWithProgress(arrayBuffer) {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                sampleRate: SAMPLE_RATE
+            });
+            
+            updateIngestDetail('Decoding... (this may take a moment)');
+            
+            // Estimate decode time based on file size
+            const fileSizeMB = arrayBuffer.byteLength / (1024 * 1024);
+            const estimatedSeconds = Math.max(5, fileSizeMB * 0.5);
+            
+            // Simulate progress during decode (can't get actual progress)
+            let progress = 30;
+            const progressInterval = setInterval(() => {
+                progress = Math.min(progress + 2, 68);
+                updateIngestProgress(progress);
+            }, estimatedSeconds * 1000 / 20);
+            
+            try {
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+                clearInterval(progressInterval);
+                updateIngestProgress(70);
+                
+                // Extract mono audio
+                const mono = extractMono(audioBuffer);
+                
+                // Resample if needed
+                const resampled = audioBuffer.sampleRate !== SAMPLE_RATE 
+                    ? resampleAudio(mono, audioBuffer.sampleRate, SAMPLE_RATE)
+                    : mono;
+                
+                return {
+                    data: resampled,
+                    duration: resampled.length / SAMPLE_RATE,
+                    originalSampleRate: audioBuffer.sampleRate
+                };
+                
+            } catch (error) {
+                clearInterval(progressInterval);
+                throw error;
+            }
+        }
+        
+        function extractMono(audioBuffer) {
+            const length = audioBuffer.length;
+            const mono = new Float32Array(length);
+            
+            if (audioBuffer.numberOfChannels === 1) {
+                audioBuffer.copyFromChannel(mono, 0);
+            } else {
+                const left = new Float32Array(length);
+                const right = new Float32Array(length);
+                audioBuffer.copyFromChannel(left, 0);
+                audioBuffer.copyFromChannel(right, 1);
+                
+                for (let i = 0; i < length; i++) {
+                    mono[i] = (left[i] + right[i]) / 2;
+                }
+            }
+            
+            return mono;
+        }
+        
+        function resampleAudio(data, fromRate, toRate) {
+            const ratio = fromRate / toRate;
+            const newLength = Math.round(data.length / ratio);
+            const result = new Float32Array(newLength);
+            
+            for (let i = 0; i < newLength; i++) {
+                const idx = i * ratio;
+                const lo = Math.floor(idx);
+                const hi = Math.min(lo + 1, data.length - 1);
+                const t = idx - lo;
+                result[i] = data[lo] * (1 - t) + data[hi] * t;
+            }
+            
+            return result;
+        }
+        
+        function createChunks(audioData) {
+            const chunkSamples = CHUNK_DURATION_SEC * SAMPLE_RATE;
+            const totalChunks = Math.ceil(audioData.data.length / chunkSamples);
+            const chunks = [];
+            
+            for (let i = 0; i < totalChunks; i++) {
+                const start = i * chunkSamples;
+                const end = Math.min(start + chunkSamples, audioData.data.length);
+                
+                chunks.push({
+                    index: i,
+                    startTime: start / SAMPLE_RATE,
+                    endTime: end / SAMPLE_RATE,
+                    audioData: Array.from(audioData.data.slice(start, end)) // Convert to regular array for storage
+                });
+                
+                const progress = 70 + (i / totalChunks) * 20;
+                updateIngestProgress(progress);
+            }
+            
+            return chunks;
+        }
+        
+        async function createSession(file, duration, chunkCount) {
+            // Cleanup old sessions first
+            await storage.cleanupOldSessions();
+            
+            const now = new Date();
+            const session = {
+                id: `sess_${now.getTime()}`,
+                name: 'Session',
+                fileName: file.name,
+                fileSize: file.size,
+                duration: duration,
+                createdAt: now.toISOString(),
+                totalChunks: chunkCount,
+                transcribedChunks: 0,
+                translatedChunks: 0,
+                status: 'created'
+            };
+            
+            await storage.saveSession(session);
+            await refreshSessionsList();
+            
+            return session;
+        }
+        
+        async function storeChunks(sessionId, chunks) {
+            for (const chunk of chunks) {
+                await storage.saveChunk({
+                    sessionId,
+                    index: chunk.index,
+                    startTime: chunk.startTime,
+                    endTime: chunk.endTime,
+                    audioData: chunk.audioData,
+                    transcript: null,
+                    transcriptLang: null,
+                    transcriptAt: null,
+                    translation: null,
+                    translationLang: null,
+                    translationAt: null,
+                    backTranslation: null,
+                    backTranslationAt: null,
+                    status: 'pending',
+                    filtered: false,
+                    filterReason: null,
+                    error: null
+                });
+            }
+        }
+        
+        // ============================================
+        // PROCESSING CONTROL
+        // ============================================
+        
+        async function startProcessing() {
+            if (!state.currentSession) return;
+            if (state.readyWorkers.size === 0) {
+                showToast('error', 'No workers available');
+                return;
+            }
+            
+            state.isProcessing = true;
+            showProgressBar();
+            
+            // Build queues
+            const chunks = await storage.getChunksForSession(state.currentSession.id);
+            
+            state.transcribeQueue = [];
+            state.translateQueue = [];
+            
+            for (const chunk of chunks) {
+                state.chunks.set(chunk.index, chunk);
+                
+                if (chunk.status === 'pending' || chunk.status === 'error') {
+                    state.transcribeQueue.push(chunk.index);
+                } else if (chunk.status === 'transcribed' && !chunk.filtered && !chunk.translation) {
+                    state.translateQueue.push(chunk.index);
+                }
+            }
+            
+            updateStats();
+            updateProgressBar();
+            renderChunks();
+            
+            // Start processing
+            processNextInQueue();
+        }
+        
+        function stopProcessing() {
+            state.isProcessing = false;
+            updateSessionStatus('paused');
+            showToast('info', 'Processing paused');
+        }
+        
+        function processNextInQueue() {
+            if (!state.isProcessing) return;
+            
+            // Try to assign work to all available workers
+            while (true) {
+                const workerId = getAvailableWorker();
+                if (workerId === null) break;
+                
+                // Prioritize transcription over translation
+                if (state.transcribeQueue.length > 0) {
+                    const chunkIndex = state.transcribeQueue.shift();
+                    sendTranscribeTask(workerId, chunkIndex);
+                } else if (state.translateQueue.length > 0) {
+                    const chunkIndex = state.translateQueue.shift();
+                    sendTranslateTask(workerId, chunkIndex);
+                } else {
+                    // Nothing to do
+                    break;
+                }
+            }
+            
+            // Check if processing is complete
+            if (state.transcribeQueue.length === 0 && state.translateQueue.length === 0) {
+                // Check if any workers are still working
+                let anyWorking = false;
+                for (const [id, workerState] of state.workerStates) {
+                    if (workerState.status === 'working') {
+                        anyWorking = true;
+                        break;
+                    }
+                }
+                
+                if (!anyWorking) {
+                    completeProcessing();
+                }
+            }
+        }
+        
+        function sendTranscribeTask(workerId, chunkIndex) {
+            const chunk = state.chunks.get(chunkIndex);
+            if (!chunk) return;
+            
+            updateWorkerState(workerId, 'working', `Transcribing #${chunkIndex + 1}`);
+            
+            state.workers[workerId].postMessage({
+                type: 'transcribe',
+                data: {
+                    sessionId: state.currentSession.id,
+                    chunkIndex,
+                    audioData: chunk.audioData,
+                    startTime: chunk.startTime,
+                    endTime: chunk.endTime
+                }
+            });
+        }
+        
+        function sendTranslateTask(workerId, chunkIndex) {
+            const chunk = state.chunks.get(chunkIndex);
+            if (!chunk || !chunk.transcript) return;
+            
+            updateWorkerState(workerId, 'working', `Translating #${chunkIndex + 1}`);
+            
+            state.workers[workerId].postMessage({
+                type: 'translate',
+                data: {
+                    sessionId: state.currentSession.id,
+                    chunkIndex,
+                    text: chunk.transcript,
+                    sourceLang: chunk.transcriptLang
+                }
+            });
+        }
+        
+        async function handleChunkComplete(message) {
+            const { sessionId, chunkIndex, result } = message;
+            
+            if (sessionId !== state.currentSession?.id) return;
+            
+            const chunk = state.chunks.get(chunkIndex);
+            if (!chunk) return;
+            
+            // Update chunk
+            chunk.transcript = result.transcript;
+            chunk.transcriptLang = result.transcriptLang;
+            chunk.transcriptAt = new Date().toISOString();
+            chunk.filtered = result.filtered;
+            chunk.filterReason = result.filterReason;
+            chunk.status = result.filtered ? 'filtered' : 'transcribed';
+            
+            // Save to storage
+            await storage.saveChunk(chunk);
+            
+            // Update stats
+            state.stats.transcribedChunks++;
+            if (result.filtered) state.stats.filteredChunks++;
+            
+            // Add to translate queue if has content
+            if (!result.filtered && result.transcript) {
+                state.translateQueue.push(chunkIndex);
+            }
+            
+            // Update UI
+            updateChunkUI(chunkIndex);
+            updateStats();
+            updateProgressBar();
+            updateSessionInList();
+            
+            // Process next
+            processNextInQueue();
+        }
+        
+        async function handleChunkError(message) {
+            const { sessionId, chunkIndex, error } = message;
+            
+            if (sessionId !== state.currentSession?.id) return;
+            
+            const chunk = state.chunks.get(chunkIndex);
+            if (!chunk) return;
+            
+            chunk.status = 'error';
+            chunk.error = error;
+            
+            await storage.saveChunk(chunk);
+            
+            state.stats.errorChunks++;
+            
+            updateChunkUI(chunkIndex);
+            updateStats();
+            updateProgressBar();
+            
+            processNextInQueue();
+        }
+        
+        async function handleTranslateComplete(message) {
+            const { sessionId, chunkIndex, result } = message;
+            
+            if (sessionId !== state.currentSession?.id) return;
+            
+            const chunk = state.chunks.get(chunkIndex);
+            if (!chunk) return;
+            
+            chunk.translation = result.translation;
+            chunk.translationLang = result.translationLang;
+            chunk.translationAt = new Date().toISOString();
+            chunk.status = 'complete';
+            
+            await storage.saveChunk(chunk);
+            
+            state.stats.translatedChunks++;
+            
+            updateChunkUI(chunkIndex);
+            updateStats();
+            updateProgressBar();
+            updateSessionInList();
+            
+            processNextInQueue();
+        }
+        
+        async function handleTranslateError(message) {
+            const { sessionId, chunkIndex, error } = message;
+            
+            if (sessionId !== state.currentSession?.id) return;
+            
+            console.warn(`Translation error for chunk ${chunkIndex}:`, error);
+            
+            // Mark as transcribed (skip translation)
+            const chunk = state.chunks.get(chunkIndex);
+            if (chunk) {
+                chunk.status = 'transcribed';
+                await storage.saveChunk(chunk);
+            }
+            
+            processNextInQueue();
+        }
+        
+        async function handleBackTranslateComplete(message) {
+            const { sessionId, chunkIndex, result } = message;
+            
+            if (sessionId !== state.currentSession?.id) return;
+            
+            const chunk = state.chunks.get(chunkIndex);
+            if (!chunk) return;
+            
+            chunk.backTranslation = result.backTranslation;
+            chunk.backTranslationAt = new Date().toISOString();
+            
+            await storage.saveChunk(chunk);
+            
+            updateChunkUI(chunkIndex);
+            showToast('success', 'Back-translation complete');
+        }
+        
+        async function handleBackTranslateError(message) {
+            const { chunkIndex, error } = message;
+            showToast('error', `Back-translation failed: ${error}`);
+        }
+        
+        function completeProcessing() {
+            state.isProcessing = false;
+            updateSessionStatus('complete');
+            showToast('success', 'Processing complete!');
+        }
+        
+        async function updateSessionStatus(status) {
+            if (!state.currentSession) return;
+            
+            state.currentSession.status = status;
+            state.currentSession.transcribedChunks = state.stats.transcribedChunks;
+            state.currentSession.translatedChunks = state.stats.translatedChunks;
+            
+            await storage.saveSession(state.currentSession);
+            updateSessionInList();
+        }
+ (session.status !== 'complete') {
+                showProgressBar();
+                updateProgressBar();
+            } else {
+                hideProgressBar();
+            }
+        }
+        
+        async function deleteSession(sessionId) {
+            if (state.currentSession?.id === sessionId) {
+                state.currentSession = null;
+                state.chunks.clear();
+                renderEmptyState();
+            }
+            
+            await storage.deleteSession(sessionId);
+            await refreshSessionsList();
+            
+            showToast('success', 'Session deleted');
+        }
+        
+        async function renameSession(sessionId, newName) {
+            const session = await storage.getSession(sessionId);
+            if (!session) return;
+            
+            session.name = newName || 'Session';
+            await storage.saveSession(session);
+            
+            if (state.currentSession?.id === sessionId) {
+                state.currentSession.name = session.name;
+            }
+            
+            await refreshSessionsList();
+        }
+        
+        async function refreshSessionsList() {
+            const sessions = await storage.getAllSessions();
+            renderSessionsList(sessions);
+            document.getElementById('sessionCount').textContent = sessions.length;
+        }
+        
+        // ============================================
+        // UI RENDERING
+        // ============================================
+        
+        function renderSessionsList(sessions) {
+            const container = document.getElementById('sessionsList');
+            container.innerHTML = '';
+            
+            for (const session of sessions) {
+                const card = document.createElement('div');
+                card.className = `session-card ${state.currentSession?.id === session.id ? 'active' : ''}`;
+                card.dataset.sessionId = session.id;
+                
+                const date = new Date(session.createdAt);
+                const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                
+                // Progress dots
+                const totalDots = 6;
+                const completedRatio = session.totalChunks > 0 
+                    ? session.translatedChunks / session.totalChunks 
+                    : 0;
+                const filledDots = Math.round(completedRatio * totalDots);
+                
+                let dotsHtml = '';
+                for (let i = 0; i < totalDots; i++) {
+                    dotsHtml += `<div class="session-card-dot ${i < filledDots ? 'filled' : ''}"></div>`;
+                }
+                
+                card.innerHTML = `
+                    <div class="session-card-date">${dateStr} ${timeStr}</div>
+                    <div class="session-card-name">${escapeHtml(session.name)}</div>
+                    <div class="session-card-progress">${dotsHtml}</div>
+                    <button class="session-card-delete" title="Delete">×</button>
+                `;
+                
+                card.addEventListener('click', (e) => {
+                    if (!e.target.classList.contains('session-card-delete')) {
+                        loadSession(session.id);
+                    }
+                });
+                
+                card.querySelector('.session-card-delete').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (confirm('Delete this session?')) {
+                        deleteSession(session.id);
+                    }
+                });
+                
+                container.appendChild(card);
+            }
+        }
+        
+        function updateSessionInList() {
+            if (!state.currentSession) return;
+            
+            const card = document.querySelector(`.session-card[data-session-id="${state.currentSession.id}"]`);
+            if (!card) return;
+            
+            // Update progress dots
+            const totalDots = 6;
+            const completedRatio = state.stats.totalChunks > 0 
+                ? state.stats.translatedChunks / state.stats.totalChunks 
+                : 0;
+            const filledDots = Math.round(completedRatio * totalDots);
+            
+            const dotsContainer = card.querySelector('.session-card-progress');
+            const dots = dotsContainer.querySelectorAll('.session-card-dot');
+            dots.forEach((dot, i) => {
+                dot.className = `session-card-dot ${i < filledDots ? 'filled' : ''}`;
+            });
+        }
+        
+        function renderEmptyState() {
+            const contentArea = document.getElementById('contentArea');
+            contentArea.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🎙️</div>
+                    <div class="empty-state-title">No session selected</div>
+                    <div class="empty-state-desc">
+                        Select a session from the sidebar or upload a new audio file to begin transcription.
+                    </div>
+                    <div class="drop-zone" id="dropZone">
+                        <div class="drop-zone-icon">📂</div>
+                        <div class="drop-zone-text">Drop audio file here</div>
+                        <div class="drop-zone-hint">M4A, MP3, WAV, OGG, FLAC</div>
+                    </div>
+                </div>
+            `;
+            
+            setupDropZone(document.getElementById('dropZone'));
+        }
+        
+        function renderSessionView() {
+            if (!state.currentSession) {
+                renderEmptyState();
+                return;
+            }
+            
+            const session = state.currentSession;
+            const contentArea = document.getElementById('contentArea');
+            
+            contentArea.innerHTML = `
+                <div class="content-header">
+                    <div class="content-header-left">
+                        <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+                        <div class="session-info">
+                            <input type="text" class="session-name-input" id="sessionNameInput" 
+                                   value="${escapeHtml(session.name)}" placeholder="Session name">
+                            <div class="session-meta">
+                                ${escapeHtml(session.fileName)} • ${formatDuration(session.duration)} • ${session.totalChunks} chunks
+                            </div>
+                        </div>
+                    </div>
+                    <div class="content-header-actions">
+                        <button class="btn btn-secondary btn-sm" id="exportBtn">📤 Export</button>
+                        <button class="btn btn-primary btn-sm" id="processBtn">
+                            ${state.isProcessing ? '⏹ Stop' : '▶️ Process'}
+                        </button>
+                    </div>
+                </div>
+                <div class="transcript-container">
+                    <div class="transcript-columns-header">
+                        <div class="column-header">
+                            <span class="column-title">Original</span>
+                            <button class="btn btn-ghost btn-xs" id="copyOriginalBtn">📋 Copy All</button>
+                        </div>
+                        <div class="column-header">
+                            <span class="column-title">Translation</span>
+                            <button class="btn btn-ghost btn-xs" id="copyTranslationBtn">📋 Copy All</button>
+                        </div>
+                    </div>
+                    <div class="transcript-scroll" id="transcriptScroll">
+                        <!-- Chunks will be rendered here -->
+                    </div>
+                </div>
+            `;
+            
+            // Setup event listeners
+            document.getElementById('sidebarToggle').addEventListener('click', toggleSidebar);
+            
+            document.getElementById('sessionNameInput').addEventListener('blur', (e) => {
+                renameSession(session.id, e.target.value.trim());
+            });
+            
+            document.getElementById('sessionNameInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') e.target.blur();
+            });
+            
+            document.getElementById('processBtn').addEventListener('click', () => {
+                if (state.isProcessing) {
+                    stopProcessing();
+                } else {
+                    startProcessing();
+                }
+                updateProcessButton();
+            });
+            
+            document.getElementById('exportBtn').addEventListener('click', showExportMenu);
+            document.getElementById('copyOriginalBtn').addEventListener('click', copyAllOriginal);
+            document.getElementById('copyTranslationBtn').addEventListener('click', copyAllTranslation);
+            
+            // Render chunks
+            renderChunks();
+        }
+        
+        function renderChunks() {
+            const container = document.getElementById('transcriptScroll');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            const sortedChunks = Array.from(state.chunks.values()).sort((a, b) => a.index - b.index);
+            
+            for (const chunk of sortedChunks) {
+                const row = createChunkRow(chunk);
+                container.appendChild(row);
+            }
+        }
+        
+        function createChunkRow(chunk) {
+            const row = document.createElement('div');
+            row.className = `chunk-row ${chunk.filtered ? 'filtered' : ''}`;
+            row.id = `chunk-row-${chunk.index}`;
+            row.dataset.chunkIndex = chunk.index;
+            
+            const timeStr = `${formatTime(chunk.startTime)} → ${formatTime(chunk.endTime)}`;
+            const chunkId = String(chunk.index + 1).padStart(3, '0');
+            
+            // Original cell
+            const originalCell = document.createElement('div');
+            originalCell.className = 'chunk-cell';
+            
+            let originalContent = '';
+            if (chunk.filtered) {
+                originalContent = `<div class="chunk-text filtered-msg">⚠️ ${chunk.filterReason || 'Filtered'}</div>`;
+            } else if (chunk.transcript) {
+                const langClass = chunk.transcriptLang === 'th' ? 'th' : 'en';
+                const langFlag = chunk.transcriptLang === 'th' ? '🇹🇭' : '🇺🇸';
+                originalContent = `
+                    <div class="chunk-text">${escapeHtml(chunk.transcript)}</div>
+                    <div class="chunk-actions">
+                        <button class="chunk-action-btn" data-action="retranscribe" data-chunk="${chunk.index}">
+                            🔄 Re-transcribe
+                        </button>
+                    </div>
+                `;
+            } else if (chunk.status === 'error') {
+                originalContent = `<div class="chunk-text filtered-msg">❌ Error: ${escapeHtml(chunk.error || 'Unknown')}</div>`;
+            } else {
+                originalContent = `<div class="chunk-text empty">Pending...</div>`;
+            }
+            
+            originalCell.innerHTML = `
+                <div class="chunk-header">
+                    <span class="chunk-id">${chunkId}</span>
+                    <span class="chunk-time">${timeStr}</span>
+                    ${chunk.transcriptLang ? `<span class="chunk-lang ${chunk.transcriptLang}">${chunk.transcriptLang === 'th' ? '🇹🇭 TH' : '🇺🇸 EN'}</span>` : ''}
+                    <button class="chunk-play-btn" data-action="play" data-chunk="${chunk.index}" title="Play">▶</button>
+                </div>
+                ${originalContent}
+            `;
+            
+            // Translation cell
+            const translationCell = document.createElement('div');
+            translationCell.className = 'chunk-cell';
+            
+            let translationContent = '';
+            if (chunk.filtered) {
+                translationContent = `<div class="chunk-text empty">—</div>`;
+            } else if (chunk.translation) {
+                const transLangFlag = chunk.translationLang === 'th' ? '🇹🇭' : '🇺🇸';
+                translationContent = `
+                    <div class="chunk-text">${transLangFlag} ${escapeHtml(chunk.translation)}</div>
+                    <div class="chunk-actions">
+                        <button class="chunk-action-btn" data-action="retranslate" data-chunk="${chunk.index}">
+                            🔄 Re-translate
+                        </button>
+                        <button class="chunk-action-btn" data-action="backtranslate" data-chunk="${chunk.index}">
+                            ↩️ Back-translate
+                        </button>
+                    </div>
+                `;
+                
+                // Add back-translation if exists
+                if (chunk.backTranslation) {
+                    const backLangFlag = chunk.transcriptLang === 'th' ? '🇹🇭' : '🇺🇸';
+                    translationContent += `
+                        <div class="back-translation">
+                            <div class="back-translation-label">
+                                <span>↩️ Back-translation</span>
+                                <button class="chunk-action-btn" data-action="redoback" data-chunk="${chunk.index}" style="margin:0;">
+                                    🔄
+                                </button>
+                            </div>
+                            <div class="back-translation-text">${backLangFlag} ${escapeHtml(chunk.backTranslation)}</div>
+                        </div>
+                    `;
+                }
+            } else if (chunk.transcript && !chunk.filtered) {
+                translationContent = `<div class="chunk-text empty">Translating...</div>`;
+            } else {
+                translationContent = `<div class="chunk-text empty">—</div>`;
+            }
+            
+            translationCell.innerHTML = `
+                <div class="chunk-header">
+                    ${chunk.translationLang ? `<span class="chunk-lang ${chunk.translationLang}">${chunk.translationLang === 'th' ? '🇹🇭 TH' : '🇺🇸 EN'}</span>` : ''}
+                </div>
+                ${translationContent}
+            `;
+            
+            row.appendChild(originalCell);
+            row.appendChild(translationCell);
+            
+            // Add event listeners for action buttons
+            row.querySelectorAll('[data-action]').forEach(btn => {
+                btn.addEventListener('click', handleChunkAction);
+            });
+            
+            return row;
+        }
+        
+        function updateChunkUI(chunkIndex) {
+            const chunk = state.chunks.get(chunkIndex);
+            if (!chunk) return;
+            
+            const existingRow = document.getElementById(`chunk-row-${chunkIndex}`);
+            if (existingRow) {
+                const newRow = createChunkRow(chunk);
+                existingRow.replaceWith(newRow);
+            }
+        }
+        
+        function handleChunkAction(event) {
+            const action = event.target.dataset.action;
+            const chunkIndex = parseInt(event.target.dataset.chunk);
+            
+            switch (action) {
+                case 'play':
+                    playChunkAudio(chunkIndex);
+                    break;
+                case 'retranscribe':
+                    retranscribeChunk(chunkIndex);
+                    break;
+                case 'retranslate':
+                    retranslateChunk(chunkIndex);
+                    break;
+                case 'backtranslate':
+                    backTranslateChunk(chunkIndex);
+                    break;
+                case 'redoback':
+                    redoBackTranslate(chunkIndex);
+                    break;
+            }
+        }
+
+        // ============================================
+        // AUDIO PLAYBACK
+        // ============================================
+        
+        let audioContext = null;
+        let currentAudioSource = null;
+        
+        async function playChunkAudio(chunkIndex) {
+            const chunk = state.chunks.get(chunkIndex);
+            if (!chunk || !chunk.audioData) return;
+            
+            try {
+                // Stop any current playback
+                if (currentAudioSource) {
+                    currentAudioSource.stop();
+                    currentAudioSource = null;
+                }
+                
+                // Create audio context if needed
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                // Resume if suspended
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                
+                // Create buffer from stored audio data
+                const audioData = new Float32Array(chunk.audioData);
+                const buffer = audioContext.createBuffer(1, audioData.length, SAMPLE_RATE);
+                buffer.getChannelData(0).set(audioData);
+                
+                // Play
+                const source = audioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(audioContext.destination);
+                source.start();
+                
+                currentAudioSource = source;
+                
+                // Update button visual
+                const btn = document.querySelector(`[data-action="play"][data-chunk="${chunkIndex}"]`);
+                if (btn) {
+                    btn.textContent = '⏹';
+                    source.onended = () => {
+                        btn.textContent = '▶';
+                        currentAudioSource = null;
+                    };
+                }
+                
+            } catch (error) {
+                console.error('Playback error:', error);
+                showToast('error', 'Failed to play audio');
+            }
+        }
+        
+        // ============================================
+        // EXPORT FUNCTIONS
+        // ============================================
+        
+        function showExportMenu() {
+            const options = [
+                { label: 'Markdown', action: () => exportAs('markdown') },
+                { label: 'JSON', action: () => exportAs('json') },
+                { label: 'Text', action: () => exportAs('text') }
+            ];
+            
+            // Simple export - just show options via confirm/prompt
+            const choice = prompt('Export format:\n1 = Markdown\n2 = JSON\n3 = Text\n\nEnter number:');
+            
+            if (choice === '1') exportAs('markdown');
+            else if (choice === '2') exportAs('json');
+            else if (choice === '3') exportAs('text');
+        }
+        
+        function exportAs(format) {
+            if (!state.currentSession) return;
+            
+            const chunks = Array.from(state.chunks.values())
+                .filter(c => c.transcript && !c.filtered)
+                .sort((a, b) => a.index - b.index);
+            
+            if (chunks.length === 0) {
+                showToast('warning', 'No content to export');
+                return;
+            }
+            
+            let content = '';
+            let filename = '';
+            let mimeType = '';
+            
+            const session = state.currentSession;
+            
+            switch (format) {
+                case 'markdown':
+                    content = generateMarkdown(session, chunks);
+                    filename = `${session.name || 'transcript'}.md`;
+                    mimeType = 'text/markdown';
+                    break;
+                    
+                case 'json':
+                    content = generateJson(session, chunks);
+                    filename = `${session.name || 'transcript'}.json`;
+                    mimeType = 'application/json';
+                    break;
+                    
+                case 'text':
+                    content = generateText(session, chunks);
+                    filename = `${session.name || 'transcript'}.txt`;
+                    mimeType = 'text/plain';
+                    break;
+            }
+            
+            downloadFile(filename, content, mimeType);
+            showToast('success', `Exported as ${format}`);
+        }
+        
+        function generateMarkdown(session, chunks) {
+            let md = `# ${session.name || 'Transcript'}\n\n`;
+            md += `**File:** ${session.fileName}\n`;
+            md += `**Duration:** ${formatDuration(session.duration)}\n`;
+            md += `**Date:** ${new Date(session.createdAt).toLocaleString()}\n\n`;
+            md += `---\n\n`;
+            
+            for (const chunk of chunks) {
+                const id = String(chunk.index + 1).padStart(3, '0');
+                const time = formatTime(chunk.startTime);
+                const langFlag = chunk.transcriptLang === 'th' ? '🇹🇭' : '🇺🇸';
+                
+                md += `## ${id} [${time}] ${langFlag}\n\n`;
+                md += `${chunk.transcript}\n\n`;
+                
+                if (chunk.translation) {
+                    const transFlag = chunk.translationLang === 'th' ? '🇹🇭' : '🇺🇸';
+                    md += `> ${transFlag} ${chunk.translation}\n\n`;
+                }
+                
+                if (chunk.backTranslation) {
+                    md += `> ↩️ ${chunk.backTranslation}\n\n`;
+                }
+            }
+            
+            return md;
+        }
+        
+        function generateJson(session, chunks) {
+            const data = {
+                session: {
+                    id: session.id,
+                    name: session.name,
+                    fileName: session.fileName,
+                    duration: session.duration,
+                    createdAt: session.createdAt,
+                    totalChunks: session.totalChunks
+                },
+                chunks: chunks.map(chunk => ({
+                    id: String(chunk.index + 1).padStart(3, '0'),
+                    index: chunk.index,
+                    startTime: chunk.startTime,
+                    endTime: chunk.endTime,
+                    originalLanguage: chunk.transcriptLang,
+                    original: chunk.transcript,
+                    translationLanguage: chunk.translationLang,
+                    translation: chunk.translation,
+                    backTranslation: chunk.backTranslation
+                }))
+            };
+            
+            return JSON.stringify(data, null, 2);
+        }
+        
+        function generateText(session, chunks) {
+            let text = `${session.name || 'Transcript'}\n`;
+            text += `${'='.repeat(50)}\n`;
+            text += `File: ${session.fileName}\n`;
+            text += `Duration: ${formatDuration(session.duration)}\n`;
+            text += `Date: ${new Date(session.createdAt).toLocaleString()}\n\n`;
+            
+            for (const chunk of chunks) {
+                const id = String(chunk.index + 1).padStart(3, '0');
+                const time = formatTime(chunk.startTime);
+                
+                text += `[${id}] ${time}\n`;
+                text += `${chunk.transcript}\n`;
+                
+                if (chunk.translation) {
+                    text += `→ ${chunk.translation}\n`;
+                }
+                
+                if (chunk.backTranslation) {
+                    text += `  ↩ ${chunk.backTranslation}\n`;
+                }
+                
+                text += `\n`;
+            }
+            
+            return text;
+        }
+        
+        function downloadFile(filename, content, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        function copyAllOriginal() {
+            const chunks = Array.from(state.chunks.values())
+                .filter(c => c.transcript && !c.filtered)
+                .sort((a, b) => a.index - b.index);
+            
+            const text = chunks.map(c => c.transcript).join('\n\n');
+            copyToClipboard(text);
+        }
+        
+        function copyAllTranslation() {
+            const chunks = Array.from(state.chunks.values())
+                .filter(c => c.translation && !c.filtered)
+                .sort((a, b) => a.index - b.index);
+            
+            const text = chunks.map(c => c.translation).join('\n\n');
+            copyToClipboard(text);
+        }
+        
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text)
+                .then(() => showToast('success', 'Copied to clipboard'))
+                .catch(() => showToast('error', 'Failed to copy'));
+        }
+        
+        // ============================================
+        // WORKER UI
+        // ============================================
+        
+        function createWorkerDotsUI(count) {
+            const container = document.getElementById('workerDots');
+            container.innerHTML = '';
+            
+            for (let i = 0; i < count; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'worker-dot';
+                dot.id = `worker-dot-${i}`;
+                container.appendChild(dot);
+            }
+        }
+        
+        function updateWorkerUI() {
+            for (const [workerId, workerState] of state.workerStates) {
+                const dot = document.getElementById(`worker-dot-${workerId}`);
+                if (dot) {
+                    dot.className = `worker-dot ${workerState.status}`;
+                }
+            }
+            
+            updateWorkerStatusText();
+        }
+        
+        function updateWorkerStatusText() {
+            const text = document.getElementById('workerStatusText');
+            const ready = state.readyWorkers.size;
+            const total = state.workers.length;
+            
+            if (ready === total && total > 0) {
+                text.textContent = `${total} workers ready`;
+            } else if (total > 0) {
+                text.textContent = `${ready}/${total} ready`;
+            } else {
+                text.textContent = 'Loading...';
+            }
+        }
+        
+        // ============================================
+        // SETUP UI
+        // ============================================
+        
+        function updateSetupUI() {
+            // Show/hide steps
+            document.querySelectorAll('.setup-step').forEach(step => {
+                step.classList.toggle('active', parseInt(step.dataset.step) === state.setupStep);
+            });
+            
+            // Back button
+            document.getElementById('setupBackBtn').classList.toggle('hidden', state.setupStep <= 1 || state.setupStep >= 3);
+            
+            // Next button text
+            const nextBtn = document.getElementById('setupNextBtn');
+            if (state.setupStep === 3) {
+                nextBtn.textContent = 'Initializing...';
+                nextBtn.disabled = true;
+            } else if (state.setupStep === 4) {
+                nextBtn.textContent = 'Start →';
+                nextBtn.disabled = false;
+            } else {
+                nextBtn.textContent = 'Next →';
+                nextBtn.disabled = false;
+            }
+        }
+        
+        function updateSetupEstimate() {
+            const count = parseInt(document.getElementById('setupWorkerSlider').value);
+            document.getElementById('setupWorkerCount').textContent = count;
+            
+            const modelSizes = { tiny: 40, base: 75, small: 250 };
+            const modelSize = modelSizes[state.config.whisperModel] || 75;
+            const translatorSize = 100; // TH↔EN ~50MB each
+            const totalMB = (modelSize + translatorSize) * count;
+            
+            document.getElementById('setupEstimate').textContent = 
+                `~${totalMB} MB RAM • ${count}× parallel processing`;
+        }
+        
+        function createSetupWorkersUI() {
+            const container = document.getElementById('setupWorkersGrid');
+            container.innerHTML = '';
+            
+            for (let i = 0; i < state.config.workerCount; i++) {
+                const card = document.createElement('div');
+                card.className = 'setup-worker-card loading';
+                card.id = `setup-worker-${i}`;
+                
+                card.innerHTML = `
+                    <div class="setup-worker-header">
+                        <span class="setup-worker-id">W${i + 1}</span>
+                        <span class="setup-worker-status">Initializing...</span>
+                    </div>
+                    <div class="setup-worker-progress">
+                        <div class="setup-worker-progress-fill" id="setup-worker-progress-${i}"></div>
+                    </div>
+                    <div class="setup-worker-task" id="setup-worker-task-${i}">Loading Whisper...</div>
+                `;
+                
+                container.appendChild(card);
+            }
+        }
+        
+        function updateSetupWorkerUI(workerId) {
+            const workerState = state.workerStates.get(workerId);
+            if (!workerState) return;
+            
+            const card = document.getElementById(`setup-worker-${workerId}`);
+            const progressBar = document.getElementById(`setup-worker-progress-${workerId}`);
+            const taskEl = document.getElementById(`setup-worker-task-${workerId}`);
+            const statusEl = card?.querySelector('.setup-worker-status');
+            
+            if (!card) return;
+            
+            // Update card class
+            card.className = `setup-worker-card ${workerState.status}`;
+            
+            // Update status text
+            if (statusEl) {
+                if (workerState.status === 'ready') {
+                    statusEl.textContent = 'Ready';
+                } else if (workerState.status === 'error') {
+                    statusEl.textContent = 'Error';
+                } else {
+                    statusEl.textContent = 'Loading...';
+                }
+            }
+            
+            // Update progress
+            if (progressBar) {
+                const whisperProg = workerState.progress['whisper'] || 0;
+                const thEnProg = workerState.progress['th-en'] || 0;
+                const enThProg = workerState.progress['en-th'] || 0;
+                
+                // Overall progress: whisper (0-40%), th-en (40-70%), en-th (70-100%)
+                let overall = 0;
+                if (whisperProg > 0) overall = whisperProg * 0.4;
+                if (thEnProg > 0) overall = 40 + thEnProg * 0.3;
+                if (enThProg > 0) overall = 70 + enThProg * 0.3;
+                
+                progressBar.style.width = `${overall}%`;
+            }
+            
+            // Update task text
+            if (taskEl) {
+                taskEl.textContent = workerState.task || '';
+            }
+        }
+
+        // ============================================
+        // PROGRESS BAR
+        // ============================================
+        
+        function showProgressBar() {
+            document.getElementById('progressBarContainer').classList.add('visible');
+        }
+        
+        function hideProgressBar() {
+            document.getElementById('progressBarContainer').classList.remove('visible');
+        }
+        
+        function updateProgressBar() {
+            const total = state.stats.totalChunks;
+            if (total === 0) return;
+            
+            const transcribed = state.stats.transcribedChunks;
+            const translated = state.stats.translatedChunks;
+            const filtered = state.stats.filteredChunks;
+            
+            // Transcribe progress (all chunks)
+            const transcribePct = (transcribed / total) * 100;
+            
+            // Translate progress (only non-filtered chunks)
+            const toTranslate = transcribed - filtered;
+            const translatePct = toTranslate > 0 ? (translated / toTranslate) * 100 : 0;
+            
+            // Update progress bars - both share 100% width
+            const transcribeFill = document.getElementById('progressFillTranscribe');
+            const translateFill = document.getElementById('progressFillTranslate');
+            
+            // Transcribe bar shows actual transcription progress
+            transcribeFill.style.width = `${transcribePct * 0.5}%`; // 0-50%
+            
+            // Translate bar shows translation progress (appears after transcription)
+            translateFill.style.width = `${translatePct * 0.5}%`; // 0-50%
+            
+            // Update stats text
+            document.getElementById('progressTranscribe').textContent = `Transcribe: ${transcribed}/${total}`;
+            document.getElementById('progressTranslate').textContent = `Translate: ${translated}/${toTranslate || 0}`;
+            
+            // Update label
+            const label = document.getElementById('progressLabel');
+            if (transcribed < total) {
+                label.textContent = 'Transcribing...';
+            } else if (translated < toTranslate) {
+                label.textContent = 'Translating...';
+            } else {
+                label.textContent = 'Complete';
+            }
+        }
+        
+        function updateStats() {
+            // Recalculate stats from chunks
+            const chunks = Array.from(state.chunks.values());
+            
+            state.stats.totalChunks = chunks.length;
+            state.stats.transcribedChunks = chunks.filter(c => c.transcript !== null || c.filtered).length;
+            state.stats.translatedChunks = chunks.filter(c => c.translation !== null).length;
+            state.stats.filteredChunks = chunks.filter(c => c.filtered).length;
+            state.stats.errorChunks = chunks.filter(c => c.status === 'error').length;
+        }
+        
+        function updateProcessButton() {
+            const btn = document.getElementById('processBtn');
+            if (btn) {
+                btn.textContent = state.isProcessing ? '⏹ Stop' : '▶️ Process';
+            }
+        }
+        
+        // ============================================
+        // INGEST OVERLAY
+        // ============================================
+        
+        function showIngestOverlay() {
+            document.getElementById('ingestOverlay').classList.remove('hidden');
+        }
+        
+        function hideIngestOverlay() {
+            document.getElementById('ingestOverlay').classList.add('hidden');
+        }
+        
+        function updateIngestStatus(status, progress) {
+            document.getElementById('ingestStatus').textContent = status;
+            updateIngestProgress(progress);
+        }
+        
+        function updateIngestProgress(progress) {
+            document.getElementById('ingestProgressFill').style.width = `${progress}%`;
+            document.getElementById('ingestDetail').textContent = `${Math.round(progress)}%`;
+        }
+        
+        function updateIngestDetail(detail) {
+            document.getElementById('ingestDetail').textContent = detail;
+        }
+        
+        // ============================================
+        // SIDEBAR
+        // ============================================
+        
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('collapsed');
+        }
+        
+        // ============================================
+        // DROP ZONE
+        // ============================================
+        
+        function setupDropZone(element) {
+            if (!element) return;
+            
+            element.addEventListener('click', () => {
+                document.getElementById('fileInput').click();
+            });
+            
+            element.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                element.classList.add('dragover');
+            });
+            
+            element.addEventListener('dragleave', () => {
+                element.classList.remove('dragover');
+            });
+            
+            element.addEventListener('drop', (e) => {
+                e.preventDefault();
+                element.classList.remove('dragover');
+                
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('audio/')) {
+                    ingestAudioFile(file);
+                } else {
+                    showToast('error', 'Please drop an audio file');
+                }
+            });
+        }
+        
+        // ============================================
+        // TOAST NOTIFICATIONS
+        // ============================================
+        
+        function showToast(type, message) {
+            const container = document.getElementById('toastContainer');
+            
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'warning' ? '⚠' : 'ℹ';
+            toast.textContent = `${icon} ${message}`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        
+        // ============================================
+        // UTILITY FUNCTIONS
+        // ============================================
+        
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+        
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+        
+        function formatDuration(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            
+            if (h > 0) {
+                return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            }
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        
+        function setupEventListeners() {
+            // File input
+            document.getElementById('fileInput').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    ingestAudioFile(file);
+                }
+                e.target.value = ''; // Reset for re-upload
+            });
+            
+            // New session button
+            document.getElementById('newSessionBtn').addEventListener('click', () => {
+                document.getElementById('fileInput').click();
+            });
+            
+            // Restart workers button
+            document.getElementById('restartWorkersBtn').addEventListener('click', async () => {
+                if (state.isProcessing) {
+                    showToast('warning', 'Stop processing first');
+                    return;
+                }
+                showToast('info', 'Restarting workers...');
+                await initWorkers();
+            });
+            
+            // Settings button
+            document.getElementById('settingsBtn').addEventListener('click', () => {
+                // Reset setup and show
+                state.config.setupComplete = false;
+                state.setupStep = 1;
+                updateSetupUI();
+                document.getElementById('setupOverlay').classList.remove('hidden');
+            });
+            
+            // Setup wizard
+            document.getElementById('setupNextBtn').addEventListener('click', handleSetupNext);
+            document.getElementById('setupBackBtn').addEventListener('click', handleSetupBack);
+            
+            // Setup options
+            document.querySelectorAll('.setup-option').forEach(opt => {
+                opt.addEventListener('click', () => {
+                    const parent = opt.closest('.setup-step');
+                    parent.querySelectorAll('.setup-option').forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    
+                    if (parent.dataset.step === '1') {
+                        state.config.whisperModel = opt.dataset.value;
+                        updateSetupEstimate();
+                    }
+                });
+            });
+            
+            // Worker count slider
+            document.getElementById('setupWorkerSlider').addEventListener('input', () => {
+                updateSetupEstimate();
+            });
+            
+            // Global drag/drop
+            document.body.addEventListener('dragover', (e) => {
+                e.preventDefault();
+            });
+            
+            document.body.addEventListener('drop', (e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('audio/')) {
+                    ingestAudioFile(file);
+                }
+            });
+        }
+        
+        async function handleSetupNext() {
+            switch (state.setupStep) {
+                case 1:
+                    state.setupStep = 2;
+                    updateSetupEstimate();
+                    break;
+                    
+                case 2:
+                    state.config.workerCount = parseInt(document.getElementById('setupWorkerSlider').value);
+                    state.setupStep = 3;
+                    updateSetupUI();
+                    createSetupWorkersUI();
+                    await initWorkers();
+                    break;
+                    
+                case 4:
+                    document.getElementById('setupOverlay').classList.add('hidden');
+                    break;
+            }
+            
             updateSetupUI();
         }
         
-        async function checkResume() {
-            const progress = await storage.get('progress', 'current');
-            const meta = await storage.get('progress', 'meta');
-            if (progress && meta && progress.completed.length < meta.totalChunks) {
-                state.totalChunks = meta.totalChunks;
-                const results = await storage.getAll('results');
-                for (const r of results) { state.results.set(r.chunkIndex, r); state.completedChunks.add(r.chunkIndex); if (r.filtered) state.filteredCount++; }
-                document.getElementById('resumeInfo').textContent = `${progress.completed.length}/${meta.totalChunks} • ${meta.fileName}`;
-                document.getElementById('resumeBanner').classList.add('visible');
-                const audio = await storage.get('audio', 'current');
-                if (audio) {
-                    state.audioMeta = { name: audio.name, size: audio.size };
-                    document.getElementById('uploadArea').classList.add('has-file');
-                    document.getElementById('fileInfo').classList.add('visible');
-                    document.getElementById('fileName').textContent = audio.name;
-                    document.getElementById('fileMeta').textContent = `${formatBytes(audio.size)} • ${meta.totalChunks} chunks`;
-                    document.getElementById('startBtn').disabled = state.readyWorkers.size === 0;
-                    document.getElementById('progressSection').classList.add('visible');
-                }
-                initChunkGrid();
-                for (const r of results) { updateChunkCell(r.chunkIndex, r.filtered ? 'filtered' : 'done'); updateChunkList(r); }
-                updateStats();
-                return true;
+        function handleSetupBack() {
+            if (state.setupStep > 1) {
+                state.setupStep--;
+                updateSetupUI();
             }
-            return false;
         }
         
-        function getExportData() {
-            return Array.from(state.results.values()).filter(r => r.text && !r.filtered).sort((a, b) => a.chunkIndex - b.chunkIndex);
-        }
-        
-        function exportMarkdown() {
-            const data = getExportData(); if (!data.length) return toast('error', 'No data');
-            let md = `# ${state.audioMeta?.name || 'Transcript'}\n\n`;
-            for (const c of data) { md += `## ${String(c.chunkIndex + 1).padStart(3, '0')} [${formatTime(c.startTime)}]\n\n${c.text}\n\n${c.translation ? `> ${c.translation}\n\n` : ''}`; }
-            download(`${state.audioMeta?.name || 'transcript'}.md`, md, 'text/markdown');
-        }
-        
-        function exportJson() {
-            const data = getExportData(); if (!data.length) return toast('error', 'No data');
-            const json = JSON.stringify({ meta: { fileName: state.audioMeta?.name, chunks: state.totalChunks }, chunks: data.map(c => ({ id: String(c.chunkIndex + 1).padStart(3, '0'), start: c.startTime, end: c.endTime, lang: c.language, text: c.text, translation: c.translation })) }, null, 2);
-            download(`${state.audioMeta?.name || 'transcript'}.json`, json, 'application/json');
-        }
-        
-        function exportTxt() {
-            const data = getExportData(); if (!data.length) return toast('error', 'No data');
-            let txt = '';
-            for (const c of data) { txt += `[${String(c.chunkIndex + 1).padStart(3, '0')}] ${formatTime(c.startTime)}\n${c.text}\n${c.translation ? `→ ${c.translation}\n` : ''}\n`; }
-            download(`${state.audioMeta?.name || 'transcript'}.txt`, txt, 'text/plain');
-        }
-        
-        function copyAll() {
-            const data = getExportData(); if (!data.length) return toast('error', 'No data');
-            navigator.clipboard.writeText(data.map(c => c.translation || c.text).join('\n\n')).then(() => toast('success', 'Copied'));
-        }
-        
-        function formatTime(s) { const m = Math.floor(s / 60); return `${m}:${Math.floor(s % 60).toString().padStart(2, '0')}`; }
-        function formatBytes(b) { return b < 1048576 ? (b / 1024).toFixed(1) + ' KB' : (b / 1048576).toFixed(1) + ' MB'; }
-        function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
-        function download(name, content, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type })); a.download = name; a.click(); }
-        function toast(type, msg) { const t = document.createElement('div'); t.className = `toast ${type}`; t.textContent = msg; document.getElementById('toastArea').appendChild(t); setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000); }
-        
-        document.getElementById('uploadArea').addEventListener('click', () => document.getElementById('fileInput').click());
-        document.getElementById('uploadArea').addEventListener('dragover', e => e.preventDefault());
-        document.getElementById('uploadArea').addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
-        document.getElementById('fileInput').addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
-        document.getElementById('startBtn').addEventListener('click', () => startProcessing(state.completedChunks));
-        document.getElementById('stopBtn').addEventListener('click', stopProcessing);
-        document.getElementById('resumeBtn').addEventListener('click', () => startProcessing(state.completedChunks));
-        document.getElementById('discardBtn').addEventListener('click', discardProgress);
-        document.getElementById('restartBtn').addEventListener('click', async () => { if (state.isProcessing) { toast('error', 'Stop first'); return; } toast('success', 'Restarting...'); await initWorkers(); });
-        document.getElementById('settingsBtn').addEventListener('click', () => { state.config.setupComplete = false; state.setupStep = 1; showSetup(); updateSetupUI(); });
-        document.getElementById('setupNext').addEventListener('click', setupNext);
-        document.getElementById('setupBack').addEventListener('click', () => { if (state.setupStep > 1 && state.setupStep < 4) { state.setupStep--; updateSetupUI(); } });
-        document.querySelectorAll('.option').forEach(opt => opt.addEventListener('click', () => { opt.closest('.setup-step').querySelectorAll('.option').forEach(o => o.classList.remove('selected')); opt.classList.add('selected'); if (state.setupStep === 1) state.config.whisperModel = opt.dataset.value; }));
-        document.getElementById('workerCountSlider').addEventListener('input', updateWorkerEstimate);
-        document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { document.querySelectorAll('.tab').forEach(t => t.classList.remove('active')); document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); tab.classList.add('active'); document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active'); }));
-        document.getElementById('exportMd').addEventListener('click', exportMarkdown);
-        document.getElementById('exportJson').addEventListener('click', exportJson);
-        document.getElementById('exportTxt').addEventListener('click', exportTxt);
-        document.getElementById('copyAll').addEventListener('click', copyAll);
+        // ============================================
+        // INITIALIZATION
+        // ============================================
         
         async function init() {
-            await storage.init();
-            const config = await storage.get('config', 'main');
-            if (config) state.config = { ...state.config, ...config };
-            if (!state.config.setupComplete) { showSetup(); }
-            else { hideSetup(); await initWorkers(); await checkResume(); }
+            try {
+                // Initialize storage
+                await storage.init();
+                
+                // Load config
+                const savedConfig = await storage.getConfig();
+                state.config = { ...state.config, ...savedConfig };
+                
+                // Setup event listeners
+                setupEventListeners();
+                
+                if (state.config.setupComplete) {
+                    // Hide setup overlay
+                    document.getElementById('setupOverlay').classList.add('hidden');
+                    
+                    // Initialize workers
+                    await initWorkers();
+                    
+                    // Load sessions list
+                    await refreshSessionsList();
+                    
+                    // Load most recent session or show empty state
+                    const sessions = await storage.getAllSessions();
+                    if (sessions.length > 0) {
+                        await loadSession(sessions[0].id);
+                    } else {
+                        renderEmptyState();
+                    }
+                } else {
+                    // Show setup wizard
+                    updateSetupUI();
+                    updateSetupEstimate();
+                }
+                
+            } catch (error) {
+                console.error('Initialization error:', error);
+                showToast('error', 'Failed to initialize app');
+            }
         }
+        
+        // Start the application
         init();
     </script>
 </body>
