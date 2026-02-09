@@ -76,7 +76,7 @@
 
     .tabs {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 12px;
       margin-bottom: 24px;
     }
@@ -247,6 +247,32 @@
       font-size: 12px;
     }
 
+    .inline-title-input {
+      border: 1px solid transparent;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      padding: 4px 6px;
+      font-family: inherit;
+      width: min(320px, 100%);
+      background: #f8fafc;
+    }
+
+    .inline-title-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: #ffffff;
+    }
+
+    .say-catalog-row {
+      display: grid;
+      gap: 6px;
+    }
+
+    .say-catalog-row select {
+      width: min(320px, 100%);
+    }
+
     .swap-btn {
       width: 40px;
       height: 40px;
@@ -404,6 +430,10 @@
     .card-header .meta {
       flex-direction: column;
       gap: 4px;
+    }
+
+    .card-title {
+      font-size: 14px;
     }
 
     .catalog-chips {
@@ -886,6 +916,7 @@
 
     <nav class="tabs" aria-label="Primary">
       <button class="tab-btn active" data-tab="say">Say</button>
+      <button class="tab-btn" data-tab="manage">Manage</button>
       <button class="tab-btn" data-tab="cards">Cards</button>
       <button class="tab-btn" data-tab="catalogs">Catalogs</button>
       <button class="tab-btn" data-tab="live">Live</button>
@@ -905,7 +936,7 @@
       <div class="card say-card">
         <div class="say-card-header">
           <div>
-            <strong>New card</strong>
+            <input class="inline-title-input" id="sayCardName" placeholder="Card name">
             <small id="sayCardTimestamp"></small>
           </div>
           <button class="icon-btn" id="clearSayBtn" aria-label="Clear say card">
@@ -952,16 +983,34 @@
           </div>
         </div>
 
-        <details class="advanced" open>
-          <summary>Catalog</summary>
+        <div class="say-catalog-row">
+          <label for="sayCatalogSelect">Catalog</label>
+          <select id="sayCatalogSelect" aria-label="Catalog selection"></select>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="manage">
+      <div class="card">
+        <div class="controls">
           <div>
-            <label>Copy to catalogs</label>
-            <div class="checkbox-list" id="sayCatalogList"></div>
+            <div class="section-label">Card management</div>
+            <div class="notice">Copy or move the active say card into the selected catalog.</div>
           </div>
-          <div class="controls" style="margin-top:12px;">
-            <button class="primary-btn" id="saveSayCardBtn">Copy / Move</button>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label>Card name</label>
+            <div class="readonly-panel" id="manageCardName">Untitled</div>
           </div>
-        </details>
+          <div>
+            <label>Selected catalog</label>
+            <div class="readonly-panel" id="manageCatalogName">—</div>
+          </div>
+        </div>
+        <div class="controls" style="margin-top:16px;">
+          <button class="primary-btn" id="saveSayCardBtn">Copy / Move</button>
+        </div>
       </div>
     </section>
 
@@ -1055,6 +1104,10 @@
         <details class="advanced" id="composerDetails">
           <summary>Create new card</summary>
           <div class="form-grid">
+            <div>
+              <label for="newCardName">Card name</label>
+              <input id="newCardName" placeholder="Optional card name">
+            </div>
             <div>
               <label for="newSourceText">Source phrase</label>
               <input id="newSourceText" placeholder="Enter the phrase to say">
@@ -1219,10 +1272,12 @@
       targetLang: 'th',
       catalogScope: 'catalog',
       sayDraft: {
+        name: '',
         sourceText: '',
         targetText: '',
         backText: '',
-        approveBack: false
+        approveBack: false,
+        catalogId: ''
       }
     };
 
@@ -1444,6 +1499,7 @@
     const newTargetText = document.getElementById('newTargetText');
     const newBackTranslation = document.getElementById('newBackTranslation');
     const newCardPriority = document.getElementById('newCardPriority');
+    const newCardName = document.getElementById('newCardName');
     const saySourceText = document.getElementById('saySourceText');
     const sayTargetText = document.getElementById('sayTargetText');
     const sayBackText = document.getElementById('sayBackText');
@@ -1453,12 +1509,15 @@
     const swapLangBtn = document.getElementById('swapLangBtn');
     const clearSayBtn = document.getElementById('clearSayBtn');
     const saveSayCardBtn = document.getElementById('saveSayCardBtn');
-    const sayCatalogList = document.getElementById('sayCatalogList');
+    const sayCatalogSelect = document.getElementById('sayCatalogSelect');
     const saySourceSpeak = document.getElementById('saySourceSpeak');
     const sayTargetSpeak = document.getElementById('sayTargetSpeak');
     const toggleSayBack = document.getElementById('toggleSayBack');
     const sayBackChevron = document.getElementById('sayBackChevron');
     const sayCardTimestamp = document.getElementById('sayCardTimestamp');
+    const sayCardName = document.getElementById('sayCardName');
+    const manageCardName = document.getElementById('manageCardName');
+    const manageCatalogName = document.getElementById('manageCatalogName');
     const exportCatalogBtn = document.getElementById('exportCatalogBtn');
     const importCatalogBtn = document.getElementById('importCatalogBtn');
     const catalogImportInput = document.getElementById('catalogImportInput');
@@ -1734,6 +1793,24 @@
       });
     }
 
+    function renderCatalogSelect(select, selectedId) {
+      if (!select) return;
+      const current = selectedId || select.value;
+      select.innerHTML = '';
+      catalogs.forEach(catalog => {
+        const option = document.createElement('option');
+        option.value = catalog.id;
+        option.textContent = catalog.name;
+        if (catalog.id === current) {
+          option.selected = true;
+        }
+        select.appendChild(option);
+      });
+      if (!select.value && catalogs[0]) {
+        select.value = catalogs[0].id;
+      }
+    }
+
     function renderCatalogs() {
       catalogList.innerHTML = '';
       catalogs.forEach(catalog => {
@@ -1767,7 +1844,9 @@
       catalogSummary.textContent = `${getCardsForCatalog(catalog.id).length} cards · ${orphanCount} orphans · Created ${formatDate(catalog.createdAt)}`;
       renderCatalogCheckboxes(newCardCatalogList, [catalog.id]);
       const lastUsedCatalog = catalogs.find(item => item.name.toLowerCase() === 'last used');
-      renderCatalogCheckboxes(sayCatalogList, [lastUsedCatalog?.id || catalog.id]);
+      const preferredSayCatalog = settings.sayDraft?.catalogId || lastUsedCatalog?.id || catalog.id;
+      renderCatalogSelect(sayCatalogSelect, preferredSayCatalog);
+      updateManageCatalogName();
       if (catalogScope === 'all') {
         selectedCatalogLabel.textContent = 'All cards';
       } else if (catalogScope === 'orphans') {
@@ -1786,7 +1865,7 @@
       }
       const term = searchTerm.trim().toLowerCase();
       const filtered = term
-        ? activeCards.filter(card => [card.source, card.target, card.backTranslation].some(value => value && value.toLowerCase().includes(term)))
+        ? activeCards.filter(card => [card.name, card.source, card.target, card.backTranslation].some(value => value && value.toLowerCase().includes(term)))
         : activeCards;
       const sorted = [...filtered];
       const priorityWeight = { High: 0, Standard: 1, 'Custom (manual order)': 2 };
@@ -1830,6 +1909,7 @@
         cardItem.innerHTML = `
           <div class="card-header">
             <div class="meta">
+              <strong class="card-title">${escapeHtml(card.name || card.source || 'Untitled card')}</strong>
               <div>Usage ${card.usage} · Updated ${formatDate(card.updatedAt)}</div>
               <div class="catalog-chips" data-catalogs="${card.id}"></div>
             </div>
@@ -2173,21 +2253,50 @@
       cardList.style.display = isMindmap ? 'none' : 'grid';
     }
 
+    function syncDraftNameToComposer() {
+      if (!newCardName) return;
+      newCardName.value = settings.sayDraft?.name || '';
+    }
+
+    function updateManageCardName() {
+      if (!manageCardName) return;
+      manageCardName.textContent = sayCardName.value.trim() || saySourceText.value.trim() || 'Untitled';
+    }
+
+    function updateManageCatalogName() {
+      if (!manageCatalogName) return;
+      const targetId = sayCatalogSelect?.value || settings.sayDraft?.catalogId;
+      const catalog = catalogs.find(item => item.id === targetId);
+      manageCatalogName.textContent = catalog ? catalog.name : '—';
+    }
+
     function saveSayDraft() {
       settings.sayDraft = {
+        name: sayCardName.value.trim(),
         sourceText: saySourceText.value,
         targetText: sayTargetText.value,
         backText: sayBackText.textContent || '',
-        approveBack: false
+        approveBack: false,
+        catalogId: sayCatalogSelect?.value || ''
       };
       saveSettings();
+      syncDraftNameToComposer();
+      updateManageCardName();
+      updateManageCatalogName();
     }
 
     function loadSayDraft() {
       const draft = settings.sayDraft || DEFAULT_SETTINGS.sayDraft;
+      sayCardName.value = draft.name || '';
       saySourceText.value = draft.sourceText || '';
       sayTargetText.value = draft.targetText || '';
       sayBackText.textContent = draft.backText || '';
+      if (draft.catalogId) {
+        renderCatalogSelect(sayCatalogSelect, draft.catalogId);
+      }
+      syncDraftNameToComposer();
+      updateManageCardName();
+      updateManageCatalogName();
       updateSayTimestamp();
     }
 
@@ -2340,6 +2449,7 @@
     }
 
     function resetComposer() {
+      newCardName.value = '';
       newSourceText.value = '';
       newTargetText.value = '';
       newBackTranslation.value = '';
@@ -2348,6 +2458,7 @@
     }
 
     function createCard() {
+      const name = newCardName.value.trim();
       const source = newSourceText.value.trim();
       const target = newTargetText.value.trim();
       if (!source && !target) {
@@ -2361,6 +2472,7 @@
       const card = {
         id: createId('card'),
         catalogIds,
+        name,
         source,
         target,
         backTranslation: newBackTranslation.value.trim(),
@@ -2380,21 +2492,21 @@
     }
 
     function saveSayCard() {
+      const name = sayCardName.value.trim();
       const source = saySourceText.value.trim();
       const target = sayTargetText.value.trim();
       if (!source && !target) {
         showToast('Add a phrase to save a card.');
         return;
       }
-      const selectedCatalogs = getSelectedCatalogIds(sayCatalogList);
+      const selectedCatalog = sayCatalogSelect?.value;
       const lastUsedCatalog = catalogs.find(item => item.name.toLowerCase() === 'last used');
-      const defaultCatalogId = lastUsedCatalog?.id || activeCatalogId;
-      const catalogIds = selectedCatalogs.length
-        ? selectedCatalogs
-        : (defaultCatalogId ? [defaultCatalogId] : []);
+      const defaultCatalogId = selectedCatalog || lastUsedCatalog?.id || activeCatalogId;
+      const catalogIds = defaultCatalogId ? [defaultCatalogId] : [];
       const card = {
         id: createId('card'),
         catalogIds,
+        name,
         source,
         target,
         backTranslation: (sayBackText.textContent || '').trim(),
@@ -2420,6 +2532,8 @@
       renderVersions();
       updateCatalogView();
       syncScopeToggles();
+      updateManageCardName();
+      updateManageCatalogName();
     }
 
     document.getElementById('addCardBtn').addEventListener('click', () => {
@@ -2447,6 +2561,18 @@
       });
     });
 
+    sayCardName.addEventListener('blur', () => {
+      saveSayDraft();
+    });
+
+    sayCatalogSelect.addEventListener('change', () => {
+      saveSayDraft();
+    });
+
+    sayCatalogSelect.addEventListener('blur', () => {
+      saveSayDraft();
+    });
+
     swapLangBtn.addEventListener('click', () => {
       const currentSource = settings.sourceLang;
       const currentTarget = settings.targetLang;
@@ -2462,10 +2588,12 @@
 
     clearSayBtn.addEventListener('click', () => {
       const undoSnapshot = {
+        name: sayCardName.value,
         source: saySourceText.value,
         target: sayTargetText.value,
         back: sayBackText.textContent || ''
       };
+      sayCardName.value = '';
       saySourceText.value = '';
       sayTargetText.value = '';
       sayBackText.textContent = '';
@@ -2475,6 +2603,7 @@
       showToast('Card cleared.', {
         actionLabel: 'Undo',
         onAction: () => {
+          sayCardName.value = undoSnapshot.name;
           saySourceText.value = undoSnapshot.source;
           sayTargetText.value = undoSnapshot.target;
           sayBackText.textContent = undoSnapshot.back;
