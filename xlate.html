@@ -3,856 +3,1654 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thai Transcriber v7</title>
+    <title>Thai Transcriber v8 — Gemini</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
         :root {
-            --bg-primary: #0a0a0f; --bg-secondary: #12121a; --bg-tertiary: #1a1a24; --bg-elevated: #22222e;
-            --border-primary: #2a2a3a; --border-secondary: #363648;
-            --text-primary: #e8e8f0; --text-secondary: #a0a0b8; --text-muted: #606078;
-            --accent-gold: #d4a853; --accent-gold-dim: #a07830;
-            --accent-thai: #4a90c2; --accent-english: #9a70c2;
-            --status-success: #48a068; --status-warning: #c08840; --status-error: #c05050;
+            --bg-0: #08080c;
+            --bg-1: #0e0e14;
+            --bg-2: #15151e;
+            --bg-3: #1c1c28;
+            --bg-4: #252534;
+            --border-1: #2a2a3c;
+            --border-2: #383850;
+            --text-1: #eaeaf2;
+            --text-2: #a8a8c0;
+            --text-3: #686880;
+            --gold: #e2b04a;
+            --gold-dim: #b08930;
+            --gold-glow: rgba(226, 176, 74, 0.12);
+            --thai-blue: #5a9fd4;
+            --eng-green: #5ab88a;
+            --ok: #4caf7a;
+            --warn: #d4a04a;
+            --err: #d45a5a;
+            --radius: 8px;
         }
+
         html, body { height: 100%; overflow: hidden; }
-        body { font-family: 'Sarabun', sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.6; font-size: 14px; }
-        .app-container { display: flex; flex-direction: column; height: 100vh; }
-        .app-header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; background: var(--bg-secondary); border-bottom: 1px solid var(--border-primary); }
-        .app-logo { font-size: 1rem; font-weight: 300; letter-spacing: 0.2em; background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dim)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .header-controls { display: flex; align-items: center; gap: 0.75rem; }
-        .worker-status { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.75rem; background: var(--bg-tertiary); border: 1px solid var(--border-primary); border-radius: 20px; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; }
-        .worker-dots { display: flex; gap: 3px; }
-        .worker-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-secondary); }
-        .worker-dot.loading { background: var(--status-warning); animation: pulse 1s infinite; }
-        .worker-dot.ready { background: var(--status-success); }
-        .worker-dot.working { background: var(--accent-gold); animation: pulse 0.5s infinite; }
-        .worker-dot.error { background: var(--status-error); }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-        .app-main { display: flex; flex: 1; overflow: hidden; }
-        .sidebar { width: 220px; background: var(--bg-secondary); border-right: 1px solid var(--border-primary); display: flex; flex-direction: column; }
-        .sidebar.collapsed { width: 0; overflow: hidden; }
-        .sidebar-header { display: flex; justify-content: space-between; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-primary); font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
-        .sidebar-sessions { flex: 1; overflow-y: auto; padding: 0.5rem; }
-        .session-card { padding: 0.6rem 0.75rem; background: var(--bg-tertiary); border: 1px solid var(--border-primary); border-radius: 6px; margin-bottom: 0.5rem; cursor: pointer; position: relative; }
-        .session-card:hover { border-color: var(--border-secondary); }
-        .session-card.active { border-color: var(--accent-gold); background: rgba(212, 168, 83, 0.08); }
-        .session-card-date { font-size: 0.7rem; color: var(--text-secondary); }
-        .session-card-name { font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .session-card-progress { display: flex; gap: 2px; margin-top: 0.3rem; }
-        .session-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-secondary); }
-        .session-dot.filled { background: var(--status-success); }
-        .session-card-delete { position: absolute; top: 0.4rem; right: 0.4rem; width: 18px; height: 18px; border: none; background: var(--status-error); color: white; border-radius: 3px; font-size: 0.7rem; cursor: pointer; opacity: 0; }
-        .session-card:hover .session-card-delete { opacity: 1; }
-        .sidebar-footer { padding: 0.75rem; border-top: 1px solid var(--border-primary); }
-        .new-btn { width: 100%; padding: 0.6rem; background: var(--bg-tertiary); border: 2px dashed var(--border-secondary); border-radius: 6px; color: var(--text-secondary); font-family: inherit; font-size: 0.75rem; cursor: pointer; }
-        .new-btn:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
-        .content-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-        .content-header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; background: var(--bg-secondary); border-bottom: 1px solid var(--border-primary); gap: 1rem; flex-wrap: wrap; }
-        .content-header-left { display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 0; }
-        .sidebar-toggle { width: 32px; height: 32px; border: 1px solid var(--border-primary); background: var(--bg-tertiary); color: var(--text-secondary); border-radius: 6px; cursor: pointer; font-size: 1rem; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg-0);
+            color: var(--text-1);
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        /* ── Layout ── */
+        .app { display: flex; flex-direction: column; height: 100vh; }
+
+        .header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.65rem 1.25rem;
+            background: var(--bg-1);
+            border-bottom: 1px solid var(--border-1);
+        }
+
+        .logo {
+            font-size: 0.85rem; font-weight: 300; letter-spacing: 0.25em; text-transform: uppercase;
+            background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+
+        .logo-sub {
+            font-size: 0.6rem; letter-spacing: 0.08em; color: var(--text-3);
+            margin-left: 0.75rem; font-family: 'DM Mono', monospace;
+        }
+
+        .header-right { display: flex; align-items: center; gap: 0.5rem; }
+
+        .api-status {
+            display: flex; align-items: center; gap: 0.4rem;
+            padding: 0.3rem 0.7rem;
+            background: var(--bg-2);
+            border: 1px solid var(--border-1);
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-family: 'DM Mono', monospace;
+            color: var(--text-3);
+        }
+
+        .api-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--border-2);
+        }
+        .api-dot.ok { background: var(--ok); box-shadow: 0 0 6px rgba(76, 175, 122, 0.4); }
+        .api-dot.working { background: var(--gold); animation: pulse 0.6s infinite; }
+        .api-dot.error { background: var(--err); }
+
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* ── Drop Zone / Welcome ── */
+        .welcome {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 2rem;
+        }
+
+        .welcome-icon {
+            width: 80px; height: 80px;
+            background: var(--bg-2);
+            border: 2px solid var(--border-1);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .welcome h2 {
+            font-size: 1.1rem; font-weight: 400; color: var(--text-2);
+            margin-bottom: 0.4rem;
+        }
+
+        .welcome p {
+            font-size: 0.8rem; color: var(--text-3);
+            margin-bottom: 2rem; text-align: center; max-width: 400px;
+        }
+
+        .drop-zone {
+            width: 100%; max-width: 420px;
+            padding: 2.5rem 2rem;
+            border: 2px dashed var(--border-2);
+            border-radius: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--gold);
+            background: var(--gold-glow);
+        }
+
+        .drop-zone-label {
+            font-size: 0.85rem; color: var(--text-2); margin-bottom: 0.3rem;
+        }
+
+        .drop-zone-sub {
+            font-size: 0.7rem; color: var(--text-3);
+            font-family: 'DM Mono', monospace;
+        }
+
+        /* ── Session Bar ── */
+        .session-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.6rem 1.25rem;
+            background: var(--bg-1);
+            border-bottom: 1px solid var(--border-1);
+            gap: 1rem;
+        }
+
         .session-info { flex: 1; min-width: 0; }
-        .session-name-input { background: transparent; border: none; font-family: inherit; font-size: 0.95rem; font-weight: 500; color: var(--text-primary); width: 100%; padding: 0.2rem 0; border-bottom: 1px solid transparent; }
-        .session-name-input:focus { outline: none; border-bottom-color: var(--accent-gold); }
-        .session-meta { font-size: 0.7rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
-        .content-actions { display: flex; gap: 0.5rem; }
-        .btn { padding: 0.5rem 1rem; border: none; border-radius: 5px; font-family: inherit; font-size: 0.75rem; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-primary { background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dim)); color: var(--bg-primary); }
-        .btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-primary); }
-        .btn-danger { background: var(--status-warning); color: white; }
-        .btn-ghost { background: transparent; color: var(--text-secondary); padding: 0.35rem 0.5rem; }
-        .btn-sm { padding: 0.35rem 0.6rem; font-size: 0.7rem; }
-        .btn-xs { padding: 0.2rem 0.4rem; font-size: 0.65rem; }
-        .btn-icon { width: 32px; height: 32px; padding: 0; }
-        .transcript-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-        .transcript-header { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--border-primary); background: var(--bg-secondary); }
-        .column-header { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 1rem; }
-        .column-header:first-child { border-right: 1px solid var(--border-primary); }
-        .column-title { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
-        .transcript-scroll { flex: 1; overflow-y: auto; }
-        .chunk-row { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--border-primary); }
-        .chunk-row:hover { background: rgba(255, 255, 255, 0.02); }
-        .chunk-row.filtered { opacity: 0.5; }
-        .chunk-cell { padding: 0.75rem 1rem; min-height: 80px; }
-        .chunk-cell:first-child { border-right: 1px solid var(--border-primary); }
-        .chunk-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
-        .chunk-id { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-muted); background: var(--bg-tertiary); padding: 0.15rem 0.4rem; border-radius: 3px; }
-        .chunk-time { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-muted); }
-        .chunk-lang { font-size: 0.6rem; font-weight: 600; padding: 0.1rem 0.35rem; border-radius: 3px; }
-        .chunk-lang.th { background: rgba(74, 144, 194, 0.15); color: var(--accent-thai); }
-        .chunk-lang.en { background: rgba(154, 112, 194, 0.15); color: var(--accent-english); }
-        .chunk-play { width: 22px; height: 22px; border: 1px solid var(--border-secondary); background: var(--bg-tertiary); color: var(--text-secondary); border-radius: 50%; font-size: 0.6rem; cursor: pointer; }
-        .chunk-play:hover { background: var(--accent-gold); border-color: var(--accent-gold); color: var(--bg-primary); }
-        .chunk-text { font-size: 0.9rem; line-height: 1.7; }
-        .chunk-text.empty { color: var(--text-muted); font-style: italic; }
-        .chunk-text.filtered { color: var(--status-warning); font-size: 0.8rem; }
-        .chunk-actions { display: flex; gap: 0.3rem; margin-top: 0.5rem; opacity: 0; }
-        .chunk-row:hover .chunk-actions { opacity: 1; }
-        .chunk-action { padding: 0.2rem 0.4rem; font-size: 0.6rem; background: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-secondary); border-radius: 3px; cursor: pointer; }
-        .chunk-action:hover { background: var(--bg-elevated); color: var(--text-primary); }
-        .back-translation { margin-top: 0.6rem; padding: 0.5rem 0.6rem; background: var(--bg-tertiary); border-radius: 4px; border-left: 2px solid var(--accent-gold-dim); }
-        .back-translation-label { font-size: 0.6rem; color: var(--text-muted); margin-bottom: 0.25rem; display: flex; justify-content: space-between; }
-        .back-translation-text { font-size: 0.8rem; color: var(--accent-gold); font-style: italic; }
-        .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); padding: 2rem; }
-        .empty-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.3; }
-        .empty-title { font-size: 1rem; margin-bottom: 0.5rem; color: var(--text-secondary); }
-        .drop-zone { margin-top: 1.5rem; padding: 2rem 3rem; border: 2px dashed var(--border-secondary); border-radius: 10px; cursor: pointer; text-align: center; }
-        .drop-zone:hover { border-color: var(--accent-gold); background: rgba(212, 168, 83, 0.05); }
-        .drop-zone.dragover { border-color: var(--accent-gold); background: rgba(212, 168, 83, 0.1); }
-        .progress-bar-container { background: var(--bg-secondary); border-top: 1px solid var(--border-primary); padding: 0.6rem 1rem; display: none; }
-        .progress-bar-container.visible { display: block; }
-        .progress-header { display: flex; justify-content: space-between; margin-bottom: 0.4rem; font-size: 0.7rem; }
-        .progress-stats { display: flex; gap: 1rem; font-size: 0.65rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); }
-        .progress-track { height: 6px; background: var(--bg-tertiary); border-radius: 3px; overflow: hidden; display: flex; }
-        .progress-fill { height: 100%; transition: width 0.3s; }
-        .progress-fill.transcribe { background: var(--accent-thai); }
-        .progress-fill.translate { background: var(--accent-gold); }
-        .overlay { position: fixed; inset: 0; background: rgba(10, 10, 15, 0.95); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem; }
-        .overlay.hidden { display: none; }
-        .setup-modal { background: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: 12px; width: 100%; max-width: 480px; }
-        .setup-header { padding: 1.25rem; border-bottom: 1px solid var(--border-primary); text-align: center; }
-        .setup-title { font-size: 1.1rem; color: var(--accent-gold); }
-        .setup-subtitle { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
-        .setup-body { padding: 1.25rem; }
-        .setup-step { display: none; }
-        .setup-step.active { display: block; }
-        .setup-label { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.75rem; }
-        .setup-option { padding: 0.75rem 1rem; background: var(--bg-tertiary); border: 2px solid var(--border-primary); border-radius: 8px; margin-bottom: 0.5rem; cursor: pointer; }
-        .setup-option:hover { border-color: var(--border-secondary); }
-        .setup-option.selected { border-color: var(--accent-gold); background: rgba(212, 168, 83, 0.08); }
-        .setup-option-title { font-weight: 500; font-size: 0.9rem; }
-        .setup-option-desc { font-size: 0.75rem; color: var(--text-muted); }
-        .setup-slider-container { margin: 1.5rem 0; }
-        .setup-slider-header { display: flex; justify-content: space-between; margin-bottom: 0.75rem; }
-        .setup-slider-value { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 600; color: var(--accent-gold); }
-        .setup-slider { width: 100%; height: 8px; border-radius: 4px; background: var(--bg-tertiary); -webkit-appearance: none; }
-        .setup-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-gold); cursor: pointer; }
-        .setup-estimate { margin-top: 0.75rem; padding: 0.75rem; background: var(--bg-primary); border-radius: 6px; font-size: 0.75rem; color: var(--text-muted); text-align: center; }
-        .setup-workers-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-top: 1rem; }
-        .setup-worker-card { background: var(--bg-tertiary); border: 1px solid var(--border-primary); border-radius: 8px; padding: 0.75rem; }
-        .setup-worker-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
-        .setup-worker-id { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); }
-        .setup-worker-status { font-size: 0.65rem; color: var(--text-muted); }
-        .setup-worker-card.loading .setup-worker-status { color: var(--status-warning); }
-        .setup-worker-card.ready .setup-worker-status { color: var(--status-success); }
-        .setup-worker-card.error .setup-worker-status { color: var(--status-error); }
-        .setup-worker-progress { height: 4px; background: var(--bg-primary); border-radius: 2px; overflow: hidden; margin-bottom: 0.3rem; }
-        .setup-worker-progress-fill { height: 100%; background: var(--accent-gold); width: 0%; transition: width 0.2s; }
-        .setup-worker-card.ready .setup-worker-progress-fill { background: var(--status-success); width: 100%; }
-        .setup-worker-task { font-size: 0.65rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
-        .setup-complete { text-align: center; padding: 1rem 0; }
-        .setup-complete-icon { font-size: 3rem; margin-bottom: 0.75rem; }
-        .setup-complete-title { font-size: 1.1rem; color: var(--status-success); margin-bottom: 0.5rem; }
-        .setup-complete-summary { font-size: 0.8rem; color: var(--text-muted); }
-        .setup-footer { padding: 1rem 1.25rem; border-top: 1px solid var(--border-primary); display: flex; justify-content: space-between; }
-        .ingest-modal { background: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: 12px; width: 100%; max-width: 400px; padding: 2rem; text-align: center; }
-        .ingest-icon { font-size: 2.5rem; margin-bottom: 1rem; }
-        .ingest-title { font-size: 1rem; margin-bottom: 0.5rem; }
-        .ingest-status { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem; }
-        .ingest-progress { height: 6px; background: var(--bg-tertiary); border-radius: 3px; overflow: hidden; margin-bottom: 0.5rem; }
-        .ingest-progress-fill { height: 100%; background: var(--accent-gold); width: 0%; transition: width 0.3s; }
-        .ingest-detail { font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); }
-        .toast-container { position: fixed; bottom: 1rem; right: 1rem; z-index: 2000; }
-        .toast { padding: 0.75rem 1rem; background: var(--bg-elevated); border: 1px solid var(--border-primary); border-radius: 8px; margin-top: 0.5rem; font-size: 0.8rem; animation: toastIn 0.2s; }
-        @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        .toast.success { border-color: var(--status-success); }
-        .toast.error { border-color: var(--status-error); }
-        .toast.warning { border-color: var(--status-warning); }
-        .hidden { display: none !important; }
-        input[type="file"] { display: none; }
+
+        .session-name {
+            font-size: 0.95rem; font-weight: 500;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        .session-meta {
+            font-size: 0.65rem; color: var(--text-3);
+            font-family: 'DM Mono', monospace;
+            display: flex; gap: 0.75rem; flex-wrap: wrap;
+        }
+
+        .session-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+
+        .btn {
+            padding: 0.45rem 0.9rem;
+            border: none; border-radius: var(--radius);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.75rem; font-weight: 500;
+            cursor: pointer;
+            display: inline-flex; align-items: center; gap: 0.35rem;
+            transition: all 0.15s;
+        }
+
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-gold { background: linear-gradient(135deg, var(--gold), var(--gold-dim)); color: var(--bg-0); }
+        .btn-gold:hover:not(:disabled) { filter: brightness(1.1); }
+        .btn-outline { background: transparent; border: 1px solid var(--border-2); color: var(--text-2); }
+        .btn-outline:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+        .btn-stop { background: var(--err); color: white; }
+        .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.7rem; }
+        .btn-ghost { background: transparent; color: var(--text-3); padding: 0.3rem 0.5rem; }
+        .btn-ghost:hover { color: var(--text-1); }
+
+        /* ── Progress ── */
+        .progress-bar {
+            padding: 0.5rem 1.25rem;
+            background: var(--bg-1);
+            border-bottom: 1px solid var(--border-1);
+            display: none;
+        }
+
+        .progress-bar.visible { display: block; }
+
+        .progress-top {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 0.35rem;
+        }
+
+        .progress-label {
+            font-size: 0.7rem; color: var(--text-2);
+        }
+
+        .progress-stats {
+            font-size: 0.65rem; color: var(--text-3);
+            font-family: 'DM Mono', monospace;
+        }
+
+        .progress-track {
+            height: 5px; background: var(--bg-3);
+            border-radius: 3px; overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+            border-radius: 3px;
+            transition: width 0.4s ease;
+        }
+
+        /* ── Transcript Area ── */
+        .transcript { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        .transcript-cols {
+            display: grid; grid-template-columns: 1fr 1fr;
+            border-bottom: 1px solid var(--border-1);
+            background: var(--bg-1);
+        }
+
+        .col-header {
+            padding: 0.55rem 1.25rem;
+            display: flex; align-items: center; justify-content: space-between;
+            font-size: 0.65rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.1em;
+            color: var(--text-3);
+        }
+
+        .col-header:first-child { border-right: 1px solid var(--border-1); }
+
+        .col-tag {
+            font-size: 0.6rem; font-weight: 500;
+            padding: 0.1rem 0.4rem; border-radius: 3px;
+        }
+
+        .col-tag.thai { background: rgba(90, 159, 212, 0.12); color: var(--thai-blue); }
+        .col-tag.eng { background: rgba(90, 184, 138, 0.12); color: var(--eng-green); }
+
+        .scroll { flex: 1; overflow-y: auto; }
+
+        .chunk {
+            display: grid; grid-template-columns: 1fr 1fr;
+            border-bottom: 1px solid var(--border-1);
+            transition: background 0.15s;
+        }
+
+        .chunk:hover { background: rgba(255, 255, 255, 0.015); }
+        .chunk.processing { background: var(--gold-glow); }
+        .chunk.error-row { background: rgba(212, 90, 90, 0.05); }
+
+        .cell {
+            padding: 0.85rem 1.25rem;
+            min-height: 70px;
+        }
+
+        .cell:first-child { border-right: 1px solid var(--border-1); }
+
+        .cell-head {
+            display: flex; align-items: center; gap: 0.5rem;
+            margin-bottom: 0.45rem;
+        }
+
+        .cell-id {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.6rem; color: var(--text-3);
+            background: var(--bg-3);
+            padding: 0.12rem 0.35rem; border-radius: 3px;
+        }
+
+        .cell-time {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.6rem; color: var(--text-3);
+        }
+
+        .cell-text {
+            font-size: 0.9rem; line-height: 1.8;
+        }
+
+        .cell-text.thai-text {
+            font-family: 'Noto Sans Thai', 'DM Sans', sans-serif;
+        }
+
+        .cell-text.empty {
+            color: var(--text-3); font-style: italic; font-size: 0.8rem;
+        }
+
+        .cell-text.error-text {
+            color: var(--err); font-size: 0.8rem;
+        }
+
+        .cell-actions {
+            display: flex; gap: 0.3rem; margin-top: 0.4rem;
+            opacity: 0; transition: opacity 0.15s;
+        }
+
+        .chunk:hover .cell-actions { opacity: 1; }
+
+        .cell-action {
+            padding: 0.15rem 0.35rem;
+            font-size: 0.6rem; font-family: 'DM Sans', sans-serif;
+            background: var(--bg-3); border: 1px solid var(--border-1);
+            color: var(--text-3); border-radius: 3px;
+            cursor: pointer; transition: all 0.15s;
+        }
+
+        .cell-action:hover {
+            background: var(--bg-4); color: var(--text-1);
+            border-color: var(--border-2);
+        }
+
+        /* ── Back-Translate Drawer ── */
+        .chunk-wrapper {
+            border-bottom: 1px solid var(--border-1);
+        }
+
+        .chunk-wrapper .chunk {
+            border-bottom: none;
+        }
+
+        .bt-toggle {
+            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0.35rem 1.25rem;
+            background: var(--bg-1);
+            border-top: 1px solid var(--border-1);
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.15s;
+        }
+
+        .bt-toggle:hover {
+            background: var(--bg-2);
+        }
+
+        .bt-toggle.disabled {
+            opacity: 0.3;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        .bt-chevron {
+            font-size: 0.6rem;
+            color: var(--text-3);
+            transition: transform 0.25s ease;
+            display: inline-block;
+            width: 12px; height: 12px;
+            text-align: center; line-height: 12px;
+        }
+
+        .bt-toggle.open .bt-chevron {
+            transform: rotate(90deg);
+        }
+
+        .bt-label {
+            font-size: 0.65rem;
+            font-family: 'DM Mono', monospace;
+            color: var(--text-3);
+        }
+
+        .bt-toggle:hover .bt-label {
+            color: var(--gold);
+        }
+
+        .bt-toggle:hover .bt-chevron {
+            color: var(--gold);
+        }
+
+        .bt-spinner {
+            width: 10px; height: 10px;
+            border: 1.5px solid var(--border-2);
+            border-top-color: var(--gold);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            display: none;
+        }
+
+        .bt-toggle.loading .bt-spinner { display: inline-block; }
+        .bt-toggle.loading .bt-chevron { display: none; }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .bt-drawer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.25s ease;
+            opacity: 0;
+            background: var(--bg-1);
+        }
+
+        .bt-drawer.open {
+            max-height: 400px;
+            opacity: 1;
+        }
+
+        .bt-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            padding: 0.75rem 1.25rem 1rem;
+            gap: 0;
+        }
+
+        .bt-col {
+            padding: 0.5rem 0.75rem;
+        }
+
+        .bt-col:first-child {
+            border-right: 1px solid var(--border-1);
+        }
+
+        .bt-col-label {
+            font-size: 0.6rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--text-3);
+            margin-bottom: 0.35rem;
+            display: flex; align-items: center; gap: 0.4rem;
+        }
+
+        .bt-arrow {
+            color: var(--gold-dim);
+            font-size: 0.7rem;
+        }
+
+        .bt-text {
+            font-size: 0.85rem;
+            line-height: 1.7;
+            color: var(--gold);
+            font-style: italic;
+        }
+
+        .bt-text.thai-text {
+            font-family: 'Noto Sans Thai', 'DM Sans', sans-serif;
+        }
+
+        .bt-text.empty {
+            color: var(--text-3);
+        }
+
+        .bt-actions {
+            padding: 0.25rem 1.25rem 0.6rem;
+            display: flex; gap: 0.3rem;
+        }
+
         @media (max-width: 768px) {
-            .sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 100; transform: translateX(-100%); width: 280px; }
-            .sidebar.open { transform: translateX(0); }
-            .chunk-row { grid-template-columns: 1fr; }
-            .chunk-cell:first-child { border-right: none; border-bottom: 1px solid var(--border-primary); }
-            .transcript-header { grid-template-columns: 1fr; }
-            .column-header:first-child { border-right: none; border-bottom: 1px solid var(--border-primary); }
+            .bt-content { grid-template-columns: 1fr; }
+            .bt-col:first-child { border-right: none; border-bottom: 1px solid var(--border-1); padding-bottom: 0.75rem; margin-bottom: 0.5rem; }
+        }
+
+        /* ── Settings Panel ── */
+        .overlay {
+            position: fixed; inset: 0;
+            background: rgba(8, 8, 12, 0.92);
+            z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+            padding: 1rem;
+            backdrop-filter: blur(4px);
+        }
+
+        .overlay.hidden { display: none; }
+
+        .modal {
+            background: var(--bg-1);
+            border: 1px solid var(--border-1);
+            border-radius: 12px;
+            width: 100%; max-width: 440px;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border-1);
+        }
+
+        .modal-title { font-size: 1rem; font-weight: 500; }
+        .modal-sub { font-size: 0.75rem; color: var(--text-3); margin-top: 0.2rem; }
+
+        .modal-body { padding: 1.5rem; }
+
+        .field { margin-bottom: 1.25rem; }
+
+        .field-label {
+            font-size: 0.7rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--text-3); margin-bottom: 0.5rem;
+        }
+
+        .field-input {
+            width: 100%; padding: 0.6rem 0.8rem;
+            background: var(--bg-2);
+            border: 1px solid var(--border-1);
+            border-radius: var(--radius);
+            color: var(--text-1);
+            font-family: 'DM Mono', monospace;
+            font-size: 0.8rem;
+        }
+
+        .field-input:focus {
+            outline: none;
+            border-color: var(--gold);
+            box-shadow: 0 0 0 2px var(--gold-glow);
+        }
+
+        .field-hint {
+            font-size: 0.65rem; color: var(--text-3);
+            margin-top: 0.35rem;
+        }
+
+        .field-select {
+            width: 100%; padding: 0.6rem 0.8rem;
+            background: var(--bg-2);
+            border: 1px solid var(--border-1);
+            border-radius: var(--radius);
+            color: var(--text-1);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.8rem;
+        }
+
+        .field-select:focus {
+            outline: none; border-color: var(--gold);
+        }
+
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border-1);
+            display: flex; justify-content: flex-end; gap: 0.5rem;
+        }
+
+        /* ── Ingest Overlay ── */
+        .ingest-modal {
+            background: var(--bg-1);
+            border: 1px solid var(--border-1);
+            border-radius: 12px;
+            width: 100%; max-width: 380px;
+            padding: 2rem; text-align: center;
+        }
+
+        .ingest-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+
+        .ingest-title { font-size: 0.95rem; margin-bottom: 0.4rem; }
+
+        .ingest-status {
+            font-size: 0.75rem; color: var(--text-3); margin-bottom: 1rem;
+        }
+
+        .ingest-track {
+            height: 5px; background: var(--bg-3);
+            border-radius: 3px; overflow: hidden; margin-bottom: 0.5rem;
+        }
+
+        .ingest-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+            transition: width 0.3s;
+        }
+
+        .ingest-detail {
+            font-size: 0.65rem; color: var(--text-3);
+            font-family: 'DM Mono', monospace;
+        }
+
+        /* ── Toast ── */
+        .toast-wrap {
+            position: fixed; bottom: 1rem; right: 1rem; z-index: 2000;
+            display: flex; flex-direction: column; gap: 0.4rem;
+        }
+
+        .toast {
+            padding: 0.6rem 1rem;
+            background: var(--bg-3);
+            border: 1px solid var(--border-1);
+            border-radius: var(--radius);
+            font-size: 0.8rem;
+            animation: slideIn 0.2s ease;
+            transition: opacity 0.3s;
+        }
+
+        .toast.ok { border-left: 3px solid var(--ok); }
+        .toast.err { border-left: 3px solid var(--err); }
+        .toast.warn { border-left: 3px solid var(--warn); }
+
+        @keyframes slideIn {
+            from { transform: translateX(40px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* ── Scrollbar ── */
+        .scroll::-webkit-scrollbar { width: 6px; }
+        .scroll::-webkit-scrollbar-track { background: transparent; }
+        .scroll::-webkit-scrollbar-thumb { background: var(--border-1); border-radius: 3px; }
+        .scroll::-webkit-scrollbar-thumb:hover { background: var(--border-2); }
+
+        input[type="file"] { display: none; }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .chunk { grid-template-columns: 1fr; }
+            .cell:first-child { border-right: none; border-bottom: 1px solid var(--border-1); }
+            .transcript-cols { grid-template-columns: 1fr; }
+            .col-header:first-child { border-right: none; border-bottom: 1px solid var(--border-1); }
         }
     </style>
 </head>
 <body>
-    <div class="overlay" id="setupOverlay">
-        <div class="setup-modal">
-            <div class="setup-header"><div class="setup-title">Thai Transcriber Setup</div><div class="setup-subtitle">Configure transcription environment</div></div>
-            <div class="setup-body">
-                <div class="setup-step active" data-step="1">
-                    <div class="setup-label">Select Whisper Model</div>
-                    <div class="setup-option" data-value="tiny"><div class="setup-option-title">🚀 Tiny (~40 MB/worker)</div><div class="setup-option-desc">Fastest, less accurate</div></div>
-                    <div class="setup-option selected" data-value="base"><div class="setup-option-title">⚖️ Base (~75 MB/worker)</div><div class="setup-option-desc">Recommended balance</div></div>
-                    <div class="setup-option" data-value="small"><div class="setup-option-title">🎯 Small (~250 MB/worker)</div><div class="setup-option-desc">Most accurate, slower</div></div>
-                </div>
-                <div class="setup-step" data-step="2">
-                    <div class="setup-label">Parallel Workers (1-8)</div>
-                    <div class="setup-slider-container">
-                        <div class="setup-slider-header"><span>Workers</span><span class="setup-slider-value" id="setupWorkerCount">4</span></div>
-                        <input type="range" class="setup-slider" id="setupWorkerSlider" min="1" max="8" value="4">
-                    </div>
-                    <div class="setup-estimate" id="setupEstimate">~500 MB RAM • 4× parallel</div>
-                </div>
-                <div class="setup-step" data-step="3"><div class="setup-label">Initializing Workers...</div><div class="setup-workers-grid" id="setupWorkersGrid"></div></div>
-                <div class="setup-step" data-step="4"><div class="setup-complete"><div class="setup-complete-icon">✅</div><div class="setup-complete-title">Setup Complete</div><div class="setup-complete-summary" id="setupSummary">Ready</div></div></div>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div style="display:flex;align-items:baseline;">
+                <span class="logo">Thai Transcriber</span>
+                <span class="logo-sub">v8 · Gemini</span>
             </div>
-            <div class="setup-footer"><button class="btn btn-secondary hidden" id="setupBackBtn">← Back</button><div style="flex:1"></div><button class="btn btn-primary" id="setupNextBtn">Next →</button></div>
+            <div class="header-right">
+                <div class="api-status">
+                    <div class="api-dot" id="apiDot"></div>
+                    <span id="apiStatusText">No API key</span>
+                </div>
+                <button class="btn btn-ghost" id="settingsBtn" title="Settings">⚙️</button>
+            </div>
+        </header>
+
+        <!-- Main content -->
+        <div class="main" id="mainArea">
+            <!-- Welcome state (shown by default) -->
+            <div class="welcome" id="welcomeView">
+                <div class="welcome-icon">🎙️</div>
+                <h2>Thai Audio → English Text</h2>
+                <p>Drop a Thai audio recording and Gemini will transcribe and translate it to readable English.</p>
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-label">📂 Drop audio file or click to browse</div>
+                    <div class="drop-zone-sub">m4a · mp3 · wav · ogg · flac</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-top">
+                <span class="progress-label" id="progressLabel">Processing...</span>
+                <span class="progress-stats" id="progressStats">0 / 0</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
         </div>
     </div>
-    <div class="overlay hidden" id="ingestOverlay"><div class="ingest-modal"><div class="ingest-icon">📂</div><div class="ingest-title">Processing Audio</div><div class="ingest-status" id="ingestStatus">Reading...</div><div class="ingest-progress"><div class="ingest-progress-fill" id="ingestProgressFill"></div></div><div class="ingest-detail" id="ingestDetail">0%</div></div></div>
-    <div class="app-container">
-        <header class="app-header"><div class="app-logo">THAI TRANSCRIBER</div><div class="header-controls"><div class="worker-status"><div class="worker-dots" id="workerDots"></div><span id="workerStatusText">Setup required</span></div><button class="btn btn-ghost btn-icon" id="restartBtn" title="Restart">🔄</button><button class="btn btn-ghost btn-icon" id="settingsBtn" title="Settings">⚙️</button></div></header>
-        <div class="app-main"><aside class="sidebar" id="sidebar"><div class="sidebar-header"><span>Sessions</span><span id="sessionCount">0</span></div><div class="sidebar-sessions" id="sessionsList"></div><div class="sidebar-footer"><button class="new-btn" id="newSessionBtn">+ New Recording</button></div></aside><main class="content-area" id="contentArea"></main></div>
-        <div class="progress-bar-container" id="progressBar"><div class="progress-header"><span id="progressLabel">Processing...</span><div class="progress-stats"><span id="progressTranscribe">Transcribe: 0/0</span><span id="progressTranslate">Translate: 0/0</span></div></div><div class="progress-track"><div class="progress-fill transcribe" id="progressFillTranscribe"></div><div class="progress-fill translate" id="progressFillTranslate"></div></div></div>
+
+    <!-- Settings overlay -->
+    <div class="overlay hidden" id="settingsOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Settings</div>
+                <div class="modal-sub">Configure Gemini API connection</div>
+            </div>
+            <div class="modal-body">
+                <div class="field">
+                    <div class="field-label">Gemini API Key</div>
+                    <input type="password" class="field-input" id="apiKeyInput" placeholder="AIzaSy..." autocomplete="off">
+                    <div class="field-hint">From Google AI Studio · stored locally only</div>
+                </div>
+                <div class="field">
+                    <div class="field-label">Model</div>
+                    <select class="field-select" id="modelSelect">
+                        <option value="gemini-2.0-flash">Gemini 2.0 Flash (fast, recommended)</option>
+                        <option value="gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash (best balance)</option>
+                        <option value="gemini-2.5-pro-preview-05-06">Gemini 2.5 Pro (highest quality)</option>
+                    </select>
+                    <div class="field-hint">Flash is fast and free-tier friendly · Pro is best for difficult audio</div>
+                </div>
+                <div class="field">
+                    <div class="field-label">Chunk Duration (seconds)</div>
+                    <select class="field-select" id="chunkSelect">
+                        <option value="60">60s — More chunks, faster per-chunk</option>
+                        <option value="120" selected>120s — Good balance</option>
+                        <option value="180">180s — Better context</option>
+                        <option value="300">300s — Fewer chunks, more context</option>
+                    </select>
+                    <div class="field-hint">Longer chunks give Gemini more context for better results</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="settingsCancel">Cancel</button>
+                <button class="btn btn-gold" id="settingsSave">Save</button>
+            </div>
+        </div>
     </div>
+
+    <!-- Ingest overlay -->
+    <div class="overlay hidden" id="ingestOverlay">
+        <div class="ingest-modal">
+            <div class="ingest-icon">🔊</div>
+            <div class="ingest-title">Preparing Audio</div>
+            <div class="ingest-status" id="ingestStatus">Reading file...</div>
+            <div class="ingest-track"><div class="ingest-fill" id="ingestFill"></div></div>
+            <div class="ingest-detail" id="ingestDetail">0%</div>
+        </div>
+    </div>
+
+    <!-- Toast container -->
+    <div class="toast-wrap" id="toastWrap"></div>
+
     <input type="file" id="fileInput" accept="audio/*,.m4a,.mp3,.wav,.ogg,.flac">
-    <div class="toast-container" id="toastContainer"></div>
 
-    <script id="workerCode" type="text/js-worker">
-        let workerId = null, whisper = null, thEn = null, enTh = null;
-        
-        self.onmessage = async function(e) {
-            const { type, data } = e.data;
-            
-            if (type === 'init') {
-                workerId = data.workerId;
-                try {
-                    send('status', 'loading', 'Importing...');
-                    const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
-                    
-                    send('status', 'loading', 'Whisper...');
-                    whisper = await pipeline('automatic-speech-recognition', 'Xenova/whisper-' + data.model, {
-                        quantized: true,
-                        progress_callback: p => p.status === 'progress' && send('progress', 'whisper', p.progress)
-                    });
-                    send('progress', 'whisper', 100);
-                    
-                    send('status', 'loading', 'TH→EN...');
-                    thEn = await pipeline('translation', 'Xenova/opus-mt-th-en', {
-                        quantized: true,
-                        progress_callback: p => p.status === 'progress' && send('progress', 'th-en', p.progress)
-                    });
-                    send('progress', 'th-en', 100);
-                    
-                    send('status', 'loading', 'EN→TH...');
-                    try { enTh = await pipeline('translation', 'Xenova/opus-mt-en-th', { quantized: true, progress_callback: p => p.status === 'progress' && send('progress', 'en-th', p.progress) }); } catch(err) { enTh = null; }
-                    send('progress', 'en-th', 100);
-                    
-                    self.postMessage({ type: 'ready', workerId });
-                } catch (err) { self.postMessage({ type: 'error', workerId, error: err.message }); }
-            }
-            
-            if (type === 'transcribe') {
-                const { sessionId, chunkIndex, audioData } = data;
-                try {
-                    send('status', 'working', '#' + (chunkIndex + 1));
-                    const audio = new Float32Array(audioData);
-                    
-                    // Silence check - RMS < -40dB
-                    let sum = 0; for (let i = 0; i < audio.length; i++) sum += audio[i] * audio[i];
-                    if (20 * Math.log10(Math.sqrt(sum / audio.length) + 1e-10) < -40) {
-                        self.postMessage({ type: 'chunkComplete', workerId, sessionId, chunkIndex, result: { transcript: '', transcriptLang: 'unknown', filtered: true, filterReason: 'Silence' } });
-                        return;
-                    }
-                    
-                    const result = await whisper(audio, { language: 'th', task: 'transcribe' });
-                    let text = result.text?.trim() || '';
-                    let filtered = false, filterReason = null;
-                    
-                    // AGGRESSIVE REPETITION DETECTION
-                    if (text.length > 10) {
-                        const rep = detectRepetition(text);
-                        if (rep.isRepetitive) {
-                            filtered = true;
-                            filterReason = rep.reason;
-                            text = '';
-                        }
-                    }
-                    
-                    const thaiChars = (text.match(/[\u0E00-\u0E7F]/g) || []).length;
-                    const total = text.replace(/\s/g, '').length;
-                    const lang = total > 0 && thaiChars / total > 0.3 ? 'th' : 'en';
-                    
-                    self.postMessage({ type: 'chunkComplete', workerId, sessionId, chunkIndex, result: { transcript: text, transcriptLang: lang, filtered, filterReason } });
-                } catch (err) { self.postMessage({ type: 'chunkError', workerId, sessionId, chunkIndex, error: err.message }); }
-            }
-            
-            if (type === 'translate') {
-                const { sessionId, chunkIndex, text, sourceLang } = data;
-                try {
-                    send('status', 'working', 'T#' + (chunkIndex + 1));
-                    let translation = '', targetLang = '';
-                    if (sourceLang === 'th' && thEn) { const r = await thEn(text, { max_length: 512 }); translation = r[0]?.translation_text || ''; targetLang = 'en'; }
-                    else if (sourceLang === 'en' && enTh) { const r = await enTh(text, { max_length: 512 }); translation = r[0]?.translation_text || ''; targetLang = 'th'; }
-                    self.postMessage({ type: 'translateComplete', workerId, sessionId, chunkIndex, result: { translation, translationLang: targetLang } });
-                } catch (err) { self.postMessage({ type: 'translateError', workerId, sessionId, chunkIndex, error: err.message }); }
-            }
-            
-            if (type === 'backTranslate') {
-                const { sessionId, chunkIndex, text, sourceLang } = data;
-                try {
-                    send('status', 'working', 'BT#' + (chunkIndex + 1));
-                    let back = '';
-                    if (sourceLang === 'th' && enTh) { const r = await enTh(text, { max_length: 512 }); back = r[0]?.translation_text || ''; }
-                    else if (sourceLang === 'en' && thEn) { const r = await thEn(text, { max_length: 512 }); back = r[0]?.translation_text || ''; }
-                    self.postMessage({ type: 'backTranslateComplete', workerId, sessionId, chunkIndex, result: { backTranslation: back } });
-                } catch (err) { self.postMessage({ type: 'backTranslateError', workerId, sessionId, chunkIndex, error: err.message }); }
-            }
+    <script>
+        // ─── Config & State ───
+        const CONFIG_KEY = 'thai-transcriber-v8-config';
+        const SR = 16000; // sample rate for processing
+
+        let config = {
+            apiKey: 'AIzaSyBH9zuyG1e3Yheu8EngJFrRYLE2X1oIZkI',
+            model: 'gemini-2.0-flash',
+            chunkSec: 120
         };
-        
-        // COMPREHENSIVE REPETITION DETECTION
-        function detectRepetition(text) {
-            // Clean text - remove parentheses, brackets, etc
-            const clean = text.replace(/[\(\)\[\]\{\}]/g, '').trim();
-            if (clean.length < 10) return { isRepetitive: false };
-            
-            // 1. Character-level consecutive repetition (Thai characters)
-            // Catches: ดิ้งว่าดิ้งว่าดิ้งว่า
-            if (/([\u0E00-\u0E7F]{2,8})\1{3,}/.test(clean)) {
-                return { isRepetitive: true, reason: 'Character loop' };
+
+        let state = {
+            session: null,     // { name, fileName, duration, totalChunks, chunks[] }
+            processing: false,
+            currentChunk: -1,
+            abortController: null
+        };
+
+        // ─── Init ───
+        function init() {
+            loadConfig();
+            setupEvents();
+            updateApiStatus();
+
+            // Auto-show settings if no API key
+            if (!config.apiKey) {
+                document.getElementById('settingsOverlay').classList.remove('hidden');
             }
-            
-            // 2. Word/phrase repetition with spaces
-            // Split into segments and check for repeating patterns
-            const segments = clean.split(/\s+/).filter(s => s.length > 0);
-            if (segments.length >= 4) {
-                // Check if same word repeats too much
-                const wordCounts = {};
-                for (const w of segments) {
-                    wordCounts[w] = (wordCounts[w] || 0) + 1;
-                }
-                const maxCount = Math.max(...Object.values(wordCounts));
-                // If any word is >40% of all words
-                if (maxCount > segments.length * 0.4 && maxCount >= 3) {
-                    return { isRepetitive: true, reason: 'Word repetition' };
-                }
-                
-                // Check for repeating 2-word phrases
-                if (segments.length >= 6) {
-                    const pairs = [];
-                    for (let i = 0; i < segments.length - 1; i++) {
-                        pairs.push(segments[i] + ' ' + segments[i+1]);
-                    }
-                    const pairCounts = {};
-                    for (const p of pairs) pairCounts[p] = (pairCounts[p] || 0) + 1;
-                    const maxPairCount = Math.max(...Object.values(pairCounts));
-                    if (maxPairCount >= 3 && maxPairCount > pairs.length * 0.3) {
-                        return { isRepetitive: true, reason: 'Phrase repetition' };
-                    }
-                }
-                
-                // Check for repeating 3-word phrases
-                if (segments.length >= 9) {
-                    const triples = [];
-                    for (let i = 0; i < segments.length - 2; i++) {
-                        triples.push(segments[i] + ' ' + segments[i+1] + ' ' + segments[i+2]);
-                    }
-                    const tripleCounts = {};
-                    for (const t of triples) tripleCounts[t] = (tripleCounts[t] || 0) + 1;
-                    const maxTripleCount = Math.max(...Object.values(tripleCounts));
-                    if (maxTripleCount >= 3) {
-                        return { isRepetitive: true, reason: 'Phrase loop' };
-                    }
-                }
-            }
-            
-            // 3. Check for parenthesized repetition like (text)(text)(text)
-            const parenMatch = text.match(/\([^)]+\)/g);
-            if (parenMatch && parenMatch.length >= 3) {
-                const unique = new Set(parenMatch);
-                if (unique.size === 1 || (parenMatch.length > 5 && unique.size <= 2)) {
-                    return { isRepetitive: true, reason: 'Parenthesized repetition' };
-                }
-            }
-            
-            // 4. Ratio check - if unique characters are too few relative to text length
-            const uniqueChars = new Set(clean.replace(/\s/g, '')).size;
-            const totalChars = clean.replace(/\s/g, '').length;
-            if (totalChars > 50 && uniqueChars < 15) {
-                return { isRepetitive: true, reason: 'Low variety' };
-            }
-            
-            // 5. Check for very long text with low unique content (Whisper hallucination pattern)
-            if (totalChars > 100) {
-                // Count unique 3-grams
-                const trigrams = new Set();
-                const noSpace = clean.replace(/\s/g, '');
-                for (let i = 0; i < noSpace.length - 2; i++) {
-                    trigrams.add(noSpace.substring(i, i + 3));
-                }
-                // If trigram diversity is very low, it's repetitive
-                if (trigrams.size < totalChars * 0.15) {
-                    return { isRepetitive: true, reason: 'Repetitive pattern' };
-                }
-            }
-            
-            return { isRepetitive: false };
         }
-        
-        function send(type, a, b) {
-            if (type === 'status') self.postMessage({ type: 'status', workerId, status: a, task: b });
-            else if (type === 'progress') self.postMessage({ type: 'progress', workerId, model: a, progress: b });
+
+        function loadConfig() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(CONFIG_KEY));
+                if (saved) config = { ...config, ...saved };
+            } catch(e) {}
+            document.getElementById('apiKeyInput').value = config.apiKey;
+            document.getElementById('modelSelect').value = config.model;
+            document.getElementById('chunkSelect').value = String(config.chunkSec);
         }
-    </script>
-    
-    <script type="module">
-        const DB = 'ThaiTranscriberV7', CHUNK_SEC = 30, SR = 16000, MAX_SESSIONS = 10;
-        
-        class Store {
-            constructor() { this.db = null; }
-            async init() {
-                if (this.db) return;
-                return new Promise((res, rej) => {
-                    const r = indexedDB.open(DB, 1);
-                    r.onerror = () => rej(r.error);
-                    r.onsuccess = () => { this.db = r.result; res(); };
-                    r.onupgradeneeded = e => {
-                        const db = e.target.result;
-                        if (!db.objectStoreNames.contains('sessions')) { const s = db.createObjectStore('sessions', { keyPath: 'id' }); s.createIndex('createdAt', 'createdAt'); }
-                        if (!db.objectStoreNames.contains('chunks')) { const c = db.createObjectStore('chunks', { keyPath: 'key' }); c.createIndex('sessionId', 'sessionId'); }
-                        if (!db.objectStoreNames.contains('config')) db.createObjectStore('config', { keyPath: 'key' });
+
+        function saveConfig() {
+            config.apiKey = document.getElementById('apiKeyInput').value.trim();
+            config.model = document.getElementById('modelSelect').value;
+            config.chunkSec = parseInt(document.getElementById('chunkSelect').value);
+            localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+            updateApiStatus();
+        }
+
+        function updateApiStatus() {
+            const dot = document.getElementById('apiDot');
+            const txt = document.getElementById('apiStatusText');
+            if (!config.apiKey) {
+                dot.className = 'api-dot';
+                txt.textContent = 'No API key';
+            } else if (state.processing) {
+                dot.className = 'api-dot working';
+                txt.textContent = 'Processing...';
+            } else {
+                dot.className = 'api-dot ok';
+                txt.textContent = config.model.replace('gemini-', '').replace('-preview-05-20','').replace('-preview-05-06','');
+            }
+        }
+
+        // ─── Events ───
+        function setupEvents() {
+            const drop = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fileInput');
+
+            drop.onclick = () => fileInput.click();
+            drop.ondragover = e => { e.preventDefault(); drop.classList.add('dragover'); };
+            drop.ondragleave = () => drop.classList.remove('dragover');
+            drop.ondrop = e => {
+                e.preventDefault(); drop.classList.remove('dragover');
+                const f = e.dataTransfer.files[0];
+                if (f && isAudio(f)) ingestFile(f);
+                else toast('err', 'Please drop an audio file');
+            };
+
+            document.body.ondragover = e => e.preventDefault();
+            document.body.ondrop = e => {
+                e.preventDefault();
+                const f = e.dataTransfer?.files[0];
+                if (f && isAudio(f)) ingestFile(f);
+            };
+
+            fileInput.onchange = e => {
+                if (e.target.files[0]) ingestFile(e.target.files[0]);
+                e.target.value = '';
+            };
+
+            document.getElementById('settingsBtn').onclick = () => {
+                document.getElementById('apiKeyInput').value = config.apiKey;
+                document.getElementById('modelSelect').value = config.model;
+                document.getElementById('chunkSelect').value = String(config.chunkSec);
+                document.getElementById('settingsOverlay').classList.remove('hidden');
+            };
+
+            document.getElementById('settingsCancel').onclick = () => {
+                document.getElementById('settingsOverlay').classList.add('hidden');
+            };
+
+            document.getElementById('settingsSave').onclick = () => {
+                saveConfig();
+                document.getElementById('settingsOverlay').classList.add('hidden');
+                toast('ok', 'Settings saved');
+            };
+        }
+
+        function isAudio(f) {
+            return f.type.startsWith('audio/') || /\.(m4a|mp3|wav|ogg|flac|aac|wma|webm)$/i.test(f.name);
+        }
+
+        // ─── Audio Ingest ───
+        async function ingestFile(file) {
+            if (!config.apiKey) {
+                document.getElementById('settingsOverlay').classList.remove('hidden');
+                toast('warn', 'Set your API key first');
+                return;
+            }
+
+            const overlay = document.getElementById('ingestOverlay');
+            overlay.classList.remove('hidden');
+            setIngest('Reading file...', 0);
+
+            try {
+                // Read file as ArrayBuffer
+                const arrayBuf = await new Promise((res, rej) => {
+                    const reader = new FileReader();
+                    reader.onprogress = e => {
+                        if (e.lengthComputable) setIngest('Reading...', (e.loaded / e.total) * 25);
                     };
+                    reader.onload = () => res(reader.result);
+                    reader.onerror = () => rej(reader.error);
+                    reader.readAsArrayBuffer(file);
                 });
-            }
-            async get(s, k) { await this.init(); return new Promise((res, rej) => { const r = this.db.transaction(s).objectStore(s).get(k); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
-            async put(s, d) { await this.init(); return new Promise((res, rej) => { const r = this.db.transaction(s, 'readwrite').objectStore(s).put(d); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }); }
-            async del(s, k) { await this.init(); return new Promise((res, rej) => { const r = this.db.transaction(s, 'readwrite').objectStore(s).delete(k); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }); }
-            async getAll(s) { await this.init(); return new Promise((res, rej) => { const r = this.db.transaction(s).objectStore(s).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error); }); }
-            async getByIdx(s, i, v) { await this.init(); return new Promise((res, rej) => { const r = this.db.transaction(s).objectStore(s).index(i).getAll(v); r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error); }); }
-            async getSessions() { return (await this.getAll('sessions')).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); }
-            async getChunks(sid) { return (await this.getByIdx('chunks', 'sessionId', sid)).sort((a, b) => a.index - b.index); }
-            async getChunk(sid, idx) { return this.get('chunks', sid + '_' + idx); }
-            async saveChunk(c) { c.key = c.sessionId + '_' + c.index; await this.put('chunks', c); }
-            async delSession(id) { const chunks = await this.getChunks(id); for (const c of chunks) await this.del('chunks', c.key); await this.del('sessions', id); }
-            async cleanup() { const s = await this.getSessions(); if (s.length >= MAX_SESSIONS) for (const x of s.slice(MAX_SESSIONS - 1)) await this.delSession(x.id); }
-            async getConfig() { return (await this.get('config', 'main')) || { key: 'main', whisperModel: 'base', workerCount: 4, setupComplete: false }; }
-            async saveConfig(c) { c.key = 'main'; await this.put('config', c); }
-        }
-        
-        const store = new Store();
-        const S = { config: { whisperModel: 'base', workerCount: 4, setupComplete: false }, step: 1, workers: [], wStates: new Map(), ready: new Set(), session: null, chunkMeta: new Map(), processing: false, pendingWork: [], activeJobs: new Map(), stats: { total: 0, transcribed: 0, translated: 0, filtered: 0 } };
 
-        // Workers
-        function createWorker(id) {
-            const blob = new Blob([document.getElementById('workerCode').textContent], { type: 'application/javascript' });
-            const w = new Worker(URL.createObjectURL(blob), { type: 'module' });
-            w.onmessage = e => handleMsg(id, e.data);
-            w.onerror = () => updateW(id, 'error', 'Error');
-            return w;
-        }
-        
-        function handleMsg(id, m) {
-            if (m.type === 'status') { updateW(id, m.status, m.task); updateSetupW(id); }
-            else if (m.type === 'progress') { const ws = S.wStates.get(id) || { progress: {} }; ws.progress[m.model] = m.progress; S.wStates.set(id, ws); updateSetupW(id); }
-            else if (m.type === 'ready') { S.ready.add(id); updateW(id, 'ready', 'Ready'); updateSetupW(id); checkReady(); if (S.processing) scheduleNext(); }
-            else if (m.type === 'error') { updateW(id, 'error', m.error?.slice(0, 20)); updateSetupW(id); }
-            else if (m.type === 'chunkComplete') { S.activeJobs.delete(id); handleChunk(m); updateW(id, 'ready', 'Ready'); scheduleNext(); }
-            else if (m.type === 'chunkError') { S.activeJobs.delete(id); handleChunkErr(m); updateW(id, 'ready', 'Ready'); scheduleNext(); }
-            else if (m.type === 'translateComplete') { S.activeJobs.delete(id); handleTrans(m); updateW(id, 'ready', 'Ready'); scheduleNext(); }
-            else if (m.type === 'translateError') { S.activeJobs.delete(id); updateW(id, 'ready', 'Ready'); scheduleNext(); }
-            else if (m.type === 'backTranslateComplete') { S.activeJobs.delete(id); handleBack(m); updateW(id, 'ready', 'Ready'); }
-            else if (m.type === 'backTranslateError') { S.activeJobs.delete(id); toast('error', 'Back-translate failed'); updateW(id, 'ready', 'Ready'); }
-        }
-        
-        function updateW(id, status, task) { const ws = S.wStates.get(id) || { progress: {} }; ws.status = status; ws.task = task; S.wStates.set(id, ws); updateDots(); }
-        
-        async function initWorkers() {
-            S.workers.forEach(w => w.terminate());
-            S.workers = []; S.wStates.clear(); S.ready.clear();
-            const n = S.config.workerCount;
-            const dots = document.getElementById('workerDots');
-            dots.innerHTML = '';
-            for (let i = 0; i < n; i++) { const d = document.createElement('div'); d.className = 'worker-dot'; d.id = 'dot-' + i; dots.appendChild(d); }
-            for (let i = 0; i < n; i++) {
-                S.wStates.set(i, { status: 'loading', task: 'Starting...', progress: {} });
-                const w = createWorker(i);
-                S.workers.push(w);
-                setTimeout(() => w.postMessage({ type: 'init', data: { workerId: i, model: S.config.whisperModel } }), i * 500);
-            }
-            updateDots();
-        }
-        
-        function getWorker() { for (let i = 0; i < S.workers.length; i++) if (S.wStates.get(i)?.status === 'ready' && !S.activeJobs.has(i)) return i; return null; }
-        function updateDots() { for (const [id, ws] of S.wStates) { const d = document.getElementById('dot-' + id); if (d) d.className = 'worker-dot ' + ws.status; } document.getElementById('workerStatusText').textContent = S.ready.size === S.workers.length && S.workers.length > 0 ? S.workers.length + ' workers' : S.ready.size + '/' + S.workers.length; }
-        function checkReady() { if (S.ready.size === S.config.workerCount && !S.config.setupComplete) { S.config.setupComplete = true; store.saveConfig(S.config); document.getElementById('setupSummary').textContent = S.config.workerCount + ' workers • Whisper ' + S.config.whisperModel; S.step = 4; updateSetup(); } }
+                // Also read as base64 for API (we'll chunk later)
+                setIngest('Reading base64...', 28);
+                const base64Full = await new Promise((res, rej) => {
+                    const reader = new FileReader();
+                    reader.onload = () => res(reader.result.split(',')[1]);
+                    reader.onerror = () => rej(reader.error);
+                    reader.readAsDataURL(file);
+                });
 
-        // Audio Ingest
-        async function ingest(file) {
-            showIngest();
-            try {
-                updateIng('Reading...', 0);
-                const buf = await new Promise((res, rej) => { const r = new FileReader(); r.onprogress = e => e.lengthComputable && updateIng('Reading...', (e.loaded / e.total) * 30); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsArrayBuffer(file); });
-                updateIng('Decoding...', 35);
-                const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SR });
-                const ab = await ctx.decodeAudioData(buf.slice(0));
-                updateIng('Processing...', 60);
-                const len = ab.length;
-                const mono = new Float32Array(len);
-                if (ab.numberOfChannels === 1) ab.copyFromChannel(mono, 0);
-                else { const l = new Float32Array(len), r = new Float32Array(len); ab.copyFromChannel(l, 0); ab.copyFromChannel(r, 1); for (let i = 0; i < len; i++) mono[i] = (l[i] + r[i]) / 2; }
-                let audio = mono;
-                if (ab.sampleRate !== SR) { const ratio = ab.sampleRate / SR, newLen = Math.round(mono.length / ratio); audio = new Float32Array(newLen); for (let i = 0; i < newLen; i++) { const idx = i * ratio, lo = Math.floor(idx); audio[i] = mono[lo] * (1 - (idx - lo)) + mono[Math.min(lo + 1, mono.length - 1)] * (idx - lo); } }
-                
-                updateIng('Saving...', 70);
-                await store.cleanup();
-                const now = new Date();
-                const totalChunks = Math.ceil(audio.length / (CHUNK_SEC * SR));
-                const sess = { id: 'sess_' + now.getTime(), name: 'Session', fileName: file.name, fileSize: file.size, duration: audio.length / SR, createdAt: now.toISOString(), totalChunks, transcribedChunks: 0, translatedChunks: 0, status: 'created' };
-                await store.put('sessions', sess);
-                
-                const chunkLen = CHUNK_SEC * SR;
+                setIngest('Decoding audio...', 35);
+
+                // Decode to get duration and for chunking
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SR });
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuf.slice(0));
+                const duration = audioBuffer.duration;
+
+                setIngest('Preparing chunks...', 55);
+
+                // Get mono audio data
+                let mono;
+                if (audioBuffer.numberOfChannels === 1) {
+                    mono = new Float32Array(audioBuffer.length);
+                    audioBuffer.copyFromChannel(mono, 0);
+                } else {
+                    const left = new Float32Array(audioBuffer.length);
+                    const right = new Float32Array(audioBuffer.length);
+                    audioBuffer.copyFromChannel(left, 0);
+                    audioBuffer.copyFromChannel(right, 1);
+                    mono = new Float32Array(audioBuffer.length);
+                    for (let i = 0; i < mono.length; i++) mono[i] = (left[i] + right[i]) / 2;
+                }
+
+                // Resample if needed (already at SR from audioCtx)
+                const chunkSamples = config.chunkSec * SR;
+                const totalChunks = Math.ceil(mono.length / chunkSamples);
+
+                setIngest('Encoding chunks...', 65);
+
+                // Create WAV chunks as base64
+                const chunks = [];
                 for (let i = 0; i < totalChunks; i++) {
-                    const st = i * chunkLen, en = Math.min(st + chunkLen, audio.length);
-                    await store.saveChunk({ sessionId: sess.id, index: i, startTime: st / SR, endTime: en / SR, audioData: Array.from(audio.slice(st, en)), transcript: null, transcriptLang: null, translation: null, translationLang: null, backTranslation: null, status: 'pending', filtered: false, filterReason: null });
-                    if (i % 10 === 0) updateIng('Saving chunks...', 70 + (i / totalChunks) * 25);
+                    const start = i * chunkSamples;
+                    const end = Math.min(start + chunkSamples, mono.length);
+                    const samples = mono.slice(start, end);
+                    const wavBase64 = encodeWavBase64(samples, SR);
+
+                    chunks.push({
+                        index: i,
+                        startTime: start / SR,
+                        endTime: end / SR,
+                        audioBase64: wavBase64,
+                        mimeType: 'audio/wav',
+                        thai: null,
+                        english: null,
+                        status: 'pending',  // pending | processing | done | error
+                        error: null,
+                        // Back-translation fields
+                        btThai: null,       // English → Thai back-translation
+                        btEnglish: null,    // Thai → English back-translation
+                        btStatus: 'idle',   // idle | loading | done | error
+                        btOpen: false       // chevron open state
+                    });
+
+                    if (i % 5 === 0) setIngest('Encoding chunks...', 65 + (i / totalChunks) * 30);
                 }
-                audio = null;
-                
-                updateIng('Complete!', 100);
-                hideIngest();
-                await refreshSessions();
-                await loadSession(sess.id);
-            } catch (err) { hideIngest(); toast('error', 'Failed: ' + err.message); console.error(err); }
+
+                audioCtx.close();
+
+                // Build session
+                state.session = {
+                    name: file.name.replace(/\.[^.]+$/, ''),
+                    fileName: file.name,
+                    fileSize: file.size,
+                    duration: duration,
+                    totalChunks: totalChunks,
+                    chunks: chunks
+                };
+
+                setIngest('Ready!', 100);
+                setTimeout(() => overlay.classList.add('hidden'), 300);
+
+                renderSession();
+                toast('ok', `${totalChunks} chunks ready · ${fmtDur(duration)}`);
+
+            } catch (err) {
+                overlay.classList.add('hidden');
+                toast('err', 'Failed to process audio: ' + err.message);
+                console.error(err);
+            }
         }
 
-        // Processing
-        async function startProc() {
-            if (!S.session || S.ready.size === 0) { toast('error', 'Workers not ready'); return; }
-            S.processing = true;
-            showProgress();
-            
-            const chunks = await store.getChunks(S.session.id);
-            S.chunkMeta.clear();
-            S.pendingWork = [];
-            
-            for (const c of chunks) {
-                S.chunkMeta.set(c.index, { startTime: c.startTime, endTime: c.endTime, transcript: c.transcript, transcriptLang: c.transcriptLang, translation: c.translation, translationLang: c.translationLang, backTranslation: c.backTranslation, status: c.status, filtered: c.filtered, filterReason: c.filterReason });
-                if (c.status === 'pending' || c.status === 'error') S.pendingWork.push({ type: 'transcribe', chunkIndex: c.index });
-                else if (c.status === 'transcribed' && !c.filtered && !c.translation && c.transcript) S.pendingWork.push({ type: 'translate', chunkIndex: c.index });
-            }
-            
-            updateStats();
-            renderChunks();
-            scheduleNext();
-        }
-        
-        function stopProc() { S.processing = false; S.pendingWork = []; toast('info', 'Stopped'); }
-        
-        async function scheduleNext() {
-            if (!S.processing) return;
-            const workerId = getWorker();
-            if (workerId === null || S.pendingWork.length === 0) { checkComplete(); return; }
-            
-            const job = S.pendingWork.shift();
-            S.activeJobs.set(workerId, job.chunkIndex);
-            
-            if (job.type === 'transcribe') {
-                const chunk = await store.getChunk(S.session.id, job.chunkIndex);
-                if (chunk) {
-                    updateW(workerId, 'working', '#' + (job.chunkIndex + 1));
-                    S.workers[workerId].postMessage({ type: 'transcribe', data: { sessionId: S.session.id, chunkIndex: job.chunkIndex, audioData: chunk.audioData } });
-                }
-            } else if (job.type === 'translate') {
-                const meta = S.chunkMeta.get(job.chunkIndex);
-                if (meta?.transcript) {
-                    updateW(workerId, 'working', 'T#' + (job.chunkIndex + 1));
-                    S.workers[workerId].postMessage({ type: 'translate', data: { sessionId: S.session.id, chunkIndex: job.chunkIndex, text: meta.transcript, sourceLang: meta.transcriptLang } });
-                }
-            }
-            
-            if (S.pendingWork.length > 0 && S.processing) setTimeout(() => scheduleNext(), 50);
-        }
-        
-        function checkComplete() { if (S.pendingWork.length === 0 && S.activeJobs.size === 0) { S.processing = false; toast('success', 'Complete!'); } }
-        
-        async function handleChunk(m) {
-            if (m.sessionId !== S.session?.id) return;
-            const chunk = await store.getChunk(m.sessionId, m.chunkIndex);
-            if (chunk) { chunk.transcript = m.result.transcript; chunk.transcriptLang = m.result.transcriptLang; chunk.filtered = m.result.filtered; chunk.filterReason = m.result.filterReason; chunk.status = m.result.filtered ? 'filtered' : 'transcribed'; await store.saveChunk(chunk); }
-            const meta = S.chunkMeta.get(m.chunkIndex);
-            if (meta) { meta.transcript = m.result.transcript; meta.transcriptLang = m.result.transcriptLang; meta.filtered = m.result.filtered; meta.filterReason = m.result.filterReason; meta.status = m.result.filtered ? 'filtered' : 'transcribed'; }
-            S.stats.transcribed++;
-            if (m.result.filtered) S.stats.filtered++;
-            if (!m.result.filtered && m.result.transcript) S.pendingWork.push({ type: 'translate', chunkIndex: m.chunkIndex });
-            updateChunkUI(m.chunkIndex);
-            updateStats();
-        }
-        
-        async function handleChunkErr(m) {
-            if (m.sessionId !== S.session?.id) return;
-            const chunk = await store.getChunk(m.sessionId, m.chunkIndex);
-            if (chunk) { chunk.status = 'error'; await store.saveChunk(chunk); }
-            const meta = S.chunkMeta.get(m.chunkIndex);
-            if (meta) meta.status = 'error';
-            updateChunkUI(m.chunkIndex);
-            updateStats();
-        }
-        
-        async function handleTrans(m) {
-            if (m.sessionId !== S.session?.id) return;
-            const chunk = await store.getChunk(m.sessionId, m.chunkIndex);
-            if (chunk) { chunk.translation = m.result.translation; chunk.translationLang = m.result.translationLang; chunk.status = 'complete'; await store.saveChunk(chunk); }
-            const meta = S.chunkMeta.get(m.chunkIndex);
-            if (meta) { meta.translation = m.result.translation; meta.translationLang = m.result.translationLang; meta.status = 'complete'; }
-            S.stats.translated++;
-            updateChunkUI(m.chunkIndex);
-            updateStats();
-        }
-        
-        async function handleBack(m) {
-            if (m.sessionId !== S.session?.id) return;
-            const chunk = await store.getChunk(m.sessionId, m.chunkIndex);
-            if (chunk) { chunk.backTranslation = m.result.backTranslation; await store.saveChunk(chunk); }
-            const meta = S.chunkMeta.get(m.chunkIndex);
-            if (meta) meta.backTranslation = m.result.backTranslation;
-            updateChunkUI(m.chunkIndex);
-            toast('success', 'Back-translate done');
-        }
-        
-        async function redo(i) {
-            const chunk = await store.getChunk(S.session.id, i);
-            if (!chunk) return;
-            chunk.transcript = null; chunk.transcriptLang = null; chunk.translation = null; chunk.translationLang = null; chunk.backTranslation = null; chunk.filtered = false; chunk.status = 'pending';
-            await store.saveChunk(chunk);
-            const meta = S.chunkMeta.get(i);
-            if (meta) { meta.transcript = null; meta.transcriptLang = null; meta.translation = null; meta.translationLang = null; meta.backTranslation = null; meta.filtered = false; meta.status = 'pending'; }
-            S.pendingWork.push({ type: 'transcribe', chunkIndex: i });
-            S.processing = true;
-            updateChunkUI(i);
-            scheduleNext();
-        }
-        
-        async function redoTrans(i) {
-            const chunk = await store.getChunk(S.session.id, i);
-            if (!chunk?.transcript) return;
-            chunk.translation = null; chunk.translationLang = null; chunk.backTranslation = null; chunk.status = 'transcribed';
-            await store.saveChunk(chunk);
-            const meta = S.chunkMeta.get(i);
-            if (meta) { meta.translation = null; meta.translationLang = null; meta.backTranslation = null; meta.status = 'transcribed'; }
-            S.pendingWork.push({ type: 'translate', chunkIndex: i });
-            S.processing = true;
-            updateChunkUI(i);
-            scheduleNext();
-        }
-        
-        async function backTrans(i) {
-            const meta = S.chunkMeta.get(i);
-            if (!meta?.translation) return;
-            const w = getWorker();
-            if (w === null) { toast('warning', 'No workers'); return; }
-            S.activeJobs.set(w, i);
-            updateW(w, 'working', 'BT#' + (i + 1));
-            S.workers[w].postMessage({ type: 'backTranslate', data: { sessionId: S.session.id, chunkIndex: i, text: meta.translation, sourceLang: meta.transcriptLang } });
-        }
-        
-        async function redoBack(i) {
-            const chunk = await store.getChunk(S.session.id, i);
-            if (chunk) { chunk.backTranslation = null; await store.saveChunk(chunk); }
-            const meta = S.chunkMeta.get(i);
-            if (meta) meta.backTranslation = null;
-            updateChunkUI(i);
-            backTrans(i);
+        function setIngest(text, pct) {
+            document.getElementById('ingestStatus').textContent = text;
+            document.getElementById('ingestFill').style.width = pct + '%';
+            document.getElementById('ingestDetail').textContent = Math.round(pct) + '%';
         }
 
-        // Sessions
-        async function loadSession(id) {
-            const sess = await store.get('sessions', id);
-            if (!sess) return;
-            S.session = sess;
-            S.chunkMeta.clear();
-            const chunks = await store.getChunks(id);
-            for (const c of chunks) S.chunkMeta.set(c.index, { startTime: c.startTime, endTime: c.endTime, transcript: c.transcript, transcriptLang: c.transcriptLang, translation: c.translation, translationLang: c.translationLang, backTranslation: c.backTranslation, status: c.status, filtered: c.filtered, filterReason: c.filterReason });
-            S.stats = { total: sess.totalChunks, transcribed: chunks.filter(c => c.transcript !== null || c.filtered).length, translated: chunks.filter(c => c.translation !== null).length, filtered: chunks.filter(c => c.filtered).length };
-            renderSession();
-            updateSessionList();
-        }
-        
-        async function delSession(id) { if (S.session?.id === id) { S.session = null; S.chunkMeta.clear(); renderEmpty(); } await store.delSession(id); await refreshSessions(); toast('success', 'Deleted'); }
-        async function renameSession(id, name) { const s = await store.get('sessions', id); if (s) { s.name = name || 'Session'; await store.put('sessions', s); if (S.session?.id === id) S.session.name = s.name; await refreshSessions(); } }
-        async function refreshSessions() { const sessions = await store.getSessions(); renderSessions(sessions); document.getElementById('sessionCount').textContent = sessions.length; }
-        
-        // UI
-        function renderSessions(sessions) {
-            const el = document.getElementById('sessionsList'); el.innerHTML = '';
-            for (const s of sessions) {
-                const card = document.createElement('div');
-                card.className = 'session-card' + (S.session?.id === s.id ? ' active' : '');
-                card.dataset.id = s.id;
-                const d = new Date(s.createdAt), dots = 6, filled = Math.round((s.translatedChunks / s.totalChunks) * dots) || 0;
-                let dotsHtml = ''; for (let i = 0; i < dots; i++) dotsHtml += '<div class="session-dot' + (i < filled ? ' filled' : '') + '"></div>';
-                card.innerHTML = '<div class="session-card-date">' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + '</div><div class="session-card-name">' + esc(s.name) + '</div><div class="session-card-progress">' + dotsHtml + '</div><button class="session-card-delete">×</button>';
-                card.onclick = e => { if (!e.target.classList.contains('session-card-delete')) loadSession(s.id); };
-                card.querySelector('.session-card-delete').onclick = e => { e.stopPropagation(); if (confirm('Delete?')) delSession(s.id); };
-                el.appendChild(card);
-            }
-        }
-        
-        function updateSessionList() { if (!S.session) return; const card = document.querySelector('.session-card[data-id="' + S.session.id + '"]'); if (!card) return; const dots = card.querySelectorAll('.session-dot'), filled = Math.round((S.stats.translated / S.stats.total) * dots.length) || 0; dots.forEach((d, i) => d.className = 'session-dot' + (i < filled ? ' filled' : '')); }
-        
-        function renderEmpty() {
-            document.getElementById('contentArea').innerHTML = '<div class="empty-state"><div class="empty-icon">🎙️</div><div class="empty-title">No session selected</div><div class="drop-zone" id="dropZone"><div>📂 Drop audio file here</div><div style="font-size:0.7rem;margin-top:0.25rem;color:var(--text-muted)">M4A, MP3, WAV, OGG, FLAC</div></div></div>';
-            setupDrop(document.getElementById('dropZone'));
-        }
-        
-        function renderSession() {
-            if (!S.session) { renderEmpty(); return; }
-            const s = S.session;
-            document.getElementById('contentArea').innerHTML = '<div class="content-header"><div class="content-header-left"><button class="sidebar-toggle" id="sidebarToggle">☰</button><div class="session-info"><input type="text" class="session-name-input" id="nameInput" value="' + esc(s.name) + '"><div class="session-meta">' + esc(s.fileName) + ' • ' + fmtDur(s.duration) + ' • ' + s.totalChunks + ' chunks</div></div></div><div class="content-actions"><button class="btn btn-secondary btn-sm" id="exportBtn">📤 Export</button><button class="btn ' + (S.processing ? 'btn-danger' : 'btn-primary') + ' btn-sm" id="procBtn">' + (S.processing ? '⏹ Stop' : '▶️ Process') + '</button></div></div><div class="transcript-container"><div class="transcript-header"><div class="column-header"><span class="column-title">Original</span><button class="btn btn-ghost btn-xs" id="copyOrig">📋 Copy All</button></div><div class="column-header"><span class="column-title">Translation</span><button class="btn btn-ghost btn-xs" id="copyTrans">📋 Copy All</button></div></div><div class="transcript-scroll" id="scroll"></div></div>';
-            document.getElementById('sidebarToggle').onclick = () => document.getElementById('sidebar').classList.toggle('collapsed');
-            document.getElementById('nameInput').onblur = e => renameSession(s.id, e.target.value.trim());
-            document.getElementById('nameInput').onkeydown = e => { if (e.key === 'Enter') e.target.blur(); };
-            document.getElementById('procBtn').onclick = () => { if (S.processing) stopProc(); else startProc(); const btn = document.getElementById('procBtn'); btn.textContent = S.processing ? '⏹ Stop' : '▶️ Process'; btn.className = 'btn ' + (S.processing ? 'btn-danger' : 'btn-primary') + ' btn-sm'; };
-            document.getElementById('exportBtn').onclick = showExport;
-            document.getElementById('copyOrig').onclick = copyOrig;
-            document.getElementById('copyTrans').onclick = copyTrans;
-            renderChunks();
-        }
-        
-        function renderChunks() { const el = document.getElementById('scroll'); if (!el) return; el.innerHTML = ''; const sorted = Array.from(S.chunkMeta.entries()).sort((a, b) => a[0] - b[0]); for (const [idx, meta] of sorted) el.appendChild(createRow(idx, meta)); }
-        
-        function createRow(idx, meta) {
-            const row = document.createElement('div');
-            row.className = 'chunk-row' + (meta.filtered ? ' filtered' : '');
-            row.id = 'chunk-' + idx;
-            const id = String(idx + 1).padStart(3, '0'), time = fmtTime(meta.startTime) + ' → ' + fmtTime(meta.endTime);
-            let orig = '', trans = '';
-            if (meta.filtered) { orig = '<div class="chunk-text filtered">⚠️ ' + (meta.filterReason || 'Filtered') + '</div>'; trans = '<div class="chunk-text empty">—</div>'; }
-            else if (meta.transcript) { orig = '<div class="chunk-text">' + esc(meta.transcript) + '</div><div class="chunk-actions"><button class="chunk-action" data-a="redo" data-i="' + idx + '">🔄 Redo</button></div>'; }
-            else if (meta.status === 'error') { orig = '<div class="chunk-text filtered">❌ Error</div>'; }
-            else { orig = '<div class="chunk-text empty">Pending...</div>'; }
-            if (!meta.filtered && meta.translation) {
-                const flag = meta.translationLang === 'th' ? '🇹🇭' : '🇺🇸';
-                trans = '<div class="chunk-text">' + flag + ' ' + esc(meta.translation) + '</div><div class="chunk-actions"><button class="chunk-action" data-a="redoT" data-i="' + idx + '">🔄 Redo</button><button class="chunk-action" data-a="back" data-i="' + idx + '">↩️ Back</button></div>';
-                if (meta.backTranslation) { const bf = meta.transcriptLang === 'th' ? '🇹🇭' : '🇺🇸'; trans += '<div class="back-translation"><div class="back-translation-label"><span>↩️ Back-translation</span><button class="chunk-action" data-a="redoB" data-i="' + idx + '">🔄</button></div><div class="back-translation-text">' + bf + ' ' + esc(meta.backTranslation) + '</div></div>'; }
-            } else if (!meta.filtered && meta.transcript) { trans = '<div class="chunk-text empty">Translating...</div>'; }
-            else if (!meta.filtered) { trans = '<div class="chunk-text empty">—</div>'; }
-            row.innerHTML = '<div class="chunk-cell"><div class="chunk-header"><span class="chunk-id">' + id + '</span><span class="chunk-time">' + time + '</span>' + (meta.transcriptLang ? '<span class="chunk-lang ' + meta.transcriptLang + '">' + (meta.transcriptLang === 'th' ? '🇹🇭 TH' : '🇺🇸 EN') + '</span>' : '') + '<button class="chunk-play" data-a="play" data-i="' + idx + '">▶</button></div>' + orig + '</div><div class="chunk-cell"><div class="chunk-header">' + (meta.translationLang ? '<span class="chunk-lang ' + meta.translationLang + '">' + (meta.translationLang === 'th' ? '🇹🇭 TH' : '🇺🇸 EN') + '</span>' : '') + '</div>' + trans + '</div>';
-            row.querySelectorAll('[data-a]').forEach(btn => btn.onclick = () => { const a = btn.dataset.a, i = parseInt(btn.dataset.i); if (a === 'play') playChunk(i); else if (a === 'redo') redo(i); else if (a === 'redoT') redoTrans(i); else if (a === 'back') backTrans(i); else if (a === 'redoB') redoBack(i); });
-            return row;
-        }
-        
-        function updateChunkUI(idx) { const meta = S.chunkMeta.get(idx); if (!meta) return; const old = document.getElementById('chunk-' + idx); if (old) old.replaceWith(createRow(idx, meta)); }
-        
-        // Audio
-        let aCtx = null, aSrc = null;
-        async function playChunk(i) {
-            const chunk = await store.getChunk(S.session.id, i);
-            if (!chunk?.audioData) return;
-            if (aSrc) { aSrc.stop(); aSrc = null; }
-            if (!aCtx) aCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (aCtx.state === 'suspended') await aCtx.resume();
-            const data = new Float32Array(chunk.audioData), buf = aCtx.createBuffer(1, data.length, SR);
-            buf.getChannelData(0).set(data);
-            const src = aCtx.createBufferSource(); src.buffer = buf; src.connect(aCtx.destination); src.start(); aSrc = src;
-            const btn = document.querySelector('[data-a="play"][data-i="' + i + '"]');
-            if (btn) { btn.textContent = '⏹'; src.onended = () => { btn.textContent = '▶'; aSrc = null; }; }
-        }
-        
-        // Export
-        async function showExport() { const c = prompt('Export:\\n1 = Markdown\\n2 = JSON\\n3 = Text'); if (c === '1') await expMd(); else if (c === '2') await expJson(); else if (c === '3') await expTxt(); }
-        async function expMd() { const chunks = await store.getChunks(S.session.id); const valid = chunks.filter(c => c.transcript && !c.filtered).sort((a, b) => a.index - b.index); if (!valid.length) { toast('warning', 'No content'); return; } let md = '# ' + (S.session?.name || 'Transcript') + '\n\n'; for (const c of valid) { md += '## ' + String(c.index + 1).padStart(3, '0') + ' [' + fmtTime(c.startTime) + ']\n\n' + c.transcript + '\n\n'; if (c.translation) md += '> ' + c.translation + '\n\n'; if (c.backTranslation) md += '> ↩️ ' + c.backTranslation + '\n\n'; } dl(S.session?.name + '.md', md); }
-        async function expJson() { const chunks = await store.getChunks(S.session.id); const valid = chunks.filter(c => c.transcript && !c.filtered).sort((a, b) => a.index - b.index); if (!valid.length) { toast('warning', 'No content'); return; } dl(S.session?.name + '.json', JSON.stringify({ session: { name: S.session?.name }, chunks: valid.map(c => ({ id: String(c.index + 1).padStart(3, '0'), start: c.startTime, end: c.endTime, lang: c.transcriptLang, original: c.transcript, translation: c.translation, backTranslation: c.backTranslation })) }, null, 2)); }
-        async function expTxt() { const chunks = await store.getChunks(S.session.id); const valid = chunks.filter(c => c.transcript && !c.filtered).sort((a, b) => a.index - b.index); if (!valid.length) { toast('warning', 'No content'); return; } let txt = ''; for (const c of valid) { txt += '[' + String(c.index + 1).padStart(3, '0') + '] ' + fmtTime(c.startTime) + '\n' + c.transcript + '\n'; if (c.translation) txt += '→ ' + c.translation + '\n'; if (c.backTranslation) txt += '  ↩ ' + c.backTranslation + '\n'; txt += '\n'; } dl(S.session?.name + '.txt', txt); }
-        function dl(name, content) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content])); a.download = name; a.click(); }
-        async function copyOrig() { const chunks = await store.getChunks(S.session.id); const t = chunks.filter(c => c.transcript && !c.filtered).sort((a, b) => a.index - b.index).map(c => c.transcript).join('\n\n'); navigator.clipboard.writeText(t).then(() => toast('success', 'Copied')); }
-        async function copyTrans() { const chunks = await store.getChunks(S.session.id); const t = chunks.filter(c => c.translation && !c.filtered).sort((a, b) => a.index - b.index).map(c => c.translation).join('\n\n'); navigator.clipboard.writeText(t).then(() => toast('success', 'Copied')); }
+        // ─── WAV Encoding ───
+        function encodeWavBase64(samples, sampleRate) {
+            const numChannels = 1;
+            const bitsPerSample = 16;
+            const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+            const blockAlign = numChannels * (bitsPerSample / 8);
+            const dataSize = samples.length * (bitsPerSample / 8);
+            const buffer = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(buffer);
 
-        // Setup UI
-        function updateSetup() {
-            document.querySelectorAll('.setup-step').forEach(s => s.classList.toggle('active', parseInt(s.dataset.step) === S.step));
-            document.getElementById('setupBackBtn').classList.toggle('hidden', S.step <= 1 || S.step >= 3);
-            const btn = document.getElementById('setupNextBtn');
-            if (S.step === 3) { btn.textContent = 'Initializing...'; btn.disabled = true; }
-            else if (S.step === 4) { btn.textContent = 'Start →'; btn.disabled = false; }
-            else { btn.textContent = 'Next →'; btn.disabled = false; }
-        }
-        
-        function updateEst() {
-            const n = parseInt(document.getElementById('setupWorkerSlider').value);
-            document.getElementById('setupWorkerCount').textContent = n;
-            const sizes = { tiny: 40, base: 75, small: 250 };
-            document.getElementById('setupEstimate').textContent = '~' + ((sizes[S.config.whisperModel] || 75) + 100) * n + ' MB RAM • ' + n + '× parallel';
-        }
-        
-        function createSetupW() {
-            const el = document.getElementById('setupWorkersGrid'); el.innerHTML = '';
-            for (let i = 0; i < S.config.workerCount; i++) {
-                const card = document.createElement('div'); card.className = 'setup-worker-card loading'; card.id = 'sw-' + i;
-                card.innerHTML = '<div class="setup-worker-header"><span class="setup-worker-id">W' + (i + 1) + '</span><span class="setup-worker-status">Loading...</span></div><div class="setup-worker-progress"><div class="setup-worker-progress-fill" id="sp-' + i + '"></div></div><div class="setup-worker-task" id="st-' + i + '">Starting...</div>';
-                el.appendChild(card);
+            // WAV header
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + dataSize, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, byteRate, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitsPerSample, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, dataSize, true);
+
+            // Samples
+            let offset = 44;
+            for (let i = 0; i < samples.length; i++) {
+                const s = Math.max(-1, Math.min(1, samples[i]));
+                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                offset += 2;
             }
+
+            // Convert to base64
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            const chunkSize = 8192;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+            }
+            return btoa(binary);
         }
-        
-        function updateSetupW(id) {
-            const ws = S.wStates.get(id); if (!ws) return;
-            const card = document.getElementById('sw-' + id), prog = document.getElementById('sp-' + id), task = document.getElementById('st-' + id);
-            if (!card) return;
-            card.className = 'setup-worker-card ' + ws.status;
-            card.querySelector('.setup-worker-status').textContent = ws.status === 'ready' ? 'Ready' : ws.status === 'error' ? 'Error' : 'Loading...';
-            if (prog && ws.progress) { const w = ws.progress['whisper'] || 0, te = ws.progress['th-en'] || 0, et = ws.progress['en-th'] || 0; let pct = 0; if (w > 0) pct = w * 0.4; if (te > 0) pct = 40 + te * 0.3; if (et > 0) pct = 70 + et * 0.3; prog.style.width = pct + '%'; }
-            if (task) task.textContent = ws.task || '';
+
+        function writeString(view, offset, str) {
+            for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
         }
-        
-        // Progress
-        function showProgress() { document.getElementById('progressBar').classList.add('visible'); }
-        function hideProgress() { document.getElementById('progressBar').classList.remove('visible'); }
-        function updateStats() {
-            const metas = Array.from(S.chunkMeta.values());
-            S.stats.total = metas.length;
-            S.stats.transcribed = metas.filter(m => m.transcript !== null || m.filtered).length;
-            S.stats.translated = metas.filter(m => m.translation !== null).length;
-            S.stats.filtered = metas.filter(m => m.filtered).length;
-            const toTrans = S.stats.transcribed - S.stats.filtered;
-            document.getElementById('progressFillTranscribe').style.width = (S.stats.total > 0 ? (S.stats.transcribed / S.stats.total) * 50 : 0) + '%';
-            document.getElementById('progressFillTranslate').style.width = (toTrans > 0 ? (S.stats.translated / toTrans) * 50 : 0) + '%';
-            document.getElementById('progressTranscribe').textContent = 'Transcribe: ' + S.stats.transcribed + '/' + S.stats.total;
-            document.getElementById('progressTranslate').textContent = 'Translate: ' + S.stats.translated + '/' + toTrans;
-            document.getElementById('progressLabel').textContent = S.stats.transcribed < S.stats.total ? 'Transcribing...' : S.stats.translated < toTrans ? 'Translating...' : 'Complete';
-        }
-        
-        // Ingest UI
-        function showIngest() { document.getElementById('ingestOverlay').classList.remove('hidden'); }
-        function hideIngest() { document.getElementById('ingestOverlay').classList.add('hidden'); }
-        function updateIng(status, pct) { document.getElementById('ingestStatus').textContent = status; document.getElementById('ingestProgressFill').style.width = pct + '%'; document.getElementById('ingestDetail').textContent = Math.round(pct) + '%'; }
-        
-        // Utils
-        function toast(type, msg) { const el = document.createElement('div'); el.className = 'toast ' + type; el.textContent = (type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ') + ' ' + msg; document.getElementById('toastContainer').appendChild(el); setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3000); }
-        function fmtTime(s) { return Math.floor(s / 60) + ':' + Math.floor(s % 60).toString().padStart(2, '0'); }
-        function fmtDur(s) { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60); return h > 0 ? h + ':' + m.toString().padStart(2, '0') + ':' + sec.toString().padStart(2, '0') : m + ':' + sec.toString().padStart(2, '0'); }
-        function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
-        function setupDrop(el) { if (!el) return; el.onclick = () => document.getElementById('fileInput').click(); el.ondragover = e => { e.preventDefault(); el.classList.add('dragover'); }; el.ondragleave = () => el.classList.remove('dragover'); el.ondrop = e => { e.preventDefault(); el.classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('audio/') || f?.name.match(/\.(m4a|mp3|wav|ogg|flac)$/i)) ingest(f); else toast('error', 'Drop audio file'); }; }
-        
-        // Event Listeners
-        document.getElementById('fileInput').onchange = e => { if (e.target.files[0]) ingest(e.target.files[0]); e.target.value = ''; };
-        document.getElementById('newSessionBtn').onclick = () => document.getElementById('fileInput').click();
-        document.getElementById('restartBtn').onclick = async () => { if (S.processing) { toast('warning', 'Stop first'); return; } toast('info', 'Restarting...'); await initWorkers(); };
-        document.getElementById('settingsBtn').onclick = () => { S.config.setupComplete = false; S.step = 1; updateSetup(); document.getElementById('setupOverlay').classList.remove('hidden'); };
-        document.getElementById('setupNextBtn').onclick = async () => {
-            if (S.step === 1) { S.step = 2; updateEst(); }
-            else if (S.step === 2) { S.config.workerCount = parseInt(document.getElementById('setupWorkerSlider').value); S.step = 3; updateSetup(); createSetupW(); await initWorkers(); }
-            else if (S.step === 4) { document.getElementById('setupOverlay').classList.add('hidden'); }
-            updateSetup();
-        };
-        document.getElementById('setupBackBtn').onclick = () => { if (S.step > 1 && S.step < 3) { S.step--; updateSetup(); } };
-        document.querySelectorAll('.setup-option').forEach(opt => opt.onclick = () => { opt.closest('.setup-step').querySelectorAll('.setup-option').forEach(o => o.classList.remove('selected')); opt.classList.add('selected'); if (opt.closest('.setup-step').dataset.step === '1') { S.config.whisperModel = opt.dataset.value; updateEst(); } });
-        document.getElementById('setupWorkerSlider').oninput = updateEst;
-        document.body.ondragover = e => e.preventDefault();
-        document.body.ondrop = e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('audio/') || f?.name.match(/\.(m4a|mp3|wav|ogg|flac)$/i)) ingest(f); };
-        
-        // Init
-        async function init() {
+
+        // ─── Gemini API ───
+        async function callGemini(audioBase64, mimeType, chunkIndex, totalChunks, contextHint) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+
+            const prompt = `You are a professional Thai language transcriber and translator.
+
+TASK: Listen to this Thai audio recording (chunk ${chunkIndex + 1} of ${totalChunks}) and provide:
+1. The Thai transcription (accurate Thai text of what is spoken)
+2. An English translation (natural, readable English)
+
+${contextHint ? `CONTEXT from previous chunk: "${contextHint}"` : ''}
+
+RULES:
+- If the audio contains Thai speech, transcribe it accurately in Thai script
+- If the audio contains English speech, transcribe in English and note it
+- If the audio is silence, music, or unintelligible, say so briefly
+- The English translation should be natural and fluent, not word-for-word
+- Preserve the meaning and tone of the original
+
+RESPOND IN EXACTLY THIS JSON FORMAT (no markdown, no code fences):
+{"thai": "Thai transcription here", "english": "English translation here", "notes": "any relevant notes or null"}`;
+
+            const body = {
+                contents: [{
+                    parts: [
+                        {
+                            inline_data: {
+                                mime_type: mimeType,
+                                data: audioBase64
+                            }
+                        },
+                        { text: prompt }
+                    ]
+                }],
+                generationConfig: {
+                    temperature: 0.1,
+                    maxOutputTokens: 4096
+                }
+            };
+
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: state.abortController?.signal
+            });
+
+            if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                const errMsg = errData?.error?.message || `HTTP ${resp.status}`;
+                throw new Error(errMsg);
+            }
+
+            const data = await resp.json();
+
+            // Extract text from response
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+            // Parse JSON response
             try {
-                await store.init();
-                const cfg = await store.getConfig();
-                S.config = { ...S.config, ...cfg };
-                if (S.config.setupComplete) {
-                    document.getElementById('setupOverlay').classList.add('hidden');
-                    await initWorkers();
-                    await refreshSessions();
-                    const sessions = await store.getSessions();
-                    if (sessions.length > 0) await loadSession(sessions[0].id);
-                    else renderEmpty();
-                } else { updateSetup(); updateEst(); }
-            } catch (err) { console.error('Init error:', err); toast('error', 'Init failed'); }
+                // Strip markdown code fences if present
+                const clean = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+                const parsed = JSON.parse(clean);
+                return {
+                    thai: parsed.thai || '',
+                    english: parsed.english || '',
+                    notes: parsed.notes || null
+                };
+            } catch (parseErr) {
+                // If JSON parsing fails, try to extract content heuristically
+                console.warn('JSON parse failed, extracting heuristically:', text);
+                return {
+                    thai: extractBetween(text, 'thai', 'english') || text,
+                    english: extractAfter(text, 'english') || text,
+                    notes: 'JSON parse fallback'
+                };
+            }
         }
-        
+
+        function extractBetween(text, startKey, endKey) {
+            const s = text.toLowerCase().indexOf(startKey);
+            const e = text.toLowerCase().indexOf(endKey);
+            if (s >= 0 && e > s) {
+                return text.substring(s + startKey.length, e).replace(/^[:"'\s]+|[,"'\s]+$/g, '').trim();
+            }
+            return null;
+        }
+
+        function extractAfter(text, key) {
+            const i = text.toLowerCase().indexOf(key);
+            if (i >= 0) {
+                return text.substring(i + key.length).replace(/^[:"'\s]+|[,"'\s}]+$/g, '').trim();
+            }
+            return null;
+        }
+
+        // ─── Processing Pipeline ───
+        async function startProcessing() {
+            if (!state.session || state.processing) return;
+            if (!config.apiKey) {
+                document.getElementById('settingsOverlay').classList.remove('hidden');
+                toast('warn', 'Set your API key first');
+                return;
+            }
+
+            state.processing = true;
+            state.abortController = new AbortController();
+            updateApiStatus();
+            showProgress();
+            updateProcButton();
+
+            const chunks = state.session.chunks;
+            let contextHint = '';
+
+            for (let i = 0; i < chunks.length; i++) {
+                if (!state.processing) break;
+
+                const chunk = chunks[i];
+                if (chunk.status === 'done') {
+                    // Use previous translation as context
+                    contextHint = chunk.english?.slice(-200) || '';
+                    updateProgress(i + 1, chunks.length);
+                    continue;
+                }
+
+                chunk.status = 'processing';
+                state.currentChunk = i;
+                updateChunkUI(i);
+                updateProgress(i, chunks.length);
+
+                try {
+                    const result = await callGemini(
+                        chunk.audioBase64,
+                        chunk.mimeType,
+                        i,
+                        chunks.length,
+                        contextHint
+                    );
+
+                    chunk.thai = result.thai;
+                    chunk.english = result.english;
+                    chunk.notes = result.notes;
+                    chunk.status = 'done';
+                    chunk.error = null;
+
+                    // Use this translation as context for next chunk
+                    contextHint = result.english?.slice(-200) || '';
+
+                } catch (err) {
+                    if (err.name === 'AbortError') break;
+
+                    chunk.status = 'error';
+                    chunk.error = err.message;
+                    console.error(`Chunk ${i} error:`, err);
+
+                    // If rate limited, wait and retry
+                    if (err.message.includes('429') || err.message.toLowerCase().includes('rate')) {
+                        toast('warn', 'Rate limited — waiting 30s...');
+                        await sleep(30000);
+                        if (state.processing) {
+                            i--; // Retry this chunk
+                            chunk.status = 'pending';
+                        }
+                    } else {
+                        toast('err', `Chunk ${i + 1}: ${err.message.slice(0, 60)}`);
+                    }
+                }
+
+                updateChunkUI(i);
+                updateProgress(i + 1, chunks.length);
+
+                // Small delay between requests to avoid rate limits
+                if (state.processing && i < chunks.length - 1) {
+                    await sleep(1000);
+                }
+            }
+
+            state.processing = false;
+            state.currentChunk = -1;
+            updateApiStatus();
+            updateProcButton();
+
+            const doneCount = chunks.filter(c => c.status === 'done').length;
+            if (doneCount === chunks.length) {
+                toast('ok', 'All chunks processed!');
+                hideProgress();
+            } else if (doneCount > 0) {
+                toast('warn', `${doneCount}/${chunks.length} chunks completed`);
+            }
+        }
+
+        function stopProcessing() {
+            state.processing = false;
+            if (state.abortController) {
+                state.abortController.abort();
+                state.abortController = null;
+            }
+            updateApiStatus();
+            updateProcButton();
+            toast('warn', 'Stopped');
+        }
+
+        async function retryChunk(index) {
+            if (state.processing) {
+                toast('warn', 'Wait for current processing to finish');
+                return;
+            }
+
+            const chunk = state.session.chunks[index];
+            if (!chunk) return;
+
+            state.processing = true;
+            state.abortController = new AbortController();
+            chunk.status = 'processing';
+            updateChunkUI(index);
+            updateApiStatus();
+
+            // Get context from previous chunk
+            const prev = index > 0 ? state.session.chunks[index - 1] : null;
+            const contextHint = prev?.english?.slice(-200) || '';
+
+            try {
+                const result = await callGemini(
+                    chunk.audioBase64, chunk.mimeType,
+                    index, state.session.totalChunks, contextHint
+                );
+                chunk.thai = result.thai;
+                chunk.english = result.english;
+                chunk.notes = result.notes;
+                chunk.status = 'done';
+                chunk.error = null;
+                toast('ok', `Chunk ${index + 1} retried`);
+            } catch (err) {
+                chunk.status = 'error';
+                chunk.error = err.message;
+                toast('err', err.message.slice(0, 60));
+            }
+
+            state.processing = false;
+            updateChunkUI(index);
+            updateApiStatus();
+        }
+
+        // ─── Back-Translate ───
+        async function backTranslateChunk(index) {
+            const chunk = state.session?.chunks[index];
+            if (!chunk || !chunk.english || !chunk.thai) return;
+
+            // If already done, just toggle open
+            if (chunk.btStatus === 'done') {
+                chunk.btOpen = !chunk.btOpen;
+                updateChunkUI(index);
+                return;
+            }
+
+            // Start loading
+            chunk.btStatus = 'loading';
+            chunk.btOpen = true;
+            updateChunkUI(index);
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+
+            const prompt = `You are a professional translator performing a BACK-TRANSLATION quality check.
+
+You have:
+- ORIGINAL THAI: "${chunk.thai}"
+- ENGLISH TRANSLATION: "${chunk.english}"
+
+TASK: Perform two back-translations to verify accuracy:
+1. Translate the ENGLISH back into Thai (so we can compare with the original Thai)
+2. Translate the ORIGINAL THAI back into English independently (a fresh translation to compare with the existing one)
+
+RESPOND IN EXACTLY THIS JSON FORMAT (no markdown, no code fences):
+{"back_thai": "The English translated back to Thai here", "back_english": "The Thai translated freshly to English here"}`;
+
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
+                    })
+                });
+
+                if (!resp.ok) {
+                    const errData = await resp.json().catch(() => ({}));
+                    throw new Error(errData?.error?.message || `HTTP ${resp.status}`);
+                }
+
+                const data = await resp.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                const clean = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+                const parsed = JSON.parse(clean);
+
+                chunk.btThai = parsed.back_thai || '';
+                chunk.btEnglish = parsed.back_english || '';
+                chunk.btStatus = 'done';
+                toast('ok', `Back-translation ${index + 1} done`);
+
+            } catch (err) {
+                chunk.btStatus = 'error';
+                console.error('Back-translate error:', err);
+                toast('err', 'Back-translate: ' + err.message.slice(0, 60));
+            }
+
+            updateChunkUI(index);
+        }
+
+        function toggleBt(index) {
+            const chunk = state.session?.chunks[index];
+            if (!chunk) return;
+
+            if (chunk.btStatus === 'done') {
+                // Already have results — just toggle visibility
+                chunk.btOpen = !chunk.btOpen;
+                updateChunkUI(index);
+            } else if (chunk.btStatus === 'idle' && chunk.status === 'done') {
+                // Need to fetch — triggers API call and opens
+                backTranslateChunk(index);
+            }
+            // If loading, do nothing
+        }
+
+        function redoBt(index) {
+            const chunk = state.session?.chunks[index];
+            if (!chunk) return;
+            chunk.btThai = null;
+            chunk.btEnglish = null;
+            chunk.btStatus = 'idle';
+            chunk.btOpen = false;
+            updateChunkUI(index);
+            backTranslateChunk(index);
+        }
+        function renderSession() {
+            const s = state.session;
+            if (!s) return;
+
+            document.getElementById('mainArea').innerHTML = `
+                <div class="session-bar">
+                    <div class="session-info">
+                        <div class="session-name">${esc(s.name)}</div>
+                        <div class="session-meta">
+                            <span>${esc(s.fileName)}</span>
+                            <span>${fmtDur(s.duration)}</span>
+                            <span>${s.totalChunks} chunks @ ${config.chunkSec}s</span>
+                            <span>${fmtSize(s.fileSize)}</span>
+                        </div>
+                    </div>
+                    <div class="session-actions">
+                        <button class="btn btn-outline btn-sm" id="newFileBtn">📂 New File</button>
+                        <button class="btn btn-outline btn-sm" id="exportBtn">📤 Export</button>
+                        <button class="btn btn-gold btn-sm" id="procBtn">▶ Process All</button>
+                    </div>
+                </div>
+                <div class="transcript">
+                    <div class="transcript-cols">
+                        <div class="col-header">
+                            <span>🇹🇭 Thai Original</span>
+                            <button class="btn btn-ghost btn-sm" id="copyThaiBtn">📋</button>
+                        </div>
+                        <div class="col-header">
+                            <span>🇺🇸 English Translation</span>
+                            <button class="btn btn-ghost btn-sm" id="copyEngBtn">📋</button>
+                        </div>
+                    </div>
+                    <div class="scroll" id="chunkScroll"></div>
+                </div>
+            `;
+
+            // Render all chunks
+            const scroll = document.getElementById('chunkScroll');
+            for (let i = 0; i < s.chunks.length; i++) {
+                scroll.appendChild(createChunkEl(i));
+            }
+
+            // Events
+            document.getElementById('procBtn').onclick = () => {
+                if (state.processing) stopProcessing();
+                else startProcessing();
+            };
+
+            document.getElementById('newFileBtn').onclick = () => {
+                document.getElementById('fileInput').click();
+            };
+
+            document.getElementById('exportBtn').onclick = exportResults;
+
+            document.getElementById('copyThaiBtn').onclick = () => {
+                const text = s.chunks.filter(c => c.thai).map(c => c.thai).join('\n\n');
+                navigator.clipboard.writeText(text).then(() => toast('ok', 'Thai text copied'));
+            };
+
+            document.getElementById('copyEngBtn').onclick = () => {
+                const text = s.chunks.filter(c => c.english).map(c => c.english).join('\n\n');
+                navigator.clipboard.writeText(text).then(() => toast('ok', 'English text copied'));
+            };
+        }
+
+        function createChunkEl(index) {
+            const chunk = state.session.chunks[index];
+            const wrapper = document.createElement('div');
+            wrapper.className = 'chunk-wrapper';
+            wrapper.id = 'chunk-' + index;
+
+            const id = String(index + 1).padStart(3, '0');
+            const time = fmtTime(chunk.startTime) + ' → ' + fmtTime(chunk.endTime);
+
+            let thaiContent, engContent;
+
+            if (chunk.status === 'done' && chunk.thai) {
+                thaiContent = `<div class="cell-text thai-text">${esc(chunk.thai)}</div>
+                    <div class="cell-actions">
+                        <button class="cell-action" onclick="retryChunk(${index})">🔄 Redo</button>
+                        <button class="cell-action" onclick="playChunk(${index})">▶ Play</button>
+                    </div>`;
+            } else if (chunk.status === 'processing') {
+                thaiContent = `<div class="cell-text empty">⏳ Listening...</div>`;
+            } else if (chunk.status === 'error') {
+                thaiContent = `<div class="cell-text error-text">❌ ${esc(chunk.error?.slice(0, 80) || 'Error')}</div>
+                    <div class="cell-actions">
+                        <button class="cell-action" onclick="retryChunk(${index})">🔄 Retry</button>
+                        <button class="cell-action" onclick="playChunk(${index})">▶ Play</button>
+                    </div>`;
+            } else {
+                thaiContent = `<div class="cell-text empty">Waiting...</div>`;
+            }
+
+            if (chunk.status === 'done' && chunk.english) {
+                engContent = `<div class="cell-text">${esc(chunk.english)}</div>
+                    ${chunk.notes ? `<div style="margin-top:0.4rem;font-size:0.7rem;color:var(--text-3);font-style:italic;">${esc(chunk.notes)}</div>` : ''}`;
+            } else if (chunk.status === 'processing') {
+                engContent = `<div class="cell-text empty">⏳ Translating...</div>`;
+            } else if (chunk.status === 'error') {
+                engContent = `<div class="cell-text empty">—</div>`;
+            } else {
+                engContent = `<div class="cell-text empty">—</div>`;
+            }
+
+            // Back-translate toggle + drawer
+            const canBt = chunk.status === 'done' && chunk.thai && chunk.english;
+            const btLoading = chunk.btStatus === 'loading';
+            const btDone = chunk.btStatus === 'done';
+            const btOpen = chunk.btOpen;
+
+            let toggleClass = 'bt-toggle';
+            if (!canBt) toggleClass += ' disabled';
+            if (btOpen) toggleClass += ' open';
+            if (btLoading) toggleClass += ' loading';
+
+            let btLabel = 'Back-translate';
+            if (btLoading) btLabel = 'Translating...';
+            else if (btDone) btLabel = btOpen ? 'Hide back-translation' : 'Show back-translation';
+
+            let drawerContent = '';
+            if (btDone) {
+                drawerContent = `
+                    <div class="bt-content">
+                        <div class="bt-col">
+                            <div class="bt-col-label"><span class="bt-arrow">↩</span> English → Thai</div>
+                            <div class="bt-text thai-text">${esc(chunk.btThai) || '<span class="empty">—</span>'}</div>
+                        </div>
+                        <div class="bt-col">
+                            <div class="bt-col-label"><span class="bt-arrow">↩</span> Thai → English (fresh)</div>
+                            <div class="bt-text">${esc(chunk.btEnglish) || '<span class="empty">—</span>'}</div>
+                        </div>
+                    </div>
+                    <div class="bt-actions">
+                        <button class="cell-action" onclick="redoBt(${index})">🔄 Redo back-translate</button>
+                    </div>`;
+            } else if (btLoading) {
+                drawerContent = `
+                    <div class="bt-content">
+                        <div class="bt-col"><div class="bt-text empty">⏳ Generating...</div></div>
+                        <div class="bt-col"><div class="bt-text empty">⏳ Generating...</div></div>
+                    </div>`;
+            }
+
+            wrapper.innerHTML = `
+                <div class="chunk${chunk.status === 'processing' ? ' processing' : ''}${chunk.status === 'error' ? ' error-row' : ''}">
+                    <div class="cell">
+                        <div class="cell-head">
+                            <span class="cell-id">${id}</span>
+                            <span class="cell-time">${time}</span>
+                        </div>
+                        ${thaiContent}
+                    </div>
+                    <div class="cell">
+                        <div class="cell-head"></div>
+                        ${engContent}
+                    </div>
+                </div>
+                <div class="${toggleClass}" onclick="toggleBt(${index})">
+                    <span class="bt-chevron">▶</span>
+                    <div class="bt-spinner"></div>
+                    <span class="bt-label">${btLabel}</span>
+                </div>
+                <div class="bt-drawer${btOpen ? ' open' : ''}">
+                    ${drawerContent}
+                </div>
+            `;
+
+            return wrapper;
+        }
+
+        function updateChunkUI(index) {
+            const old = document.getElementById('chunk-' + index);
+            if (old) old.replaceWith(createChunkEl(index));
+        }
+
+        function updateProcButton() {
+            const btn = document.getElementById('procBtn');
+            if (!btn) return;
+            if (state.processing) {
+                btn.textContent = '⏹ Stop';
+                btn.className = 'btn btn-stop btn-sm';
+            } else {
+                const done = state.session?.chunks.filter(c => c.status === 'done').length || 0;
+                const total = state.session?.totalChunks || 0;
+                if (done === total && total > 0) {
+                    btn.textContent = '🔄 Reprocess';
+                } else if (done > 0) {
+                    btn.textContent = '▶ Continue';
+                } else {
+                    btn.textContent = '▶ Process All';
+                }
+                btn.className = 'btn btn-gold btn-sm';
+            }
+        }
+
+        // ─── Progress ───
+        function showProgress() {
+            document.getElementById('progressBar').classList.add('visible');
+        }
+
+        function hideProgress() {
+            document.getElementById('progressBar').classList.remove('visible');
+        }
+
+        function updateProgress(current, total) {
+            const pct = total > 0 ? (current / total) * 100 : 0;
+            document.getElementById('progressFill').style.width = pct + '%';
+            document.getElementById('progressLabel').textContent = current >= total ? 'Complete' : `Processing chunk ${current + 1} of ${total}...`;
+            document.getElementById('progressStats').textContent = `${current} / ${total}`;
+        }
+
+        // ─── Audio Playback ───
+        let playCtx = null, playSrc = null;
+
+        function playChunk(index) {
+            const chunk = state.session?.chunks[index];
+            if (!chunk) return;
+
+            if (playSrc) { playSrc.stop(); playSrc = null; }
+            if (!playCtx) playCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (playCtx.state === 'suspended') playCtx.resume();
+
+            // Decode the WAV base64
+            const binary = atob(chunk.audioBase64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+            playCtx.decodeAudioData(bytes.buffer.slice(0), buffer => {
+                const src = playCtx.createBufferSource();
+                src.buffer = buffer;
+                src.connect(playCtx.destination);
+                src.start();
+                playSrc = src;
+                src.onended = () => { playSrc = null; };
+            });
+        }
+
+        // ─── Export ───
+        function exportResults() {
+            if (!state.session) return;
+            const s = state.session;
+            const done = s.chunks.filter(c => c.status === 'done');
+
+            if (done.length === 0) {
+                toast('warn', 'No results to export yet');
+                return;
+            }
+
+            // Build a clean markdown document
+            let md = `# ${s.name}\n\n`;
+            md += `**File:** ${s.fileName} · **Duration:** ${fmtDur(s.duration)} · **Model:** ${config.model}\n\n---\n\n`;
+
+            // Full English translation (the main deliverable)
+            md += `## English Translation\n\n`;
+            for (const c of done) {
+                if (c.english && c.english.trim()) {
+                    md += c.english.trim() + '\n\n';
+                }
+            }
+
+            md += `---\n\n## Full Transcript (Thai + English)\n\n`;
+            for (const c of done) {
+                const id = String(c.index + 1).padStart(3, '0');
+                md += `### [${id}] ${fmtTime(c.startTime)} → ${fmtTime(c.endTime)}\n\n`;
+                if (c.thai) md += `🇹🇭 ${c.thai}\n\n`;
+                if (c.english) md += `🇺🇸 ${c.english}\n\n`;
+                if (c.notes) md += `_${c.notes}_\n\n`;
+                if (c.btThai || c.btEnglish) {
+                    md += `**Back-translation:**\n\n`;
+                    if (c.btThai) md += `↩ EN→TH: ${c.btThai}\n\n`;
+                    if (c.btEnglish) md += `↩ TH→EN: ${c.btEnglish}\n\n`;
+                }
+            }
+
+            // Download
+            const blob = new Blob([md], { type: 'text/markdown' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = s.name + '-transcript.md';
+            a.click();
+
+            toast('ok', 'Exported ' + done.length + ' chunks');
+        }
+
+        // ─── Utilities ───
+        function fmtTime(s) {
+            const m = Math.floor(s / 60);
+            const sec = Math.floor(s % 60);
+            return m + ':' + sec.toString().padStart(2, '0');
+        }
+
+        function fmtDur(s) {
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const sec = Math.floor(s % 60);
+            if (h > 0) return `${h}h ${m}m ${sec}s`;
+            return `${m}m ${sec}s`;
+        }
+
+        function fmtSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+
+        function esc(t) {
+            if (!t) return '';
+            const d = document.createElement('div');
+            d.textContent = t;
+            return d.innerHTML;
+        }
+
+        function sleep(ms) {
+            return new Promise(r => setTimeout(r, ms));
+        }
+
+        function toast(type, msg) {
+            const el = document.createElement('div');
+            el.className = 'toast ' + type;
+            el.textContent = msg;
+            document.getElementById('toastWrap').appendChild(el);
+            setTimeout(() => {
+                el.style.opacity = '0';
+                setTimeout(() => el.remove(), 300);
+            }, 4000);
+        }
+
+        // ─── Start ───
         init();
     </script>
 </body>
