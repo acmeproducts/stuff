@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thai Audio Transcriber (Gemini)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg: #0a0a0b;
+            --surface: #141416;
+            --surface-2: #1c1c1f;
+            --border: #2a2a2e;
+            --text: #e4e4e7;
+            --text-dim: #71717a;
+            --accent: #22c55e;
+            --accent-dim: #166534;
+            --thai: #fbbf24;
+            --english: #60a5fa;
+            --error: #ef4444;
+        }
+        
+        body {
+            font-family: 'IBM Plex Sans Thai', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--thai), var(--english));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+        
+        .setup-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .input-group {
+            margin-bottom: 1rem;
+        }
+        
+        .input-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text-dim);
+        }
+        
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .file-drop {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--surface);
+        }
+        
+        .file-drop:hover,
+        .file-drop.dragover {
+            border-color: var(--accent);
+            background: var(--surface-2);
+        }
+        
+        .file-drop-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .file-drop-text {
+            color: var(--text-dim);
+            font-size: 0.95rem;
+        }
+        
+        .file-drop-text strong {
+            color: var(--accent);
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .file-info {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            margin-top: 1rem;
+            display: none;
+        }
+        
+        .file-info.visible {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .file-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        }
+        
+        .file-size {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: #000;
+            width: 100%;
+            margin-top: 1rem;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background: #16a34a;
+        }
+        
+        .btn-primary:disabled {
+            background: var(--accent-dim);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        
+        .btn-secondary {
+            background: var(--surface-2);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        
+        .progress-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+            display: none;
+        }
+        
+        .progress-section.visible {
+            display: block;
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            font-size: 0.9rem;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: var(--surface-2);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--thai), var(--english));
+            border-radius: 4px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+        
+        .progress-status {
+            margin-top: 0.75rem;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+        
+        .results-section {
+            margin-top: 2rem;
+            display: none;
+        }
+        
+        .results-section.visible {
+            display: block;
+        }
+        
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .results-header h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        
+        @media (max-width: 768px) {
+            .results-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .result-column {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .column-header {
+            padding: 0.75rem 1rem;
+            font-weight: 500;
+            font-size: 0.85rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .column-header.thai {
+            background: rgba(251, 191, 36, 0.1);
+            color: var(--thai);
+        }
+        
+        .column-header.english {
+            background: rgba(96, 165, 250, 0.1);
+            color: var(--english);
+        }
+        
+        .column-content {
+            padding: 1rem;
+            max-height: 500px;
+            overflow-y: auto;
+            font-size: 0.95rem;
+            line-height: 1.8;
+            white-space: pre-wrap;
+        }
+        
+        .column-content.thai-text {
+            font-family: 'IBM Plex Sans Thai', sans-serif;
+        }
+        
+        .segment {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: var(--surface-2);
+            border-radius: 8px;
+            border-left: 3px solid var(--border);
+        }
+        
+        .segment.thai {
+            border-left-color: var(--thai);
+        }
+        
+        .segment.english {
+            border-left-color: var(--english);
+        }
+        
+        .segment-time {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 0.25rem;
+        }
+        
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+        
+        .chunk-indicator {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            background: var(--surface-2);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-dim);
+        }
+
+        .model-select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .model-select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .inline-group {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .inline-group {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .copy-btn {
+            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
+        }
+
+        .actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎙️ Thai Audio Transcriber</h1>
+            <p class="subtitle">Powered by Google Gemini — Transcribe Thai audio with English translation</p>
+        </header>
+
+        <div class="setup-panel">
+            <div class="inline-group">
+                <div class="input-group">
+                    <label for="apiKey">Gemini API Key</label>
+                    <input type="password" id="apiKey" placeholder="AIzaSy..." autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <label for="modelSelect">Model</label>
+                    <select id="modelSelect" class="model-select">
+                        <option value="gemini-2.5-flash">Gemini 2.5 Flash (Fast)</option>
+                        <option value="gemini-2.5-pro">Gemini 2.5 Pro (Accurate)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="file-drop" id="dropZone">
+            <div class="file-drop-icon">📁</div>
+            <p class="file-drop-text">
+                Drop audio file here or <strong>click to browse</strong><br>
+                <small>M4A, MP3, WAV, OGG, FLAC • Max ~20MB per chunk</small>
+            </p>
+            <input type="file" id="fileInput" accept="audio/*,.m4a,.mp3,.wav,.ogg,.flac,.aac">
+        </div>
+
+        <div class="file-info" id="fileInfo">
+            <div>
+                <div class="file-name" id="fileName">-</div>
+                <div class="file-size" id="fileSize">-</div>
+            </div>
+            <button class="btn btn-secondary" onclick="clearFile()">Remove</button>
+        </div>
+
+        <button class="btn btn-primary" id="transcribeBtn" disabled onclick="startTranscription()">
+            Transcribe & Translate
+        </button>
+
+        <div class="progress-section" id="progressSection">
+            <div class="progress-header">
+                <span id="progressLabel">Processing...</span>
+                <span id="progressPercent">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-status" id="progressStatus">Preparing audio...</div>
+        </div>
+
+        <div class="error-message" id="errorMessage" style="display: none;"></div>
+
+        <div class="results-section" id="resultsSection">
+            <div class="results-header">
+                <h2>Transcription Results</h2>
+                <div class="actions">
+                    <button class="btn btn-secondary copy-btn" onclick="copyThai()">Copy Thai</button>
+                    <button class="btn btn-secondary copy-btn" onclick="copyEnglish()">Copy English</button>
+                </div>
+            </div>
+            <div class="results-grid">
+                <div class="result-column">
+                    <div class="column-header thai">🇹🇭 Thai Transcription</div>
+                    <div class="column-content thai-text" id="thaiOutput"></div>
+                </div>
+                <div class="result-column">
+                    <div class="column-header english">🇺🇸 English Translation</div>
+                    <div class="column-content" id="englishOutput"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+        let thaiText = '';
+        let englishText = '';
+
+        // DOM elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const transcribeBtn = document.getElementById('transcribeBtn');
+        const progressSection = document.getElementById('progressSection');
+        const progressFill = document.getElementById('progressFill');
+        const progressLabel = document.getElementById('progressLabel');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressStatus = document.getElementById('progressStatus');
+        const errorMessage = document.getElementById('errorMessage');
+        const resultsSection = document.getElementById('resultsSection');
+        const thaiOutput = document.getElementById('thaiOutput');
+        const englishOutput = document.getElementById('englishOutput');
+        const apiKeyInput = document.getElementById('apiKey');
+
+        // Load saved API key
+        const savedKey = localStorage.getItem('gemini_api_key');
+        if (savedKey) apiKeyInput.value = savedKey;
+
+        // Save API key on change
+        apiKeyInput.addEventListener('change', () => {
+            localStorage.setItem('gemini_api_key', apiKeyInput.value);
+        });
+
+        // File drop handling
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFile(files[0]);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            // Validate audio file
+            const validTypes = ['audio/', 'video/mp4']; // m4a often reported as video/mp4
+            const validExtensions = ['.m4a', '.mp3', '.wav', '.ogg', '.flac', '.aac', '.mp4'];
+            const ext = '.' + file.name.split('.').pop().toLowerCase();
+            
+            const isValidType = validTypes.some(t => file.type.startsWith(t));
+            const isValidExt = validExtensions.includes(ext);
+            
+            if (!isValidType && !isValidExt) {
+                showError('Please select an audio file (M4A, MP3, WAV, OGG, FLAC)');
+                return;
+            }
+
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileSize.textContent = formatSize(file.size);
+            fileInfo.classList.add('visible');
+            transcribeBtn.disabled = false;
+            hideError();
+        }
+
+        function clearFile() {
+            selectedFile = null;
+            fileInput.value = '';
+            fileInfo.classList.remove('visible');
+            transcribeBtn.disabled = true;
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function showError(msg) {
+            errorMessage.textContent = msg;
+            errorMessage.style.display = 'block';
+        }
+
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+
+        function updateProgress(percent, status) {
+            progressFill.style.width = percent + '%';
+            progressPercent.textContent = Math.round(percent) + '%';
+            if (status) progressStatus.textContent = status;
+        }
+
+        async function startTranscription() {
+            const apiKey = apiKeyInput.value.trim();
+            if (!apiKey) {
+                showError('Please enter your Gemini API key');
+                return;
+            }
+            if (!selectedFile) {
+                showError('Please select an audio file');
+                return;
+            }
+
+            hideError();
+            transcribeBtn.disabled = true;
+            progressSection.classList.add('visible');
+            resultsSection.classList.remove('visible');
+            thaiText = '';
+            englishText = '';
+            thaiOutput.innerHTML = '';
+            englishOutput.innerHTML = '';
+
+            try {
+                updateProgress(10, 'Reading audio file...');
+                
+                // Read file as base64
+                const base64Data = await fileToBase64(selectedFile);
+                
+                updateProgress(30, 'Sending to Gemini API...');
+                
+                // Determine MIME type
+                const mimeType = getMimeType(selectedFile.name);
+                
+                // Call Gemini API
+                const model = document.getElementById('modelSelect').value;
+                const result = await callGeminiAPI(apiKey, model, base64Data, mimeType);
+                
+                updateProgress(90, 'Processing response...');
+                
+                // Parse and display results
+                displayResults(result);
+                
+                updateProgress(100, 'Complete!');
+                
+                setTimeout(() => {
+                    progressSection.classList.remove('visible');
+                    resultsSection.classList.add('visible');
+                }, 500);
+
+            } catch (error) {
+                console.error('Transcription error:', error);
+                showError(error.message || 'Transcription failed. Check your API key and try again.');
+                progressSection.classList.remove('visible');
+            } finally {
+                transcribeBtn.disabled = false;
+            }
+        }
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    // Remove data URL prefix
+                    const base64 = reader.result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function getMimeType(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const mimeTypes = {
+                'm4a': 'audio/mp4',
+                'mp3': 'audio/mpeg',
+                'wav': 'audio/wav',
+                'ogg': 'audio/ogg',
+                'flac': 'audio/flac',
+                'aac': 'audio/aac',
+                'mp4': 'audio/mp4'
+            };
+            return mimeTypes[ext] || 'audio/mpeg';
+        }
+
+        async function callGeminiAPI(apiKey, model, base64Audio, mimeType) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            
+            const prompt = `You are a professional Thai-English translator and transcriber.
+
+Listen to this audio carefully and provide:
+1. A complete Thai transcription of everything spoken in Thai
+2. An accurate English translation that captures meaning, idioms, and context
+
+Format your response EXACTLY like this:
+
+=== THAI TRANSCRIPTION ===
+[Full Thai text here, preserving natural speech patterns and paragraph breaks]
+
+=== ENGLISH TRANSLATION ===
+[Full English translation here, with contextual notes for idioms or cultural references in parentheses]
+
+Important:
+- Transcribe ALL Thai speech, including filler words if meaningful
+- For mixed Thai-English speech, keep English words in the Thai section
+- Provide natural, readable English - not word-for-word translation
+- Add brief context notes for idioms, jokes, or cultural references
+- If audio quality is poor in sections, note it as [unclear] but attempt transcription`;
+
+            const requestBody = {
+                contents: [{
+                    parts: [
+                        {
+                            inline_data: {
+                                mime_type: mimeType,
+                                data: base64Audio
+                            }
+                        },
+                        {
+                            text: prompt
+                        }
+                    ]
+                }],
+                generationConfig: {
+                    temperature: 0.1,
+                    maxOutputTokens: 8192
+                }
+            };
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMsg = errorData.error?.message || `API error: ${response.status}`;
+                throw new Error(errorMsg);
+            }
+
+            const data = await response.json();
+            
+            if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
+                throw new Error('No transcription returned from API');
+            }
+
+            return data.candidates[0].content.parts[0].text;
+        }
+
+        function displayResults(text) {
+            // Parse the response
+            const thaiMatch = text.match(/=== THAI TRANSCRIPTION ===([\s\S]*?)(?==== ENGLISH|$)/i);
+            const englishMatch = text.match(/=== ENGLISH TRANSLATION ===([\s\S]*?)$/i);
+
+            thaiText = thaiMatch ? thaiMatch[1].trim() : text;
+            englishText = englishMatch ? englishMatch[1].trim() : '';
+
+            // If parsing failed, show raw response
+            if (!thaiMatch && !englishMatch) {
+                thaiText = text;
+                englishText = '(Translation included in Thai section or parsing failed)';
+            }
+
+            // Display with segments
+            thaiOutput.innerHTML = formatOutput(thaiText, 'thai');
+            englishOutput.innerHTML = formatOutput(englishText, 'english');
+        }
+
+        function formatOutput(text, type) {
+            if (!text) return '<em style="color: var(--text-dim)">No content</em>';
+            
+            // Split into paragraphs and format
+            const paragraphs = text.split(/\n\n+/).filter(p => p.trim());
+            
+            return paragraphs.map(p => 
+                `<div class="segment ${type}">${escapeHtml(p.trim())}</div>`
+            ).join('');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function copyThai() {
+            navigator.clipboard.writeText(thaiText);
+            showToast('Thai text copied!');
+        }
+
+        function copyEnglish() {
+            navigator.clipboard.writeText(englishText);
+            showToast('English text copied!');
+        }
+
+        function showToast(message) {
+            // Simple toast notification
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 2rem;
+                left: 50%;
+                transform: translateX(-50%);
+                background: var(--accent);
+                color: #000;
+                padding: 0.75rem 1.5rem;
+                border-radius: 8px;
+                font-weight: 500;
+                z-index: 1000;
+                animation: fadeIn 0.2s;
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+        }
+    </script>
+</body>
+</html>
