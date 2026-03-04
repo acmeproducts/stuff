@@ -1,0 +1,1022 @@
+<!-- Talk + Say-1.0-2026-03-03 10:34 PM -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1D6B66">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Talk + Say</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&family=Lora:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --cream: #FAF8F4; --paper: #F2EDE4; --ink: #1A1714; --ink-dim: rgba(26,23,20,0.55);
+            --teal: #1D6B66; --teal-light: #E0F2F1; --amber: #C4600A; --red: #C0392B; --green: #27AE60;
+            --lora: 'Lora', serif; --sans: 'DM Sans', 'Noto Sans Thai', sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: var(--sans); background: #EAEAEA; color: var(--ink); display: flex; justify-content: center; height: 100dvh; overflow: hidden; }
+        #app-container { width: 100%; max-width: 480px; background: var(--cream); height: 100%; position: relative; box-shadow: 0 0 20px rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden; }
+        
+        .screen { display: none; flex: 1; flex-direction: column; height: 100%; overflow-y: auto; background: var(--cream); position: relative; padding-bottom: 70px; /* Space for bottom nav */ }
+        .screen.active { display: flex; animation: fadeUp 0.2s ease; }
+        
+        /* Master Footer - Absolute bottom */
+        #master-footer { height: 20px; background: var(--paper); color: var(--ink-dim); font-size: 10px; display: flex; align-items: center; justify-content: center; width: 100%; z-index: 1000; flex-shrink: 0; }
+        
+        /* Layouts */
+        .header { padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--paper); background: var(--cream); position: sticky; top: 0; z-index: 10; min-height: 60px; }
+        .header h1 { font-size: 20px; font-weight: 600; margin: 0; font-family: var(--lora); }
+        .hero { background: linear-gradient(to bottom, var(--teal-light), var(--cream)); padding: 40px 20px; text-align: center; }
+        .container { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+        
+        /* Typography & Colors */
+        .font-lora { font-family: var(--lora); }
+        .text-teal { color: var(--teal); }
+        .text-dim { color: var(--ink-dim); }
+        .bg-teal { background: var(--teal); color: #fff; }
+        .bg-paper { background: var(--paper); color: var(--ink); }
+        
+        /* Controls */
+        button { border: none; border-radius: 8px; font-family: inherit; cursor: pointer; min-height: 44px; min-width: 44px; padding: 10px 16px; font-weight: 500; transition: transform 0.1s; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; }
+        button:active { transform: scale(0.97); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        input, select, textarea { border: 1px solid #ccc; border-radius: 8px; padding: 12px; font-family: inherit; font-size: 16px; width: 100%; outline: none; background: #fff; min-height: 44px; }
+        textarea { resize: vertical; }
+        
+        /* Talk Chat UI */
+        #chat-messages { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+        .msg-row { display: flex; width: 100%; flex-direction: column; position: relative; }
+        .msg-row.mine { align-items: flex-end; }
+        .msg-row.theirs { align-items: flex-start; }
+        .bubble { max-width: 82%; padding: 12px; border-radius: 18px; position: relative; }
+        .mine .bubble { background: var(--teal); color: #fff; border-bottom-right-radius: 6px; cursor: pointer; }
+        .theirs .bubble { background: var(--paper); color: var(--ink); border: 1px solid #ccc; border-bottom-left-radius: 6px; }
+        .msg-translated { font-size: 16px; margin-bottom: 4px; line-height: 1.4; }
+        .msg-original { font-size: 12px; opacity: 0.65; font-style: italic; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .msg-footer { font-size: 10px; opacity: 0.8; display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+        .mine .msg-footer { justify-content: flex-end; }
+        .btn-clarify { width: 24px; height: 24px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; background: rgba(0,0,0,0.1); cursor: pointer; }
+        .mine .btn-clarify { background: rgba(255,255,255,0.2); }
+        .clarify-note { margin-top: 4px; font-size: 13px; padding: 10px; border-radius: 8px; max-width: 82%; display: none; line-height: 1.4; }
+        .mine .clarify-note { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); }
+        .theirs .clarify-note { background: var(--paper); border: 1px solid var(--teal); border-left-width: 4px; }
+        
+        /* Composer */
+        .composer { padding: 12px; background: var(--cream); border-top: 1px solid var(--paper); display: flex; align-items: flex-end; gap: 8px; position: absolute; bottom: 20px; width: 100%; z-index: 5; }
+        .composer textarea { border-radius: 22px; flex: 1; min-height: 44px; max-height: 120px; padding: 12px 16px; font-size: 15px; border: 1px solid #ccc; line-height: 1.2; }
+        .composer.editing textarea { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(196,96,10,0.2); background: #FFFDF8; }
+        .btn-round { border-radius: 50%; width: 44px; height: 44px; min-width: 44px; padding: 0; flex-shrink: 0; }
+        
+        /* Say Phrasebook UI */
+        .catalog-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .catalog-card { background: #fff; padding: 16px; border-radius: 12px; border: 1px solid #ddd; text-align: center; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
+        .say-card-row { background: #fff; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+        .say-card-header { padding: 12px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+        .say-card-detail { padding: 12px; border-top: 1px solid #eee; background: var(--paper); display: none; flex-direction: column; gap: 12px; }
+        .say-card-row.expanded .say-card-detail { display: flex; }
+        .say-field-group { display: flex; flex-direction: column; gap: 4px; }
+        .say-field-label { font-size: 11px; text-transform: uppercase; color: var(--ink-dim); font-weight: bold; display: flex; justify-content: space-between; }
+        .pill-group { display: flex; background: #ddd; border-radius: 8px; overflow: hidden; }
+        .pill { flex: 1; text-align: center; padding: 8px; font-size: 12px; cursor: pointer; transition: 0.2s; }
+        .pill.active.essential { background: var(--teal); color: #fff; }
+        .pill.active.standard { background: var(--paper); font-weight: bold; }
+        .pill.active.archive { background: var(--ink-dim); color: #fff; }
+        
+        /* Sheets & Overlays */
+        .backdrop { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; opacity: 0; transition: opacity 0.2s; }
+        .backdrop.active { display: block; opacity: 1; }
+        .sheet { position: absolute; bottom: 0; left: 0; width: 100%; background: var(--cream); border-top-left-radius: 20px; border-top-right-radius: 20px; padding: 20px; z-index: 101; display: none; flex-direction: column; gap: 12px; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); max-height: 90%; overflow-y: auto; }
+        .sheet.active { display: flex; animation: slideUp 0.25s cubic-bezier(0.1, 0.8, 0.2, 1); }
+        .sheet-handle { width: 40px; height: 4px; background: #ccc; border-radius: 2px; margin: 0 auto 10px; }
+        
+        .toast { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 24px; border-radius: 24px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.2); text-align: center; white-space: nowrap; }
+        .toast.show { opacity: 1; }
+        
+        /* Animations */
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .shimmer { position: relative; overflow: hidden; }
+        .shimmer::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent); animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 100% { left: 100%; } }
+        
+        /* Bottom Nav */
+        .bottom-nav { position: absolute; bottom: 20px; width: 100%; display: flex; background: var(--cream); border-top: 1px solid var(--paper); z-index: 9; }
+        .nav-item { flex: 1; padding: 12px; text-align: center; font-size: 12px; color: var(--ink-dim); cursor: pointer; }
+        .nav-item.active { color: var(--teal); font-weight: bold; border-top: 2px solid var(--teal); margin-top: -1px; }
+
+        /* Onboarding */
+        .dot { width: 8px; height: 8px; border-radius: 4px; background: #ccc; transition: 0.2s; }
+        .dot.active { background: var(--teal); width: 16px; }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        
+        <!-- SCREEN: Onboarding -->
+        <div id="screen-onboarding" class="screen">
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px; text-align:center;">
+                <h1 class="font-lora text-teal" style="font-size:32px; margin-bottom:16px;" id="ob-title">Talk to anyone</h1>
+                <p id="ob-desc" style="color:var(--ink-dim); line-height:1.5;">Real-time bilingual conversation. Type or speak in your language, they read it in theirs.</p>
+            </div>
+            <div style="padding:20px; display:flex; flex-direction:column; gap:20px; align-items:center;">
+                <div style="display:flex; gap:8px;" id="ob-dots">
+                    <div class="dot active"></div><div class="dot"></div><div class="dot"></div>
+                </div>
+                <button class="bg-teal" style="width:100%;" id="ob-btn-next" onclick="nextOnboarding()">Next →</button>
+                <button style="background:transparent; color:var(--ink-dim);" onclick="finishOnboarding()">Skip</button>
+            </div>
+        </div>
+
+        <!-- SCREEN: Talk Home -->
+        <div id="screen-home" class="screen">
+            <div class="hero">
+                <h1 class="font-lora text-teal">Talk</h1>
+                <p class="text-dim font-sans" style="font-size:14px;">Live bilingual conversation</p>
+            </div>
+            <div class="container" style="flex:1;">
+                <button class="bg-teal" onclick="nav('start')">Start a chat</button>
+                <button class="bg-paper" onclick="nav('join')">Join a session</button>
+                <h3 class="font-sans" style="font-size:14px; margin-top:16px; border-bottom:1px solid var(--paper); padding-bottom:8px;">Recent Sessions</h3>
+                <div id="recent-sessions-list" style="display:flex; flex-direction:column; gap:12px;"></div>
+            </div>
+            <div class="bottom-nav">
+                <div class="nav-item active" onclick="nav('home')">💬 Talk</div>
+                <div class="nav-item" onclick="nav('say-home')">📚 Say</div>
+                <div class="nav-item" onclick="nav('settings')">⚙️ Settings</div>
+            </div>
+        </div>
+
+        <!-- SCREEN: Start Chat Setup -->
+        <div id="screen-start" class="screen">
+            <div class="header">
+                <button onclick="nav('home')" style="background:transparent;">←</button>
+                <h1 class="font-lora">Start a Chat</h1>
+                <div style="width:44px;"></div>
+            </div>
+            <div class="container">
+                <label>Your name</label>
+                <input type="text" id="host-name" maxlength="30" value="Alice">
+                <label>I speak</label>
+                <select id="host-lang"></select>
+                <label>My partner speaks</label>
+                <select id="partner-lang"></select>
+                <button class="bg-teal" style="margin-top:24px;" onclick="createSession()">Create session</button>
+            </div>
+        </div>
+
+        <!-- SCREEN: Join Chat Setup -->
+        <div id="screen-join" class="screen">
+            <div class="header">
+                <button onclick="nav('home')" style="background:transparent;">←</button>
+                <h1 class="font-lora">Join a Session</h1>
+                <div style="width:44px;"></div>
+            </div>
+            <div class="container">
+                <label>Your name</label>
+                <input type="text" id="join-name" value="Bob">
+                <label>I speak</label>
+                <select id="join-lang"></select>
+                <label>Session code</label>
+                <input type="text" id="join-code" maxlength="6" style="text-transform:uppercase;font-family:monospace;font-size:24px;letter-spacing:4px;text-align:center;">
+                <button class="bg-teal" style="margin-top:24px;" id="btn-join" onclick="joinSession()">Join session</button>
+                <div id="join-status" style="text-align:center; font-size:14px; margin-top:8px; color:var(--ink-dim);"></div>
+            </div>
+        </div>
+
+        <!-- SCREEN: Share Code (Host waiting) -->
+        <div id="screen-share" class="screen">
+            <div class="header">
+                <button onclick="nav('home')" style="background:transparent;">←</button>
+                <h1 class="font-lora">Share Code</h1>
+                <div style="width:44px;"></div>
+            </div>
+            <div class="container" style="align-items:center; text-align:center; margin-top:40px; flex:1;">
+                <p>Share this code with your partner.</p>
+                <div style="border:2px dashed var(--teal); padding:24px; border-radius:12px; margin:30px 0; width:100%; background:#fff;">
+                    <span id="display-code" class="text-teal" style="font-family:monospace; font-size:40px; letter-spacing:8px;"></span>
+                </div>
+                <button class="bg-paper" onclick="copyCode()" style="width:100%;">Copy Code</button>
+                <p id="host-status" style="margin-top:40px; color:var(--ink-dim); font-style:italic;">Waiting for partner...</p>
+                <button id="btn-start-chat" class="bg-teal" style="width:100%; margin-top:auto;" disabled onclick="nav('chat')">Start chatting</button>
+            </div>
+        </div>
+
+        <!-- SCREEN: Chat Core -->
+        <div id="screen-chat" class="screen" style="padding-bottom:90px;">
+            <div class="header" style="padding:10px 16px;">
+                <button onclick="showSheet('sheet-end-session')" style="background:transparent;">←</button>
+                <div style="text-align:center; flex:1;">
+                    <div class="font-lora" style="font-weight:600;font-size:16px;" id="chat-partner">Partner</div>
+                    <div style="font-size:11px; color:var(--teal); background:var(--teal-light); padding:2px 8px; border-radius:10px; display:inline-block; font-weight:bold;" id="chat-langs">EN ↔ TH</div>
+                </div>
+                <button style="background:transparent;" onclick="showSheet('sheet-menu')">⋮</button>
+            </div>
+            <div style="text-align:center; font-size:10px; padding:4px; background:var(--paper); color:var(--ink-dim);" id="engine-badge">
+                ☁ Cloud translation (Google Mock)
+            </div>
+            
+            <div id="chat-messages"></div>
+            
+            <div class="composer" id="chat-composer">
+                <button class="btn-round bg-paper" id="btn-mic" onclick="toggleDictation()">🎤</button>
+                <textarea id="chat-input" placeholder="Message..." rows="1" oninput="autoResize(this); validateInput();" onkeydown="handleEnter(event)"></textarea>
+                <button class="btn-round bg-teal" id="btn-send" onclick="sendMessage()" disabled>↑</button>
+            </div>
+        </div>
+
+        <!-- SCREEN: Say Home (Phrasebook) -->
+        <div id="screen-say-home" class="screen">
+            <div class="header">
+                <h1 class="font-lora text-teal">Say</h1>
+                <button style="background:transparent; color:var(--teal); font-weight:600;" onclick="showSheet('sheet-new-catalog')">+ New</button>
+            </div>
+            <div class="container" id="say-catalogs" style="flex:1;"></div>
+            <div class="bottom-nav">
+                <div class="nav-item" onclick="nav('home')">💬 Talk</div>
+                <div class="nav-item active" onclick="nav('say-home')">📚 Say</div>
+                <div class="nav-item" onclick="nav('settings')">⚙️ Settings</div>
+            </div>
+        </div>
+
+        <!-- SCREEN: Say Catalog Detail -->
+        <div id="screen-say-detail" class="screen">
+            <div class="header">
+                <button onclick="nav('say-home')" style="background:transparent;">←</button>
+                <h1 class="font-lora" id="say-detail-title">Catalog</h1>
+                <button style="background:transparent; color:var(--teal); font-weight:600;" onclick="showSheet('sheet-new-card')">+ Add</button>
+            </div>
+            <div style="padding:12px; border-bottom:1px solid var(--paper); background:#fff;">
+                <input type="text" id="say-search" placeholder="Search phrases..." oninput="renderCards()" style="min-height:36px; padding:8px 12px; font-size:14px;">
+            </div>
+            <div class="container" id="say-cards-list" style="flex:1; padding-top:12px; gap:8px;"></div>
+        </div>
+
+        <!-- SCREEN: Settings -->
+        <div id="screen-settings" class="screen">
+            <div class="header">
+                <h1 class="font-lora">Settings</h1>
+                <div style="width:44px;"></div>
+            </div>
+            <div class="container" style="flex:1;">
+                <div style="background:var(--teal-light); padding:16px; border-radius:12px;">
+                    <strong>Translation Engine</strong><br>
+                    <span style="font-size:13px; color:var(--ink-dim);">Cloud fallback (Mock API simulation). Chrome Built-in AI not detected.</span>
+                </div>
+                
+                <h3 class="font-sans text-dim" style="font-size:13px; text-transform:uppercase; margin-top:12px;">App Preferences</h3>
+                <label>My primary language</label>
+                <select id="pref-lang" onchange="saveSettings()"></select>
+                <label>Edit window duration</label>
+                <select id="pref-edit" onchange="saveSettings()"><option value="300">5 minutes</option><option value="600">10 minutes</option><option value="0">Off</option></select>
+                
+                <h3 class="font-sans text-dim" style="font-size:13px; text-transform:uppercase; margin-top:12px;">Data & Storage</h3>
+                <button class="bg-paper" onclick="exportData()" style="justify-content:flex-start;">Export all Say data</button>
+                <button class="bg-paper" style="justify-content:flex-start; color:var(--red);" onclick="clearAllData()">Wipe all local data</button>
+
+                <div style="margin-top:auto; font-size:12px; color:var(--ink-dim); text-align:center; padding-top:40px;">
+                    Talk + Say v1.0<br>Bilingual conversation and phrasebook
+                </div>
+            </div>
+            <div class="bottom-nav">
+                <div class="nav-item" onclick="nav('home')">💬 Talk</div>
+                <div class="nav-item" onclick="nav('say-home')">📚 Say</div>
+                <div class="nav-item active" onclick="nav('settings')">⚙️ Settings</div>
+            </div>
+        </div>
+
+        <!-- OVERLAYS & SHEETS -->
+        <div id="backdrop" class="backdrop" onclick="hideAllSheets()"></div>
+        
+        <!-- Sheet: Session Menu -->
+        <div id="sheet-menu" class="sheet">
+            <div class="sheet-handle"></div>
+            <div style="text-align:center; margin-bottom:12px;">
+                <div class="font-lora" style="font-size:18px; font-weight:600;" id="menu-code">Code</div>
+                <div style="font-size:12px; color:var(--green);" id="menu-status">Connected</div>
+            </div>
+            <button class="bg-paper" onclick="openPhrasebookFromTalk()">Open Phrasebook</button>
+            <button class="bg-paper" style="color:var(--red);" onclick="showSheet('sheet-end-session')">End session</button>
+        </div>
+
+        <!-- Sheet: End Session -->
+        <div id="sheet-end-session" class="sheet">
+            <div class="sheet-handle"></div>
+            <h2 class="font-lora">End Session?</h2>
+            <p style="font-size:14px; color:var(--ink-dim);">Select recent messages to save to your Phrasebook before disconnecting.</p>
+            <div id="end-save-list" style="max-height:200px; overflow-y:auto; border:1px solid #ddd; border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:8px;">
+                <!-- Populated dynamically -->
+            </div>
+            <div style="display:flex; gap:8px; margin-top:12px;">
+                <button class="bg-paper" style="flex:1;" onclick="executeEndSession(false)">End</button>
+                <button class="bg-teal" style="flex:2;" onclick="executeEndSession(true)">Save & End</button>
+            </div>
+        </div>
+
+        <!-- Sheet: Check Panel -->
+        <div id="sheet-check" class="sheet">
+            <div class="sheet-handle"></div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2 class="font-lora">Verification</h2>
+                <div id="check-timer" style="font-size:12px; color:var(--amber);"></div>
+            </div>
+            
+            <div class="say-field-label">You wrote</div>
+            <div style="font-size:16px; background:var(--paper); padding:12px; border-radius:8px;" id="check-orig"></div>
+            
+            <div class="say-field-label">They see</div>
+            <div style="font-size:16px; background:var(--paper); padding:12px; border-radius:8px;" id="check-trans"></div>
+            
+            <div class="say-field-label text-teal">Back into your language</div>
+            <div style="font-size:16px; border:1px dashed var(--teal); padding:12px; border-radius:8px; font-style:italic;" id="check-back">Tap Check to verify meaning</div>
+            
+            <div style="display:flex; gap:8px; margin-top:16px;">
+                <button class="bg-paper" style="flex:1;" id="btn-check-edit" onclick="initEditMsg()">Edit</button>
+                <button class="bg-teal" style="flex:2;" id="btn-check-verify" onclick="performCheck()">Check ↺</button>
+            </div>
+        </div>
+        
+        <!-- Sheet: Clarification -->
+        <div id="sheet-clarify" class="sheet">
+            <div class="sheet-handle"></div>
+            <h2 class="font-lora">Add clarification</h2>
+            <div class="say-field-label">Your partner asked about:</div>
+            <div style="background:var(--paper); border-left:4px solid var(--teal); padding:12px; font-style:italic; border-radius:4px;" id="clarify-quote"></div>
+            <textarea id="clarify-input" rows="3" placeholder="Explain what you meant... Supports **bold** and *italic*"></textarea>
+            <div style="display:flex; gap:8px;">
+                <button class="bg-paper" style="flex:1;" onclick="hideAllSheets()">Cancel</button>
+                <button class="bg-teal" style="flex:1;" onclick="sendClarifyAnswer()">Send</button>
+            </div>
+        </div>
+
+        <!-- Sheet: New Catalog -->
+        <div id="sheet-new-catalog" class="sheet">
+            <div class="sheet-handle"></div>
+            <h2 class="font-lora">New Catalog</h2>
+            <input type="text" id="cat-name" placeholder="Catalog Name (e.g., Travel, Food)" maxlength="40">
+            <input type="text" id="cat-emoji" placeholder="Emoji icon" maxlength="2">
+            <input type="text" id="cat-note" placeholder="Note (optional)" maxlength="120">
+            <div style="display:flex; gap:8px; margin-top:8px;">
+                <button class="bg-paper" style="flex:1;" onclick="hideAllSheets()">Cancel</button>
+                <button class="bg-teal" style="flex:2;" onclick="saveCatalog()">Save Catalog</button>
+            </div>
+        </div>
+
+        <!-- Sheet: New Card -->
+        <div id="sheet-new-card" class="sheet">
+            <div class="sheet-handle"></div>
+            <h2 class="font-lora">Add Phrase</h2>
+            <label class="say-field-label">Source (<span id="lbl-nc-src"></span>)</label>
+            <input type="text" id="nc-source" placeholder="Phrase in your language">
+            <button class="bg-paper" style="font-size:12px; min-height:30px; margin-bottom:8px;" onclick="autoTranslateCard()">Auto-translate ↓</button>
+            <label class="say-field-label">Translation (<span id="lbl-nc-tgt"></span>)</label>
+            <input type="text" id="nc-target" placeholder="Translated phrase">
+            <div style="display:flex; gap:8px; margin-top:16px;">
+                <button class="bg-paper" style="flex:1;" onclick="hideAllSheets()">Cancel</button>
+                <button class="bg-teal" style="flex:2;" onclick="saveCard()">Save Phrase</button>
+            </div>
+        </div>
+
+        <div id="toast" class="toast">Message</div>
+        <footer id="master-footer">Talk + Say v1.0 | 2026-03-03 10:34 PM PST</footer>
+    </div>
+
+    <script>
+        // --- CONSTANTS & DATA ---
+        const LANGS = { en: 'English', th: 'Thai', es: 'Spanish', fr: 'French', ja: 'Japanese', ko: 'Korean', zh: 'Chinese' };
+        
+        // --- STATE ---
+        const state = {
+            screen: 'home',
+            isTalkConnected: false,
+            talk: { peer: null, conn: null, id: null, code: null, me: '', myLang: 'en', partner: '', partnerLang: 'th', isHost: false },
+            say: { activeCatalogId: null },
+            ui: { editingMsgId: null, checkMsgId: null, clarifyMsgId: null, dictation: null, isListening: false }
+        };
+
+        // --- DB (LocalStorage Wrapper) ---
+        const db = {
+            get: (k, d) => JSON.parse(localStorage.getItem(k)) || d,
+            set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+            init: () => {
+                if(!localStorage.getItem('say_settings')) db.set('say_settings', { myLang: 'en', editWindow: 300 });
+                if(!localStorage.getItem('say_catalogs')) db.set('say_catalogs', [{ id: 'default', name: 'General', emoji: '📁', note: 'Default catalog' }]);
+                if(!localStorage.getItem('say_cards')) db.set('say_cards', []);
+                if(!localStorage.getItem('talk_sessions')) db.set('talk_sessions', []);
+            }
+        };
+
+        // --- UTILS ---
+        const $ = id => document.getElementById(id);
+        const genId = () => Date.now().toString(36) + Math.random().toString(36).substring(2,6);
+        const genCode = () => Math.random().toString(36).substring(2,8).toUpperCase().replace(/[0O1I]/g, 'A');
+        const showToast = msg => { $('toast').innerText = msg; $('toast').classList.add('show'); setTimeout(() => $('toast').classList.remove('show'), 2200); };
+        const timeAgo = ts => { const m = Math.floor((Date.now() - ts)/60000); return m < 1 ? 'now' : m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m/60)}h` : `${Math.floor(m/1440)}d`; };
+        const renderMd = str => str.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\*(.*?)\*/g, '<i>$1</i>');
+        const esc = str => str.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        // --- NAVIGATION & UI ---
+        function nav(screenId) {
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            $(`screen-${screenId}`).classList.add('active');
+            state.screen = screenId;
+            hideAllSheets();
+            
+            if(screenId === 'home') renderTalkHome();
+            if(screenId === 'say-home') renderSayHome();
+            if(screenId === 'settings') renderSettings();
+        }
+
+        function showSheet(sheetId) {
+            $('backdrop').classList.add('active');
+            document.querySelectorAll('.sheet').forEach(s => s.classList.remove('active'));
+            $(sheetId).classList.add('active');
+        }
+        function hideAllSheets() {
+            $('backdrop').classList.remove('active');
+            document.querySelectorAll('.sheet').forEach(s => s.classList.remove('active'));
+        }
+
+        function autoResize(textarea) {
+            textarea.style.height = '44px';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        }
+
+        // --- MOCK APIS ---
+        async function translateAPI(text, from, to) {
+            if (from === to || !text) return text;
+            await new Promise(r => setTimeout(r, 600)); // Network delay simulation
+            return `[${to.toUpperCase()}] ${text}`; // Simulated translation
+        }
+        
+        function speak(text, lang) {
+            if (!window.speechSynthesis) return showToast('TTS not supported');
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = lang;
+            window.speechSynthesis.speak(u);
+        }
+
+        // --- INIT ---
+        window.onload = () => {
+            db.init();
+            
+            // Populate dropdowns
+            let opts = Object.entries(LANGS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+            $('host-lang').innerHTML = opts; $('partner-lang').innerHTML = opts;
+            $('join-lang').innerHTML = opts; $('pref-lang').innerHTML = opts;
+            
+            $('host-lang').value = db.get('say_settings').myLang;
+            $('join-lang').value = db.get('say_settings').myLang;
+            $('pref-lang').value = db.get('say_settings').myLang;
+
+            // Speech Recognition
+            if (window.SpeechRecognition || window.webkitSpeechRecognition) {
+                const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                state.ui.dictation = new SR();
+                state.ui.dictation.continuous = false;
+                state.ui.dictation.interimResults = true;
+                state.ui.dictation.onresult = e => {
+                    $('chat-input').value = Array.from(e.results).map(r => r[0].transcript).join('');
+                    autoResize($('chat-input')); validateInput();
+                };
+                state.ui.dictation.onend = () => { state.ui.isListening = false; $('btn-mic').style.background = 'var(--paper)'; };
+            } else {
+                $('btn-mic').style.display = 'none';
+            }
+
+            if(localStorage.getItem('talk_onboarded')) {
+                nav('home');
+            } else {
+                nav('onboarding');
+            }
+        };
+
+        // --- ONBOARDING ---
+        let obStep = 1;
+        function nextOnboarding() {
+            obStep++;
+            if(obStep === 2) {
+                $('ob-title').innerText = 'Build your phrasebook';
+                $('ob-desc').innerText = 'Save useful messages directly to your personal catalog for later review.';
+                $('ob-dots').innerHTML = '<div class="dot"></div><div class="dot active"></div><div class="dot"></div>';
+            } else if(obStep === 3) {
+                $('ob-title').innerText = 'Works offline';
+                $('ob-desc').innerText = 'Review your phrases and access saved sessions anywhere, even without Wi-Fi.';
+                $('ob-dots').innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot active"></div>';
+                $('ob-btn-next').innerText = 'Get Started';
+            } else {
+                finishOnboarding();
+            }
+        }
+        function finishOnboarding() {
+            localStorage.setItem('talk_onboarded', 'true');
+            nav('home');
+        }
+
+        // --- TALK: SETUP ---
+        function renderTalkHome() {
+            const sessions = db.get('talk_sessions');
+            const list = $('recent-sessions-list');
+            if(sessions.length === 0) {
+                list.innerHTML = `<div style="text-align:center; color:var(--ink-dim); padding:20px;">No saved sessions yet.</div>`;
+                return;
+            }
+            list.innerHTML = sessions.sort((a,b)=>b.lastActivity - a.lastActivity).map(s => `
+                <div style="background:#fff; border-radius:12px; padding:16px; border:1px solid var(--paper); display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div class="font-lora" style="font-weight:600; font-size:16px;">${esc(s.partnerName)}</div>
+                        <div style="font-size:12px; color:var(--ink-dim);">${LANGS[s.myLang]} ↔ ${LANGS[s.partnerLang]}</div>
+                    </div>
+                    <div style="font-size:12px; color:var(--ink-dim); text-align:right;">
+                        <div>${timeAgo(s.lastActivity)}</div>
+                        <div style="background:var(--paper); border-radius:10px; padding:2px 8px; margin-top:4px; display:inline-block;">Read only</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function createSession() {
+            state.talk.me = $('host-name').value || 'Host';
+            state.talk.myLang = $('host-lang').value;
+            state.talk.partnerLang = $('partner-lang').value;
+            state.talk.code = genCode();
+            state.talk.id = genId();
+            state.talk.isHost = true;
+            
+            $('display-code').innerText = state.talk.code;
+            nav('share');
+            
+            state.talk.peer = new Peer(`talkapp_${state.talk.code}_host`);
+            state.talk.peer.on('connection', c => {
+                state.talk.conn = c;
+                setupConnection();
+                $('host-status').innerText = 'Partner connected ✓';
+                $('host-status').style.color = 'var(--green)';
+                $('btn-start-chat').disabled = false;
+            });
+        }
+
+        function joinSession() {
+            state.talk.me = $('join-name').value || 'Joiner';
+            state.talk.myLang = $('join-lang').value;
+            state.talk.code = $('join-code').value.toUpperCase();
+            state.talk.isHost = false;
+            
+            $('join-status').innerText = 'Connecting...';
+            state.talk.peer = new Peer(`talkapp_${state.talk.code}_join`);
+            
+            state.talk.peer.on('open', () => {
+                state.talk.conn = state.talk.peer.connect(`talkapp_${state.talk.code}_host`);
+                state.talk.conn.on('open', () => {
+                    setupConnection();
+                    state.talk.conn.send({ type: 'init', name: state.talk.me, lang: state.talk.myLang });
+                    nav('chat');
+                    initChatUI();
+                });
+                state.talk.conn.on('error', () => $('join-status').innerText = 'Connection failed');
+            });
+        }
+
+        function copyCode() { navigator.clipboard.writeText(state.talk.code); showToast('Code copied'); }
+
+        // --- TALK: CONNECTION & CHAT ---
+        function setupConnection() {
+            state.isTalkConnected = true;
+            db.set(`talk_msg_${state.talk.id}`, []); // Init message store
+            
+            state.talk.conn.on('data', async data => {
+                if (data.type === 'init' && state.talk.isHost) {
+                    state.talk.partner = data.name;
+                    state.talk.partnerLang = data.lang;
+                    initChatUI();
+                } else if (data.type === 'msg') {
+                    const trans = await translateAPI(data.text, data.lang, state.talk.myLang);
+                    addMessage({ id: data.id, from: 'theirs', orig: data.text, trans, sLang: data.lang, tLang: state.talk.myLang, ts: Date.now(), edited: false });
+                } else if (data.type === 'edit') {
+                    const trans = await translateAPI(data.text, data.lang, state.talk.myLang);
+                    updateMessage(data.id, data.text, trans);
+                } else if (data.type === 'clarify') {
+                    const btn = document.querySelector(`.msg-row[data-id="${data.id}"] .btn-clarify`);
+                    if(btn) { btn.innerText = '!'; btn.style.background = 'var(--amber)'; btn.style.color = '#fff'; }
+                    showToast(`${state.talk.partner} asked for clarification`);
+                } else if (data.type === 'clarify-answer') {
+                    renderClarification(data.id, data.text, 'theirs');
+                }
+            });
+            state.talk.conn.on('close', () => { state.isTalkConnected = false; showToast('Partner disconnected'); $('menu-status').innerText = 'Disconnected'; $('menu-status').style.color = 'var(--red)'; });
+        }
+
+        function initChatUI() {
+            $('chat-partner').innerText = state.talk.partner || 'Partner';
+            $('chat-langs').innerText = `${state.talk.myLang.toUpperCase()} ↔ ${state.talk.partnerLang.toUpperCase()}`;
+            $('menu-code').innerText = state.talk.code;
+            $('chat-messages').innerHTML = '';
+        }
+
+        function toggleDictation() {
+            if(!state.ui.dictation) return;
+            if(state.ui.isListening) { state.ui.dictation.stop(); } 
+            else { state.ui.dictation.lang = state.talk.myLang; state.ui.dictation.start(); state.ui.isListening = true; $('btn-mic').style.background = 'var(--red)'; }
+        }
+
+        function handleEnter(e) { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+        function validateInput() { $('btn-send').disabled = !$('chat-input').value.trim() || !state.isTalkConnected; }
+
+        async function sendMessage() {
+            const input = $('chat-input');
+            const text = input.value.trim();
+            if(!text) return;
+            
+            input.value = ''; autoResize(input); validateInput();
+            
+            if(state.ui.editingMsgId) {
+                // Handle Edit
+                state.talk.conn.send({ type: 'edit', id: state.ui.editingMsgId, text, lang: state.talk.myLang });
+                const trans = await translateAPI(text, state.talk.myLang, state.talk.partnerLang);
+                updateMessage(state.ui.editingMsgId, text, trans);
+                $('chat-composer').classList.remove('editing');
+                state.ui.editingMsgId = null;
+            } else {
+                // Handle New
+                const msgId = genId();
+                state.talk.conn.send({ type: 'msg', id: msgId, text, lang: state.talk.myLang });
+                const trans = await translateAPI(text, state.talk.myLang, state.talk.partnerLang);
+                addMessage({ id: msgId, from: 'mine', orig: text, trans, sLang: state.talk.myLang, tLang: state.talk.partnerLang, ts: Date.now(), edited: false });
+            }
+        }
+
+        function addMessage(msg) {
+            // Save to DB
+            const msgs = db.get(`talk_msg_${state.talk.id}`, []);
+            msgs.push(msg);
+            db.set(`talk_msg_${state.talk.id}`, msgs);
+
+            const row = document.createElement('div');
+            row.className = `msg-row ${msg.from}`;
+            row.setAttribute('data-id', msg.id);
+            
+            const isMine = msg.from === 'mine';
+            const ttsLang = isMine ? msg.tLang : msg.sLang;
+            const ttsText = isMine ? msg.trans : msg.orig;
+            
+            row.innerHTML = `
+                <div class="bubble" ${isMine ? `onclick="openCheckPanel('${msg.id}')"` : ''}>
+                    <div class="msg-translated">${esc(msg.trans)}</div>
+                    <div class="msg-original">${esc(msg.orig)}</div>
+                    <div class="msg-footer">
+                        <div class="btn-clarify" onclick="event.stopPropagation(); handleClarify('${msg.id}', '${msg.from}')">?</div>
+                        <span onclick="event.stopPropagation(); speak('${esc(ttsText)}', '${ttsLang}')" style="cursor:pointer; font-size:14px;">🔊</span>
+                        ${new Date(msg.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                        <span class="edited-badge" style="display:${msg.edited ? 'inline' : 'none'}; color:var(--amber);">✎</span>
+                        ${isMine ? '✓✓' : ''}
+                    </div>
+                </div>
+                <div class="clarify-note"></div>
+                <div style="font-size:10px; color:var(--teal); margin-top:2px; cursor:pointer; opacity:0.6; padding:0 4px;" onclick="savePhraseFromChat('${msg.id}')">+ Save</div>
+            `;
+            $('chat-messages').appendChild(row);
+            row.scrollIntoView({behavior: 'smooth'});
+        }
+
+        function updateMessage(id, newOrig, newTrans) {
+            const msgs = db.get(`talk_msg_${state.talk.id}`);
+            const msg = msgs.find(m => m.id === id);
+            if(msg) { msg.orig = newOrig; msg.trans = newTrans; msg.edited = true; db.set(`talk_msg_${state.talk.id}`, msgs); }
+            
+            const row = document.querySelector(`.msg-row[data-id="${id}"]`);
+            if(row) {
+                row.querySelector('.msg-original').innerText = newOrig;
+                row.querySelector('.msg-translated').innerText = newTrans;
+                row.querySelector('.edited-badge').style.display = 'inline';
+                row.querySelector('.clarify-note').style.display = 'none'; // reset clarify on edit
+            }
+        }
+
+        // --- TALK: SUBSYSTEMS (Check, Clarify, Save) ---
+        function openCheckPanel(id) {
+            const msg = db.get(`talk_msg_${state.talk.id}`).find(m => m.id === id);
+            if(!msg) return;
+            state.ui.checkMsgId = id;
+            $('check-orig').innerText = msg.orig;
+            $('check-trans').innerText = msg.trans;
+            $('check-back').innerText = "Tap Check to verify meaning";
+            $('check-back').style.fontStyle = 'italic';
+            
+            // Check edit window
+            const win = parseInt(db.get('say_settings').editWindow) * 1000;
+            const elapsed = Date.now() - msg.ts;
+            if(win > 0 && elapsed < win) {
+                $('btn-check-edit').disabled = false;
+                $('check-timer').innerText = `Edit window: ${Math.floor((win-elapsed)/60000)}m left`;
+            } else {
+                $('btn-check-edit').disabled = true;
+                $('check-timer').innerText = win === 0 ? '' : 'Edit window expired';
+            }
+            showSheet('sheet-check');
+        }
+
+        async function performCheck() {
+            $('check-back').innerText = 'Translating...';
+            const msg = db.get(`talk_msg_${state.talk.id}`).find(m => m.id === state.ui.checkMsgId);
+            const back = await translateAPI(msg.trans, msg.tLang, msg.sLang);
+            $('check-back').innerText = back;
+            $('check-back').style.fontStyle = 'normal';
+        }
+
+        function initEditMsg() {
+            const msg = db.get(`talk_msg_${state.talk.id}`).find(m => m.id === state.ui.checkMsgId);
+            state.ui.editingMsgId = msg.id;
+            const input = $('chat-input');
+            input.value = msg.orig;
+            autoResize(input); validateInput();
+            $('chat-composer').classList.add('editing');
+            hideAllSheets();
+            showToast('Editing message...');
+        }
+
+        function handleClarify(id, from) {
+            state.ui.clarifyMsgId = id;
+            if(from === 'theirs') {
+                state.talk.conn.send({ type: 'clarify', id });
+                document.querySelector(`.msg-row[data-id="${id}"] .btn-clarify`).innerText = '!';
+                showToast('Requested clarification');
+            } else {
+                const msg = db.get(`talk_msg_${state.talk.id}`).find(m => m.id === id);
+                $('clarify-quote').innerText = msg.orig;
+                $('clarify-input').value = '';
+                showSheet('sheet-clarify');
+            }
+        }
+
+        function sendClarifyAnswer() {
+            const text = $('clarify-input').value.trim();
+            if(!text) return;
+            state.talk.conn.send({ type: 'clarify-answer', id: state.ui.clarifyMsgId, text });
+            renderClarification(state.ui.clarifyMsgId, text, 'mine');
+            hideAllSheets();
+        }
+
+        function renderClarification(id, text, from) {
+            const row = document.querySelector(`.msg-row[data-id="${id}"]`);
+            if(!row) return;
+            const note = row.querySelector('.clarify-note');
+            note.innerHTML = renderMd(esc(text));
+            note.style.display = 'block';
+            row.querySelector('.btn-clarify').innerText = '✓';
+            row.scrollIntoView({behavior: 'smooth'});
+        }
+
+        function savePhraseFromChat(id) {
+            const msg = db.get(`talk_msg_${state.talk.id}`).find(m => m.id === id);
+            if(!msg) return;
+            
+            // Ensure Talk catalog exists
+            let cats = db.get('say_catalogs');
+            let talkCat = cats.find(c => c.id === 'cat_talk');
+            if(!talkCat) {
+                talkCat = { id: 'cat_talk', name: 'From Talk', emoji: '💬', note: 'Saved from conversations' };
+                cats.push(talkCat);
+                db.set('say_catalogs', cats);
+            }
+            
+            const cards = db.get('say_cards');
+            cards.push({
+                id: genId(), catalogId: 'cat_talk',
+                source: msg.orig, target: msg.trans,
+                sLang: msg.sLang, tLang: msg.tLang,
+                priority: 'standard', usage: 0, created: Date.now()
+            });
+            db.set('say_cards', cards);
+            showToast('Saved to Phrasebook');
+        }
+
+        function executeEndSession(saveAll) {
+            if(saveAll) {
+                // Mock bulk save logic - in reality would read checkboxes from the sheet
+                const msgs = db.get(`talk_msg_${state.talk.id}`);
+                const last5 = msgs.slice(-5).filter(m => m.from === 'mine');
+                last5.forEach(m => savePhraseFromChat(m.id));
+                showToast(`Saved ${last5.length} phrases`);
+            }
+            
+            // Save session to history
+            const sessions = db.get('talk_sessions');
+            sessions.push({
+                id: state.talk.id, code: state.talk.code,
+                myName: state.talk.me, myLang: state.talk.myLang,
+                partnerName: state.talk.partner, partnerLang: state.talk.partnerLang,
+                lastActivity: Date.now()
+            });
+            db.set('talk_sessions', sessions);
+            
+            if(state.talk.peer) state.talk.peer.destroy();
+            state.isTalkConnected = false;
+            hideAllSheets();
+            nav('home');
+        }
+
+        // --- SAY: PHRASEBOOK ---
+        function renderSayHome() {
+            const cats = db.get('say_catalogs');
+            const cards = db.get('say_cards');
+            
+            let html = `
+                <div class="catalog-card" style="grid-column: 1 / -1; background:var(--paper); border:none;" onclick="openCatalog('all')">
+                    <div class="font-lora" style="font-weight:600; font-size:18px;">All Phrases</div>
+                    <div style="font-size:12px; color:var(--ink-dim);">${cards.length} items</div>
+                </div>
+                <div class="catalog-grid" style="grid-column: 1 / -1;">
+            `;
+            
+            cats.forEach(c => {
+                const count = cards.filter(card => card.catalogId === c.id).length;
+                html += `
+                    <div class="catalog-card" onclick="openCatalog('${c.id}')">
+                        <div style="font-size:32px;">${c.emoji}</div>
+                        <div class="font-lora" style="font-weight:600; font-size:15px;">${esc(c.name)}</div>
+                        <div style="font-size:12px; color:var(--ink-dim);">${count} phrases</div>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+            $('say-catalogs').innerHTML = html;
+        }
+
+        function saveCatalog() {
+            const name = $('cat-name').value.trim();
+            if(!name) return;
+            const cats = db.get('say_catalogs');
+            cats.push({ id: genId(), name, emoji: $('cat-emoji').value || '📁', note: $('cat-note').value });
+            db.set('say_catalogs', cats);
+            hideAllSheets();
+            renderSayHome();
+            $('cat-name').value = ''; $('cat-emoji').value = ''; $('cat-note').value = '';
+        }
+
+        function openCatalog(id) {
+            state.say.activeCatalogId = id;
+            if(id === 'all') $('say-detail-title').innerText = 'All Phrases';
+            else {
+                const cat = db.get('say_catalogs').find(c => c.id === id);
+                $('say-detail-title').innerText = cat ? cat.name : 'Catalog';
+            }
+            $('say-search').value = '';
+            nav('say-detail');
+            renderCards();
+        }
+
+        function renderCards() {
+            const q = $('say-search').value.toLowerCase();
+            let cards = db.get('say_cards');
+            if(state.say.activeCatalogId !== 'all') {
+                cards = cards.filter(c => c.catalogId === state.say.activeCatalogId);
+            }
+            if(q) {
+                cards = cards.filter(c => c.source.toLowerCase().includes(q) || c.target.toLowerCase().includes(q));
+            }
+            
+            if(cards.length === 0) {
+                $('say-cards-list').innerHTML = `<div style="text-align:center; padding:40px 20px; color:var(--ink-dim);">No phrases found.</div>`;
+                return;
+            }
+            
+            $('say-cards-list').innerHTML = cards.sort((a,b)=>b.created - a.created).map(c => `
+                <div class="say-card-row" id="card-${c.id}">
+                    <div class="say-card-header" onclick="toggleCard('${c.id}')">
+                        <div style="flex:1; overflow:hidden;">
+                            <div style="font-weight:500; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(c.source)}</div>
+                            <div style="font-size:13px; color:var(--ink-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">${esc(c.target)}</div>
+                        </div>
+                        <div style="color:var(--ink-dim); transform:rotate(90deg); margin-left:12px;">›</div>
+                    </div>
+                    <div class="say-card-detail">
+                        <div class="say-field-group">
+                            <div class="say-field-label">Source <span onclick="speak('${esc(c.source)}', '${c.sLang}')" style="font-size:16px; cursor:pointer;">🔊</span></div>
+                            <input type="text" value="${esc(c.source)}" onchange="updateCardField('${c.id}', 'source', this.value)">
+                        </div>
+                        <div class="say-field-group">
+                            <div class="say-field-label">Translation <span onclick="speak('${esc(c.target)}', '${c.tLang}')" style="font-size:16px; cursor:pointer;">🔊</span></div>
+                            <input type="text" value="${esc(c.target)}" onchange="updateCardField('${c.id}', 'target', this.value)">
+                        </div>
+                        <div class="say-field-group">
+                            <div class="say-field-label">Priority</div>
+                            <div class="pill-group">
+                                <div class="pill ${c.priority==='essential'?'active essential':''}" onclick="updateCardField('${c.id}', 'priority', 'essential'); renderCards();">Essential</div>
+                                <div class="pill ${c.priority==='standard'?'active standard':''}" onclick="updateCardField('${c.id}', 'priority', 'standard'); renderCards();">Standard</div>
+                                <div class="pill ${c.priority==='archive'?'active archive':''}" onclick="updateCardField('${c.id}', 'priority', 'archive'); renderCards();">Archive</div>
+                            </div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; border-top:1px solid #ddd; padding-top:12px;">
+                            <div style="font-size:11px; color:var(--ink-dim);">Used: ${c.usage}x · Added: ${new Date(c.created).toLocaleDateString()}</div>
+                            <div style="display:flex; gap:8px;">
+                                <button style="background:transparent; color:var(--red); padding:4px 8px; min-height:0; font-size:13px;" onclick="deleteCard('${c.id}')">Delete</button>
+                                ${state.isTalkConnected ? `<button class="bg-teal" style="padding:4px 12px; min-height:0; font-size:13px;" onclick="useCardInTalk('${c.id}')">Use in Talk ↗</button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleCard(id) {
+            const row = $(`card-${id}`);
+            row.classList.toggle('expanded');
+            const arrow = row.querySelector('.say-card-header div:last-child');
+            arrow.style.transform = row.classList.contains('expanded') ? 'rotate(-90deg)' : 'rotate(90deg)';
+        }
+
+        function updateCardField(id, field, value) {
+            const cards = db.get('say_cards');
+            const card = cards.find(c => c.id === id);
+            if(card) { card[field] = value; db.set('say_cards', cards); }
+        }
+
+        function deleteCard(id) {
+            if(confirm('Delete phrase?')) {
+                let cards = db.get('say_cards');
+                cards = cards.filter(c => c.id !== id);
+                db.set('say_cards', cards);
+                renderCards();
+            }
+        }
+
+        async function autoTranslateCard() {
+            const src = $('nc-source').value.trim();
+            if(!src) return;
+            const settings = db.get('say_settings');
+            $('nc-target').value = "Translating...";
+            // Default target to opposite of primary setting for demo
+            const tLang = settings.myLang === 'en' ? 'th' : 'en';
+            const trans = await translateAPI(src, settings.myLang, tLang);
+            $('nc-target').value = trans.replace(/\[.*?\] /, ''); // clean mock tag for UX
+        }
+
+        function saveCard() {
+            const src = $('nc-source').value.trim();
+            const tgt = $('nc-target').value.trim();
+            if(!src || !tgt) return;
+            
+            const settings = db.get('say_settings');
+            const cards = db.get('say_cards');
+            cards.push({
+                id: genId(),
+                catalogId: state.say.activeCatalogId === 'all' ? 'default' : state.say.activeCatalogId,
+                source: src, target: tgt,
+                sLang: settings.myLang, tLang: settings.myLang === 'en' ? 'th' : 'en',
+                priority: 'standard', usage: 0, created: Date.now()
+            });
+            db.set('say_cards', cards);
+            
+            hideAllSheets();
+            if(state.screen === 'say-detail') renderCards();
+            $('nc-source').value = ''; $('nc-target').value = '';
+        }
+
+        // --- INTEGRATION: SAY -> TALK ---
+        function useCardInTalk(id) {
+            const card = db.get('say_cards').find(c => c.id === id);
+            if(!card) return;
+            card.usage++;
+            db.set('say_cards', db.get('say_cards').map(c => c.id === id ? card : c));
+            
+            nav('chat');
+            $('chat-input').value = card.source; // Load source into composer
+            autoResize($('chat-input')); validateInput();
+        }
+        function openPhrasebookFromTalk() {
+            hideAllSheets();
+            nav('say-home');
+            showToast('Select a phrase and tap "Use in Talk"');
+        }
+
+        // --- SETTINGS ---
+        function renderSettings() {
+            const s = db.get('say_settings');
+            $('pref-lang').value = s.myLang;
+            $('pref-edit').value = s.editWindow;
+        }
+        function saveSettings() {
+            db.set('say_settings', {
+                myLang: $('pref-lang').value,
+                editWindow: parseInt($('pref-edit').value)
+            });
+            showToast('Settings saved');
+        }
+        function exportData() {
+            const data = JSON.stringify({ catalogs: db.get('say_catalogs'), cards: db.get('say_cards') });
+            const blob = new Blob([data], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'say_export.json'; a.click();
+        }
+        function clearAllData() {
+            if(confirm('Wipe all data? This cannot be undone.')) {
+                localStorage.clear(); location.reload();
+            }
+        }
+    </script>
+</body>
+</html>
+<.> 2026-03-03 - 10:34 PM <.>
