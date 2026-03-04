@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en" translate="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Talk + Say</title>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <style>
+    :root {
+      --cream:#faf8f4; --paper:#f2ede4; --ink:#1a1714; --teal:#1d6b66;
+      --amber:#c4600a; --red:#c0392b; --green:#27ae60;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui,-apple-system,sans-serif; background:var(--cream); color:var(--ink); }
+    .app { max-width:480px; margin:0 auto; min-height:100dvh; padding:12px 12px calc(88px + env(safe-area-inset-bottom)); }
+    .screen { display:none; animation:fadeUp .2s ease; }
+    .screen.active { display:block; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(6px);} }
+    .card { background:#fff; border:1px solid #e5ddd2; border-radius:16px; padding:14px; margin-bottom:10px; }
+    .stack { display:flex; flex-direction:column; gap:8px; }
+    .row { display:flex; gap:8px; align-items:center; }
+    .between { justify-content:space-between; }
+    h1,h2,h3 { margin:0; font-family:Georgia,serif; }
+    .muted { color:#6f665e; font-size:13px; }
+    button,input,select,textarea { width:100%; min-height:44px; border:1px solid #d8cec2; border-radius:12px; padding:10px 12px; font:inherit; background:#fff; }
+    button { cursor:pointer; font-weight:600; }
+    button:active { transform:scale(.97); }
+    .btn-primary { background:var(--teal); color:#fff; border-color:transparent; }
+    .btn-secondary { background:var(--paper); }
+    .chip { padding:4px 10px; border-radius:999px; background:#eee4d7; font-size:12px; display:inline-block; }
+    .mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:3px; }
+    .chat { max-height:45dvh; overflow:auto; border:1px solid #e5ddd2; border-radius:12px; padding:8px; background:#fff; }
+    .bubble { margin-bottom:8px; padding:8px 10px; border-radius:10px; }
+    .me { background:#e5f6f4; }
+    .them { background:#f2ede4; }
+    .tabbar { position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:min(480px,100%); display:grid; grid-template-columns:1fr 1fr; gap:8px; border-top:1px solid #e5ddd2; background:#fffcf8; padding:8px 12px calc(8px + env(safe-area-inset-bottom)); }
+    .tabbar button.active { background:var(--teal); color:#fff; }
+    .ok { color:var(--green); } .warn { color:var(--amber); } .bad { color:var(--red); }
+    .hidden { display:none !important; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section id="talk-home" class="screen active">
+      <div class="card stack">
+        <h1>Talk</h1>
+        <div class="muted">Live bilingual conversation</div>
+        <button class="btn-primary" onclick="showScreen('talk-start')">Start a chat</button>
+        <button class="btn-secondary" onclick="showScreen('talk-join')">Join a session</button>
+      </div>
+      <div class="card">
+        <div class="row between"><h3>Recent sessions</h3><span id="session-count" class="muted">0</span></div>
+        <div id="recent-list" class="stack muted" style="margin-top:10px">No saved sessions yet.</div>
+      </div>
+    </section>
+
+    <section id="talk-start" class="screen">
+      <div class="card stack">
+        <div class="row between"><h2>Start a chat</h2><button onclick="showScreen('talk-home')">←</button></div>
+        <input id="start-name" maxlength="30" placeholder="Your name" />
+        <select id="start-my-lang"></select>
+        <button class="btn-primary" onclick="createSession()">Create session</button>
+      </div>
+    </section>
+
+    <section id="talk-join" class="screen">
+      <div class="card stack">
+        <div class="row between"><h2>Join session</h2><button onclick="showScreen('talk-home')">←</button></div>
+        <input id="join-name" maxlength="30" placeholder="Your name" />
+        <select id="join-my-lang"></select>
+        <input id="join-code" maxlength="6" class="mono" placeholder="A3K9M2" />
+        <button class="btn-primary" onclick="joinSession()">Join session</button>
+        <div id="join-status" class="muted"></div>
+      </div>
+    </section>
+
+    <section id="talk-code" class="screen">
+      <div class="card stack">
+        <div class="row between"><h2>Share code</h2><button onclick="showScreen('talk-home')">←</button></div>
+        <div class="muted">Share this code with your partner.</div>
+        <div id="session-code-view" class="mono card" style="text-align:center;font-size:30px;color:var(--teal)"></div>
+        <button onclick="copyCode()">Copy</button>
+        <div id="host-status" class="muted warn">Waiting for partner…</div>
+        <button class="btn-primary" onclick="openChat()">Start chatting</button>
+      </div>
+    </section>
+
+    <section id="talk-chat" class="screen">
+      <div class="card stack">
+        <div class="row between"><h2 id="chat-title">Chat</h2><button onclick="showScreen('talk-home')">←</button></div>
+        <div class="row between"><span id="engine-badge" class="chip">Engine: Cloud fallback</span><span id="conn-badge" class="chip">Disconnected</span></div>
+        <div id="chat-list" class="chat"></div>
+        <textarea id="chat-input" rows="2" placeholder="Type message"></textarea>
+        <button class="btn-primary" onclick="sendMessage()">Send</button>
+      </div>
+    </section>
+
+    <section id="say-home" class="screen">
+      <div class="card stack">
+        <h1>Say</h1>
+        <div class="muted">Phrasebook & catalogs</div>
+        <div class="row">
+          <input id="catalog-name" placeholder="New catalog" />
+          <button style="width:auto" onclick="addCatalog()">Add</button>
+        </div>
+      </div>
+      <div id="catalog-list"></div>
+      <div class="card stack">
+        <h3>Add phrase card</h3>
+        <select id="card-catalog"></select>
+        <input id="card-source" placeholder="Source phrase" />
+        <input id="card-target" placeholder="Target phrase" />
+        <button class="btn-primary" onclick="addCard()">Save card</button>
+      </div>
+      <div id="card-list"></div>
+    </section>
+  </div>
+
+  <nav class="tabbar">
+    <button id="tab-talk" class="active" onclick="switchTab('talk')">Talk</button>
+    <button id="tab-say" onclick="switchTab('say')">Say</button>
+  </nav>
+
+<script>
+const LANGS = ['English','Thai','Spanish','French','German','Italian','Japanese','Korean','Chinese','Vietnamese','Portuguese','Russian','Arabic','Hindi','Indonesian','Malay','Filipino','Dutch','Swedish','Polish','Turkish'];
+const LS = { sessions:'talk_sessions', active:'talk_active_id', msgs:id=>`talk_msg_${id}`, catalogs:'say_catalogs', cards:'say_cards' };
+let state = {
+  tab:'talk',
+  sessions: JSON.parse(localStorage.getItem(LS.sessions)||'[]'),
+  catalogs: JSON.parse(localStorage.getItem(LS.catalogs)||'[]'),
+  cards: JSON.parse(localStorage.getItem(LS.cards)||'[]'),
+  activeSessionId: localStorage.getItem(LS.active)||null,
+};
+let rtc = { peer:null, conn:null, role:null };
+
+function genId(){ return `${Date.now()}_${Math.random().toString(36).slice(2,8)}`; }
+function genCode(){ const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; return Array.from({length:6},()=>c[Math.floor(Math.random()*c.length)]).join(''); }
+function esc(s=''){ return s.replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function save(){
+  localStorage.setItem(LS.sessions, JSON.stringify(state.sessions));
+  localStorage.setItem(LS.catalogs, JSON.stringify(state.catalogs));
+  localStorage.setItem(LS.cards, JSON.stringify(state.cards));
+  if (state.activeSessionId) localStorage.setItem(LS.active, state.activeSessionId);
+}
+function showScreen(id){ document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+function switchTab(tab){ state.tab=tab; document.getElementById('tab-talk').classList.toggle('active',tab==='talk'); document.getElementById('tab-say').classList.toggle('active',tab==='say'); showScreen(tab==='talk'?'talk-home':'say-home'); render(); }
+function fillLangs(){ ['start-my-lang','join-my-lang'].forEach(id=>document.getElementById(id).innerHTML=LANGS.map(l=>`<option>${l}</option>`).join('')); }
+function getActive(){ return state.sessions.find(s=>s.sessionId===state.activeSessionId); }
+
+function upsertSession(session){
+  const i=state.sessions.findIndex(s=>s.sessionId===session.sessionId);
+  if(i>=0) state.sessions[i]=session; else state.sessions.unshift(session);
+}
+
+function initHostPeer(session){
+  destroyPeer();
+  rtc.role='host';
+  const peerId = `talkapp_${session.sessionCode}_host`;
+  rtc.peer = new Peer(peerId);
+  rtc.peer.on('open', ()=>setHostStatus('Waiting for partner…','warn'));
+  rtc.peer.on('connection', conn=>{
+    rtc.conn = conn;
+    bindConn(conn, session);
+    setConnBadge(true);
+  });
+  rtc.peer.on('error', e=>setHostStatus(`Connection issue: ${e.type||'error'}`,'bad'));
+}
+
+function initJoinPeer(session){
+  destroyPeer();
+  rtc.role='join';
+  rtc.peer = new Peer(`talkapp_${session.sessionCode}_join_${genId().slice(-4)}`);
+  rtc.peer.on('open', ()=>{
+    const target = `talkapp_${session.sessionCode}_host`;
+    const conn = rtc.peer.connect(target, { reliable:true });
+    rtc.conn = conn;
+    bindConn(conn, session);
+    setJoinStatus('Connecting…', 'warn');
+  });
+  rtc.peer.on('error', e=>setJoinStatus(`Connection issue: ${e.type||'error'}`, 'bad'));
+}
+
+function bindConn(conn, session){
+  conn.on('open', ()=>{
+    const intro = { type:'intro', name:session.myName, lang:session.myLang };
+    conn.send(intro);
+    if (rtc.role === 'host') setHostStatus('Partner connected ✓', 'ok');
+    else setJoinStatus('Connected ✓', 'ok');
+    setConnBadge(true);
+  });
+  conn.on('data', async payload=>{
+    if (payload.type === 'intro') {
+      session.partnerName = payload.name || 'Partner';
+      session.partnerLang = payload.lang || 'Unknown';
+      session.lastActivity = Date.now();
+      upsertSession(session); save(); render();
+      if (showing('talk-chat')) openChat();
+      if (rtc.role==='host') conn.send({ type:'intro-ack', name:session.myName, lang:session.myLang });
+      return;
+    }
+    if (payload.type === 'intro-ack') {
+      session.partnerName = payload.name || 'Partner';
+      session.partnerLang = payload.lang || 'Unknown';
+      upsertSession(session); save(); render();
+      if (showing('talk-chat')) openChat();
+      return;
+    }
+    if (payload.type === 'msg') {
+      const translated = await translate(payload.text, session.myLang);
+      const list = JSON.parse(localStorage.getItem(LS.msgs(session.sessionId))||'[]');
+      list.push({ id:genId(), from:'them', text:payload.text, translated, timestamp:Date.now(), status:'sent' });
+      localStorage.setItem(LS.msgs(session.sessionId), JSON.stringify(list.slice(-300)));
+      session.lastActivity = Date.now(); upsertSession(session); save();
+      if (showing('talk-chat')) renderChat();
+      render();
+    }
+  });
+  conn.on('close', ()=>setConnBadge(false));
+  conn.on('error', ()=>setConnBadge(false));
+}
+
+function destroyPeer(){
+  try { rtc.conn && rtc.conn.close(); } catch {}
+  try { rtc.peer && rtc.peer.destroy(); } catch {}
+  rtc.conn = null; rtc.peer = null;
+  setConnBadge(false);
+}
+
+function showing(id){ return document.getElementById(id).classList.contains('active'); }
+function setHostStatus(text, cls){ const el=document.getElementById('host-status'); el.textContent=text; el.className=`muted ${cls}`; }
+function setJoinStatus(text, cls){ const el=document.getElementById('join-status'); el.textContent=text; el.className=`muted ${cls}`; }
+function setConnBadge(ok){ const el=document.getElementById('conn-badge'); el.textContent=ok?'Connected':'Disconnected'; el.style.background=ok?'#e6f7ee':'#f5e7df'; }
+
+function createSession(){
+  const myName=document.getElementById('start-name').value.trim()||'Me';
+  const myLang=document.getElementById('start-my-lang').value;
+  const session={ sessionId:genId(), sessionCode:genCode(), myName, myLang, partnerName:'Partner', partnerLang:'Unknown', isInitiator:true, createdAt:Date.now(), lastActivity:Date.now() };
+  state.activeSessionId=session.sessionId;
+  upsertSession(session); save(); render();
+  document.getElementById('session-code-view').textContent=session.sessionCode;
+  showScreen('talk-code');
+  initHostPeer(session);
+}
+
+function joinSession(){
+  const code=document.getElementById('join-code').value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
+  if(code.length!==6){ setJoinStatus('Please enter a valid 6-character code.', 'bad'); return; }
+  const myName=document.getElementById('join-name').value.trim()||'Me';
+  const myLang=document.getElementById('join-my-lang').value;
+  const session={ sessionId:genId(), sessionCode:code, myName, myLang, partnerName:'Partner', partnerLang:'Unknown', isInitiator:false, createdAt:Date.now(), lastActivity:Date.now() };
+  state.activeSessionId=session.sessionId;
+  upsertSession(session); save(); render();
+  initJoinPeer(session);
+  openChat();
+}
+
+function copyCode(){ navigator.clipboard?.writeText(document.getElementById('session-code-view').textContent||''); }
+function detectEngine(){ const onDevice=!!window.Translator; const el=document.getElementById('engine-badge'); el.textContent=onDevice?'Engine: On-device':'Engine: Cloud fallback'; el.style.background=onDevice?'#e6f7ee':'#eee4d7'; }
+async function translate(text,to){ if(!text) return ''; return `[${to}] ${text}`; }
+
+function openChat(){
+  const session=getActive(); if(!session) return;
+  document.getElementById('chat-title').textContent=`${session.myName} ↔ ${session.partnerName}`;
+  showScreen('talk-chat'); detectEngine(); renderChat(); setConnBadge(!!(rtc.conn && rtc.conn.open));
+}
+
+async function sendMessage(){
+  const session=getActive(); if(!session) return;
+  const input=document.getElementById('chat-input'); const text=input.value.trim(); if(!text) return;
+  const translated=await translate(text, session.partnerLang);
+  const list=JSON.parse(localStorage.getItem(LS.msgs(session.sessionId))||'[]');
+  list.push({ id:genId(), from:'me', text, translated, timestamp:Date.now(), status:'sent' });
+  localStorage.setItem(LS.msgs(session.sessionId), JSON.stringify(list.slice(-300)));
+  if (rtc.conn && rtc.conn.open) rtc.conn.send({ type:'msg', text });
+  session.lastActivity=Date.now(); upsertSession(session); save(); input.value='';
+  renderChat(); render();
+}
+
+function renderChat(){
+  const session=getActive(); const el=document.getElementById('chat-list');
+  if(!session){ el.innerHTML='<div class="muted">No session selected.</div>'; return; }
+  const msgs=JSON.parse(localStorage.getItem(LS.msgs(session.sessionId))||'[]');
+  if(!msgs.length){ el.innerHTML='<div class="muted">No messages yet.</div>'; return; }
+  el.innerHTML=msgs.map(m=>`<div class="bubble ${m.from==='me'?'me':'them'}"><div>${esc(m.text)}</div><div class="muted">${esc(m.translated||'')}</div></div>`).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+function addCatalog(){
+  const input=document.getElementById('catalog-name');
+  const name=input.value.trim();
+  if(!name) return;
+  state.catalogs.unshift({ id:genId(), name, note:'', emoji:'📘', color:'#1d6b66', createdAt:Date.now(), isPinned:false, isDefault:state.catalogs.length===0 });
+  input.value=''; save(); render();
+}
+
+function addCard(){
+  if(!state.catalogs.length){ alert('Create a catalog first.'); return; }
+  const catalogId=document.getElementById('card-catalog').value;
+  const source=document.getElementById('card-source').value.trim();
+  const target=document.getElementById('card-target').value.trim();
+  if(!source || !target) return;
+  state.cards.unshift({ id:genId(), catalogIds:[catalogId], source, target, name:'', notes:'', usage:0, favorite:false, priority:'Standard', createdAt:Date.now(), updatedAt:Date.now() });
+  document.getElementById('card-source').value='';
+  document.getElementById('card-target').value='';
+  save(); render();
+}
+
+function useCard(id){
+  const card=state.cards.find(c=>c.id===id); if(!card) return;
+  card.usage=(card.usage||0)+1; card.updatedAt=Date.now();
+  save(); render();
+}
+
+function render(){
+  document.getElementById('session-count').textContent=String(state.sessions.length);
+  const recent=document.getElementById('recent-list');
+  recent.innerHTML = state.sessions.length ? state.sessions.map(s=>`<button class="row between" style="text-align:left" onclick="resumeSession('${s.sessionId}')"><span>${esc(s.partnerName)} <span class="muted">${esc(s.myLang)} ↔ ${esc(s.partnerLang)}</span></span><span class="chip">${s.sessionCode}</span></button>`).join('') : 'No saved sessions yet.';
+
+  const catalogList=document.getElementById('catalog-list');
+  catalogList.innerHTML = state.catalogs.length ? state.catalogs.map(c=>`<div class="card row between"><div><strong>${esc(c.emoji)} ${esc(c.name)}</strong><div class="muted">${c.isDefault?'Default catalog':'Catalog'}</div></div><span class="chip">${state.cards.filter(cd=>cd.catalogIds.includes(c.id)).length} cards</span></div>`).join('') : '<div class="card muted">No catalogs yet.</div>';
+
+  const select=document.getElementById('card-catalog');
+  select.innerHTML = state.catalogs.length ? state.catalogs.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('') : '<option value="">No catalogs</option>';
+
+  const selected=select.value || (state.catalogs[0]?.id || '');
+  const cards=state.cards.filter(c=>!selected || c.catalogIds.includes(selected));
+  const cardList=document.getElementById('card-list');
+  cardList.innerHTML = cards.length ? cards.map(c=>`<div class="card stack"><div class="row between"><strong>${esc(c.source)}</strong><span class="chip">used ${c.usage||0}</span></div><div>${esc(c.target)}</div><button onclick="useCard('${c.id}')">Use</button></div>`).join('') : '<div class="card muted">No cards in this catalog.</div>';
+}
+
+function resumeSession(id){
+  state.activeSessionId=id; save();
+  const session=getActive();
+  if (!session) return;
+  if (session.isInitiator) initHostPeer(session); else initJoinPeer(session);
+  openChat();
+}
+
+fillLangs();
+render();
+</script>
+</body>
+</html>
