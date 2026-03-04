@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Talk + Say</title>
+  <style>
+    :root {
+      --cream: #FAF8F4;
+      --paper: #F2EDE4;
+      --ink: #1A1714;
+      --teal: #1D6B66;
+      --amber: #C4600A;
+      --red: #C0392B;
+      --green: #27AE60;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "DM Sans", system-ui, -apple-system, sans-serif;
+      background: var(--cream);
+      color: var(--ink);
+      min-height: 100dvh;
+    }
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100dvh;
+      padding: 12px 12px calc(84px + env(safe-area-inset-bottom));
+    }
+    h1, h2, h3 { font-family: "Lora", Georgia, serif; margin: 0; }
+    .card {
+      background: #fff;
+      border: 1px solid #e5ddd2;
+      border-radius: 18px;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+    .muted { color: #6f665e; font-size: 13px; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .between { justify-content: space-between; }
+    .stack { display: flex; flex-direction: column; gap: 8px; }
+    button, input, select, textarea {
+      font: inherit;
+      border-radius: 12px;
+      border: 1px solid #d8cec2;
+      background: white;
+      min-height: 44px;
+      padding: 10px 12px;
+      width: 100%;
+    }
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform .1s ease;
+    }
+    button:active { transform: scale(.97); }
+    .btn-primary { background: var(--teal); color: white; border-color: transparent; }
+    .btn-secondary { background: var(--paper); }
+    .chip { padding: 4px 10px; border-radius: 999px; font-size: 12px; background: #eee4d7; }
+    .screen { display: none; animation: fadeUp .2s ease; }
+    .screen.active { display: block; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(5px);} }
+    .tabbar {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 0;
+      width: min(480px, 100%);
+      background: #fffcf8;
+      border-top: 1px solid #e5ddd2;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+      gap: 8px;
+    }
+    .tabbar button.active { background: var(--teal); color: white; }
+    .chat {
+      max-height: 40dvh;
+      overflow: auto;
+      padding: 8px;
+      background: #fff;
+      border: 1px solid #e5ddd2;
+      border-radius: 12px;
+    }
+    .bubble { padding: 8px 10px; border-radius: 10px; margin-bottom: 8px; }
+    .me { background: #e5f6f4; }
+    .them { background: #f2ede4; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 3px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <section id="talk-home" class="screen active">
+      <div class="card stack">
+        <h1>Talk</h1>
+        <div class="muted">Live bilingual conversation</div>
+        <button class="btn-primary" onclick="showScreen('talk-start')">Start a chat</button>
+        <button class="btn-secondary" onclick="showScreen('talk-join')">Join a session</button>
+      </div>
+      <div class="card">
+        <div class="row between"><h3>Recent sessions</h3><span class="muted" id="session-count">0</span></div>
+        <div id="recent-list" class="stack muted" style="margin-top:10px;">No saved sessions yet.</div>
+      </div>
+    </section>
+
+    <section id="talk-start" class="screen">
+      <div class="card stack">
+        <div class="row between"><h2>Start a Chat</h2><button onclick="showScreen('talk-home')">←</button></div>
+        <input id="start-name" placeholder="Your name" maxlength="30" />
+        <select id="start-my-lang"></select>
+        <select id="start-partner-lang"></select>
+        <button class="btn-primary" onclick="createSession()">Create session</button>
+      </div>
+    </section>
+
+    <section id="talk-join" class="screen">
+      <div class="card stack">
+        <div class="row between"><h2>Join Session</h2><button onclick="showScreen('talk-home')">←</button></div>
+        <input id="join-name" placeholder="Your name" maxlength="30" />
+        <select id="join-my-lang"></select>
+        <input id="join-code" class="mono" placeholder="A3K9M2" maxlength="6" />
+        <button class="btn-primary" onclick="joinSession()">Join session</button>
+      </div>
+    </section>
+
+    <section id="talk-code" class="screen">
+      <div class="card stack">
+        <div class="row between"><h2>Share code</h2><button onclick="showScreen('talk-home')">←</button></div>
+        <div class="muted">Share this code with your partner:</div>
+        <div id="session-code-view" class="card mono" style="text-align:center;font-size:28px;color:var(--teal);"></div>
+        <button onclick="copyCode()">Copy</button>
+        <button class="btn-primary" onclick="openChat()">Start chatting</button>
+      </div>
+    </section>
+
+    <section id="talk-chat" class="screen">
+      <div class="card stack">
+        <div class="row between"><h2 id="chat-title">Chat</h2><button onclick="showScreen('talk-home')">←</button></div>
+        <div class="chip" id="engine-badge">Engine: Cloud fallback</div>
+        <div class="chat" id="chat-list"></div>
+        <textarea id="chat-input" rows="2" placeholder="Type message"></textarea>
+        <button class="btn-primary" onclick="sendMessage()">Send</button>
+      </div>
+    </section>
+
+    <section id="say-home" class="screen">
+      <div class="card stack">
+        <h1>Say</h1>
+        <div class="muted">Phrasebook & catalogs</div>
+        <div class="row">
+          <input id="catalog-name" placeholder="New catalog name" />
+          <button onclick="addCatalog()">Add</button>
+        </div>
+      </div>
+      <div id="catalog-list"></div>
+    </section>
+  </div>
+
+  <nav class="tabbar">
+    <button id="tab-talk" class="active" onclick="switchTab('talk')">Talk</button>
+    <button id="tab-say" onclick="switchTab('say')">Say</button>
+  </nav>
+
+  <script>
+    const LANGS = ['English','Thai','Spanish','French','German','Italian','Japanese','Korean','Chinese','Vietnamese','Portuguese','Russian','Arabic','Hindi','Indonesian','Malay','Filipino','Dutch','Swedish','Polish','Turkish'];
+    const LS = {
+      sessions: 'talk_sessions',
+      active: 'talk_active_id',
+      msgs: id => `talk_msg_${id}`,
+      catalogs: 'say_catalogs',
+      cards: 'say_cards'
+    };
+    let appState = {
+      tab: 'talk',
+      activeSessionId: localStorage.getItem(LS.active) || null,
+      sessions: JSON.parse(localStorage.getItem(LS.sessions) || '[]'),
+      catalogs: JSON.parse(localStorage.getItem(LS.catalogs) || '[]')
+    };
+
+    function genId(){ return `${Date.now()}_${Math.random().toString(36).slice(2,8)}`; }
+    function genCode(){
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      return Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
+    }
+    function save(){
+      localStorage.setItem(LS.sessions, JSON.stringify(appState.sessions));
+      localStorage.setItem(LS.catalogs, JSON.stringify(appState.catalogs));
+      if (appState.activeSessionId) localStorage.setItem(LS.active, appState.activeSessionId);
+    }
+    function showScreen(id){
+      document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+    function switchTab(tab){
+      appState.tab = tab;
+      document.getElementById('tab-talk').classList.toggle('active', tab === 'talk');
+      document.getElementById('tab-say').classList.toggle('active', tab === 'say');
+      showScreen(tab === 'talk' ? 'talk-home' : 'say-home');
+      render();
+    }
+    function fillLangs(){
+      ['start-my-lang','start-partner-lang','join-my-lang'].forEach(id=>{
+        const sel = document.getElementById(id);
+        sel.innerHTML = LANGS.map(l=>`<option value="${l}">${l}</option>`).join('');
+      });
+      document.getElementById('start-partner-lang').value = 'Thai';
+    }
+    function createSession(){
+      const myName = document.getElementById('start-name').value.trim() || 'Me';
+      const myLang = document.getElementById('start-my-lang').value;
+      const partnerLang = document.getElementById('start-partner-lang').value;
+      const session = { sessionId: genId(), sessionCode: genCode(), myName, myLang, partnerName: 'Partner', partnerLang, isInitiator: true, createdAt: Date.now(), lastActivity: Date.now() };
+      appState.sessions.unshift(session);
+      appState.activeSessionId = session.sessionId;
+      save();
+      document.getElementById('session-code-view').textContent = session.sessionCode;
+      showScreen('talk-code');
+      render();
+    }
+    function joinSession(){
+      const code = document.getElementById('join-code').value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
+      if (code.length !== 6) return alert('Please enter a valid 6-character code.');
+      const myName = document.getElementById('join-name').value.trim() || 'Me';
+      const myLang = document.getElementById('join-my-lang').value;
+      const session = { sessionId: genId(), sessionCode: code, myName, myLang, partnerName: 'Partner', partnerLang: 'Unknown', isInitiator: false, createdAt: Date.now(), lastActivity: Date.now() };
+      appState.sessions.unshift(session);
+      appState.activeSessionId = session.sessionId;
+      save();
+      openChat();
+      render();
+    }
+    function copyCode(){
+      navigator.clipboard?.writeText(document.getElementById('session-code-view').textContent || '');
+    }
+    function detectEngine(){
+      const onDevice = !!window.Translator;
+      document.getElementById('engine-badge').textContent = onDevice ? 'Engine: On-device' : 'Engine: Cloud fallback';
+      document.getElementById('engine-badge').style.background = onDevice ? '#e6f7ee' : '#eee4d7';
+      document.getElementById('engine-badge').style.color = onDevice ? '#1a7f4b' : '#5f4d3f';
+    }
+    async function translate(text, to){
+      if (!text) return '';
+      return `[${to}] ${text}`;
+    }
+    function getActive(){ return appState.sessions.find(s => s.sessionId === appState.activeSessionId); }
+    function openChat(){
+      const session = getActive();
+      if (!session) return;
+      document.getElementById('chat-title').textContent = `${session.myName} ↔ ${session.partnerName}`;
+      showScreen('talk-chat');
+      detectEngine();
+      renderChat();
+    }
+    async function sendMessage(){
+      const session = getActive();
+      if (!session) return;
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+      const translated = await translate(text, session.partnerLang);
+      const list = JSON.parse(localStorage.getItem(LS.msgs(session.sessionId)) || '[]');
+      list.push({ id: genId(), from: 'me', text, translated, lang: session.myLang, status: 'sent', timestamp: Date.now() });
+      localStorage.setItem(LS.msgs(session.sessionId), JSON.stringify(list.slice(-300)));
+      session.lastActivity = Date.now();
+      save();
+      input.value = '';
+      renderChat();
+      render();
+    }
+    function renderChat(){
+      const session = getActive();
+      const el = document.getElementById('chat-list');
+      if (!session) return el.innerHTML = '<div class="muted">No session selected.</div>';
+      const msgs = JSON.parse(localStorage.getItem(LS.msgs(session.sessionId)) || '[]');
+      if (!msgs.length) return el.innerHTML = '<div class="muted">No messages yet.</div>';
+      el.innerHTML = msgs.map(m => `<div class="bubble ${m.from === 'me' ? 'me' : 'them'}"><div>${escapeHtml(m.text)}</div><div class="muted">${escapeHtml(m.translated || '')}</div></div>`).join('');
+      el.scrollTop = el.scrollHeight;
+    }
+    function addCatalog(){
+      const inp = document.getElementById('catalog-name');
+      const name = inp.value.trim();
+      if (!name) return;
+      appState.catalogs.unshift({ id: genId(), name, note: '', emoji: '📘', createdAt: Date.now(), isPinned: false, isDefault: appState.catalogs.length === 0 });
+      inp.value = '';
+      save();
+      render();
+    }
+    function escapeHtml(s){ return s.replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
+    function render(){
+      const recent = document.getElementById('recent-list');
+      const sessions = appState.sessions;
+      document.getElementById('session-count').textContent = String(sessions.length);
+      recent.innerHTML = sessions.length ? sessions.map(s => `
+        <button onclick="appState.activeSessionId='${s.sessionId}';save();openChat();" class="row between" style="text-align:left">
+          <span>${escapeHtml(s.partnerName)} <span class="muted">${escapeHtml(s.myLang)} → ${escapeHtml(s.partnerLang)}</span></span>
+          <span class="chip">${s.sessionCode}</span>
+        </button>
+      `).join('') : 'No saved sessions yet.';
+      const list = document.getElementById('catalog-list');
+      list.innerHTML = appState.catalogs.map(c => `<div class="card row between"><div><strong>${escapeHtml(c.emoji)} ${escapeHtml(c.name)}</strong><div class="muted">Catalog</div></div><span class="chip">${c.isDefault ? 'Default' : 'Custom'}</span></div>`).join('') || '<div class="card muted">No catalogs yet.</div>';
+    }
+
+    fillLangs();
+    render();
+  </script>
+</body>
+</html>
