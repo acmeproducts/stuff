@@ -97,6 +97,12 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .card-links .empty{color:#9ca3af}
 .card-detail{display:flex;flex-direction:column;gap:6px}
 .card-detail.collapsed{display:none}
+.card-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.card-edit-grid .full{grid-column:1/-1}
+.card-edit-field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.card-edit-field label{font-size:11px;color:var(--muted);font-weight:600}
+.card-edit-field input,.card-edit-field select,.card-edit-field textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;background:#fff;color:inherit}
+.card-edit-field textarea{resize:vertical;min-height:72px}
 .card-tags{display:flex;gap:6px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
@@ -580,14 +586,101 @@ function renderCard(card){
   links.append(dev,live);
   line.append(title,links); el.append(line);
 
-  const detail=document.createElement("div"); detail.className="card-detail";
-  if(isCollapsed) detail.classList.add("collapsed");
-
   const tagsRow=document.createElement("div"); tagsRow.className="card-tags";
   const p=document.createElement("span"); p.className="chip card-platform"; p.textContent=card.platform;
   tagsRow.appendChild(p);
   if(card.tags?.length){ card.tags.forEach(t=>{ const chip=document.createElement("span"); chip.className="chip"; chip.textContent=t; tagsRow.appendChild(chip); }); }
-  detail.append(tagsRow);
+  el.append(tagsRow);
+
+  const detail=document.createElement("div"); detail.className="card-detail";
+  if(isCollapsed) detail.classList.add("collapsed");
+
+  const inlineState={
+    title: card.title||"",
+    platform: card.platform||state.platforms[0]||"General",
+    stage: card.stage,
+    dev: card.dev||"",
+    live: card.live||"",
+    tags: (card.tags||[]).join(", "),
+    notes: card.notes||""
+  };
+  const saveInline=()=>{
+    const tags=inlineState.tags.split(",").map(t=>t.trim()).filter(Boolean);
+    const patch={
+      title:inlineState.title.trim()||"(untitled)",
+      platform:inlineState.platform,
+      stage:inlineState.stage,
+      dev:inlineState.dev.trim(),
+      live:inlineState.live.trim(),
+      notes:inlineState.notes.trim(),
+      tags
+    };
+    if(
+      patch.title===card.title &&
+      patch.platform===card.platform &&
+      patch.stage===card.stage &&
+      patch.dev===card.dev &&
+      patch.live===card.live &&
+      patch.notes===card.notes &&
+      JSON.stringify(tags)===JSON.stringify(card.tags||[])
+    ) return;
+    updateCard(card.id, patch);
+  };
+  detail.addEventListener("focusout", (e)=>{
+    if(detail.contains(e.relatedTarget)) return;
+    saveInline();
+  });
+
+  const grid=document.createElement("div");
+  grid.className="card-edit-grid";
+  const makeField=(label, control, full=false)=>{
+    const wrap=document.createElement("div");
+    wrap.className=`card-edit-field${full?" full":""}`;
+    const l=document.createElement("label");
+    l.textContent=label;
+    wrap.append(l, control);
+    return wrap;
+  };
+
+  const titleInput=document.createElement("input");
+  titleInput.value=inlineState.title;
+  titleInput.placeholder="Card title";
+  titleInput.addEventListener("input", ()=>{ inlineState.title=titleInput.value; });
+
+  const platformSelect=document.createElement("select");
+  state.platforms.forEach(pl=>{ const opt=document.createElement("option"); opt.value=pl; opt.textContent=pl; if(pl===inlineState.platform) opt.selected=true; platformSelect.append(opt); });
+  platformSelect.addEventListener("change", ()=>{ inlineState.platform=platformSelect.value; });
+
+  const stageSelect=document.createElement("select");
+  state.stages.forEach(st=>{ const opt=document.createElement("option"); opt.value=st; opt.textContent=st; if(st===inlineState.stage) opt.selected=true; stageSelect.append(opt); });
+  stageSelect.addEventListener("change", ()=>{ inlineState.stage=stageSelect.value; });
+
+  const devInput=document.createElement("input");
+  devInput.type="url"; devInput.placeholder="https://dev…"; devInput.value=inlineState.dev;
+  devInput.addEventListener("input", ()=>{ inlineState.dev=devInput.value; });
+
+  const liveInput=document.createElement("input");
+  liveInput.type="url"; liveInput.placeholder="https://live…"; liveInput.value=inlineState.live;
+  liveInput.addEventListener("input", ()=>{ inlineState.live=liveInput.value; });
+
+  const tagsInput=document.createElement("input");
+  tagsInput.placeholder="tag1, tag2"; tagsInput.value=inlineState.tags;
+  tagsInput.addEventListener("input", ()=>{ inlineState.tags=tagsInput.value; });
+
+  const notesInput=document.createElement("textarea");
+  notesInput.rows=4; notesInput.placeholder="Notes"; notesInput.value=inlineState.notes;
+  notesInput.addEventListener("input", ()=>{ inlineState.notes=notesInput.value; });
+
+  grid.append(
+    makeField("Title", titleInput, true),
+    makeField("Platform", platformSelect),
+    makeField("Lane", stageSelect),
+    makeField("Dev Link", devInput),
+    makeField("Live Link", liveInput),
+    makeField("Tags", tagsInput, true),
+    makeField("Notes", notesInput, true)
+  );
+  detail.append(grid);
 
   el.append(detail);
   return el;
