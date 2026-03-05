@@ -275,15 +275,8 @@
 <script>
 (() => {
   
-let GITHUB_TOKEN = localStorage.getItem('github_pat');
-// This loop ensures a token is provided before the app runs.
-while (!GITHUB_TOKEN || GITHUB_TOKEN.trim() === '') {
-  const input = prompt("Enter your GitHub Personal Access Token:");
-  if (input && input.trim()) {
-    GITHUB_TOKEN = input.trim();
-    localStorage.setItem('github_pat', GITHUB_TOKEN);
-  }
-}
+  const GITHUB_PAT_KEY = 'github_pat';
+  let GITHUB_TOKEN = null;
 
   const DEFAULT_USER = "acmeproducts";
   const DEFAULT_REPO_HINT = "stuff";
@@ -369,6 +362,62 @@ while (!GITHUB_TOKEN || GITHUB_TOKEN.trim() === '') {
       console.error(context, error); // Log for developers if console is available
       const message = `${context}: ${error.message || 'An unknown error occurred.'}`;
       toast(message, 4500, 'warn');
+  }
+
+  async function validateToken(token) {
+    if (!token || !token.trim()) return false;
+    try {
+      const res = await fetch('https://api.github.com/user', {
+        headers: {
+          'Authorization': 'token ' + token.trim(),
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      return res.ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function requestTokenInApp(message = '') {
+    return new Promise((resolve) => {
+      const existing = document.getElementById('tokenGate');
+      if (existing) existing.remove();
+
+      const gate = document.createElement('div');
+      gate.id = 'tokenGate';
+      gate.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px;';
+      gate.innerHTML = `
+        <div style="width:min(560px,100%);background:#1e1e1e;color:#f3f3f3;border:1px solid #3a3a3a;border-radius:14px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.45);font-family:Inter,system-ui,sans-serif;">
+          <h2 style="margin:0 0 10px 0;font-size:18px;">GitHub Personal Access Token</h2>
+          <p style="margin:0 0 10px 0;font-size:13px;line-height:1.45;color:#d5d5d5;">Enter a token once. This app stores it in local storage and reuses it until GitHub rejects it.</p>
+          <p id="tokenGateMessage" style="margin:0 0 10px 0;font-size:12px;color:#ffb9b9;min-height:1em;">${message || ''}</p>
+          <input id="tokenGateInput" type="password" autocomplete="off" placeholder="ghp_..." style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #4a4a4a;background:#121212;color:#f3f3f3;outline:none;">
+          <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:8px;">
+            <button id="tokenGateSave" type="button" style="padding:9px 12px;border-radius:10px;border:1px solid #1f6feb;background:#238636;color:#fff;cursor:pointer;">Save & Continue</button>
+          </div>
+        </div>`;
+      document.body.appendChild(gate);
+
+      const input = gate.querySelector('#tokenGateInput');
+      const saveBtn = gate.querySelector('#tokenGateSave');
+      const messageEl = gate.querySelector('#tokenGateMessage');
+      input.focus();
+
+      const submit = () => {
+        const value = input.value.trim();
+        if (!value) {
+          messageEl.textContent = 'Token is required.';
+          input.focus();
+          return;
+        }
+        gate.remove();
+        resolve(value);
+      };
+
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+      saveBtn.addEventListener('click', submit);
+    });
   }
 
   function setPaneCollapsed(el, chev, collapsed){
@@ -843,6 +892,23 @@ while (!GITHUB_TOKEN || GITHUB_TOKEN.trim() === '') {
 
   // Bootstrap
   (async function init(){
+    const storedToken = localStorage.getItem(GITHUB_PAT_KEY);
+    if (storedToken && await validateToken(storedToken)) {
+      GITHUB_TOKEN = storedToken.trim();
+    } else {
+      if (storedToken) localStorage.removeItem(GITHUB_PAT_KEY);
+      let message = storedToken ? 'Saved token is no longer valid. Enter a new token.' : '';
+      while (!GITHUB_TOKEN) {
+        const input = await requestTokenInApp(message);
+        if (await validateToken(input)) {
+          GITHUB_TOKEN = input.trim();
+          localStorage.setItem(GITHUB_PAT_KEY, GITHUB_TOKEN);
+          break;
+        }
+        message = 'That token is invalid. Please try again.';
+      }
+    }
+
     setPaneCollapsed(paneOriginal, chevOriginal, true);
     setPaneCollapsed(paneUpdated, chevUpdated, false);
     try{
