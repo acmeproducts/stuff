@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Talk + Say</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Lora:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+:root{
+  --teal:#2E8B8B;--teal-mid:#3A9E9E;--teal-light:#E6F4F4;
+  --ink:#1A1714;--ink-mid:#5A5552;--ink-dim:#9A9592;
+  --border:#E2DDD8;--paper:#F5F1EC;--cream:#FDFAF7;
+  --green:#2E7D4F;--green-light:#E8F5EE;
+  --amber:#C07830;--amber-light:#FBF0E4;
+  --red:#C0392B;--red-light:#FDEDEC;
+  --tag-bg:#EEE8FF;--tag-text:#6B4FBB;
+  --shadow:0 1px 4px rgba(0,0,0,0.08),0 4px 16px rgba(0,0,0,0.06);
+}
+html,body{height:100%;overflow:hidden;background:var(--cream);font-family:"DM Sans",sans-serif;color:var(--ink);}
+#app{position:fixed;inset:0;max-width:480px;margin:0 auto;background:var(--cream);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow);}
+
+/* SCREENS */
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;background:var(--cream);opacity:0;pointer-events:none;transition:opacity .18s;}
+.screen.active{opacity:1;pointer-events:auto;}
+
+/* TAB BAR */
+.tab-bar{display:flex;background:var(--cream);border-top:1px solid var(--border);padding:6px 0 max(6px,env(safe-area-inset-bottom));flex-shrink:0;}
+.tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;cursor:pointer;font-family:"DM Sans",sans-serif;font-size:10px;font-weight:600;color:var(--ink-dim);padding:4px 0;transition:color .12s;}
+.tab-btn.active{color:var(--teal);}
+.tab-icon{font-size:18px;display:flex;align-items:center;justify-content:center;}
+
+/* HERO */
+.hero{padding:24px 20px 12px;flex-shrink:0;}
+.hero-logo{font-family:"Lora",serif;font-size:32px;font-weight:600;color:var(--teal);letter-spacing:-0.5px;}
+.hero-sub{font-size:13px;color:var(--ink-dim);margin-top:2px;}
+
+/* GENERIC HEADER */
+.scr-header{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--cream);}
+.scr-back{background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-mid);padding:4px 6px;border-radius:8px;line-height:1;}
+.scr-back:hover{background:var(--paper);}
+.scr-title{flex:1;font-family:"Lora",serif;font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.scr-action{background:var(--teal);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;}
+
+/* FIELDS */
+.field-label{display:block;font-size:11px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.4px;margin:14px 0 5px;}
+.field-input{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;font-size:15px;font-family:"DM Sans",sans-serif;color:var(--ink);background:#fff;outline:none;}
+.field-input:focus{border-color:var(--teal);}
+textarea.field-input{resize:none;}
+.field-select{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;font-size:14px;font-family:"DM Sans",sans-serif;color:var(--ink);background:#fff;outline:none;-webkit-appearance:none;appearance:none;cursor:pointer;}
+
+/* ════════════════════ HOME ════════════════════ */
+.new-sess-card{margin:0 16px;background:#fff;border:1px solid var(--border);border-radius:16px;padding:16px;flex-shrink:0;}
+.new-sess-lbl{font-size:11px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;}
+.names-row{display:grid;grid-template-columns:1fr 24px 1fr;gap:0;align-items:center;}
+.name-field{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-size:15px;font-family:"DM Sans",sans-serif;color:var(--ink);outline:none;background:var(--paper);}
+.name-field:focus{border-color:var(--teal);background:#fff;}
+.name-sep{text-align:center;font-size:14px;color:var(--ink-dim);font-weight:300;}
+.sess-id-row{display:flex;align-items:center;gap:8px;margin-top:10px;}
+.sess-id-pill{flex:1;background:var(--teal-light);color:var(--teal);border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.icon-btn-sm{background:none;border:none;cursor:pointer;padding:5px;border-radius:8px;color:var(--ink-dim);line-height:0;transition:background .12s;}
+.icon-btn-sm:hover{background:var(--paper);color:var(--ink-mid);}
+.pin-row{display:none;align-items:center;gap:8px;margin-top:8px;padding:9px 12px;background:var(--amber-light);border-radius:10px;border:1px solid #E8C088;}
+.pin-val{font-family:monospace;font-size:17px;font-weight:700;color:var(--amber);letter-spacing:3px;flex:1;}
+.pin-copy-btn{background:none;border:1px solid var(--amber);border-radius:7px;padding:4px 10px;font-size:12px;font-weight:600;color:var(--amber);cursor:pointer;font-family:"DM Sans",sans-serif;}
+.start-btn{width:100%;border:none;border-radius:12px;padding:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;background:var(--teal);color:#fff;margin-top:12px;transition:opacity .12s;}
+.start-btn:disabled{opacity:0.3;cursor:not-allowed;}
+.sess-section{flex:1;overflow-y:auto;padding:12px 16px 80px;}
+.sess-section-lbl{font-size:11px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;}
+.session-row{display:flex;align-items:center;background:#fff;border:1px solid var(--border);border-radius:14px;margin-bottom:7px;overflow:hidden;}
+.session-row.active-sess{border-color:var(--teal);}
+.sess-tap{flex:1;display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;min-width:0;}
+.sess-avatar{width:38px;height:38px;border-radius:50%;background:var(--teal-light);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--teal);font-size:14px;flex-shrink:0;}
+.active-sess .sess-avatar{background:var(--teal);color:#fff;}
+.sess-info{flex:1;min-width:0;}
+.sess-name{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sess-meta{font-size:11px;color:var(--ink-dim);margin-top:2px;}
+.sess-badges{display:flex;gap:4px;margin-top:4px;}
+.sess-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;}
+.sess-badge.unread{background:var(--teal);color:#fff;}
+.sess-badge.pending{background:var(--amber-light);color:var(--amber);}
+.sess-acts{display:flex;padding:0 8px;gap:2px;flex-shrink:0;}
+.sess-act{background:none;border:none;cursor:pointer;padding:8px 5px;color:var(--ink-dim);font-size:13px;border-radius:7px;line-height:0;}
+.sess-act:hover{background:var(--paper);}
+.sess-act.del:hover{color:var(--red);background:var(--red-light);}
+.empty-state{text-align:center;padding:36px 20px;font-size:13px;color:var(--ink-dim);line-height:1.8;}
+
+/* ════════════════════ JOIN SCREEN ════════════════════ */
+#join-screen{background:var(--cream);}
+.join-wrap{flex:1;overflow-y:auto;padding:0 24px 40px;}
+.join-logo-row{padding:52px 0 24px;text-align:center;}
+.join-logo{font-family:"Lora",serif;font-size:38px;font-weight:600;color:var(--teal);}
+.join-sub{font-size:13px;color:var(--ink-dim);margin-top:6px;}
+.join-sess-card{background:var(--teal-light);border:1.5px solid var(--teal);border-radius:14px;padding:14px 18px;text-align:center;margin-bottom:16px;}
+.join-sess-id{font-family:monospace;font-size:20px;font-weight:700;color:var(--teal);}
+.join-sess-lbl{font-size:11px;color:var(--teal);margin-top:3px;opacity:.8;}
+.join-big-btn{width:100%;border:none;border-radius:13px;padding:15px;font-size:16px;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;background:var(--teal);color:#fff;margin-top:4px;}
+.join-big-btn:disabled{opacity:.4;cursor:not-allowed;}
+.join-divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--ink-dim);font-size:12px;}
+.join-divider::before,.join-divider::after{content:"";flex:1;height:1px;background:var(--border);}
+.join-manual{width:100%;border:1.5px solid var(--border);border-radius:12px;padding:12px 16px;font-size:16px;font-family:monospace;text-align:center;color:var(--teal);font-weight:600;background:#fff;outline:none;}
+.join-manual:focus{border-color:var(--teal);}
+
+/* ════════════════════ ONBOARDING ════════════════════ */
+#onboard-screen{background:var(--teal);justify-content:flex-end;}
+.onboard-slides-wrap{width:100%;overflow:hidden;}
+.onboard-slides{display:flex;transition:transform .35s ease-out;}
+.onboard-slide{min-width:100%;padding:60px 36px 0;text-align:center;}
+.onboard-emoji{font-size:64px;margin-bottom:20px;}
+.onboard-title{font-family:"Lora",serif;font-size:26px;font-weight:600;color:#fff;margin-bottom:12px;}
+.onboard-body{font-size:14px;color:rgba(255,255,255,.75);line-height:1.6;}
+.onboard-footer{padding:28px 32px max(28px,env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:16px;}
+.onboard-dots{display:flex;gap:6px;}
+.onboard-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.35);transition:background .2s;}
+.onboard-dot.active{background:#fff;}
+.onboard-btn{width:100%;background:#fff;color:var(--teal);border:none;border-radius:14px;padding:16px;font-size:16px;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;}
+
+/* ════════════════════ CHAT ════════════════════ */
+.chat-header{padding:10px 12px;background:var(--cream);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.chat-back{background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-mid);padding:4px 6px;border-radius:8px;line-height:1;}
+.chat-back:hover{background:var(--paper);}
+.chat-title-block{flex:1;min-width:0;}
+.chat-partner{font-family:"Lora",serif;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.chat-meta-row{display:flex;align-items:center;gap:6px;margin-top:2px;}
+.lang-chip{background:var(--teal-light);color:var(--teal);border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.3px;}
+.conn-dot{width:6px;height:6px;border-radius:50%;background:#D5D0CB;flex-shrink:0;transition:background .3s;}
+.conn-dot.on{background:var(--green);}
+.conn-lbl{font-size:11px;color:var(--ink-dim);}
+.reconnect-btn{background:none;border:1px solid var(--amber);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;color:var(--amber);cursor:pointer;font-family:"DM Sans",sans-serif;flex-shrink:0;}
+.reconnect-btn:hover{background:var(--amber-light);}
+.chat-menu-btn{background:none;border:none;cursor:pointer;color:var(--ink-mid);padding:6px;border-radius:8px;line-height:1;}
+.chat-menu-btn:hover{background:var(--paper);}
+.engine-badge{font-size:10px;color:var(--ink-dim);padding:3px 14px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--cream);}
+.engine-badge.on-device{color:var(--green);}
+
+/* MESSAGES */
+#messages{flex:1;overflow-y:auto;padding:10px 12px 6px;display:flex;flex-direction:column;gap:6px;-webkit-overflow-scrolling:touch;}
+.sys-msg{text-align:center;padding:7px 0;font-size:11px;color:var(--ink-dim);font-style:italic;}
+.day-lbl{text-align:center;padding:8px 0 2px;font-size:10px;color:var(--ink-dim);font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
+
+/* ---- BUBBLE (v1.5) ---- */
+.msg-row{max-width:96%;animation:fadeUp .17s ease-out;}
+.msg-row.mine{align-self:flex-end;}
+.msg-row.theirs{align-self:flex-start;}
+@keyframes fadeUp{from{transform:translateY(8px);opacity:0;}}
+
+.bubble-card{border-radius:14px;overflow:hidden;border:1px solid var(--border);}
+.msg-row.mine .bubble-card{background:var(--teal);border-color:var(--teal);}
+.msg-row.theirs .bubble-card{background:var(--paper);}
+
+/* Bubble header */
+.bbl-hdr{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;border-bottom:1px solid rgba(0,0,0,.06);}
+.msg-row.mine .bbl-hdr{border-bottom-color:rgba(255,255,255,.14);}
+.bbl-time{font-size:10px;opacity:.5;font-variant-numeric:tabular-nums;}
+.msg-row.mine .bbl-time{color:#fff;}
+.bbl-lang-tag{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;opacity:.45;padding:1px 5px;border-radius:4px;background:rgba(0,0,0,.05);}
+.msg-row.mine .bbl-lang-tag{background:rgba(0,0,0,.18);color:rgba(255,255,255,.9);}
+.bbl-status{font-size:10px;opacity:.4;}
+.msg-row.mine .bbl-status{color:#fff;}
+
+/* Bubble body — two columns */
+.bbl-body{display:grid;grid-template-columns:1fr 1px 1fr;}
+.bbl-side{padding:10px 13px;}
+.bbl-divider{background:rgba(0,0,0,.1);}
+.msg-row.mine .bbl-divider{background:rgba(255,255,255,.25);}
+.bbl-lang-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px;opacity:.5;}
+.msg-row.mine .bbl-lang-lbl{color:rgba(255,255,255,.7);}
+.bbl-txt{font-size:15px;line-height:1.5;word-break:break-word;}
+.msg-row.mine .bbl-txt{color:#fff;}
+.bbl-txt.thai{font-size:15px;}
+.bbl-txt.loading{min-height:18px;border-radius:4px;background:linear-gradient(90deg,transparent 30%,rgba(0,0,0,.06) 50%,transparent 70%);background-size:200% 100%;animation:shimmer 1.5s infinite;}
+@keyframes shimmer{to{background-position:-200% 0;}}
+.bbl-tts{background:none;border:none;cursor:pointer;opacity:.4;padding:3px 0;display:block;color:inherit;line-height:0;margin-top:4px;transition:opacity .12s;}
+.bbl-tts:hover,.bbl-tts.playing{opacity:1;}
+.msg-row.mine .bbl-tts{color:#fff;}
+
+/* Bubble attachment */
+.bbl-attach{padding:6px 11px;border-top:1px solid rgba(0,0,0,.06);}
+.msg-row.mine .bbl-attach{border-top-color:rgba(255,255,255,.14);}
+.bbl-attach img{max-width:100%;border-radius:8px;display:block;}
+.bbl-attach-file{display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(0,0,0,.05);border-radius:8px;font-size:12px;}
+.msg-row.mine .bbl-attach-file{background:rgba(255,255,255,.15);color:#fff;}
+
+/* Bubble footer */
+.bbl-foot{border-top:1px solid rgba(0,0,0,.06);}
+.msg-row.mine .bbl-foot{border-top-color:rgba(255,255,255,.14);}
+.bbl-foot-bar{display:flex;align-items:center;padding:5px 8px;gap:2px;}
+.bbl-act{background:none;border:none;cursor:pointer;font-size:11px;font-weight:600;font-family:"DM Sans",sans-serif;padding:4px 7px;border-radius:7px;color:var(--ink-dim);line-height:1.2;transition:background .12s;}
+.bbl-act:hover{background:rgba(0,0,0,.06);}
+.msg-row.mine .bbl-act{color:rgba(255,255,255,.8);}
+.msg-row.mine .bbl-act:hover{background:rgba(255,255,255,.12);}
+.bbl-act.c-active{color:var(--amber);}
+.msg-row.mine .bbl-act.c-active{color:#FFE082;}
+.bbl-toggle{margin-left:auto;background:none;border:none;cursor:pointer;color:var(--ink-dim);opacity:.5;padding:4px 6px;font-size:12px;line-height:1;transition:transform .2s;}
+.msg-row.mine .bbl-toggle{color:#fff;}
+.bbl-toggle.open{transform:rotate(180deg);}
+.bbl-detail{display:none;padding:10px 12px;border-top:1px solid rgba(0,0,0,.06);font-size:13px;}
+.bbl-detail.open{display:block;}
+.msg-row.mine .bbl-detail{border-top-color:rgba(255,255,255,.14);}
+.bbl-detail-section{margin-bottom:10px;}
+.bbl-detail-section:last-child{margin-bottom:0;}
+.bbl-dl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;opacity:.5;margin-bottom:4px;}
+.msg-row.mine .bbl-dl{color:#fff;}
+.bbl-dt{font-size:13px;line-height:1.45;word-break:break-word;}
+.msg-row.mine .bbl-dt{color:rgba(255,255,255,.85);}
+.bbl-verdict-row{display:flex;gap:6px;margin-top:7px;}
+.bbl-vbtn{border:none;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;}
+.bbl-vbtn.good{background:var(--green-light);color:var(--green);}
+.bbl-vbtn.bad{background:var(--red-light);color:var(--red);}
+.bbl-vbtn.verify{background:var(--teal-light);color:var(--teal);}
+.bbl-vbtn.reset{background:var(--paper);color:var(--ink-mid);border:1px solid var(--border);}
+.msg-row.mine .bbl-vbtn.verify{background:rgba(255,255,255,.2);color:#fff;}
+.bbl-verified{font-size:11px;font-weight:700;color:var(--green);margin-top:6px;}
+.bbl-flagged{font-size:11px;font-weight:700;color:var(--red);margin-top:6px;}
+.bbl-verdict-pill{font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;flex-shrink:0;margin-right:4px;}
+.bbl-verdict-pill.good{background:var(--green-light);color:var(--green);}
+.bbl-verdict-pill.bad{background:var(--red-light);color:var(--red);}
+.msg-row.mine .bbl-verdict-pill.good{background:rgba(255,255,255,.25);color:#d4f7d4;}
+.msg-row.mine .bbl-verdict-pill.bad{background:rgba(255,100,80,.3);color:#ffd6d6;}
+.clarify-block{background:rgba(0,0,0,.04);border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.5;margin-top:6px;}
+.msg-row.mine .clarify-block{background:rgba(255,255,255,.12);color:rgba(255,255,255,.85);}
+.queued-badge{font-size:9px;font-weight:700;color:var(--amber);opacity:.8;margin-left:4px;}
+
+/* TYPING + COMPOSER */
+.typing-bar{padding:2px 16px;font-size:12px;color:var(--ink-dim);min-height:20px;flex-shrink:0;}
+.composer{display:flex;align-items:flex-end;gap:6px;padding:7px 10px max(7px,env(safe-area-inset-bottom));background:var(--cream);border-top:1px solid var(--border);flex-shrink:0;}
+.composer-icon{background:none;border:none;cursor:pointer;color:var(--ink-mid);padding:8px 5px;flex-shrink:0;line-height:0;border-radius:8px;transition:color .12s;}
+.composer-icon:hover{color:var(--teal);}
+.composer-icon.active{color:var(--red);}
+.composer-wrap{flex:1;position:relative;}
+.composer-ta{width:100%;border:1.5px solid var(--border);border-radius:20px;padding:9px 14px;font-size:15px;font-family:"DM Sans",sans-serif;background:#fff;resize:none;outline:none;min-height:40px;max-height:110px;line-height:1.4;}
+.composer-ta:focus{border-color:var(--teal);}
+.send-btn{width:40px;height:40px;border-radius:50%;border:none;background:var(--teal);color:#fff;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:opacity .12s;}
+.send-btn:disabled{opacity:.3;}
+.offline-indicator{display:none;font-size:10px;color:var(--amber);font-weight:600;text-align:center;padding:3px 10px;border-top:1px solid var(--amber-light);background:var(--amber-light);flex-shrink:0;}
+.offline-indicator.show{display:block;}
+
+/* ════════════════════ SAY HOME ════════════════════ */
+.say-header-row{display:flex;align-items:center;padding:10px 16px 6px;gap:8px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.say-omni{flex:1;border:1.5px solid var(--border);border-radius:10px;padding:8px 12px;font-size:14px;font-family:"DM Sans",sans-serif;background:#fff;outline:none;}
+.say-omni:focus{border-color:var(--teal);}
+.say-add-btn{background:var(--teal);color:#fff;border:none;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;white-space:nowrap;}
+.lang-filter-row{padding:6px 16px 8px;flex-shrink:0;}
+.lang-filter-sel{border:1.5px solid var(--border);border-radius:8px;padding:5px 10px;font-size:13px;font-family:"DM Sans",sans-serif;background:#fff;color:var(--ink-mid);outline:none;cursor:pointer;-webkit-appearance:none;appearance:none;}
+.catalog-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 16px 90px;}
+.cat-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;cursor:pointer;transition:border-color .15s;position:relative;min-height:80px;display:flex;flex-direction:column;gap:5px;}
+.cat-card:hover{border-color:var(--teal-mid);}
+.cat-card.all-phrases{grid-column:1/-1;background:linear-gradient(135deg,var(--teal-light),#fff);border-color:var(--teal);border-width:1.5px;}
+.cat-card.new-cat{border-style:dashed;align-items:center;justify-content:center;gap:4px;}
+.cat-emoji{font-size:20px;line-height:1;}
+.cat-name{font-family:"Lora",serif;font-size:13px;font-weight:600;line-height:1.2;}
+.cat-count{font-size:11px;color:var(--ink-dim);}
+.cat-incorrect{font-size:10px;font-weight:700;color:var(--red);background:var(--red-light);border-radius:8px;padding:1px 6px;display:inline-block;margin-top:2px;}
+.cat-del{position:absolute;top:8px;right:8px;background:none;border:none;font-size:13px;color:var(--ink-dim);opacity:.25;cursor:pointer;padding:3px;border-radius:6px;line-height:1;}
+.cat-card:hover .cat-del{opacity:.8;}
+.cat-del:hover{opacity:1!important;color:var(--red);}
+.new-cat-icon{font-size:22px;color:var(--teal);}
+.new-cat-lbl{font-size:12px;font-weight:600;color:var(--teal);}
+
+/* ════════════════════ CATALOG SCREEN ════════════════════ */
+.cat-toolbar{padding:8px 16px 6px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.cat-omni{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:8px 12px;font-size:14px;font-family:"DM Sans",sans-serif;background:#fff;outline:none;}
+.cat-omni:focus{border-color:var(--teal);}
+.card-list{flex:1;overflow-y:auto;padding:8px 16px 80px;}
+
+/* PHRASE CARD (v1.5) */
+.pb-card{background:#fff;border:1px solid var(--border);border-radius:13px;margin-bottom:7px;overflow:hidden;transition:border-color .15s;}
+.pb-card:hover{border-color:var(--teal-mid);}
+.pb-card.open{border-color:var(--teal);}
+.pb-card-header{display:flex;align-items:center;gap:8px;padding:11px 13px;cursor:pointer;}
+.pb-texts{flex:1;min-width:0;}
+.pb-source{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pb-target{font-size:13px;color:var(--ink-dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pb-incorrect-tag{font-size:10px;font-weight:700;color:var(--red);background:var(--red-light);border-radius:6px;padding:1px 5px;margin-top:3px;display:inline-block;}
+.pb-hdr-actions{display:flex;align-items:center;gap:1px;flex-shrink:0;}
+.pb-use-chip{background:var(--teal-light);color:var(--teal);border:none;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;margin-right:3px;}
+.pb-use-chip:hover{background:var(--teal);color:#fff;}
+.pb-use-chip:disabled{opacity:.35;cursor:not-allowed;}
+.pb-icon{background:none;border:none;cursor:pointer;padding:5px;border-radius:7px;color:var(--ink-dim);line-height:0;transition:background .12s;}
+.pb-icon:hover{background:var(--paper);color:var(--ink-mid);}
+.pb-icon.del:hover{color:var(--red);background:var(--red-light);}
+.pb-chevron{font-size:13px;color:var(--ink-dim);transition:transform .2s;flex-shrink:0;margin-left:2px;}
+.pb-card.open .pb-chevron{transform:rotate(90deg);}
+.pb-tags-row{display:flex;gap:4px;flex-wrap:wrap;padding:0 13px 8px;}
+.pb-tag-pill{background:var(--tag-bg);color:var(--tag-text);border-radius:6px;padding:2px 7px;font-size:10px;font-weight:600;}
+
+/* CARD DETAIL */
+.pb-detail{display:none;border-top:1px solid var(--border);}
+.pb-card.open .pb-detail{display:block;}
+.layer{padding:11px 13px;border-bottom:1px solid var(--border);}
+.layer:last-child{border-bottom:none;}
+.layer-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;}
+.layer-label{font-size:10px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.4px;}
+.layer-actions{display:flex;align-items:center;gap:7px;}
+.layer-tts{background:none;border:none;cursor:pointer;color:var(--ink-mid);opacity:.5;padding:2px;line-height:0;border-radius:6px;}
+.layer-tts:hover,.layer-tts.playing{opacity:1;}
+.layer-edit-btn{background:none;border:none;font-size:12px;font-weight:600;color:var(--teal);cursor:pointer;font-family:"DM Sans",sans-serif;padding:0;}
+.layer-text{font-size:14px;line-height:1.5;word-break:break-word;}
+.layer-text.dim{color:var(--ink-dim);font-style:italic;}
+.layer-textarea{width:100%;border:1.5px solid var(--teal);border-radius:8px;padding:7px 10px;font-size:14px;font-family:"DM Sans",sans-serif;outline:none;background:#fff;resize:vertical;min-height:38px;display:none;}
+.layer-textarea.show{display:block;}
+.layer-save-row{display:none;gap:7px;margin-top:7px;}
+.layer-save-row.show{display:flex;}
+.layer-save-btn{border:none;border-radius:8px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;}
+.layer-save-btn.ok{background:var(--teal);color:#fff;}
+.layer-save-btn.cancel{background:var(--paper);color:var(--ink-mid);border:1px solid var(--border);}
+.retranslate-btn{background:var(--teal-light);border:none;border-radius:7px;padding:5px 11px;font-size:11px;font-weight:600;color:var(--teal);cursor:pointer;font-family:"DM Sans",sans-serif;}
+.verify-btn{background:var(--teal-light);border:none;border-radius:7px;padding:5px 11px;font-size:11px;font-weight:600;color:var(--teal);cursor:pointer;font-family:"DM Sans",sans-serif;}
+.verify-btn:disabled{opacity:.5;}
+.md-hint{font-size:10px;color:var(--ink-dim);margin-top:3px;}
+.verdict-row{display:flex;gap:6px;margin-top:7px;}
+.verdict-btn{border:none;border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;}
+.verdict-btn.good{background:var(--green-light);color:var(--green);}
+.verdict-btn.bad{background:var(--red-light);color:var(--red);}
+.back-verdict{font-size:11px;font-weight:700;margin-top:5px;}
+.back-verdict.ok{color:var(--green);}
+.back-verdict.bad{color:var(--red);}
+.tags-wrap{display:flex;flex-wrap:wrap;gap:5px;align-items:center;}
+.tag-pill{background:var(--tag-bg);color:var(--tag-text);border-radius:7px;padding:3px 8px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;}
+.tag-remove{background:none;border:none;font-size:11px;color:inherit;cursor:pointer;padding:0;line-height:1;opacity:.65;}
+.tag-remove:hover{opacity:1;}
+.add-tag-btn{background:none;border:1.5px dashed var(--ink-dim);border-radius:7px;padding:3px 8px;font-size:11px;font-weight:600;color:var(--ink-dim);cursor:pointer;font-family:"DM Sans",sans-serif;}
+.card-meta{font-size:10px;color:var(--ink-dim);padding:0 13px 8px;margin-top:-4px;}
+
+/* ════════════════════ SETTINGS ════════════════════ */
+.settings-body{flex:1;overflow-y:auto;}
+.settings-group{padding:14px 16px;border-bottom:1px solid var(--border);}
+.settings-group-title{font-size:11px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;}
+.settings-info-card{background:var(--teal-light);border-radius:9px;padding:11px;font-size:13px;color:var(--teal);line-height:1.5;}
+.settings-info-card.cloud{background:var(--paper);color:var(--ink-mid);}
+.settings-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);}
+.settings-row:last-child{border-bottom:none;}
+.settings-row-info{flex:1;min-width:0;}
+.settings-row-title{font-size:14px;font-weight:500;}
+.settings-row-meta{font-size:11px;color:var(--ink-dim);margin-top:2px;}
+.settings-icon-btn{background:none;border:none;font-size:15px;color:var(--ink-mid);cursor:pointer;padding:4px;border-radius:6px;}
+.settings-icon-btn:hover{background:var(--paper);}
+.settings-icon-btn.danger:hover{color:var(--red);background:var(--red-light);}
+.stat-row{display:flex;justify-content:space-between;padding:5px 0;font-size:14px;}
+.stat-val{font-weight:600;color:var(--teal);}
+.about-txt{font-size:13px;color:var(--ink-dim);line-height:1.6;}
+
+/* ════════════════════ OVERLAYS ════════════════════ */
+.overlay{position:fixed;inset:0;background:rgba(26,23,20,.46);display:flex;align-items:flex-end;justify-content:center;z-index:200;animation:fadeIn .15s;}
+.overlay[hidden]{display:none!important;}
+@keyframes fadeIn{from{opacity:0;}}
+.sheet{background:var(--cream);border-radius:22px 22px 0 0;width:100%;max-width:480px;max-height:92dvh;overflow-y:auto;animation:slideUp .22s ease-out;}
+@keyframes slideUp{from{transform:translateY(36px);opacity:.7;}}
+.sheet-handle{width:34px;height:4px;background:var(--border);border-radius:2px;margin:10px auto 0;}
+.sheet-body{padding:18px 22px 28px;}
+.sheet-title{font-family:"Lora",serif;font-size:19px;font-weight:600;margin-bottom:14px;}
+.sheet-btn-row{display:flex;gap:8px;margin-top:14px;}
+.sheet-btn{flex:1;border:none;border-radius:11px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;}
+.sheet-btn.primary{background:var(--teal);color:#fff;}
+.sheet-btn.secondary{background:var(--paper);color:var(--ink-mid);border:1.5px solid var(--border);}
+.sheet-btn.danger{background:var(--red);color:#fff;}
+.sheet-btn:disabled{opacity:.4;cursor:not-allowed;}
+.quoted-block{background:var(--paper);border-left:3px solid var(--teal);border-radius:0 7px 7px 0;padding:9px 11px;font-size:13px;line-height:1.5;margin-bottom:11px;color:var(--ink-mid);}
+
+/* PHRASE PICKER */
+.phrase-picker-sheet{max-height:88dvh;}
+.pp-tags{display:flex;gap:5px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;margin-bottom:6px;}
+.pp-tags::-webkit-scrollbar{display:none;}
+.pp-chip{flex-shrink:0;padding:4px 10px;border:1px solid var(--border);border-radius:18px;font-size:11px;font-weight:600;background:#fff;color:var(--ink-mid);cursor:pointer;white-space:nowrap;font-family:"DM Sans",sans-serif;}
+.pp-chip.active{background:var(--teal);color:#fff;border-color:var(--teal);}
+.pp-list{margin-top:4px;}
+.pp-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);}
+.pp-row:last-child{border-bottom:none;}
+.pp-tts{background:none;border:none;cursor:pointer;color:var(--ink-mid);opacity:.5;flex-shrink:0;line-height:0;padding:4px;}
+.pp-tts:hover,.pp-tts.playing{opacity:1;}
+.pp-texts{flex:1;min-width:0;}
+.pp-source{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pp-target{font-size:12px;color:var(--ink-dim);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pp-insert-btn{background:var(--teal);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;flex-shrink:0;}
+
+/* TAG PICKER */
+.tag-grid{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+.tp-tag-chip{padding:5px 11px;border:1.5px solid var(--border);border-radius:18px;font-size:12px;font-weight:600;background:#fff;color:var(--ink-mid);cursor:pointer;font-family:"DM Sans",sans-serif;transition:all .12s;}
+.tp-tag-chip.selected{background:var(--teal);color:#fff;border-color:var(--teal);}
+.tp-create{background:none;border:1.5px dashed var(--ink-dim);border-radius:9px;padding:6px 14px;font-size:13px;font-weight:600;color:var(--ink-dim);cursor:pointer;font-family:"DM Sans",sans-serif;width:100%;margin-bottom:10px;display:none;}
+
+/* NEW CARD */
+.nc-field-row{display:flex;gap:8px;align-items:flex-start;}
+.nc-field-row>div:first-child{flex:1;}
+.nc-tts-btn{background:none;border:none;cursor:pointer;padding:9px 8px;color:var(--ink-mid);opacity:.5;line-height:0;border-radius:8px;margin-top:18px;flex-shrink:0;}
+.nc-tts-btn:hover,.nc-tts-btn.playing{opacity:1;color:var(--teal);}
+.nc-lang-sel{border:1.5px solid var(--border);border-radius:9px;padding:8px 10px;font-size:13px;font-family:"DM Sans",sans-serif;color:var(--ink-mid);background:#fff;outline:none;-webkit-appearance:none;appearance:none;cursor:pointer;margin-top:18px;flex-shrink:0;min-width:90px;}
+
+/* EMOJI GRID */
+.emoji-grid{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px;}
+.emoji-opt{font-size:22px;cursor:pointer;padding:5px;border-radius:8px;border:2px solid transparent;transition:border-color .12s;}
+.emoji-opt.selected{border-color:var(--teal);}
+
+
+.bbl-verdict-pill{font-size:10px;font-weight:700;border-radius:6px;padding:2px 7px;margin-right:3px;flex-shrink:0;}
+.bbl-verdict-pill.good{background:var(--green-light);color:var(--green);}
+.bbl-verdict-pill.bad{background:var(--red-light);color:var(--red);}
+.msg-row.mine .bbl-verdict-pill.good{background:rgba(255,255,255,.2);color:#c0ffd4;}
+.msg-row.mine .bbl-verdict-pill.bad{background:rgba(255,80,80,.2);color:#ffd0d0;}
+.bbl-vbtn.reset{background:var(--paper);border:1.5px solid var(--border);color:var(--ink-mid);}
+.bbl-act-verify{background:var(--teal-light)!important;color:var(--teal)!important;}
+.msg-row.mine .bbl-act-verify{background:rgba(255,255,255,.18)!important;color:#fff!important;}
+/* TOAST */
+#toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(26,23,20,.88);color:#fff;font-size:13px;font-weight:600;padding:9px 18px;border-radius:22px;z-index:1000;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ONBOARDING -->
+<div id="onboard-screen" class="screen active">
+  <div class="onboard-slides-wrap">
+    <div class="onboard-slides" id="onboard-slides">
+      <div class="onboard-slide"><div class="onboard-emoji">💬</div><div class="onboard-title">Talk across languages</div><div class="onboard-body">Real-time bilingual conversation. Every message shown in both languages, side by side.</div></div>
+      <div class="onboard-slide"><div class="onboard-emoji">📚</div><div class="onboard-title">Build your phrasebook</div><div class="onboard-body">Save phrases from conversations or create them manually. Verify translations with back-translation.</div></div>
+      <div class="onboard-slide"><div class="onboard-emoji">🔗</div><div class="onboard-title">Zero friction</div><div class="onboard-body">Share a link. Your partner opens it and joins. No accounts, no codes, no setup.</div></div>
+    </div>
+  </div>
+  <div class="onboard-footer">
+    <div class="onboard-dots"><span class="onboard-dot active" id="od0"></span><span class="onboard-dot" id="od1"></span><span class="onboard-dot" id="od2"></span></div>
+    <button class="onboard-btn" id="onboard-next-btn" onclick="onboardNext()">Next</button>
+  </div>
+</div>
+
+<!-- HOME (TALK TAB) -->
+<div id="home-screen" class="screen">
+  <div class="hero"><div class="hero-logo">talk</div><div class="hero-sub">Live bilingual conversation</div></div>
+  <div style="padding:0 16px 12px;">
+    <div class="new-sess-card">
+      <div class="new-sess-lbl">New conversation</div>
+      <div class="names-row">
+        <input class="name-field" id="my-name" placeholder="Your name" maxlength="30" oninput="updateSessionId();saveMyName()">
+        <span class="name-sep">↔</span>
+        <input class="name-field" id="partner-name" placeholder="Partner" maxlength="30" oninput="updateSessionId()">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">I speak</div>
+          <select class="name-field" id="home-my-lang" onchange="saveHomeLangs()" style="padding:7px 9px;font-size:12px;cursor:pointer;width:100%;-webkit-appearance:none;appearance:none;"></select>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Partner speaks</div>
+          <select class="name-field" id="home-partner-lang" onchange="saveHomeLangs()" style="padding:7px 9px;font-size:12px;cursor:pointer;width:100%;-webkit-appearance:none;appearance:none;"></select>
+        </div>
+      </div>
+      <div class="sess-id-row">
+        <div class="sess-id-pill" id="sess-id-pill">–</div>
+        <button class="icon-btn-sm" id="lock-btn" onclick="toggleLock()" title="Optional PIN">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </button>
+        <button class="icon-btn-sm" id="share-sess-btn" onclick="shareSession()" title="Share invite"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
+      </div>
+      <div class="pin-row" id="pin-row">
+        <span style="font-size:12px;color:var(--amber);font-weight:600;">PIN</span>
+        <span class="pin-val" id="pin-val">----</span>
+        <button class="pin-copy-btn" onclick="copyPin()">Copy</button>
+        <button onclick="toggleLock()" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--amber);padding:2px 4px;">×</button>
+      </div>
+      <button class="start-btn" id="start-btn" onclick="quickStart()" disabled>Start conversation</button>
+    </div>
+  </div>
+  <div class="sess-section">
+    <div class="sess-section-lbl" id="sessions-lbl" style="display:none;">Conversations</div>
+    <div id="session-list"></div>
+  </div>
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-talk" onclick="switchTab('talk')"><span class="tab-icon">💬</span>Talk</button>
+    <button class="tab-btn" id="tab-say" onclick="switchTab('say')"><span class="tab-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>Say</button>
+  </div>
+</div>
+
+<!-- JOIN SCREEN (URL ?join=) -->
+<div id="join-screen" class="screen">
+  <div class="join-wrap">
+    <div class="join-logo-row"><div class="join-logo">talk</div><div class="join-sub">You've been invited to a conversation</div></div>
+    <div class="join-sess-card" id="join-id-card">
+      <div class="join-sess-id" id="join-id-val">–</div>
+      <div class="join-sess-lbl">Session ID</div>
+    </div>
+    <label class="field-label" style="margin-top:0;">Your name</label>
+    <input class="field-input" id="join-your-name" placeholder="Enter your name" maxlength="30" oninput="updateJoinBtn()">
+    <div id="join-pin-wrap" style="display:none;">
+      <label class="field-label">PIN required</label>
+      <input class="field-input" id="join-pin-input" placeholder="Enter PIN" maxlength="8" type="tel" oninput="updateJoinBtn()">
+    </div>
+    <button class="join-big-btn" id="join-btn" onclick="doJoin()" disabled style="margin-top:16px;">Join conversation →</button>
+    <div class="join-divider">or enter a different session ID</div>
+    <input class="join-manual" id="join-manual-id" placeholder="name-partner" oninput="joinManualInput()">
+  </div>
+</div>
+
+<!-- CHAT -->
+<div id="chat-screen" class="screen">
+  <div class="chat-header">
+    <button class="chat-back" onclick="goHome()">←</button>
+    <div class="chat-title-block">
+      <div class="chat-partner" id="chat-partner-name">…</div>
+      <div class="chat-meta-row">
+        <span class="lang-chip" id="chat-lang-chip">EN ↔ TH</span>
+        <span class="conn-dot" id="conn-dot"></span>
+        <span class="conn-lbl" id="conn-lbl">Not connected</span>
+        <button class="reconnect-btn" id="reconnect-btn" onclick="manualReconnect()" style="display:none;">Reconnect</button>
+      </div>
+    </div>
+    <button class="chat-menu-btn" onclick="openChatMenu()" title="Session info">⋯</button>
+  </div>
+  <div class="engine-badge" id="engine-badge">Cloud translation</div>
+  <div id="messages"></div>
+  <div class="typing-bar" id="typing-bar"></div>
+  <div class="offline-indicator" id="offline-indicator">Offline — messages will send when reconnected</div>
+  <div class="composer">
+    <button class="composer-icon" id="stt-btn" onclick="toggleSTT()" title="Voice input"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
+    <button class="composer-icon" onclick="openPhrasePicker()" title="Phrasebook"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></button>
+    <button class="composer-icon" onclick="openAttachPicker()" title="Attach"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+    <div class="composer-wrap">
+      <textarea class="composer-ta" id="msg-input" placeholder="Type a message…" rows="1" oninput="composerInput()" onkeydown="composerKeydown(event)"></textarea>
+    </div>
+    <button class="send-btn" id="send-btn" onclick="sendMessage()" disabled><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+  </div>
+</div>
+<input type="file" id="attach-input" style="display:none;" accept="image/*,video/*,.pdf,.doc,.docx,.txt" onchange="handleAttachFile(event)">
+
+<!-- SETTINGS (minimal - lang prefs only) -->
+<div id="settings-screen" class="screen">
+  <div class="scr-header">
+    <button class="scr-back" onclick="goHome()">←</button>
+    <div class="scr-title">Settings</div>
+  </div>
+  <div class="settings-body">
+    <div class="settings-group">
+      <div class="settings-group-title">Your identity</div>
+      <label class="field-label" style="margin-top:0;">Display name</label>
+      <input class="field-input" id="settings-name" placeholder="Your name" maxlength="30" onblur="saveSettingsName()">
+      <label class="field-label">You speak</label>
+      <select class="field-select" id="settings-my-lang" onchange="saveSettingsLang()"></select>
+      <label class="field-label">Partner speaks (default)</label>
+      <select class="field-select" id="settings-partner-lang" onchange="saveSettingsLang()"></select>
+    </div>
+    <div class="settings-group">
+      <div class="settings-group-title">Translation engine</div>
+      <div class="settings-info-card" id="settings-engine-info">Detecting…</div>
+    </div>
+    <div class="settings-group">
+      <div class="settings-group-title">Saved conversations</div>
+      <div id="settings-session-list"></div>
+    </div>
+    <div class="settings-group">
+      <div class="settings-group-title">Phrasebook</div>
+      <div class="stat-row"><span>Cards</span><span class="stat-val" id="settings-card-count">0</span></div>
+      <div class="stat-row"><span>Storage</span><span class="stat-val" id="settings-storage">0 KB</span></div>
+    </div>
+    <div class="settings-group">
+      <div class="settings-group-title">About</div>
+      <div class="about-txt">Talk + Say · v1.5<br>Bilingual conversation &amp; phrasebook<br>Single-file PWA · No server required</div>
+    </div>
+  </div>
+</div>
+
+<!-- SAY HOME -->
+<div id="say-screen" class="screen">
+  <div class="hero" style="padding:20px 20px 10px;"><div class="hero-logo">say</div><div class="hero-sub">Your phrasebook</div></div>
+  <div class="say-header-row">
+    <input class="say-omni" id="say-search" placeholder="Search phrases and tags…" oninput="saySearchInput()">
+    <button class="say-add-btn" onclick="openNewCard(null)">+ Card</button>
+  </div>
+  <div class="lang-filter-row">
+    <select class="lang-filter-sel" id="say-lang-filter" onchange="renderSayHome()">
+      <option value="all">All languages</option>
+    </select>
+  </div>
+  <div style="flex:1;overflow-y:auto;">
+    <div class="catalog-grid" id="catalog-grid"></div>
+  </div>
+  <div class="tab-bar">
+    <button class="tab-btn" id="tab-talk-say" onclick="switchTab('talk')"><span class="tab-icon">💬</span>Talk</button>
+    <button class="tab-btn active" id="tab-say-say" onclick="switchTab('say')"><span class="tab-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>Say</button>
+  </div>
+</div>
+
+<!-- CATALOG -->
+<div id="catalog-screen" class="screen">
+  <div class="scr-header">
+    <button class="scr-back" onclick="backToCatalogs()">←</button>
+    <div class="scr-title" id="cat-screen-title">Catalog</div>
+    <button class="scr-action" id="cat-add-btn" onclick="openNewCard(state.currentCatId)">+ Add</button>
+  </div>
+  <div class="cat-toolbar">
+    <input class="cat-omni" id="cat-search" placeholder="Search phrases and tags…" oninput="renderCatalogCards()">
+  </div>
+  <div class="card-list" id="card-list"></div>
+</div>
+
+<!-- ═══════════════ OVERLAYS ═══════════════ -->
+
+<!-- Chat menu -->
+<!-- End session confirm -->
+<!-- Clarify request (their bubble) -->
+
+<!-- Clarify answer (my bubble) -->
+
+<!-- Phrase picker -->
+<div id="toast"></div>
+</div><!-- #app -->
+<div class="overlay" id="clarify-req-overlay" hidden onclick="if(event.target===this)this.hidden=true">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-body">
+      <div class="sheet-title">Ask for clarification</div>
+      <div class="quoted-block" id="clarify-req-quote"></div>
+      <textarea class="field-input" id="clarify-req-note" rows="3" placeholder="What are you unsure about? (optional)" style="resize:vertical;margin-top:0;"></textarea>
+      <div class="sheet-btn-row">
+        <button class="sheet-btn secondary" onclick="this.closest('.overlay').hidden=true">Cancel</button>
+        <button class="sheet-btn primary" onclick="sendClarifyRequest()">Ask →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="overlay" id="clarify-ans-overlay" hidden onclick="if(event.target===this)this.hidden=true">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-body">
+      <div class="sheet-title">Clarify your message</div>
+      <div class="quoted-block" id="clarify-ans-quote"></div>
+      <label class="field-label" style="margin-top:0;">Your clarification</label>
+      <textarea class="field-input" id="clarify-ans-text" rows="3" placeholder="Explain what you meant…" style="resize:vertical;"></textarea>
+      <div class="sheet-btn-row">
+        <button class="sheet-btn secondary" onclick="this.closest('.overlay').hidden=true">Cancel</button>
+        <button class="sheet-btn primary" onclick="sendClarifyAnswer()">Send →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="overlay" id="phrase-picker-overlay" hidden onclick="if(event.target===this)this.hidden=true">
+  <div class="sheet phrase-picker-sheet">
+    <div class="sheet-handle"></div>
+    <div style="padding:14px 20px 6px;display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-family:'Lora',serif;font-size:17px;font-weight:600;">Phrases</span>
+      <button onclick="this.closest('.overlay').hidden=true" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--ink-mid);">×</button>
+    </div>
+    <div style="padding:0 20px 6px;">
+      <input class="cat-omni" id="pp-search" placeholder="Search…" oninput="renderPhrasePicker()">
+      <div class="pp-tags" id="pp-tags" style="margin-top:8px;"></div>
+    </div>
+    <div class="pp-list" id="pp-list" style="padding:0 20px;max-height:50dvh;overflow-y:auto;"></div>
+    <div style="height:20px;"></div>
+  </div>
+</div>
+
+
+<div class="overlay" id="new-card-overlay" hidden onclick="if(event.target===this)this.hidden=true">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-body">
+      <div class="sheet-title">New phrase</div>
+      <div class="nc-field-row">
+        <div>
+          <label class="field-label" style="margin-top:0;">Source phrase *</label>
+          <textarea class="field-input" id="nc-source" rows="2" placeholder="What do you want to say?" style="resize:none;" oninput="ncSourceInput()"></textarea>
+        </div>
+        <button class="nc-tts-btn" id="nc-src-tts" onclick="ncTTS('src')" title="Listen"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button>
+        <select class="nc-lang-sel" id="nc-src-lang"></select>
+      </div>
+      <div class="nc-field-row" style="margin-top:10px;">
+        <div>
+          <label class="field-label" style="margin-top:0;">Translation</label>
+          <textarea class="field-input" id="nc-target" rows="2" placeholder="Translation (auto or manual)" style="resize:none;"></textarea>
+        </div>
+        <button class="nc-tts-btn" id="nc-tgt-tts" onclick="ncTTS('tgt')" title="Listen"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button>
+        <select class="nc-lang-sel" id="nc-tgt-lang" onchange="ncClearTarget()"></select>
+      </div>
+      <button class="retranslate-btn" id="nc-auto-btn" onclick="ncAutoTranslate()" style="margin-top:6px;width:100%;" disabled>Auto-translate →</button>
+      <label class="field-label">Notes</label>
+      <textarea class="field-input" id="nc-notes" rows="2" placeholder="Usage tips, pronunciation…" style="resize:none;"></textarea>
+      <label class="field-label">Tags</label>
+      <div class="tags-wrap" id="nc-tags-wrap"><button class="add-tag-btn" onclick="openTagPicker('newcard')">+ Add tag</button></div>
+      <label class="field-label">Catalog</label>
+      <select class="field-select" id="nc-catalog"></select>
+      <div class="sheet-btn-row">
+        <button class="sheet-btn secondary" onclick="this.closest('.overlay').hidden=true">Cancel</button>
+        <button class="sheet-btn primary" id="nc-save-btn" onclick="saveNewCard()" disabled>Save phrase</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="overlay" id="tag-picker-overlay" hidden onclick="if(event.target===this)this.hidden=true">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="font-family:'Lora',serif;font-size:17px;font-weight:600;">Tags</span>
+        <button onclick="closeTagPicker()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--ink-mid);">×</button>
+      </div>
+      <input class="cat-omni" id="tp-search" placeholder="Search or create tag…" oninput="renderTagPicker()" style="margin-bottom:10px;">
+      <div class="tag-grid" id="tp-chips"></div>
+      <button class="tp-create" id="tp-create-btn" onclick="createAndAddTag()">+ Create tag</button>
+      <div class="sheet-btn-row">
+        <button class="sheet-btn primary" onclick="closeTagPicker()">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="overlay" id="confirm-overlay" hidden>
+  <div style="background:var(--cream);border-radius:14px;padding:22px;width:calc(100% - 44px);max-width:340px;margin:auto;align-self:center;animation:fadeUp .15s ease-out;">
+    <div style="font-family:'Lora',serif;font-size:17px;font-weight:600;margin-bottom:7px;" id="confirm-title">Are you sure?</div>
+    <div style="font-size:13px;color:var(--ink-mid);line-height:1.5;margin-bottom:18px;" id="confirm-body"></div>
+    <div class="sheet-btn-row">
+      <button class="sheet-btn secondary" onclick="confirmCancel()">Cancel</button>
+      <button class="sheet-btn danger" id="confirm-ok-btn" onclick="confirmOk()">Delete</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="overlay" id="menu-overlay" hidden onclick="if(event.target===this)this.hidden=true">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-body">
+      <div class="sheet-title">Session</div>
+      <div style="display:flex;flex-direction:column;gap:9px;font-size:14px;margin-bottom:18px;">
+        <div><span style="color:var(--ink-dim);width:76px;display:inline-block;">You:</span><strong id="menu-you"></strong></div>
+        <div><span style="color:var(--ink-dim);width:76px;display:inline-block;">Partner:</span><strong id="menu-partner"></strong></div>
+        <div><span style="color:var(--ink-dim);width:76px;display:inline-block;">Languages:</span><span id="menu-langs"></span></div>
+        <div><span style="color:var(--ink-dim);width:76px;display:inline-block;">Session:</span><code style="font-size:12px;" id="menu-code"></code></div>
+        <div><span style="color:var(--ink-dim);width:76px;display:inline-block;">Status:</span><span id="menu-status"></span></div>
+      </div>
+      <div class="sheet-btn-row">
+        <button class="sheet-btn secondary" onclick="this.closest('.overlay').hidden=true">Close</button>
+        <button class="sheet-btn secondary" onclick="shareSessionFromMenu()">Share</button>
+        <button class="sheet-btn secondary" onclick="this.closest('.overlay').hidden=true;goToSettings()">⚙ Settings</button>
+        <button class="sheet-btn danger" onclick="beginEndSession()">End</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="overlay" id="end-sess-overlay" hidden>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-body">
+      <div class="sheet-title">End conversation?</div>
+      <div style="font-size:14px;color:var(--ink-mid);line-height:1.5;margin-bottom:16px;">Save phrases before leaving? Unsaved messages will stay in history.</div>
+      <div class="sheet-btn-row">
+        <button class="sheet-btn secondary" onclick="document.getElementById('end-sess-overlay').hidden=true">Cancel</button>
+        <button class="sheet-btn secondary" onclick="endSessionAndSave()">Save phrases &amp; end</button>
+        <button class="sheet-btn danger" onclick="endSession()">End</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<script>
+'use strict';
+// ════════════════════ CONSTANTS ════════════════════
+const LANGS=[{code:'en',label:'English'},{code:'th',label:'Thai'},{code:'es',label:'Spanish'},{code:'fr',label:'French'},{code:'de',label:'German'},{code:'it',label:'Italian'},{code:'ja',label:'Japanese'},{code:'ko',label:'Korean'},{code:'zh',label:'Chinese (Simplified)'},{code:'vi',label:'Vietnamese'},{code:'pt',label:'Portuguese'},{code:'ru',label:'Russian'},{code:'ar',label:'Arabic'},{code:'hi',label:'Hindi'},{code:'id',label:'Indonesian'},{code:'ms',label:'Malay'},{code:'fil',label:'Filipino'},{code:'nl',label:'Dutch'},{code:'sv',label:'Swedish'},{code:'pl',label:'Polish'},{code:'tr',label:'Turkish'}];
+const LANG_MAP={};LANGS.forEach(l=>LANG_MAP[l.code]=l.label);
+const TTS_LOCALE={en:'en-US',th:'th-TH',ja:'ja-JP',ko:'ko-KR',zh:'zh-CN',ar:'ar-SA',hi:'hi-IN',ru:'ru-RU',fr:'fr-FR',de:'de-DE',es:'es-ES',it:'it-IT',pt:'pt-BR',vi:'vi-VN',id:'id-ID',ms:'ms-MY',fil:'fil-PH',nl:'nl-NL',sv:'sv-SE',pl:'pl-PL',tr:'tr-TR'};
+const EMOJIS=['🗺','💬','🍜','✈️','🏨','🛒','🏥','🎌','📝','🎯','🌏','💡','🎭','🏖️','🍣','🛺','⛽','🎪'];
+const STARTER_TAGS=['casual','communication','dietary','emergency','essential','food','formal','hotel','medical','negotiating','restaurant','shopping','social','taxi','transport'];
+const SK={sessions:'ts_sessions',active:'ts_active',msgPfx:'ts_msg_',onboarded:'ts_onboarded',prefs:'ts_prefs'};
+const SAY={catalogs:'say_catalogs',cards:'say_cards',tags:'say_tags'};
+// ════════════════════ STATE ════════════════════
+let state={screen:'home',tab:'talk',session:null,messages:[],connected:false,currentCatId:'all',openCardId:null,ppTagFilter:[],tagPickerCtx:null,tagPickerCardId:null,ncTags:[],confirmCallback:null,myLang:'en',activeClarifyMsgId:null};
+let peer=null,conn=null,tEngine='cloud',ttsActive=null;
+let typingTimer=null,lastTypingTs=0;
+let reconnectTimer=null,reconnectAttempts=0,heartbeatTimer=null;
+let msgQueue=[];// offline message queue
+const MAX_RECONNECT=12;
+let SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
+let recognition=null,sttActive=false;
+let pinActive=false;let currentPin='';
+
+// ════════════════════ STORAGE ════════════════════
+const ls=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
+const lsW=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){toast('Storage full');}};
+const lsDel=k=>{try{localStorage.removeItem(k);}catch(e){}};
+const lsJSON=(k,def)=>{try{const v=ls(k);return v?JSON.parse(v):def;}catch(e){return def;}};
+function getAllSessions(){return lsJSON(SK.sessions,[]);}
+function saveSessions(l){lsW(SK.sessions,JSON.stringify(l));}
+function getActiveId(){return ls(SK.active)||null;}
+function setActiveId(id){if(id)lsW(SK.active,id);else lsDel(SK.active);}
+function saveSession(){if(!state.session)return;let ss=getAllSessions(),f=false;for(let i=0;i<ss.length;i++){if(ss[i].sessionId===state.session.sessionId){ss[i]=state.session;f=true;break;}}if(!f)ss.unshift(state.session);saveSessions(ss);setActiveId(state.session.sessionId);}
+function getMsgs(sid){return lsJSON(SK.msgPfx+sid,[]);}
+function saveMsgs(sid,m){lsW(SK.msgPfx+sid,JSON.stringify(m.slice(-300)));}
+function deleteSession(sid){saveSessions(getAllSessions().filter(s=>s.sessionId!==sid));lsDel(SK.msgPfx+sid);if(getActiveId()===sid)setActiveId(null);}
+function markSessionViewed(sid){const ss=getAllSessions();const s=ss.find(x=>x.sessionId===sid);if(s){s.lastViewedAt=Date.now();saveSessions(ss);}}
+function getCatalogs(){return lsJSON(SAY.catalogs,[]);}
+function saveCatalogs(c){lsW(SAY.catalogs,JSON.stringify(c));}
+function getCards(){return lsJSON(SAY.cards,[]);}
+function saveCards(c){lsW(SAY.cards,JSON.stringify(c));}
+function getTags(){return lsJSON(SAY.tags,STARTER_TAGS.slice());}
+function saveTags(t){lsW(SAY.tags,JSON.stringify([...new Set(t)].sort()));}
+function addTagToRegistry(t){const tags=getTags();if(!tags.includes(t)){tags.push(t);saveTags(tags);}}
+function getPrefs(){return lsJSON(SK.prefs,{userName:'',myLang:'en',partnerLang:'th'});}
+function savePrefs(p){lsW(SK.prefs,JSON.stringify(p));}
+
+// ════════════════════ UTILS ════════════════════
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('show'),2600);}
+function escHtml(s){const d=document.createElement('div');d.textContent=String(s||'')+'';return d.innerHTML;}
+function renderMd(s){if(!s)return'';return escHtml(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/~~(.+?)~~/g,'<s>$1</s>').replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');}
+function timeAgo(t){if(!t)return'';const d=Date.now()-t;if(d<60000)return'now';if(d<3600000)return Math.floor(d/60000)+'m';if(d<86400000)return Math.floor(d/3600000)+'h';return Math.floor(d/86400000)+'d';}
+function fmtTime(t){return new Date(t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
+function langLabel(c){return LANG_MAP[c]||c||'?';}
+function findMsg(id){return state.messages.find(m=>m.id===id);}
+function normalizeTag(s){return s.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'').slice(0,24);}
+function normName(n){return(n||'').trim().toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'').replace(/^-+|-+$/g,'').slice(0,24);}
+function makeSessionId(a,b){return normName(a)+'-'+normName(b);}
+function peerId(sid,role){return'talksay_'+sid+'_'+role;}
+function fallbackCopy(t){const ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;left:-9999px;';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('Copied');}catch(e){}document.body.removeChild(ta);}
+function ttsLocale(c){return TTS_LOCALE[c]||c;}
+function scrollBottom(){const c=document.getElementById('messages');if(c)c.scrollTop=c.scrollHeight;}
+
+// ════════════════════ NAVIGATION ════════════════════
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');state.screen=id;}
+function goHome(){showScreen('home-screen');renderSessionList();updateTabBar('talk');}
+function goToSettings(){const p=getPrefs();const el=document.getElementById('settings-name');if(el)el.value=p.userName||'';;populateLangSelect('settings-my-lang',p.myLang||state.myLang||'en');populateLangSelect('settings-partner-lang',p.partnerLang||'th');renderSettingsScreen();showScreen('settings-screen');}
+function enterChat(){showScreen('chat-screen');updateChatHeader();markSessionViewed(state.session?.sessionId);}
+function backToCatalogs(){showScreen('say-screen');renderSayHome();}
+function switchTab(tab){state.tab=tab;if(tab==='talk'){if(state.session&&state.screen==='chat-screen')return;showScreen('home-screen');renderSessionList();}else{showScreen('say-screen');renderSayHome();}updateTabBar(tab);}
+function updateTabBar(tab){document.querySelectorAll('.tab-btn').forEach(b=>{const t=b.id==='tab-talk'||b.id==='tab-talk-say';const s=b.id==='tab-say'||b.id==='tab-say-say';b.classList.toggle('active',(tab==='talk'&&t)||(tab==='say'&&s));});}
+function populateLangSelect(id,def){const sel=document.getElementById(id);if(!sel)return;sel.innerHTML='';LANGS.forEach(l=>{const o=document.createElement('option');o.value=l.code;o.textContent=l.label;if(l.code===def)o.selected=true;sel.appendChild(o);});}
+function populateLangSelects(){const p=getPrefs();populateLangSelect('home-my-lang',p.myLang||'en');populateLangSelect('home-partner-lang',p.partnerLang||'th');populateLangSelect('nc-src-lang',p.myLang||'en');populateLangSelect('nc-tgt-lang',p.partnerLang||'th');populateLangSelect('settings-my-lang',p.myLang||'en');populateLangSelect('settings-partner-lang',p.partnerLang||'th');}
+
+// ════════════════════ HOME — SESSION CARD ════════════════════
+function updateSessionId(){const my=document.getElementById('my-name').value.trim();const pt=document.getElementById('partner-name').value.trim();const sid=makeSessionId(my,pt);const pill=document.getElementById('sess-id-pill');if(pill)pill.textContent=sid||'–';const btn=document.getElementById('start-btn');if(btn)btn.disabled=!(normName(my)&&normName(pt));}
+function saveMyName(){const n=document.getElementById('my-name').value.trim();if(!n)return;const p=getPrefs();p.userName=n;savePrefs(p);}
+function toggleLock(){pinActive=!pinActive;const lockBtn=document.getElementById('lock-btn');const pinRow=document.getElementById('pin-row');if(pinActive){currentPin=Math.floor(1000+Math.random()*9000).toString();document.getElementById('pin-val').textContent=currentPin;pinRow.style.display='flex';}else{currentPin='';pinRow.style.display='none';}}
+function copyPin(){if(!currentPin)return;fallbackCopy('Talk PIN: '+currentPin);}
+function shareSession(sid){const sessionId=sid||state.session?.sessionId;if(!sessionId)return;const url=location.href.split('?')[0]+'?join='+encodeURIComponent(sessionId);const pinPart=currentPin?'\nPIN: '+currentPin:'';const text='Join my conversation on Talk:\n'+url+pinPart;if(navigator.clipboard?.writeText)navigator.clipboard.writeText(text).then(()=>toast('Invite link copied')).catch(()=>fallbackCopy(text));else fallbackCopy(text);}
+function shareSessionFromMenu(){shareSession(state.session?.sessionId);}
+
+// ════════════════════ START SESSION ════════════════════
+function quickStart(){
+  const myName=document.getElementById('my-name').value.trim();
+  const partnerName=document.getElementById('partner-name').value.trim();
+  if(!myName||!partnerName)return;
+  const p=getPrefs();p.userName=myName;savePrefs(p);
+  const mlEl=document.getElementById('home-my-lang');const plEl=document.getElementById('home-partner-lang');
+  const myLang=(mlEl&&mlEl.value?mlEl.value:null)||p.myLang||'en';
+  const partnerLang=(plEl&&plEl.value?plEl.value:null)||p.partnerLang||'th';
+  const sessionId=makeSessionId(myName,partnerName);
+  const existing=getAllSessions().find(s=>s.sessionId===sessionId);
+  if(existing){loadSession(sessionId);return;}
+  const sess={sessionId,isInitiator:true,myName,partnerName,myLang,partnerLang,pin:currentPin||'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false};
+  state.session=sess;state.messages=[];msgQueue=[];
+  saveSession();shareSession(sessionId);
+  renderAllMessages();updateChatHeader();setConnected(false);
+  showScreen('chat-screen');addSysMsg('Waiting for '+partnerName+'…');
+  initPeerAsHost();
+}
+
+// ════════════════════ JOIN FLOW ════════════════════
+function setupJoinScreen(preId){state._joinTargetId=preId||'';;const el=document.getElementById('join-id-val');if(el)el.textContent=preId||'–';const m=document.getElementById('join-manual-id');if(m)m.value=preId||'';;const p=getPrefs();const ne=document.getElementById('join-your-name');if(ne&&p.userName)ne.value=p.userName;updateJoinBtn();showScreen('join-screen');}
+function joinManualInput(){const val=document.getElementById('join-manual-id').value.trim();state._joinTargetId=val;const el=document.getElementById('join-id-val');if(el)el.textContent=val||'–';updateJoinBtn();}
+function updateJoinBtn(){const btn=document.getElementById('join-btn');const name=document.getElementById('join-your-name')?.value.trim();const sid=state._joinTargetId||document.getElementById('join-manual-id')?.value.trim();if(btn)btn.disabled=!(name&&sid&&sid.includes('-'));}
+function doJoin(){
+  const myName=document.getElementById('join-your-name').value.trim();
+  const sessionId=(state._joinTargetId||document.getElementById('join-manual-id').value.trim()).toLowerCase().replace(/\s+/g,'-');
+  if(!myName||!sessionId)return;
+  const p=getPrefs();p.userName=myName;savePrefs(p);
+  const parts=sessionId.split('-');const partnerName=parts[0]||'Partner';
+  const existing=getAllSessions().find(s=>s.sessionId===sessionId&&!s.isInitiator);
+  const sess={sessionId,isInitiator:false,myName,partnerName:existing?.partnerName||partnerName,myLang:p.myLang||state.myLang||'en',partnerLang:existing?.partnerLang||p.partnerLang||'th',pin:'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false};
+  state.session=sess;state.messages=existing?getMsgs(sessionId):[];msgQueue=[];
+  saveSession();renderAllMessages();updateChatHeader();setConnected(false);
+  showScreen('chat-screen');addSysMsg('Connecting to '+partnerName+'…');
+  initPeerAsJoiner();
+}
+
+// ════════════════════ LOAD / REJOIN ════════════════════
+function loadSession(sid){
+  const s=getAllSessions().find(x=>x.sessionId===sid);
+  if(!s){toast('Session not found');return;}
+  state.session=s;state.messages=getMsgs(sid);msgQueue=[];
+  setActiveId(sid);renderAllMessages();updateChatHeader();
+  setConnected(false);showScreen('chat-screen');
+  addSysMsg('Reconnecting…');
+  if(s.isInitiator)initPeerAsHost();else initPeerAsJoiner();
+  // Warn if same-language (bleed from prior session)
+  if(s.myLang&&s.partnerLang&&s.myLang===s.partnerLang){
+    setTimeout(()=>toast('⚠ Both languages are '+langLabel(s.myLang)+' — check Settings to fix'),800);
+  }
+}
+function manualReconnect(){reconnectAttempts=0;clearTimeout(reconnectTimer);if(state.session?.isInitiator)initPeerAsHost();else initPeerAsJoiner();document.getElementById('reconnect-btn').style.display='none';}
+
+// ════════════════════ SESSION LIST ════════════════════
+function renderSessionList(){
+  let ss=getAllSessions();
+  const lbl=document.getElementById('sessions-lbl');
+  const c=document.getElementById('session-list');
+  lbl.style.display=ss.length?'block':'none';
+  // purge truly empty sessions
+  let ss2=ss.filter(s=>s.sessionId&&s.sessionId.length>1);
+  if(validSs.length<ss.length){saveSessions(validSs);}
+  if(!validSs.length){c.innerHTML='<div class="empty-state">No conversations yet.<br>Enter names above to start.</div>';return;}
+  ss=validSs;
+  c.innerHTML=ss.map(s=>{
+    const isActive=state.session?.sessionId===s.sessionId;
+    const msgs=getMsgs(s.sessionId);
+    const lastViewed=s.lastViewedAt||0;
+    const unread=msgs.filter(m=>m.from==='them'&&(m.timestamp||0)>lastViewed).length;
+    const pending=msgs.filter(m=>m.from==='me'&&m.clarify?.status==='requested').length;
+    const init=(s.partnerName||s.sessionId||'?')[0].toUpperCase();
+    const ago=timeAgo(s.lastActivity||s.createdAt);
+    const badges=(unread>0?`<span class="sess-badge unread">${unread} new</span>`:'')+(pending>0?`<span class="sess-badge pending">${pending} pending</span>`:'');
+    return `<div class="session-row${isActive?' active-sess':''}">
+      <div class="sess-tap" onclick="loadSession('${s.sessionId}')">
+        <div class="sess-avatar">${escHtml(init)}</div>
+        <div class="sess-info">
+          <div class="sess-name">${s.pin?'🔒 ':''}${escHtml(s.myName)} ↔ ${escHtml(s.partnerName||s.sessionId)}</div>
+          <div class="sess-meta">${escHtml(langLabel(s.myLang||'en'))} ↔ ${escHtml(langLabel(s.partnerLang||'th'))} · ${ago}</div>
+          ${badges?'<div class="sess-badges">'+badges+'</div>':''}
+        </div>
+      </div>
+      <div class="sess-acts">
+        <button class="sess-act" onclick="event.stopPropagation();shareSavedSession('${s.sessionId}')" title="Share">${ICON_SHARE}</button>
+        <button class="sess-act" onclick="event.stopPropagation();exportSession('${s.sessionId}')" title="Export">↓</button>
+        <button class="sess-act del" onclick="event.stopPropagation();confirmDeleteSession('${s.sessionId}')" title="Delete">×</button>
+      </div>
+    </div>`;
+  }).join('');
+  const recent=ss[0];if(recent){const me=document.getElementById('my-name');const pt=document.getElementById('partner-name');if(me&&!me.value){me.value=recent.myName||'';}if(pt&&!pt.value){pt.value=recent.partnerName||'';}updateSessionId();}
+}
+function shareSavedSession(sid){const s=getAllSessions().find(x=>x.sessionId===sid);if(!s)return;const url=location.href.split('?')[0]+'?join='+encodeURIComponent(sid);const pinPart=s.pin?'\nPIN: '+s.pin:'';const text='Join our Talk conversation:\n'+url+pinPart;if(navigator.clipboard?.writeText)navigator.clipboard.writeText(text).then(()=>toast('Invite copied'));else fallbackCopy(text);}
+function exportSession(sid){const s=getAllSessions().find(x=>x.sessionId===sid);if(!s)return;const data={session:s,messages:getMsgs(sid),exported:new Date().toISOString()};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='talksay-'+sid+'-'+Date.now()+'.json';a.click();toast('Exported');}
+function confirmDeleteSession(sid){showConfirm('Delete conversation?','This permanently removes the conversation and all messages.',()=>{if(state.session?.sessionId===sid){if(conn)try{conn.close();}catch(e){}if(peer)try{peer.destroy();}catch(e){}state.session=null;state.messages=[];state.connected=false;}deleteSession(sid);renderSessionList();toast('Deleted');});}
+
+// ════════════════════ CHAT HEADER ════════════════════
+function updateChatHeader(){
+  const s=state.session;if(!s)return;
+  // Show "MyName · PartnerName" in header
+  const pname=document.getElementById('chat-partner-name');
+  if(pname)pname.textContent=(s.myName||'Me')+' ↔ '+(s.partnerName||'Partner');
+  const chip=document.getElementById('chat-lang-chip');
+  if(chip){
+    chip.textContent=langLabel(s.myLang||'en')+' → '+langLabel(s.partnerLang||'th');
+    const sameLang=s.myLang&&s.partnerLang&&s.myLang===s.partnerLang;
+    chip.title=sameLang?'⚠ Same language detected — open ⋯ menu → Settings to fix':'';
+    chip.style.background=sameLang?'var(--amber-light)':'';
+    chip.style.color=sameLang?'var(--amber)':'';
+    chip.style.border=sameLang?'1px solid var(--amber)':'';
+  }
+}
+function openChatMenu(){const s=state.session;if(!s)return;document.getElementById('menu-you').textContent=s.myName;document.getElementById('menu-partner').textContent=s.partnerName||'(awaiting connection)';document.getElementById('menu-langs').textContent=langLabel(s.myLang)+' ↔ '+langLabel(s.partnerLang);document.getElementById('menu-code').textContent=s.sessionId;document.getElementById('menu-status').textContent=state.connected?'Connected':'Not connected';document.getElementById('menu-overlay').hidden=false;}
+function beginEndSession(){document.getElementById('menu-overlay').hidden=true;document.getElementById('end-sess-overlay').hidden=false;}
+function endSession(){document.getElementById('end-sess-overlay').hidden=true;if(conn)try{conn.close();}catch(e){}if(peer)try{peer.destroy();}catch(e){}clearInterval(heartbeatTimer);clearTimeout(reconnectTimer);peer=null;conn=null;state.connected=false;state.session=null;state.messages=[];msgQueue=[];setActiveId(null);goHome();}
+function endSessionAndSave(){document.getElementById('end-sess-overlay').hidden=true;openBulkSave();endSession();}
+
+// ════════════════════ SETTINGS ════════════════════
+function renderSettingsScreen(){const ei=document.getElementById('settings-engine-info');ei.className='settings-info-card'+(tEngine==='on-device'?'':' cloud');ei.textContent=tEngine==='on-device'?'Chrome Built-in AI — works offline.':'MyMemory API — internet required.';const ss=getAllSessions();const c=document.getElementById('settings-session-list');c.innerHTML=ss.length?ss.map(s=>`<div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">${escHtml(s.sessionId)}</div><div class="settings-row-meta">${getMsgs(s.sessionId).length} msgs · ${langLabel(s.myLang)} ↔ ${langLabel(s.partnerLang)}</div></div><div style="display:flex;gap:4px;"><button class="settings-icon-btn" onclick="loadSession('${s.sessionId}')">↗</button><button class="settings-icon-btn danger" onclick="confirmDeleteSession('${s.sessionId}')">×</button></div></div>`).join(''):'<div style="font-size:13px;color:var(--ink-dim);padding:4px 0;">No saved conversations.</div>';document.getElementById('settings-card-count').textContent=getCards().length;let bytes=0;try{for(const k in localStorage){if(k.startsWith('ts_')||k.startsWith('say_'))bytes+=(localStorage.getItem(k)||'').length*2;}}catch(e){}document.getElementById('settings-storage').textContent=(bytes/1024).toFixed(1)+' KB';}
+function saveSettingsName(){const n=document.getElementById('settings-name')?.value.trim();if(!n)return;const p=getPrefs();p.userName=n;savePrefs(p);const el=document.getElementById('my-name');if(el)el.value=n;}
+function saveHomeLangs(){var ml=document.getElementById("home-my-lang");var pl=document.getElementById("home-partner-lang");var p=getPrefs();if(ml&&ml.value)p.myLang=ml.value;if(pl&&pl.value)p.partnerLang=pl.value;savePrefs(p);}
+function saveSettingsLang(){
+  const p=getPrefs();
+  const ml=document.getElementById('settings-my-lang')?.value;
+  const pl=document.getElementById('settings-partner-lang')?.value;
+  if(ml)p.myLang=ml;if(pl)p.partnerLang=pl;savePrefs(p);
+  if(ml)state.myLang=ml;
+  // Also update current session if active
+  if(state.session){
+    if(ml)state.session.myLang=ml;
+    if(pl)state.session.partnerLang=pl;
+    saveSession();updateChatHeader();
+    toast('Languages updated for this session');
+  } else {
+    toast('Saved — applies to new sessions');
+  }
+}
+
+// ════════════════════ CONFIRM ════════════════════
+function showConfirm(title,body,onOk,okLabel='Delete'){document.getElementById('confirm-title').textContent=title;document.getElementById('confirm-body').textContent=body;document.getElementById('confirm-ok-btn').textContent=okLabel;state.confirmCallback=onOk;document.getElementById('confirm-overlay').hidden=false;}
+function confirmOk(){state.confirmCallback&&state.confirmCallback();document.getElementById('confirm-overlay').hidden=true;}
+function confirmCancel(){document.getElementById('confirm-overlay').hidden=true;}
+
+// ════════════════════ TRANSLATION ════════════════════
+const trCache=new Map();
+async function translate(text,from,to){
+  if(!text?.trim()||from===to)return text;
+  const key=`${from}|${to}|${text}`;
+  if(trCache.has(key))return trCache.get(key);
+  let result=null;
+  if(window.translation?.createTranslator){
+    const cacheK=`${from}-${to}`;
+    try{if(!window._tr)window._tr={};if(!window._tr[cacheK])window._tr[cacheK]=await window.translation.createTranslator({sourceLanguage:from,targetLanguage:to});result=await window._tr[cacheK].translate(text);tEngine='on-device';updateEngineBadge();}catch(e){result=null;}
+  }
+  if(!result){
+    try{const resp=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`);const data=await resp.json();if(data.responseStatus===200&&data.responseData?.translatedText){result=data.responseData.translatedText;// Fix: mymemory sometimes returns HTML-encoded or truncated
+      if(result.includes('MYMEMORY'))result=null;}tEngine='cloud';updateEngineBadge();}catch(e){}
+  }
+  if(result)trCache.set(key,result);
+  return result||null;
+}
+function detectEngine(){if(window.translation?.createTranslator)tEngine='on-device';updateEngineBadge();}
+function updateEngineBadge(){const b=document.getElementById('engine-badge');if(!b)return;b.textContent=tEngine==='on-device'?'On-device translation':'Cloud translation';b.className='engine-badge'+(tEngine==='on-device'?' on-device':'');}
+
+// ════════════════════ TTS ════════════════════
+const synth=window.speechSynthesis;const canSpeak='speechSynthesis' in window;
+function speak(text,lang,btn){
+  if(!canSpeak||!text)return;
+  if(ttsActive===btn){synth.cancel();setTTSBtn(btn,false);ttsActive=null;return;}
+  if(ttsActive){synth.cancel();setTTSBtn(ttsActive,false);ttsActive=null;}
+  const utt=new SpeechSynthesisUtterance(text);utt.lang=ttsLocale(lang);
+  setTTSBtn(btn,true);ttsActive=btn;
+  utt.onend=utt.onerror=()=>{setTTSBtn(btn,false);if(ttsActive===btn)ttsActive=null;};
+  synth.speak(utt);
+}
+function setTTSBtn(btn,playing){if(!btn)return;btn.classList.toggle('playing',playing);}
+
+// ════════════════════ STT ════════════════════
+function toggleSTT(){
+  if(!SpeechRec){toast('Voice input not available');return;}
+  if(sttActive){recognition&&recognition.stop();return;}
+  recognition=new SpeechRec();
+  recognition.lang=ttsLocale(state.session?.myLang||state.myLang||'en');
+  recognition.interimResults=true;recognition.continuous=false;
+  const sttBtn=document.getElementById('stt-btn');
+  recognition.onstart=()=>{sttActive=true;if(sttBtn)sttBtn.classList.add('active');};
+  recognition.onresult=e=>{let final='',interim='';for(const r of e.results){if(r.isFinal)final+=r[0].transcript;else interim+=r[0].transcript;}const ta=document.getElementById('msg-input');ta.value=final||interim;autoResize();updateSendBtn();};
+  recognition.onend=()=>{sttActive=false;if(sttBtn)sttBtn.classList.remove('active');};
+  recognition.onerror=e=>{if(e.error==='not-allowed')toast('Microphone permission required');sttActive=false;if(sttBtn)sttBtn.classList.remove('active');};
+  try{recognition.start();}catch(e){}
+}
+
+// ════════════════════ P2P — RECONNECTION ════════════════════
+function setConnected(on){
+  state.connected=on;
+  const dot=document.getElementById('conn-dot');const lbl=document.getElementById('conn-lbl');
+  if(dot)dot.className='conn-dot'+(on?' on':'');
+  if(lbl)lbl.textContent=on?'Connected':'Not connected';
+  const rBtn=document.getElementById('reconnect-btn');
+  if(rBtn)rBtn.style.display=(!on&&state.session)?'inline-block':'none';
+  const offline=document.getElementById('offline-indicator');
+  if(offline)offline.classList.toggle('show',!on&&state.session!=null);
+  // always allow typing - only disable send if nothing typed
+  updateSendBtn();
+  if(on){reconnectAttempts=0;clearTimeout(reconnectTimer);startHeartbeat();flushQueue();}
+}
+function startHeartbeat(){clearInterval(heartbeatTimer);heartbeatTimer=setInterval(()=>{if(conn?.open){try{conn.send({type:'ping'});}catch(e){onConnDrop();}}else if(state.session){onConnDrop();}},15000);}
+function onConnDrop(){if(state.connected){setConnected(false);if(state.screen==='chat-screen')addSysMsg('Connection lost. Reconnecting…');}scheduleReconnect();}
+function scheduleReconnect(){if(reconnectAttempts>=MAX_RECONNECT){addSysMsg('Unable to reconnect. Tap Reconnect to try again.');return;}reconnectAttempts++;clearTimeout(reconnectTimer);const delay=Math.min(2000*reconnectAttempts,20000);reconnectTimer=setTimeout(()=>{if(state.session&&!state.connected){if(state.session.isInitiator)initPeerAsHost();else initPeerAsJoiner();}},delay);}
+function flushQueue(){if(!msgQueue.length||!conn?.open)return;const toSend=[...msgQueue];msgQueue=[];toSend.forEach(q=>{try{conn.send(q.payload);const msg=findMsg(q.msgId);if(msg){msg.status='sent';updateMsgStatusDOM(msg);}}catch(e){msgQueue.unshift(q);}});}
+
+function initPeerAsHost(){
+  if(peer)try{peer.destroy();}catch(e){}peer=null;
+  const sid=state.session.sessionId;const pid=peerId(sid,'h');
+  try{peer=new Peer(pid);}catch(e){scheduleReconnect();return;}
+  peer.on('open',()=>{console.log('[P2P] host:',pid);});
+  peer.on('connection',c=>{conn=c;setupConn();});
+  peer.on('error',e=>{if(e.type==='unavailable-id'){// Already hosting - means we're the one reconnecting
+    if(peer)try{peer.destroy();}catch(ex){}peer=new Peer();peer.on('open',()=>{conn=peer.connect(peerId(sid,'h'),{reliable:true});setupConn();});peer.on('error',()=>scheduleReconnect());}else scheduleReconnect();});
+  peer.on('disconnected',()=>scheduleReconnect());
+}
+function initPeerAsJoiner(){
+  if(peer)try{peer.destroy();}catch(e){}peer=null;
+  const sid=state.session.sessionId;
+  try{peer=new Peer();}catch(e){scheduleReconnect();return;}
+  peer.on('open',()=>{try{conn=peer.connect(peerId(sid,'h'),{reliable:true});setupConn();}catch(e){scheduleReconnect();}});
+  peer.on('error',e=>{if(e.type==='peer-unavailable'){scheduleReconnect();}else scheduleReconnect();});
+  peer.on('disconnected',()=>scheduleReconnect());
+}
+function setupConn(){
+  if(!conn)return;
+  state.session._sentHelloBack=false;
+  conn.on('open',()=>{
+    setConnected(true);
+    if(!state.session.isInitiator)conn.send({type:'hello',name:state.session.myName,lang:state.session.myLang});
+    else if(!state.session._sentHelloBack){conn.send({type:'hello',name:state.session.myName,lang:state.session.myLang});state.session._sentHelloBack=true;}
+  });
+  conn.on('data',d=>handleData(d));
+  conn.on('close',()=>{setConnected(false);onConnDrop();});
+  conn.on('error',e=>{console.log('[P2P] conn err:',e);onConnDrop();});
+}
+function handleData(d){
+  if(!d||!d.type)return;
+  const sess=state.session;
+  if(d.type==='ping'){if(conn&&conn.open)try{conn.send({type:'pong'});}catch(e){}return;}
+  if(d.type==='pong')return;
+  if(d.type==='hello'){
+    sess.partnerName=d.name||sess.partnerName||'Partner';
+    if(d.lang)sess.partnerLang=d.lang; // update partnerLang from hello; never touch myLang
+    saveSession();updateChatHeader();
+    if(sess.isInitiator&&!sess._sentHelloBack){conn.send({type:'hello',name:sess.myName,lang:sess.myLang});sess._sentHelloBack=true;}
+    if(state.screen!=='chat-screen')enterChat();return;
+  }
+  if(d.type==='msg'){
+    const msg={id:d.id,from:'them',orig:d.orig||d.text,text:d.text,lang:d.lang,status:'received',timestamp:d.timestamp||Date.now(),clarify:{status:'none',text:''},attachment:d.attachment||null};
+    state.messages.push(msg);renderMsg(msg);scrollBottom();
+    saveMsgs(sess.sessionId,state.messages);return;
+  }
+  if(d.type==='typing'){showTyping(d.name);return;}
+  if(d.type==='clarify'){const msg=findMsg(d.id);if(!msg)return;msg.clarify={status:'requested',text:d.note||''};saveMsgs(sess.sessionId,state.messages);updateBblClarify(msg);return;}
+  if(d.type==='clarify-ans'){const msg=findMsg(d.id);if(!msg)return;msg.clarify={status:'answered',text:d.answer||''};saveMsgs(sess.sessionId,state.messages);updateBblClarify(msg);toast(sess.partnerName+' clarified a message');return;}
+}
+
+// ════════════════════ BUBBLES ════════════════════
+function renderAllMessages(){
+  const c=document.getElementById('messages');c.innerHTML='';
+  state.messages.forEach(function(m){
+    renderMsg(m);
+    // Restore footer verdict pill
+    if(m._verdict)updateFooterVerdict(m.id,m._verdict);
+    // Restore back-translation text + button state (FIX 10)
+    if(m.from==='me'&&m._backTrans){
+      var backEl=document.getElementById('bback-'+m.id);
+      if(backEl){backEl.textContent=m._backTrans;backEl.style.cssText='';}
+      var vbtn=document.getElementById('bverify-'+m.id);
+      if(m._verdict==='good'){
+        var vd=document.getElementById('bverdict-'+m.id);
+        if(vd)vd.innerHTML='<div class="bbl-verified">✓ Sounds right</div>';
+        if(vbtn){vbtn.textContent='Re-verify ↺';vbtn.className='bbl-vbtn reset bbl-act-verify';}
+      } else if(m._verdict==='flag'){
+        var vd2=document.getElementById('bverdict-'+m.id);
+        if(vd2)vd2.innerHTML='<div class="bbl-flagged">⚠ Flagged as incorrect</div>';
+        if(vbtn){vbtn.textContent='Re-verify ↺';vbtn.className='bbl-vbtn reset bbl-act-verify';}
+      } else {
+        // back-trans available but not verdicted – show choice buttons
+        var sb=document.getElementById('bsound-'+m.id);var fb=document.getElementById('bflag-'+m.id);
+        if(sb)sb.style.display='inline-block';if(fb)fb.style.display='inline-block';
+      }
+    }
+    // Restore clarify state on footer button (FIX 3/10)
+    if(m.clarify&&m.clarify.status&&m.clarify.status!=='none')updateBblClarify(m);
+  });
+  scrollBottom();
+}
+function getSides(msg){
+  const s=state.session;
+  if(msg.from==='me')return{srcLang:s?.myLang||'en',srcTxt:msg.text,tgtLang:s?.partnerLang||'th',tgtTxt:msg.translated};
+  // Use msg.lang (set at send time) for partner's language; fall back to session partnerLang
+  const partSrcLang=msg.lang||s?.partnerLang||'th';
+  return{srcLang:partSrcLang,srcTxt:msg.orig||msg.text,tgtLang:s?.myLang||'en',tgtTxt:msg.text};
+}
+// ── FIX 1,2,3,9,10,11: Completely rewritten renderMsg ─────────────────
+// No nested template literals – all dynamic parts built via string concat
+// FIX 9:  bbl-sender is distinct span (bold, visible)
+// FIX 1:  Verify only on my messages
+// FIX 2:  Clarify button logic: theirs=active; mine=greyed unless respond
+// FIX 11: Verify button in collapsed footer bar (mine only)
+
+function buildBblFoot(msg, isMine) {
+  var id = msg.id;
+  var cs = (msg.clarify && msg.clarify.status) ? msg.clarify.status : 'none';
+
+  // Verify button: mine only
+  var verifyBtn = isMine
+    ? '<button class="bbl-vbtn verify bbl-act-verify" id="bverify-' + id + '" onclick="bblVerify(\'' + id + '\')" title="Back-translate to verify">Verify ↺</button>'
+    : '';
+
+  // Clarify button: different per sender + state
+  var clarifyBtn;
+  if (!isMine) {
+    var lbl = cs === 'answered' ? '✓ Clarified' : '? Clarify';
+    var cls = cs !== 'none' ? 'bbl-act c-active' : 'bbl-act';
+    clarifyBtn = '<button class="' + cls + '" id="bact-clarify-' + id + '" onclick="bblClarifyClick(\'' + id + '\')">' + lbl + '</button>';
+  } else if (cs === 'requested') {
+    clarifyBtn = '<button class="bbl-act c-active" id="bact-clarify-' + id + '" onclick="bblClarifyClick(\'' + id + '\')">! Respond</button>';
+  } else {
+    clarifyBtn = '<span class="bbl-act" id="bact-clarify-' + id + '" style="opacity:.2;cursor:default;pointer-events:none;">? Clarify</span>';
+  }
+
+  var footBar = '<div class="bbl-foot-bar">'
+    + verifyBtn
+    + clarifyBtn
+    + '<button class="bbl-act" onclick="bblSave(\'' + id + '\')" title="Save phrase to Say">+ Save</button>'
+    + '<button class="bbl-toggle" id="btoggle-' + id + '" onclick="toggleBblDetail(\'' + id + '\')" title="Details">▾</button>'
+    + '</div>';
+
+  // Back-translation section: mine only (FIX 1 & 22)
+  var backSect = '';
+  if (isMine) {
+    backSect = '<div class="bbl-detail-section">'
+      + '<div class="bbl-dl">Back-translation</div>'
+      + '<div class="bbl-dt" id="bback-' + id + '" style="color:var(--ink-dim);font-style:italic;">Tap Verify ↺ above to check</div>'
+      + '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">'
+      + '<button class="bbl-vbtn good" onclick="bblSoundsGood(\'' + id + '\')" id="bsound-' + id + '" style="display:none;">✓ Sounds right</button>'
+      + '<button class="bbl-vbtn bad" onclick="bblFlagIncorrect(\'' + id + '\')" id="bflag-' + id + '" style="display:none;">✗ Flag</button>'
+      + '</div>'
+      + '<div id="bverdict-' + id + '"></div>'
+      + '</div>';
+  }
+
+  // Clarify section: partner's request on mine; my request on theirs
+  var respondBtn = isMine
+    ? '<button id="bclarify-respond-' + id + '" style="display:none;margin-top:6px;background:var(--amber-light);border:none;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;color:var(--amber);cursor:pointer;" onclick="openClarifyAns(\'' + id + '\')">Respond →</button>'
+    : '';
+  var clarifySect = '<div class="bbl-detail-section" id="bclarify-section-' + id + '" style="display:none;">'
+    + '<div class="bbl-dl">' + (isMine ? 'Partner clarification' : 'Clarification request') + '</div>'
+    + '<div class="clarify-block" id="bclarify-block-' + id + '"></div>'
+    + respondBtn
+    + '</div>';
+
+  return '<div class="bbl-foot">' + footBar
+    + '<div class="bbl-detail" id="bdetail-' + id + '">'
+    + backSect + clarifySect
+    + '</div></div>';
+}
+
+function renderMsg(msg) {
+  var isMine = msg.from === 'me';
+  var sides = getSides(msg);
+  var time = fmtTime(msg.timestamp || Date.now());
+  var isQueued = msg.status === 'queued';
+  var attachHtml = renderAttach(msg.attachment);
+
+  // FIX 9: sender name as distinct bold element
+  var senderName = isMine
+    ? (state.session ? state.session.myName || 'Me' : 'Me')
+    : (state.session ? state.session.partnerName || 'Partner' : 'Partner');
+
+  var queuedBadge = isQueued ? '<span class="queued-badge"> queued</span>' : '';
+
+  var tgtClass = sides.tgtTxt ? 'bbl-txt' : 'bbl-txt loading';
+
+  var html = '<div class="bubble-card">'
+    + '<div class="bbl-hdr">'
+    + '<span class="bbl-sender">' + escHtml(senderName) + '</span>'
+    + '<span class="bbl-lang-tag">' + escHtml(langLabel(sides.srcLang)) + ' ↔ ' + escHtml(langLabel(sides.tgtLang)) + '</span>'
+    + '<span class="bbl-time">' + escHtml(time) + queuedBadge + '</span>'
+    + '</div>'
+    + '<div class="bbl-body">'
+    + '<div class="bbl-side">'
+    + '<div class="bbl-lang-lbl">' + escHtml(langLabel(sides.srcLang)) + '</div>'
+    + '<div class="bbl-txt" id="bsrc-' + msg.id + '">' + renderMd(sides.srcTxt || '') + '</div>'
+    + '<button class="bbl-tts" id="btts-src-' + msg.id + '" onclick="bblTTS(\'' + msg.id + '\',\'src\',this)" title="Listen">' + ICON_TTS + '</button>'
+    + '</div>'
+    + '<div class="bbl-divider"></div>'
+    + '<div class="bbl-side">'
+    + '<div class="bbl-lang-lbl">' + escHtml(langLabel(sides.tgtLang)) + '</div>'
+    + '<div class="' + tgtClass + '" id="btgt-' + msg.id + '">' + (sides.tgtTxt ? renderMd(sides.tgtTxt) : '') + '</div>'
+    + '<button class="bbl-tts" id="btts-tgt-' + msg.id + '" onclick="bblTTS(\'' + msg.id + '\',\'tgt\',this)" title="Listen">' + ICON_TTS + '</button>'
+    + '</div>'
+    + '</div>'
+    + (attachHtml ? '<div class="bbl-attach">' + attachHtml + '</div>' : '')
+    + buildBblFoot(msg, isMine)
+    + '</div>';
+
+  var el = document.createElement('div');
+  el.className = 'msg-row' + (isMine ? ' mine' : ' theirs');
+  el.id = 'row-' + msg.id;
+  el.innerHTML = html;
+  document.getElementById('messages').appendChild(el);
+}
+
+
+
+function renderAttach(att){
+  if(!att)return'';
+  if(att.type==='image')return`<img src="${att.dataUrl}" alt="attachment" style="max-width:100%;border-radius:8px;display:block;">`;
+  return`<div class="bbl-attach-file"><span>📄</span><span>${escHtml(att.name||'File')}</span></div>`;
+}
+
+function bblTTS(msgId,side,btn){
+  const msg=findMsg(msgId);if(!msg)return;
+  const s=state.session;const sides=getSides(msg);
+  const text=side==='src'?sides.srcTxt:sides.tgtTxt;
+  const lang=side==='src'?sides.srcLang:sides.tgtLang;
+  if(!text){toast('No text to speak');return;}
+  speak(text,lang,btn);
+}
+
+function toggleBblDetail(msgId){
+  const det=document.getElementById('bdetail-'+msgId);
+  const tog=document.getElementById('btoggle-'+msgId);
+  if(!det)return;
+  const open=det.classList.toggle('open');
+  if(tog)tog.classList.toggle('open',open);
+}
+
+async function bblVerify(msgId){
+  const msg=findMsg(msgId);if(!msg)return;
+  const s=state.session;const sides=getSides(msg);
+  const tgtTxt=sides.tgtTxt;if(!tgtTxt){toast('No translation to verify');return;}
+  const btn=document.getElementById('bverify-'+msgId);if(btn){btn.disabled=true;btn.textContent='Checking…';}
+  const back=await translate(tgtTxt,sides.tgtLang,sides.srcLang);
+  msg._backTrans=back;
+  const backEl=document.getElementById('bback-'+msgId);
+  if(backEl){backEl.textContent=back||'(translation failed)';backEl.style.cssText='';}
+  if(btn){btn.disabled=false;btn.textContent='Verify ↺';}
+  if(back){
+    const soundBtn=document.getElementById('bsound-'+msgId);
+    const flagBtn=document.getElementById('bflag-'+msgId);
+    if(soundBtn)soundBtn.style.display='inline-block';
+    if(flagBtn)flagBtn.style.display='inline-block';
+    // reset prior verdict
+    const vd=document.getElementById('bverdict-'+msgId);if(vd)vd.innerHTML='';
+    msg._verdict=null;
+    if(state.session)saveMsgs(state.session.sessionId,state.messages);
+    updateFooterVerdict(msgId,null);
+    const bar=document.querySelector('#row-'+msgId+' .bbl-foot-bar');
+    if(bar){const pill=bar.querySelector('.bbl-verdict-pill');if(pill)pill.remove();}
+  }
+}
+function bblSoundsGood(msgId){
+  const msg=findMsg(msgId);if(!msg)return;
+  msg._verdict='good';
+  if(state.session)saveMsgs(state.session.sessionId,state.messages);
+  const vd=document.getElementById('bverdict-'+msgId);
+  if(vd)vd.innerHTML='<div class="bbl-verified">✓ Sounds right</div>';
+  const sd=document.getElementById('bsound-'+msgId);const fd=document.getElementById('bflag-'+msgId);
+  if(sd)sd.style.display='none';if(fd)fd.style.display='none';
+  const vbtn=document.getElementById('bverify-'+msgId);if(vbtn){vbtn.textContent='Re-verify ↺';vbtn.className='bbl-vbtn reset';}
+  updateFooterVerdict(msgId,'good');
+  toast('Marked ✓');
+}
+function bblFlagIncorrect(msgId){
+  const msg=findMsg(msgId);if(!msg)return;
+  msg._verdict='flag';
+  if(state.session)saveMsgs(state.session.sessionId,state.messages);
+  const vd=document.getElementById('bverdict-'+msgId);
+  if(vd)vd.innerHTML='<div class="bbl-flagged">⚠ Flagged as incorrect</div>';
+  const sd=document.getElementById('bsound-'+msgId);const fd=document.getElementById('bflag-'+msgId);
+  if(sd)sd.style.display='none';if(fd)fd.style.display='none';
+  const vbtn=document.getElementById('bverify-'+msgId);if(vbtn){vbtn.textContent='Re-verify ↺';vbtn.className='bbl-vbtn reset';}
+  updateFooterVerdict(msgId,'flag');
+  toast('Flagged ⚠');
+}
+function updateFooterVerdict(msgId,verdict){
+  const bar=document.querySelector('#row-'+msgId+' .bbl-foot-bar');
+  if(!bar)return;
+  const existing=bar.querySelector('.bbl-verdict-pill');if(existing)existing.remove();
+  if(!verdict)return;
+  const pill=document.createElement('span');
+  pill.className='bbl-verdict-pill '+(verdict==='good'?'good':'bad');
+  pill.textContent=verdict==='good'?'✓ OK':'⚠ Flagged';
+  pill.title=verdict==='good'?'Translation verified correct':'Flagged — translation may be incorrect';
+  bar.insertBefore(pill,bar.firstChild);
+}
+function bblSave(msgId){
+  const msg=findMsg(msgId);if(!msg)return;
+  const sides=getSides(msg);
+  openNewCard(null,sides.srcTxt,sides.tgtTxt,sides.srcLang,sides.tgtLang);
+}
+function updateMsgStatusDOM(msg){const row=document.getElementById('row-'+msg.id);if(!row)return;const tb=row.querySelector('.bbl-time');if(tb&&msg.status==='sent')tb.innerHTML=tb.textContent.replace('queued','sent');}
+function updateTransDOM(msg){
+  const sides=getSides(msg);
+  const tgtEl=document.getElementById('btgt-'+msg.id);
+  if(tgtEl&&sides.tgtTxt){tgtEl.innerHTML=renderMd(sides.tgtTxt);tgtEl.classList.remove('loading');}
+}
+
+// CLARIFY
+function bblClarifyClick(msgId){
+  const msg=findMsg(msgId);if(!msg)return;
+  if(state.activeClarifyMsgId&&state.activeClarifyMsgId!==msgId){
+    const prev=document.getElementById('bclarify-section-'+state.activeClarifyMsgId);
+    if(prev)prev.style.display='none';
+  }
+  state.activeClarifyMsgId=msgId;
+  const status=(msg.clarify&&msg.clarify.status)?msg.clarify.status:'none';
+  if(msg.from==='me'){
+    // Own messages: only act when partner has sent a clarify request
+    if(status==='requested'){openClarifyAns(msgId);}
+    else if(status==='answered'){
+      const det=document.getElementById('bdetail-'+msgId);if(det&&!det.classList.contains('open'))toggleBblDetail(msgId);
+      const sec=document.getElementById('bclarify-section-'+msgId);if(sec)sec.style.display='block';
+    }
+    // status==='none': button is a greyed non-interactive span, should never reach here
+    return;
+  }
+  // Their messages: send a clarify request or show existing answer
+  if(status==='answered'){
+    const det=document.getElementById('bdetail-'+msgId);if(det&&!det.classList.contains('open'))toggleBblDetail(msgId);
+    const sec=document.getElementById('bclarify-section-'+msgId);if(sec)sec.style.display='block';
+  } else {
+    openClarifyReq(msgId);
+  }
+  const btn=document.getElementById('bact-clarify-'+msgId);
+  if(btn)btn.classList.toggle('c-active',status!=='none');
+}
+function updateBblClarify(msg){
+  const section=document.getElementById('bclarify-section-'+msg.id);
+  const block=document.getElementById('bclarify-block-'+msg.id);
+  const respBtn=document.getElementById('bclarify-respond-'+msg.id);
+  const actBtn=document.getElementById('bact-clarify-'+msg.id);
+  const st=(msg.clarify&&msg.clarify.status)?msg.clarify.status:'none';
+  if(section)section.style.display='block';
+  if(block){
+    if(st==='answered')block.innerHTML=renderMd(msg.clarify.text||'(no clarification text)');
+    else if(st==='requested')block.innerHTML=msg.clarify.text?renderMd(msg.clarify.text):'<em>No additional context provided.</em>';
+    else block.innerHTML='';
+  }
+  if(respBtn)respBtn.style.display=(st==='requested'&&msg.from==='me')?'inline-block':'none';
+  // Update footer button – no outerHTML, just mutate properties (FIX 3)
+  if(actBtn){
+    if(msg.from==='me'&&st==='requested'){
+      actBtn.textContent='! Respond';
+      actBtn.className='bbl-act c-active';
+      actBtn.style.pointerEvents='auto';
+      actBtn.style.opacity='1';
+      actBtn.setAttribute('onclick','bblClarifyClick(\'' + msg.id + '\')');
+    } else if(msg.from==='them'){
+      actBtn.textContent=st==='answered'?'✓ Clarified':'? Clarify';
+      actBtn.classList.toggle('c-active',st!=='none');
+    }
+  }
+  const det=document.getElementById('bdetail-'+msg.id);
+  if(det&&!det.classList.contains('open'))toggleBblDetail(msg.id);
+}
+function openClarifyReq(msgId){const msg=findMsg(msgId);if(!msg)return;const sides=getSides(msg);document.getElementById('clarify-req-quote').textContent=sides.srcTxt||msg.text;document.getElementById('clarify-req-note').value='';state.clarifyTargetMsgId=msgId;document.getElementById('clarify-req-overlay').hidden=false;}
+function sendClarifyRequest(){const msgId=state.clarifyTargetMsgId;if(!msgId)return;const msg=findMsg(msgId);if(!msg)return;const note=document.getElementById('clarify-req-note').value.trim();msg.clarify={status:'requested',text:note};saveMsgs(state.session.sessionId,state.messages);if(conn?.open)conn.send({type:'clarify',id:msgId,note});document.getElementById('clarify-req-overlay').hidden=true;updateBblClarify(msg);toast('Clarification requested');}
+function openClarifyAns(msgId){const msg=findMsg(msgId);if(!msg)return;const sides=getSides(msg);document.getElementById('clarify-ans-quote').textContent=sides.srcTxt||msg.text;document.getElementById('clarify-ans-text').value='';state.clarifyTargetMsgId=msgId;document.getElementById('clarify-ans-overlay').hidden=false;}
+function sendClarifyAnswer(){const msgId=state.clarifyTargetMsgId;if(!msgId)return;const answer=document.getElementById('clarify-ans-text').value.trim();if(!answer){toast('Enter your clarification');return;}const msg=findMsg(msgId);if(!msg)return;msg.clarify={status:'answered',text:answer};saveMsgs(state.session.sessionId,state.messages);if(conn?.open)conn.send({type:'clarify-ans',id:msgId,answer});document.getElementById('clarify-ans-overlay').hidden=true;updateBblClarify(msg);toast('Sent');}
+
+// SYS MSG
+function addSysMsg(txt){const c=document.getElementById('messages');const d=document.createElement('div');d.className='sys-msg';d.textContent=txt;c.appendChild(d);scrollBottom();}
+
+// ════════════════════ COMPOSER ════════════════════
+function autoResize(){const el=document.getElementById('msg-input');el.style.height='auto';el.style.height=Math.min(el.scrollHeight,110)+'px';}
+function updateSendBtn(){const el=document.getElementById('msg-input');const sb=document.getElementById('send-btn');if(sb)sb.disabled=!el?.value.trim();}
+function composerInput(){autoResize();updateSendBtn();const now=Date.now();if(now-lastTypingTs>2000){sendTyping();lastTypingTs=now;}}
+function composerKeydown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}}
+function sendTyping(){if(conn?.open)try{conn.send({type:'typing',name:state.session?.myName});}catch(e){}}
+function showTyping(n){document.getElementById('typing-bar').textContent=(n||'Partner')+' is typing…';clearTimeout(typingTimer);typingTimer=setTimeout(()=>{document.getElementById('typing-bar').textContent='';},3000);}
+
+function sendMessage(){
+  const ta=document.getElementById('msg-input');
+  const text=ta.value.trim();if(!text)return;
+  const s=state.session;if(!s)return;
+  const msg={id:uid(),from:'me',text,lang:s.myLang,translated:null,status:state.connected?'sending':'queued',timestamp:Date.now(),clarify:{status:'none',text:''},attachment:null};
+  state.messages.push(msg);renderMsg(msg);ta.value='';autoResize();updateSendBtn();scrollBottom();
+  saveMsgs(s.sessionId,state.messages);
+  translate(text,s.myLang,s.partnerLang).then(tr=>{
+    msg.translated=tr;
+    updateTransDOM(msg);
+    const payload={type:'msg',id:msg.id,orig:text,text:tr||text,lang:s.myLang,timestamp:msg.timestamp};
+    if(state.connected&&conn?.open){try{conn.send(payload);msg.status='sent';}catch(e){msgQueue.push({msgId:msg.id,payload});msg.status='queued';}}
+    else{msgQueue.push({msgId:msg.id,payload});}
+    updateMsgStatusDOM(msg);saveMsgs(s.sessionId,state.messages);
+  });
+}
+
+// ATTACH
+function openAttachPicker(){document.getElementById('attach-input').click();}
+function handleAttachFile(e){
+  const file=e.target.files?.[0];if(!file)return;
+  if(file.size>4*1024*1024){toast('File too large (max 4 MB)');return;}
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const isImage=file.type.startsWith('image/');
+    const att={type:isImage?'image':'file',name:file.name,dataUrl:ev.target.result};
+    sendAttachment(att);
+  };reader.readAsDataURL(file);
+  e.target.value='';
+}
+function sendAttachment(att){
+  const s=state.session;if(!s)return;
+  const msg={id:uid(),from:'me',text:'',lang:s.myLang,translated:'',status:'sent',timestamp:Date.now(),clarify:{status:'none',text:''},attachment:att};
+  state.messages.push(msg);renderMsg(msg);scrollBottom();
+  saveMsgs(s.sessionId,state.messages);
+  if(state.connected&&conn?.open)try{conn.send({type:'msg',id:msg.id,orig:'',text:'',lang:s.myLang,timestamp:msg.timestamp,attachment:att});}catch(e){}
+}
+
+// BULK SAVE
+function openBulkSave(){
+  const allMsgs=state.messages.filter(m=>m.text);
+  const existing=getCards();
+  const toSave=[];
+  allMsgs.forEach(m=>{
+    const sides=getSides(m);
+    if(sides.srcTxt&&sides.tgtTxt&&!existing.some(c=>c.source===sides.srcTxt)&&!toSave.some(c=>c.source===sides.srcTxt)){
+      toSave.push({id:uid(),catalogIds:[],sourceLang:sides.srcLang,targetLang:sides.tgtLang,source:sides.srcTxt,target:sides.tgtTxt,backTranslation:'',backApproved:false,backFlagged:false,notes:'',tags:[],createdAt:Date.now(),updatedAt:Date.now(),sourceSessionId:state.session?state.session.sessionId:null,sourcePartnerName:state.session?state.session.partnerName:null});
+    }
+  });
+  if(!toSave.length){toast('No new phrases to save');return;}
+  showConfirm('Save '+toSave.length+' phrase'+(toSave.length!==1?'s':'')+'?',toSave.length+' new phrase'+(toSave.length!==1?'s':'')+' from this conversation will be added to your phrasebook.',function(){const all=getCards();toSave.forEach(function(p){all.unshift(p);});saveCards(all);toast(toSave.length+' phrase'+(toSave.length!==1?'s':'')+' saved');});
+}
+
+// ════════════════════ SAY ════════════════════
+function saySearchInput(){
+  const q=document.getElementById('say-search')?.value.trim().toLowerCase();
+  if(q&&q.length>=1){// Show inline search results across all catalogs
+    const cards=getCards().filter(c=>(c.source||'').toLowerCase().includes(q)||(c.target||'').toLowerCase().includes(q)||(c.tags||[]).some(t=>t.includes(q)));
+    if(cards.length){openCatalogSearch(q,cards);return;}}
+  renderSayHome();
+}
+function openCatalogSearch(q,cards){state.currentCatId='all';renderCatalogScreen('Search: "'+q+'"');document.getElementById('cat-search').value=q;renderCatalogCards();}
+function renderSayHome(){
+  const langFilter=document.getElementById('say-lang-filter')?.value||'all';
+  const cats=getCatalogs();const cards=getCards();
+  // Populate lang filter
+  const langs=[...new Set(cards.map(c=>c.sourceLang||'en'))];
+  const lf=document.getElementById('say-lang-filter');if(lf){const cur=lf.value;lf.innerHTML='<option value="all">All languages</option>'+langs.map(l=>`<option value="${l}">${langLabel(l)}</option>`).join('');lf.value=cur||'all';}
+  const grid=document.getElementById('catalog-grid');
+  const allCount=langFilter==='all'?cards.length:cards.filter(c=>c.sourceLang===langFilter).length;
+  const allIncorrect=cards.filter(c=>(c.tags||[]).includes('incorrect')).length;
+  let html=`<div class="cat-card all-phrases" onclick="openCatalog('all')">
+    <div class="cat-emoji">📖</div><div class="cat-name">All Phrases</div>
+    <div class="cat-count">${allCount} phrase${allCount!==1?'s':''}</div>
+    ${allIncorrect?`<div class="cat-incorrect">⚠ ${allIncorrect} need review</div>`:''}
+  </div>`;
+  html+=cats.map(cat=>{
+    const catCards=cards.filter(c=>c.catalogIds?.includes(cat.id)&&(langFilter==='all'||c.sourceLang===langFilter));
+    const catIncorrect=catCards.filter(c=>(c.tags||[]).includes('incorrect')).length;
+    return`<div class="cat-card" onclick="openCatalog('${cat.id}')">
+      <button class="cat-del" onclick="event.stopPropagation();confirmDeleteCatalog('${cat.id}')" title="Delete">×</button>
+      <div class="cat-emoji">${cat.emoji||'📁'}</div>
+      <div class="cat-name">${escHtml(cat.name)}</div>
+      <div class="cat-count">${catCards.length} phrase${catCards.length!==1?'s':''}</div>
+      ${catIncorrect?`<div class="cat-incorrect">⚠ ${catIncorrect} need review</div>`:''}
+    </div>`;
+  }).join('');
+  html+=`<div class="cat-card new-cat" onclick="openNewCatalog()"><div class="new-cat-icon">+</div><div class="new-cat-lbl">New catalog</div></div>`;
+  grid.innerHTML=html;
+}
+function openCatalog(catId){state.currentCatId=catId;const cat=getCatalogs().find(c=>c.id===catId);renderCatalogScreen(catId==='all'?'All Phrases':(cat?.name||'Catalog'));renderCatalogCards();}
+function renderCatalogScreen(title){document.getElementById('cat-screen-title').textContent=title;document.getElementById('cat-search').value='';showScreen('catalog-screen');}
+function renderCatalogCards(){
+  const catId=state.currentCatId;let cards=getCards();
+  if(catId!=='all')cards=cards.filter(c=>c.catalogIds?.includes(catId));
+  const q=(document.getElementById('cat-search')?.value||'').toLowerCase().trim();
+  if(q)cards=cards.filter(c=>(c.source||'').toLowerCase().includes(q)||(c.target||'').toLowerCase().includes(q)||(c.tags||[]).some(t=>t.includes(q)));
+  cards.sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0));
+  const list=document.getElementById('card-list');
+  if(!cards.length){list.innerHTML=q?'<div class="empty-state">No phrases match.</div>':' <div class="empty-state">No phrases yet.<br>Tap + Add to create one.</div>';return;}
+  list.innerHTML=cards.map(c=>renderCardHTML(c)).join('');
+}
+function renderCardHTML(card){
+  const isOpen=state.openCardId===card.id;
+  const tags=(card.tags||[]);
+  const isIncorrect=tags.includes('incorrect');
+  const tagPills=tags.slice(0,3).map(t=>`<span class="pb-tag-pill">#${escHtml(t)}</span>`).join('');
+  const extraTags=tags.length>3?`<span class="pb-tag-pill">+${tags.length-3}</span>`:'';
+  const hasSession=!!state.session;
+  return`<div class="pb-card${isOpen?' open':''}" id="pbc-${card.id}">
+    <div class="pb-card-header" onclick="toggleCard('${card.id}')">
+      <div class="pb-texts">
+        <div class="pb-source">${escHtml(card.source||'(no source)')}</div>
+        <div class="pb-target">${escHtml(card.target||'(no translation)')}</div>
+        ${isIncorrect?'<div class="pb-incorrect-tag">⚠ needs review</div>':''}
+      </div>
+      <div class="pb-hdr-actions" onclick="event.stopPropagation()">
+        <button class="pb-use-chip${hasSession?'':' disabled'}" onclick="useInTalk('${card.id}')" ${hasSession?'':' disabled title="Open a Talk session first"'}>Use</button>
+        <button class="pb-icon" onclick="shareCard('${card.id}')" title="Share">${ICON_SHARE}</button>
+        <button class="pb-icon del" onclick="deleteCard('${card.id}')" title="Delete">×</button>
+        <span class="pb-chevron">›</span>
+      </div>
+    </div>
+    ${tags.length?`<div class="pb-tags-row">${tagPills}${extraTags}</div>`:''}
+    <div class="pb-detail">${renderCardDetail(card)}</div>
+  </div>`;
+}
+function toggleCard(cid){state.openCardId=(state.openCardId===cid)?null:cid;renderCatalogCards();}
+
+function renderCardDetail(card){
+  const tags=card.tags||[];
+  const tagPills=tags.map(t=>`<span class="tag-pill">${escHtml('#'+t)}<button class="tag-remove" onclick="removeCardTag('${card.id}','${t}')">×</button></span>`).join('');
+  const backVerdict=card.backApproved?'<div class="back-verdict ok">✓ Verified</div>':(card.backFlagged?'<div class="back-verdict bad">⚠ Flagged — needs review</div>':'');
+  return`
+  <div class="layer">
+    <div class="layer-header">
+      <span class="layer-label">Source · ${escHtml(langLabel(card.sourceLang||'en'))}</span>
+      <div class="layer-actions">
+        <button class="layer-tts" id="l1tts-${card.id}" onclick="speak(${JSON.stringify(card.source||'')},${JSON.stringify(card.sourceLang||'en')},this)" title="Listen">${ICON_TTS}</button>
+        <button class="layer-edit-btn" onclick="layerEdit('${card.id}','source')">Edit</button>
+      </div>
+    </div>
+    <div class="layer-text" id="l1txt-${card.id}">${escHtml(card.source||'(empty)')}</div>
+    <textarea class="layer-textarea" id="l1inp-${card.id}" rows="2">${escHtml(card.source||'')}</textarea>
+    <div class="layer-save-row" id="l1save-${card.id}">
+      <button class="layer-save-btn ok" onclick="layerSave('${card.id}','source')">Save</button>
+      <button class="layer-save-btn cancel" onclick="layerCancel('${card.id}','source')">Cancel</button>
+    </div>
+  </div>
+  <div class="layer">
+    <div class="layer-header">
+      <span class="layer-label">Translation · ${escHtml(langLabel(card.targetLang||'th'))}</span>
+      <div class="layer-actions">
+        <button class="layer-tts" id="l2tts-${card.id}" onclick="speak(${JSON.stringify(card.target||'')},${JSON.stringify(card.targetLang||'th')},this)" title="Listen">${ICON_TTS}</button>
+        <button class="layer-edit-btn" onclick="layerEdit('${card.id}','target')">Edit</button>
+      </div>
+    </div>
+    <div class="layer-text" id="l2txt-${card.id}">${escHtml(card.target||'(empty)')}</div>
+    <textarea class="layer-textarea" id="l2inp-${card.id}" rows="2">${escHtml(card.target||'')}</textarea>
+    <div class="layer-save-row" id="l2save-${card.id}">
+      <button class="layer-save-btn ok" onclick="layerSave('${card.id}','target')">Save</button>
+      <button class="layer-save-btn cancel" onclick="layerCancel('${card.id}','target')">Cancel</button>
+      <button class="retranslate-btn" onclick="layerRetranslate('${card.id}')">Re-translate ↺</button>
+    </div>
+  </div>
+  <div class="layer">
+    <div class="layer-header">
+      <span class="layer-label">Back-translation check</span>
+      <div class="layer-actions">
+        <button class="layer-tts" id="l3tts-${card.id}" style="display:${card.backTranslation?'inline':'none'}" onclick="speak(${JSON.stringify(card.backTranslation||'')},${JSON.stringify(card.sourceLang||'en')},this)" title="Listen">${ICON_TTS}</button>
+        <button class="verify-btn" id="l3verify-${card.id}" onclick="cardVerify('${card.id}')">Verify ↺</button>
+      </div>
+    </div>
+    <div class="layer-text${card.backTranslation?'':' dim'}" id="l3txt-${card.id}">${escHtml(card.backTranslation||'Not checked yet')}</div>
+    ${card.backTranslation&&!card.backApproved&&!card.backFlagged?`<div class="verdict-row"><button class="verdict-btn good" onclick="cardSoundsGood('${card.id}')">✓ Sounds right</button><button class="verdict-btn bad" onclick="cardFlag('${card.id}')">✗ Incorrect</button></div>`:''}
+    ${backVerdict}
+  </div>
+  <div class="layer">
+    <div class="layer-header">
+      <span class="layer-label">Notes</span>
+      <button class="layer-edit-btn" onclick="layerEdit('${card.id}','notes')">Edit</button>
+    </div>
+    <div class="layer-text${card.notes?'':' dim'}" id="l4txt-${card.id}">${card.notes?renderMd(card.notes):'No notes'}</div>
+    <textarea class="layer-textarea" id="l4inp-${card.id}" rows="3">${escHtml(card.notes||'')}</textarea>
+    <div class="layer-save-row" id="l4save-${card.id}">
+      <button class="layer-save-btn ok" onclick="layerSave('${card.id}','notes')">Save</button>
+      <button class="layer-save-btn cancel" onclick="layerCancel('${card.id}','notes')">Cancel</button>
+    </div>
+    <div class="md-hint" id="l4hint-${card.id}" style="display:none;">Supports **bold** *italic* [link](url)</div>
+  </div>
+  <div class="layer">
+    <div class="layer-header"><span class="layer-label">Tags</span></div>
+    <div class="tags-wrap" id="l5tags-${card.id}">${tagPills}<button class="add-tag-btn" onclick="openTagPicker('card','${card.id}')">+ Add tag</button></div>
+  </div>
+  <div class="card-meta">${card.usage?`Used ${card.usage}× · `:''}Added ${timeAgo(card.createdAt||Date.now())}${card.sourcePartnerName?' · From Talk with '+escHtml(card.sourcePartnerName):''}</div>`;
+}
+
+// Card actions
+function layerEdit(cid,field){const fn={source:'1',target:'2',notes:'4'};const n=fn[field];document.getElementById(`l${n}txt-${cid}`).style.display='none';document.getElementById(`l${n}inp-${cid}`).classList.add('show');document.getElementById(`l${n}save-${cid}`).classList.add('show');if(field==='notes'){const h=document.getElementById(`l4hint-${cid}`);if(h)h.style.display='block';}}
+function layerCancel(cid,field){const fn={source:'1',target:'2',notes:'4'};const n=fn[field];const cards=getCards();const card=cards.find(c=>c.id===cid);document.getElementById(`l${n}inp-${cid}`).value=card?card[field]||'':'';;document.getElementById(`l${n}txt-${cid}`).style.display='';document.getElementById(`l${n}inp-${cid}`).classList.remove('show');document.getElementById(`l${n}save-${cid}`).classList.remove('show');if(field==='notes'){const h=document.getElementById(`l4hint-${cid}`);if(h)h.style.display='none';}}
+function layerSave(cid,field){const fn={source:'1',target:'2',notes:'4'};const n=fn[field];const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card)return;const val=document.getElementById(`l${n}inp-${cid}`).value;card[field]=val;card.updatedAt=Date.now();if(field==='source'||field==='target'){card.backTranslation='';card.backApproved=false;card.backFlagged=false;}saveCards(cards);if(field==='notes')document.getElementById(`l${n}txt-${cid}`).innerHTML=val?renderMd(val):'<span class="dim">No notes</span>';else document.getElementById(`l${n}txt-${cid}`).textContent=val||'(empty)';document.getElementById(`l${n}txt-${cid}`).style.display='';document.getElementById(`l${n}inp-${cid}`).classList.remove('show');document.getElementById(`l${n}save-${cid}`).classList.remove('show');if(field==='notes'){const h=document.getElementById(`l4hint-${cid}`);if(h)h.style.display='none';}toast('Saved');}
+async function layerRetranslate(cid){const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card)return;const src=document.getElementById(`l2inp-${cid}`)?.value.trim()||card.source;if(!src)return;const btn=document.querySelector(`#l2save-${cid} .retranslate-btn`);if(btn){btn.disabled=true;btn.textContent='Translating…';}const t=await translate(src,card.sourceLang||'en',card.targetLang||'th');if(t){const inp=document.getElementById(`l2inp-${cid}`);if(inp)inp.value=t;}if(btn){btn.disabled=false;btn.textContent='Re-translate ↺';}}
+async function cardVerify(cid){const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card||!card.target)return;card.backApproved=false;card.backFlagged=false;const btn=document.getElementById(`l3verify-${cid}`);if(btn){btn.disabled=true;btn.textContent='Checking…';}const back=await translate(card.target,card.targetLang||'th',card.sourceLang||'en');card.backTranslation=back||'';;card.updatedAt=Date.now();saveCards(cards);const txt=document.getElementById(`l3txt-${cid}`);if(txt){txt.textContent=back||'(failed)';txt.className='layer-text';}const ttsBtn=document.getElementById(`l3tts-${cid}`);if(ttsBtn){ttsBtn.style.display='inline';ttsBtn.onclick=()=>speak(back,card.sourceLang||'en',ttsBtn);}if(btn){btn.disabled=false;btn.textContent='Verify ↺';}if(back&&!card.backApproved&&!card.backFlagged){const det=document.getElementById(`l3txt-${cid}`)?.parentNode;if(det){const existing=document.querySelector(`#pbc-${cid} .verdict-row`);if(!existing){const row=document.createElement('div');row.className='verdict-row';row.innerHTML=`<button class="verdict-btn good" onclick="cardSoundsGood('${cid}')">✓ Sounds right</button><button class="verdict-btn bad" onclick="cardFlag('${cid}')">✗ Incorrect</button>`;det.appendChild(row);}}}}
+function cardSoundsGood(cid){const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card)return;card.backApproved=true;card.backFlagged=false;card.updatedAt=Date.now();saveCards(cards);renderCatalogCards();toast('Marked as correct');}
+function cardFlag(cid){const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card)return;card.backFlagged=true;card.backApproved=false;card.updatedAt=Date.now();if(!(card.tags||[]).includes('incorrect')){card.tags=[...(card.tags||[]),'incorrect'];}addTagToRegistry('incorrect');saveCards(cards);renderCatalogCards();toast('Flagged for review');}
+function removeCardTag(cid,tag){const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card)return;card.tags=(card.tags||[]).filter(t=>t!==tag);card.updatedAt=Date.now();saveCards(cards);const wrap=document.getElementById(`l5tags-${cid}`);if(wrap){wrap.innerHTML=card.tags.map(t=>`<span class="tag-pill">${escHtml('#'+t)}<button class="tag-remove" onclick="removeCardTag('${cid}','${t}')">×</button></span>`).join('')+`<button class="add-tag-btn" onclick="openTagPicker('card','${cid}')">+ Add tag</button>`;}}
+function useInTalk(cid){const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card||!state.session)return;const ta=document.getElementById('msg-input');ta.value=card.target||'';card.usage=(card.usage||0)+1;card.lastUsedAt=Date.now();saveCards(cards);switchTab('talk');updateSendBtn();if(state.screen!=='chat-screen')enterChat();}
+function deleteCard(cid){showConfirm('Delete phrase?','This phrase will be permanently deleted.',()=>{const cards=getCards().filter(c=>c.id!==cid);saveCards(cards);state.openCardId=null;renderCatalogCards();toast('Deleted');});}
+function shareCard(cid){const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card)return;const text=`${card.source} → ${card.target}${card.notes?' ('+card.notes+')':''}`;if(navigator.clipboard?.writeText)navigator.clipboard.writeText(text).then(()=>toast('Phrase copied'));else fallbackCopy(text);}
+
+// ════════════════════ NEW CARD ════════════════════
+function openNewCard(catId,srcText,tgtText,srcLang,tgtLang){
+  const prefs=getPrefs();state.ncTags=[];
+  document.getElementById('nc-source').value=srcText||'';
+  document.getElementById('nc-target').value=tgtText||'';
+  const sl=srcLang||state.session?.myLang||prefs.myLang||state.myLang||'en';
+  const tl=tgtLang||state.session?.partnerLang||prefs.partnerLang||'th';
+  populateLangSelect('nc-src-lang',sl);populateLangSelect('nc-tgt-lang',tl);
+  const cats=getCatalogs();const catSel=document.getElementById('nc-catalog');
+  catSel.innerHTML='<option value="all">All Phrases</option>'+cats.map(c=>`<option value="${c.id}"${catId===c.id?' selected':''}>${escHtml(c.name)}</option>`).join('');
+  if(catId&&catId!=='all')catSel.value=catId;
+  renderNcTags();
+  document.getElementById('nc-save-btn').disabled=!(srcText||'').trim();
+  document.getElementById('nc-auto-btn').disabled=!(srcText||'').trim();
+  document.getElementById('new-card-overlay').hidden=false;
+}
+function ncSourceInput(){const has=document.getElementById('nc-source').value.trim().length>0;document.getElementById('nc-save-btn').disabled=!has;document.getElementById('nc-auto-btn').disabled=!has;}
+function ncClearTarget(){document.getElementById('nc-target').value='';}
+async function ncAutoTranslate(){const src=document.getElementById('nc-source').value.trim();const sl=document.getElementById('nc-src-lang').value;const tl=document.getElementById('nc-tgt-lang').value;if(!src)return;const btn=document.getElementById('nc-auto-btn');btn.disabled=true;btn.textContent='Translating…';const t=await translate(src,sl,tl);if(t)document.getElementById('nc-target').value=t;btn.disabled=false;btn.textContent='Auto-translate →';}
+function ncTTS(side){const isS=side==='src';const text=document.getElementById(isS?'nc-source':'nc-target').value.trim();const lang=document.getElementById(isS?'nc-src-lang':'nc-tgt-lang').value;const btn=document.getElementById(isS?'nc-src-tts':'nc-tgt-tts');if(!text){toast('Enter text first');return;}speak(text,lang,btn);}
+function renderNcTags(){const wrap=document.getElementById('nc-tags-wrap');wrap.innerHTML=state.ncTags.map(t=>`<span class="tag-pill">${escHtml('#'+t)}<button class="tag-remove" onclick="removeNcTag('${t}')">×</button></span>`).join('')+`<button class="add-tag-btn" onclick="openTagPicker('newcard')">+ Add tag</button>`;}
+function removeNcTag(t){state.ncTags=state.ncTags.filter(x=>x!==t);renderNcTags();}
+function saveNewCard(){const source=document.getElementById('nc-source').value.trim();if(!source){toast('Source phrase required');return;}const target=document.getElementById('nc-target').value.trim();const srcLang=document.getElementById('nc-src-lang').value;const tgtLang=document.getElementById('nc-tgt-lang').value;const notes=document.getElementById('nc-notes').value.trim();const catVal=document.getElementById('nc-catalog').value;const catalogIds=catVal&&catVal!=='all'?[catVal]:[];const card={id:uid(),catalogIds,sourceLang:srcLang,targetLang:tgtLang,source,target,backTranslation:'',backApproved:false,backFlagged:false,notes,tags:state.ncTags.slice(),createdAt:Date.now(),updatedAt:Date.now(),usage:0};const cards=getCards();cards.unshift(card);saveCards(cards);document.getElementById('new-card-overlay').hidden=true;if(state.screen==='catalog-screen')renderCatalogCards();toast('Phrase saved');}
+
+// ════════════════════ NEW CATALOG ════════════════════
+let selectedEmoji='📁';
+function openNewCatalog(){document.getElementById('ncat-name').value='';document.getElementById('ncat-desc').value='';document.getElementById('ncat-save-btn').disabled=true;selectedEmoji='📁';const grid=document.getElementById('emoji-grid');grid.innerHTML=EMOJIS.map(e=>`<span class="emoji-opt${e===selectedEmoji?' selected':''}" onclick="selectEmoji('${e}')">${e}</span>`).join('');document.getElementById('new-cat-overlay').hidden=false;}
+function selectEmoji(e){selectedEmoji=e;document.querySelectorAll('.emoji-opt').forEach(el=>el.classList.toggle('selected',el.textContent===e));}
+function saveNewCatalog(){const name=document.getElementById('ncat-name').value.trim();if(!name)return;const cat={id:'cat-'+uid(),name,emoji:selectedEmoji,desc:document.getElementById('ncat-desc').value.trim(),createdAt:Date.now()};const cats=getCatalogs();cats.push(cat);saveCatalogs(cats);document.getElementById('new-cat-overlay').hidden=true;renderSayHome();toast('Catalog created');}
+function confirmDeleteCatalog(catId){const cats=getCatalogs();const cat=cats.find(c=>c.id===catId);if(!cat)return;const count=getCards().filter(c=>c.catalogIds?.includes(catId)).length;showConfirm(`Delete "${cat.name}"?`,`${count} phrase${count!==1?'s':''} will move to All Phrases.`,()=>{saveCatalogs(getCatalogs().filter(c=>c.id!==catId));saveCards(getCards().map(c=>({...c,catalogIds:(c.catalogIds||[]).filter(id=>id!==catId)})));renderSayHome();toast('Deleted');});}
+
+// ════════════════════ TAG PICKER ════════════════════
+let tagPickerSelectedTags=[];
+function openTagPicker(ctx,cardId){state.tagPickerCtx=ctx;state.tagPickerCardId=cardId;if(ctx==='card'&&cardId){const card=getCards().find(c=>c.id===cardId);tagPickerSelectedTags=[...(card?.tags||[])];}else if(ctx==='newcard'){tagPickerSelectedTags=[...state.ncTags];}document.getElementById('tp-search').value='';renderTagPicker();document.getElementById('tag-picker-overlay').hidden=false;}
+function renderTagPicker(){const q=(document.getElementById('tp-search')?.value||'').toLowerCase().trim();const allTags=getTags();const filtered=q?allTags.filter(t=>t.includes(q)):allTags;const chips=document.getElementById('tp-chips');chips.innerHTML=filtered.map(t=>`<span class="tp-tag-chip${tagPickerSelectedTags.includes(t)?' selected':''}" onclick="toggleTpTag('${t}')">#${escHtml(t)}</span>`).join('');const createBtn=document.getElementById('tp-create-btn');if(createBtn)createBtn.style.display=q&&!allTags.includes(q)?'block':'none';}
+function toggleTpTag(t){const i=tagPickerSelectedTags.indexOf(t);if(i>=0)tagPickerSelectedTags.splice(i,1);else tagPickerSelectedTags.push(t);renderTagPicker();}
+function createAndAddTag(){const q=document.getElementById('tp-search').value.trim();const tag=normalizeTag(q);if(!tag)return;addTagToRegistry(tag);if(!tagPickerSelectedTags.includes(tag))tagPickerSelectedTags.push(tag);document.getElementById('tp-search').value='';renderTagPicker();}
+function closeTagPicker(){const ctx=state.tagPickerCtx;if(ctx==='newcard'){state.ncTags=[...tagPickerSelectedTags];renderNcTags();}else if(ctx==='card'&&state.tagPickerCardId){const cards=getCards();const card=cards.find(c=>c.id===state.tagPickerCardId);if(card){card.tags=[...tagPickerSelectedTags];card.updatedAt=Date.now();saveCards(cards);const wrap=document.getElementById(`l5tags-${card.id}`);if(wrap){wrap.innerHTML=card.tags.map(t=>`<span class="tag-pill">${escHtml('#'+t)}<button class="tag-remove" onclick="removeCardTag('${card.id}','${t}')">×</button></span>`).join('')+`<button class="add-tag-btn" onclick="openTagPicker('card','${card.id}')">+ Add tag</button>`;}}} document.getElementById('tag-picker-overlay').hidden=true;}
+
+// ════════════════════ PHRASE PICKER ════════════════════
+function openPhrasePicker(){renderPhrasePicker();document.getElementById('phrase-picker-overlay').hidden=false;}
+function renderPhrasePicker(){const q=(document.getElementById('pp-search')?.value||'').toLowerCase().trim();const ppTagF=state.ppTagFilter||[];let cards=getCards();if(q)cards=cards.filter(c=>(c.source||'').toLowerCase().includes(q)||(c.target||'').toLowerCase().includes(q)||(c.tags||[]).some(t=>t.includes(q)));if(ppTagF.length)cards=cards.filter(c=>ppTagF.every(t=>(c.tags||[]).includes(t)));const allTags=getTags();document.getElementById('pp-tags').innerHTML=allTags.map(t=>`<span class="pp-chip${ppTagF.includes(t)?' active':''}" onclick="togglePpTag('${t}')">#${escHtml(t)}</span>`).join('');const list=document.getElementById('pp-list');if(!cards.length){list.innerHTML='<div style="text-align:center;padding:20px;font-size:13px;color:var(--ink-dim);">No phrases.</div>';return;}list.innerHTML=cards.map(c=>`<div class="pp-row"><button class="pp-tts" onclick="speak(${JSON.stringify(c.source||'')},${JSON.stringify(c.sourceLang||'en')},this)" title="Listen">${ICON_TTS}</button><div class="pp-texts"><div class="pp-source">${escHtml(c.source||'')}</div><div class="pp-target">${escHtml(c.target||'')}</div></div><button class="pp-insert-btn" onclick="insertPhrase(${JSON.stringify(c.target||c.source||'')})">Use</button></div>`).join('');}
+function togglePpTag(t){const i=(state.ppTagFilter||[]).indexOf(t);if(i>=0)state.ppTagFilter.splice(i,1);else{if(!state.ppTagFilter)state.ppTagFilter=[];state.ppTagFilter.push(t);}renderPhrasePicker();}
+function insertPhrase(text){const ta=document.getElementById('msg-input');ta.value=text;autoResize();updateSendBtn();document.getElementById('phrase-picker-overlay').hidden=true;if(state.screen!=='chat-screen')enterChat();}
+
+// ════════════════════ ONBOARDING ════════════════════
+let onbSlide=0;
+function onboardNext(){onbSlide++;if(onbSlide>=3){completeOnboard();return;}document.getElementById('onboard-slides').style.transform=`translateX(-${onbSlide*100}%)`;document.querySelectorAll('.onboard-dot').forEach((d,i)=>d.classList.toggle('active',i===onbSlide));if(onbSlide===2)document.getElementById('onboard-next-btn').textContent='Get started';}
+function completeOnboard(){const devLang=navigator.language?.split('-')[0]||'en';const supported=LANGS.map(l=>l.code);state.myLang=supported.includes(devLang)?devLang:'en';lsW(SK.onboarded,'1');goHome();}
+
+// ════════════════════ SEED DATA ════════════════════
+function seedStarterData(){if(getCatalogs().length||getCards().length)return;const catId='cat-thailand';saveCatalogs([{id:catId,name:'Thailand Travel',emoji:'🇹🇭',desc:'Essential phrases for Thailand',createdAt:Date.now()}]);const starter=[{source:'Hello',target:'สวัสดี'},{source:'Thank you',target:'ขอบคุณ'},{source:'How much?',target:'เท่าไหร่?'},{source:'Where is the bathroom?',target:'ห้องน้ำอยู่ที่ไหน?'},{source:"I don't eat meat",target:'ฉันไม่กินเนื้อสัตว์'},{source:'Delicious!',target:'อร่อย!'},{source:'Can you help me?',target:'คุณช่วยฉันได้ไหม?'},{source:"I don't understand",target:'ฉันไม่เข้าใจ'},{source:'Please speak slowly',target:'กรุณาพูดช้าๆ'},{source:'Call the police!',target:'เรียกตำรวจ!'}];saveCards(starter.map((p,i)=>({id:'seed-'+i,catalogIds:[catId],sourceLang:'en',targetLang:'th',...p,backTranslation:'',backApproved:false,backFlagged:false,notes:'',tags:['essential','travel'],createdAt:Date.now()-i*1000,updatedAt:Date.now()})));}
+
+// ════════════════════ INIT ════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  detectEngine();populateLangSelects();seedStarterData();
+  const devLang=navigator.language?.split('-')[0]||'en';const supported=LANGS.map(l=>l.code);const detected=supported.includes(devLang)?devLang:'en';
+  const p=getPrefs();state.myLang=p.myLang||detected;
+  if(p.userName){const myEl=document.getElementById('my-name');if(myEl)myEl.value=p.userName;updateSessionId();}
+  if(!SpeechRec){const b=document.getElementById('stt-btn');if(b)b.style.display='none';}
+  {const ss=getAllSessions();const pruned=ss.filter(s=>s.sessionId&&s.myName);if(pruned.length!==ss.length)saveSessions(pruned);}
+  const urlParams=new URLSearchParams(location.search);const joinId=urlParams.get('join');
+  if(joinId){state._joinTargetId=joinId;setupJoinScreen(joinId);return;}
+  if(!ls(SK.onboarded)){showScreen('onboard-screen');return;}
+  const aid=getActiveId();
+  if(aid){const s=getAllSessions().find(x=>x.sessionId===aid);if(s){state.session=s;state.messages=getMsgs(aid);renderAllMessages();updateChatHeader();setConnected(false);showScreen('chat-screen');addSysMsg('Reconnecting…');if(s.isInitiator)initPeerAsHost();else initPeerAsJoiner();}else{setActiveId(null);goHome();}}else goHome();
+});
+</script>
+</body>
+</html>
