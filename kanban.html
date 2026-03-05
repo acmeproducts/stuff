@@ -89,8 +89,8 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
   box-shadow:0 0 0 2px #000 inset;
 }
 .card.search-hit{border-color:var(--search)}
-.card-line{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;width:100%;min-width:0}
-.card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0;border:none;background:transparent;padding:0;text-align:left;cursor:pointer;color:inherit}
+.card-line{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;width:100%;min-width:0;justify-content:flex-start}
+.card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;max-width:100%;border:none;background:transparent;padding:0;text-align:left;cursor:pointer;color:inherit}
 .card-platform{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:0 0 auto}
 .card-links{display:inline-flex;align-items:center;gap:8px;position:relative;z-index:1;flex:0 0 auto}
 .card-links a,.card-links span{font-size:12px;text-decoration:none;color:#1f6feb}
@@ -312,7 +312,7 @@ const TAGS_KEY = "ai_jobs_kanban_tags";
 const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
 let dirty=false, saveTimer=null;
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
-function persistNow(){ const ok=trySave(STABLE_KEY, JSON.stringify(state)); setStatus((ok? "Saved" : "Save failed")+" • Build "+BUILD+" • "+new Date().toLocaleTimeString()); dirty=false; }
+function persistNow(){ state.lastModified=Date.now(); const ok=trySave(STABLE_KEY, JSON.stringify(state)); setStatus((ok? "Saved" : "Save failed")+" • Build "+BUILD+" • "+new Date().toLocaleTimeString()); dirty=false; }
 function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); }
 function loadState(){
   let raw = localStorage.getItem(STABLE_KEY);
@@ -505,15 +505,15 @@ function getDropTarget(body,y){
   const cards=[...body.querySelectorAll(".card")].filter(x=> x.dataset.id!==draggingId);
   if(!cards.length) return {index:0,targetEl:null};
   let index=cards.length;
-  let targetEl=cards[cards.length-1];
   for(let i=0;i<cards.length;i++){
     const r=cards[i].getBoundingClientRect();
-    if(y<=r.bottom){
-      index=i+1;
-      targetEl=cards[i];
+    const mid=r.top+r.height/2;
+    if(y<mid){
+      index=i;
       break;
     }
   }
+  const targetEl=(index<cards.length)?cards[index]:cards[cards.length-1];
   return {index,targetEl};
 }
 function getLaneDropIndex(targetStage, y){
@@ -559,12 +559,12 @@ function renderCard(card){
   title.type="button";
   title.className="card-title";
   title.textContent=card.title||"(untitled)";
-  const isCollapsed = state.cardCollapsed?.[card.id] !== false;
+  const isCollapsed = state.cardCollapsed?.[card.id] === true;
   title.title = isCollapsed ? "Expand card" : "Collapse card";
   title.onclick=(e)=>{
     e.stopPropagation();
     state.cardCollapsed = state.cardCollapsed || {};
-    state.cardCollapsed[card.id] = !(state.cardCollapsed[card.id]===false);
+    state.cardCollapsed[card.id] = !isCollapsed;
     scheduleSave();
     render();
   };
@@ -589,11 +589,6 @@ function renderCard(card){
   if(card.tags?.length){ card.tags.forEach(t=>{ const chip=document.createElement("span"); chip.className="chip"; chip.textContent=t; tagsRow.appendChild(chip); }); }
   detail.append(tagsRow);
 
-  const detailLinks=document.createElement("span"); detailLinks.className="card-links";
-  const devInner=dev.cloneNode(true);
-  const liveInner=live.cloneNode(true);
-  detailLinks.append(devInner, liveInner);
-  detail.append(detailLinks);
   el.append(detail);
   return el;
 }
@@ -799,6 +794,8 @@ function applyImportedBoard(obj, sourceLabel="import"){
   state.collapsed = state.collapsed || {};
   state.layout = state.layout || "auto";
   state.archive = Array.isArray(state.archive)? state.archive : [];
+  state.cardCollapsed = state.cardCollapsed || {};
+  state.lastModified = Number(state.lastModified||Date.now());
   state.stages.forEach(st=>{ const list=state.cards.filter(c=>c.stage===st); list.sort((a,b)=>(a.pos??0)-(b.pos??0)||(a.createdAt-b.createdAt)); list.forEach((c,i)=>{ if(typeof c.pos!=="number") c.pos=(i+1)*1000; }); });
   scheduleSave();
   render();
@@ -824,10 +821,13 @@ async function fetchCentralizedBoard(){
   return null;
 }
 async function bootstrapCentralizedBoard(){
-  if(persistedState) return;
   const remote = await fetchCentralizedBoard();
   if(!remote) return;
-  applyImportedBoard(remote, "centralized Google Drive");
+  const localTs=Number(state?.lastModified||0);
+  const remoteTs=Number(remote?.lastModified||0);
+  if(!persistedState || remoteTs>localTs){
+    applyImportedBoard(remote, "centralized Google Drive");
+  }
 }
 $("#btnImport").onclick=()=> $("#fileImport").click();
 $("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ applyImportedBoard(JSON.parse(r.result), "JSON file"); }catch(err){ toast("Import failed","Could not parse file", true); alert("Failed to parse JSON."); } }; r.readAsText(f); };
