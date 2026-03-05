@@ -385,17 +385,20 @@ const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
 const EMOJIS_KEY = "ai_jobs_kanban_emojis";
 const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
+const DRIVE_SYNC_KEY = "ai_jobs_kanban_drive_sync";
 let dirty=false, saveTimer=null;
 
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
 
 function persistNow(){ 
+    state.lastModified = Date.now();
     const ok=trySave(STABLE_KEY, JSON.stringify(state)); 
+    if(ok) queueRemoteSync();
     setStatus((ok? "Saved" : "Save failed")+" • Config: Default • "+fmtFullDate(new Date())); 
     dirty=false; 
 }
 
-function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); }
+function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(() => persistNow(), 250); }
 
 // --- REVAMPED loadState to guarantee baseline and ignore old defaults ---
 function loadState(){
@@ -439,6 +442,100 @@ function loadEmojis(){
     } 
 }
 function saveEmojis(list){ const arr=Array.isArray(list)?list.map(s=>String(s).trim()).filter(Boolean):[]; trySave(EMOJIS_KEY, JSON.stringify(arr)); customEmojis=arr; }
+
+
+function parseDriveSyncConfig(){
+  try{
+    const raw=localStorage.getItem(DRIVE_SYNC_KEY);
+    if(!raw) return null;
+    const cfg=JSON.parse(raw);
+    if(!cfg?.enabled || !cfg?.fileId) return null;
+    return {pollMs: 15000, refreshUrl: "/google/refresh", ...cfg};
+  }catch(e){
+    console.warn("Invalid Google Drive sync config", e);
+    return null;
+  }
+}
+
+async function getDriveAccessToken(cfg){
+  if(cfg.accessToken) return cfg.accessToken;
+  const res=await fetch(cfg.refreshUrl||"/google/refresh");
+  if(!res.ok) throw new Error("Unable to refresh Google access token");
+  const json=await res.json();
+  return json.access_token || json.token;
+}
+
+async function fetchRemoteState(cfg){
+  const token=await getDriveAccessToken(cfg);
+  const res=await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(cfg.fileId)}?alt=media`, {
+    headers:{Authorization:`Bearer ${token}`}
+  });
+  if(res.status===404) return null;
+  if(!res.ok) throw new Error(`Drive load failed (${res.status})`);
+  return await res.json();
+}
+
+let remoteSyncTimer=null;
+let remoteSyncInFlight=false;
+let remotePullInFlight=false;
+
+async function pushStateToRemote(){
+  const cfg=parseDriveSyncConfig();
+  if(!cfg || remoteSyncInFlight) return;
+  remoteSyncInFlight=true;
+  try{
+    const token=await getDriveAccessToken(cfg);
+    const payload=JSON.stringify(state);
+    const res=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(cfg.fileId)}?uploadType=media`, {
+      method:"PATCH",
+      headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},
+      body:payload
+    });
+    if(!res.ok) throw new Error(`Drive save failed (${res.status})`);
+  }catch(err){
+    console.warn(err);
+    setStatus("Saved locally • Remote sync pending");
+  }finally{
+    remoteSyncInFlight=false;
+  }
+}
+
+function queueRemoteSync(){
+  clearTimeout(remoteSyncTimer);
+  remoteSyncTimer=setTimeout(()=>{ pushStateToRemote(); }, 500);
+}
+
+function isValidLoadedState(obj){
+  return !!(obj?.cards && obj?.stages && obj?.platforms);
+}
+
+async function pullStateFromRemote(force=false){
+  const cfg=parseDriveSyncConfig();
+  if(!cfg || remotePullInFlight) return;
+  remotePullInFlight=true;
+  try{
+    const remote=await fetchRemoteState(cfg);
+    if(!isValidLoadedState(remote)) return;
+    const localTs=Number(state?.lastModified||0);
+    const remoteTs=Number(remote?.lastModified||0);
+    if(force || remoteTs>localTs || !localStorage.getItem(STABLE_KEY)){
+      state={...remote, collapsed:remote.collapsed||{}, archive:Array.isArray(remote.archive)?remote.archive:[]};
+      trySave(STABLE_KEY, JSON.stringify(state));
+      render();
+      setStatus("Synced from Google Drive • "+fmtFullDate(new Date()));
+    }
+  }catch(err){
+    console.warn("Remote sync pull failed", err);
+  }finally{
+    remotePullInFlight=false;
+  }
+}
+
+function startRemotePolling(){
+  const cfg=parseDriveSyncConfig();
+  if(!cfg) return;
+  setInterval(()=>{ if(!document.hidden) pullStateFromRemote(false); }, Math.max(5000, Number(cfg.pollMs)||15000));
+}
 
 /* ===== App State ===== */
 let state = loadState();
@@ -522,6 +619,48 @@ function render(){
 }
 document.addEventListener("dragover", e=> e.preventDefault());
 
+let pointerDrag=null;
+let suppressNextCardClick=false;
+function isInteractiveCardTarget(target){
+  return !!target?.closest?.('a,button,input,textarea,select,label,[contenteditable="true"]');
+}
+function pointerFromCardStart(card, e){
+  if(e.pointerType==="mouse") return;
+  if(isInteractiveCardTarget(e.target)) return;
+  pointerDrag={id:card.id,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,active:false};
+  e.currentTarget?.setPointerCapture?.(e.pointerId);
+}
+function pointerFromCardMove(cardEl, e){
+  if(!pointerDrag || pointerDrag.pointerId!==e.pointerId) return;
+  const moved=Math.hypot(e.clientX-pointerDrag.startX,e.clientY-pointerDrag.startY);
+  if(!pointerDrag.active && moved>8){ pointerDrag.active=true; draggingId=pointerDrag.id; cardEl.classList.add("dragging"); }
+  if(!pointerDrag.active) return;
+  e.preventDefault();
+  const laneBody=e.target.closest('.lane-body') || document.elementFromPoint(e.clientX,e.clientY)?.closest('.lane-body');
+  if(!laneBody) return;
+  const {index,targetEl}=getDropTarget(laneBody,e.clientY);
+  laneBody.dataset.dropIndex=index;
+  setHighlight(targetEl);
+}
+function pointerFromCardEnd(cardEl, e){
+  if(!pointerDrag || pointerDrag.pointerId!==e.pointerId) return;
+  const wasActive=pointerDrag.active;
+  const dragId=pointerDrag.id;
+  const endTarget=e.target;
+  pointerDrag=null;
+  cardEl.classList.remove("dragging");
+  draggingId=null;
+  if(wasActive){
+    suppressNextCardClick=true;
+    const laneBody=e.target.closest('.lane-body') || document.elementFromPoint(e.clientX,e.clientY)?.closest('.lane-body');
+    if(laneBody){ moveToStageAt(dragId,laneBody.closest('.lane').dataset.stage,Number(laneBody.dataset.dropIndex??0)); }
+    setHighlight(null);
+    return;
+  }
+  if(isInteractiveCardTarget(endTarget)) return;
+  openEditor(dragId);
+}
+
 function setHighlight(el){ if(highlightEl && highlightEl!==el) highlightEl.classList.remove("drop-highlight"); highlightEl=el; if(highlightEl) highlightEl.classList.add("drop-highlight"); }
 function getDropTarget(body,y){
   const cards=[...body.querySelectorAll(".card")].filter(x=> x.dataset.id!==draggingId);
@@ -545,7 +684,15 @@ function renderCard(card){
     e.dataTransfer.effectAllowed="move";
   });
   el.addEventListener("dragend", ()=>{ draggingId=null; el.classList.remove("dragging"); setHighlight(null); });
-  el.addEventListener("click", ()=> openEditor(card.id));
+  el.addEventListener("pointerdown", (e)=> pointerFromCardStart(card, e));
+  el.addEventListener("pointermove", (e)=> pointerFromCardMove(el, e));
+  el.addEventListener("pointerup", (e)=> pointerFromCardEnd(el, e));
+  el.addEventListener("pointercancel", (e)=> pointerFromCardEnd(el, e));
+  el.addEventListener("click", (e)=>{
+    if(suppressNextCardClick){ suppressNextCardClick=false; return; }
+    if(isInteractiveCardTarget(e.target)) return;
+    if(e.pointerType!=="touch") openEditor(card.id);
+  });
   el.addEventListener("mouseenter", (e)=> showTooltip(e, card));
   el.addEventListener("mousemove", (e)=> positionTooltip(e));
   el.addEventListener("mouseleave", hideTooltip);
@@ -1151,7 +1298,21 @@ function sanitizeMarkdownImages(s){
 
 /* ===== Init ===== */
 window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
+window.addEventListener("storage", (e)=>{
+  if(e.key===STABLE_KEY && e.newValue){
+    try{
+      const next=JSON.parse(e.newValue);
+      if(isValidLoadedState(next) && Number(next.lastModified||0) >= Number(state.lastModified||0)){
+        state=next;
+        render();
+      }
+    }catch{}
+  }
+});
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) pullStateFromRemote(false); });
 render();
+pullStateFromRemote(true);
+startRemotePolling();
 // The initial status is set in render() now
 </script>
 </body>
