@@ -466,13 +466,34 @@ async function getDriveAccessToken(cfg){
 }
 
 async function fetchRemoteState(cfg){
-  const token=await getDriveAccessToken(cfg);
-  const res=await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(cfg.fileId)}?alt=media`, {
-    headers:{Authorization:`Bearer ${token}`}
-  });
-  if(res.status===404) return null;
-  if(!res.ok) throw new Error(`Drive load failed (${res.status})`);
-  return await res.json();
+  // Primary path: authenticated Drive API read
+  try{
+    const token=await getDriveAccessToken(cfg);
+    const res=await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(cfg.fileId)}?alt=media`, {
+      headers:{Authorization:`Bearer ${token}`}
+    });
+    if(res.status===404) return null;
+    if(!res.ok) throw new Error(`Drive load failed (${res.status})`);
+    return await res.json();
+  }catch(primaryErr){
+    // Fallback path: shared/public file, no auth backend required
+    const publicEndpoints = [
+      `https://drive.google.com/uc?export=download&id=${encodeURIComponent(cfg.fileId)}`,
+      `https://drive.usercontent.google.com/download?id=${encodeURIComponent(cfg.fileId)}&export=download`
+    ];
+
+    for(const url of publicEndpoints){
+      try{
+        const res=await fetch(url, {cache:"no-store"});
+        if(!res.ok) continue;
+        const text=await res.text();
+        const parsed=JSON.parse(text);
+        return parsed;
+      }catch{}
+    }
+
+    throw primaryErr;
+  }
 }
 
 let remoteSyncTimer=null;
