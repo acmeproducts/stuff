@@ -142,13 +142,18 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 <body>
 <header>
   <div class="toolbar">
-    <button id="btnNew" class="btn">New</button>
-    <button id="btnArchive" class="btn">Archive</button>
-    <button id="btnSettings" class="btn">Settings</button>
-    <button id="btnExport" class="btn">Export</button>
-    <button id="btnImport" class="btn">Import</button>
-    <button id="btnCopyP2P" class="btn" title="Copy board snapshot for direct device-to-device sharing">Copy P2P</button>
-    <button id="btnPasteP2P" class="btn" title="Paste a board snapshot copied from another device">Paste P2P</button>
+    <button id="btnSettings" class="btn icon-btn" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.18 7.18 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.49-.42h-3.84a.5.5 0 0 0-.49.42L9.2 5.32c-.58.23-1.12.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.66 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.6.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.04.24.24.42.49.42h3.84c.25 0 .45-.18.49-.42l.36-2.54c.58-.23 1.12-.54 1.63-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg>
+    </button>
+    <button id="btnExport" class="btn icon-btn" title="Export JSON" aria-label="Export JSON">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2Zm7-18-5.5 5.5 1.41 1.41L11 6.83V16h2V6.83l3.09 3.08 1.41-1.41L12 2Z"/></svg>
+    </button>
+    <button id="btnImport" class="btn icon-btn" title="Import JSON" aria-label="Import JSON">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2Zm7-16v9.17l3.09-3.08 1.41 1.41L12 17l-4.5-5.5 1.41-1.41L11 13.17V4h1Z"/></svg>
+    </button>
+    <button id="btnShare" class="btn icon-btn" title="Share" aria-label="Share">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.39 1.2l-6.71-3.35a3.1 3.1 0 0 0 0-1.7l6.7-3.35A3 3 0 1 0 15 7a3.1 3.1 0 0 0 .1.75l-6.7 3.35a3 3 0 1 0 0 1.8l6.7 3.35A3 3 0 1 0 18 16Z"/></svg>
+    </button>
     <input id="fileImport" type="file" accept="application/json" class="hidden" aria-hidden="true" tabindex="-1" />
   </div>
   <div class="searchbar">
@@ -651,7 +656,8 @@ settingsDialog.addEventListener("close", ()=>{
   }
 });
 
-/* ===== Import/Export/New ===== */
+/* ===== Import/Export/Share ===== */
+const DRIVE_SHARE_URL = "https://drive.google.com/file/d/1Fzzsy_Vu8xK5IGVMt5O4-BNFtuKmAoIx/view?usp=drivesdk";
 $("#btnExport").onclick=()=>{ const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="ai-jobs-kanban.json"; a.click(); URL.revokeObjectURL(url); setStatus("Exported current board JSON."); };
 function toast(title, desc="", isErr=false){ const t=document.getElementById("toast"); t.className=isErr? "err":""; t.querySelector(".tmsg").textContent=title; t.querySelector(".tdesc").textContent=desc; t.style.display="block"; clearTimeout(t._timer); t._timer=setTimeout(()=>{ t.style.display="none"; }, 2800); }
 function applyImportedBoard(obj, sourceLabel="import"){
@@ -671,20 +677,9 @@ function applyImportedBoard(obj, sourceLabel="import"){
   setStatus(`Imported ${sourceLabel} and saved to local storage.`);
   return true;
 }
-function encodeP2PSnapshot(){ return btoa(unescape(encodeURIComponent(JSON.stringify(state)))); }
-function decodeP2PSnapshot(payload){ return JSON.parse(decodeURIComponent(escape(atob(payload.trim())))); }
 $("#btnImport").onclick=()=> $("#fileImport").click();
 $("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ applyImportedBoard(JSON.parse(r.result), "JSON file"); }catch(err){ toast("Import failed","Could not parse file", true); alert("Failed to parse JSON."); } }; r.readAsText(f); };
-$("#btnCopyP2P").onclick=async ()=>{
-  try{ const payload=encodeP2PSnapshot(); await navigator.clipboard.writeText(payload); toast("Copied P2P snapshot","Share this text directly to another device"); setStatus("Copied P2P snapshot to clipboard."); }
-  catch(err){ toast("Copy failed","Clipboard permission was denied", true); }
-};
-$("#btnPasteP2P").onclick=async ()=>{
-  const input=prompt("Paste P2P snapshot from another device:");
-  if(!input) return;
-  try{ applyImportedBoard(decodeP2PSnapshot(input), "P2P snapshot"); }
-  catch(err){ toast("Paste failed","Invalid snapshot payload", true); alert("Could not parse snapshot payload."); }
-};
+$("#btnShare").onclick=()=>{ window.open(DRIVE_SHARE_URL, "_blank", "noopener"); };
 
 /* ===== Lane dblclick: new at top ===== */
 $("#board").addEventListener("dblclick", (e)=>{ const lane=e.target.closest(".lane"); if(!lane) return; const stage=lane.dataset.stage; openEditor(null, stage); });
