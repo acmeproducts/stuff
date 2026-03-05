@@ -92,8 +92,12 @@ main#board[data-layout="vertical"]{display:flex;flex-direction:column}
 .card.search-hit{border-color:var(--search)}
 .card-line{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;width:100%;min-width:0}
 .card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-title-toggle{border:none;background:transparent;padding:0;margin:0;cursor:pointer;min-width:0;text-align:left;font:inherit;color:inherit;flex:1 1 auto}
+.card-title-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
 .card-platform{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:0 0 auto}
 .card-links a{font-size:12px;margin-left:8px;text-decoration:none}
+.card-meta{display:none;align-items:flex-start;gap:6px;flex-wrap:wrap}
+.card.expanded .card-meta{display:flex}
 .card-tags{display:flex;gap:6px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
@@ -420,6 +424,7 @@ function loadState(){
     cards: [], // Start with NO cards
     archive: [],
     collapsed: {},
+    expandedCards: {},
     layout: "auto",
     titleLimit: UPLOADED_CONFIG.titleLimit,
     chipLimit: UPLOADED_CONFIG.chipLimit
@@ -697,6 +702,7 @@ function getDropTarget(body,y){
 }
 function renderCard(card){
   const el=document.createElement("article"); el.className="card"; el.draggable=true; el.dataset.id=card.id;
+  if(state.expandedCards?.[card.id]) el.classList.add("expanded");
   el.addEventListener("dragstart", e=>{
     draggingId=card.id;
     el.classList.add("dragging");
@@ -714,22 +720,28 @@ function renderCard(card){
     if(isInteractiveCardTarget(e.target)) return;
     if(e.pointerType!=="touch") openEditor(card.id);
   });
-  el.addEventListener("mouseenter", (e)=> showTooltip(e, card));
-  el.addEventListener("mousemove", (e)=> positionTooltip(e));
-  el.addEventListener("mouseleave", hideTooltip);
 
   const line=document.createElement("div"); line.className="card-line";
-  const p=document.createElement("span"); p.className="card-platform"; p.textContent=card.platform;
   
   // Apply title length limit
   const cardTitle = card.title || "(untitled)";
   const displayedTitle = cardTitle.length > state.titleLimit ? cardTitle.substring(0, state.titleLimit) + "..." : cardTitle;
+  const titleBtn=document.createElement("button");
+  titleBtn.type="button";
+  titleBtn.className="card-title-toggle";
+  titleBtn.setAttribute("aria-expanded", state.expandedCards?.[card.id] ? "true" : "false");
   const title=document.createElement("span"); title.className="card-title"; title.textContent=displayedTitle;
+  titleBtn.append(title);
+  titleBtn.addEventListener("click", (e)=>{ e.stopPropagation(); toggleCardExpanded(card.id); });
   
   const links=document.createElement("span"); links.className="card-links";
   if(card.dev){ const a=document.createElement("a"); a.href=card.dev; a.target="_blank"; a.rel="noopener"; a.textContent="dev"; a.onclick=(e)=> e.stopPropagation(); links.appendChild(a); }
   if(card.live){ const a=document.createElement("a"); a.href=card.live; a.target="_blank"; a.rel="noopener"; a.textContent="live"; a.onclick=(e)=> e.stopPropagation(); links.appendChild(a); }
-  line.append(p,title,links); el.append(line);
+  line.append(titleBtn,links); el.append(line);
+
+  const metaRow=document.createElement("div"); metaRow.className="card-meta";
+  const p=document.createElement("span"); p.className="card-platform"; p.textContent=card.platform;
+  metaRow.append(p);
 
   const tagsRow=document.createElement("div"); tagsRow.className="card-tags";
   if(card.tags?.length){ 
@@ -741,8 +753,15 @@ function renderCard(card){
       tagsRow.appendChild(chip); 
     }); 
   }
-  el.append(tagsRow);
+  metaRow.append(tagsRow);
+  el.append(metaRow);
   return el;
+}
+function toggleCardExpanded(id){
+  state.expandedCards = state.expandedCards || {};
+  state.expandedCards[id] = !state.expandedCards[id];
+  scheduleSave();
+  render();
 }
 
 /* ===== Card Ops ===== */
