@@ -318,7 +318,8 @@ function loadTagHistory(){ try{ const arr=JSON.parse(localStorage.getItem(TAGS_K
 function saveTagHistory(list){ const uniq=[...new Set(list.map(t=>String(t).toLowerCase()))]; trySave(TAGS_KEY, JSON.stringify(uniq)); return uniq; }
 
 /* ===== App State ===== */
-let state = loadState() || {
+const persistedState = loadState();
+let state = persistedState || {
   stages:["Done","Doing","Next"],
   platforms:["Gemini","Claude","ChatGPT","Perplexity"],
   cards:[],
@@ -728,6 +729,13 @@ settingsDialog.addEventListener("close", ()=>{
 
 /* ===== Import/Export/Share ===== */
 const DRIVE_SHARE_URL = "https://drive.google.com/file/d/1Fzzsy_Vu8xK5IGVMt5O4-BNFtuKmAoIx/view?usp=drivesdk";
+const DRIVE_FILE_ID = (DRIVE_SHARE_URL.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1]) || "";
+const DRIVE_JSON_URLS = DRIVE_FILE_ID
+  ? [
+      `https://drive.google.com/uc?export=download&id=${encodeURIComponent(DRIVE_FILE_ID)}`,
+      `https://drive.googleusercontent.com/uc?id=${encodeURIComponent(DRIVE_FILE_ID)}&export=download`
+    ]
+  : [];
 $("#btnExport").onclick=()=>{ const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="ai-jobs-kanban.json"; a.click(); URL.revokeObjectURL(url); setStatus("Exported current board JSON."); };
 function toast(title, desc="", isErr=false){ const t=document.getElementById("toast"); t.className=isErr? "err":""; t.querySelector(".tmsg").textContent=title; t.querySelector(".tdesc").textContent=desc; t.style.display="block"; clearTimeout(t._timer); t._timer=setTimeout(()=>{ t.style.display="none"; }, 2800); }
 function applyImportedBoard(obj, sourceLabel="import"){
@@ -746,6 +754,29 @@ function applyImportedBoard(obj, sourceLabel="import"){
   toast("Import successful","Board replaced");
   setStatus(`Imported ${sourceLabel} and saved to local storage.`);
   return true;
+}
+function isValidBoardData(obj){
+  return Array.isArray(obj?.cards) && Array.isArray(obj?.platforms) && Array.isArray(obj?.stages);
+}
+async function fetchCentralizedBoard(){
+  for(const url of DRIVE_JSON_URLS){
+    try{
+      const res = await fetch(url, { cache:"no-store" });
+      if(!res.ok) continue;
+      const txt = await res.text();
+      const obj = JSON.parse(txt);
+      if(isValidBoardData(obj)) return obj;
+    }catch(err){
+      console.warn("Centralized board fetch failed:", err);
+    }
+  }
+  return null;
+}
+async function bootstrapCentralizedBoard(){
+  if(persistedState) return;
+  const remote = await fetchCentralizedBoard();
+  if(!remote) return;
+  applyImportedBoard(remote, "centralized Google Drive");
 }
 $("#btnImport").onclick=()=> $("#fileImport").click();
 $("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ applyImportedBoard(JSON.parse(r.result), "JSON file"); }catch(err){ toast("Import failed","Could not parse file", true); alert("Failed to parse JSON."); } }; r.readAsText(f); };
@@ -837,8 +868,11 @@ function sanitizeMarkdownImages(s){
 
 /* ===== Init ===== */
 window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
-render();
-setStatus("Loaded • Build "+BUILD+" • "+new Date().toLocaleTimeString());
+(async ()=>{
+  render();
+  await bootstrapCentralizedBoard();
+  setStatus("Loaded • Build "+BUILD+" • "+new Date().toLocaleTimeString());
+})();
 </script>
 </body>
 </html>
