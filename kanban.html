@@ -56,7 +56,9 @@ main#board[data-layout="vertical"]{display:flex;flex-direction:column}
 
 /* Lanes */
 .lane{background:var(--panel);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:column;min-height:0}
+.lane.lane-drop-highlight{border-color:var(--highlight);box-shadow:0 0 0 2px var(--highlight) inset}
 .lane-header{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-weight:700;gap:8px}
+.lane-header.dragging-lane{opacity:.6}
 .lane-title{display:flex;align-items:center;gap:8px}
 .lane-actions{display:flex;align-items:center;gap:6px}
 .lane-body{padding:8px;display:flex;flex-direction:column;gap:8px;min-height:0}
@@ -345,6 +347,7 @@ function maybeRebalance(stage){ const list=stageCards(stage); for(let i=1;i<list
 
 /* ===== Rendering ===== */
 let draggingId=null, highlightEl=null, editorDirty=false;
+let draggingLaneStage=null, laneHighlightEl=null;
 function render(){
   $("#sPlatforms").value = state.platforms.join(", ");
   $("#sStages").value = state.stages.join(", ");
@@ -354,6 +357,7 @@ function render(){
   state.stages.forEach(stage=>{
     const lane=document.createElement("section"); lane.className="lane"; lane.dataset.stage=stage;
     const head=document.createElement("div"); head.className="lane-header";
+    head.draggable=true;
     const titleWrap=document.createElement("div"); titleWrap.className="lane-title";
     const title=document.createElement("span"); title.textContent=stage;
     const count=document.createElement("span"); count.className="muted"; count.textContent=state.cards.filter(c=>c.stage===stage).length;
@@ -367,6 +371,38 @@ function render(){
     actions.append(toggleBtn,newBtn);
 
     head.append(titleWrap,actions);
+
+    head.addEventListener("dragstart", e=>{
+      draggingLaneStage=stage;
+      head.classList.add("dragging-lane");
+      e.dataTransfer.setData("text/lane-stage", stage);
+      e.dataTransfer.effectAllowed="move";
+    });
+    head.addEventListener("dragend", ()=>{
+      draggingLaneStage=null;
+      head.classList.remove("dragging-lane");
+      setLaneHighlight(null);
+    });
+
+    lane.addEventListener("dragenter", e=>{
+      if(!draggingLaneStage || draggingLaneStage===stage) return;
+      e.preventDefault();
+    });
+    lane.addEventListener("dragover", e=>{
+      if(!draggingLaneStage || draggingLaneStage===stage) return;
+      e.preventDefault();
+      setLaneHighlight(lane);
+      if(e.dataTransfer) e.dataTransfer.dropEffect="move";
+    });
+    lane.addEventListener("dragleave", e=>{ if(!lane.contains(e.relatedTarget)) setLaneHighlight(null); });
+    lane.addEventListener("drop", e=>{
+      const laneStage = draggingLaneStage || e.dataTransfer.getData("text/lane-stage");
+      if(!laneStage || laneStage===stage) return;
+      e.preventDefault();
+      const toIndex=getLaneDropIndex(stage, e.clientY);
+      moveLaneToIndex(laneStage, toIndex);
+      setLaneHighlight(null);
+    });
 
     const body=document.createElement("div"); body.className="lane-body"; if(state.collapsed[stage]) body.classList.add("collapsed");
 
@@ -432,6 +468,7 @@ function pointerFromCardEnd(cardEl, e){
 }
 
 function setHighlight(el){ if(highlightEl && highlightEl!==el) highlightEl.classList.remove("drop-highlight"); highlightEl=el; if(highlightEl) highlightEl.classList.add("drop-highlight"); }
+function setLaneHighlight(el){ if(laneHighlightEl && laneHighlightEl!==el) laneHighlightEl.classList.remove("lane-drop-highlight"); laneHighlightEl=el; if(laneHighlightEl) laneHighlightEl.classList.add("lane-drop-highlight"); }
 function getDropTarget(body,y){
   const cards=[...body.querySelectorAll(".card")].filter(x=> x.dataset.id!==draggingId);
   if(!cards.length) return {index:0,targetEl:null};
@@ -441,8 +478,28 @@ function getDropTarget(body,y){
     const mid=r.top+r.height/2;
     if(y<mid){ index=i; break; }
   }
-  const targetEl = (index<cards.length) ? cards[index] : cards[cards.length-1];
+  const targetEl = index===0 ? null : cards[Math.min(index-1, cards.length-1)];
   return {index,targetEl};
+}
+function getLaneDropIndex(targetStage, y){
+  const targetIndex=state.stages.indexOf(targetStage);
+  if(targetIndex<0) return state.stages.length;
+  const targetLane=document.querySelector(`.lane[data-stage="${CSS.escape(targetStage)}"]`);
+  if(!targetLane) return targetIndex;
+  const r=targetLane.getBoundingClientRect();
+  return y < (r.top + r.height/2) ? targetIndex : targetIndex+1;
+}
+function moveLaneToIndex(stage, rawIndex){
+  const fromIndex=state.stages.indexOf(stage);
+  if(fromIndex<0) return;
+  const stages=[...state.stages];
+  stages.splice(fromIndex,1);
+  let toIndex=Math.max(0, Math.min(rawIndex, stages.length));
+  if(rawIndex>fromIndex) toIndex=Math.max(0, toIndex-1);
+  stages.splice(toIndex,0,stage);
+  state.stages=stages;
+  scheduleSave();
+  render();
 }
 function renderCard(card){
   const el=document.createElement("article"); el.className="card"; el.draggable=true; el.dataset.id=card.id;
