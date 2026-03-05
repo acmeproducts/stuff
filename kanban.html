@@ -32,6 +32,9 @@ header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1p
 .btn.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
 .btn.small{padding:6px 8px;font-size:12px}
 .btn.icon{padding:4px 8px;font-size:14px;line-height:1}
+.btn.icon-btn{padding:8px;width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;color:#666}
+.btn.icon-btn svg{width:20px;height:20px;fill:currentColor}
+.btn.icon-btn:hover{color:#333;background:#f4f4f6}
 .btn:disabled{opacity:.6;cursor:not-allowed}
 .footer{padding:8px 16px;color:var(--muted);font-size:12px;text-align:right}
 
@@ -73,6 +76,7 @@ main#board[data-layout="vertical"]{display:flex;flex-direction:column}
   user-select:none;
   position:relative;
   transition:border-color .08s ease, box-shadow .08s ease;
+  touch-action:none;
 }
 .card *{ -webkit-user-drag: none; }
 .card.dragging{
@@ -273,6 +277,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     <div class="row">
       <button class="btn primary" value="save">Apply</button>
       <button class="btn" value="cancel">Cancel</button>
+      <button type="button" class="btn" id="btnOpenArchive">Archive</button>
       <button class="btn danger" id="btnReset" value="reset">Reset Board</button>
     </div>
   </form>
@@ -387,6 +392,40 @@ function render(){
 }
 document.addEventListener("dragover", e=> e.preventDefault());
 
+let pointerDrag=null;
+function pointerFromCardStart(card, e){
+  if(e.pointerType==="mouse") return;
+  pointerDrag={id:card.id,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,active:false};
+  card.setPointerCapture?.(e.pointerId);
+}
+function pointerFromCardMove(cardEl, e){
+  if(!pointerDrag || pointerDrag.pointerId!==e.pointerId) return;
+  const moved=Math.hypot(e.clientX-pointerDrag.startX,e.clientY-pointerDrag.startY);
+  if(!pointerDrag.active && moved>8){ pointerDrag.active=true; draggingId=pointerDrag.id; cardEl.classList.add("dragging"); }
+  if(!pointerDrag.active) return;
+  e.preventDefault();
+  const laneBody=e.target.closest('.lane-body') || document.elementFromPoint(e.clientX,e.clientY)?.closest('.lane-body');
+  if(!laneBody) return;
+  const {index,targetEl}=getDropTarget(laneBody,e.clientY);
+  laneBody.dataset.dropIndex=index;
+  setHighlight(targetEl);
+}
+function pointerFromCardEnd(cardEl, e){
+  if(!pointerDrag || pointerDrag.pointerId!==e.pointerId) return;
+  const wasActive=pointerDrag.active;
+  const dragId=pointerDrag.id;
+  pointerDrag=null;
+  cardEl.classList.remove("dragging");
+  draggingId=null;
+  if(wasActive){
+    const laneBody=e.target.closest('.lane-body') || document.elementFromPoint(e.clientX,e.clientY)?.closest('.lane-body');
+    if(laneBody){ moveToStageAt(dragId,laneBody.closest('.lane').dataset.stage,Number(laneBody.dataset.dropIndex??0)); }
+    setHighlight(null);
+    return;
+  }
+  openEditor(dragId);
+}
+
 function setHighlight(el){ if(highlightEl && highlightEl!==el) highlightEl.classList.remove("drop-highlight"); highlightEl=el; if(highlightEl) highlightEl.classList.add("drop-highlight"); }
 function getDropTarget(body,y){
   const cards=[...body.querySelectorAll(".card")].filter(x=> x.dataset.id!==draggingId);
@@ -410,7 +449,11 @@ function renderCard(card){
     e.dataTransfer.effectAllowed="move";
   });
   el.addEventListener("dragend", ()=>{ draggingId=null; el.classList.remove("dragging"); setHighlight(null); });
-  el.addEventListener("click", ()=> openEditor(card.id));
+  el.addEventListener("pointerdown", (e)=> pointerFromCardStart(card, e));
+  el.addEventListener("pointermove", (e)=> pointerFromCardMove(el, e));
+  el.addEventListener("pointerup", (e)=> pointerFromCardEnd(el, e));
+  el.addEventListener("pointercancel", (e)=> pointerFromCardEnd(el, e));
+  el.addEventListener("click", (e)=>{ if(e.pointerType!=="touch") openEditor(card.id); });
   el.addEventListener("mouseenter", (e)=> showTooltip(e, card));
   el.addEventListener("mousemove", (e)=> positionTooltip(e));
   el.addEventListener("mouseleave", hideTooltip);
@@ -609,7 +652,6 @@ settingsDialog.addEventListener("close", ()=>{
 });
 
 /* ===== Import/Export/New ===== */
-$("#btnNew").onclick=()=> openEditor(null, state.stages[0] || "Next");
 $("#btnExport").onclick=()=>{ const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="ai-jobs-kanban.json"; a.click(); URL.revokeObjectURL(url); setStatus("Exported current board JSON."); };
 function toast(title, desc="", isErr=false){ const t=document.getElementById("toast"); t.className=isErr? "err":""; t.querySelector(".tmsg").textContent=title; t.querySelector(".tdesc").textContent=desc; t.style.display="block"; clearTimeout(t._timer); t._timer=setTimeout(()=>{ t.style.display="none"; }, 2800); }
 function applyImportedBoard(obj, sourceLabel="import"){
@@ -649,7 +691,7 @@ $("#board").addEventListener("dblclick", (e)=>{ const lane=e.target.closest(".la
 
 /* ===== Archive UI ===== */
 const archiveDialog=$("#archiveDialog");
-$("#btnArchive").onclick=()=>{ renderArchiveList(); archiveDialog.showModal(); };
+$("#btnOpenArchive").onclick=()=>{ renderArchiveList(); archiveDialog.showModal(); };
 archiveDialog.addEventListener("close", (e)=>{ if(archiveDialog.returnValue==="empty"){ emptyArchive(); } });
 function renderArchiveList(){
   const list=$("#archiveList"); list.innerHTML="";
