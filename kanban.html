@@ -90,13 +90,13 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 }
 .card.search-hit{border-color:var(--search)}
 .card-line{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;width:100%;min-width:0}
-.card-expand{border:none;background:transparent;color:#666;font-size:15px;cursor:pointer;line-height:1;padding:0;flex:0 0 auto}
-.card-expand:hover{color:#222}
-.card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0}
+.card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0;border:none;background:transparent;padding:0;text-align:left;cursor:pointer;color:inherit}
 .card-platform{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:0 0 auto}
 .card-links{display:inline-flex;align-items:center;gap:8px;position:relative;z-index:1;flex:0 0 auto}
 .card-links a,.card-links span{font-size:12px;text-decoration:none;color:#1f6feb}
 .card-links .empty{color:#9ca3af}
+.card-detail{display:flex;flex-direction:column;gap:6px}
+.card-detail.collapsed{display:none}
 .card-tags{display:flex;gap:6px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
@@ -331,9 +331,11 @@ let state = persistedState || {
   cards:[],
   archive:[],
   collapsed:{},
+  cardCollapsed:{},
   layout:"auto"
 };
 state.collapsed = state.collapsed || {};
+state.cardCollapsed = state.cardCollapsed || {};
 state.layout = state.layout || "auto";
 state.archive = Array.isArray(state.archive)? state.archive : [];
 let tagHistory = loadTagHistory();
@@ -371,12 +373,10 @@ function render(){
     const count=document.createElement("span"); count.className="muted"; count.textContent=state.cards.filter(c=>c.stage===stage).length;
     titleWrap.append(title,count);
 
-    const actions=document.createElement("div"); actions.className="lane-actions";
-    const toggleBtn=document.createElement("button"); toggleBtn.className="btn icon"; toggleBtn.title="Collapse/Expand"; toggleBtn.textContent = state.collapsed[stage] ? "▸" : "▾";
-    toggleBtn.onclick=()=>{ state.collapsed[stage] = !state.collapsed[stage]; scheduleSave(); render(); };
-    actions.append(toggleBtn);
-
-    head.append(titleWrap,actions);
+    titleWrap.style.cursor="pointer";
+    titleWrap.title="Collapse/Expand";
+    titleWrap.onclick=()=>{ state.collapsed[stage] = !state.collapsed[stage]; scheduleSave(); render(); };
+    head.append(titleWrap);
 
     head.addEventListener("dragstart", e=>{
       draggingLaneStage=stage;
@@ -395,6 +395,14 @@ function render(){
       e.preventDefault();
     });
     lane.addEventListener("dragover", e=>{
+      if(draggingId){
+        e.preventDefault();
+        setLaneHighlight(lane);
+        body.dataset.dropIndex=0;
+        setHighlight(null);
+        if(e.dataTransfer) e.dataTransfer.dropEffect="move";
+        return;
+      }
       if(!draggingLaneStage || draggingLaneStage===stage) return;
       e.preventDefault();
       setLaneHighlight(lane);
@@ -402,6 +410,14 @@ function render(){
     });
     lane.addEventListener("dragleave", e=>{ if(!lane.contains(e.relatedTarget)) setLaneHighlight(null); });
     lane.addEventListener("drop", e=>{
+      if(draggingId){
+        e.preventDefault();
+        const id=draggingId||e.dataTransfer.getData("text/id")||e.dataTransfer.getData("text/plain");
+        if(id) moveToStageAt(id,stage,0);
+        setLaneHighlight(null);
+        setHighlight(null);
+        return;
+      }
       const laneStage = draggingLaneStage || e.dataTransfer.getData("text/lane-stage");
       if(!laneStage || laneStage===stage) return;
       e.preventDefault();
@@ -415,12 +431,13 @@ function render(){
     body.addEventListener("dragenter", e=> e.preventDefault());
     body.addEventListener("dragover", e=>{
       e.preventDefault();
+      setLaneHighlight(lane);
       const {index,targetEl}=getDropTarget(body,e.clientY);
       body.dataset.dropIndex=index;
       setHighlight(targetEl); // highlight landing card (insert ABOVE)
       if(e.dataTransfer) e.dataTransfer.dropEffect="move";
     });
-    body.addEventListener("dragleave", e=>{ if(!body.contains(e.relatedTarget)) setHighlight(null); });
+    body.addEventListener("dragleave", e=>{ if(!body.contains(e.relatedTarget)){ setHighlight(null); setLaneHighlight(null); } });
     body.addEventListener("drop", e=>{
       e.preventDefault();
       const id=draggingId||e.dataTransfer.getData("text/id")||e.dataTransfer.getData("text/plain");
@@ -428,6 +445,7 @@ function render(){
       const idx=Number(body.dataset.dropIndex??0);
       moveToStageAt(id,stage,idx);
       setHighlight(null);
+      setLaneHighlight(null);
     });
 
     stageCards(stage).forEach(c=> body.appendChild(renderCard(c)));
@@ -466,7 +484,6 @@ function pointerFromCardEnd(cardEl, e){
   if(!pointerDrag || pointerDrag.pointerId!==e.pointerId) return;
   const wasActive=pointerDrag.active;
   const dragId=pointerDrag.id;
-  const heldMs=Date.now()-pointerDrag.startAt;
   const endTarget=e.target;
   pointerDrag=null;
   cardEl.classList.remove("dragging");
@@ -479,8 +496,7 @@ function pointerFromCardEnd(cardEl, e){
     return;
   }
   if(isInteractiveCardTarget(endTarget)) return;
-  suppressNextCardClick=true;
-  if(heldMs < 280) openEditor(dragId);
+  suppressNextCardClick=false;
 }
 
 function setHighlight(el){ if(highlightEl && highlightEl!==el) highlightEl.classList.remove("drop-highlight"); highlightEl=el; if(highlightEl) highlightEl.classList.add("drop-highlight"); }
@@ -534,37 +550,51 @@ function renderCard(card){
   el.addEventListener("pointermove", (e)=> pointerFromCardMove(el, e));
   el.addEventListener("pointerup", (e)=> pointerFromCardEnd(el, e));
   el.addEventListener("pointercancel", (e)=> pointerFromCardEnd(el, e));
-  el.addEventListener("click", (e)=>{
-    if(suppressNextCardClick){ suppressNextCardClick=false; return; }
-    if(isInteractiveCardTarget(e.target)) return;
-    if(e.pointerType!=="touch") openEditor(card.id);
-  });
   el.addEventListener("mouseenter", (e)=> showTooltip(e, card));
   el.addEventListener("mousemove", (e)=> positionTooltip(e));
   el.addEventListener("mouseleave", hideTooltip);
 
   const line=document.createElement("div"); line.className="card-line";
-  const expand=document.createElement("button"); expand.type="button"; expand.className="card-expand"; expand.title="Open card"; expand.textContent="▸";
-  expand.onclick=(e)=>{ e.stopPropagation(); openEditor(card.id); };
-  expand.addEventListener("pointerdown",e=>e.stopPropagation());
-  expand.addEventListener("pointerup",e=>e.stopPropagation());
-  const title=document.createElement("span"); title.className="card-title"; title.textContent=card.title||"(untitled)";
+  const title=document.createElement("button");
+  title.type="button";
+  title.className="card-title";
+  title.textContent=card.title||"(untitled)";
+  const isCollapsed = state.cardCollapsed?.[card.id] !== false;
+  title.title = isCollapsed ? "Expand card" : "Collapse card";
+  title.onclick=(e)=>{
+    e.stopPropagation();
+    state.cardCollapsed = state.cardCollapsed || {};
+    state.cardCollapsed[card.id] = !(state.cardCollapsed[card.id]===false);
+    scheduleSave();
+    render();
+  };
   const links=document.createElement("span"); links.className="card-links";
   const dev=document.createElement(card.dev?"a":"span");
-  dev.textContent="dev";
+  dev.textContent="Dev";
   if(card.dev){ dev.href=card.dev; dev.target="_blank"; dev.rel="noopener"; dev.onclick=(e)=> e.stopPropagation(); dev.addEventListener("pointerdown",e=>e.stopPropagation()); dev.addEventListener("pointerup",e=>e.stopPropagation()); }
   else dev.className="empty";
   const live=document.createElement(card.live?"a":"span");
-  live.textContent="live";
+  live.textContent="Live";
   if(card.live){ live.href=card.live; live.target="_blank"; live.rel="noopener"; live.onclick=(e)=> e.stopPropagation(); live.addEventListener("pointerdown",e=>e.stopPropagation()); live.addEventListener("pointerup",e=>e.stopPropagation()); }
   else live.className="empty";
   links.append(dev,live);
-  const p=document.createElement("span"); p.className="card-platform"; p.textContent=card.platform;
-  line.append(expand,title,links,p); el.append(line);
+  line.append(title,links); el.append(line);
+
+  const detail=document.createElement("div"); detail.className="card-detail";
+  if(isCollapsed) detail.classList.add("collapsed");
 
   const tagsRow=document.createElement("div"); tagsRow.className="card-tags";
+  const p=document.createElement("span"); p.className="chip card-platform"; p.textContent=card.platform;
+  tagsRow.appendChild(p);
   if(card.tags?.length){ card.tags.forEach(t=>{ const chip=document.createElement("span"); chip.className="chip"; chip.textContent=t; tagsRow.appendChild(chip); }); }
-  el.append(tagsRow);
+  detail.append(tagsRow);
+
+  const detailLinks=document.createElement("span"); detailLinks.className="card-links";
+  const devInner=dev.cloneNode(true);
+  const liveInner=live.cloneNode(true);
+  detailLinks.append(devInner, liveInner);
+  detail.append(detailLinks);
+  el.append(detail);
   return el;
 }
 
