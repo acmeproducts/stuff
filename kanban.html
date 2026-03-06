@@ -894,6 +894,7 @@ const DRIVE_SHARE_URL = "https://drive.google.com/file/d/1Fzzsy_Vu8xK5IGVMt5O4-B
 const DRIVE_FILE_ID = (DRIVE_SHARE_URL.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1]) || "";
 const DRIVE_JSON_URLS = DRIVE_FILE_ID
   ? [
+      `https://drive.google.com/uc?export=media&id=${encodeURIComponent(DRIVE_FILE_ID)}`,
       `https://drive.google.com/uc?export=download&id=${encodeURIComponent(DRIVE_FILE_ID)}`,
       `https://drive.googleusercontent.com/uc?id=${encodeURIComponent(DRIVE_FILE_ID)}&export=download`
     ]
@@ -922,14 +923,36 @@ function applyImportedBoard(obj, sourceLabel="import"){
 function isValidBoardData(obj){
   return Array.isArray(obj?.cards) && Array.isArray(obj?.platforms) && Array.isArray(obj?.stages);
 }
+function parseBoardPayload(text){
+  if(!text) return null;
+  const raw = String(text).trim();
+  if(!raw) return null;
+  try{
+    const obj = JSON.parse(raw);
+    return isValidBoardData(obj) ? obj : null;
+  }catch{}
+  const preMatch = raw.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+  const candidate = preMatch?.[1] || raw;
+  if(!candidate) return null;
+  try{
+    const decoded = candidate
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+    const obj = JSON.parse(decoded.trim());
+    return isValidBoardData(obj) ? obj : null;
+  }catch{}
+  return null;
+}
 async function fetchCentralizedBoard(){
   for(const url of DRIVE_JSON_URLS){
     try{
       const res = await fetch(url, { cache:"no-store" });
       if(!res.ok) continue;
       const txt = await res.text();
-      const obj = JSON.parse(txt);
-      if(isValidBoardData(obj)) return obj;
+      const obj = parseBoardPayload(txt);
+      if(obj) return obj;
     }catch(err){
       console.warn("Centralized board fetch failed:", err);
     }
@@ -941,7 +964,8 @@ async function bootstrapCentralizedBoard(){
   if(!remote) return;
   const localTs=Number(state?.lastModified||0);
   const remoteTs=Number(remote?.lastModified||0);
-  if(!persistedState || remoteTs>localTs){
+  const shouldHydrate = !persistedState || remoteTs>localTs || (remoteTs===0 && state.cards.length===0);
+  if(shouldHydrate){
     applyImportedBoard(remote, "centralized Google Drive");
   }
 }
