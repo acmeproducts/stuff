@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Talk + Say</title>
+<title>Talk + Say · v1.7</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Lora:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -221,6 +221,8 @@ textarea.field-input{resize:none;}
 .msg-row.mine .bbl-verdict-pill.bad{background:rgba(255,100,80,.3);color:#ffd6d6;}
 .clarify-block{background:rgba(0,0,0,.04);border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.5;margin-top:6px;}
 .msg-row.mine .clarify-block{background:rgba(255,255,255,.12);color:rgba(255,255,255,.85);}
+.bbl-sender{font-size:12px;font-weight:700;color:var(--ink-mid);}
+.msg-row.mine .bbl-sender{color:rgba(255,255,255,.75);}
 .queued-badge{font-size:9px;font-weight:700;color:var(--amber);opacity:.8;margin-left:4px;}
 
 /* TYPING + COMPOSER */
@@ -482,6 +484,8 @@ textarea.field-input{resize:none;}
     </div>
     <label class="field-label" style="margin-top:0;">Your name</label>
     <input class="field-input" id="join-your-name" placeholder="Enter your name" maxlength="30" oninput="updateJoinBtn()">
+    <label class="field-label">I speak</label>
+    <select class="field-select" id="join-my-lang"></select>
     <div id="join-pin-wrap" style="display:none;">
       <label class="field-label">PIN required</label>
       <input class="field-input" id="join-pin-input" placeholder="Enter PIN" maxlength="8" type="tel" oninput="updateJoinBtn()">
@@ -512,11 +516,11 @@ textarea.field-input{resize:none;}
   <div class="typing-bar" id="typing-bar"></div>
   <div class="offline-indicator" id="offline-indicator">Offline — messages will send when reconnected</div>
   <div class="composer">
-    <button class="composer-icon" id="stt-btn" onclick="toggleSTT()" title="Voice input"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
+    <button class="composer-icon" id="stt-btn" onclick="toggleSTT()" title="Voice input" style="display:flex;flex-direction:column;align-items:center;gap:1px;font-size:8px;font-weight:700;color:var(--ink-dim);padding:4px 5px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg><span>Voice</span></button>
     <button class="composer-icon" onclick="openPhrasePicker()" title="Phrasebook"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></button>
     <button class="composer-icon" onclick="openAttachPicker()" title="Attach"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
     <div class="composer-wrap">
-      <textarea class="composer-ta" id="msg-input" placeholder="Type a message…" rows="1" oninput="composerInput()" onkeydown="composerKeydown(event)"></textarea>
+      <textarea class="composer-ta" id="msg-input" placeholder="Type or speak…" rows="1" oninput="composerInput()" onkeydown="composerKeydown(event)"></textarea>
     </div>
     <button class="send-btn" id="send-btn" onclick="sendMessage()" disabled><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
   </div>
@@ -526,7 +530,7 @@ textarea.field-input{resize:none;}
 <!-- SETTINGS (minimal - lang prefs only) -->
 <div id="settings-screen" class="screen">
   <div class="scr-header">
-    <button class="scr-back" onclick="goHome()">←</button>
+    <button class="scr-back" onclick="backFromSettings()">←</button>
     <div class="scr-title">Settings</div>
   </div>
   <div class="settings-body">
@@ -554,7 +558,7 @@ textarea.field-input{resize:none;}
     </div>
     <div class="settings-group">
       <div class="settings-group-title">About</div>
-      <div class="about-txt">Talk + Say · v1.5<br>Bilingual conversation &amp; phrasebook<br>Single-file PWA · No server required</div>
+      <div class="about-txt">Talk + Say · v1.7<br>Bilingual conversation &amp; phrasebook<br>Single-file PWA · No server required</div>
     </div>
   </div>
 </div>
@@ -628,6 +632,7 @@ textarea.field-input{resize:none;}
       <div class="quoted-block" id="clarify-ans-quote"></div>
       <label class="field-label" style="margin-top:0;">Your clarification</label>
       <textarea class="field-input" id="clarify-ans-text" rows="3" placeholder="Explain what you meant…" style="resize:vertical;"></textarea>
+      <div class="md-hint" style="display:block;margin-bottom:4px;">Supports **bold** *italic* [link](url)</div>
       <div class="sheet-btn-row">
         <button class="sheet-btn secondary" onclick="this.closest('.overlay').hidden=true">Cancel</button>
         <button class="sheet-btn primary" onclick="sendClarifyAnswer()">Send →</button>
@@ -646,7 +651,10 @@ textarea.field-input{resize:none;}
     </div>
     <div style="padding:0 20px 6px;">
       <input class="cat-omni" id="pp-search" placeholder="Search…" oninput="renderPhrasePicker()">
-      <div class="pp-tags" id="pp-tags" style="margin-top:8px;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+        <div class="pp-tags" id="pp-tags" style="flex:1;"></div>
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--ink-dim);white-space:nowrap;cursor:pointer;flex-shrink:0;margin-left:8px;"><input type="checkbox" id="pp-lang-all" onchange="renderPhrasePicker()" style="margin:0;width:14px;height:14px;cursor:pointer;accent-color:var(--teal);">All langs</label>
+      </div>
     </div>
     <div class="pp-list" id="pp-list" style="padding:0 20px;max-height:50dvh;overflow-y:auto;"></div>
     <div style="height:20px;"></div>
@@ -722,6 +730,27 @@ textarea.field-input{resize:none;}
 </div>
 
 
+<!-- NEW CATALOG -->
+<div class="overlay" id="new-cat-overlay" hidden onclick="if(event.target===this)this.hidden=true">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-body">
+      <div class="sheet-title">New catalog</div>
+      <label class="field-label" style="margin-top:0;">Name *</label>
+      <input class="field-input" id="ncat-name" placeholder="e.g. Thailand Travel" maxlength="40" oninput="document.getElementById('ncat-save-btn').disabled=!this.value.trim()">
+      <label class="field-label">Description</label>
+      <input class="field-input" id="ncat-desc" placeholder="Optional description" maxlength="100">
+      <label class="field-label">Icon</label>
+      <div class="emoji-grid" id="emoji-grid"></div>
+      <div class="sheet-btn-row">
+        <button class="sheet-btn secondary" onclick="this.closest('.overlay').hidden=true">Cancel</button>
+        <button class="sheet-btn primary" id="ncat-save-btn" onclick="saveNewCatalog()" disabled>Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 <div class="overlay" id="menu-overlay" hidden onclick="if(event.target===this)this.hidden=true">
   <div class="sheet">
     <div class="sheet-handle"></div>
@@ -772,6 +801,8 @@ const EMOJIS=['🗺','💬','🍜','✈️','🏨','🛒','🏥','🎌','📝','
 const STARTER_TAGS=['casual','communication','dietary','emergency','essential','food','formal','hotel','medical','negotiating','restaurant','shopping','social','taxi','transport'];
 const SK={sessions:'ts_sessions',active:'ts_active',msgPfx:'ts_msg_',onboarded:'ts_onboarded',prefs:'ts_prefs'};
 const SAY={catalogs:'say_catalogs',cards:'say_cards',tags:'say_tags'};
+const ICON_TTS='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+const ICON_SHARE='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
 // ════════════════════ STATE ════════════════════
 let state={screen:'home',tab:'talk',session:null,messages:[],connected:false,currentCatId:'all',openCardId:null,ppTagFilter:[],tagPickerCtx:null,tagPickerCardId:null,ncTags:[],confirmCallback:null,myLang:'en',activeClarifyMsgId:null};
 let peer=null,conn=null,tEngine='cloud',ttsActive=null;
@@ -827,13 +858,14 @@ function scrollBottom(){const c=document.getElementById('messages');if(c)c.scrol
 // ════════════════════ NAVIGATION ════════════════════
 function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');state.screen=id;}
 function goHome(){showScreen('home-screen');renderSessionList();updateTabBar('talk');}
-function goToSettings(){const p=getPrefs();const el=document.getElementById('settings-name');if(el)el.value=p.userName||'';;populateLangSelect('settings-my-lang',p.myLang||state.myLang||'en');populateLangSelect('settings-partner-lang',p.partnerLang||'th');renderSettingsScreen();showScreen('settings-screen');}
+function goToSettings(){state._settingsOrigin=state.screen;const p=getPrefs();const el=document.getElementById('settings-name');if(el)el.value=p.userName||'';;populateLangSelect('settings-my-lang',p.myLang||state.myLang||'en');populateLangSelect('settings-partner-lang',p.partnerLang||'th');renderSettingsScreen();showScreen('settings-screen');}
+function backFromSettings(){const origin=state._settingsOrigin||'home-screen';if(origin==='chat-screen'&&state.session){showScreen('chat-screen');}else{goHome();}}
 function enterChat(){showScreen('chat-screen');updateChatHeader();markSessionViewed(state.session?.sessionId);}
 function backToCatalogs(){showScreen('say-screen');renderSayHome();}
 function switchTab(tab){state.tab=tab;if(tab==='talk'){if(state.session&&state.screen==='chat-screen')return;showScreen('home-screen');renderSessionList();}else{showScreen('say-screen');renderSayHome();}updateTabBar(tab);}
 function updateTabBar(tab){document.querySelectorAll('.tab-btn').forEach(b=>{const t=b.id==='tab-talk'||b.id==='tab-talk-say';const s=b.id==='tab-say'||b.id==='tab-say-say';b.classList.toggle('active',(tab==='talk'&&t)||(tab==='say'&&s));});}
 function populateLangSelect(id,def){const sel=document.getElementById(id);if(!sel)return;sel.innerHTML='';LANGS.forEach(l=>{const o=document.createElement('option');o.value=l.code;o.textContent=l.label;if(l.code===def)o.selected=true;sel.appendChild(o);});}
-function populateLangSelects(){const p=getPrefs();populateLangSelect('home-my-lang',p.myLang||'en');populateLangSelect('home-partner-lang',p.partnerLang||'th');populateLangSelect('nc-src-lang',p.myLang||'en');populateLangSelect('nc-tgt-lang',p.partnerLang||'th');populateLangSelect('settings-my-lang',p.myLang||'en');populateLangSelect('settings-partner-lang',p.partnerLang||'th');}
+function populateLangSelects(){const p=getPrefs();populateLangSelect('home-my-lang',p.myLang||'en');populateLangSelect('home-partner-lang',p.partnerLang||'th');populateLangSelect('nc-src-lang',p.myLang||'en');populateLangSelect('nc-tgt-lang',p.partnerLang||'th');populateLangSelect('settings-my-lang',p.myLang||'en');populateLangSelect('settings-partner-lang',p.partnerLang||'th');populateLangSelect('join-my-lang',p.myLang||'en');}
 
 // ════════════════════ HOME — SESSION CARD ════════════════════
 function updateSessionId(){const my=document.getElementById('my-name').value.trim();const pt=document.getElementById('partner-name').value.trim();const sid=makeSessionId(my,pt);const pill=document.getElementById('sess-id-pill');if(pill)pill.textContent=sid||'–';const btn=document.getElementById('start-btn');if(btn)btn.disabled=!(normName(my)&&normName(pt));}
@@ -857,7 +889,7 @@ function quickStart(){
   if(existing){loadSession(sessionId);return;}
   const sess={sessionId,isInitiator:true,myName,partnerName,myLang,partnerLang,pin:currentPin||'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false};
   state.session=sess;state.messages=[];msgQueue=[];
-  saveSession();shareSession(sessionId);
+  saveSession();
   renderAllMessages();updateChatHeader();setConnected(false);
   showScreen('chat-screen');addSysMsg('Waiting for '+partnerName+'…');
   initPeerAsHost();
@@ -872,9 +904,10 @@ function doJoin(){
   const sessionId=(state._joinTargetId||document.getElementById('join-manual-id').value.trim()).toLowerCase().replace(/\s+/g,'-');
   if(!myName||!sessionId)return;
   const p=getPrefs();p.userName=myName;savePrefs(p);
+  const joinLang=document.getElementById('join-my-lang')?.value||p.myLang||state.myLang||'en';
   const parts=sessionId.split('-');const partnerName=parts[0]||'Partner';
   const existing=getAllSessions().find(s=>s.sessionId===sessionId&&!s.isInitiator);
-  const sess={sessionId,isInitiator:false,myName,partnerName:existing?.partnerName||partnerName,myLang:p.myLang||state.myLang||'en',partnerLang:existing?.partnerLang||p.partnerLang||'th',pin:'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false};
+  const sess={sessionId,isInitiator:false,myName,partnerName:existing?.partnerName||partnerName,myLang:joinLang,partnerLang:existing?.partnerLang||p.partnerLang||'th',pin:'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false};
   state.session=sess;state.messages=existing?getMsgs(sessionId):[];msgQueue=[];
   saveSession();renderAllMessages();updateChatHeader();setConnected(false);
   showScreen('chat-screen');addSysMsg('Connecting to '+partnerName+'…');
@@ -904,7 +937,7 @@ function renderSessionList(){
   const c=document.getElementById('session-list');
   lbl.style.display=ss.length?'block':'none';
   // purge truly empty sessions
-  let ss2=ss.filter(s=>s.sessionId&&s.sessionId.length>1);
+  const validSs=ss.filter(s=>s.sessionId&&s.sessionId.length>1);
   if(validSs.length<ss.length){saveSessions(validSs);}
   if(!validSs.length){c.innerHTML='<div class="empty-state">No conversations yet.<br>Enter names above to start.</div>';return;}
   ss=validSs;
@@ -958,7 +991,7 @@ function updateChatHeader(){
 function openChatMenu(){const s=state.session;if(!s)return;document.getElementById('menu-you').textContent=s.myName;document.getElementById('menu-partner').textContent=s.partnerName||'(awaiting connection)';document.getElementById('menu-langs').textContent=langLabel(s.myLang)+' ↔ '+langLabel(s.partnerLang);document.getElementById('menu-code').textContent=s.sessionId;document.getElementById('menu-status').textContent=state.connected?'Connected':'Not connected';document.getElementById('menu-overlay').hidden=false;}
 function beginEndSession(){document.getElementById('menu-overlay').hidden=true;document.getElementById('end-sess-overlay').hidden=false;}
 function endSession(){document.getElementById('end-sess-overlay').hidden=true;if(conn)try{conn.close();}catch(e){}if(peer)try{peer.destroy();}catch(e){}clearInterval(heartbeatTimer);clearTimeout(reconnectTimer);peer=null;conn=null;state.connected=false;state.session=null;state.messages=[];msgQueue=[];setActiveId(null);goHome();}
-function endSessionAndSave(){document.getElementById('end-sess-overlay').hidden=true;openBulkSave();endSession();}
+function endSessionAndSave(){document.getElementById('end-sess-overlay').hidden=true;openBulkSave(endSession);}
 
 // ════════════════════ SETTINGS ════════════════════
 function renderSettingsScreen(){const ei=document.getElementById('settings-engine-info');ei.className='settings-info-card'+(tEngine==='on-device'?'':' cloud');ei.textContent=tEngine==='on-device'?'Chrome Built-in AI — works offline.':'MyMemory API — internet required.';const ss=getAllSessions();const c=document.getElementById('settings-session-list');c.innerHTML=ss.length?ss.map(s=>`<div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">${escHtml(s.sessionId)}</div><div class="settings-row-meta">${getMsgs(s.sessionId).length} msgs · ${langLabel(s.myLang)} ↔ ${langLabel(s.partnerLang)}</div></div><div style="display:flex;gap:4px;"><button class="settings-icon-btn" onclick="loadSession('${s.sessionId}')">↗</button><button class="settings-icon-btn danger" onclick="confirmDeleteSession('${s.sessionId}')">×</button></div></div>`).join(''):'<div style="font-size:13px;color:var(--ink-dim);padding:4px 0;">No saved conversations.</div>';document.getElementById('settings-card-count').textContent=getCards().length;let bytes=0;try{for(const k in localStorage){if(k.startsWith('ts_')||k.startsWith('say_'))bytes+=(localStorage.getItem(k)||'').length*2;}}catch(e){}document.getElementById('settings-storage').textContent=(bytes/1024).toFixed(1)+' KB';}
@@ -1144,47 +1177,43 @@ function getSides(msg){
   const partSrcLang=msg.lang||s?.partnerLang||'th';
   return{srcLang:partSrcLang,srcTxt:msg.orig||msg.text,tgtLang:s?.myLang||'en',tgtTxt:msg.text};
 }
-// ── FIX 1,2,3,9,10,11: Completely rewritten renderMsg ─────────────────
-// No nested template literals – all dynamic parts built via string concat
-// FIX 9:  bbl-sender is distinct span (bold, visible)
-// FIX 1:  Verify only on my messages
-// FIX 2:  Clarify button logic: theirs=active; mine=greyed unless respond
-// FIX 11: Verify button in collapsed footer bar (mine only)
+// ── v1.7: Redesigned footer bar ────────────────────────────────────────────
+// Footer bar shows: Clarify (theirs only OR "! Respond" when partner asks) + Save + ▾
+// Verify ↺ moved inside detail pane where it makes sense contextually
+// Inert greyed "? Clarify" span removed from own-message footer
 
 function buildBblFoot(msg, isMine) {
   var id = msg.id;
   var cs = (msg.clarify && msg.clarify.status) ? msg.clarify.status : 'none';
 
-  // Verify button: mine only
-  var verifyBtn = isMine
-    ? '<button class="bbl-vbtn verify bbl-act-verify" id="bverify-' + id + '" onclick="bblVerify(\'' + id + '\')" title="Back-translate to verify">Verify ↺</button>'
-    : '';
-
-  // Clarify button: different per sender + state
-  var clarifyBtn;
+  // Clarify button: theirs = always visible; mine = only when partner has requested
+  var clarifyBtn = '';
   if (!isMine) {
     var lbl = cs === 'answered' ? '✓ Clarified' : '? Clarify';
     var cls = cs !== 'none' ? 'bbl-act c-active' : 'bbl-act';
     clarifyBtn = '<button class="' + cls + '" id="bact-clarify-' + id + '" onclick="bblClarifyClick(\'' + id + '\')">' + lbl + '</button>';
   } else if (cs === 'requested') {
+    // Partner asked for clarification on my message — show urgent respond button
     clarifyBtn = '<button class="bbl-act c-active" id="bact-clarify-' + id + '" onclick="bblClarifyClick(\'' + id + '\')">! Respond</button>';
   } else {
-    clarifyBtn = '<span class="bbl-act" id="bact-clarify-' + id + '" style="opacity:.2;cursor:default;pointer-events:none;">? Clarify</span>';
+    // Own message, no active clarify — render an invisible anchor so updateBblClarify can find it
+    clarifyBtn = '<span id="bact-clarify-' + id + '" style="display:none;"></span>';
   }
 
   var footBar = '<div class="bbl-foot-bar">'
-    + verifyBtn
     + clarifyBtn
     + '<button class="bbl-act" onclick="bblSave(\'' + id + '\')" title="Save phrase to Say">+ Save</button>'
     + '<button class="bbl-toggle" id="btoggle-' + id + '" onclick="toggleBblDetail(\'' + id + '\')" title="Details">▾</button>'
     + '</div>';
 
-  // Back-translation section: mine only (FIX 1 & 22)
+  // Back-translation section (mine only) — Verify ↺ lives here, not in collapsed bar
   var backSect = '';
   if (isMine) {
     backSect = '<div class="bbl-detail-section">'
-      + '<div class="bbl-dl">Back-translation</div>'
-      + '<div class="bbl-dt" id="bback-' + id + '" style="color:var(--ink-dim);font-style:italic;">Tap Verify ↺ above to check</div>'
+      + '<div class="bbl-dl">Back-translation'
+      + ' <button class="bbl-vbtn verify bbl-act-verify" id="bverify-' + id + '" onclick="bblVerify(\'' + id + '\')" title="Back-translate to check your translation" style="margin-left:6px;">Verify ↺</button>'
+      + '</div>'
+      + '<div class="bbl-dt" id="bback-' + id + '" style="color:var(--ink-dim);font-style:italic;">Tap Verify ↺ to check</div>'
       + '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">'
       + '<button class="bbl-vbtn good" onclick="bblSoundsGood(\'' + id + '\')" id="bsound-' + id + '" style="display:none;">✓ Sounds right</button>'
       + '<button class="bbl-vbtn bad" onclick="bblFlagIncorrect(\'' + id + '\')" id="bflag-' + id + '" style="display:none;">✗ Flag</button>'
@@ -1193,7 +1222,7 @@ function buildBblFoot(msg, isMine) {
       + '</div>';
   }
 
-  // Clarify section: partner's request on mine; my request on theirs
+  // Clarify section
   var respondBtn = isMine
     ? '<button id="bclarify-respond-' + id + '" style="display:none;margin-top:6px;background:var(--amber-light);border:none;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;color:var(--amber);cursor:pointer;" onclick="openClarifyAns(\'' + id + '\')">Respond →</button>'
     : '';
@@ -1464,7 +1493,7 @@ function sendAttachment(att){
 }
 
 // BULK SAVE
-function openBulkSave(){
+function openBulkSave(onComplete){
   const allMsgs=state.messages.filter(m=>m.text);
   const existing=getCards();
   const toSave=[];
@@ -1474,8 +1503,8 @@ function openBulkSave(){
       toSave.push({id:uid(),catalogIds:[],sourceLang:sides.srcLang,targetLang:sides.tgtLang,source:sides.srcTxt,target:sides.tgtTxt,backTranslation:'',backApproved:false,backFlagged:false,notes:'',tags:[],createdAt:Date.now(),updatedAt:Date.now(),sourceSessionId:state.session?state.session.sessionId:null,sourcePartnerName:state.session?state.session.partnerName:null});
     }
   });
-  if(!toSave.length){toast('No new phrases to save');return;}
-  showConfirm('Save '+toSave.length+' phrase'+(toSave.length!==1?'s':'')+'?',toSave.length+' new phrase'+(toSave.length!==1?'s':'')+' from this conversation will be added to your phrasebook.',function(){const all=getCards();toSave.forEach(function(p){all.unshift(p);});saveCards(all);toast(toSave.length+' phrase'+(toSave.length!==1?'s':'')+' saved');});
+  if(!toSave.length){toast('No new phrases to save');if(onComplete)onComplete();return;}
+  showConfirm('Save '+toSave.length+' phrase'+(toSave.length!==1?'s':'')+'?',toSave.length+' new phrase'+(toSave.length!==1?'s':'')+' from this conversation will be added to your phrasebook.',function(){const all=getCards();toSave.forEach(function(p){all.unshift(p);});saveCards(all);toast(toSave.length+' phrase'+(toSave.length!==1?'s':'')+' saved');if(onComplete)onComplete();});
 }
 
 // ════════════════════ SAY ════════════════════
@@ -1619,6 +1648,16 @@ function renderCardDetail(card){
     <div class="layer-header"><span class="layer-label">Tags</span></div>
     <div class="tags-wrap" id="l5tags-${card.id}">${tagPills}<button class="add-tag-btn" onclick="openTagPicker('card','${card.id}')">+ Add tag</button></div>
   </div>
+  <div class="layer">
+    <div class="layer-header">
+      <span class="layer-label">Catalog</span>
+      <button class="layer-edit-btn" onclick="layerCatalogSave('${card.id}')">Save</button>
+    </div>
+    <select class="field-select" id="l6cat-${card.id}" style="font-size:13px;padding:6px 10px;" onchange="layerCatalogSave('${card.id}')">
+      <option value="">All Phrases (no catalog)</option>
+      ${getCatalogs().map(cat=>`<option value="${cat.id}"${(card.catalogIds||[]).includes(cat.id)?' selected':''}>${escHtml(cat.name)}</option>`).join('')}
+    </select>
+  </div>
   <div class="card-meta">${card.usage?`Used ${card.usage}× · `:''}Added ${timeAgo(card.createdAt||Date.now())}${card.sourcePartnerName?' · From Talk with '+escHtml(card.sourcePartnerName):''}</div>`;
 }
 
@@ -1631,7 +1670,8 @@ async function cardVerify(cid){const cards=getCards();const card=cards.find(c=>c
 function cardSoundsGood(cid){const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card)return;card.backApproved=true;card.backFlagged=false;card.updatedAt=Date.now();saveCards(cards);renderCatalogCards();toast('Marked as correct');}
 function cardFlag(cid){const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card)return;card.backFlagged=true;card.backApproved=false;card.updatedAt=Date.now();if(!(card.tags||[]).includes('incorrect')){card.tags=[...(card.tags||[]),'incorrect'];}addTagToRegistry('incorrect');saveCards(cards);renderCatalogCards();toast('Flagged for review');}
 function removeCardTag(cid,tag){const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card)return;card.tags=(card.tags||[]).filter(t=>t!==tag);card.updatedAt=Date.now();saveCards(cards);const wrap=document.getElementById(`l5tags-${cid}`);if(wrap){wrap.innerHTML=card.tags.map(t=>`<span class="tag-pill">${escHtml('#'+t)}<button class="tag-remove" onclick="removeCardTag('${cid}','${t}')">×</button></span>`).join('')+`<button class="add-tag-btn" onclick="openTagPicker('card','${cid}')">+ Add tag</button>`;}}
-function useInTalk(cid){const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card||!state.session)return;const ta=document.getElementById('msg-input');ta.value=card.target||'';card.usage=(card.usage||0)+1;card.lastUsedAt=Date.now();saveCards(cards);switchTab('talk');updateSendBtn();if(state.screen!=='chat-screen')enterChat();}
+function layerCatalogSave(cid){const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card)return;const sel=document.getElementById(`l6cat-${cid}`);const val=sel?.value||'';card.catalogIds=val?[val]:[];card.updatedAt=Date.now();saveCards(cards);toast('Catalog updated');}
+function useInTalk(cid){const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card)return;if(!state.session){toast('Start a conversation in Talk first');return;}const ta=document.getElementById('msg-input');ta.value=card.target||'';card.usage=(card.usage||0)+1;card.lastUsedAt=Date.now();saveCards(cards);switchTab('talk');updateSendBtn();if(state.screen!=='chat-screen')enterChat();}
 function deleteCard(cid){showConfirm('Delete phrase?','This phrase will be permanently deleted.',()=>{const cards=getCards().filter(c=>c.id!==cid);saveCards(cards);state.openCardId=null;renderCatalogCards();toast('Deleted');});}
 function shareCard(cid){const cards=getCards();const card=cards.find(c=>c.id===cid);if(!card)return;const text=`${card.source} → ${card.target}${card.notes?' ('+card.notes+')':''}`;if(navigator.clipboard?.writeText)navigator.clipboard.writeText(text).then(()=>toast('Phrase copied'));else fallbackCopy(text);}
 
@@ -1676,9 +1716,41 @@ function closeTagPicker(){const ctx=state.tagPickerCtx;if(ctx==='newcard'){state
 
 // ════════════════════ PHRASE PICKER ════════════════════
 function openPhrasePicker(){renderPhrasePicker();document.getElementById('phrase-picker-overlay').hidden=false;}
-function renderPhrasePicker(){const q=(document.getElementById('pp-search')?.value||'').toLowerCase().trim();const ppTagF=state.ppTagFilter||[];let cards=getCards();if(q)cards=cards.filter(c=>(c.source||'').toLowerCase().includes(q)||(c.target||'').toLowerCase().includes(q)||(c.tags||[]).some(t=>t.includes(q)));if(ppTagF.length)cards=cards.filter(c=>ppTagF.every(t=>(c.tags||[]).includes(t)));const allTags=getTags();document.getElementById('pp-tags').innerHTML=allTags.map(t=>`<span class="pp-chip${ppTagF.includes(t)?' active':''}" onclick="togglePpTag('${t}')">#${escHtml(t)}</span>`).join('');const list=document.getElementById('pp-list');if(!cards.length){list.innerHTML='<div style="text-align:center;padding:20px;font-size:13px;color:var(--ink-dim);">No phrases.</div>';return;}list.innerHTML=cards.map(c=>`<div class="pp-row"><button class="pp-tts" onclick="speak(${JSON.stringify(c.source||'')},${JSON.stringify(c.sourceLang||'en')},this)" title="Listen">${ICON_TTS}</button><div class="pp-texts"><div class="pp-source">${escHtml(c.source||'')}</div><div class="pp-target">${escHtml(c.target||'')}</div></div><button class="pp-insert-btn" onclick="insertPhrase(${JSON.stringify(c.target||c.source||'')})">Use</button></div>`).join('');}
+function renderPhrasePicker(){
+  const q=(document.getElementById('pp-search')?.value||'').toLowerCase().trim();
+  const ppTagF=state.ppTagFilter||[];
+  const sess=state.session;
+  const myLang=sess?.myLang||state.myLang||'en';
+  const partnerLang=sess?.partnerLang||'th';
+  let cards=getCards();
+  // G-03: Default filter to session language pair when in a session
+  const langFilter=document.getElementById('pp-lang-all')?.checked;
+  if(sess&&!langFilter){
+    cards=cards.filter(c=>(c.sourceLang===myLang&&c.targetLang===partnerLang)||(c.sourceLang===partnerLang&&c.targetLang===myLang));
+  }
+  if(q)cards=cards.filter(c=>(c.source||'').toLowerCase().includes(q)||(c.target||'').toLowerCase().includes(q)||(c.tags||[]).some(t=>t.includes(q)));
+  if(ppTagF.length)cards=cards.filter(c=>ppTagF.every(t=>(c.tags||[]).includes(t)));
+  const allTags=getTags();
+  document.getElementById('pp-tags').innerHTML=allTags.map(t=>`<span class="pp-chip${ppTagF.includes(t)?' active':''}" onclick="togglePpTag('${t}')">#${escHtml(t)}</span>`).join('');
+  const list=document.getElementById('pp-list');
+  if(!cards.length){
+    const noMsg=sess&&!langFilter?'No phrases for this language pair. <button onclick="document.getElementById(\'pp-lang-all\').checked=true;renderPhrasePicker()" style="background:none;border:none;color:var(--teal);font-weight:600;cursor:pointer;font-family:\'DM Sans\',sans-serif;">Show all</button>':'No phrases.';
+    list.innerHTML='<div style="text-align:center;padding:20px;font-size:13px;color:var(--ink-dim);">'+noMsg+'</div>';return;
+  }
+  list.innerHTML=cards.map(c=>{
+    const insertSrc=JSON.stringify(c.source||'');
+    const insertTgt=JSON.stringify(c.target||c.source||'');
+    const insertLang=JSON.stringify(c.sourceLang||'en');
+    return`<div class="pp-row"><button class="pp-tts" onclick="speak(${JSON.stringify(c.source||'')},${JSON.stringify(c.sourceLang||'en')},this)" title="Listen">${ICON_TTS}</button><div class="pp-texts"><div class="pp-source">${escHtml(c.source||'')}</div><div class="pp-target">${escHtml(c.target||'')}</div></div><button class="pp-insert-btn" onclick="insertPhrase(${insertSrc},${insertTgt},${insertLang})">Use</button></div>`;
+  }).join('');
+}
 function togglePpTag(t){const i=(state.ppTagFilter||[]).indexOf(t);if(i>=0)state.ppTagFilter.splice(i,1);else{if(!state.ppTagFilter)state.ppTagFilter=[];state.ppTagFilter.push(t);}renderPhrasePicker();}
-function insertPhrase(text){const ta=document.getElementById('msg-input');ta.value=text;autoResize();updateSendBtn();document.getElementById('phrase-picker-overlay').hidden=true;if(state.screen!=='chat-screen')enterChat();}
+function insertPhrase(src,tgt,srcLang){
+  // Insert the side that matches what I speak; fall back to target
+  const myLang=state.session?.myLang||state.myLang||'en';
+  const text=(srcLang&&srcLang===myLang)?src:(tgt||src);
+  const ta=document.getElementById('msg-input');ta.value=text;autoResize();updateSendBtn();document.getElementById('phrase-picker-overlay').hidden=true;if(state.screen!=='chat-screen')enterChat();
+}
 
 // ════════════════════ ONBOARDING ════════════════════
 let onbSlide=0;
