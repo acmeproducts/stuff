@@ -106,6 +106,14 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .card-edit-field label{font-size:11px;color:var(--muted);font-weight:600}
 .card-edit-field input,.card-edit-field select,.card-edit-field textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;background:#fff;color:inherit}
 .card-edit-field textarea{resize:vertical;min-height:72px}
+.markdown-preview{border:1px solid var(--border);border-radius:8px;background:#f8fafc;padding:10px;min-height:48px;font-size:13px;line-height:1.4}
+.markdown-preview:empty::before{content:"Markdown preview";color:#94a3b8}
+.markdown-preview p{margin:0 0 8px}
+.markdown-preview p:last-child{margin-bottom:0}
+.markdown-preview ul,.markdown-preview ol{margin:0 0 8px 18px;padding:0}
+.markdown-preview code{background:#e2e8f0;padding:1px 4px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.markdown-preview pre{margin:0 0 8px;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:8px;overflow:auto}
+.markdown-preview a{color:#1d4ed8;text-decoration:none}
 .card-tags{display:flex;gap:6px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
@@ -246,6 +254,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     <div class="field">
       <label for="fNotes">Notes (Markdown supported)</label>
       <textarea id="fNotes" rows="6" placeholder="Paste images here (from clipboard) or type/paste URLs…"></textarea>
+      <div id="fNotesPreview" class="markdown-preview"></div>
     </div>
 
     <div class="row">
@@ -693,8 +702,11 @@ function renderCard(card){
 
   const notesInput=document.createElement("textarea");
   notesInput.rows=4; notesInput.placeholder="Notes"; notesInput.value=inlineState.notes;
-  notesInput.addEventListener("input", ()=>{ inlineState.notes=notesInput.value; });
-  notesInput.addEventListener("blur", ()=>{ inlineState.notes=preprocessNotes(inlineState.notes); notesInput.value=inlineState.notes; });
+  const notesPreview=document.createElement("div");
+  notesPreview.className="markdown-preview";
+  const syncNotesPreview=()=>{ notesPreview.innerHTML=renderMarkdown(inlineState.notes); };
+  notesInput.addEventListener("input", ()=>{ inlineState.notes=notesInput.value; syncNotesPreview(); });
+  syncNotesPreview();
 
   grid.append(
     makeField("Title", titleInput, true),
@@ -703,7 +715,8 @@ function renderCard(card){
     makeField("Dev Link", devInput),
     makeField("Live Link", liveInput),
     makeField("Tags", tagsInput, true),
-    makeField("Notes", notesInput, true)
+    makeField("Notes", notesInput, true),
+    makeField("Notes preview", notesPreview, true)
   );
   detail.append(grid);
 
@@ -763,6 +776,7 @@ function openEditor(id=null, presetStage=null){
   $("#fDev").value = c?.dev || "";
   $("#fLive").value = c?.live || "";
   $("#fNotes").value = c?.notes || "";
+  syncDialogNotesPreview();
   $("#btnDelete").classList.toggle("hidden", !id);
   activeTags = c?.tags ? [...c.tags] : [];
   currentFiles = Array.isArray(c?.files) ? c.files.slice() : [];
@@ -786,7 +800,7 @@ editDialog.addEventListener("close", ()=>{
 });
 editForm.addEventListener("input", ()=>{ editorDirty=true; });
 editForm.addEventListener("change", ()=>{ editorDirty=true; });
-$("#fNotes").addEventListener("blur", ()=>{ $("#fNotes").value=preprocessNotes($("#fNotes").value); });
+$("#fNotes").addEventListener("input", syncDialogNotesPreview);
 editorCloseBtn.addEventListener("click", ()=>{
   if(editorDirty){ if(confirm("Discard changes?")) { editDialog.close("cancel"); editorDirty=false; } }
   else { editDialog.close("cancel"); }
@@ -870,7 +884,9 @@ notesEl.addEventListener("paste", async (e)=>{
   if(text && /^https?:\/\//i.test(text)){
     // keep as plain text in notes; linkified in tooltip render
   }
+  syncDialogNotesPreview();
 });
+function syncDialogNotesPreview(){ const preview=$("#fNotesPreview"); if(preview) preview.innerHTML=renderMarkdown($("#fNotes").value||""); }
 
 /* ===== Settings ===== */
 const settingsDialog=$("#settingsDialog");
@@ -991,6 +1007,9 @@ $("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; con
 $("#btnShare").onclick=()=>{ window.open(DRIVE_SHARE_URL, "_blank", "noopener"); };
 $("#btnRefreshDrive").onclick=()=>{ forceRefreshFromDrive(); };
 
+/* ===== Lane dblclick: new at top ===== */
+$("#board").addEventListener("dblclick", (e)=>{ const lane=e.target.closest(".lane"); if(!lane) return; const stage=lane.dataset.stage; openEditor(null, stage); });
+
 /* ===== Archive UI ===== */
 const archiveDialog=$("#archiveDialog");
 $("#btnOpenArchive").onclick=()=>{ renderArchiveList(); archiveDialog.showModal(); };
@@ -1084,10 +1103,10 @@ function inlineMarkdown(text){
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
     .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\[([^\]]+)\]\(([^\s)]+)\)/g, (m,label,url)=>`<a href="${escapeHtml(normalizeUrl(url))}" target="_blank" rel="noopener">${label}</a>`);
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 }
 function renderMarkdown(source){
-  const withImages=sanitizeMarkdownImages(escapeHtml(preprocessNotes(source||"")));
+  const withImages=sanitizeMarkdownImages(escapeHtml(source||""));
   const lines=withImages.split(/\r?\n/);
   let html="", inList=false, inCode=false;
   for(const rawLine of lines){
@@ -1095,13 +1114,13 @@ function renderMarkdown(source){
     if(line.startsWith("```")){ html += inCode ? "</code></pre>" : "<pre><code>"; inCode=!inCode; continue; }
     if(inCode){ html += `${line}\n`; continue; }
     const li=line.match(/^\s*[-*]\s+(.*)$/);
-    if(li){ if(!inList){ html+="<ul>"; inList=true; } html += `<li>${linkifyNotes(inlineMarkdown(li[1]))}</li>`; continue; }
+    if(li){ if(!inList){ html+="<ul>"; inList=true; } html += `<li>${inlineMarkdown(linkifyNotes(li[1]))}</li>`; continue; }
     if(inList){ html+="</ul>"; inList=false; }
     if(/^\s*$/.test(line)) continue;
-    if(line.startsWith("### ")){ html += `<p><strong>${linkifyNotes(inlineMarkdown(line.slice(4)))}</strong></p>`; continue; }
-    if(line.startsWith("## ")){ html += `<p><strong>${linkifyNotes(inlineMarkdown(line.slice(3)))}</strong></p>`; continue; }
-    if(line.startsWith("# ")){ html += `<p><strong>${linkifyNotes(inlineMarkdown(line.slice(2)))}</strong></p>`; continue; }
-    html += `<p>${linkifyNotes(inlineMarkdown(line))}</p>`;
+    if(line.startsWith("### ")){ html += `<p><strong>${inlineMarkdown(linkifyNotes(line.slice(4)))}</strong></p>`; continue; }
+    if(line.startsWith("## ")){ html += `<p><strong>${inlineMarkdown(linkifyNotes(line.slice(3)))}</strong></p>`; continue; }
+    if(line.startsWith("# ")){ html += `<p><strong>${inlineMarkdown(linkifyNotes(line.slice(2)))}</strong></p>`; continue; }
+    html += `<p>${inlineMarkdown(linkifyNotes(line))}</p>`;
   }
   if(inList) html += "</ul>";
   if(inCode) html += "</code></pre>";
