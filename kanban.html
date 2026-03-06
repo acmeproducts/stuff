@@ -60,6 +60,9 @@ main#board[data-layout="vertical"]{display:flex;flex-direction:column}
 .lane-header{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-weight:700;gap:8px}
 .lane-header.dragging-lane{opacity:.6}
 .lane-title{display:flex;align-items:center;gap:8px}
+.lane-title-text{color:var(--text)}
+.lane-chevron{border:none;background:transparent;padding:0 2px;font-size:16px;line-height:1;color:#111;cursor:pointer}
+.lane-chevron[disabled]{color:#9ca3af;cursor:default}
 .lane-actions{display:flex;align-items:center;gap:6px}
 .lane-body{padding:8px;display:flex;flex-direction:column;gap:8px;min-height:0}
 .lane-body.collapsed{display:none}
@@ -90,7 +93,7 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 }
 .card.search-hit{border-color:var(--search)}
 .card-line{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;width:100%;min-width:0;justify-content:flex-start}
-.card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;max-width:100%;border:none;background:transparent;padding:0;text-align:left;cursor:pointer;color:inherit}
+.card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;max-width:100%;border:none;background:transparent;padding:0;text-align:left;cursor:pointer;color:#1f6feb}
 .card-platform{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:0 0 auto}
 .card-links{display:inline-flex;align-items:center;gap:8px;position:relative;z-index:1;flex:0 0 auto}
 .card-links a,.card-links span{font-size:12px;text-decoration:none;color:#1f6feb}
@@ -375,13 +378,26 @@ function render(){
     const head=document.createElement("div"); head.className="lane-header";
     head.draggable=true;
     const titleWrap=document.createElement("div"); titleWrap.className="lane-title";
-    const title=document.createElement("span"); title.textContent=stage;
+    const title=document.createElement("span"); title.className="lane-title-text"; title.textContent=stage;
     const count=document.createElement("span"); count.className="muted"; count.textContent=state.cards.filter(c=>c.stage===stage).length;
-    titleWrap.append(title,count);
-
-    titleWrap.style.cursor="pointer";
-    titleWrap.title="Collapse/Expand";
-    titleWrap.onclick=()=>{ state.collapsed[stage] = !state.collapsed[stage]; scheduleSave(); render(); };
+    const laneCards=stageCards(stage);
+    const hasExpandedCards=laneCards.some(c=>state.cardCollapsed?.[c.id]!==true);
+    const collapseLaneBtn=document.createElement("button");
+    collapseLaneBtn.type="button";
+    collapseLaneBtn.className="lane-chevron";
+    collapseLaneBtn.textContent=hasExpandedCards?"▾":"▸";
+    collapseLaneBtn.title=hasExpandedCards?"Collapse all cards in lane":"All cards are collapsed";
+    collapseLaneBtn.disabled=!hasExpandedCards;
+    collapseLaneBtn.setAttribute("aria-label", collapseLaneBtn.title);
+    collapseLaneBtn.onclick=(e)=>{
+      e.stopPropagation();
+      if(!hasExpandedCards) return;
+      state.cardCollapsed=state.cardCollapsed||{};
+      laneCards.forEach(c=>{ state.cardCollapsed[c.id]=true; });
+      scheduleSave();
+      render();
+    };
+    titleWrap.append(title,collapseLaneBtn,count);
     head.append(titleWrap);
 
     head.addEventListener("dragstart", e=>{
@@ -432,7 +448,7 @@ function render(){
       setLaneHighlight(null);
     });
 
-    const body=document.createElement("div"); body.className="lane-body"; if(state.collapsed[stage]) body.classList.add("collapsed");
+    const body=document.createElement("div"); body.className="lane-body";
 
     body.addEventListener("dragenter", e=> e.preventDefault());
     body.addEventListener("dragover", e=>{
