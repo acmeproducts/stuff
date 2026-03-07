@@ -96,6 +96,9 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;max-width:100%;border:none;background:transparent;padding:0;text-align:left;cursor:pointer;color:#1f6feb}
 .card-platform{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:0 0 auto}
 .card-links{display:inline-flex;align-items:center;gap:8px;position:relative;z-index:1;flex:0 0 auto}
+.card-archive-btn{border:none;background:transparent;padding:2px;display:inline-flex;align-items:center;justify-content:center;color:#6b7280;cursor:pointer;flex:0 0 auto}
+.card-archive-btn svg{width:14px;height:14px;fill:currentColor}
+.card-archive-btn:hover{color:var(--danger)}
 .card-links a,.card-links span{font-size:12px;text-decoration:none;color:#1f6feb}
 .card-links .empty{color:#9ca3af}
 .card-detail{display:flex;flex-direction:column;gap:6px}
@@ -106,14 +109,14 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .card-edit-field label{font-size:11px;color:var(--muted);font-weight:600}
 .card-edit-field input,.card-edit-field select,.card-edit-field textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;background:#fff;color:inherit}
 .card-edit-field textarea{resize:vertical;min-height:72px}
-.markdown-preview{border:1px solid var(--border);border-radius:8px;background:#f8fafc;padding:10px;min-height:48px;font-size:13px;line-height:1.4}
-.markdown-preview:empty::before{content:"Markdown preview";color:#94a3b8}
-.markdown-preview p{margin:0 0 8px}
-.markdown-preview p:last-child{margin-bottom:0}
-.markdown-preview ul,.markdown-preview ol{margin:0 0 8px 18px;padding:0}
-.markdown-preview code{background:#e2e8f0;padding:1px 4px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
-.markdown-preview pre{margin:0 0 8px;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:8px;overflow:auto}
-.markdown-preview a{color:#1d4ed8;text-decoration:none}
+.live-notes-preview{border:1px solid var(--border);border-radius:8px;background:#f8fafc;padding:10px;min-height:72px;font-size:13px;line-height:1.4}
+.live-notes-preview:empty::before{content:"Rendered markdown";color:#94a3b8}
+.live-notes-preview p{margin:0 0 8px}
+.live-notes-preview p:last-child{margin-bottom:0}
+.live-notes-preview ul,.live-notes-preview ol{margin:0 0 8px 18px;padding:0}
+.live-notes-preview code{background:#e2e8f0;padding:1px 4px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.live-notes-preview pre{margin:0 0 8px;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:8px;overflow:auto}
+.live-notes-preview a{color:#1d4ed8;text-decoration:none}
 .card-tags{display:flex;gap:6px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
@@ -176,9 +179,6 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     </button>
     <button id="btnImport" class="btn icon-btn" title="Import JSON" aria-label="Import JSON">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h10.17l-3.58 3.59L12 18l6-6-6-6-1.41 1.41L14.17 11H4v2Z"/></svg>
-    </button>
-    <button id="btnRefreshDrive" class="btn icon-btn" title="Refresh from Google Drive" aria-label="Refresh from Google Drive">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6V3L8 7l4 4V8c2.76 0 5 2.24 5 5a5 5 0 0 1-8.66 3.54l-1.42 1.42A7 7 0 1 0 12 6Z"/></svg>
     </button>
     <button id="btnShare" class="btn icon-btn" title="Share" aria-label="Share">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.39 1.2l-6.71-3.35a3.1 3.1 0 0 0 0-1.7l6.7-3.35A3 3 0 1 0 15 7a3.1 3.1 0 0 0 .1.75l-6.7 3.35a3 3 0 1 0 0 1.8l6.7 3.35A3 3 0 1 0 18 16Z"/></svg>
@@ -254,7 +254,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     <div class="field">
       <label for="fNotes">Notes (Markdown supported)</label>
       <textarea id="fNotes" rows="6" placeholder="Paste images here (from clipboard) or type/paste URLs…"></textarea>
-      <div id="fNotesPreview" class="markdown-preview"></div>
+      <div id="fNotesRender" class="live-notes-preview" aria-live="polite"></div>
     </div>
 
     <div class="row">
@@ -617,7 +617,16 @@ function renderCard(card){
   if(liveUrl){ live.href=liveUrl; live.target="_blank"; live.rel="noopener"; live.onclick=(e)=> e.stopPropagation(); live.addEventListener("pointerdown",e=>e.stopPropagation()); live.addEventListener("pointerup",e=>e.stopPropagation()); }
   else live.className="empty";
   links.append(dev,live);
-  line.append(title,links); el.append(line);
+  const archiveBtn=document.createElement("button");
+  archiveBtn.type="button";
+  archiveBtn.className="card-archive-btn";
+  archiveBtn.title="Archive card";
+  archiveBtn.setAttribute("aria-label","Archive card");
+  archiveBtn.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h5v2H3V5h5l1-2Zm1 7h2v8h-2v-8Zm4 0h2v8h-2v-8ZM8 10h2v8H8v-8Zm-1 10h10a2 2 0 0 0 2-2V8H5v10a2 2 0 0 0 2 2Z"/></svg>';
+  archiveBtn.addEventListener("click", (e)=>{ e.stopPropagation(); archiveCard(card.id); });
+  archiveBtn.addEventListener("pointerdown", e=>e.stopPropagation());
+  archiveBtn.addEventListener("pointerup", e=>e.stopPropagation());
+  line.append(title,links,archiveBtn); el.append(line);
 
   const tagsRow=document.createElement("div"); tagsRow.className="card-tags";
   const p=document.createElement("span"); p.className="chip card-platform"; p.textContent=card.platform;
@@ -662,6 +671,7 @@ function renderCard(card){
   detail.addEventListener("focusout", (e)=>{
     if(detail.contains(e.relatedTarget)) return;
     saveInline();
+    triggerRealtimeDriveSync();
   });
 
   const grid=document.createElement("div");
@@ -702,11 +712,11 @@ function renderCard(card){
 
   const notesInput=document.createElement("textarea");
   notesInput.rows=4; notesInput.placeholder="Notes"; notesInput.value=inlineState.notes;
-  const notesPreview=document.createElement("div");
-  notesPreview.className="markdown-preview";
-  const syncNotesPreview=()=>{ notesPreview.innerHTML=renderMarkdown(inlineState.notes); };
-  notesInput.addEventListener("input", ()=>{ inlineState.notes=notesInput.value; syncNotesPreview(); });
-  syncNotesPreview();
+  const notesRender=document.createElement("div");
+  notesRender.className="live-notes-preview";
+  const syncNotesRender=()=>{ notesRender.innerHTML=renderMarkdown(inlineState.notes); };
+  notesInput.addEventListener("input", ()=>{ inlineState.notes=notesInput.value; syncNotesRender(); });
+  syncNotesRender();
 
   grid.append(
     makeField("Title", titleInput, true),
@@ -716,7 +726,7 @@ function renderCard(card){
     makeField("Live Link", liveInput),
     makeField("Tags", tagsInput, true),
     makeField("Notes", notesInput, true),
-    makeField("Notes preview", notesPreview, true)
+    makeField("Notes render", notesRender, true)
   );
   detail.append(grid);
 
@@ -801,6 +811,7 @@ editDialog.addEventListener("close", ()=>{
 editForm.addEventListener("input", ()=>{ editorDirty=true; });
 editForm.addEventListener("change", ()=>{ editorDirty=true; });
 $("#fNotes").addEventListener("input", syncDialogNotesPreview);
+editDialog.addEventListener("focusout", (e)=>{ if(editingId && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)){ persistNow(); triggerRealtimeDriveSync(); } });
 editorCloseBtn.addEventListener("click", ()=>{
   if(editorDirty){ if(confirm("Discard changes?")) { editDialog.close("cancel"); editorDirty=false; } }
   else { editDialog.close("cancel"); }
@@ -886,7 +897,7 @@ notesEl.addEventListener("paste", async (e)=>{
   }
   syncDialogNotesPreview();
 });
-function syncDialogNotesPreview(){ const preview=$("#fNotesPreview"); if(preview) preview.innerHTML=renderMarkdown($("#fNotes").value||""); }
+function syncDialogNotesPreview(){ const preview=$("#fNotesRender"); if(preview) preview.innerHTML=renderMarkdown($("#fNotes").value||""); }
 
 /* ===== Settings ===== */
 const settingsDialog=$("#settingsDialog");
@@ -985,13 +996,12 @@ async function fetchCentralizedBoard(){
 async function bootstrapCentralizedBoard(){
   const remote = await fetchCentralizedBoard();
   if(!remote) return;
-  const localTs=Number(state?.lastModified||0);
-  const remoteTs=Number(remote?.lastModified||0);
-  const shouldHydrate = !persistedState || remoteTs>localTs || (remoteTs===0 && state.cards.length===0);
-  if(shouldHydrate){
-    applyImportedBoard(remote, "centralized Google Drive");
-  }
+  applyImportedBoard(remote, "centralized Google Drive");
 }
+function triggerRealtimeDriveSync(){
+  if(typeof pushStateToRemote==="function") pushStateToRemote();
+}
+
 async function forceRefreshFromDrive(){
   setStatus("Refreshing from Google Drive…");
   const remote = await fetchCentralizedBoard();
@@ -1005,11 +1015,6 @@ async function forceRefreshFromDrive(){
 $("#btnImport").onclick=()=> $("#fileImport").click();
 $("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ applyImportedBoard(JSON.parse(r.result), "JSON file"); }catch(err){ toast("Import failed","Could not parse file", true); alert("Failed to parse JSON."); } }; r.readAsText(f); };
 $("#btnShare").onclick=()=>{ window.open(DRIVE_SHARE_URL, "_blank", "noopener"); };
-$("#btnRefreshDrive").onclick=()=>{ forceRefreshFromDrive(); };
-
-/* ===== Lane dblclick: new at top ===== */
-$("#board").addEventListener("dblclick", (e)=>{ const lane=e.target.closest(".lane"); if(!lane) return; const stage=lane.dataset.stage; openEditor(null, stage); });
-
 /* ===== Archive UI ===== */
 const archiveDialog=$("#archiveDialog");
 $("#btnOpenArchive").onclick=()=>{ renderArchiveList(); archiveDialog.showModal(); };
@@ -1091,7 +1096,11 @@ function normalizeUrl(url){
 }
 function preprocessNotes(s){
   return String(s||"")
-    .replace(/\(([^)]+)\)\[(https?:\/\/[^\]]+)\]/g, '[$1]($2)')
+    .replace(/\(([^)]+)\)\[([^\]]+)\]/g, (_, label, url)=>{
+      const clean=String(url||"").trim();
+      const normalized=/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(clean)?clean:`https://${clean}`;
+      return `[**${String(label||"").trim()}**](${normalized})`;
+    })
     .trim();
 }
 function linkifyNotes(s){
