@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Talk + Say · v1.7</title>
+<title>Talk + Say · v1.8</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Lora:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -404,6 +404,17 @@ textarea.field-input{resize:none;}
 .bbl-vbtn.reset{background:var(--paper);border:1.5px solid var(--border);color:var(--ink-mid);}
 .bbl-act-verify{background:var(--teal-light)!important;color:var(--teal)!important;}
 .msg-row.mine .bbl-act-verify{background:rgba(255,255,255,.18)!important;color:#fff!important;}
+/* INLINE NAME EDITING */
+.chat-names-row{display:flex;align-items:center;gap:2px;}
+.chat-name-editable{font-size:14px;font-weight:600;color:var(--ink);border-radius:5px;padding:2px 5px;outline:none;min-width:28px;max-width:120px;white-space:nowrap;overflow:hidden;cursor:text;transition:background .12s;}
+.chat-name-editable:hover{background:var(--paper);}
+.chat-name-editable:focus{background:var(--teal-light);color:var(--teal);}
+
+/* LANG PICKER OVERLAY */
+.lang-picker-body{padding:0 20px 20px;}
+.lang-picker-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
+.lang-picker-lbl{font-size:10px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;}
+
 /* TOAST */
 #toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(26,23,20,.88);color:#fff;font-size:13px;font-weight:600;padding:9px 18px;border-radius:22px;z-index:1000;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
@@ -414,54 +425,35 @@ textarea.field-input{resize:none;}
 
 <!-- ONBOARDING -->
 <div id="onboard-screen" class="screen active">
-  <div class="onboard-slides-wrap">
-    <div class="onboard-slides" id="onboard-slides">
-      <div class="onboard-slide"><div class="onboard-emoji">💬</div><div class="onboard-title">Talk across languages</div><div class="onboard-body">Real-time bilingual conversation. Every message shown in both languages, side by side.</div></div>
-      <div class="onboard-slide"><div class="onboard-emoji">📚</div><div class="onboard-title">Build your phrasebook</div><div class="onboard-body">Save phrases from conversations or create them manually. Verify translations with back-translation.</div></div>
-      <div class="onboard-slide"><div class="onboard-emoji">🔗</div><div class="onboard-title">Zero friction</div><div class="onboard-body">Share a link. Your partner opens it and joins. No accounts, no codes, no setup.</div></div>
+  <div class="onboard-slides-wrap" style="justify-content:center;padding:40px 28px 0;">
+    <div style="text-align:center;margin-bottom:32px;">
+      <div style="font-family:'Lora',serif;font-size:42px;font-weight:600;color:var(--teal);letter-spacing:-1px;">talk</div>
+      <div style="font-size:14px;color:var(--ink-dim);margin-top:4px;">Bilingual conversation, effortlessly</div>
     </div>
-  </div>
-  <div class="onboard-footer">
-    <div class="onboard-dots"><span class="onboard-dot active" id="od0"></span><span class="onboard-dot" id="od1"></span><span class="onboard-dot" id="od2"></span></div>
-    <button class="onboard-btn" id="onboard-next-btn" onclick="onboardNext()">Next</button>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:24px;">
+      <label class="field-label" style="margin-top:0;">Your name</label>
+      <input class="field-input" id="ob-name" placeholder="Enter your name" maxlength="30" oninput="updateObBtn()">
+      <label class="field-label">You speak</label>
+      <select class="field-select" id="ob-lang"></select>
+      <button class="start-btn" id="ob-btn" onclick="completeOnboard()" disabled style="margin-top:20px;">Get started →</button>
+    </div>
+    <div style="font-size:12px;color:var(--ink-dim);text-align:center;margin-top:20px;line-height:1.6;">Your data stays on this device.<br>No accounts, no servers.</div>
   </div>
 </div>
 
 <!-- HOME (TALK TAB) -->
 <div id="home-screen" class="screen">
-  <div class="hero"><div class="hero-logo">talk</div><div class="hero-sub">Live bilingual conversation</div></div>
+  <div class="hero">
+    <div class="hero-logo">talk</div>
+    <div class="hero-sub" id="hero-greeting">Live bilingual conversation</div>
+  </div>
   <div style="padding:0 16px 12px;">
     <div class="new-sess-card">
       <div class="new-sess-lbl">New conversation</div>
-      <div class="names-row">
-        <input class="name-field" id="my-name" placeholder="Your name" maxlength="30" oninput="updateSessionId();saveMyName()">
-        <span class="name-sep">↔</span>
-        <input class="name-field" id="partner-name" placeholder="Partner" maxlength="30" oninput="updateSessionId()">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input class="name-field" id="partner-name" placeholder="I want to talk to…" maxlength="30" oninput="updateStartBtn()" style="flex:1;" onkeydown="if(event.key==='Enter')quickStart()">
+        <button class="start-btn" id="start-btn" onclick="quickStart()" disabled style="margin:0;width:auto;padding:11px 20px;white-space:nowrap;">Go →</button>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
-        <div>
-          <div style="font-size:10px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">I speak</div>
-          <select class="name-field" id="home-my-lang" onchange="saveHomeLangs()" style="padding:7px 9px;font-size:12px;cursor:pointer;width:100%;-webkit-appearance:none;appearance:none;"></select>
-        </div>
-        <div>
-          <div style="font-size:10px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Partner speaks</div>
-          <select class="name-field" id="home-partner-lang" onchange="saveHomeLangs()" style="padding:7px 9px;font-size:12px;cursor:pointer;width:100%;-webkit-appearance:none;appearance:none;"></select>
-        </div>
-      </div>
-      <div class="sess-id-row">
-        <div class="sess-id-pill" id="sess-id-pill">–</div>
-        <button class="icon-btn-sm" id="lock-btn" onclick="toggleLock()" title="Optional PIN">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        </button>
-        <button class="icon-btn-sm" id="share-sess-btn" onclick="shareSession()" title="Share invite"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
-      </div>
-      <div class="pin-row" id="pin-row">
-        <span style="font-size:12px;color:var(--amber);font-weight:600;">PIN</span>
-        <span class="pin-val" id="pin-val">----</span>
-        <button class="pin-copy-btn" onclick="copyPin()">Copy</button>
-        <button onclick="toggleLock()" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--amber);padding:2px 4px;">×</button>
-      </div>
-      <button class="start-btn" id="start-btn" onclick="quickStart()" disabled>Start conversation</button>
     </div>
   </div>
   <div class="sess-section">
@@ -474,25 +466,20 @@ textarea.field-input{resize:none;}
   </div>
 </div>
 
-<!-- JOIN SCREEN (URL ?join=) -->
+<!-- PENDING JOIN (for new users arriving via launcher who haven't onboarded) -->
 <div id="join-screen" class="screen">
-  <div class="join-wrap">
-    <div class="join-logo-row"><div class="join-logo">talk</div><div class="join-sub">You've been invited to a conversation</div></div>
-    <div class="join-sess-card" id="join-id-card">
-      <div class="join-sess-id" id="join-id-val">–</div>
-      <div class="join-sess-lbl">Session ID</div>
+  <div class="onboard-slides-wrap" style="justify-content:center;padding:40px 28px 0;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="font-family:'Lora',serif;font-size:38px;font-weight:600;color:var(--teal);">talk</div>
+      <div style="font-size:14px;color:var(--ink-dim);margin-top:4px;">You've been invited to a conversation</div>
     </div>
-    <label class="field-label" style="margin-top:0;">Your name</label>
-    <input class="field-input" id="join-your-name" placeholder="Enter your name" maxlength="30" oninput="updateJoinBtn()">
-    <label class="field-label">I speak</label>
-    <select class="field-select" id="join-my-lang"></select>
-    <div id="join-pin-wrap" style="display:none;">
-      <label class="field-label">PIN required</label>
-      <input class="field-input" id="join-pin-input" placeholder="Enter PIN" maxlength="8" type="tel" oninput="updateJoinBtn()">
+    <div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:24px;">
+      <label class="field-label" style="margin-top:0;">Your name</label>
+      <input class="field-input" id="join-your-name" placeholder="How should people call you?" maxlength="30" oninput="updateJoinBtn()">
+      <label class="field-label">You speak</label>
+      <select class="field-select" id="join-my-lang"></select>
+      <button class="start-btn" id="join-btn" onclick="doJoin()" disabled style="margin-top:20px;">Join conversation →</button>
     </div>
-    <button class="join-big-btn" id="join-btn" onclick="doJoin()" disabled style="margin-top:16px;">Join conversation →</button>
-    <div class="join-divider">or enter a different session ID</div>
-    <input class="join-manual" id="join-manual-id" placeholder="name-partner" oninput="joinManualInput()">
   </div>
 </div>
 
@@ -501,9 +488,13 @@ textarea.field-input{resize:none;}
   <div class="chat-header">
     <button class="chat-back" onclick="goHome()">←</button>
     <div class="chat-title-block">
-      <div class="chat-partner" id="chat-partner-name">…</div>
+      <div class="chat-names-row">
+        <span class="chat-name-editable" id="chat-my-name" contenteditable="true" spellcheck="false" title="Tap to edit your name" onblur="saveInlineName('me',this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">Me</span>
+        <span style="color:var(--ink-dim);font-size:13px;padding:0 4px;">↔</span>
+        <span class="chat-name-editable" id="chat-partner-name" contenteditable="true" spellcheck="false" title="Tap to edit partner name" onblur="saveInlineName('partner',this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">Partner</span>
+      </div>
       <div class="chat-meta-row">
-        <span class="lang-chip" id="chat-lang-chip">EN ↔ TH</span>
+        <span class="lang-chip" id="chat-lang-chip" onclick="openLangPicker()" title="Tap to change languages" style="cursor:pointer;">EN ↔ TH</span>
         <span class="conn-dot" id="conn-dot"></span>
         <span class="conn-lbl" id="conn-lbl">Not connected</span>
         <button class="reconnect-btn" id="reconnect-btn" onclick="manualReconnect()" style="display:none;">Reconnect</button>
@@ -606,7 +597,6 @@ textarea.field-input{resize:none;}
 <!-- Clarify answer (my bubble) -->
 
 <!-- Phrase picker -->
-<div id="toast"></div>
 </div><!-- #app -->
 <div class="overlay" id="clarify-req-overlay" hidden onclick="if(event.target===this)this.hidden=true">
   <div class="sheet">
@@ -791,6 +781,32 @@ textarea.field-input{resize:none;}
 
 
 
+<!-- LANG PICKER (from chat header chip) -->
+<div class="overlay" id="lang-picker-overlay" hidden onclick="if(event.target===this)this.hidden=true">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-body">
+      <div class="sheet-title">Change languages</div>
+      <div class="lang-picker-pair">
+        <div>
+          <div class="lang-picker-lbl">You speak</div>
+          <select class="field-select" id="lp-my-lang"></select>
+        </div>
+        <div>
+          <div class="lang-picker-lbl">Partner speaks</div>
+          <select class="field-select" id="lp-partner-lang"></select>
+        </div>
+      </div>
+      <div class="sheet-btn-row" style="margin-top:18px;">
+        <button class="sheet-btn secondary" onclick="document.getElementById('lang-picker-overlay').hidden=true">Cancel</button>
+        <button class="sheet-btn primary" onclick="applyLangPicker()">Apply</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
 <script>
 'use strict';
 // ════════════════════ CONSTANTS ════════════════════
@@ -849,7 +865,8 @@ function langLabel(c){return LANG_MAP[c]||c||'?';}
 function findMsg(id){return state.messages.find(m=>m.id===id);}
 function normalizeTag(s){return s.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'').slice(0,24);}
 function normName(n){return(n||'').trim().toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'').replace(/^-+|-+$/g,'').slice(0,24);}
-function makeSessionId(a,b){return normName(a)+'-'+normName(b);}
+function makeSessionCode(){return Math.floor(100000+Math.random()*900000).toString();}
+function makeSessionId(a,b){return normName(a)+'-'+normName(b);}// kept for legacy session loading only
 function peerId(sid,role){return'talksay_'+sid+'_'+role;}
 function fallbackCopy(t){const ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;left:-9999px;';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('Copied');}catch(e){}document.body.removeChild(ta);}
 function ttsLocale(c){return TTS_LOCALE[c]||c;}
@@ -868,51 +885,79 @@ function populateLangSelect(id,def){const sel=document.getElementById(id);if(!se
 function populateLangSelects(){const p=getPrefs();populateLangSelect('home-my-lang',p.myLang||'en');populateLangSelect('home-partner-lang',p.partnerLang||'th');populateLangSelect('nc-src-lang',p.myLang||'en');populateLangSelect('nc-tgt-lang',p.partnerLang||'th');populateLangSelect('settings-my-lang',p.myLang||'en');populateLangSelect('settings-partner-lang',p.partnerLang||'th');populateLangSelect('join-my-lang',p.myLang||'en');}
 
 // ════════════════════ HOME — SESSION CARD ════════════════════
-function updateSessionId(){const my=document.getElementById('my-name').value.trim();const pt=document.getElementById('partner-name').value.trim();const sid=makeSessionId(my,pt);const pill=document.getElementById('sess-id-pill');if(pill)pill.textContent=sid||'–';const btn=document.getElementById('start-btn');if(btn)btn.disabled=!(normName(my)&&normName(pt));}
-function saveMyName(){const n=document.getElementById('my-name').value.trim();if(!n)return;const p=getPrefs();p.userName=n;savePrefs(p);}
-function toggleLock(){pinActive=!pinActive;const lockBtn=document.getElementById('lock-btn');const pinRow=document.getElementById('pin-row');if(pinActive){currentPin=Math.floor(1000+Math.random()*9000).toString();document.getElementById('pin-val').textContent=currentPin;pinRow.style.display='flex';}else{currentPin='';pinRow.style.display='none';}}
-function copyPin(){if(!currentPin)return;fallbackCopy('Talk PIN: '+currentPin);}
-function shareSession(sid){const sessionId=sid||state.session?.sessionId;if(!sessionId)return;const url=location.href.split('?')[0]+'?join='+encodeURIComponent(sessionId);const pinPart=currentPin?'\nPIN: '+currentPin:'';const text='Join my conversation on Talk:\n'+url+pinPart;if(navigator.clipboard?.writeText)navigator.clipboard.writeText(text).then(()=>toast('Invite link copied')).catch(()=>fallbackCopy(text));else fallbackCopy(text);}
+function updateStartBtn(){const pt=document.getElementById('partner-name')?.value.trim();const btn=document.getElementById('start-btn');if(btn)btn.disabled=!pt;}
+function saveMyName(){const p=getPrefs();if(p.userName){const myEl=document.getElementById('my-name');if(myEl)myEl.value=p.userName;}}
+// Kept stubs so legacy references don't crash
+function updateSessionId(){}
+function saveHomeLangs(){}
+function toggleLock(){}
+function copyPin(){}
+function shareSession(sid){
+  const sessionId=sid||state.session?.sessionId;
+  if(!sessionId)return;
+  const url=location.href.split('?')[0]+'?join='+sessionId;
+  const text='Join my conversation on Talk:\n'+url;
+  if(navigator.clipboard?.writeText)navigator.clipboard.writeText(text).then(()=>toast('Invite link copied')).catch(()=>fallbackCopy(text));
+  else fallbackCopy(text);
+}
 function shareSessionFromMenu(){shareSession(state.session?.sessionId);}
 
 // ════════════════════ START SESSION ════════════════════
 function quickStart(){
-  const myName=document.getElementById('my-name').value.trim();
   const partnerName=document.getElementById('partner-name').value.trim();
-  if(!myName||!partnerName)return;
-  const p=getPrefs();p.userName=myName;savePrefs(p);
-  const mlEl=document.getElementById('home-my-lang');const plEl=document.getElementById('home-partner-lang');
-  const myLang=(mlEl&&mlEl.value?mlEl.value:null)||p.myLang||'en';
-  const partnerLang=(plEl&&plEl.value?plEl.value:null)||p.partnerLang||'th';
-  const sessionId=makeSessionId(myName,partnerName);
-  const existing=getAllSessions().find(s=>s.sessionId===sessionId);
-  if(existing){loadSession(sessionId);return;}
-  const sess={sessionId,isInitiator:true,myName,partnerName,myLang,partnerLang,pin:currentPin||'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false};
+  if(!partnerName)return;
+  const p=getPrefs();
+  const myName=p.userName||'Me';
+  const myLang=p.myLang||state.myLang||'en';
+  const partnerLang=p.partnerLang||'th';
+  // Use 6-digit random code as session ID
+  const sessionId=makeSessionCode();
+  const sess={sessionId,isInitiator:true,myName,partnerName,myLang,partnerLang,pin:'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false};
   state.session=sess;state.messages=[];msgQueue=[];
-  saveSession();
-  renderAllMessages();updateChatHeader();setConnected(false);
+  saveSession();renderAllMessages();updateChatHeader();setConnected(false);
   showScreen('chat-screen');addSysMsg('Waiting for '+partnerName+'…');
   initPeerAsHost();
+  // Auto-copy invite link (Item 4)
+  const url=location.href.split('?')[0]+'?join='+sessionId;
+  const text='Join my conversation on Talk:\n'+url;
+  if(navigator.clipboard?.writeText)navigator.clipboard.writeText(text).then(()=>toast('Link copied — paste it to '+partnerName)).catch(()=>{});
+  else{fallbackCopy(text);}
 }
 
 // ════════════════════ JOIN FLOW ════════════════════
-function setupJoinScreen(preId){state._joinTargetId=preId||'';;const el=document.getElementById('join-id-val');if(el)el.textContent=preId||'–';const m=document.getElementById('join-manual-id');if(m)m.value=preId||'';;const p=getPrefs();const ne=document.getElementById('join-your-name');if(ne&&p.userName)ne.value=p.userName;updateJoinBtn();showScreen('join-screen');}
-function joinManualInput(){const val=document.getElementById('join-manual-id').value.trim();state._joinTargetId=val;const el=document.getElementById('join-id-val');if(el)el.textContent=val||'–';updateJoinBtn();}
-function updateJoinBtn(){const btn=document.getElementById('join-btn');const name=document.getElementById('join-your-name')?.value.trim();const sid=state._joinTargetId||document.getElementById('join-manual-id')?.value.trim();if(btn)btn.disabled=!(name&&sid&&sid.includes('-'));}
+function setupJoinScreen(code){
+  state._joinCode=code;
+  // Check if already onboarded — if so, join directly without showing join screen
+  const p=getPrefs();
+  if(ls(SK.onboarded)&&p.userName){
+    // Returning user: join silently using stored prefs
+    doJoinWithPrefs(code,p.userName,p.myLang||state.myLang||'en',p.partnerLang||'th');
+  } else {
+    // New user: show join screen to collect name + language
+    populateLangSelect('join-my-lang',p.myLang||'en');
+    showScreen('join-screen');
+  }
+}
+function updateJoinBtn(){const n=document.getElementById('join-your-name')?.value.trim();const btn=document.getElementById('join-btn');if(btn)btn.disabled=!n;}
 function doJoin(){
   const myName=document.getElementById('join-your-name').value.trim();
-  const sessionId=(state._joinTargetId||document.getElementById('join-manual-id').value.trim()).toLowerCase().replace(/\s+/g,'-');
-  if(!myName||!sessionId)return;
-  const p=getPrefs();p.userName=myName;savePrefs(p);
-  const joinLang=document.getElementById('join-my-lang')?.value||p.myLang||state.myLang||'en';
-  const parts=sessionId.split('-');const partnerName=parts[0]||'Partner';
-  const existing=getAllSessions().find(s=>s.sessionId===sessionId&&!s.isInitiator);
-  const sess={sessionId,isInitiator:false,myName,partnerName:existing?.partnerName||partnerName,myLang:joinLang,partnerLang:existing?.partnerLang||p.partnerLang||'th',pin:'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false};
+  const myLang=document.getElementById('join-my-lang')?.value||'en';
+  if(!myName)return;
+  const p=getPrefs();p.userName=myName;p.myLang=myLang;savePrefs(p);
+  lsW(SK.onboarded,'1');
+  doJoinWithPrefs(state._joinCode||'000000',myName,myLang,p.partnerLang||'th');
+}
+function doJoinWithPrefs(code,myName,myLang,partnerLang){
+  const sessionId=code;
+  const existing=getAllSessions().find(s=>s.sessionId===sessionId);
+  const sess={sessionId,isInitiator:false,myName,partnerName:existing?.partnerName||'Host',myLang,partnerLang:existing?.partnerLang||partnerLang,pin:'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false};
   state.session=sess;state.messages=existing?getMsgs(sessionId):[];msgQueue=[];
   saveSession();renderAllMessages();updateChatHeader();setConnected(false);
-  showScreen('chat-screen');addSysMsg('Connecting to '+partnerName+'…');
+  showScreen('chat-screen');addSysMsg('Connecting…');
   initPeerAsJoiner();
 }
+// Legacy stub
+function joinManualInput(){}
 
 // ════════════════════ LOAD / REJOIN ════════════════════
 function loadSession(sid){
@@ -966,27 +1011,69 @@ function renderSessionList(){
       </div>
     </div>`;
   }).join('');
-  const recent=ss[0];if(recent){const me=document.getElementById('my-name');const pt=document.getElementById('partner-name');if(me&&!me.value){me.value=recent.myName||'';}if(pt&&!pt.value){pt.value=recent.partnerName||'';}updateSessionId();}
+  const recent=ss[0];if(recent){const pt=document.getElementById('partner-name');if(pt&&!pt.value){pt.value=recent.partnerName||'';updateStartBtn();}}
 }
-function shareSavedSession(sid){const s=getAllSessions().find(x=>x.sessionId===sid);if(!s)return;const url=location.href.split('?')[0]+'?join='+encodeURIComponent(sid);const pinPart=s.pin?'\nPIN: '+s.pin:'';const text='Join our Talk conversation:\n'+url+pinPart;if(navigator.clipboard?.writeText)navigator.clipboard.writeText(text).then(()=>toast('Invite copied'));else fallbackCopy(text);}
+function shareSavedSession(sid){const s=getAllSessions().find(x=>x.sessionId===sid);if(!s)return;const url=location.href.split('?')[0]+'?join='+sid;const text='Join our Talk conversation:\n'+url;if(navigator.clipboard?.writeText)navigator.clipboard.writeText(text).then(()=>toast('Invite copied'));else fallbackCopy(text);}
 function exportSession(sid){const s=getAllSessions().find(x=>x.sessionId===sid);if(!s)return;const data={session:s,messages:getMsgs(sid),exported:new Date().toISOString()};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='talksay-'+sid+'-'+Date.now()+'.json';a.click();toast('Exported');}
 function confirmDeleteSession(sid){showConfirm('Delete conversation?','This permanently removes the conversation and all messages.',()=>{if(state.session?.sessionId===sid){if(conn)try{conn.close();}catch(e){}if(peer)try{peer.destroy();}catch(e){}state.session=null;state.messages=[];state.connected=false;}deleteSession(sid);renderSessionList();toast('Deleted');});}
 
 // ════════════════════ CHAT HEADER ════════════════════
 function updateChatHeader(){
   const s=state.session;if(!s)return;
-  // Show "MyName · PartnerName" in header
-  const pname=document.getElementById('chat-partner-name');
-  if(pname)pname.textContent=(s.myName||'Me')+' ↔ '+(s.partnerName||'Partner');
+  const myEl=document.getElementById('chat-my-name');
+  const ptEl=document.getElementById('chat-partner-name');
+  if(myEl)myEl.textContent=s.myName||'Me';
+  if(ptEl)ptEl.textContent=s.partnerName||'Partner';
   const chip=document.getElementById('chat-lang-chip');
   if(chip){
-    chip.textContent=langLabel(s.myLang||'en')+' → '+langLabel(s.partnerLang||'th');
+    chip.textContent=langLabel(s.myLang||'en')+' ↔ '+langLabel(s.partnerLang||'th');
     const sameLang=s.myLang&&s.partnerLang&&s.myLang===s.partnerLang;
-    chip.title=sameLang?'⚠ Same language detected — open ⋯ menu → Settings to fix':'';
     chip.style.background=sameLang?'var(--amber-light)':'';
     chip.style.color=sameLang?'var(--amber)':'';
     chip.style.border=sameLang?'1px solid var(--amber)':'';
   }
+}
+
+// Inline name editing — saves on blur, propagates to all bubbles (Item 7)
+function saveInlineName(who,el){
+  const val=(el.textContent||'').trim();
+  if(!val){el.textContent=who==='me'?(state.session?.myName||'Me'):(state.session?.partnerName||'Partner');return;}
+  if(!state.session)return;
+  if(who==='me'){
+    state.session.myName=val;
+    const p=getPrefs();p.userName=val;savePrefs(p);
+  } else {
+    state.session.partnerName=val;
+    // Tell partner our updated name
+    if(conn?.open)try{conn.send({type:'hello',name:state.session.myName,lang:state.session.myLang});}catch(e){}
+  }
+  saveSession();
+  // Propagate to all sender labels in existing bubbles
+  document.querySelectorAll('.bbl-sender').forEach(s=>{
+    const row=s.closest('.msg-row');
+    if(!row)return;
+    if(who==='me'&&row.classList.contains('mine'))s.textContent=val;
+    if(who==='partner'&&!row.classList.contains('mine'))s.textContent=val;
+  });
+}
+
+// Tappable language chip (Item 8)
+function openLangPicker(){
+  const s=state.session;if(!s)return;
+  populateLangSelect('lp-my-lang',s.myLang||'en');
+  populateLangSelect('lp-partner-lang',s.partnerLang||'th');
+  document.getElementById('lang-picker-overlay').hidden=false;
+}
+function applyLangPicker(){
+  const ml=document.getElementById('lp-my-lang')?.value;
+  const pl=document.getElementById('lp-partner-lang')?.value;
+  if(!state.session)return;
+  if(ml)state.session.myLang=ml;
+  if(pl)state.session.partnerLang=pl;
+  const p=getPrefs();if(ml)p.myLang=ml;if(pl)p.partnerLang=pl;savePrefs(p);
+  saveSession();updateChatHeader();
+  document.getElementById('lang-picker-overlay').hidden=true;
+  toast('Languages updated');
 }
 function openChatMenu(){const s=state.session;if(!s)return;document.getElementById('menu-you').textContent=s.myName;document.getElementById('menu-partner').textContent=s.partnerName||'(awaiting connection)';document.getElementById('menu-langs').textContent=langLabel(s.myLang)+' ↔ '+langLabel(s.partnerLang);document.getElementById('menu-code').textContent=s.sessionId;document.getElementById('menu-status').textContent=state.connected?'Connected':'Not connected';document.getElementById('menu-overlay').hidden=false;}
 function beginEndSession(){document.getElementById('menu-overlay').hidden=true;document.getElementById('end-sess-overlay').hidden=false;}
@@ -1746,33 +1833,91 @@ function renderPhrasePicker(){
 }
 function togglePpTag(t){const i=(state.ppTagFilter||[]).indexOf(t);if(i>=0)state.ppTagFilter.splice(i,1);else{if(!state.ppTagFilter)state.ppTagFilter=[];state.ppTagFilter.push(t);}renderPhrasePicker();}
 function insertPhrase(src,tgt,srcLang){
-  // Insert the side that matches what I speak; fall back to target
   const myLang=state.session?.myLang||state.myLang||'en';
   const text=(srcLang&&srcLang===myLang)?src:(tgt||src);
-  const ta=document.getElementById('msg-input');ta.value=text;autoResize();updateSendBtn();document.getElementById('phrase-picker-overlay').hidden=true;if(state.screen!=='chat-screen')enterChat();
+  // Close picker first
+  document.getElementById('phrase-picker-overlay').hidden=true;
+  // If we're in an active session, insert into composer
+  if(state.session&&state.screen==='chat-screen'){
+    const ta=document.getElementById('msg-input');
+    if(ta){ta.value=text;autoResize();updateSendBtn();ta.focus();}
+  } else if(state.session){
+    // Navigate to chat then insert
+    enterChat();
+    setTimeout(()=>{const ta=document.getElementById('msg-input');if(ta){ta.value=text;autoResize();updateSendBtn();ta.focus();}},100);
+  } else {
+    toast('Start a conversation in Talk first');
+  }
 }
 
 // ════════════════════ ONBOARDING ════════════════════
-let onbSlide=0;
-function onboardNext(){onbSlide++;if(onbSlide>=3){completeOnboard();return;}document.getElementById('onboard-slides').style.transform=`translateX(-${onbSlide*100}%)`;document.querySelectorAll('.onboard-dot').forEach((d,i)=>d.classList.toggle('active',i===onbSlide));if(onbSlide===2)document.getElementById('onboard-next-btn').textContent='Get started';}
-function completeOnboard(){const devLang=navigator.language?.split('-')[0]||'en';const supported=LANGS.map(l=>l.code);state.myLang=supported.includes(devLang)?devLang:'en';lsW(SK.onboarded,'1');goHome();}
+function updateObBtn(){const n=document.getElementById('ob-name')?.value.trim();document.getElementById('ob-btn').disabled=!n;}
+function completeOnboard(){
+  const name=document.getElementById('ob-name')?.value.trim();
+  const lang=document.getElementById('ob-lang')?.value||'en';
+  if(!name)return;
+  const p=getPrefs();p.userName=name;p.myLang=lang;savePrefs(p);
+  state.myLang=lang;
+  lsW(SK.onboarded,'1');
+  goHome();
+}
 
 // ════════════════════ SEED DATA ════════════════════
 function seedStarterData(){if(getCatalogs().length||getCards().length)return;const catId='cat-thailand';saveCatalogs([{id:catId,name:'Thailand Travel',emoji:'🇹🇭',desc:'Essential phrases for Thailand',createdAt:Date.now()}]);const starter=[{source:'Hello',target:'สวัสดี'},{source:'Thank you',target:'ขอบคุณ'},{source:'How much?',target:'เท่าไหร่?'},{source:'Where is the bathroom?',target:'ห้องน้ำอยู่ที่ไหน?'},{source:"I don't eat meat",target:'ฉันไม่กินเนื้อสัตว์'},{source:'Delicious!',target:'อร่อย!'},{source:'Can you help me?',target:'คุณช่วยฉันได้ไหม?'},{source:"I don't understand",target:'ฉันไม่เข้าใจ'},{source:'Please speak slowly',target:'กรุณาพูดช้าๆ'},{source:'Call the police!',target:'เรียกตำรวจ!'}];saveCards(starter.map((p,i)=>({id:'seed-'+i,catalogIds:[catId],sourceLang:'en',targetLang:'th',...p,backTranslation:'',backApproved:false,backFlagged:false,notes:'',tags:['essential','travel'],createdAt:Date.now()-i*1000,updatedAt:Date.now()})));}
 
 // ════════════════════ INIT ════════════════════
 document.addEventListener('DOMContentLoaded',()=>{
-  detectEngine();populateLangSelects();seedStarterData();
-  const devLang=navigator.language?.split('-')[0]||'en';const supported=LANGS.map(l=>l.code);const detected=supported.includes(devLang)?devLang:'en';
-  const p=getPrefs();state.myLang=p.myLang||detected;
-  if(p.userName){const myEl=document.getElementById('my-name');if(myEl)myEl.value=p.userName;updateSessionId();}
+  detectEngine();seedStarterData();
+  const devLang=navigator.language?.split('-')[0]||'en';
+  const supported=LANGS.map(l=>l.code);
+  const detected=supported.includes(devLang)?devLang:'en';
+  const p=getPrefs();
+  state.myLang=p.myLang||detected;
+
+  // Populate all language selects
+  populateLangSelect('ob-lang',p.myLang||detected);
+  populateLangSelect('join-my-lang',p.myLang||detected);
+  populateLangSelect('nc-src-lang',p.myLang||'en');
+  populateLangSelect('nc-tgt-lang',p.partnerLang||'th');
+  populateLangSelect('settings-my-lang',p.myLang||'en');
+  populateLangSelect('settings-partner-lang',p.partnerLang||'th');
+
   if(!SpeechRec){const b=document.getElementById('stt-btn');if(b)b.style.display='none';}
+
+  // Prune bad sessions
   {const ss=getAllSessions();const pruned=ss.filter(s=>s.sessionId&&s.myName);if(pruned.length!==ss.length)saveSessions(pruned);}
-  const urlParams=new URLSearchParams(location.search);const joinId=urlParams.get('join');
-  if(joinId){state._joinTargetId=joinId;setupJoinScreen(joinId);return;}
-  if(!ls(SK.onboarded)){showScreen('onboard-screen');return;}
+
+  // Handle ?join= URL param
+  const urlParams=new URLSearchParams(location.search);
+  const joinCode=urlParams.get('join');
+  if(joinCode){
+    // Clean URL so reload doesn't re-trigger
+    history.replaceState({},'',location.pathname);
+    setupJoinScreen(joinCode);
+    return;
+  }
+
+  if(!ls(SK.onboarded)){
+    // Pre-fill ob-lang with detected language
+    populateLangSelect('ob-lang',detected);
+    showScreen('onboard-screen');
+    return;
+  }
+
+  // Update home greeting
+  if(p.userName){
+    const greet=document.getElementById('hero-greeting');
+    if(greet)greet.textContent='Hi '+p.userName+' · ready to talk?';
+  }
+
   const aid=getActiveId();
-  if(aid){const s=getAllSessions().find(x=>x.sessionId===aid);if(s){state.session=s;state.messages=getMsgs(aid);renderAllMessages();updateChatHeader();setConnected(false);showScreen('chat-screen');addSysMsg('Reconnecting…');if(s.isInitiator)initPeerAsHost();else initPeerAsJoiner();}else{setActiveId(null);goHome();}}else goHome();
+  if(aid){
+    const s=getAllSessions().find(x=>x.sessionId===aid);
+    if(s){state.session=s;state.messages=getMsgs(aid);renderAllMessages();updateChatHeader();setConnected(false);showScreen('chat-screen');addSysMsg('Reconnecting…');if(s.isInitiator)initPeerAsHost();else initPeerAsJoiner();}
+    else{setActiveId(null);goHome();}
+  } else {
+    goHome();
+  }
 });
 </script>
 </body>
