@@ -362,6 +362,15 @@ state.archive = Array.isArray(state.archive)? state.archive : [];
 let tagHistory = loadTagHistory();
 const $ = s=>document.querySelector(s), $$ = s=>Array.from(document.querySelectorAll(s));
 function uid(){return Math.random().toString(36).slice(2,10)}
+function fmtBytes(bytes){
+  const n=Number(bytes);
+  if(!Number.isFinite(n)||n<0) return "";
+  if(n<1024) return `${n} B`;
+  const units=["KB","MB","GB","TB"];
+  let value=n/1024, i=0;
+  while(value>=1024 && i<units.length-1){ value/=1024; i++; }
+  return `${value.toFixed(value>=10?0:1)} ${units[i]}`;
+}
 
 /* ===== Ordering ===== */
 function stageCards(stage){ return state.cards.filter(c=>c.stage===stage).sort((a,b)=> (a.pos??0)-(b.pos??0) || (a.createdAt-b.createdAt)); }
@@ -718,6 +727,33 @@ function renderCard(card){
   notesInput.addEventListener("input", ()=>{ inlineState.notes=notesInput.value; syncNotesRender(); });
   syncNotesRender();
 
+  const attachmentsWrap=document.createElement("div");
+  attachmentsWrap.className="chips";
+  const attachmentFiles=Array.isArray(card.files)?card.files:[];
+  if(attachmentFiles.length){
+    attachmentFiles.forEach(f=>{
+      const chip=document.createElement("span");
+      chip.className="chip";
+      const link=document.createElement("a");
+      link.href=f?.data||"#";
+      link.download=f?.name||"attachment";
+      link.target="_blank";
+      link.rel="noopener";
+      const meta=[f?.type, typeof f?.size==="number" && f.size>=0 ? fmtBytes(f.size) : ""].filter(Boolean).join(" • ");
+      link.textContent=meta ? `${f?.name||"attachment"} (${meta})` : (f?.name||"attachment");
+      link.addEventListener("click", e=>e.stopPropagation());
+      link.addEventListener("pointerdown", e=>e.stopPropagation());
+      link.addEventListener("pointerup", e=>e.stopPropagation());
+      chip.append(link);
+      attachmentsWrap.append(chip);
+    });
+  }else{
+    const empty=document.createElement("span");
+    empty.className="muted";
+    empty.textContent="No attachments";
+    attachmentsWrap.append(empty);
+  }
+
   grid.append(
     makeField("Title", titleInput, true),
     makeField("Platform", platformSelect),
@@ -726,7 +762,8 @@ function renderCard(card){
     makeField("Live Link", liveInput),
     makeField("Tags", tagsInput, true),
     makeField("Notes", notesInput, true),
-    makeField("Notes render", notesRender, true)
+    makeField("Notes render", notesRender, true),
+    makeField("Attachments", attachmentsWrap, true)
   );
   detail.append(grid);
 
