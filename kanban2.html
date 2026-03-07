@@ -411,9 +411,117 @@ const TAGS_KEY = "ai_jobs_kanban_tags";
 const EMOJIS_KEY = "ai_jobs_kanban_emojis";
 const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
 const DRIVE_SYNC_KEY = "ai_jobs_kanban_drive_sync";
+const SCHEMA_VERSION = 2;
+const LEGACY_EXPORT_VERSION = 1;
 let dirty=false, saveTimer=null;
 
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
+
+function makeDefaultBoard(){
+  return {
+    id: uid(),
+    name: "Default Board",
+    stages: [...UPLOADED_CONFIG.stages],
+    platforms: [...UPLOADED_CONFIG.platforms],
+    cards: [],
+    archive: [],
+    collapsed: {},
+    expandedCards: {},
+    layout: "auto",
+    titleLimit: UPLOADED_CONFIG.titleLimit,
+    chipLimit: UPLOADED_CONFIG.chipLimit,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function makeDefaultRoot(){
+  const board = makeDefaultBoard();
+  const projectId = uid();
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    projects: [{ id: projectId, name: "Default Project", boards: [board], createdAt: Date.now(), updatedAt: Date.now() }],
+    ui: { selectedProjectId: projectId, selectedBoardId: board.id, search: "", platformFilter: "all" },
+    lastModified: Date.now()
+  };
+}
+
+function migrateState(raw){
+  const base = makeDefaultRoot();
+  if(!raw || typeof raw !== "object") return { state: base, migrated: true };
+
+  // Already on hierarchical schema
+  if(Array.isArray(raw.projects)){
+    const projects = raw.projects.map((project, pIdx) => {
+      const boards = Array.isArray(project?.boards) && project.boards.length ? project.boards : [makeDefaultBoard()];
+      return {
+        id: project?.id || uid(),
+        name: project?.name || `Project ${pIdx+1}`,
+        boards: boards.map((board, bIdx) => ({
+          id: board?.id || uid(),
+          name: board?.name || `Board ${bIdx+1}`,
+          stages: Array.isArray(board?.stages) && board.stages.length ? board.stages : [...UPLOADED_CONFIG.stages],
+          platforms: Array.isArray(board?.platforms) && board.platforms.length ? board.platforms : [...UPLOADED_CONFIG.platforms],
+          cards: Array.isArray(board?.cards) ? board.cards : [],
+          archive: Array.isArray(board?.archive) ? board.archive : [],
+          collapsed: board?.collapsed || {},
+          expandedCards: board?.expandedCards || {},
+          layout: board?.layout || "auto",
+          titleLimit: Number(board?.titleLimit) > 0 ? Number(board.titleLimit) : UPLOADED_CONFIG.titleLimit,
+          chipLimit: Number(board?.chipLimit) > 0 ? Number(board.chipLimit) : UPLOADED_CONFIG.chipLimit,
+          createdAt: board?.createdAt || Date.now(),
+          updatedAt: board?.updatedAt || Date.now()
+        })),
+        createdAt: project?.createdAt || Date.now(),
+        updatedAt: project?.updatedAt || Date.now()
+      };
+    });
+    const selectedProjectId = raw?.ui?.selectedProjectId || projects[0].id;
+    const selectedProject = projects.find(p=>p.id===selectedProjectId) || projects[0];
+    const selectedBoardId = raw?.ui?.selectedBoardId || selectedProject.boards[0].id;
+    return {
+      state: {
+        schemaVersion: SCHEMA_VERSION,
+        projects,
+        ui: {
+          selectedProjectId: selectedProject.id,
+          selectedBoardId: selectedProject.boards.find(b=>b.id===selectedBoardId)?.id || selectedProject.boards[0].id,
+          search: raw?.ui?.search || "",
+          platformFilter: raw?.ui?.platformFilter || "all"
+        },
+        lastModified: Number(raw?.lastModified||0)
+      },
+      migrated: Number(raw?.schemaVersion) !== SCHEMA_VERSION
+    };
+  }
+
+  // Legacy single-board schema migration
+  if(Array.isArray(raw?.cards) || Array.isArray(raw?.stages) || Array.isArray(raw?.platforms)){
+    const board = {
+      ...makeDefaultBoard(),
+      stages: Array.isArray(raw?.stages) && raw.stages.length ? raw.stages : [...UPLOADED_CONFIG.stages],
+      platforms: Array.isArray(raw?.platforms) && raw.platforms.length ? raw.platforms : [...UPLOADED_CONFIG.platforms],
+      cards: Array.isArray(raw?.cards) ? raw.cards : [],
+      archive: Array.isArray(raw?.archive) ? raw.archive : [],
+      collapsed: raw?.collapsed || {},
+      expandedCards: raw?.expandedCards || {},
+      layout: raw?.layout || "auto",
+      titleLimit: Number(raw?.titleLimit) > 0 ? Number(raw.titleLimit) : UPLOADED_CONFIG.titleLimit,
+      chipLimit: Number(raw?.chipLimit) > 0 ? Number(raw.chipLimit) : UPLOADED_CONFIG.chipLimit
+    };
+    const projectId = uid();
+    return {
+      state: {
+        schemaVersion: SCHEMA_VERSION,
+        projects: [{ id: projectId, name: "Default Project", boards: [board], createdAt: Date.now(), updatedAt: Date.now() }],
+        ui: { selectedProjectId: projectId, selectedBoardId: board.id, search: "", platformFilter: "all" },
+        lastModified: Number(raw?.lastModified||0)
+      },
+      migrated: true
+    };
+  }
+  return { state: base, migrated: true };
+}
 
 function persistNow(){ 
     state.lastModified = Date.now();
@@ -425,37 +533,25 @@ function persistNow(){
 
 function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(() => persistNow(), 250); }
 
-// --- REVAMPED loadState to guarantee baseline and ignore old defaults ---
 function loadState(){
   let raw = localStorage.getItem(STABLE_KEY);
-  if(raw){ 
-    try{ 
-      const obj=JSON.parse(raw); 
-      // Basic validation: must have the core lists, ignore if it's junk
-      if(obj?.cards && obj?.stages && obj?.platforms) return obj; 
-    }catch(e){
-      console.warn("Found corrupt state in local storage, resetting to baseline:", e);
-    } 
+  if(!raw){
+    const baseline = makeDefaultRoot();
+    trySave(STABLE_KEY, JSON.stringify(baseline));
+    return baseline;
   }
-  
-  // If no stable, valid state found (or first run), create the new baseline from UPLOADED_CONFIG
-  const newBaseline = {
-    stages: UPLOADED_CONFIG.stages,
-    platforms: UPLOADED_CONFIG.platforms,
-    cards: [], // Start with NO cards
-    archive: [],
-    collapsed: {},
-    expandedCards: {},
-    layout: "auto",
-    titleLimit: UPLOADED_CONFIG.titleLimit,
-    chipLimit: UPLOADED_CONFIG.chipLimit
-  };
-
-  // Persist the new baseline immediately so it becomes the new persisted state
-  trySave(STABLE_KEY, JSON.stringify(newBaseline)); 
-  return newBaseline;
+  try{
+    const parsed=JSON.parse(raw);
+    const {state:migrated,migrated:didMigrate} = migrateState(parsed);
+    if(didMigrate) trySave(STABLE_KEY, JSON.stringify(migrated));
+    return migrated;
+  }catch(e){
+    console.warn("Found corrupt state in local storage, resetting to baseline:", e);
+    const baseline = makeDefaultRoot();
+    trySave(STABLE_KEY, JSON.stringify(baseline));
+    return baseline;
+  }
 }
-// --- END REVAMP ---
 
 function loadTagHistory(){ try{ const arr=JSON.parse(localStorage.getItem(TAGS_KEY)||"[]"); return Array.isArray(arr)?arr:[]; }catch{ return []; } }
 function saveTagHistory(list){ const uniq=[...new Set(list.map(t=>String(t).toLowerCase()))]; trySave(TAGS_KEY, JSON.stringify(uniq)); return uniq; }
@@ -553,6 +649,8 @@ function queueRemoteSync(){
 }
 
 function isValidLoadedState(obj){
+  if(!obj || typeof obj !== "object") return false;
+  if(Array.isArray(obj.projects)) return true;
   return !!(obj?.cards && obj?.stages && obj?.platforms);
 }
 
@@ -563,10 +661,11 @@ async function pullStateFromRemote(force=false){
   try{
     const remote=await fetchRemoteState(cfg);
     if(!isValidLoadedState(remote)) return;
+    const migrated = migrateState(remote).state;
     const localTs=Number(state?.lastModified||0);
-    const remoteTs=Number(remote?.lastModified||0);
+    const remoteTs=Number(migrated?.lastModified||0);
     if(force || remoteTs>localTs || !localStorage.getItem(STABLE_KEY)){
-      state={...remote, collapsed:remote.collapsed||{}, archive:Array.isArray(remote.archive)?remote.archive:[]};
+      state=migrated;
       trySave(STABLE_KEY, JSON.stringify(state));
       render();
       setStatus("Synced from Google Drive • "+fmtFullDate(new Date()));
@@ -586,10 +685,38 @@ function startRemotePolling(){
 
 /* ===== App State ===== */
 let state = loadState();
-state.collapsed = state.collapsed || {};
-state.expandedCards = state.expandedCards || {};
-state.layout = state.layout || "auto";
-state.archive = Array.isArray(state.archive) ? state.archive : [];
+function getCurrentProject(){
+  if(!Array.isArray(state.projects) || !state.projects.length){
+    state = makeDefaultRoot();
+  }
+  let project = state.projects.find(p=>p.id===state?.ui?.selectedProjectId);
+  if(!project){
+    project = state.projects[0];
+    state.ui.selectedProjectId = project.id;
+  }
+  if(!Array.isArray(project.boards) || !project.boards.length){
+    project.boards = [makeDefaultBoard()];
+  }
+  return project;
+}
+function getCurrentBoard(){
+  const project = getCurrentProject();
+  let board = project.boards.find(b=>b.id===state?.ui?.selectedBoardId);
+  if(!board){
+    board = project.boards[0];
+    state.ui.selectedBoardId = board.id;
+  }
+  board.stages = Array.isArray(board.stages) && board.stages.length ? board.stages : [...UPLOADED_CONFIG.stages];
+  board.platforms = Array.isArray(board.platforms) && board.platforms.length ? board.platforms : [...UPLOADED_CONFIG.platforms];
+  board.cards = Array.isArray(board.cards) ? board.cards : [];
+  board.archive = Array.isArray(board.archive) ? board.archive : [];
+  board.collapsed = board.collapsed || {};
+  board.expandedCards = board.expandedCards || {};
+  board.layout = board.layout || "auto";
+  board.titleLimit = Number(board.titleLimit) > 0 ? Number(board.titleLimit) : UPLOADED_CONFIG.titleLimit;
+  board.chipLimit = Number(board.chipLimit) > 0 ? Number(board.chipLimit) : UPLOADED_CONFIG.chipLimit;
+  return board;
+}
 
 let tagHistory = loadTagHistory();
 let customEmojis = loadEmojis();
@@ -598,10 +725,11 @@ const $ = s=>document.querySelector(s), $$ = s=>Array.from(document.querySelecto
 function uid(){return Math.random().toString(36).slice(2,10)}
 
 /* ===== Ordering ===== */
-function stageCards(stage){ return state.cards.filter(c=>c.stage===stage).sort((a,b)=> (a.pos??0)-(b.pos??0) || (a.createdAt-b.createdAt)); }
+function stageCards(stage){ const board=getCurrentBoard(); return board.cards.filter(c=>c.stage===stage).sort((a,b)=> (a.pos??0)-(b.pos??0) || (a.createdAt-b.createdAt)); }
 function topPos(stage){ const list=stageCards(stage); return list.length? (list[0].pos??1000)-1000 : 1000; }
 function moveToStageAt(id, stage, index){
-  const c=state.cards.find(x=>x.id===id); if(!c) return;
+  const board=getCurrentBoard();
+  const c=board.cards.find(x=>x.id===id); if(!c) return;
   const list=stageCards(stage); let pos;
   if(index<=0 || list.length===0) pos=(list[0]?.pos??1000)-1000;
   else if(index>=list.length) pos=(list[list.length-1].pos??1000)+1000;
@@ -613,30 +741,31 @@ function maybeRebalance(stage){ const list=stageCards(stage); for(let i=1;i<list
 /* ===== Rendering ===== */
 let draggingId=null, highlightEl=null, editorDirty=false;
 function render(){
-  $("#sPlatforms").value = state.platforms.join(", ");
-  $("#sStages").value = state.stages.join(", ");
-  $("#sLayout").value = state.layout;
+  const boardState = getCurrentBoard();
+  $("#sPlatforms").value = boardState.platforms.join(", ");
+  $("#sStages").value = boardState.stages.join(", ");
+  $("#sLayout").value = boardState.layout;
   $("#sEmojis").value = customEmojis.join(" ");
-  $("#sTitleLen").value = state.titleLimit;
-  $("#sChipLen").value = state.chipLimit;
+  $("#sTitleLen").value = boardState.titleLimit;
+  $("#sChipLen").value = boardState.chipLimit;
 
-  const board=$("#board"); board.dataset.layout=state.layout; board.innerHTML="";
-  state.stages.forEach(stage=>{
+  const board=$("#board"); board.dataset.layout=boardState.layout; board.innerHTML="";
+  boardState.stages.forEach(stage=>{
     const lane=document.createElement("section"); lane.className="lane"; lane.dataset.stage=stage;
     const head=document.createElement("div"); head.className="lane-header";
     const titleWrap=document.createElement("div"); titleWrap.className="lane-title";
     const title=document.createElement("span"); title.textContent=stage;
-    const count=document.createElement("span"); count.className="muted"; count.textContent=state.cards.filter(c=>c.stage===stage).length;
+    const count=document.createElement("span"); count.className="muted"; count.textContent=boardState.cards.filter(c=>c.stage===stage).length;
     titleWrap.append(title,count);
 
     const actions=document.createElement("div"); actions.className="lane-actions";
-    const toggleBtn=document.createElement("button"); toggleBtn.className="btn icon"; toggleBtn.title="Collapse/Expand"; toggleBtn.textContent = state.collapsed[stage] ? "＋" : "−";
-    toggleBtn.onclick=()=>{ state.collapsed[stage] = !state.collapsed[stage]; scheduleSave(); render(); };
+    const toggleBtn=document.createElement("button"); toggleBtn.className="btn icon"; toggleBtn.title="Collapse/Expand"; toggleBtn.textContent = boardState.collapsed[stage] ? "＋" : "−";
+    toggleBtn.onclick=()=>{ boardState.collapsed[stage] = !boardState.collapsed[stage]; scheduleSave(); render(); };
     actions.append(toggleBtn);
 
     head.append(titleWrap,actions);
 
-    const body=document.createElement("div"); body.className="lane-body"; if(state.collapsed[stage]) body.classList.add("collapsed");
+    const body=document.createElement("div"); body.className="lane-body"; if(boardState.collapsed[stage]) body.classList.add("collapsed");
 
     body.addEventListener("dragenter", e=> e.preventDefault());
     body.addEventListener("dragover", e=>{
@@ -724,6 +853,7 @@ function getDropTarget(body,y){
   return {index,targetEl};
 }
 function renderCard(card){
+  const boardState=getCurrentBoard();
   const el=document.createElement("article"); el.className="card"; el.draggable=true; el.dataset.id=card.id;
   el.addEventListener("dragstart", e=>{
     draggingId=card.id;
@@ -741,11 +871,11 @@ function renderCard(card){
   const line=document.createElement("div"); line.className="card-line";
 
   const cardTitle = card.title || "(untitled)";
-  const displayedTitle = cardTitle.length > state.titleLimit ? cardTitle.substring(0, state.titleLimit) + "..." : cardTitle;
+  const displayedTitle = cardTitle.length > boardState.titleLimit ? cardTitle.substring(0, boardState.titleLimit) + "..." : cardTitle;
   const titleBtn=document.createElement("button");
   titleBtn.type="button";
   titleBtn.className="card-title-toggle";
-  const isExpanded = state.expandedCards?.[card.id] === true;
+  const isExpanded = boardState.expandedCards?.[card.id] === true;
   titleBtn.setAttribute("aria-expanded", isExpanded ? "true" : "false");
   titleBtn.title = isExpanded ? "Collapse card" : "Expand card";
   const title=document.createElement("span"); title.className="card-title"; title.textContent=displayedTitle;
@@ -778,7 +908,7 @@ function renderCard(card){
   const tagsRow=document.createElement("div"); tagsRow.className="card-tags";
   if(card.tags?.length){
     card.tags.forEach(t=>{
-      const displayedTag = t.length > state.chipLimit ? t.substring(0, state.chipLimit) + "..." : t;
+      const displayedTag = t.length > boardState.chipLimit ? t.substring(0, boardState.chipLimit) + "..." : t;
       const chip=document.createElement("span"); chip.className="chip"; chip.textContent=displayedTag;
       chip.title = t;
       tagsRow.appendChild(chip);
@@ -792,7 +922,7 @@ function renderCard(card){
 
   const inlineState={
     title: card.title||"",
-    platform: card.platform||state.platforms[0]||"General",
+    platform: card.platform||boardState.platforms[0]||"General",
     stage: card.stage,
     dev: card.dev||"",
     live: card.live||"",
@@ -843,11 +973,11 @@ function renderCard(card){
   titleInput.addEventListener("input", ()=>{ inlineState.title=titleInput.value; });
 
   const platformSelect=document.createElement("select");
-  state.platforms.forEach(pl=>{ const opt=document.createElement("option"); opt.value=pl; opt.textContent=pl; if(pl===inlineState.platform) opt.selected=true; platformSelect.append(opt); });
+  boardState.platforms.forEach(pl=>{ const opt=document.createElement("option"); opt.value=pl; opt.textContent=pl; if(pl===inlineState.platform) opt.selected=true; platformSelect.append(opt); });
   platformSelect.addEventListener("change", ()=>{ inlineState.platform=platformSelect.value; });
 
   const stageSelect=document.createElement("select");
-  state.stages.forEach(st=>{ const opt=document.createElement("option"); opt.value=st; opt.textContent=st; if(st===inlineState.stage) opt.selected=true; stageSelect.append(opt); });
+  boardState.stages.forEach(st=>{ const opt=document.createElement("option"); opt.value=st; opt.textContent=st; if(st===inlineState.stage) opt.selected=true; stageSelect.append(opt); });
   stageSelect.addEventListener("change", ()=>{ inlineState.stage=stageSelect.value; });
 
   const devInput=document.createElement("input");
@@ -881,42 +1011,47 @@ function renderCard(card){
   return el;
 }
 function toggleCardExpanded(id){
-  state.expandedCards = state.expandedCards || {};
-  state.expandedCards[id] = !state.expandedCards[id];
+  const boardState=getCurrentBoard();
+  boardState.expandedCards = boardState.expandedCards || {};
+  boardState.expandedCards[id] = !boardState.expandedCards[id];
   scheduleSave();
   render();
 }
 
 /* ===== Card Ops ===== */
 function createCard(data){
-  const now=Date.now(); const stage=data.stage||state.stages[0]||"Next";
-  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:(data.dev||"").trim(), live:(data.live||"").trim(), tags:normalizeTags(data.tags), notes:preprocessNotes(data.notes), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
-  state.cards.push(c); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id); return c.id;
+  const boardState=getCurrentBoard();
+  const now=Date.now(); const stage=data.stage||boardState.stages[0]||"Next";
+  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||boardState.platforms[0]||"General", stage, dev:(data.dev||"").trim(), live:(data.live||"").trim(), tags:normalizeTags(data.tags), notes:preprocessNotes(data.notes), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
+  boardState.cards.push(c); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id); return c.id;
 }
 function updateCard(id, patch){
-  const c=state.cards.find(x=>x.id===id); if(!c) return;
+  const boardState=getCurrentBoard();
+    const c=boardState.cards.find(x=>x.id===id); if(!c) return;
   if(Object.prototype.hasOwnProperty.call(patch,"notes")) patch.notes=preprocessNotes(patch.notes);
   Object.assign(c, patch); c.tags=normalizeTags(c.tags); c.updatedAt=Date.now(); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id);
 }
 function archiveCard(id){
-  const idx = state.cards.findIndex(x=>x.id===id); if(idx===-1) return;
-  const c = state.cards[idx];
-  state.cards.splice(idx,1);
-  state.archive.push({...c, archivedAt: Date.now()});
+  const boardState=getCurrentBoard();
+  const idx = boardState.cards.findIndex(x=>x.id===id); if(idx===-1) return;
+  const c = boardState.cards[idx];
+  boardState.cards.splice(idx,1);
+  boardState.archive.push({...c, archivedAt: Date.now()});
   scheduleSave(); render();
 }
 function restoreCard(id){
-  const idx = state.archive.findIndex(x=>x.id===id); if(idx===-1) return;
-  const c = state.archive[idx];
-  state.archive.splice(idx,1);
+  const boardState=getCurrentBoard();
+  const idx = boardState.archive.findIndex(x=>x.id===id); if(idx===-1) return;
+  const c = boardState.archive[idx];
+  boardState.archive.splice(idx,1);
   c.pos = topPos(c.stage);
   c.updatedAt = Date.now();
   delete c.archivedAt;
-  state.cards.push(c);
+  boardState.cards.push(c);
   scheduleSave(); render(); focusCard(c.id);
 }
-function deleteCardPermanently(id){ state.archive = state.archive.filter(x=>x.id!==id); scheduleSave(); renderArchiveList(); }
-function emptyArchive(){ if(confirm("Permanently delete all archived cards? This cannot be undone.")){ state.archive = []; scheduleSave(); renderArchiveList(); } }
+function deleteCardPermanently(id){ const boardState=getCurrentBoard(); boardState.archive = boardState.archive.filter(x=>x.id!==id); scheduleSave(); renderArchiveList(); }
+function emptyArchive(){ const boardState=getCurrentBoard(); if(confirm("Permanently delete all archived cards? This cannot be undone.")){ boardState.archive = []; scheduleSave(); renderArchiveList(); } }
 function deleteCard(id){ archiveCard(id); }
 function focusCard(id){ const el=$( `.card[data-id="${id}"]` ); if(el){ el.scrollIntoView({behavior:"smooth",block:"center",inline:"center"}); el.animate([{transform:"scale(1)"},{transform:"scale(1.02)"},{transform:"scale(1)"}],{duration:450}); } }
 function normalizeTags(tags){ let arr=[]; if(Array.isArray(tags)) arr=tags; else if(typeof tags==="string") arr=tags.split(",").map(s=>s.trim()); arr=arr.map(s=>s.toLowerCase()).filter(Boolean); return [...new Set(arr)]; }
@@ -929,10 +1064,11 @@ let editingId=null, activeTags=[], pendingFiles=[], currentFiles=[];
 function openEditor(id=null, presetStage=null){
   editingId=id; editorDirty=false;
   $("#editTitle").textContent=id? "Edit Card":"New Card";
-  const c=id? state.cards.find(x=>x.id===id):null;
+  const boardState=getCurrentBoard();
+  const c=id? boardState.cards.find(x=>x.id===id):null;
   refillSelects();
-  $("#fPlatform").value = c?.platform || (state.platforms[0]||"General");
-  $("#fStage").value = c?.stage || (presetStage || state.stages[0] || "Next");
+  $("#fPlatform").value = c?.platform || (boardState.platforms[0]||"General");
+  $("#fStage").value = c?.stage || (presetStage || boardState.stages[0] || "Next");
   $("#fTitle").value = c?.title || "";
   $("#fDev").value = c?.dev || "";
   $("#fLive").value = c?.live || "";
@@ -954,7 +1090,8 @@ function saveEditorState(id){
     if(!id) return;
     
     // CRITICAL FIX: Collect latest data from active inputs before patching the state
-    const c=state.cards.find(x=>x.id===id); if(!c) return;
+    const boardState=getCurrentBoard();
+    const c=boardState.cards.find(x=>x.id===id); if(!c) return;
     
     const patch = {
         title: $("#fTitle").value.trim(), 
@@ -1015,7 +1152,7 @@ editorCloseBtn.addEventListener("click", ()=>{
 $("#fTitle").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); $("#btnSave").click(); } });
 $("#btnSaveAndNew").addEventListener("click", (e)=>{ e.preventDefault(); editDialog.close("save_new"); });
 function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("#fStage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:preprocessNotes($("#fNotes").value), files: currentFiles.slice() }; }
-function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join(""); $("#fStage").innerHTML = state.stages.map(s=>`<option>${s}</option>`).join(""); }
+function refillSelects(){ const boardState=getCurrentBoard(); $("#fPlatform").innerHTML = boardState.platforms.map(p=>`<option>${p}</option>`).join(""); $("#fStage").innerHTML = boardState.stages.map(s=>`<option>${s}</option>`).join(""); }
 function syncDialogNotesRender(){ const preview=$("#fNotesRender"); if(preview) preview.innerHTML=renderMarkdown($("#fNotes").value||""); }
 
 /* ===== Tagging UI ===== */
@@ -1098,17 +1235,19 @@ notesEl.addEventListener("paste", async (e)=>{
 /* ===== Settings ===== */
 const settingsDialog=$("#settingsDialog");
 $("#btnSettings").onclick=()=>{
-  $("#sPlatforms").value=state.platforms.join(", ");
-  $("#sStages").value=state.stages.join(", ");
-  $("#sLayout").value=state.layout;
+  const boardState=getCurrentBoard();
+  $("#sPlatforms").value=boardState.platforms.join(", ");
+  $("#sStages").value=boardState.stages.join(", ");
+  $("#sLayout").value=boardState.layout;
   $("#sEmojis").value = customEmojis.join(" ");
-  $("#sTitleLen").value = state.titleLimit;
-  $("#sChipLen").value = state.chipLimit;
+  $("#sTitleLen").value = boardState.titleLimit;
+  $("#sChipLen").value = boardState.chipLimit;
   settingsDialog.showModal();
 };
 
 // Function to instantly apply current settings changes and save state
 function saveSettingsState(){
+    const boardState=getCurrentBoard();
     const platforms=$("#sPlatforms").value.split(",").map(s=>s.trim()).filter(Boolean);
     const stages=$("#sStages").value.split(",").map(s=>s.trim()).filter(Boolean);
     const emojis=$("#sEmojis").value.split(/[\s,]+/).map(s=>s.trim()).filter(Boolean);
@@ -1116,10 +1255,10 @@ function saveSettingsState(){
     const newChipLimit = parseInt($("#sChipLen").value, 10);
 
     // Apply immediate changes to state
-    if(platforms.length) state.platforms=platforms;
-    if(stages.length){ const newFirst=stages[0]; state.cards.forEach(c=>{ if(!stages.includes(c.stage)){ c.stage=newFirst; c.pos=topPos(newFirst); c.updatedAt=Date.now(); } }); state.stages=stages; }
-    state.titleLimit = (newTitleLimit && newTitleLimit > 0) ? newTitleLimit : UPLOADED_CONFIG.titleLimit;
-    state.chipLimit = (newChipLimit && newChipLimit > 0) ? newChipLimit : UPLOADED_CONFIG.chipLimit;
+    if(platforms.length) boardState.platforms=platforms;
+    if(stages.length){ const newFirst=stages[0]; boardState.cards.forEach(c=>{ if(!stages.includes(c.stage)){ c.stage=newFirst; c.pos=topPos(newFirst); c.updatedAt=Date.now(); } }); boardState.stages=stages; }
+    boardState.titleLimit = (newTitleLimit && newTitleLimit > 0) ? newTitleLimit : UPLOADED_CONFIG.titleLimit;
+    boardState.chipLimit = (newChipLimit && newChipLimit > 0) ? newChipLimit : UPLOADED_CONFIG.chipLimit;
     
     saveEmojis(emojis);
     scheduleSave();
@@ -1146,7 +1285,7 @@ settingsDialog.addEventListener("close", ()=>{
   }
   if(v==="save"){
     saveSettingsState(); 
-    state.layout=$("#sLayout").value;
+    getCurrentBoard().layout=$("#sLayout").value;
     scheduleSave(); 
     render();
   }
@@ -1161,10 +1300,11 @@ $("#btnManualSave").onclick = () => {
     toast("Manual Save", "Board state committed to memory.");
 };
 
-$("#btnNew").onclick=()=> openEditor(null, state.stages[0] || "Next");
+$("#btnNew").onclick=()=> openEditor(null, getCurrentBoard().stages[0] || "Next");
 
-$("#btnExport").onclick=()=>{ 
-  const data=JSON.stringify(state,null,2); 
+$("#btnExport").onclick=(e)=>{ 
+  const payload = e?.shiftKey ? exportLegacyBoardShape() : state;
+  const data=JSON.stringify(payload,null,2); 
   const blob=new Blob([data],{type:"application/json"}); 
   const url=URL.createObjectURL(blob); 
   const a=document.createElement("a"); 
@@ -1172,8 +1312,41 @@ $("#btnExport").onclick=()=>{
   a.download=timestampedFileName("ai-jobs-kanban_");
   a.click(); 
   URL.revokeObjectURL(url); 
-  setStatus("Exported current board JSON • Config: Default • "+fmtFullDate(new Date())); 
+  setStatus(`Exported ${e?.shiftKey ? "legacy" : "hierarchical"} JSON • Config: Default • ${fmtFullDate(new Date())}`); 
 };
+
+function exportLegacyBoardShape(){
+  const boardState=getCurrentBoard();
+  return {
+    schemaVersion: LEGACY_EXPORT_VERSION,
+    stages: boardState.stages,
+    platforms: boardState.platforms,
+    cards: boardState.cards,
+    archive: boardState.archive,
+    collapsed: boardState.collapsed,
+    expandedCards: boardState.expandedCards,
+    layout: boardState.layout,
+    titleLimit: boardState.titleLimit,
+    chipLimit: boardState.chipLimit,
+    lastModified: state.lastModified
+  };
+}
+
+function applyImportedBoard(obj){
+  const imported = migrateState(obj).state;
+  imported.projects.forEach(project=>{
+    (project.boards||[]).forEach(board=>{
+      (board.cards||[]).forEach(c=>{ if(c.tags) c.tags=normalizeTags(c.tags); bumpTagHistory(c.tags||[]); });
+      (board.stages||[]).forEach(st=>{
+        const list=(board.cards||[]).filter(c=>c.stage===st).sort((a,b)=>(a.pos??0)-(b.pos??0)||(a.createdAt-b.createdAt));
+        list.forEach((c,i)=>{ if(typeof c.pos!=="number") c.pos=(i+1)*1000; });
+      });
+    });
+  });
+  state=imported;
+  persistNow();
+  render();
+}
 
 function toast(title, desc="", isErr=false){ const t=document.getElementById("toast"); t.className=isErr? "err":""; t.querySelector(".tmsg").textContent=title; t.querySelector(".tdesc").textContent=desc; t.style.display="block"; clearTimeout(t._timer); t._timer=setTimeout(()=>{ t.style.display="none"; }, 2800); }
 
@@ -1184,30 +1357,8 @@ $("#fileImport").onchange=(e)=>{
   const r=new FileReader(); 
   r.onload=()=>{ try{ 
     const obj=JSON.parse(r.result); 
-    // Allowing import of pre-upgrade exports without full metadata
-    if(Array.isArray(obj.cards)||Array.isArray(obj.platforms)||Array.isArray(obj.stages)){ 
-      state=obj; 
-      // Ensure all required fields exist or apply defaults
-      state.collapsed = state.collapsed || {}; 
-      state.expandedCards = state.expandedCards || {};
-      state.layout = state.layout || "auto"; 
-      state.archive = Array.isArray(state.archive)? state.archive : []; 
-      state.titleLimit = state.titleLimit || UPLOADED_CONFIG.titleLimit;
-      state.chipLimit = state.chipLimit || UPLOADED_CONFIG.chipLimit;
-      state.platforms = state.platforms || UPLOADED_CONFIG.platforms;
-      state.stages = state.stages || UPLOADED_CONFIG.stages;
-
-      // CRITICAL FIX: Ensure tags are properly normalized after import
-      state.cards.forEach(c => {
-        if(c.tags) c.tags = normalizeTags(c.tags);
-      });
-      // Also ensure positions are set and bump tags to history for suggestions
-      state.cards.forEach(c => bumpTagHistory(c.tags));
-
-      state.stages.forEach(st=>{ const list=state.cards.filter(c=>c.stage===st); list.sort((a,b)=>(a.pos??0)-(b.pos??0)||(a.createdAt-b.createdAt)); list.forEach((c,i)=>{ if(typeof c.pos!=="number") c.pos=(i+1)*1000; }); }); 
-      
-      persistNow(); 
-      render(); 
+    if(isValidLoadedState(obj)){ 
+      applyImportedBoard(obj);
       toast("Import successful","Board replaced and committed to memory."); 
       setStatus("Imported JSON • Config: Default • "+fmtFullDate(new Date())); 
     } else { 
@@ -1255,8 +1406,9 @@ $("#btnArchive").onclick=()=>{ renderArchiveList(); archiveDialog.showModal(); }
 archiveDialog.addEventListener("close", (e)=>{ if(archiveDialog.returnValue==="empty"){ emptyArchive(); } });
 function renderArchiveList(){
   const list=$("#archiveList"); list.innerHTML="";
-  if(!state.archive.length){ list.innerHTML = "<div class='muted'>Archive is empty.</div>"; return; }
-  state.archive.slice().sort((a,b)=> (b.archivedAt||0)-(a.archivedAt||0)).forEach(c=>{
+  const boardState=getCurrentBoard();
+  if(!boardState.archive.length){ list.innerHTML = "<div class='muted'>Archive is empty.</div>"; return; }
+  boardState.archive.slice().sort((a,b)=> (b.archivedAt||0)-(a.archivedAt||0)).forEach(c=>{
     const row=document.createElement("div"); row.className="result-item";
     row.innerHTML = `
       <strong>${escapeHtml(c.title||"(untitled)")}</strong>
@@ -1282,7 +1434,7 @@ $("#btnClearSearch").addEventListener("click", ()=>{ searchInput.value=""; apply
 searchInput.addEventListener("input", ()=>{ clearTimeout(searchDebounce); searchDebounce=setTimeout(()=> applySearch(searchInput.value), 120); });
 searchInput.addEventListener("keydown", (e)=>{ if(e.key==="Escape"){ searchInput.value=""; applySearch(""); return; } if(e.key==="Enter"){ e.preventDefault(); openSearchModal(currentMatches); } });
 function applySearch(q){
-  const {includes, excludes}=parseSearch(q||""); const all=state.cards.slice();
+  const boardState=getCurrentBoard(); const {includes, excludes}=parseSearch(q||""); const all=boardState.cards.slice();
   currentMatches = filterCards(all, includes, excludes);
   highlightMatches(new Set(currentMatches.map(c=>c.id)), includes.length||excludes.length);
   renderResultsPreview(currentMatches.slice(0,120));
@@ -1505,7 +1657,7 @@ window.addEventListener("storage", (e)=>{
     try{
       const next=JSON.parse(e.newValue);
       if(isValidLoadedState(next) && Number(next.lastModified||0) >= Number(state.lastModified||0)){
-        state=next;
+        state=migrateState(next).state;
         render();
       }
     }catch{}
