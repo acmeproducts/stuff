@@ -98,6 +98,9 @@ main#board[data-layout="vertical"]{display:flex;flex-direction:column}
 .card-links{display:inline-flex;align-items:center;gap:8px;position:relative;z-index:1;flex:0 0 auto}
 .card-links a,.card-links span{font-size:12px;text-decoration:none;color:#1f6feb}
 .card-links .empty{color:#9ca3af}
+.card-archive-btn{border:none;background:transparent;padding:2px;display:inline-flex;align-items:center;justify-content:center;color:#6b7280;cursor:pointer;flex:0 0 auto}
+.card-archive-btn svg{width:14px;height:14px;fill:currentColor}
+.card-archive-btn:hover{color:var(--danger)}
 .card-meta{display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap}
 .card-detail{display:flex;flex-direction:column;gap:6px}
 .card-detail.collapsed{display:none}
@@ -127,6 +130,14 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 
 /* Notes textarea scrollable */
 #fNotes{max-height:40vh;overflow:auto;resize:vertical}
+.live-notes-preview{border:1px solid var(--border);border-radius:8px;background:#f8fafc;padding:10px;min-height:72px;font-size:13px;line-height:1.4}
+.live-notes-preview:empty::before{content:"Rendered markdown";color:#94a3b8}
+.live-notes-preview p{margin:0 0 8px}
+.live-notes-preview p:last-child{margin-bottom:0}
+.live-notes-preview ul,.live-notes-preview ol{margin:0 0 8px 18px;padding:0}
+.live-notes-preview code{background:#e2e8f0;padding:1px 4px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.live-notes-preview pre{margin:0 0 8px;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:8px;overflow:auto}
+.live-notes-preview a{color:#1d4ed8;text-decoration:none}
 
 /* Search preview */
 .results{position:sticky;top:96px;margin:0 16px 8px 16px;background:var(--panel);border:1px solid var(--border);border-radius:10px;max-height:260px;overflow:auto}
@@ -287,6 +298,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     <div class="field">
       <label for="fNotes">Notes (paste images or URLs)</label>
       <textarea id="fNotes" rows="6" placeholder="Paste images here (from clipboard) or type/paste URLs…"></textarea>
+      <div id="fNotesRender" class="live-notes-preview" aria-live="polite"></div>
     </div>
 
     <div class="row">
@@ -620,9 +632,7 @@ function render(){
     const actions=document.createElement("div"); actions.className="lane-actions";
     const toggleBtn=document.createElement("button"); toggleBtn.className="btn icon"; toggleBtn.title="Collapse/Expand"; toggleBtn.textContent = state.collapsed[stage] ? "＋" : "−";
     toggleBtn.onclick=()=>{ state.collapsed[stage] = !state.collapsed[stage]; scheduleSave(); render(); };
-    const newBtn=document.createElement("button"); newBtn.className="btn icon"; newBtn.title="New card in this lane"; newBtn.textContent="＋";
-    newBtn.onclick=()=> openEditor(null, stage);
-    actions.append(toggleBtn,newBtn);
+    actions.append(toggleBtn);
 
     head.append(titleWrap,actions);
 
@@ -752,7 +762,14 @@ function renderCard(card){
   if(card.live){ live.href=card.live; live.target="_blank"; live.rel="noopener"; live.onclick=(e)=> e.stopPropagation(); }
   else live.className="empty";
   links.append(dev,live);
-  line.append(titleBtn,links); el.append(line);
+  const archiveBtn=document.createElement("button");
+  archiveBtn.type="button";
+  archiveBtn.className="card-archive-btn";
+  archiveBtn.title="Archive card";
+  archiveBtn.setAttribute("aria-label","Archive card");
+  archiveBtn.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h5v2H3V5h5l1-2Zm1 7h2v8h-2v-8Zm4 0h2v8h-2v-8ZM8 10h2v8H8v-8Zm-1 10h10a2 2 0 0 0 2-2V8H5v10a2 2 0 0 0 2 2Z"/></svg>';
+  archiveBtn.addEventListener("click", (e)=>{ e.stopPropagation(); archiveCard(card.id); });
+  line.append(titleBtn,links,archiveBtn); el.append(line);
 
   const metaRow=document.createElement("div"); metaRow.className="card-meta";
   const p=document.createElement("span"); p.className="chip card-platform"; p.textContent=card.platform;
@@ -873,11 +890,12 @@ function toggleCardExpanded(id){
 /* ===== Card Ops ===== */
 function createCard(data){
   const now=Date.now(); const stage=data.stage||state.stages[0]||"Next";
-  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:(data.dev||"").trim(), live:(data.live||"").trim(), tags:normalizeTags(data.tags), notes:(data.notes||"").trim(), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
+  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:(data.dev||"").trim(), live:(data.live||"").trim(), tags:normalizeTags(data.tags), notes:preprocessNotes(data.notes), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
   state.cards.push(c); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id); return c.id;
 }
 function updateCard(id, patch){
   const c=state.cards.find(x=>x.id===id); if(!c) return;
+  if(Object.prototype.hasOwnProperty.call(patch,"notes")) patch.notes=preprocessNotes(patch.notes);
   Object.assign(c, patch); c.tags=normalizeTags(c.tags); c.updatedAt=Date.now(); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id);
 }
 function archiveCard(id){
@@ -919,6 +937,7 @@ function openEditor(id=null, presetStage=null){
   $("#fDev").value = c?.dev || "";
   $("#fLive").value = c?.live || "";
   $("#fNotes").value = c?.notes || "";
+  syncDialogNotesRender();
   $("#btnDelete").classList.toggle("hidden", !id);
   activeTags = c?.tags ? [...c.tags] : [];
   currentFiles = Array.isArray(c?.files) ? c.files.slice() : [];
@@ -943,7 +962,7 @@ function saveEditorState(id){
         stage: $("#fStage").value,
         dev: $("#fDev").value.trim(),
         live: $("#fLive").value.trim(),
-        notes: $("#fNotes").value, // Capture text including embedded emojis
+        notes: preprocessNotes($("#fNotes").value), // Capture text including embedded emojis
         tags: activeTags.join(","), // Capture tags from active array (managed by chips)
         files: currentFiles.slice()
     };
@@ -980,6 +999,7 @@ editDialog.addEventListener("focusout", (e) => {
         
         if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") {
             saveEditorState(editingId);
+            pushStateToRemote();
         }
     }
 });
@@ -987,14 +1007,16 @@ editDialog.addEventListener("focusout", (e) => {
 
 editForm.addEventListener("input", ()=>{ editorDirty=true; });
 editForm.addEventListener("change", ()=>{ editorDirty=true; });
+$("#fNotes").addEventListener("input", syncDialogNotesRender);
 editorCloseBtn.addEventListener("click", ()=>{
   if(editorDirty){ if(confirm("Discard changes?")) { editDialog.close("cancel"); editorDirty=false; } }
   else { editDialog.close("cancel"); }
 });
 $("#fTitle").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); $("#btnSave").click(); } });
 $("#btnSaveAndNew").addEventListener("click", (e)=>{ e.preventDefault(); editDialog.close("save_new"); });
-function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("#fStage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:$("#fNotes").value, files: currentFiles.slice() }; }
+function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("#fStage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:preprocessNotes($("#fNotes").value), files: currentFiles.slice() }; }
 function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join(""); $("#fStage").innerHTML = state.stages.map(s=>`<option>${s}</option>`).join(""); }
+function syncDialogNotesRender(){ const preview=$("#fNotesRender"); if(preview) preview.innerHTML=renderMarkdown($("#fNotes").value||""); }
 
 /* ===== Tagging UI ===== */
 const tagInput=$("#tagInput"), tagChips=$("#tagChips"), tagSuggestions=$("#tagSuggestions"), hiddenTags=$("#fTags");
@@ -1227,9 +1249,6 @@ $("#fileImportEmojis").onchange=(e)=>{
 };
 
 
-/* ===== Lane dblclick: new at top ===== */
-$("#board").addEventListener("dblclick", (e)=>{ const lane=e.target.closest(".lane"); if(!lane) return; const stage=lane.dataset.stage; openEditor(null, stage); });
-
 /* ===== Archive UI ===== */
 const archiveDialog=$("#archiveDialog");
 $("#btnArchive").onclick=()=>{ renderArchiveList(); archiveDialog.showModal(); };
@@ -1283,7 +1302,7 @@ function showTooltip(e, card){
   tooltip.querySelector(".t-title").textContent = card.title || "(untitled)";
   tooltip.querySelector(".t-meta").textContent = `${card.platform} · ${card.stage}`;
   tooltip.querySelector(".t-tags").textContent = card.tags?.length ? "tags: " + card.tags.join(", ") : "no tags";
-  tooltip.querySelector(".t-notes").innerHTML = linkifyNotes(sanitizeMarkdownImages(card.notes||""));
+  tooltip.querySelector(".t-notes").innerHTML = renderMarkdown(card.notes||"");
   // Append inline previews for image attachments if not already embedded
   if(card.files && card.files.length){
     const imgs = card.files.filter(f=>/^image\//.test(f.type));
@@ -1434,9 +1453,45 @@ function fmtDate(ts){ if(!ts) return ""; const d=new Date(ts); const pad=n=>Stri
 function fmtFullDate(d){ const pad=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
 function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=> ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
 function setStatus(t){ document.getElementById("status").textContent=t; }
+function preprocessNotes(s){
+  return String(s||"")
+    .replace(/\(([^)]+)\)\[([^\]]+)\]/g, (_, label, url)=>{
+      const clean=String(url||"").trim();
+      const normalized=/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(clean)?clean:`https://${clean}`;
+      return `[**${String(label||"").trim()}**](${normalized})`;
+    })
+    .trim();
+}
+function inlineMarkdown(text){
+  return String(text||"")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
 function linkifyNotes(s){
-  // Convert URLs to clickable links; keep simple, safe replacement
-  return escapeHtml(s).replace(/(https?:\/\/[^\s)]+)(?![^<]*>)/g, '<a href="$1" target="_blank" rel="noopener">$1<\/a>');
+  return String(s||"").replace(/(https?:\/\/[^\s)]+)(?![^<]*>)/g, '<a href="$1" target="_blank" rel="noopener">$1<\/a>');
+}
+function renderMarkdown(source){
+  const withImages=sanitizeMarkdownImages(escapeHtml(source||""));
+  const lines=withImages.split(/\r?\n/);
+  let html="", inList=false, inCode=false;
+  for(const rawLine of lines){
+    const line=rawLine||"";
+    if(line.startsWith("```")){ html += inCode ? "</code></pre>" : "<pre><code>"; inCode=!inCode; continue; }
+    if(inCode){ html += `${line}\n`; continue; }
+    const li=line.match(/^\s*[-*]\s+(.*)$/);
+    if(li){ if(!inList){ html+="<ul>"; inList=true; } html += `<li>${inlineMarkdown(linkifyNotes(li[1]))}</li>`; continue; }
+    if(inList){ html+="</ul>"; inList=false; }
+    if(/^\s*$/.test(line)) continue;
+    if(line.startsWith("### ")){ html += `<p><strong>${inlineMarkdown(linkifyNotes(line.slice(4)))}</strong></p>`; continue; }
+    if(line.startsWith("## ")){ html += `<p><strong>${inlineMarkdown(linkifyNotes(line.slice(3)))}</strong></p>`; continue; }
+    if(line.startsWith("# ")){ html += `<p><strong>${inlineMarkdown(linkifyNotes(line.slice(2)))}</strong></p>`; continue; }
+    html += `<p>${inlineMarkdown(linkifyNotes(line))}</p>`;
+  }
+  if(inList) html += "</ul>";
+  if(inCode) html += "</code></pre>";
+  return html;
 }
 function sanitizeMarkdownImages(s){
   // allow markdown ![alt](data:...) to render as <img> for pasted images only
