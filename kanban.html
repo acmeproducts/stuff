@@ -325,14 +325,25 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 </div>
 
 <script>
-const BUILD = "2025-10-28";
+const BUILD = "2026-03-07";
 /* ===== Persistence ===== */
 const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
+const SYNC_ENDPOINT_KEY = "ai_jobs_kanban_sync_endpoint";
 const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
 let dirty=false, saveTimer=null;
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
-function persistNow(){ state.lastModified=Date.now(); const ok=trySave(STABLE_KEY, JSON.stringify(state)); triggerRealtimeDriveSync(); setStatus((ok? "Saved" : "Local save failed (likely storage limit)")+" • Build "+BUILD+" • "+new Date().toLocaleTimeString()); dirty=false; }
+async function persistNow(){
+  state.lastModified=Date.now();
+  const result=await syncProvider.saveSnapshot(state);
+  if(result.ok){
+    setStatus(`Saved via ${result.provider} • Build ${BUILD} • ${new Date().toLocaleTimeString()}`);
+  }else{
+    toast("Save warning", result.message || "Failed to save snapshot", true);
+    setStatus(`Save failed • ${result.message||"Unknown sync failure"} • Build ${BUILD}`);
+  }
+  dirty=false;
+}
 function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); }
 function loadState(){
   let raw = localStorage.getItem(STABLE_KEY);
@@ -352,12 +363,14 @@ let state = persistedState || {
   archive:[],
   collapsed:{},
   cardCollapsed:{},
-  layout:"auto"
+  layout:"auto",
+  lastModified:Date.now()
 };
 state.collapsed = state.collapsed || {};
 state.cardCollapsed = state.cardCollapsed || {};
 state.layout = state.layout || "auto";
 state.archive = Array.isArray(state.archive)? state.archive : [];
+state.lastModified = Number(state.lastModified||Date.now());
 let tagHistory = loadTagHistory();
 const $ = s=>document.querySelector(s), $$ = s=>Array.from(document.querySelectorAll(s));
 function uid(){return Math.random().toString(36).slice(2,10)}
@@ -976,16 +989,193 @@ settingsDialog.addEventListener("close", ()=>{
 });
 
 /* ===== Import/Export/Share ===== */
-const DRIVE_SHARE_URL = "https://drive.google.com/file/d/1Fzzsy_Vu8xK5IGVMt5O4-BNFtuKmAoIx/view?usp=drivesdk";
-const DRIVE_FILE_ID = (DRIVE_SHARE_URL.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1]) || "";
-const DRIVE_JSON_URLS = DRIVE_FILE_ID
-  ? [
-      `https://drive.google.com/uc?export=media&id=${encodeURIComponent(DRIVE_FILE_ID)}`,
-      `https://drive.google.com/uc?export=download&id=${encodeURIComponent(DRIVE_FILE_ID)}`,
-      `https://drive.googleusercontent.com/uc?id=${encodeURIComponent(DRIVE_FILE_ID)}&export=download`,
-      `https://drive.usercontent.google.com/download?id=${encodeURIComponent(DRIVE_FILE_ID)}&export=download&confirm=t`
-    ]
-  : [];
+function getSyncEndpoint(){ return localStorage.getItem(SYNC_ENDPOINT_KEY)||""; }
+function setSyncEndpoint(url){ return trySave(SYNC_ENDPOINT_KEY, String(url||"").trim()); }
+function createLocalSyncProvider(){
+  return {
+    name:"localStorage",
+    async loadSnapshot(){
+      const raw=localStorage.getItem(STABLE_KEY);
+      if(!raw) return {ok:true, provider:this.name, snapshot:null, message:"No local snapshot found"};
+      try{
+        const parsed=JSON.parse(raw);
+        if(!isValidBoardData(parsed)) return {ok:false, provider:this.name, snapshot:null, message:"Local snapshot invalid"};
+        parsed.lastModified=Number(parsed.lastModified||Date.now());
+        return {ok:true, provider:this.name, snapshot:parsed, message:`Loaded local snapshot (${new Date(parsed.lastModified).toLocaleTimeString()})`};
+      }catch(err){
+        return {ok:false, provider:this.name, snapshot:null, message:`Failed to parse local snapshot: ${err?.message||err}`};
+      }
+    },
+    async saveSnapshot(nextState){
+      const ok=trySave(STABLE_KEY, JSON.stringify(nextState));
+      return {ok, provider:this.name, message:ok? "Snapshot stored in localStorage" : "Local storage write failed"};
+    },
+    async healthCheck(){
+      try{
+        const testKey="__sync_health_probe__";
+        localStorage.setItem(testKey, "ok");
+        localStorage.removeItem(testKey);
+        return {ok:true, provider:this.name, message:"localStorage available"};
+      }catch(err){
+        return {ok:false, provider:this.name, message:`localStorage unavailable: ${err?.message||err}`};
+      }
+    }
+  };
+}
+function createRemoteSyncProvider(endpoint){
+  const cleanEndpoint=String(endpoint||"").trim();
+  return {
+    name:"remote",
+    endpoint:cleanEndpoint,
+    async loadSnapshot(){
+      if(!this.endpoint) return {ok:false, provider:this.name, snapshot:null, message:"No sync endpoint configured"};
+      try{
+        const res=await fetch(this.endpoint, {cache:"no-store"});
+        if(!res.ok) return {ok:false, provider:this.name, snapshot:null, message:`Endpoint returned ${res.status}`};
+        const txt=await res.text();
+        const obj=parseBoardPayload(txt);
+        if(!obj) return {ok:false, provider:this.name, snapshot:null, message:"Endpoint payload is not a valid board snapshot"};
+        obj.lastModified=Number(obj.lastModified||Date.now());
+        return {ok:true, provider:this.name, snapshot:obj, message:`Remote snapshot loaded (${new Date(obj.lastModified).toLocaleTimeString()})`};
+      }catch(err){
+        return {ok:false, provider:this.name, snapshot:null, message:`Remote load failed: ${err?.message||err}`};
+      }
+    },
+    async saveSnapshot(nextState){
+      if(!this.endpoint) return {ok:false, provider:this.name, message:"No sync endpoint configured"};
+      try{
+        const res=await fetch(this.endpoint, {
+          method:"PUT",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify(nextState)
+        });
+        if(!res.ok) return {ok:false, provider:this.name, message:`Remote save failed (${res.status})`};
+        return {ok:true, provider:this.name, message:"Remote save acknowledged"};
+      }catch(err){
+        return {ok:false, provider:this.name, message:`Remote save failed: ${err?.message||err}`};
+      }
+    },
+    async healthCheck(){
+      if(!this.endpoint) return {ok:false, provider:this.name, message:"No sync endpoint configured"};
+      try{
+        const res=await fetch(this.endpoint, {method:"HEAD", cache:"no-store"});
+        if(res.ok) return {ok:true, provider:this.name, message:`Remote endpoint healthy (${res.status})`};
+      }catch{}
+      try{
+        const res=await fetch(this.endpoint, {method:"GET", cache:"no-store"});
+        return {ok:res.ok, provider:this.name, message:res.ok? `Remote endpoint reachable (${res.status})` : `Remote endpoint unhealthy (${res.status})`};
+      }catch(err){
+        return {ok:false, provider:this.name, message:`Remote endpoint unreachable: ${err?.message||err}`};
+      }
+    }
+  };
+}
+const localSyncProvider=createLocalSyncProvider();
+let remoteSyncProvider=createRemoteSyncProvider(getSyncEndpoint());
+let syncProvider=localSyncProvider;
+function rebuildRemoteProvider(){ remoteSyncProvider=createRemoteSyncProvider(getSyncEndpoint()); }
+function chooseActiveProvider(){ syncProvider = remoteSyncProvider.endpoint ? remoteSyncProvider : localSyncProvider; return syncProvider; }
+function resolveSnapshotConflict(currentState, incomingState){
+  const localStamp=Number(currentState?.lastModified||0);
+  const remoteStamp=Number(incomingState?.lastModified||0);
+  if(!isValidBoardData(incomingState)) return {decision:"reject", mergedState:currentState, reason:"Incoming snapshot invalid"};
+  if(remoteStamp>=localStamp) return {decision:"adopt_remote", mergedState:incomingState, reason:`Remote is newer or equal (${remoteStamp} >= ${localStamp})`};
+  return {decision:"keep_local", mergedState:currentState, reason:`Local is newer (${localStamp} > ${remoteStamp})`};
+}
+function describeProviderDiagnostics(result){
+  if(!result) return "No diagnostics available";
+  return `${result.provider||"provider"}: ${result.message||"(no message)"}`;
+}
+async function fetchCentralizedBoard(){
+  const provider=chooseActiveProvider();
+  const health=await provider.healthCheck();
+  if(!health.ok) return {ok:false, provider:provider.name, snapshot:null, health, message:health.message};
+  const loaded=await provider.loadSnapshot();
+  return {ok:loaded.ok, provider:provider.name, snapshot:loaded.snapshot||null, health, message:loaded.message};
+}
+async function bootstrapCentralizedBoard(){
+  const result=await fetchCentralizedBoard();
+  if(!result.ok || !result.snapshot){
+    setStatus(`Sync bootstrap skipped • ${describeProviderDiagnostics(result.health)}`);
+    return;
+  }
+  const conflict=resolveSnapshotConflict(state, result.snapshot);
+  if(conflict.decision==="adopt_remote"){
+    applyImportedBoard(conflict.mergedState, `${result.provider} sync bootstrap`);
+    toast("Synced latest snapshot", conflict.reason);
+  }else if(conflict.decision==="keep_local"){
+    toast("Local board kept", conflict.reason);
+    setStatus(`Bootstrap conflict resolved: ${conflict.reason}`);
+  }
+}
+function triggerRealtimeDriveSync(){
+  clearTimeout(triggerRealtimeDriveSync._timer);
+  triggerRealtimeDriveSync._timer=setTimeout(async ()=>{
+    const provider=chooseActiveProvider();
+    const saved=await provider.saveSnapshot(state);
+    if(saved.ok){
+      setStatus(`Realtime sync OK • ${describeProviderDiagnostics(saved)} • Build ${BUILD}`);
+    }else{
+      toast("Sync warning", saved.message || "Realtime sync failed", true);
+      setStatus(`Realtime sync failed • ${describeProviderDiagnostics(saved)}`);
+    }
+  }, 120);
+}
+async function forceRefreshFromDrive(){
+  const provider=chooseActiveProvider();
+  setStatus(`Refreshing from ${provider.name} provider…`);
+  const health=await provider.healthCheck();
+  if(!health.ok){
+    toast("Refresh failed", health.message, true);
+    setStatus(`Refresh diagnostics • ${describeProviderDiagnostics(health)}`);
+    return;
+  }
+  const loaded=await provider.loadSnapshot();
+  if(!loaded.ok || !loaded.snapshot){
+    toast("Refresh failed", loaded.message || "No snapshot available", true);
+    setStatus(`Refresh diagnostics • ${describeProviderDiagnostics(loaded)}`);
+    return;
+  }
+  const conflict=resolveSnapshotConflict(state, loaded.snapshot);
+  if(conflict.decision==="adopt_remote"){
+    applyImportedBoard(conflict.mergedState, `${provider.name} manual refresh`);
+    toast("Manual refresh applied", `${conflict.reason} • ${describeProviderDiagnostics(loaded)}`);
+    return;
+  }
+  toast("Manual refresh skipped", conflict.reason);
+  setStatus(`Manual refresh diagnostics • ${conflict.reason} • ${describeProviderDiagnostics(loaded)}`);
+}
+function promptSyncEndpointConfiguration(){
+  const current=getSyncEndpoint();
+  const input=prompt("Set sync endpoint URL (leave empty to use local provider only):", current);
+  if(input===null) return;
+  if(!setSyncEndpoint(input)){
+    toast("Sync config failed", "Could not save endpoint setting", true);
+    return;
+  }
+  rebuildRemoteProvider();
+  const active=chooseActiveProvider();
+  toast("Sync provider updated", `Using ${active.name}${active.endpoint? ` (${active.endpoint})` : ""}`);
+}
+
+const btnManualRefresh=document.createElement("button");
+btnManualRefresh.id="btnManualRefresh";
+btnManualRefresh.className="btn icon-btn";
+btnManualRefresh.title="Manual refresh";
+btnManualRefresh.setAttribute("aria-label","Manual refresh");
+btnManualRefresh.textContent="⟳";
+document.querySelector(".toolbar")?.appendChild(btnManualRefresh);
+
+const btnSyncEndpoint=document.createElement("button");
+btnSyncEndpoint.id="btnSyncEndpoint";
+btnSyncEndpoint.className="btn icon-btn";
+btnSyncEndpoint.title="Sync endpoint";
+btnSyncEndpoint.setAttribute("aria-label","Sync endpoint");
+btnSyncEndpoint.textContent="☁";
+document.querySelector(".toolbar")?.appendChild(btnSyncEndpoint);
+
+chooseActiveProvider();
+
 $("#btnExport").onclick=()=>{ const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="ai-jobs-kanban.json"; a.click(); URL.revokeObjectURL(url); setStatus("Exported current board JSON."); };
 function toast(title, desc="", isErr=false){ const t=document.getElementById("toast"); t.className=isErr? "err":""; t.querySelector(".tmsg").textContent=title; t.querySelector(".tdesc").textContent=desc; t.style.display="block"; clearTimeout(t._timer); t._timer=setTimeout(()=>{ t.style.display="none"; }, 2800); }
 function applyImportedBoard(obj, sourceLabel="import"){
@@ -1032,42 +1222,11 @@ function parseBoardPayload(text){
   }catch{}
   return null;
 }
-async function fetchCentralizedBoard(){
-  for(const url of DRIVE_JSON_URLS){
-    try{
-      const res = await fetch(url, { cache:"no-store" });
-      if(!res.ok) continue;
-      const txt = await res.text();
-      const obj = parseBoardPayload(txt);
-      if(obj) return obj;
-    }catch(err){
-      console.warn("Centralized board fetch failed:", err);
-    }
-  }
-  return null;
-}
-async function bootstrapCentralizedBoard(){
-  const remote = await fetchCentralizedBoard();
-  if(!remote) return;
-  applyImportedBoard(remote, "centralized Google Drive");
-}
-function triggerRealtimeDriveSync(){
-  if(typeof pushStateToRemote==="function") pushStateToRemote();
-}
-
-async function forceRefreshFromDrive(){
-  setStatus("Refreshing from Google Drive…");
-  const remote = await fetchCentralizedBoard();
-  if(!remote){
-    toast("Refresh failed","Could not load board from Google Drive", true);
-    setStatus("Google Drive refresh failed.");
-    return;
-  }
-  applyImportedBoard(remote, "Google Drive refresh");
-}
 $("#btnImport").onclick=()=> $("#fileImport").click();
 $("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ applyImportedBoard(JSON.parse(r.result), "JSON file"); }catch(err){ toast("Import failed","Could not parse file", true); alert("Failed to parse JSON."); } }; r.readAsText(f); };
-$("#btnShare").onclick=()=>{ window.open(DRIVE_SHARE_URL, "_blank", "noopener"); };
+$("#btnShare").onclick=()=>{ promptSyncEndpointConfiguration(); };
+$("#btnManualRefresh").onclick=()=>{ forceRefreshFromDrive(); };
+$("#btnSyncEndpoint").onclick=()=>{ promptSyncEndpointConfiguration(); };
 /* ===== Archive UI ===== */
 const archiveDialog=$("#archiveDialog");
 $("#btnOpenArchive").onclick=()=>{ renderArchiveList(); archiveDialog.showModal(); };
