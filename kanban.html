@@ -606,13 +606,15 @@ function renderCard(card){
     render();
   };
   const links=document.createElement("span"); links.className="card-links";
-  const dev=document.createElement(card.dev?"a":"span");
+  const devUrl=normalizeUrl(card.dev);
+  const liveUrl=normalizeUrl(card.live);
+  const dev=document.createElement(devUrl?"a":"span");
   dev.textContent="Dev";
-  if(card.dev){ dev.href=card.dev; dev.target="_blank"; dev.rel="noopener"; dev.onclick=(e)=> e.stopPropagation(); dev.addEventListener("pointerdown",e=>e.stopPropagation()); dev.addEventListener("pointerup",e=>e.stopPropagation()); }
+  if(devUrl){ dev.href=devUrl; dev.target="_blank"; dev.rel="noopener"; dev.onclick=(e)=> e.stopPropagation(); dev.addEventListener("pointerdown",e=>e.stopPropagation()); dev.addEventListener("pointerup",e=>e.stopPropagation()); }
   else dev.className="empty";
-  const live=document.createElement(card.live?"a":"span");
+  const live=document.createElement(liveUrl?"a":"span");
   live.textContent="Live";
-  if(card.live){ live.href=card.live; live.target="_blank"; live.rel="noopener"; live.onclick=(e)=> e.stopPropagation(); live.addEventListener("pointerdown",e=>e.stopPropagation()); live.addEventListener("pointerup",e=>e.stopPropagation()); }
+  if(liveUrl){ live.href=liveUrl; live.target="_blank"; live.rel="noopener"; live.onclick=(e)=> e.stopPropagation(); live.addEventListener("pointerdown",e=>e.stopPropagation()); live.addEventListener("pointerup",e=>e.stopPropagation()); }
   else live.className="empty";
   links.append(dev,live);
   line.append(title,links); el.append(line);
@@ -725,11 +727,14 @@ function renderCard(card){
 /* ===== Card Ops ===== */
 function createCard(data){
   const now=Date.now(); const stage=data.stage||state.stages[0]||"Next";
-  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:(data.dev||"").trim(), live:(data.live||"").trim(), tags:normalizeTags(data.tags), notes:(data.notes||"").trim(), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
+  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:normalizeUrl(data.dev), live:normalizeUrl(data.live), tags:normalizeTags(data.tags), notes:preprocessNotes(data.notes), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
   state.cards.push(c); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id); return c.id;
 }
 function updateCard(id, patch){
   const c=state.cards.find(x=>x.id===id); if(!c) return;
+  if(Object.prototype.hasOwnProperty.call(patch,"dev")) patch.dev=normalizeUrl(patch.dev);
+  if(Object.prototype.hasOwnProperty.call(patch,"live")) patch.live=normalizeUrl(patch.live);
+  if(Object.prototype.hasOwnProperty.call(patch,"notes")) patch.notes=preprocessNotes(patch.notes);
   Object.assign(c, patch); c.tags=normalizeTags(c.tags); c.updatedAt=Date.now(); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id);
 }
 function archiveCard(id){
@@ -913,7 +918,8 @@ const DRIVE_JSON_URLS = DRIVE_FILE_ID
   ? [
       `https://drive.google.com/uc?export=media&id=${encodeURIComponent(DRIVE_FILE_ID)}`,
       `https://drive.google.com/uc?export=download&id=${encodeURIComponent(DRIVE_FILE_ID)}`,
-      `https://drive.googleusercontent.com/uc?id=${encodeURIComponent(DRIVE_FILE_ID)}&export=download`
+      `https://drive.googleusercontent.com/uc?id=${encodeURIComponent(DRIVE_FILE_ID)}&export=download`,
+      `https://drive.usercontent.google.com/download?id=${encodeURIComponent(DRIVE_FILE_ID)}&export=download&confirm=t`
     ]
   : [];
 $("#btnExport").onclick=()=>{ const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="ai-jobs-kanban.json"; a.click(); URL.revokeObjectURL(url); setStatus("Exported current board JSON."); };
@@ -1076,6 +1082,18 @@ function hideTooltip(){ tooltip.style.display="none"; tooltip.setAttribute("aria
 function fmtDate(ts){ if(!ts) return ""; const d=new Date(ts); const pad=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=> ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
 function setStatus(t){ document.getElementById("status").textContent=t; }
+function normalizeUrl(url){
+  const val=String(url||"").trim();
+  if(!val) return "";
+  if(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(val)) return val;
+  if(/^[\w.-]+\.[a-zA-Z]{2,}(?:[\/:?#]|$)/.test(val)) return `https://${val}`;
+  return val;
+}
+function preprocessNotes(s){
+  return String(s||"")
+    .replace(/\(([^)]+)\)\[(https?:\/\/[^\]]+)\]/g, '[$1]($2)')
+    .trim();
+}
 function linkifyNotes(s){
   // Convert URLs to clickable links; keep simple, safe replacement
   return String(s||"").replace(/(https?:\/\/[^\s)]+)(?![^<]*>)/g, '<a href="$1" target="_blank" rel="noopener">$1<\/a>');
