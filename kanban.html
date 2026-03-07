@@ -24,8 +24,9 @@ body{margin:0;font-family:system-ui,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,s
 header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--border);}
 .toolbar{padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:nowrap;white-space:nowrap;overflow:auto}
 .toolbar .btn{flex:0 0 auto}
-.searchbar{padding:10px 16px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}
+.searchbar{padding:10px 16px;border-top:1px solid var(--border);display:grid;grid-template-columns:auto auto 1fr auto auto auto;gap:8px;align-items:center}
 #search{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:15px}
+#projectScope,#boardScope{padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:#fff;min-width:160px}
 #btnClearSearch{padding:8px 10px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer}
 .btn{padding:10px 14px;border:1px solid var(--border);background:var(--panel);border-radius:10px;cursor:pointer;font-weight:600}
 .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -163,6 +164,13 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 
 /* Responsive tightening */
 @media (max-width:900px){
+  .searchbar{grid-template-columns:1fr auto auto;grid-template-areas:"project board board" "search clear count" "scope scope scope"}
+  #projectScope{grid-area:project}
+  #boardScope{grid-area:board}
+  #search{grid-area:search}
+  #btnClearSearch{grid-area:clear}
+  #searchCount{grid-area:count}
+  #searchScopeStatus{grid-area:scope}
   main#board[data-layout="horizontal"], main#board[data-layout="auto"]{grid-template-columns:1fr}
 }
 </style>
@@ -186,9 +194,12 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     <input id="fileImport" type="file" accept="application/json" class="hidden" aria-hidden="true" tabindex="-1" />
   </div>
   <div class="searchbar">
+    <select id="projectScope" aria-label="Project filter"></select>
+    <select id="boardScope" aria-label="Board filter"></select>
     <input id="search" placeholder="Omni search… (use -term to exclude)" aria-label="Omni search"/>
     <button id="btnClearSearch" title="Clear search">×</button>
     <span class="muted" id="searchCount"></span>
+    <span class="muted" id="searchScopeStatus"></span>
   </div>
 </header>
 
@@ -329,6 +340,8 @@ const BUILD = "2026-03-07";
 /* ===== Persistence ===== */
 const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
+const SEARCH_SCOPE_PROJECT_KEY = "ai_jobs_kanban_search_scope_project";
+const SEARCH_SCOPE_BOARD_KEY = "ai_jobs_kanban_search_scope_board";
 const SYNC_ENDPOINT_KEY = "ai_jobs_kanban_sync_endpoint";
 const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
 let dirty=false, saveTimer=null;
@@ -371,7 +384,68 @@ state.cardCollapsed = state.cardCollapsed || {};
 state.layout = state.layout || "auto";
 state.archive = Array.isArray(state.archive)? state.archive : [];
 state.lastModified = Number(state.lastModified||Date.now());
+let selectedProjectScope = localStorage.getItem(SEARCH_SCOPE_PROJECT_KEY) || "all";
+let selectedBoardScope = localStorage.getItem(SEARCH_SCOPE_BOARD_KEY) || "all";
 let tagHistory = loadTagHistory();
+
+function cardScopeMeta(card){
+  return {
+    projectId: card.projectId || "default-project",
+    projectName: card.projectName || "Default Project",
+    boardId: card.boardId || "default-board",
+    boardName: card.boardName || "Default Board"
+  };
+}
+function saveScopeSelection(){
+  trySave(SEARCH_SCOPE_PROJECT_KEY, selectedProjectScope);
+  trySave(SEARCH_SCOPE_BOARD_KEY, selectedBoardScope);
+}
+function getScopeOptions(){
+  const projects = new Map();
+  (state.cards||[]).forEach(card=>{
+    const meta = cardScopeMeta(card);
+    if(!projects.has(meta.projectId)) projects.set(meta.projectId, {id:meta.projectId, name:meta.projectName, boards:new Map()});
+    const project = projects.get(meta.projectId);
+    if(!project.boards.has(meta.boardId)) project.boards.set(meta.boardId, {id:meta.boardId, name:meta.boardName});
+  });
+  if(!projects.size){
+    projects.set("default-project", {id:"default-project", name:"Default Project", boards:new Map([["default-board", {id:"default-board", name:"Default Board"}]])});
+  }
+  return Array.from(projects.values()).map(p=>({...p, boards:Array.from(p.boards.values())}));
+}
+function syncScopeSelectors(){
+  const projectSel = $("#projectScope");
+  const boardSel = $("#boardScope");
+  if(!projectSel || !boardSel) return;
+  const projects = getScopeOptions();
+  if(selectedProjectScope !== "all" && !projects.some(p=>p.id===selectedProjectScope)) selectedProjectScope = "all";
+  projectSel.innerHTML = `<option value="all">All Projects</option>` + projects.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
+  projectSel.value = selectedProjectScope;
+  const boards = selectedProjectScope === "all" ? projects.flatMap(p=>p.boards) : (projects.find(p=>p.id===selectedProjectScope)?.boards || []);
+  if(selectedBoardScope !== "all" && !boards.some(b=>b.id===selectedBoardScope)) selectedBoardScope = "all";
+  boardSel.innerHTML = `<option value="all">All Boards</option>` + boards.map(b=>`<option value="${escapeHtml(b.id)}">${escapeHtml(b.name)}</option>`).join("");
+  boardSel.value = selectedBoardScope;
+  saveScopeSelection();
+  updateScopeStatus();
+}
+function cardInScope(card){
+  const meta = cardScopeMeta(card);
+  if(selectedProjectScope !== "all" && meta.projectId !== selectedProjectScope) return false;
+  if(selectedBoardScope !== "all" && meta.boardId !== selectedBoardScope) return false;
+  return true;
+}
+function getScopedCards(){
+  return (state.cards||[]).filter(cardInScope);
+}
+function updateScopeStatus(){
+  const el=$("#searchScopeStatus");
+  if(!el) return;
+  const projects = getScopeOptions();
+  const projectName = selectedProjectScope === "all" ? "All Projects" : (projects.find(p=>p.id===selectedProjectScope)?.name || "All Projects");
+  const boards = selectedProjectScope === "all" ? projects.flatMap(p=>p.boards) : (projects.find(p=>p.id===selectedProjectScope)?.boards || []);
+  const boardName = selectedBoardScope === "all" ? "All Boards" : (boards.find(b=>b.id===selectedBoardScope)?.name || "All Boards");
+  el.textContent = `Scope: ${projectName} / ${boardName}`;
+}
 const $ = s=>document.querySelector(s), $$ = s=>Array.from(document.querySelectorAll(s));
 function uid(){return Math.random().toString(36).slice(2,10)}
 function fmtBytes(bytes){
@@ -385,7 +459,7 @@ function fmtBytes(bytes){
 }
 
 /* ===== Ordering ===== */
-function stageCards(stage){ return state.cards.filter(c=>c.stage===stage).sort((a,b)=> (a.pos??0)-(b.pos??0) || (a.createdAt-b.createdAt)); }
+function stageCards(stage){ return getScopedCards().filter(c=>c.stage===stage).sort((a,b)=> (a.pos??0)-(b.pos??0) || (a.createdAt-b.createdAt)); }
 function topPos(stage){ const list=stageCards(stage); return list.length? (list[0].pos??1000)-1000 : 1000; }
 function moveToStageAt(id, stage, index){
   const c=state.cards.find(x=>x.id===id); if(!c) return;
@@ -418,7 +492,7 @@ function render(){
       scheduleSave();
       render();
     };
-    const count=document.createElement("span"); count.className="muted"; count.textContent=state.cards.filter(c=>c.stage===stage).length;
+    const count=document.createElement("span"); count.className="muted"; count.textContent=getScopedCards().filter(c=>c.stage===stage).length;
     const laneCards=stageCards(stage);
     const hasExpandedCards=laneCards.some(c=>state.cardCollapsed?.[c.id]!==true);
     const collapseLaneBtn=document.createElement("button");
@@ -515,6 +589,7 @@ function render(){
   });
 
   refillSelects();
+  syncScopeSelectors();
   applySearch($("#search").value);
 }
 document.addEventListener("dragover", e=> e.preventDefault());
@@ -1256,23 +1331,37 @@ $("#btnEmptyArchive").onclick=(e)=>{ e.preventDefault(); archiveDialog.close("em
 
 /* ===== Search ===== */
 const searchInput=$("#search"); let searchDebounce, currentMatches=[];
+const projectScopeSelect=$("#projectScope");
+const boardScopeSelect=$("#boardScope");
 $("#btnClearSearch").addEventListener("click", ()=>{ searchInput.value=""; applySearch(""); });
 searchInput.addEventListener("input", ()=>{ clearTimeout(searchDebounce); searchDebounce=setTimeout(()=> applySearch(searchInput.value), 120); });
 searchInput.addEventListener("keydown", (e)=>{ if(e.key==="Escape"){ searchInput.value=""; applySearch(""); return; } if(e.key==="Enter"){ e.preventDefault(); openSearchModal(currentMatches); } });
+projectScopeSelect?.addEventListener("change", ()=>{
+  selectedProjectScope = projectScopeSelect.value || "all";
+  selectedBoardScope = "all";
+  saveScopeSelection();
+  render();
+});
+boardScopeSelect?.addEventListener("change", ()=>{
+  selectedBoardScope = boardScopeSelect.value || "all";
+  saveScopeSelection();
+  render();
+});
 function applySearch(q){
-  const {includes, excludes}=parseSearch(q||""); const all=state.cards.slice();
+  const {includes, excludes}=parseSearch(q||""); const all=getScopedCards().slice();
   currentMatches = filterCards(all, includes, excludes);
   highlightMatches(new Set(currentMatches.map(c=>c.id)), includes.length||excludes.length);
   renderResultsPreview(currentMatches.slice(0,120));
   $("#searchCount").textContent=(includes.length||excludes.length)? `${currentMatches.length} match(es)`:"";
+  updateScopeStatus();
 }
 function parseSearch(q){ const parts=q.trim().toLowerCase().split(/\s+/).filter(Boolean); const includes=[], excludes=[]; for(const p of parts){ if(p.startsWith("-")&&p.length>1) excludes.push(p.slice(1)); else includes.push(p); } return {includes,excludes}; }
-function haystack(c){ const files = (c.files||[]).map(f=>f.name).join(" "); return [c.title,c.platform,c.stage,c.notes,c.dev,c.live,files,...(c.tags||[])].join(" ").toLowerCase(); }
+function haystack(c){ const meta=cardScopeMeta(c); const files = (c.files||[]).map(f=>f.name).join(" "); return [c.title,c.platform,c.stage,meta.projectName,meta.boardName,c.notes,c.dev,c.live,files,...(c.tags||[])].join(" ").toLowerCase(); }
 function filterCards(cards, inc, exc){ return cards.filter(c=>{ const hay=haystack(c); for(const e of exc){ if(hay.includes(e)) return false; } for(const i of inc){ if(!hay.includes(i)) return false; } return true; }); }
 function highlightMatches(idset, active){ $$(".card").forEach(el=>{ el.classList.toggle("search-hit", active && idset.has(el.dataset.id)); el.style.opacity = active && !idset.has(el.dataset.id) ? 0.35 : 1; }); }
-function renderResultsPreview(cards){ const cont=$("#resultsContainer"); cont.innerHTML=""; const active=$("#search").value.trim().length>0; if(!active||!cards.length) return; const box=document.createElement("div"); box.className="results"; cards.forEach(c=>{ const item=document.createElement("div"); item.className="result-item"; item.innerHTML=`<strong>${escapeHtml(c.title)}</strong><div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`; item.onclick=()=>{ openEditor(c.id); }; box.appendChild(item); }); cont.appendChild(box); }
+function renderResultsPreview(cards){ const cont=$("#resultsContainer"); cont.innerHTML=""; const active=$("#search").value.trim().length>0; if(!active||!cards.length) return; const box=document.createElement("div"); box.className="results"; cards.forEach(c=>{ const meta=cardScopeMeta(c); const item=document.createElement("div"); item.className="result-item"; item.innerHTML=`<strong>${escapeHtml(c.title)}</strong><div class="muted">${escapeHtml(meta.projectName)} · ${escapeHtml(meta.boardName)} · ${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`; item.onclick=()=>{ openEditor(c.id); }; box.appendChild(item); }); cont.appendChild(box); }
 const searchDialog=$("#searchDialog");
-function openSearchModal(cards){ const list=$("#searchList"); list.innerHTML=""; if(!cards.length){ list.innerHTML="<div class='muted'>No results (active cards only)</div>"; } else { cards.forEach(c=>{ const row=document.createElement("div"); row.className="result-item"; row.innerHTML=`<strong>${escapeHtml(c.title)}</strong><div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`; row.onclick=()=>{ searchDialog.close("close"); openEditor(c.id); }; list.appendChild(row); }); } searchDialog.showModal(); }
+function openSearchModal(cards){ const list=$("#searchList"); list.innerHTML=""; if(!cards.length){ list.innerHTML="<div class='muted'>No results (active cards only)</div>"; } else { cards.forEach(c=>{ const meta=cardScopeMeta(c); const row=document.createElement("div"); row.className="result-item"; row.innerHTML=`<strong>${escapeHtml(c.title)}</strong><div class="muted">${escapeHtml(meta.projectName)} · ${escapeHtml(meta.boardName)} · ${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`; row.onclick=()=>{ searchDialog.close("close"); openEditor(c.id); }; list.appendChild(row); }); } searchDialog.showModal(); }
 
 /* ===== Tooltip ===== */
 const tooltip = document.getElementById("tooltip");
