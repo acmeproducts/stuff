@@ -254,7 +254,6 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     <div class="field">
       <label for="fNotes">Notes (Markdown supported)</label>
       <textarea id="fNotes" rows="6" placeholder="Paste images here (from clipboard) or type/paste URLs…"></textarea>
-      <div id="fNotesRender" class="live-notes-preview" aria-live="polite"></div>
     </div>
 
     <div class="row">
@@ -721,11 +720,14 @@ function renderCard(card){
 
   const notesInput=document.createElement("textarea");
   notesInput.rows=4; notesInput.placeholder="Notes"; notesInput.value=inlineState.notes;
-  const notesRender=document.createElement("div");
-  notesRender.className="live-notes-preview";
-  const syncNotesRender=()=>{ notesRender.innerHTML=renderMarkdown(inlineState.notes); };
-  notesInput.addEventListener("input", ()=>{ inlineState.notes=notesInput.value; syncNotesRender(); });
-  syncNotesRender();
+  notesInput.addEventListener("input", ()=>{ inlineState.notes=notesInput.value; });
+  notesInput.addEventListener("blur", ()=>{
+    const normalized=preprocessNotes(notesInput.value);
+    if(normalized!==notesInput.value){
+      notesInput.value=normalized;
+      inlineState.notes=normalized;
+    }
+  });
 
   const attachmentsWrap=document.createElement("div");
   attachmentsWrap.className="chips";
@@ -762,7 +764,6 @@ function renderCard(card){
     makeField("Live Link", liveInput),
     makeField("Tags", tagsInput, true),
     makeField("Notes", notesInput, true),
-    makeField("Notes render", notesRender, true),
     makeField("Attachments", attachmentsWrap, true)
   );
   detail.append(grid);
@@ -823,7 +824,6 @@ function openEditor(id=null, presetStage=null){
   $("#fDev").value = c?.dev || "";
   $("#fLive").value = c?.live || "";
   $("#fNotes").value = c?.notes || "";
-  syncDialogNotesPreview();
   $("#btnDelete").classList.toggle("hidden", !id);
   activeTags = c?.tags ? [...c.tags] : [];
   currentFiles = Array.isArray(c?.files) ? c.files.slice() : [];
@@ -847,7 +847,14 @@ editDialog.addEventListener("close", ()=>{
 });
 editForm.addEventListener("input", ()=>{ editorDirty=true; });
 editForm.addEventListener("change", ()=>{ editorDirty=true; });
-$("#fNotes").addEventListener("input", syncDialogNotesPreview);
+$("#fNotes").addEventListener("blur", ()=>{
+  const notesField=$("#fNotes");
+  const normalized=preprocessNotes(notesField.value);
+  if(normalized!==notesField.value){
+    notesField.value=normalized;
+    editorDirty=true;
+  }
+});
 editDialog.addEventListener("focusout", (e)=>{ if(editingId && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)){ persistNow(); triggerRealtimeDriveSync(); } });
 editorCloseBtn.addEventListener("click", ()=>{
   if(editorDirty){ if(confirm("Discard changes?")) { editDialog.close("cancel"); editorDirty=false; } }
@@ -932,9 +939,7 @@ notesEl.addEventListener("paste", async (e)=>{
   if(text && /^https?:\/\//i.test(text)){
     // keep as plain text in notes; linkified in tooltip render
   }
-  syncDialogNotesPreview();
 });
-function syncDialogNotesPreview(){ const preview=$("#fNotesRender"); if(preview) preview.innerHTML=renderMarkdown($("#fNotes").value||""); }
 
 /* ===== Settings ===== */
 const settingsDialog=$("#settingsDialog");
@@ -1132,13 +1137,30 @@ function normalizeUrl(url){
   return val;
 }
 function preprocessNotes(s){
-  return String(s||"")
-    .replace(/\(([^)]+)\)\[([^\]]+)\]/g, (_, label, url)=>{
-      const clean=String(url||"").trim();
-      const normalized=/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(clean)?clean:`https://${clean}`;
-      return `[**${String(label||"").trim()}**](${normalized})`;
-    })
-    .trim();
+  // Normalization contract:
+  // - keep existing markdown links/images untouched
+  // - convert only naked http/https URLs into markdown links with compact labels
+  // - avoid broad rewrites so user-authored markdown remains stable
+  const source=String(s||"");
+  const protectedChunks=[];
+  const tokenized=source.replace(/!?\[[^\]]+\]\([^\)]+\)/g, (match)=>{
+    const token=`__MD_LINK_${protectedChunks.length}__`;
+    protectedChunks.push(match);
+    return token;
+  });
+  const normalized=tokenized.replace(/https?:\/\/[^\s<>"]+/g, (rawUrl)=>{
+    const trimmed=rawUrl.replace(/[),.;!?]+$/g, "");
+    const suffix=rawUrl.slice(trimmed.length);
+    let label="link";
+    try{
+      const u=new URL(trimmed);
+      label=(u.hostname||"").replace(/^www\./i,"") || "link";
+    }catch{
+      return rawUrl;
+    }
+    return `[${label}](${trimmed})${suffix}`;
+  });
+  return normalized.replace(/__MD_LINK_(\d+)__/g, (_, idx)=> protectedChunks[Number(idx)] ?? "");
 }
 function linkifyNotes(s){
   // Convert URLs to clickable links; keep simple, safe replacement
