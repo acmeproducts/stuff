@@ -257,6 +257,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     <div class="field">
       <label for="fNotes">Notes (Markdown supported)</label>
       <textarea id="fNotes" rows="6" placeholder="Paste images here (from clipboard) or type/paste URLs…"></textarea>
+      <div id="fNotesRender" class="live-notes-preview" aria-live="polite"></div>
     </div>
 
     <div class="row">
@@ -864,6 +865,7 @@ function openEditor(id=null, presetStage=null){
   $("#fDev").value = c?.dev || "";
   $("#fLive").value = c?.live || "";
   $("#fNotes").value = c?.notes || "";
+  updateNotesPreview();
   $("#btnDelete").classList.toggle("hidden", !id);
   activeTags = c?.tags ? [...c.tags] : [];
   currentFiles = Array.isArray(c?.files) ? c.files.slice() : [];
@@ -950,7 +952,7 @@ function renderTagSuggestions(){
 
 
 /* ===== Attachments ===== */
-const fFiles=$("#fFiles"), fileChips=$("#fileChips"), btnClearFiles=$("#btnClearFiles"), notesEl=$("#fNotes");
+const fFiles=$("#fFiles"), fileChips=$("#fileChips"), btnClearFiles=$("#btnClearFiles"), notesEl=$("#fNotes"), notesPreviewEl=$("#fNotesRender");
 btnClearFiles.addEventListener("click", ()=>{ pendingFiles=[]; fFiles.value=""; renderFileChips(); });
 fFiles.addEventListener("change", async (e)=>{ await addFiles(Array.from(e.target.files||[])); });
 async function addFiles(files){
@@ -959,6 +961,8 @@ async function addFiles(files){
 function mergeFiles(existing, added){ const byName=new Map(existing.map(x=>[x.name,x])); for(const f of added){ byName.set(f.name, f); } return Array.from(byName.values()); }
 function renderFileChips(){ fileChips.innerHTML=""; if(!currentFiles.length){ fileChips.innerHTML="<span class='muted'>No attachments</span>"; return; } const list=document.createElement("div"); list.className="attachment-list"; currentFiles.forEach((f,idx)=>{ const row=document.createElement("div"); row.className="attachment-item"; const a=document.createElement("a"); a.href=f.data; a.download=f.name; a.textContent=f.name; a.onclick=(e)=>e.stopPropagation(); const rm=document.createElement("button"); rm.className="attachment-remove"; rm.textContent="✖"; rm.title="remove attachment"; rm.onclick=(e)=>{ e.stopPropagation(); currentFiles.splice(idx,1); renderFileChips(); }; row.append(a, rm); list.appendChild(row); }); fileChips.appendChild(list); }
 function readAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
+function updateNotesPreview(){ if(notesPreviewEl){ notesPreviewEl.innerHTML = renderMarkdown(notesEl.value || ""); } }
+notesEl.addEventListener("input", updateNotesPreview);
 
 /* ===== Paste images/URLs into Notes ===== */
 notesEl.addEventListener("paste", async (e)=>{
@@ -974,6 +978,7 @@ notesEl.addEventListener("paste", async (e)=>{
     const cursor = notesEl.selectionStart||notesEl.value.length;
     const md = `\n![pasted](${dataUrl})\n`;
     notesEl.value = notesEl.value.slice(0,cursor)+md+notesEl.value.slice(cursor);
+    updateNotesPreview();
   }
   // URLs
   const text = e.clipboardData.getData("text/plain");
