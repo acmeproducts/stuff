@@ -197,6 +197,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     </button>
     <button id="btnProjects" class="btn icon-btn" title="Projects" aria-label="Projects">🗂</button>
     <button id="btnBoards" class="btn icon-btn" title="Boards" aria-label="Boards">📋</button>
+    <button id="btnPullRemote" class="btn icon-btn" title="Pull remote" aria-label="Pull remote">⟳</button>
     <input id="fileImport" type="file" accept="application/json" class="hidden" aria-hidden="true" tabindex="-1" />
   </div>
   <div class="searchbar">
@@ -378,7 +379,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 </div>
 
 <script>
-const BUILD = "2026-03-07";
+const BUILD = "2026-03-08";
 /* ===== Persistence ===== */
 const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
@@ -391,10 +392,12 @@ async function persistNow(){
   state.lastModified=Date.now();
   const result=await syncProvider.saveSnapshot(state);
   if(result.ok){
-    setStatus(`Saved via ${result.provider} • Build ${BUILD} • ${new Date().toLocaleTimeString()}`);
+    syncMetrics.lastPushAt=Date.now();
+    syncMetrics.remoteLastModified=Number(state.lastModified||syncMetrics.remoteLastModified||Date.now());
+    setSyncStatus(`Saved via ${result.provider}`);
   }else{
     toast("Save warning", result.message || "Failed to save snapshot", true);
-    setStatus(`Save failed • ${result.message||"Unknown sync failure"} • Build ${BUILD}`);
+    setSyncStatus(`Save failed • ${result.message||"Unknown sync failure"}`);
   }
   dirty=false;
 }
@@ -1309,7 +1312,7 @@ function createRemoteSyncProvider(endpoint){
       if(!this.endpoint) return {ok:false, provider:this.name, message:"No sync endpoint configured"};
       try{
         const res=await fetch(this.endpoint, {
-          method:"PUT",
+          method:"POST",
           headers:{"Content-Type":"application/json"},
           body:JSON.stringify(nextState)
         });
@@ -1338,7 +1341,12 @@ const GOOGLE_DRIVE_DOC_URL = "https://drive.google.com/file/d/1dw2gs93zER-qbrKom
 const localSyncProvider=createLocalSyncProvider();
 const remoteSyncProvider=createRemoteSyncProvider(GOOGLE_DRIVE_DOC_URL);
 let syncProvider=remoteSyncProvider;
-function chooseActiveProvider(){ syncProvider = remoteSyncProvider; return syncProvider; }
+const syncMetrics={lastPullAt:null,lastPushAt:null,remoteLastModified:null};
+function fmtSyncMetric(ts){ return ts ? new Date(ts).toLocaleTimeString() : "—"; }
+function setSyncStatus(prefix){
+  setStatus(`${prefix} • Pull ${fmtSyncMetric(syncMetrics.lastPullAt)} • Push ${fmtSyncMetric(syncMetrics.lastPushAt)} • Remote ${fmtSyncMetric(syncMetrics.remoteLastModified)} • Build ${BUILD}`);
+}
+function chooseActiveProvider(){ syncProvider = remoteSyncProvider.endpoint ? remoteSyncProvider : localSyncProvider; return syncProvider; }
 function resolveSnapshotConflict(currentState, incomingState){
   const localStamp=Number(currentState?.lastModified||0);
   const normalized=normalizeImportedState(incomingState);
@@ -1351,17 +1359,26 @@ function describeProviderDiagnostics(result){
   if(!result) return "No diagnostics available";
   return `${result.provider||"provider"}: ${result.message||"(no message)"}`;
 }
+function unwrapBoardPayload(raw){
+  const wrapped=(raw && typeof raw==="object") ? (raw.snapshot ?? raw.state ?? raw.board ?? raw.data ?? raw.payload ?? raw) : raw;
+  return normalizeImportedState(wrapped);
+}
 async function fetchCentralizedBoard(){
   const provider=chooseActiveProvider();
   const loaded=await provider.loadSnapshot();
+  if(loaded.ok && loaded.snapshot){
+    syncMetrics.lastPullAt=Date.now();
+    syncMetrics.remoteLastModified=Number(loaded.snapshot.lastModified||syncMetrics.remoteLastModified||Date.now());
+  }
   return {ok:loaded.ok, provider:provider.name, snapshot:loaded.snapshot||null, message:loaded.message};
 }
 async function bootstrapCentralizedBoard(){
   const result=await fetchCentralizedBoard();
-  if(!result.ok || !result.snapshot){
-    toast("Hydration failed", result.message || "Could not load source document", true);
+  if(!result.ok){
+    if(result.provider==="remote") toast("Hydration failed", result.message || "Could not load source document", true);
     return;
   }
+  if(!result.snapshot) return;
   applyImportedBoard(result.snapshot, `${result.provider} automatic hydration`);
 }
 function triggerRealtimeDriveSync(){
@@ -1370,10 +1387,12 @@ function triggerRealtimeDriveSync(){
     const provider=chooseActiveProvider();
     const saved=await provider.saveSnapshot(state);
     if(saved.ok){
-      setStatus(`Realtime sync OK • ${describeProviderDiagnostics(saved)} • Build ${BUILD}`);
+      syncMetrics.lastPushAt=Date.now();
+      syncMetrics.remoteLastModified=Number(state.lastModified||syncMetrics.remoteLastModified||Date.now());
+      setSyncStatus(`Realtime sync OK • ${describeProviderDiagnostics(saved)}`);
     }else{
       toast("Sync warning", saved.message || "Realtime sync failed", true);
-      setStatus(`Realtime sync failed • ${describeProviderDiagnostics(saved)}`);
+      setSyncStatus(`Realtime sync failed • ${describeProviderDiagnostics(saved)}`);
     }
   }, 120);
 }
@@ -1407,7 +1426,7 @@ function parseBoardPayload(text){
   const raw = String(text).trim();
   if(!raw) return {ok:false, state:null, message:"Empty payload"};
   try{
-    return normalizeImportedState(JSON.parse(raw));
+    return unwrapBoardPayload(JSON.parse(raw));
   }catch{}
   const preMatch = raw.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
   const candidate = preMatch?.[1] || raw;
@@ -1418,7 +1437,7 @@ function parseBoardPayload(text){
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>');
-    return normalizeImportedState(JSON.parse(decoded.trim()));
+    return unwrapBoardPayload(JSON.parse(decoded.trim()));
   }catch{}
   return {ok:false, state:null, message:"Payload is not valid JSON"};
 }
@@ -1485,6 +1504,28 @@ function renderBoardsList(){
 }
 $("#btnProjects").onclick=()=>{ renderProjectsList(); projectsDialog.showModal(); };
 $("#btnBoards").onclick=()=>{ renderBoardsList(); boardsDialog.showModal(); };
+$("#btnPullRemote").onclick=async ()=>{
+  if(!remoteSyncProvider.endpoint){
+    toast("Remote pull unavailable", "No sync endpoint configured", true);
+    setSyncStatus("Remote pull skipped");
+    return;
+  }
+  const pulled=await remoteSyncProvider.loadSnapshot();
+  if(!pulled.ok || !pulled.snapshot){
+    toast("Remote pull failed", pulled.message || "Could not fetch remote snapshot", true);
+    setSyncStatus(`Remote pull failed • ${describeProviderDiagnostics(pulled)}`);
+    return;
+  }
+  const applied=applyImportedBoard(pulled.snapshot, `${pulled.provider} manual pull`);
+  if(!applied){
+    setSyncStatus("Remote pull failed • Could not apply remote snapshot");
+    return;
+  }
+  syncMetrics.lastPullAt=Date.now();
+  syncMetrics.remoteLastModified=Number(pulled.snapshot.lastModified||syncMetrics.remoteLastModified||Date.now());
+  toast("Remote pull complete", "Latest remote snapshot applied");
+  setSyncStatus(`Remote pull OK • ${describeProviderDiagnostics(pulled)}`);
+};
 $("#btnAddProject").onclick=(e)=>{ e.preventDefault(); const name=$("#newProjectName").value.trim(); if(!name) return; ensureCatalog(); const id=slugifyLabel(name,"project"); if(state.catalog.projects.some(p=>p.id===id)) return toast("Duplicate project","Project id already exists",true); state.catalog.projects.push({id,name,boards:[{id:"default-board",name:"Default Board"}]}); $("#newProjectName").value=""; scheduleSave(); renderProjectsList(); render(); };
 $("#boardsProjectFilter").onchange=()=> renderBoardsList();
 $("#btnAddBoard").onclick=(e)=>{ e.preventDefault(); const name=$("#newBoardName").value.trim(); if(!name) return; const projectId=$("#boardsProjectFilter").value; const project=getProjectById(projectId); if(!project) return; const id=slugifyLabel(name,"board"); if((project.boards||[]).some(b=>b.id===id)) return toast("Duplicate board","Board id already exists",true); project.boards.push({id,name}); $("#newBoardName").value=""; scheduleSave(); renderBoardsList(); render(); };
@@ -1623,7 +1664,7 @@ window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
 (async ()=>{
   render();
   await bootstrapCentralizedBoard();
-  setStatus("Loaded • Build "+BUILD+" • "+new Date().toLocaleTimeString());
+  setSyncStatus("Loaded");
 })();
 </script>
 </body>
