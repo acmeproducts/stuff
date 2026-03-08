@@ -325,7 +325,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 </div>
 
 <script>
-const BUILD = "2025-10-28";
+const BUILD = "2026-03-07";
 /* ===== Persistence ===== */
 const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
@@ -352,12 +352,14 @@ let state = persistedState || {
   archive:[],
   collapsed:{},
   cardCollapsed:{},
-  layout:"auto"
+  layout:"auto",
+  lastModified:Date.now()
 };
 state.collapsed = state.collapsed || {};
 state.cardCollapsed = state.cardCollapsed || {};
 state.layout = state.layout || "auto";
 state.archive = Array.isArray(state.archive)? state.archive : [];
+state.lastModified = Number(state.lastModified||Date.now());
 let tagHistory = loadTagHistory();
 const $ = s=>document.querySelector(s), $$ = s=>Array.from(document.querySelectorAll(s));
 function uid(){return Math.random().toString(36).slice(2,10)}
@@ -1049,18 +1051,24 @@ async function fetchCentralizedBoard(){
 async function bootstrapCentralizedBoard(){
   const remote = await fetchCentralizedBoard();
   if(!remote) return;
-  applyImportedBoard(remote, "centralized Google Drive");
+  if((remote.lastModified||0) > (state.lastModified||0)){
+    applyImportedBoard(remote, "centralized Google Drive");
+  }
 }
 function triggerRealtimeDriveSync(){
-  if(typeof pushStateToRemote==="function") pushStateToRemote();
+  // Intentionally no-op for Drive link based sync (read-only)
 }
-
 async function forceRefreshFromDrive(){
   setStatus("Refreshing from Google Drive…");
   const remote = await fetchCentralizedBoard();
   if(!remote){
     toast("Refresh failed","Could not load board from Google Drive", true);
     setStatus("Google Drive refresh failed.");
+    return;
+  }
+  if((remote.lastModified||0) < (state.lastModified||0)){
+    toast("Refresh skipped","Local board is newer than Drive snapshot");
+    setStatus("Google Drive refresh skipped (local board newer).");
     return;
   }
   applyImportedBoard(remote, "Google Drive refresh");
