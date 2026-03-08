@@ -378,7 +378,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 </div>
 
 <script>
-const BUILD = "2026-03-07";
+const BUILD = "2026-03-08";
 /* ===== Persistence ===== */
 const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
@@ -391,7 +391,7 @@ async function persistNow(){
   state.lastModified=Date.now();
   const result=await syncProvider.saveSnapshot(state);
   if(result.ok){
-    setStatus(`Saved via ${result.provider} • Build ${BUILD} • ${new Date().toLocaleTimeString()}`);
+    setStatus(`Saved locally • Build ${BUILD} • ${new Date().toLocaleTimeString()}`);
   }else{
     toast("Save warning", result.message || "Failed to save snapshot", true);
     setStatus(`Save failed • ${result.message||"Unknown sync failure"} • Build ${BUILD}`);
@@ -1286,98 +1286,23 @@ function createLocalSyncProvider(){
     }
   };
 }
-function createRemoteSyncProvider(endpoint){
-  const cleanEndpoint=String(endpoint||"").trim();
-  return {
-    name:"remote",
-    endpoint:cleanEndpoint,
-    async loadSnapshot(){
-      if(!this.endpoint) return {ok:false, provider:this.name, snapshot:null, message:"No sync endpoint configured"};
-      try{
-        const res=await fetch(this.endpoint, {cache:"no-store"});
-        if(!res.ok) return {ok:false, provider:this.name, snapshot:null, message:`Endpoint returned ${res.status}`};
-        const txt=await res.text();
-        const parsed=parseBoardPayload(txt);
-        if(!parsed.ok) return {ok:false, provider:this.name, snapshot:null, message:parsed.message||"Endpoint payload is not a valid board snapshot"};
-        parsed.state.lastModified=Number(parsed.state.lastModified||Date.now());
-        return {ok:true, provider:this.name, snapshot:parsed.state, message:`Remote snapshot loaded (${new Date(parsed.state.lastModified).toLocaleTimeString()})`};
-      }catch(err){
-        return {ok:false, provider:this.name, snapshot:null, message:`Remote load failed: ${err?.message||err}`};
-      }
-    },
-    async saveSnapshot(nextState){
-      if(!this.endpoint) return {ok:false, provider:this.name, message:"No sync endpoint configured"};
-      try{
-        const res=await fetch(this.endpoint, {
-          method:"PUT",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify(nextState)
-        });
-        if(!res.ok) return {ok:false, provider:this.name, message:`Remote save failed (${res.status})`};
-        return {ok:true, provider:this.name, message:"Remote save acknowledged"};
-      }catch(err){
-        return {ok:false, provider:this.name, message:`Remote save failed: ${err?.message||err}`};
-      }
-    },
-    async healthCheck(){
-      if(!this.endpoint) return {ok:false, provider:this.name, message:"No sync endpoint configured"};
-      try{
-        const res=await fetch(this.endpoint, {method:"HEAD", cache:"no-store"});
-        if(res.ok) return {ok:true, provider:this.name, message:`Remote endpoint healthy (${res.status})`};
-      }catch{}
-      try{
-        const res=await fetch(this.endpoint, {method:"GET", cache:"no-store"});
-        return {ok:res.ok, provider:this.name, message:res.ok? `Remote endpoint reachable (${res.status})` : `Remote endpoint unhealthy (${res.status})`};
-      }catch(err){
-        return {ok:false, provider:this.name, message:`Remote endpoint unreachable: ${err?.message||err}`};
-      }
-    }
-  };
-}
-const GOOGLE_DRIVE_DOC_URL = "https://drive.google.com/file/d/1dw2gs93zER-qbrKomTSW8PhtBTvtq5Zr/view?usp=drivesdk";
 const localSyncProvider=createLocalSyncProvider();
-const remoteSyncProvider=createRemoteSyncProvider(GOOGLE_DRIVE_DOC_URL);
-let syncProvider=remoteSyncProvider;
-function chooseActiveProvider(){ syncProvider = remoteSyncProvider; return syncProvider; }
-function resolveSnapshotConflict(currentState, incomingState){
-  const localStamp=Number(currentState?.lastModified||0);
-  const normalized=normalizeImportedState(incomingState);
-  if(!normalized.ok) return {decision:"reject", mergedState:currentState, reason:normalized.message||"Incoming snapshot invalid"};
-  const remoteStamp=Number(normalized.state.lastModified||0);
-  if(remoteStamp>=localStamp) return {decision:"adopt_remote", mergedState:normalized.state, reason:`Remote is newer or equal (${remoteStamp} >= ${localStamp})`};
-  return {decision:"keep_local", mergedState:currentState, reason:`Local is newer (${localStamp} > ${remoteStamp})`};
-}
-function describeProviderDiagnostics(result){
-  if(!result) return "No diagnostics available";
-  return `${result.provider||"provider"}: ${result.message||"(no message)"}`;
+let syncProvider=localSyncProvider;
+function unwrapBoardPayload(raw){
+
+  const wrapped=(raw && typeof raw==="object") ? (raw.snapshot ?? raw.state ?? raw.board ?? raw.data ?? raw.payload ?? raw) : raw;
+  return normalizeImportedState(wrapped);
 }
 async function fetchCentralizedBoard(){
-  const provider=chooseActiveProvider();
-  const loaded=await provider.loadSnapshot();
-  return {ok:loaded.ok, provider:provider.name, snapshot:loaded.snapshot||null, message:loaded.message};
+  const loaded=await localSyncProvider.loadSnapshot();
+  return {ok:loaded.ok, provider:localSyncProvider.name, snapshot:loaded.snapshot||null, message:loaded.message};
 }
 async function bootstrapCentralizedBoard(){
-  const result=await fetchCentralizedBoard();
-  if(!result.ok || !result.snapshot){
-    toast("Hydration failed", result.message || "Could not load source document", true);
-    return;
-  }
-  applyImportedBoard(result.snapshot, `${result.provider} automatic hydration`);
+  return;
 }
 function triggerRealtimeDriveSync(){
-  clearTimeout(triggerRealtimeDriveSync._timer);
-  triggerRealtimeDriveSync._timer=setTimeout(async ()=>{
-    const provider=chooseActiveProvider();
-    const saved=await provider.saveSnapshot(state);
-    if(saved.ok){
-      setStatus(`Realtime sync OK • ${describeProviderDiagnostics(saved)} • Build ${BUILD}`);
-    }else{
-      toast("Sync warning", saved.message || "Realtime sync failed", true);
-      setStatus(`Realtime sync failed • ${describeProviderDiagnostics(saved)}`);
-    }
-  }, 120);
+  return;
 }
-chooseActiveProvider();
 
 $("#btnExport").onclick=()=>{ const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="ai-jobs-kanban.json"; a.click(); URL.revokeObjectURL(url); setStatus("Exported current board JSON."); };
 function toast(title, desc="", isErr=false){ const t=document.getElementById("toast"); t.className=isErr? "err":""; t.querySelector(".tmsg").textContent=title; t.querySelector(".tdesc").textContent=desc; t.style.display="block"; clearTimeout(t._timer); t._timer=setTimeout(()=>{ t.style.display="none"; }, 2800); }
@@ -1407,7 +1332,7 @@ function parseBoardPayload(text){
   const raw = String(text).trim();
   if(!raw) return {ok:false, state:null, message:"Empty payload"};
   try{
-    return normalizeImportedState(JSON.parse(raw));
+    return unwrapBoardPayload(JSON.parse(raw));
   }catch{}
   const preMatch = raw.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
   const candidate = preMatch?.[1] || raw;
@@ -1418,7 +1343,7 @@ function parseBoardPayload(text){
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>');
-    return normalizeImportedState(JSON.parse(decoded.trim()));
+    return unwrapBoardPayload(JSON.parse(decoded.trim()));
   }catch{}
   return {ok:false, state:null, message:"Payload is not valid JSON"};
 }
