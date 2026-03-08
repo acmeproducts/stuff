@@ -361,7 +361,12 @@ function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeo
 function loadState(){
   let raw = localStorage.getItem(STABLE_KEY);
   if(!raw){ for(let i=LEGACY_KEYS.length-1;i>=0;i--){ raw=localStorage.getItem(LEGACY_KEYS[i]); if(raw) break; } if(raw) trySave(STABLE_KEY, raw); }
-  if(raw){ try{ const obj=JSON.parse(raw); if(obj?.cards && obj?.stages && obj?.platforms) return obj; }catch{} }
+  if(raw){
+    try{
+      const normalized = normalizeImportedState(JSON.parse(raw));
+      if(normalized.ok) return normalized.state;
+    }catch{}
+  }
   return null;
 }
 function loadTagHistory(){ try{ const arr=JSON.parse(localStorage.getItem(TAGS_KEY)||"[]"); return Array.isArray(arr)?arr:[]; }catch{ return []; } }
@@ -1064,6 +1069,128 @@ settingsDialog.addEventListener("close", ()=>{
 });
 
 /* ===== Import/Export/Share ===== */
+function normalizeImportedState(raw){
+  if(!raw || typeof raw !== "object") return {ok:false, state:null, message:"Expected a JSON object for import."};
+
+  const defaultStages=["Done","Doing","Next"];
+  const defaultPlatforms=["Gemini","Claude","ChatGPT","Perplexity"];
+  const defaultProjectName="Default Project";
+  const defaultBoardName="Default Board";
+  const cleanText=(value, fallback="")=>{ const s=String(value??"").trim(); return s || fallback; };
+  const asArray=(value)=> Array.isArray(value) ? value : null;
+  const uniqNonEmpty=(list)=>[...new Set((list||[]).map(item=>cleanText(item)).filter(Boolean))];
+  const normalizeLayout=(value)=>["auto","horizontal","vertical"].includes(value) ? value : "auto";
+  const normalizeCard=(card, fallbackStage, boardPlatforms, scope)=>{
+    const src=(card && typeof card==="object") ? card : {};
+    const stage=cleanText(src.stage, fallbackStage);
+    const platform=cleanText(src.platform, boardPlatforms[0] || defaultPlatforms[0]);
+    return {
+      ...src,
+      id: cleanText(src.id, uid()),
+      title: cleanText(src.title, "Untitled"),
+      stage,
+      platform,
+      tags: Array.isArray(src.tags) ? src.tags.map(t=>cleanText(t)).filter(Boolean) : [],
+      files: Array.isArray(src.files) ? src.files.filter(f=>f && typeof f==="object") : [],
+      projectId: cleanText(src.projectId, scope.projectId),
+      projectName: cleanText(src.projectName, scope.projectName),
+      boardId: cleanText(src.boardId, scope.boardId),
+      boardName: cleanText(src.boardName, scope.boardName),
+      createdAt: Number(src.createdAt||Date.now()),
+      updatedAt: Number(src.updatedAt||Date.now())
+    };
+  };
+
+  const missing=[];
+  const normalized={
+    stages:[],
+    platforms:[],
+    cards:[],
+    archive: Array.isArray(raw.archive) ? raw.archive : [],
+    collapsed: (raw.collapsed && typeof raw.collapsed==="object") ? raw.collapsed : {},
+    cardCollapsed: (raw.cardCollapsed && typeof raw.cardCollapsed==="object") ? raw.cardCollapsed : {},
+    layout: normalizeLayout(raw.layout),
+    lastModified: Number(raw.lastModified||Date.now())
+  };
+
+  const hasFlatSchema = Array.isArray(raw.cards) || Array.isArray(raw.stages) || Array.isArray(raw.platforms);
+  if(hasFlatSchema){
+    const stages=asArray(raw.stages);
+    const platforms=asArray(raw.platforms);
+    const cards=asArray(raw.cards);
+    if(!stages) missing.push("stages[]");
+    if(!platforms) missing.push("platforms[]");
+    if(!cards) missing.push("cards[]");
+    if(missing.length){
+      return {ok:false, state:null, missingFields:missing, message:`Missing required fields for flat schema: ${missing.join(", ")}`};
+    }
+    normalized.stages = uniqNonEmpty(stages);
+    normalized.platforms = uniqNonEmpty(platforms);
+    if(!normalized.stages.length) normalized.stages = [...defaultStages];
+    if(!normalized.platforms.length) normalized.platforms = [...defaultPlatforms];
+    const scope={projectId:"default-project", projectName:defaultProjectName, boardId:"default-board", boardName:defaultBoardName};
+    normalized.cards = cards.map(card=>normalizeCard(card, normalized.stages[0], normalized.platforms, scope));
+    return {ok:true, state:normalized, schema:"flat"};
+  }
+
+  const sourceProjects = Array.isArray(raw.projects) ? raw.projects : [{
+    id: raw.projectId || "default-project",
+    name: raw.projectName || raw.project || defaultProjectName,
+    boards: Array.isArray(raw.boards) ? raw.boards : (raw.board ? [raw.board] : [])
+  }];
+  if(!sourceProjects.length){
+    return {ok:false, state:null, missingFields:["projects[]/boards[]"], message:"Missing required fields for hierarchical schema: projects[] or boards[]"};
+  }
+
+  sourceProjects.forEach((project, pIndex)=>{
+    const projectObj=(project && typeof project==="object") ? project : {};
+    const projectId=cleanText(projectObj.id, `project-${pIndex+1}`);
+    const projectName=cleanText(projectObj.name || projectObj.title, defaultProjectName);
+    const boards = Array.isArray(projectObj.boards) ? projectObj.boards : (projectObj.board ? [projectObj.board] : []);
+    if(!boards.length){
+      const boardSource = pIndex===0 && (raw.board || raw.boards) ? (Array.isArray(raw.boards) ? raw.boards : [raw.board]) : [];
+      boards.push(...boardSource);
+    }
+    if(!boards.length){
+      missing.push(`projects[${pIndex}].boards[]`);
+      return;
+    }
+    boards.forEach((board, bIndex)=>{
+      const boardObj=(board && typeof board==="object") ? board : {};
+      const boardId=cleanText(boardObj.id, `${projectId}-board-${bIndex+1}`);
+      const boardName=cleanText(boardObj.name || boardObj.title, defaultBoardName);
+      const stages = uniqNonEmpty(asArray(boardObj.stages) || asArray(raw.stages) || []);
+      const platforms = uniqNonEmpty(asArray(boardObj.platforms) || asArray(raw.platforms) || []);
+      const cards = asArray(boardObj.cards);
+      if(!cards) missing.push(`projects[${pIndex}].boards[${bIndex}].cards[]`);
+      if(!stages.length) missing.push(`projects[${pIndex}].boards[${bIndex}].stages[]`);
+      if(!platforms.length) missing.push(`projects[${pIndex}].boards[${bIndex}].platforms[]`);
+      if(!cards || !stages.length || !platforms.length) return;
+      normalized.stages.push(...stages);
+      normalized.platforms.push(...platforms);
+      const scope={projectId, projectName, boardId, boardName};
+      cards.forEach(card=> normalized.cards.push(normalizeCard(card, stages[0], platforms, scope)));
+      if(Array.isArray(boardObj.archive)) normalized.archive.push(...boardObj.archive);
+      if(boardObj.collapsed && typeof boardObj.collapsed==="object") Object.assign(normalized.collapsed, boardObj.collapsed);
+      if(boardObj.cardCollapsed && typeof boardObj.cardCollapsed==="object") Object.assign(normalized.cardCollapsed, boardObj.cardCollapsed);
+      if(boardObj.layout) normalized.layout = normalizeLayout(boardObj.layout);
+    });
+  });
+
+  if(!normalized.cards.length || !normalized.stages.length || !normalized.platforms.length){
+    const requiredMissing=[
+      normalized.cards.length ? null : "cards[]",
+      normalized.stages.length ? null : "stages[]",
+      normalized.platforms.length ? null : "platforms[]",
+      ...missing
+    ].filter(Boolean);
+    return {ok:false, state:null, missingFields:requiredMissing, message:`Missing required fields for hierarchical schema: ${requiredMissing.join(", ")}`};
+  }
+
+  normalized.stages = uniqNonEmpty(normalized.stages);
+  normalized.platforms = uniqNonEmpty(normalized.platforms);
+  return {ok:true, state:normalized, schema:"hierarchical"};
+}
 function getSyncEndpoint(){ return localStorage.getItem(SYNC_ENDPOINT_KEY)||""; }
 function setSyncEndpoint(url){ return trySave(SYNC_ENDPOINT_KEY, String(url||"").trim()); }
 function createLocalSyncProvider(){
@@ -1073,10 +1200,10 @@ function createLocalSyncProvider(){
       const raw=localStorage.getItem(STABLE_KEY);
       if(!raw) return {ok:true, provider:this.name, snapshot:null, message:"No local snapshot found"};
       try{
-        const parsed=JSON.parse(raw);
-        if(!isValidBoardData(parsed)) return {ok:false, provider:this.name, snapshot:null, message:"Local snapshot invalid"};
-        parsed.lastModified=Number(parsed.lastModified||Date.now());
-        return {ok:true, provider:this.name, snapshot:parsed, message:`Loaded local snapshot (${new Date(parsed.lastModified).toLocaleTimeString()})`};
+        const normalized=normalizeImportedState(JSON.parse(raw));
+        if(!normalized.ok) return {ok:false, provider:this.name, snapshot:null, message:normalized.message||"Local snapshot invalid"};
+        normalized.state.lastModified=Number(normalized.state.lastModified||Date.now());
+        return {ok:true, provider:this.name, snapshot:normalized.state, message:`Loaded local snapshot (${new Date(normalized.state.lastModified).toLocaleTimeString()})`};
       }catch(err){
         return {ok:false, provider:this.name, snapshot:null, message:`Failed to parse local snapshot: ${err?.message||err}`};
       }
@@ -1108,10 +1235,10 @@ function createRemoteSyncProvider(endpoint){
         const res=await fetch(this.endpoint, {cache:"no-store"});
         if(!res.ok) return {ok:false, provider:this.name, snapshot:null, message:`Endpoint returned ${res.status}`};
         const txt=await res.text();
-        const obj=parseBoardPayload(txt);
-        if(!obj) return {ok:false, provider:this.name, snapshot:null, message:"Endpoint payload is not a valid board snapshot"};
-        obj.lastModified=Number(obj.lastModified||Date.now());
-        return {ok:true, provider:this.name, snapshot:obj, message:`Remote snapshot loaded (${new Date(obj.lastModified).toLocaleTimeString()})`};
+        const parsed=parseBoardPayload(txt);
+        if(!parsed.ok) return {ok:false, provider:this.name, snapshot:null, message:parsed.message||"Endpoint payload is not a valid board snapshot"};
+        parsed.state.lastModified=Number(parsed.state.lastModified||Date.now());
+        return {ok:true, provider:this.name, snapshot:parsed.state, message:`Remote snapshot loaded (${new Date(parsed.state.lastModified).toLocaleTimeString()})`};
       }catch(err){
         return {ok:false, provider:this.name, snapshot:null, message:`Remote load failed: ${err?.message||err}`};
       }
@@ -1152,9 +1279,10 @@ function rebuildRemoteProvider(){ remoteSyncProvider=createRemoteSyncProvider(ge
 function chooseActiveProvider(){ syncProvider = remoteSyncProvider.endpoint ? remoteSyncProvider : localSyncProvider; return syncProvider; }
 function resolveSnapshotConflict(currentState, incomingState){
   const localStamp=Number(currentState?.lastModified||0);
-  const remoteStamp=Number(incomingState?.lastModified||0);
-  if(!isValidBoardData(incomingState)) return {decision:"reject", mergedState:currentState, reason:"Incoming snapshot invalid"};
-  if(remoteStamp>=localStamp) return {decision:"adopt_remote", mergedState:incomingState, reason:`Remote is newer or equal (${remoteStamp} >= ${localStamp})`};
+  const normalized=normalizeImportedState(incomingState);
+  if(!normalized.ok) return {decision:"reject", mergedState:currentState, reason:normalized.message||"Incoming snapshot invalid"};
+  const remoteStamp=Number(normalized.state.lastModified||0);
+  if(remoteStamp>=localStamp) return {decision:"adopt_remote", mergedState:normalized.state, reason:`Remote is newer or equal (${remoteStamp} >= ${localStamp})`};
   return {decision:"keep_local", mergedState:currentState, reason:`Local is newer (${localStamp} > ${remoteStamp})`};
 }
 function describeProviderDiagnostics(result){
@@ -1254,12 +1382,14 @@ chooseActiveProvider();
 $("#btnExport").onclick=()=>{ const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="ai-jobs-kanban.json"; a.click(); URL.revokeObjectURL(url); setStatus("Exported current board JSON."); };
 function toast(title, desc="", isErr=false){ const t=document.getElementById("toast"); t.className=isErr? "err":""; t.querySelector(".tmsg").textContent=title; t.querySelector(".tdesc").textContent=desc; t.style.display="block"; clearTimeout(t._timer); t._timer=setTimeout(()=>{ t.style.display="none"; }, 2800); }
 function applyImportedBoard(obj, sourceLabel="import"){
-  if(!(Array.isArray(obj?.cards)&&Array.isArray(obj?.platforms)&&Array.isArray(obj?.stages))){
-    toast("Import failed","Invalid JSON", true);
-    alert("Invalid JSON structure.");
+  const normalized=normalizeImportedState(obj);
+  if(!normalized.ok){
+    const detail=normalized.missingFields?.length ? `Missing required fields: ${normalized.missingFields.join(", ")}` : (normalized.message || "Invalid JSON");
+    toast("Import failed", detail, true);
+    alert(`Invalid JSON structure. ${detail}`);
     return false;
   }
-  state=obj;
+  state=normalized.state;
   state.collapsed = state.collapsed || {};
   state.layout = state.layout || "auto";
   state.archive = Array.isArray(state.archive)? state.archive : [];
@@ -1272,33 +1402,28 @@ function applyImportedBoard(obj, sourceLabel="import"){
   setStatus(`Imported ${sourceLabel} and saved to local storage.`);
   return true;
 }
-function isValidBoardData(obj){
-  return Array.isArray(obj?.cards) && Array.isArray(obj?.platforms) && Array.isArray(obj?.stages);
-}
 function parseBoardPayload(text){
-  if(!text) return null;
+  if(!text) return {ok:false, state:null, message:"Empty payload"};
   const raw = String(text).trim();
-  if(!raw) return null;
+  if(!raw) return {ok:false, state:null, message:"Empty payload"};
   try{
-    const obj = JSON.parse(raw);
-    return isValidBoardData(obj) ? obj : null;
+    return normalizeImportedState(JSON.parse(raw));
   }catch{}
   const preMatch = raw.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
   const candidate = preMatch?.[1] || raw;
-  if(!candidate) return null;
+  if(!candidate) return {ok:false, state:null, message:"Payload does not contain JSON"};
   try{
     const decoded = candidate
       .replace(/&quot;/g, '"')
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>');
-    const obj = JSON.parse(decoded.trim());
-    return isValidBoardData(obj) ? obj : null;
+    return normalizeImportedState(JSON.parse(decoded.trim()));
   }catch{}
-  return null;
+  return {ok:false, state:null, message:"Payload is not valid JSON"};
 }
 $("#btnImport").onclick=()=> $("#fileImport").click();
-$("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ applyImportedBoard(JSON.parse(r.result), "JSON file"); }catch(err){ toast("Import failed","Could not parse file", true); alert("Failed to parse JSON."); } }; r.readAsText(f); };
+$("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ const parsed=parseBoardPayload(r.result); if(!parsed.ok){ const reason=parsed.missingFields?.length ? `Missing required fields: ${parsed.missingFields.join(", ")}` : (parsed.message||"Could not parse file"); toast("Import failed", reason, true); alert(`Failed to import JSON. ${reason}`); return; } applyImportedBoard(parsed.state, "JSON file"); }catch(err){ toast("Import failed","Could not parse file", true); alert("Failed to parse JSON."); } }; r.readAsText(f); };
 $("#btnShare").onclick=()=>{ promptSyncEndpointConfiguration(); };
 $("#btnManualRefresh").onclick=()=>{ forceRefreshFromDrive(); };
 $("#btnSyncEndpoint").onclick=()=>{ promptSyncEndpointConfiguration(); };
