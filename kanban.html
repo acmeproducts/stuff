@@ -122,6 +122,10 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
 .chip button:hover{color:#000}
+.attachment-list{display:flex;flex-direction:column;gap:6px}
+.attachment-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:#fff}
+.attachment-item a{font-size:13px;color:#1f6feb;text-decoration:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.attachment-remove{border:none;background:transparent;color:var(--danger);font-weight:800;cursor:pointer;font-size:14px;line-height:1}
 /* Landing target outline (orange) */
 .drop-highlight{ border-color:var(--highlight) !important; box-shadow:0 0 0 2px var(--highlight) inset; }
 
@@ -191,6 +195,8 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     <button id="btnShare" class="btn icon-btn" title="Share" aria-label="Share">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.39 1.2l-6.71-3.35a3.1 3.1 0 0 0 0-1.7l6.7-3.35A3 3 0 1 0 15 7a3.1 3.1 0 0 0 .1.75l-6.7 3.35a3 3 0 1 0 0 1.8l6.7 3.35A3 3 0 1 0 18 16Z"/></svg>
     </button>
+    <button id="btnProjects" class="btn icon-btn" title="Projects" aria-label="Projects">🗂</button>
+    <button id="btnBoards" class="btn icon-btn" title="Boards" aria-label="Boards">📋</button>
     <input id="fileImport" type="file" accept="application/json" class="hidden" aria-hidden="true" tabindex="-1" />
   </div>
   <div class="searchbar">
@@ -218,6 +224,17 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
       <div class="row">
         <input id="fTitle" placeholder="Short title" autofocus/>
         <button id="btnSaveAndNew" class="btn small primary" value="save_new">Save & New</button>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="field">
+        <label for="fProject">Project</label>
+        <select id="fProject"></select>
+      </div>
+      <div class="field">
+        <label for="fBoard">Board</label>
+        <select id="fBoard"></select>
       </div>
     </div>
 
@@ -328,6 +345,31 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
   </form>
 </dialog>
 
+<dialog id="projectsDialog">
+  <form method="dialog" class="modal">
+    <h3>Projects</h3>
+    <div id="projectsList" style="max-height:45vh; overflow:auto; margin-top:8px;"></div>
+    <div class="row" style="margin-top:10px;">
+      <input id="newProjectName" placeholder="New project name" />
+      <button class="btn" value="add" id="btnAddProject">Add</button>
+      <button class="btn" value="close">Close</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="boardsDialog">
+  <form method="dialog" class="modal">
+    <h3>Boards</h3>
+    <div class="field"><label for="boardsProjectFilter">Project</label><select id="boardsProjectFilter"></select></div>
+    <div id="boardsList" style="max-height:45vh; overflow:auto; margin-top:8px;"></div>
+    <div class="row" style="margin-top:10px;">
+      <input id="newBoardName" placeholder="New board name" />
+      <button class="btn" value="add" id="btnAddBoard">Add</button>
+      <button class="btn" value="close">Close</button>
+    </div>
+  </form>
+</dialog>
+
 <div id="tooltip" role="tooltip" aria-hidden="true">
   <div class="t-title"></div>
   <div class="t-meta"></div>
@@ -342,7 +384,6 @@ const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
 const SEARCH_SCOPE_PROJECT_KEY = "ai_jobs_kanban_search_scope_project";
 const SEARCH_SCOPE_BOARD_KEY = "ai_jobs_kanban_search_scope_board";
-const SYNC_ENDPOINT_KEY = "ai_jobs_kanban_sync_endpoint";
 const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
 let dirty=false, saveTimer=null;
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
@@ -392,6 +433,24 @@ state.lastModified = Number(state.lastModified||Date.now());
 let selectedProjectScope = localStorage.getItem(SEARCH_SCOPE_PROJECT_KEY) || "all";
 let selectedBoardScope = localStorage.getItem(SEARCH_SCOPE_BOARD_KEY) || "all";
 let tagHistory = loadTagHistory();
+state.catalog = state.catalog && typeof state.catalog==="object" ? state.catalog : {projects:[{id:"default-project", name:"Default Project", boards:[{id:"default-board", name:"Default Board"}]}]};
+
+function ensureCatalog(){
+  if(!state.catalog || typeof state.catalog!=="object") state.catalog={projects:[]};
+  if(!Array.isArray(state.catalog.projects)) state.catalog.projects=[];
+  const projects=state.catalog.projects;
+  if(!projects.length){ projects.push({id:"default-project",name:"Default Project",boards:[{id:"default-board",name:"Default Board"}]}); }
+  (state.cards||[]).forEach(card=>{
+    const meta=cardScopeMeta(card);
+    let proj=projects.find(p=>p.id===meta.projectId);
+    if(!proj){ proj={id:meta.projectId,name:meta.projectName,boards:[]}; projects.push(proj); }
+    if(!Array.isArray(proj.boards)) proj.boards=[];
+    if(!proj.boards.some(b=>b.id===meta.boardId)) proj.boards.push({id:meta.boardId,name:meta.boardName});
+  });
+}
+function slugifyLabel(v,prefix){ const base=String(v||"").trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); return base||`${prefix}-${Date.now()}`; }
+function getProjectById(id){ ensureCatalog(); return state.catalog.projects.find(p=>p.id===id); }
+function getBoardById(projectId, boardId){ const p=getProjectById(projectId); return p?.boards?.find(b=>b.id===boardId); }
 
 function cardScopeMeta(card){
   return {
@@ -406,17 +465,12 @@ function saveScopeSelection(){
   trySave(SEARCH_SCOPE_BOARD_KEY, selectedBoardScope);
 }
 function getScopeOptions(){
-  const projects = new Map();
-  (state.cards||[]).forEach(card=>{
-    const meta = cardScopeMeta(card);
-    if(!projects.has(meta.projectId)) projects.set(meta.projectId, {id:meta.projectId, name:meta.projectName, boards:new Map()});
-    const project = projects.get(meta.projectId);
-    if(!project.boards.has(meta.boardId)) project.boards.set(meta.boardId, {id:meta.boardId, name:meta.boardName});
-  });
-  if(!projects.size){
-    projects.set("default-project", {id:"default-project", name:"Default Project", boards:new Map([["default-board", {id:"default-board", name:"Default Board"}]])});
-  }
-  return Array.from(projects.values()).map(p=>({...p, boards:Array.from(p.boards.values())}));
+  ensureCatalog();
+  return state.catalog.projects.map(p=>({
+    id:p.id,
+    name:p.name,
+    boards:Array.isArray(p.boards)?p.boards:[{id:"default-board",name:"Default Board"}]
+  }));
 }
 function syncScopeSelectors(){
   const projectSel = $("#projectScope");
@@ -879,7 +933,7 @@ function renderCard(card){
 /* ===== Card Ops ===== */
 function createCard(data){
   const now=Date.now(); const stage=data.stage||state.stages[0]||"Next";
-  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:normalizeUrl(data.dev), live:normalizeUrl(data.live), tags:normalizeTags(data.tags), notes:preprocessNotes(data.notes), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
+  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:normalizeUrl(data.dev), live:normalizeUrl(data.live), tags:normalizeTags(data.tags), notes:preprocessNotes(data.notes), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]), projectId:data.projectId||"default-project", projectName:data.projectName||"Default Project", boardId:data.boardId||"default-board", boardName:data.boardName||"Default Board" }; ensureCatalog();
   state.cards.push(c); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id); return c.id;
 }
 function updateCard(id, patch){
@@ -900,6 +954,13 @@ function restoreCard(id){
   const idx = state.archive.findIndex(x=>x.id===id); if(idx===-1) return;
   const c = state.archive[idx];
   state.archive.splice(idx,1);
+  if(c.itemType==="board"){
+    ensureCatalog();
+    let project=getProjectById(c.projectId);
+    if(!project){ project={id:c.projectId,name:c.projectName,boards:[]}; state.catalog.projects.push(project); }
+    if(!project.boards.some(b=>b.id===c.boardId)) project.boards.push({id:c.boardId,name:c.boardName});
+    scheduleSave(); render(); return;
+  }
   c.pos = topPos(c.stage);
   c.updatedAt = Date.now();
   delete c.archivedAt;
@@ -967,8 +1028,9 @@ editorCloseBtn.addEventListener("click", ()=>{
 $("#fTitle").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); $("#btnSave").click(); } });
 $("#btnSaveAndNew").addEventListener("click", (e)=>{ e.preventDefault(); editDialog.close("save_new"); });
 // MODIFIED LINE 364: Use activeTags (Source of Truth) for saving, fixing the persistence deficiency.
-function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("#fStage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:$("#fNotes").value, files: currentFiles.slice() }; }
-function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join(""); $("#fStage").innerHTML = state.stages.map(s=>`<option>${s}</option>`).join(""); }
+function collectEditorData(){ const projectId=$("#fProject").value||"default-project"; const project=getProjectById(projectId) || {id:"default-project",name:"Default Project",boards:[{id:"default-board",name:"Default Board"}]}; const boardId=$("#fBoard").value||"default-board"; const board=(project.boards||[]).find(b=>b.id===boardId) || {id:"default-board",name:"Default Board"}; return { projectId:project.id, projectName:project.name, boardId:board.id, boardName:board.name, platform:$("#fPlatform").value, stage:$("#fStage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:$("#fNotes").value, files: currentFiles.slice() }; }
+function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join(""); $("#fStage").innerHTML = state.stages.map(s=>`<option>${s}</option>`).join(""); refillProjectBoardSelects(); }
+function refillProjectBoardSelects(projectId="default-project", boardId="default-board"){ ensureCatalog(); const projectSel=$("#fProject"); const boardSel=$("#fBoard"); if(!projectSel||!boardSel) return; const projects=getScopeOptions(); if(!projects.some(p=>p.id===projectId)) projectId=projects[0].id; projectSel.innerHTML=projects.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join(""); projectSel.value=projectId; const boards=(projects.find(p=>p.id===projectId)?.boards)||[{id:"default-board",name:"Default Board"}]; if(!boards.some(b=>b.id===boardId)) boardId=boards[0].id; boardSel.innerHTML=boards.map(b=>`<option value="${escapeHtml(b.id)}">${escapeHtml(b.name)}</option>`).join(""); boardSel.value=boardId; }
 
 /* ===== Tagging UI ===== */
 const tagInput=$("#tagInput"), tagChips=$("#tagChips"), tagSuggestions=$("#tagSuggestions"), hiddenTags=$("#fTags");
@@ -1012,6 +1074,8 @@ function renderTagSuggestions(){
   });
 }
 
+$("#fProject")?.addEventListener("change", ()=>{ refillProjectBoardSelects($("#fProject").value, "default-board"); });
+
 /* ===== Attachments ===== */
 const fFiles=$("#fFiles"), fileChips=$("#fileChips"), btnClearFiles=$("#btnClearFiles"), notesEl=$("#fNotes");
 btnClearFiles.addEventListener("click", ()=>{ pendingFiles=[]; fFiles.value=""; renderFileChips(); });
@@ -1020,7 +1084,7 @@ async function addFiles(files){
   for(const file of files){ const dataUrl = await readAsDataURL(file); pendingFiles.push({name:file.name,type:file.type,size:file.size,data:dataUrl}); }
   currentFiles = mergeFiles(currentFiles, pendingFiles); pendingFiles = []; renderFileChips(); }
 function mergeFiles(existing, added){ const byName=new Map(existing.map(x=>[x.name,x])); for(const f of added){ byName.set(f.name, f); } return Array.from(byName.values()); }
-function renderFileChips(){ fileChips.innerHTML=""; if(!currentFiles.length){ fileChips.innerHTML="<span class='muted'>No attachments</span>"; return; } currentFiles.forEach((f,idx)=>{ const el=document.createElement("span"); el.className="chip"; const a=document.createElement("a"); a.href=f.data; a.download=f.name; a.textContent=f.name; a.onclick=(e)=>e.stopPropagation(); const rm=document.createElement("button"); rm.textContent="×"; rm.title="remove attachment"; rm.onclick=(e)=>{ e.stopPropagation(); currentFiles.splice(idx,1); renderFileChips(); }; el.append(a, rm); fileChips.appendChild(el); }); }
+function renderFileChips(){ fileChips.innerHTML=""; if(!currentFiles.length){ fileChips.innerHTML="<span class='muted'>No attachments</span>"; return; } const list=document.createElement("div"); list.className="attachment-list"; currentFiles.forEach((f,idx)=>{ const row=document.createElement("div"); row.className="attachment-item"; const a=document.createElement("a"); a.href=f.data; a.download=f.name; a.textContent=f.name; a.onclick=(e)=>e.stopPropagation(); const rm=document.createElement("button"); rm.className="attachment-remove"; rm.textContent="✖"; rm.title="remove attachment"; rm.onclick=(e)=>{ e.stopPropagation(); currentFiles.splice(idx,1); renderFileChips(); }; row.append(a, rm); list.appendChild(row); }); fileChips.appendChild(list); }
 function readAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
 
 /* ===== Paste images/URLs into Notes ===== */
@@ -1191,8 +1255,6 @@ function normalizeImportedState(raw){
   normalized.platforms = uniqNonEmpty(normalized.platforms);
   return {ok:true, state:normalized, schema:"hierarchical"};
 }
-function getSyncEndpoint(){ return localStorage.getItem(SYNC_ENDPOINT_KEY)||""; }
-function setSyncEndpoint(url){ return trySave(SYNC_ENDPOINT_KEY, String(url||"").trim()); }
 function createLocalSyncProvider(){
   return {
     name:"localStorage",
@@ -1272,11 +1334,11 @@ function createRemoteSyncProvider(endpoint){
     }
   };
 }
+const GOOGLE_DRIVE_DOC_URL = "https://drive.google.com/file/d/1dw2gs93zER-qbrKomTSW8PhtBTvtq5Zr/view?usp=drivesdk";
 const localSyncProvider=createLocalSyncProvider();
-let remoteSyncProvider=createRemoteSyncProvider(getSyncEndpoint());
-let syncProvider=localSyncProvider;
-function rebuildRemoteProvider(){ remoteSyncProvider=createRemoteSyncProvider(getSyncEndpoint()); }
-function chooseActiveProvider(){ syncProvider = remoteSyncProvider.endpoint ? remoteSyncProvider : localSyncProvider; return syncProvider; }
+const remoteSyncProvider=createRemoteSyncProvider(GOOGLE_DRIVE_DOC_URL);
+let syncProvider=remoteSyncProvider;
+function chooseActiveProvider(){ syncProvider = remoteSyncProvider; return syncProvider; }
 function resolveSnapshotConflict(currentState, incomingState){
   const localStamp=Number(currentState?.lastModified||0);
   const normalized=normalizeImportedState(incomingState);
@@ -1291,25 +1353,16 @@ function describeProviderDiagnostics(result){
 }
 async function fetchCentralizedBoard(){
   const provider=chooseActiveProvider();
-  const health=await provider.healthCheck();
-  if(!health.ok) return {ok:false, provider:provider.name, snapshot:null, health, message:health.message};
   const loaded=await provider.loadSnapshot();
-  return {ok:loaded.ok, provider:provider.name, snapshot:loaded.snapshot||null, health, message:loaded.message};
+  return {ok:loaded.ok, provider:provider.name, snapshot:loaded.snapshot||null, message:loaded.message};
 }
 async function bootstrapCentralizedBoard(){
   const result=await fetchCentralizedBoard();
   if(!result.ok || !result.snapshot){
-    setStatus(`Sync bootstrap skipped • ${describeProviderDiagnostics(result.health)}`);
+    toast("Hydration failed", result.message || "Could not load source document", true);
     return;
   }
-  const conflict=resolveSnapshotConflict(state, result.snapshot);
-  if(conflict.decision==="adopt_remote"){
-    applyImportedBoard(conflict.mergedState, `${result.provider} sync bootstrap`);
-    toast("Synced latest snapshot", conflict.reason);
-  }else if(conflict.decision==="keep_local"){
-    toast("Local board kept", conflict.reason);
-    setStatus(`Bootstrap conflict resolved: ${conflict.reason}`);
-  }
+  applyImportedBoard(result.snapshot, `${result.provider} automatic hydration`);
 }
 function triggerRealtimeDriveSync(){
   clearTimeout(triggerRealtimeDriveSync._timer);
@@ -1324,59 +1377,6 @@ function triggerRealtimeDriveSync(){
     }
   }, 120);
 }
-async function forceRefreshFromDrive(){
-  const provider=chooseActiveProvider();
-  setStatus(`Refreshing from ${provider.name} provider…`);
-  const health=await provider.healthCheck();
-  if(!health.ok){
-    toast("Refresh failed", health.message, true);
-    setStatus(`Refresh diagnostics • ${describeProviderDiagnostics(health)}`);
-    return;
-  }
-  const loaded=await provider.loadSnapshot();
-  if(!loaded.ok || !loaded.snapshot){
-    toast("Refresh failed", loaded.message || "No snapshot available", true);
-    setStatus(`Refresh diagnostics • ${describeProviderDiagnostics(loaded)}`);
-    return;
-  }
-  const conflict=resolveSnapshotConflict(state, loaded.snapshot);
-  if(conflict.decision==="adopt_remote"){
-    applyImportedBoard(conflict.mergedState, `${provider.name} manual refresh`);
-    toast("Manual refresh applied", `${conflict.reason} • ${describeProviderDiagnostics(loaded)}`);
-    return;
-  }
-  toast("Manual refresh skipped", conflict.reason);
-  setStatus(`Manual refresh diagnostics • ${conflict.reason} • ${describeProviderDiagnostics(loaded)}`);
-}
-function promptSyncEndpointConfiguration(){
-  const current=getSyncEndpoint();
-  const input=prompt("Set sync endpoint URL (leave empty to use local provider only):", current);
-  if(input===null) return;
-  if(!setSyncEndpoint(input)){
-    toast("Sync config failed", "Could not save endpoint setting", true);
-    return;
-  }
-  rebuildRemoteProvider();
-  const active=chooseActiveProvider();
-  toast("Sync provider updated", `Using ${active.name}${active.endpoint? ` (${active.endpoint})` : ""}`);
-}
-
-const btnManualRefresh=document.createElement("button");
-btnManualRefresh.id="btnManualRefresh";
-btnManualRefresh.className="btn icon-btn";
-btnManualRefresh.title="Manual refresh";
-btnManualRefresh.setAttribute("aria-label","Manual refresh");
-btnManualRefresh.textContent="⟳";
-document.querySelector(".toolbar")?.appendChild(btnManualRefresh);
-
-const btnSyncEndpoint=document.createElement("button");
-btnSyncEndpoint.id="btnSyncEndpoint";
-btnSyncEndpoint.className="btn icon-btn";
-btnSyncEndpoint.title="Sync endpoint";
-btnSyncEndpoint.setAttribute("aria-label","Sync endpoint");
-btnSyncEndpoint.textContent="☁";
-document.querySelector(".toolbar")?.appendChild(btnSyncEndpoint);
-
 chooseActiveProvider();
 
 $("#btnExport").onclick=()=>{ const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="ai-jobs-kanban.json"; a.click(); URL.revokeObjectURL(url); setStatus("Exported current board JSON."); };
@@ -1424,9 +1424,6 @@ function parseBoardPayload(text){
 }
 $("#btnImport").onclick=()=> $("#fileImport").click();
 $("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ const parsed=parseBoardPayload(r.result); if(!parsed.ok){ const reason=parsed.missingFields?.length ? `Missing required fields: ${parsed.missingFields.join(", ")}` : (parsed.message||"Could not parse file"); toast("Import failed", reason, true); alert(`Failed to import JSON. ${reason}`); return; } applyImportedBoard(parsed.state, "JSON file"); }catch(err){ toast("Import failed","Could not parse file", true); alert("Failed to parse JSON."); } }; r.readAsText(f); };
-$("#btnShare").onclick=()=>{ promptSyncEndpointConfiguration(); };
-$("#btnManualRefresh").onclick=()=>{ forceRefreshFromDrive(); };
-$("#btnSyncEndpoint").onclick=()=>{ promptSyncEndpointConfiguration(); };
 /* ===== Archive UI ===== */
 const archiveDialog=$("#archiveDialog");
 $("#btnOpenArchive").onclick=()=>{ renderArchiveList(); archiveDialog.showModal(); };
@@ -1438,8 +1435,7 @@ function renderArchiveList(){
     const row=document.createElement("div"); row.className="result-item";
     row.innerHTML = `
       <strong>${escapeHtml(c.title||"(untitled)")}</strong>
-      <div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}
-        ${c.tags?.length? " · #"+c.tags.join(" #"):""}
+      <div class="muted">${c.itemType==="board" ? `Board archive · ${escapeHtml(c.projectName||"")} / ${escapeHtml(c.boardName||"")}` : `${escapeHtml(c.platform)} · ${escapeHtml(c.stage)} ${c.tags?.length? " · #"+c.tags.join(" #"):""}`}
         <span class="timepill">Archived ${escapeHtml(fmtDate(c.archivedAt))}</span>
       </div>
       <div class="row" style="margin-top:6px;">
@@ -1453,6 +1449,45 @@ function renderArchiveList(){
   });
 }
 $("#btnEmptyArchive").onclick=(e)=>{ e.preventDefault(); archiveDialog.close("empty"); };
+
+/* ===== Project & Board Management ===== */
+const projectsDialog=$("#projectsDialog");
+const boardsDialog=$("#boardsDialog");
+function renderProjectsList(){
+  ensureCatalog();
+  const list=$("#projectsList");
+  list.innerHTML="";
+  state.catalog.projects.forEach(p=>{
+    const row=document.createElement("div"); row.className="result-item";
+    row.innerHTML=`<strong>${escapeHtml(p.name)}</strong><div class="row" style="margin-top:6px;"><button class="btn small" data-act="rename">Rename</button><button class="btn small danger" data-act="delete">Delete</button></div>`;
+    row.querySelector('[data-act="rename"]').onclick=()=>{ const next=prompt("Project name", p.name); if(!next) return; p.name=next.trim(); state.cards.forEach(c=>{ if(c.projectId===p.id) c.projectName=p.name; }); scheduleSave(); renderProjectsList(); render(); };
+    row.querySelector('[data-act="delete"]').onclick=()=>{ if(p.id==="default-project") return toast("Not allowed","Default project cannot be deleted",true); if(!confirm(`Delete project ${p.name}?`)) return; const boardIds=(p.boards||[]).map(b=>b.id); state.cards.filter(c=>c.projectId===p.id).forEach(c=>archiveCard(c.id)); state.catalog.projects=state.catalog.projects.filter(x=>x.id!==p.id); state.archive.push({id:uid(),itemType:"board",title:`[Project] ${p.name}`,projectId:p.id,projectName:p.name,boardId:"*",boardName:"All Boards",archivedAt:Date.now()}); scheduleSave(); renderProjectsList(); render(); };
+    list.appendChild(row);
+  });
+}
+function renderBoardsList(){
+  ensureCatalog();
+  const projectSel=$("#boardsProjectFilter");
+  const projects=getScopeOptions();
+  if(!projects.length) return;
+  const current=projectSel.value && projects.some(p=>p.id===projectSel.value) ? projectSel.value : projects[0].id;
+  projectSel.innerHTML=projects.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
+  projectSel.value=current;
+  const project=projects.find(p=>p.id===projectSel.value);
+  const list=$("#boardsList"); list.innerHTML="";
+  (project?.boards||[]).forEach(b=>{
+    const row=document.createElement("div"); row.className="result-item";
+    row.innerHTML=`<strong>${escapeHtml(b.name)}</strong><div class="row" style="margin-top:6px;"><button class="btn small" data-act="rename">Rename</button><button class="btn small danger" data-act="delete">Delete</button></div>`;
+    row.querySelector('[data-act="rename"]').onclick=()=>{ const next=prompt("Board name", b.name); if(!next) return; const proj=getProjectById(project.id); const target=proj?.boards?.find(x=>x.id===b.id); if(!target) return; target.name=next.trim(); state.cards.forEach(c=>{ if(c.projectId===project.id && c.boardId===b.id) c.boardName=target.name; }); scheduleSave(); renderBoardsList(); render(); };
+    row.querySelector('[data-act="delete"]').onclick=()=>{ if(b.id==="default-board") return toast("Not allowed","Default board cannot be deleted",true); if(!confirm(`Archive board ${b.name}?`)) return; const proj=getProjectById(project.id); if(!proj) return; state.cards.filter(c=>c.projectId===project.id && c.boardId===b.id).forEach(c=>archiveCard(c.id)); proj.boards=proj.boards.filter(x=>x.id!==b.id); state.archive.push({id:uid(),itemType:"board",title:`[Board] ${b.name}`,projectId:project.id,projectName:project.name,boardId:b.id,boardName:b.name,archivedAt:Date.now()}); scheduleSave(); renderBoardsList(); render(); };
+    list.appendChild(row);
+  });
+}
+$("#btnProjects").onclick=()=>{ renderProjectsList(); projectsDialog.showModal(); };
+$("#btnBoards").onclick=()=>{ renderBoardsList(); boardsDialog.showModal(); };
+$("#btnAddProject").onclick=(e)=>{ e.preventDefault(); const name=$("#newProjectName").value.trim(); if(!name) return; ensureCatalog(); const id=slugifyLabel(name,"project"); if(state.catalog.projects.some(p=>p.id===id)) return toast("Duplicate project","Project id already exists",true); state.catalog.projects.push({id,name,boards:[{id:"default-board",name:"Default Board"}]}); $("#newProjectName").value=""; scheduleSave(); renderProjectsList(); render(); };
+$("#boardsProjectFilter").onchange=()=> renderBoardsList();
+$("#btnAddBoard").onclick=(e)=>{ e.preventDefault(); const name=$("#newBoardName").value.trim(); if(!name) return; const projectId=$("#boardsProjectFilter").value; const project=getProjectById(projectId); if(!project) return; const id=slugifyLabel(name,"board"); if((project.boards||[]).some(b=>b.id===id)) return toast("Duplicate board","Board id already exists",true); project.boards.push({id,name}); $("#newBoardName").value=""; scheduleSave(); renderBoardsList(); render(); };
 
 /* ===== Search ===== */
 const searchInput=$("#search"); let searchDebounce, currentMatches=[];
