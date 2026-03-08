@@ -24,9 +24,8 @@ body{margin:0;font-family:system-ui,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,s
 header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--border);}
 .toolbar{padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:nowrap;white-space:nowrap;overflow:auto}
 .toolbar .btn{flex:0 0 auto}
-.searchbar{padding:10px 16px;border-top:1px solid var(--border);display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:center}
-#tagScope,#search{padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:#fff}
-#search{width:100%;font-size:15px}
+.searchbar{padding:10px 16px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}
+#search{padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:15px;background:#fff;width:100%}
 #btnClearSearch{padding:8px 10px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer}
 .btn{padding:10px 14px;border:1px solid var(--border);background:var(--panel);border-radius:10px;cursor:pointer;font-weight:600}
 .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -126,6 +125,12 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .attachment-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:#fff}
 .attachment-item a{font-size:13px;color:#1f6feb;text-decoration:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .attachment-remove{border:none;background:transparent;color:var(--danger);font-weight:800;cursor:pointer;font-size:14px;line-height:1}
+.card-attachment-list{display:flex;flex-direction:column;gap:6px}
+.card-attachment-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff}
+.card-attachment-thumb{width:34px;height:34px;border-radius:6px;object-fit:cover;border:1px solid var(--border);background:#f1f5f9;flex:0 0 auto}
+.card-attachment-link{font-size:12px;color:#1f6feb;text-decoration:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto}
+.card-attachment-meta{font-size:11px;color:var(--muted)}
+.card-attachment-remove{border:none;background:transparent;color:var(--danger);font-weight:800;cursor:pointer;font-size:14px;line-height:1;flex:0 0 auto}
 /* Landing target outline (orange) */
 .drop-highlight{ border-color:var(--highlight) !important; box-shadow:0 0 0 2px var(--highlight) inset; }
 
@@ -156,7 +161,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 #tooltip .t-title{font-weight:800;margin-bottom:4px}
 #tooltip .t-meta{font-size:12px;color:#888;margin-bottom:4px}
 #tooltip .t-tags{font-size:12px;color:#666;margin-bottom:6px}
-#tooltip .t-notes{font-size:13px;white-space:pre-wrap;max-height:120px;overflow:auto}
+#tooltip .t-notes{font-size:13px;max-height:120px;overflow:auto}
 #tooltip .t-notes a{color:#1f6feb;text-decoration:none}
 #tooltip .t-notes img{max-width:100%;height:auto;border-radius:8px;margin-top:6px}
 
@@ -183,7 +188,6 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     <input id="fileImport" type="file" accept="application/json" class="hidden" aria-hidden="true" tabindex="-1" />
   </div>
   <div class="searchbar">
-    <select id="tagScope" aria-label="Tag filter"></select>
     <input id="search" placeholder="Omni search… (use -term to exclude)" aria-label="Omni search"/>
     <button id="btnClearSearch" title="Clear search">×</button>
     <span class="muted" id="searchCount"></span>
@@ -329,7 +333,6 @@ const BUILD = "2026-03-08";
 /* ===== Persistence ===== */
 const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
-const SEARCH_SCOPE_TAG_KEY = "ai_jobs_kanban_search_scope_tag";
 const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
 let dirty=false, saveTimer=null;
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
@@ -372,32 +375,10 @@ state.cardCollapsed = state.cardCollapsed || {};
 state.layout = state.layout || "auto";
 state.archive = Array.isArray(state.archive)? state.archive : [];
 state.lastModified = Number(state.lastModified||Date.now());
-let selectedTagScope = localStorage.getItem(SEARCH_SCOPE_TAG_KEY) || "all";
 let tagHistory = loadTagHistory();
 
-function saveScopeSelection(){
-  trySave(SEARCH_SCOPE_TAG_KEY, selectedTagScope);
-}
-function getScopeOptions(){
-  const tags=[...new Set((state.cards||[]).flatMap(c=>Array.isArray(c.tags)?c.tags:[]).map(t=>String(t||"").trim().toLowerCase()).filter(Boolean))].sort();
-  return tags;
-}
-function syncScopeSelectors(){
-  const tagSel = $("#tagScope");
-  if(!tagSel) return;
-  const tags = getScopeOptions();
-  if(selectedTagScope !== "all" && !tags.includes(selectedTagScope)) selectedTagScope = "all";
-  tagSel.innerHTML = `<option value="all">All tags</option>` + tags.map(t=>`<option value="${escapeHtml(t)}">#${escapeHtml(t)}</option>`).join("");
-  tagSel.value = selectedTagScope;
-  saveScopeSelection();
-}
-function cardInScope(card){
-  if(selectedTagScope === "all") return true;
-  return Array.isArray(card.tags) && card.tags.includes(selectedTagScope);
-}
-function getScopedCards(){
-  return (state.cards||[]).filter(cardInScope);
-}
+function cardInScope(){ return true; }
+function getScopedCards(){ return state.cards||[]; }
 function updateScopeStatus(){}
 
 const $ = s=>document.querySelector(s), $$ = s=>Array.from(document.querySelectorAll(s));
@@ -543,7 +524,6 @@ function render(){
   });
 
   refillSelects();
-  syncScopeSelectors();
   applySearch($("#search").value);
 }
 document.addEventListener("dragover", e=> e.preventDefault());
@@ -771,35 +751,43 @@ function renderCard(card){
   });
 
   const attachmentsWrap=document.createElement("div");
-  attachmentsWrap.className="chips card-links";
+  attachmentsWrap.className="card-attachment-list";
   attachmentsWrap.addEventListener("click", e=>e.stopPropagation());
   attachmentsWrap.addEventListener("pointerdown", e=>e.stopPropagation());
   attachmentsWrap.addEventListener("pointerup", e=>e.stopPropagation());
   const attachmentFiles=Array.isArray(card.files)?card.files.filter(f=>f && typeof f==="object"):[];
   if(attachmentFiles.length){
-    attachmentFiles.forEach(f=>{
-      const chip=document.createElement("span");
-      chip.className="chip";
-      const meta=[f?.type, typeof f?.size==="number" && f.size>=0 ? fmtBytes(f.size) : ""].filter(Boolean).join(" • ");
+    attachmentFiles.forEach((f,idx)=>{
+      const row=document.createElement("div");
+      row.className="card-attachment-item";
       const fileName=f?.name||"attachment";
-      if(typeof f?.data === "string" && f.data){
-        const link=document.createElement("a");
+      const meta=[f?.type, typeof f?.size==="number" && f.size>=0 ? fmtBytes(f.size) : ""].filter(Boolean).join(" • ");
+      const maybeImage=typeof f?.type==="string" && f.type.startsWith("image/") && typeof f?.data==="string" ? f.data : "";
+      const thumb=document.createElement(maybeImage?"img":"div");
+      thumb.className="card-attachment-thumb";
+      if(maybeImage){ thumb.src=maybeImage; thumb.alt=fileName; }
+      const link=document.createElement(typeof f?.data === "string" && f.data ? "a" : "span");
+      link.className=typeof f?.data === "string" && f.data ? "card-attachment-link" : "card-attachment-meta";
+      if(link.tagName==="A"){
         link.href=f.data;
         link.download=fileName;
         link.target="_blank";
         link.rel="noopener";
-        link.textContent=meta ? `${fileName} (${meta})` : fileName;
-        link.addEventListener("click", e=>e.stopPropagation());
-        link.addEventListener("pointerdown", e=>e.stopPropagation());
-        link.addEventListener("pointerup", e=>e.stopPropagation());
-        chip.append(link);
-      }else{
-        const text=document.createElement("span");
-        text.className="muted";
-        text.textContent=meta ? `${fileName} (${meta})` : fileName;
-        chip.append(text);
       }
-      attachmentsWrap.append(chip);
+      link.textContent=meta ? `${fileName} (${meta})` : fileName;
+      const rm=document.createElement("button");
+      rm.type="button";
+      rm.className="card-attachment-remove";
+      rm.textContent="✖";
+      rm.title="Remove attachment";
+      rm.setAttribute("aria-label","Remove attachment");
+      rm.onclick=(e)=>{
+        e.stopPropagation();
+        const files=(Array.isArray(card.files)?card.files:[]).filter((_,i)=>i!==idx);
+        updateCard(card.id,{files});
+      };
+      row.append(thumb,link,rm);
+      attachmentsWrap.append(row);
     });
   }else{
     const empty=document.createElement("span");
@@ -1148,7 +1136,7 @@ const localSyncProvider=createLocalSyncProvider();
 let syncProvider=localSyncProvider;
 function fmtSyncMetric(ts){ return ts ? new Date(ts).toLocaleTimeString() : "—"; }
 function setSyncStatus(prefix){
-  setStatus(`${prefix} • Build ${BUILD}`);
+  setStatus(`${prefix} • Last updated ${fmtDate(state.lastModified)} • Build ${BUILD}`);
 }
 function chooseActiveProvider(){ syncProvider = localSyncProvider; return syncProvider; }
 function resolveSnapshotConflict(currentState, incomingState){
@@ -1166,7 +1154,7 @@ function unwrapBoardPayload(raw){
 }
 
 
-$("#btnExport").onclick=()=>{ const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="ai-jobs-kanban.json"; a.click(); URL.revokeObjectURL(url); setStatus("Exported current board JSON."); };
+$("#btnExport").onclick=()=>{ const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="ai-jobs-kanban.json"; a.click(); URL.revokeObjectURL(url); setSyncStatus("Exported current board JSON") };
 function toast(title, desc="", isErr=false){ const t=document.getElementById("toast"); t.className=isErr? "err":""; t.querySelector(".tmsg").textContent=title; t.querySelector(".tdesc").textContent=desc; t.style.display="block"; clearTimeout(t._timer); t._timer=setTimeout(()=>{ t.style.display="none"; }, 2800); }
 function applyImportedBoard(obj, sourceLabel="import"){
   const normalized=normalizeImportedState(obj);
@@ -1186,7 +1174,7 @@ function applyImportedBoard(obj, sourceLabel="import"){
   scheduleSave();
   render();
   toast("Import successful","Board replaced");
-  setStatus(`Imported ${sourceLabel} and saved to local storage.`);
+  setSyncStatus(`Imported ${sourceLabel} and saved to local storage`);
   return true;
 }
 function parseBoardPayload(text){
@@ -1239,15 +1227,9 @@ $("#btnEmptyArchive").onclick=(e)=>{ e.preventDefault(); archiveDialog.close("em
 
 /* ===== Search ===== */
 const searchInput=$("#search"); let searchDebounce, currentMatches=[];
-const tagScopeSelect=$("#tagScope");
 $("#btnClearSearch").addEventListener("click", ()=>{ searchInput.value=""; applySearch(""); });
 searchInput.addEventListener("input", ()=>{ clearTimeout(searchDebounce); searchDebounce=setTimeout(()=> applySearch(searchInput.value), 120); });
 searchInput.addEventListener("keydown", (e)=>{ if(e.key==="Escape"){ searchInput.value=""; applySearch(""); return; } if(e.key==="Enter"){ e.preventDefault(); openSearchModal(currentMatches); } });
-tagScopeSelect?.addEventListener("change", ()=>{
-  selectedTagScope = tagScopeSelect.value || "all";
-  saveScopeSelection();
-  render();
-});
 function applySearch(q){
   const {includes, excludes}=parseSearch(q||""); const all=getScopedCards().slice();
   currentMatches = filterCards(all, includes, excludes);
