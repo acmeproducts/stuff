@@ -150,9 +150,12 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 
 /* Search preview */
 .results{position:sticky;top:96px;margin:0 16px 8px 16px;background:var(--panel);border:1px solid var(--border);border-radius:10px;max-height:260px;overflow:auto}
-.result-item{padding:10px 12px;border-top:1px solid var(--border);cursor:pointer}
+.result-item{padding:10px 12px;border-top:1px solid var(--border)}
 .result-item:first-child{border-top:none}
 .result-item:hover{background:#f1f5ff}
+.search-result-title{border:none;background:transparent;padding:0;color:var(--accent);font-weight:700;cursor:pointer;text-align:left}
+.search-result-actions{display:flex;gap:6px;margin-top:6px}
+.search-result-action{border:1px solid var(--border);background:#fff;border-radius:999px;padding:2px 8px;font-size:12px;cursor:pointer}
 .muted{color:var(--muted);font-size:12px}
 .timepill{font-size:12px;color:#555;border:1px solid var(--border);padding:2px 8px;border-radius:999px;margin-left:8px}
 
@@ -1239,18 +1242,100 @@ searchInput.addEventListener("keydown", (e)=>{ if(e.key==="Escape"){ searchInput
 function applySearch(q){
   const {includes, excludes}=parseSearch(q||""); const all=getScopedCards().slice();
   currentMatches = filterCards(all, includes, excludes);
-  highlightMatches(new Set(currentMatches.map(c=>c.id)), includes.length||excludes.length);
+  const hasTerms=includes.length||excludes.length;
+  if(hasTerms){
+    state.cardCollapsed = state.cardCollapsed || {};
+    currentMatches.forEach(c=>{
+      state.cardCollapsed[c.id]=true;
+      const cardEl=document.querySelector(`.card[data-id="${CSS.escape(c.id)}"]`);
+      const detailEl=cardEl?.querySelector(".card-detail");
+      const titleEl=cardEl?.querySelector(".card-title");
+      if(detailEl) detailEl.classList.add("collapsed");
+      if(titleEl) titleEl.title="Expand card";
+    });
+  }
+  highlightMatches(new Set(currentMatches.map(c=>c.id)), hasTerms);
   renderResultsPreview(currentMatches.slice(0,120));
-  $("#searchCount").textContent=(includes.length||excludes.length)? `${currentMatches.length} match(es)`:"";
+  $("#searchCount").textContent=hasTerms? `${currentMatches.length} match(es)`:"";
   updateScopeStatus();
 }
 function parseSearch(q){ const parts=q.trim().toLowerCase().split(/\s+/).filter(Boolean); const includes=[], excludes=[]; for(const p of parts){ if(p.startsWith("-")&&p.length>1) excludes.push(p.slice(1)); else includes.push(p); } return {includes,excludes}; }
 function haystack(c){ const files = (c.files||[]).map(f=>f.name).join(" "); return [c.title,c.platform,c.stage,c.notes,c.dev,c.live,files,...(c.tags||[])].join(" ").toLowerCase(); }
 function filterCards(cards, inc, exc){ return cards.filter(c=>{ const hay=haystack(c); for(const e of exc){ if(hay.includes(e)) return false; } for(const i of inc){ if(!hay.includes(i)) return false; } return true; }); }
 function highlightMatches(idset, active){ $$(".card").forEach(el=>{ el.classList.toggle("search-hit", active && idset.has(el.dataset.id)); el.style.opacity = active && !idset.has(el.dataset.id) ? 0.35 : 1; }); }
-function renderResultsPreview(cards){ const cont=$("#resultsContainer"); cont.innerHTML=""; const active=$("#search").value.trim().length>0; if(!active||!cards.length) return; const box=document.createElement("div"); box.className="results"; cards.forEach(c=>{ const item=document.createElement("div"); item.className="result-item"; item.innerHTML=`<strong>${escapeHtml(c.title)}</strong><div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`; item.onclick=()=>{ openEditor(c.id); }; box.appendChild(item); }); cont.appendChild(box); }
+function setCardCollapsed(id, collapsed=true){
+  state.cardCollapsed = state.cardCollapsed || {};
+  state.cardCollapsed[id] = collapsed;
+}
+function openSearchCardView(id){
+  setCardCollapsed(id, true);
+  render();
+  focusCard(id);
+}
+function buildSearchResultItem(card, {withDialogClose=false}={}){
+  const item=document.createElement("div");
+  item.className="result-item";
+  const titleBtn=document.createElement("button");
+  titleBtn.type="button";
+  titleBtn.className="search-result-title";
+  titleBtn.textContent=card.title||"(untitled)";
+  titleBtn.title="View card collapsed (v)";
+  titleBtn.onclick=(e)=>{ e.stopPropagation(); if(withDialogClose) searchDialog.close("close"); openSearchCardView(card.id); };
+  const meta=document.createElement("div");
+  meta.className="muted";
+  meta.textContent=`${card.platform} · ${card.stage}${card.tags?.length? " · #"+card.tags.join(" #"):""}`;
+  const trailer=document.createElement("div");
+  trailer.className="muted";
+  trailer.textContent="Blue title explains the match. v collapses view; c opens online edits.";
+  const actions=document.createElement("div");
+  actions.className="search-result-actions";
+  const viewBtn=document.createElement("button");
+  viewBtn.type="button";
+  viewBtn.className="search-result-action";
+  viewBtn.textContent="v collapsed";
+  viewBtn.onclick=(e)=>{ e.stopPropagation(); if(withDialogClose) searchDialog.close("close"); openSearchCardView(card.id); };
+  const editBtn=document.createElement("button");
+  editBtn.type="button";
+  editBtn.className="search-result-action";
+  editBtn.textContent="c edit";
+  editBtn.onclick=(e)=>{ e.stopPropagation(); if(withDialogClose) searchDialog.close("close"); openEditor(card.id); };
+  actions.append(viewBtn,editBtn);
+  item.append(titleBtn,meta,trailer,actions);
+  return item;
+}
+function renderResultsPreview(cards){
+  const cont=$("#resultsContainer");
+  cont.innerHTML="";
+  const active=$("#search").value.trim().length>0;
+  if(!active) return;
+  const box=document.createElement("div");
+  box.className="results";
+  if(!cards.length){
+    const empty=document.createElement("div");
+    empty.className="result-item muted";
+    empty.textContent="No matching issue found in search.";
+    box.appendChild(empty);
+  } else {
+    cards.forEach(c=> box.appendChild(buildSearchResultItem(c)));
+  }
+  cont.appendChild(box);
+}
 const searchDialog=$("#searchDialog");
-function openSearchModal(cards){ const list=$("#searchList"); list.innerHTML=""; if(!cards.length){ list.innerHTML="<div class='muted'>No results (active cards only)</div>"; } else { cards.forEach(c=>{ const row=document.createElement("div"); row.className="result-item"; row.innerHTML=`<strong>${escapeHtml(c.title)}</strong><div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`; row.onclick=()=>{ searchDialog.close("close"); openEditor(c.id); }; list.appendChild(row); }); } searchDialog.showModal(); }
+function openSearchModal(cards){
+  const list=$("#searchList");
+  list.innerHTML="";
+  if(!cards.length){
+    list.innerHTML="<div class='muted'>No matching issue found in search.</div>";
+  } else {
+    cards.forEach(c=> list.appendChild(buildSearchResultItem(c,{withDialogClose:true})));
+  }
+  const newCardPath=document.createElement("div");
+  newCardPath.className="result-item";
+  newCardPath.innerHTML="<button type='button' class='search-result-title'>New card → open editing</button>";
+  newCardPath.querySelector("button").onclick=()=>{ searchDialog.close("close"); openEditor(null, state.stages[0]); };
+  list.appendChild(newCardPath);
+  searchDialog.showModal();
+}
 
 /* ===== Tooltip ===== */
 const tooltip = document.getElementById("tooltip");
