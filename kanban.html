@@ -186,6 +186,8 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
   <div class="toolbar">
     <button id="btnNew" class="btn primary" title="New card" aria-label="New card">New</button>
     <button id="btnSettings" class="btn" title="Settings" aria-label="Settings">Settings</button>
+    <button id="btnSyncPush" class="btn" title="Push board to GitHub" aria-label="Push board to GitHub">Push</button>
+    <button id="btnSyncPull" class="btn" title="Pull board from GitHub" aria-label="Pull board from GitHub">Pull</button>
     <button id="btnExport" class="btn" title="Export JSON" aria-label="Export JSON">Export</button>
     <button id="btnImport" class="btn" title="Import JSON" aria-label="Import JSON">Import</button>
     <input id="fileImport" type="file" accept="application/json" class="hidden" aria-hidden="true" tabindex="-1" />
@@ -338,7 +340,8 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
       <button class="btn primary" value="save">Apply</button>
       <button class="btn" value="cancel">Cancel</button>
       <button type="button" class="btn" id="btnOpenArchive">Archive</button>
-      <button type="button" class="btn" id="btnValidateSync">Validate</button>
+      <button type="button" class="btn" id="btnValidateSync">Push</button>
+      <button type="button" class="btn" id="btnPullRemote">Pull</button>
       <button class="btn danger" id="btnReset" value="reset">Reset Board</button>
     </div>
     <div class="muted" id="syncValidationMsg" aria-live="polite"></div>
@@ -481,6 +484,15 @@ function buildGithubWorker(){
       try{ decoded=decodeURIComponent(escape(atob((json.content||"").replace(/\n/g,"")))); }catch{ decoded=atob((json.content||"").replace(/\n/g,"")); }
       return {missing:false, sha:json.sha||null, text:decoded};
     }
+    async function upsertSnapshot(targetCfg, snapshot){
+      const remote=await getRemote(targetCfg);
+      const body={message:remote.missing?"Create kanban board snapshot":"Update kanban board snapshot",branch:targetCfg.branch,content:b64(JSON.stringify(snapshot,null,2))};
+      if(!remote.missing && (remote.sha||remoteSha)) body.sha=remote.sha||remoteSha;
+      const res=await fetchWithTimeout(apiUrl(targetCfg),{method:"PUT",headers:headers(targetCfg.token,true),body:JSON.stringify(body)});
+      if(!res.ok) throw await buildError(res, remote.missing?"PUT create":"PUT update");
+      const out=await res.json();
+      return {created:remote.missing, sha:out?.content?.sha||remoteSha||null};
+    }
     async function putRemote(snapshot, force=false){
       const remote=await getRemote();
       let remoteState=null;
@@ -530,6 +542,13 @@ function buildGithubWorker(){
         if(type==="validateRemote"){
           const draft=payload?.config||{};
           if(!draft?.token){ post("validationResult",{ok:false, code:"AUTH_REQUIRED", message:"Missing GitHub token", context:{owner:draft.owner,repo:draft.repo,path:draft.path}}); return; }
+          const context={owner:draft.owner,repo:draft.repo,path:draft.path,branch:draft.branch};
+          if(payload?.snapshot){
+            post("remoteStatus",{status:"Validation push in progress…"});
+            const write=await upsertSnapshot(draft, payload.snapshot);
+            post("validationResult",{ok:true, created:!!write.created, updated:!write.created, sha:write.sha||null, snapshot:payload.snapshot, context});
+            return;
+          }
           post("remoteStatus",{status:"Validation read in progress…"});
           const remote=await getRemote(draft);
           const context={owner:draft.owner,repo:draft.repo,path:draft.path,branch:draft.branch};
@@ -669,6 +688,7 @@ function onSyncWorkerMessage(evt){
       setSyncStatus("Loaded remote");
       if(remoteTs>localTs) toast("Remote newer","Applied latest board from GitHub");
       else if(msg.source==="startup") toast("Remote load success","Loaded latest board from GitHub");
+      else if(msg.source==="manual_pull") toast("Pull complete","Loaded board from GitHub");
     }else if(msg.source==="startup" && isSyncConfigured()){
       setSyncStatus("Local snapshot newer; pushing to GitHub");
       scheduleRemoteSyncDebounced();
@@ -1359,8 +1379,7 @@ function gatherSyncSettingsFromForm(){
     path:$("#sSyncPath").value.trim()||SYNC_DEFAULTS.path
   };
 }
-$("#btnValidateSync").onclick=()=>{
-  const draft=gatherSyncSettingsFromForm();
+function runManualSyncPush(draft){
   if(!draft.token){ setValidationMessage("Validation failed: add a GitHub token first.", true); toast("Validation failed","Token is required",true); return; }
   pendingValidation=true;
   setValidationMessage("Validating GitHub sync settings… (up to 20s)", false);
