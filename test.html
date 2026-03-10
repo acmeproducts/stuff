@@ -1064,6 +1064,23 @@ function decodeInvitePayload(encoded){
   try{return JSON.parse(decodeURIComponent(escape(atob(encoded))));}
   catch(_){return null;}
 }
+function parseInviteFromSearch(searchParams){
+  var rawInvite=searchParams.get('invite');
+  var invite=validateInvitePayload(decodeInvitePayload(rawInvite));
+  if(invite)return invite;
+
+  var legacyJoinId=searchParams.get('join');
+  if(!legacyJoinId)return null;
+  return {
+    sessionId:legacyJoinId,
+    initiatorDeviceId:'legacy',
+    initiatorGlobalName:'',
+    initiatorLang:'',
+    createdAt:Date.now(),
+    schemaVersion:INVITE_SCHEMA_VERSION,
+    _legacyJoin:true
+  };
+}
 function validateInvitePayload(payload){
   if(!payload||typeof payload!=='object')return null;
   if(payload.schemaVersion!==INVITE_SCHEMA_VERSION)return null;
@@ -1364,8 +1381,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
   // Deep link
   var up=new URLSearchParams(location.search);
-  var invite=validateInvitePayload(decodeInvitePayload(up.get('invite')));
-  var jc=up.get('join');
+  var invite=parseInviteFromSearch(up);
   if(invite){
     history.replaceState({},'',location.pathname);
     var sess=getSession(invite.sessionId);
@@ -1379,13 +1395,6 @@ document.addEventListener('DOMContentLoaded',function(){
       putSession(sess);
     }
     openSession(invite.sessionId);
-    return;
-  }
-  if(jc){
-    history.replaceState({},'',location.pathname);
-    var sess2=getSession(jc);
-    if(!sess2){sess2={convId:jc,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};putSession(sess2);var order2=getSessionOrder();order2.unshift(jc);saveSessionOrder(order2);}
-    openSession(jc);
     return;
   }
   var aid=getActiveConvId();
