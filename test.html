@@ -843,6 +843,11 @@ function markPeerSeen(){lastPeerSeenAt=Date.now();updateDot();}
 function isPeerHealthy(){return !!lastPeerSeenAt&&(Date.now()-lastPeerSeenAt)<=PEER_TIMEOUT_MS;}
 function isSessionHealthy(){return socketState==='open'&&sessionState==='joined'&&isPeerHealthy();}
 function sendJoin(){if(!state.activeConvId)return;setSessionState('joining');transportSend({type:'join',session:state.activeConvId});}
+function sendInitialHelloPresence(sess){
+  if(!state.activeConvId||!sess)return;
+  transportSend({type:'hello',name:sess.myName||getPrefs().userName||'yournamehere',lang:sess.myLang||getPrefs().myLang||'en'});
+  transportSend({type:'presence'});
+}
 function startPresence(){stopPresence();presenceTimer=setInterval(function(){if(socketState!=='open'||!state.activeConvId)return;transportSend({type:'presence'});},PRESENCE_INTERVAL_MS);}
 function stopPresence(){if(presenceTimer){clearInterval(presenceTimer);presenceTimer=null;}}
 function startPeerWatch(){if(peerWatchTimer)return;peerWatchTimer=setInterval(updateDot,1000);}
@@ -914,6 +919,7 @@ function openSession(cid){
   document.getElementById('shell-partner-name').textContent=sess.title||sess.partnerName||'new chat';
   updateAutoReadBtn();
   transportConnect(cid,PART_ID);
+  sendInitialHelloPresence(sess);
   renderAllMessages();scrollBottom();
   showScreen('chat-screen');
 }
@@ -1042,14 +1048,27 @@ function handleRelayEvent(d){
   if(d.type==='presence-ack'&&d.from!==DEVICE_ID){markPeerSeen();return;}
   if(d.from===DEVICE_ID)return;
   markPeerSeen();
+  if((d.name&&!sess.partnerName)||(d.lang&&!sess.partnerLang)){
+    if(d.name&&!sess.partnerName)sess.partnerName=d.name;
+    if(d.lang&&!sess.partnerLang)sess.partnerLang=d.lang;
+    if(sess.title==='new chat'&&d.name)sess.title=d.name;
+    putSession(sess);
+    document.getElementById('shell-partner-name').textContent=sess.title||sess.partnerName||'new chat';
+  }
   if(d.type==='hello'){
     if(d.name)sess.partnerName=d.name;if(d.lang)sess.partnerLang=d.lang;
     if(sess.title==='new chat'&&d.name)sess.title=d.name;
     putSession(sess);document.getElementById('shell-partner-name').textContent=sess.title||sess.partnerName||'new chat';
-    transportSend({type:'hello',name:sess.myName||getPrefs().userName,lang:sess.myLang||getPrefs().myLang});return;
+    transportSend({type:'hello-ack'});return;
   }
+  if(d.type==='hello-ack'){return;}
   if(d.type==='msg'){
     if(d.id&&findMsg(d.id))return;
+    sess.partnerName=d.name||sess.partnerName||'Partner';
+    sess.partnerLang=d.lang||sess.partnerLang||'th';
+    if(sess.title==='new chat'&&sess.partnerName)sess.title=sess.partnerName;
+    putSession(sess);
+    document.getElementById('shell-partner-name').textContent=sess.title||sess.partnerName||'new chat';
     var pLang=d.lang||sess.partnerLang||'th';var mLang=sess.myLang||'en';
     var msg={id:d.id,from:'them',orig:d.orig||d.text||'',text:null,lang:pLang,status:'received',timestamp:d.timestamp||Date.now(),clarify:{status:'none',text:''},attachment:d.attachment||null};
     state.messages.push(msg);renderMsg(msg);scrollBottom();
@@ -1229,7 +1248,7 @@ document.addEventListener('DOMContentLoaded',function(){
     history.replaceState({},'',location.pathname);
     var sess=getSession(jc);
     if(!sess){sess={convId:jc,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};putSession(sess);var order=getSessionOrder();order.unshift(jc);saveSessionOrder(order);}
-    openSession(jc);setTimeout(function(){transportSend({type:'hello',name:p.userName||'yournamehere',lang:p.myLang||'en'});},500);
+    openSession(jc);
     return;
   }
   var aid=getActiveConvId();
