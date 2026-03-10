@@ -311,6 +311,24 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
         <option value="vertical">Vertical</option>
       </select>
     </div>
+    <div class="field" style="border-top:1px solid var(--border);padding-top:10px;">
+      <label><strong>GitHub Sync</strong></label>
+      <label><input id="sSyncEnabled" type="checkbox" /> Enable GitHub sync</label>
+      <input id="sSyncToken" type="password" placeholder="GitHub personal access token" autocomplete="off"/>
+      <div class="grid-2">
+        <input id="sSyncOwner" placeholder="Owner (default: acmeproducts)"/>
+        <input id="sSyncRepo" placeholder="Repo (default: stuff)"/>
+      </div>
+      <div class="grid-2">
+        <input id="sSyncBranch" placeholder="Branch (default: main)"/>
+        <input id="sSyncPath" placeholder="Path (default: kanban-data.json)"/>
+      </div>
+      <div class="row">
+        <button type="button" class="btn small" id="btnClearToken">Clear token</button>
+      </div>
+      <div class="muted">No OAuth is used. Store your own personal access token locally on this device only. Use the minimum GitHub repo contents permission required for read/write.</div>
+      <div class="muted">Attachments are embedded in JSON and can make mobile sync slow or fail. Prefer links for large files.</div>
+    </div>
     <div class="field">
       <label>Copy & paste these status emojis</label>
       <div id="emojiBox" style="border:1px dashed var(--border);border-radius:10px;padding:8px 10px;user-select:all">🟢 🟡 🔴 ⭐ 😡 🤬 🙃 😃</div>
@@ -319,8 +337,10 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
       <button class="btn primary" value="save">Apply</button>
       <button class="btn" value="cancel">Cancel</button>
       <button type="button" class="btn" id="btnOpenArchive">Archive</button>
+      <button type="button" class="btn" id="btnValidateSync">Validate</button>
       <button class="btn danger" id="btnReset" value="reset">Reset Board</button>
     </div>
+    <div class="muted" id="syncValidationMsg" aria-live="polite"></div>
   </form>
 </dialog>
 
@@ -337,17 +357,21 @@ const BUILD = "2026-03-08";
 /* ===== Persistence ===== */
 const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
+const SYNC_KEY = "ai_jobs_kanban_sync";
 const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
+const SYNC_DEFAULTS = { enabled:false, provider:"github", owner:"acmeproducts", repo:"stuff", branch:"main", path:"kanban-data.json", token:"" };
 let dirty=false, saveTimer=null;
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
-async function persistNow(){
-  state.lastModified=Date.now();
+async function persistNow(opts={}){
+  const {skipRemote=false,preserveTimestamp=false,reason="manual"}=opts||{};
+  if(!preserveTimestamp) state.lastModified=Date.now();
   const ok=trySave(STABLE_KEY, JSON.stringify(state));
   if(!ok) toast("Save warning", "Failed to write to local storage", true);
-  setSyncStatus(ok ? "Saved locally" : "Local save failed");
+  setSyncStatus(ok ? "Loaded local" : "Local save failed");
   dirty=false;
+  if(ok && !skipRemote && reason!=="startup") scheduleRemoteSyncDebounced();
 }
-function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); }
+function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(()=>persistNow({reason:"mutation"}), 250); }
 function loadState(){
   let raw = localStorage.getItem(STABLE_KEY);
   if(!raw){ for(let i=LEGACY_KEYS.length-1;i>=0;i--){ raw=localStorage.getItem(LEGACY_KEYS[i]); if(raw) break; } if(raw) trySave(STABLE_KEY, raw); }
@@ -362,8 +386,213 @@ function loadState(){
 function loadTagHistory(){ try{ const arr=JSON.parse(localStorage.getItem(TAGS_KEY)||"[]"); return Array.isArray(arr)?arr:[]; }catch{ return []; } }
 function saveTagHistory(list){ const uniq=[...new Set(list.map(t=>String(t).toLowerCase()))]; trySave(TAGS_KEY, JSON.stringify(uniq)); return uniq; }
 
+function loadSyncSettings(){
+  try{
+    const parsed=JSON.parse(localStorage.getItem(SYNC_KEY)||"{}");
+    return {...SYNC_DEFAULTS, ...(parsed&&typeof parsed==="object"?parsed:{})};
+  }catch{
+    return {...SYNC_DEFAULTS};
+  }
+}
+function saveSyncSettings(next){
+  syncSettings={...SYNC_DEFAULTS,...next};
+  trySave(SYNC_KEY, JSON.stringify(syncSettings));
+  return syncSettings;
+}
+function sanitizeStateForSync(source){
+  const normalized=normalizeImportedState(source);
+  if(!normalized.ok) return null;
+  const clean=normalized.state;
+  return {
+    stages:clean.stages,
+    platforms:clean.platforms,
+    cards:clean.cards,
+    archive:clean.archive,
+    collapsed:clean.collapsed,
+    cardCollapsed:clean.cardCollapsed,
+    layout:clean.layout,
+    lastModified:Number(clean.lastModified||Date.now())
+  };
+}
+let syncSettings=loadSyncSettings();
+let syncState={status:"Loaded local",remoteSha:null,lastRemoteModified:0,lastSyncAt:0,pending:false};
+let syncWorker=null, syncRequestSeq=0;
+let pendingValidation=false;
+function setValidationMessage(message,isErr=false){
+  const el=document.getElementById("syncValidationMsg");
+  if(!el) return;
+  el.textContent=message||"";
+  el.style.color=isErr?"var(--err)":"var(--ok)";
+}
+function syncConfigWithoutToken(){
+  return {enabled:!!syncSettings.enabled, owner:syncSettings.owner||SYNC_DEFAULTS.owner, repo:syncSettings.repo||SYNC_DEFAULTS.repo, branch:syncSettings.branch||SYNC_DEFAULTS.branch, path:syncSettings.path||SYNC_DEFAULTS.path};
+}
+function isSyncConfigured(){ return !!(syncSettings.enabled && String(syncSettings.token||"").trim()); }
+function getSyncRuntimeConfig(){
+  return { ...syncConfigWithoutToken(), token:String(syncSettings.token||"") };
+}
+function buildGithubWorker(){
+  if(syncWorker) return syncWorker;
+  const workerCode = `
+    let cfg=null, remoteSha=null, pendingSave=null, saveTimer=null, isSaving=false;
+    const post=(type,payload={})=>self.postMessage({type,...payload});
+    function headers(token){ return {"Authorization":\`Bearer \${token}\`,"Accept":"application/vnd.github+json","Content-Type":"application/json"}; }
+    function apiUrl(){ const c=cfg; return \`https://api.github.com/repos/\${encodeURIComponent(c.owner)}/\${encodeURIComponent(c.repo)}/contents/\${c.path.split('/').map(encodeURIComponent).join('/')}?ref=\${encodeURIComponent(c.branch)}\`; }
+    function b64(str){ return btoa(unescape(encodeURIComponent(str))); }
+    async function getRemote(){
+      const res=await fetch(apiUrl(),{method:"GET",headers:headers(cfg.token)});
+      if(res.status===404) return {missing:true};
+      if(!res.ok){ const tx=await res.text(); throw new Error(\`GET failed (\${res.status}): \${tx.slice(0,180)}\`); }
+      const json=await res.json();
+      remoteSha=json.sha||null;
+      let decoded="";
+      try{ decoded=decodeURIComponent(escape(atob((json.content||"").replace(/\n/g,"")))); }catch{ decoded=atob((json.content||"").replace(/\n/g,"")); }
+      return {missing:false, sha:json.sha||null, text:decoded};
+    }
+    async function putRemote(snapshot, force=false){
+      const remote=await getRemote();
+      let remoteState=null;
+      if(!remote.missing){
+        try{ remoteState=JSON.parse(remote.text||"{}"); }catch{ remoteState=null; }
+      }
+      const localTs=Number(snapshot?.lastModified||0);
+      const remoteTs=Number(remoteState?.lastModified||0);
+      if(!force && remoteTs>localTs){
+        post("remoteLoaded",{snapshot:remoteState, source:"save_conflict", sha:remote.sha||null});
+        post("remoteStatus",{status:"Remote newer; adopted remote"});
+        return {skipped:true};
+      }
+      const body={message:"Update kanban board snapshot",branch:cfg.branch,content:b64(JSON.stringify(snapshot,null,2))};
+      if(!remote.missing && (remote.sha||remoteSha)) body.sha=remote.sha||remoteSha;
+      const res=await fetch(apiUrl(),{method:"PUT",headers:headers(cfg.token),body:JSON.stringify(body)});
+      if(!res.ok){ const tx=await res.text(); throw new Error(\`PUT failed (\${res.status}): \${tx.slice(0,180)}\`); }
+      const out=await res.json();
+      remoteSha=out?.content?.sha||remoteSha;
+      post("remoteSaved",{sha:remoteSha, lastModified:localTs});
+      return {ok:true};
+    }
+    async function drain(force){
+      if(isSaving || !pendingSave || !cfg || !cfg.token) return;
+      isSaving=true;
+      const snapshot=pendingSave; pendingSave=null;
+      try{ post("remoteStatus",{status:"Syncing…"}); await putRemote(snapshot, force); }
+      catch(err){ post("remoteError",{message:err?.message||String(err)}); }
+      finally{ isSaving=false; if(pendingSave) setTimeout(()=>drain(false), 50); }
+    }
+    self.onmessage=async (e)=>{
+      const {type,payload}=e.data||{};
+      try{
+        if(type==="init"){ cfg=payload?.config||null; remoteSha=null; post("remoteStatus",{status:cfg?.token?"Ready":"Auth required"}); return; }
+        if(type==="loadRemote"){
+          if(!cfg?.token){ post("remoteError",{code:"AUTH_REQUIRED",message:"Missing GitHub token"}); return; }
+          post("remoteStatus",{status:"Syncing…"});
+          const remote=await getRemote();
+          if(remote.missing){ post("remoteMissing"); return; }
+          let parsed=null;
+          try{ parsed=JSON.parse(remote.text||"{}"); }catch{ post("remoteError",{code:"INVALID_REMOTE_JSON",message:"Remote JSON is invalid"}); return; }
+          post("remoteLoaded",{snapshot:parsed, source:(payload?.source||"startup"), sha:remote.sha||null});
+          return;
+        }
+        if(type==="saveRemote"){
+          if(!cfg?.token){ post("remoteError",{code:"AUTH_REQUIRED",message:"Missing GitHub token"}); return; }
+          pendingSave=payload?.snapshot||pendingSave;
+          clearTimeout(saveTimer);
+          saveTimer=setTimeout(()=>drain(false), 1500);
+          post("remoteStatus",{status:"Sync pending"});
+          return;
+        }
+        if(type==="flushRemote"){
+          if(!cfg?.token) return;
+          if(payload?.snapshot) pendingSave=payload.snapshot;
+          clearTimeout(saveTimer);
+          await drain(true);
+          return;
+        }
+      }catch(err){ post("remoteError",{message:err?.message||String(err)}); }
+    };
+  `;
+  const blob=new Blob([workerCode],{type:"application/javascript"});
+  syncWorker=new Worker(URL.createObjectURL(blob));
+  syncWorker.onmessage=onSyncWorkerMessage;
+  return syncWorker;
+}
+function onSyncWorkerMessage(evt){
+  const msg=evt.data||{};
+  if(msg.type==="remoteStatus"){ setSyncStatus(msg.status||"Sync status"); return; }
+  if(msg.type==="remoteSaved"){
+    syncState.remoteSha=msg.sha||syncState.remoteSha;
+    syncState.lastSyncAt=Date.now();
+    syncState.pending=false;
+    setSyncStatus("Synced to GitHub");
+    toast("Sync complete","Board saved to GitHub");
+    return;
+  }
+  if(msg.type==="remoteMissing"){
+    if(pendingValidation){ pendingValidation=false; setValidationMessage("Validation success: authenticated, repo reachable, remote file does not exist yet.", false); toast("Validation success","Repo reachable; kanban-data.json not created yet"); }
+    setSyncStatus("Remote unavailable");
+    return;
+  }
+  if(msg.type==="remoteLoaded"){
+    if(msg.source==="validate"){
+      pendingValidation=false;
+      const normalizedCheck=normalizeImportedState(msg.snapshot);
+      if(!normalizedCheck.ok){ setValidationMessage("Validation failed: remote JSON exists but is invalid.", true); toast("Validation failed","Remote JSON invalid",true); return; }
+      setValidationMessage("Validation success: token and repository settings are working.", false);
+      toast("Validation success","GitHub sync settings are valid");
+      return;
+    }
+    const normalized=normalizeImportedState(msg.snapshot);
+    if(!normalized.ok){ toast("Sync error","invalid remote JSON",true); setSyncStatus("Sync error"); return; }
+    const remoteState=normalized.state;
+    const localTs=Number(state.lastModified||0);
+    const remoteTs=Number(remoteState.lastModified||0);
+    if(!hasPersistedState || remoteTs>=localTs){
+      state=remoteState;
+      state.lastModified=Number(state.lastModified||Date.now());
+      render();
+      persistNow({skipRemote:true, preserveTimestamp:true});
+      setSyncStatus("Loaded remote");
+      if(msg.source==="startup") toast("Remote load success","Loaded latest board from GitHub");
+    }
+    return;
+  }
+  if(msg.type==="remoteError"){
+    if(pendingValidation){ pendingValidation=false; setValidationMessage(`Validation failed: ${msg.message||"Could not reach GitHub"}`, true); }
+    if(msg.code==="AUTH_REQUIRED"){ setSyncStatus("Auth required"); toast("Auth/token missing","Add GitHub token in Settings",true); return; }
+    if(msg.code==="INVALID_REMOTE_JSON"){ setSyncStatus("Sync error"); toast("Sync error","invalid remote JSON",true); return; }
+    setSyncStatus("Sync error");
+    toast("Sync error", msg.message||"Remote unavailable", true);
+    return;
+  }
+}
+function initSyncWorker(){
+  const worker=buildGithubWorker();
+  worker.postMessage({type:"init", payload:{config:getSyncRuntimeConfig(), seq:++syncRequestSeq}});
+  return worker;
+}
+function requestRemoteLoad(){
+  if(!syncSettings.enabled) return;
+  const worker=initSyncWorker();
+  worker.postMessage({type:"loadRemote", payload:{seq:++syncRequestSeq}});
+}
+function scheduleRemoteSyncDebounced(){
+  if(!syncSettings.enabled) return;
+  if(!String(syncSettings.token||"").trim()){ setSyncStatus("Auth required"); return; }
+  const snapshot=sanitizeStateForSync(state);
+  if(!snapshot) return;
+  syncState.pending=true;
+  initSyncWorker().postMessage({type:"saveRemote", payload:{snapshot, seq:++syncRequestSeq}});
+}
+function flushRemoteSync(snapshotOverride=null){
+  if(!syncSettings.enabled || !String(syncSettings.token||"").trim()) return;
+  const snapshot=snapshotOverride||sanitizeStateForSync(state);
+  if(!snapshot) return;
+  initSyncWorker().postMessage({type:"flushRemote", payload:{snapshot, seq:++syncRequestSeq}});
+}
+
 /* ===== App State ===== */
 const persistedState = loadState();
+const hasPersistedState = !!persistedState;
 let state = persistedState || {
   stages:["Done","Doing","Next"],
   platforms:["Gemini","Claude","ChatGPT","Perplexity"],
@@ -993,13 +1222,41 @@ notesEl.addEventListener("paste", async (e)=>{
 
 /* ===== Settings ===== */
 const settingsDialog=$("#settingsDialog");
+function gatherSyncSettingsFromForm(){
+  return {
+    enabled:$("#sSyncEnabled").checked,
+    token:$("#sSyncToken").value.trim(),
+    owner:$("#sSyncOwner").value.trim()||SYNC_DEFAULTS.owner,
+    repo:$("#sSyncRepo").value.trim()||SYNC_DEFAULTS.repo,
+    branch:$("#sSyncBranch").value.trim()||SYNC_DEFAULTS.branch,
+    path:$("#sSyncPath").value.trim()||SYNC_DEFAULTS.path
+  };
+}
+$("#btnValidateSync").onclick=()=>{
+  const draft=gatherSyncSettingsFromForm();
+  if(!draft.token){ setValidationMessage("Validation failed: add a GitHub token first.", true); toast("Validation failed","Token is required",true); return; }
+  pendingValidation=true;
+  setValidationMessage("Validating GitHub sync settings…", false);
+  const worker=buildGithubWorker();
+  worker.postMessage({type:"init", payload:{config:{enabled:true,owner:draft.owner,repo:draft.repo,branch:draft.branch,path:draft.path,token:draft.token}, seq:++syncRequestSeq}});
+  worker.postMessage({type:"loadRemote", payload:{seq:++syncRequestSeq, source:"validate"}});
+};
 $("#btnNew").onclick=()=> openEditor(null, state.stages[0]);
 $("#btnSettings").onclick=()=>{
   $("#sPlatforms").value=state.platforms.join(", ");
   $("#sStages").value=state.stages.join(", ");
   $("#sLayout").value=state.layout;
+  $("#sSyncEnabled").checked=!!syncSettings.enabled;
+  $("#sSyncToken").value=syncSettings.token||"";
+  $("#sSyncOwner").value=syncSettings.owner||SYNC_DEFAULTS.owner;
+  $("#sSyncRepo").value=syncSettings.repo||SYNC_DEFAULTS.repo;
+  $("#sSyncBranch").value=syncSettings.branch||SYNC_DEFAULTS.branch;
+  $("#sSyncPath").value=syncSettings.path||SYNC_DEFAULTS.path;
+  setValidationMessage("", false);
   settingsDialog.showModal();
 };
+
+$("#btnClearToken").onclick=()=>{ $("#sSyncToken").value=""; syncSettings=saveSyncSettings({...syncSettings, token:""}); setSyncStatus("Auth required"); toast("Token removed","GitHub token cleared locally"); };
 settingsDialog.addEventListener("close", ()=>{
   const v=settingsDialog.returnValue; if(v==="cancel") return;
   if(v==="reset"){ if(confirm("Remove all cards? (Archive remains)")){ state.cards=[]; scheduleSave(); render(); } return; }
@@ -1010,6 +1267,13 @@ settingsDialog.addEventListener("close", ()=>{
     if(stages.length){ const newFirst=stages[0]; state.cards.forEach(c=>{ if(!stages.includes(c.stage)){ c.stage=newFirst; c.pos=topPos(newFirst); c.updatedAt=Date.now(); } }); state.stages=stages; }
     if(platforms.length) state.platforms=platforms;
     state.layout = layout;
+    const nextSync=gatherSyncSettingsFromForm();
+    syncSettings=saveSyncSettings({...syncSettings,...nextSync});
+    initSyncWorker();
+    if(syncSettings.enabled){
+      if(!syncSettings.token) toast("Auth/token missing","Add GitHub token in Settings",true);
+      else requestRemoteLoad();
+    }
     scheduleSave(); render();
   }
 });
@@ -1145,7 +1409,9 @@ const localSyncProvider=createLocalSyncProvider();
 let syncProvider=localSyncProvider;
 function fmtSyncMetric(ts){ return ts ? new Date(ts).toLocaleTimeString() : "—"; }
 function setSyncStatus(prefix){
-  setStatus(`${prefix} • Last updated ${fmtDate(state.lastModified)} • Build ${BUILD}`);
+  syncState.status=prefix||syncState.status||"Loaded local";
+  const scope=syncSettings.enabled ? `GitHub ${syncConfigWithoutToken().owner}/${syncConfigWithoutToken().repo}` : "Local only";
+  setStatus(`${syncState.status} • ${scope} • Last updated ${fmtDate(state.lastModified)} • Build ${BUILD}`);
 }
 function chooseActiveProvider(){ syncProvider = localSyncProvider; return syncProvider; }
 function resolveSnapshotConflict(currentState, incomingState){
@@ -1433,10 +1699,19 @@ function sanitizeMarkdownImages(s){
 }
 
 /* ===== Init ===== */
-window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
+window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow({reason:"beforeunload"}); flushRemoteSync(); });
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden") flushRemoteSync(); });
+window.addEventListener("pagehide", ()=>{ flushRemoteSync(); });
 (async ()=>{
+  setSyncStatus("Loaded local");
   render();
-  setSyncStatus("Loaded");
+  if(syncSettings.enabled){
+    if(syncSettings.token){
+      requestRemoteLoad();
+    }else{
+      setSyncStatus("Auth required");
+    }
+  }
 })();
 </script>
 </body>
