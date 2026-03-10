@@ -337,8 +337,10 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
       <button class="btn primary" value="save">Apply</button>
       <button class="btn" value="cancel">Cancel</button>
       <button type="button" class="btn" id="btnOpenArchive">Archive</button>
+      <button type="button" class="btn" id="btnValidateSync">Validate</button>
       <button class="btn danger" id="btnReset" value="reset">Reset Board</button>
     </div>
+    <div class="muted" id="syncValidationMsg" aria-live="polite"></div>
   </form>
 </dialog>
 
@@ -1200,6 +1202,25 @@ notesEl.addEventListener("paste", async (e)=>{
 
 /* ===== Settings ===== */
 const settingsDialog=$("#settingsDialog");
+function gatherSyncSettingsFromForm(){
+  return {
+    enabled:$("#sSyncEnabled").checked,
+    token:$("#sSyncToken").value.trim(),
+    owner:$("#sSyncOwner").value.trim()||SYNC_DEFAULTS.owner,
+    repo:$("#sSyncRepo").value.trim()||SYNC_DEFAULTS.repo,
+    branch:$("#sSyncBranch").value.trim()||SYNC_DEFAULTS.branch,
+    path:$("#sSyncPath").value.trim()||SYNC_DEFAULTS.path
+  };
+}
+$("#btnValidateSync").onclick=()=>{
+  const draft=gatherSyncSettingsFromForm();
+  if(!draft.token){ setValidationMessage("Validation failed: add a GitHub token first.", true); toast("Validation failed","Token is required",true); return; }
+  pendingValidation=true;
+  setValidationMessage("Validating GitHub sync settings…", false);
+  const worker=buildGithubWorker();
+  worker.postMessage({type:"init", payload:{config:{enabled:true,owner:draft.owner,repo:draft.repo,branch:draft.branch,path:draft.path,token:draft.token}, seq:++syncRequestSeq}});
+  worker.postMessage({type:"loadRemote", payload:{seq:++syncRequestSeq, source:"validate"}});
+};
 $("#btnNew").onclick=()=> openEditor(null, state.stages[0]);
 $("#btnSettings").onclick=()=>{
   $("#sPlatforms").value=state.platforms.join(", ");
