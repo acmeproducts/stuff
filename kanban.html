@@ -191,6 +191,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     <button id="btnExport" class="btn" title="Export JSON" aria-label="Export JSON">Export</button>
     <button id="btnImport" class="btn" title="Import JSON" aria-label="Import JSON">Import</button>
     <input id="fileImport" type="file" accept="application/json" class="hidden" aria-hidden="true" tabindex="-1" />
+    <span id="syncActionMsg" class="muted" aria-live="polite"></span>
   </div>
   <div class="searchbar">
     <input id="search" placeholder="Omni search… (use -term to exclude)" aria-label="Omni search"/>
@@ -661,11 +662,13 @@ function onSyncWorkerMessage(evt){
     }
     if(msg.missing){
       setValidationMessage(`Validation result: file not found / not created yet at ${ctxText}.`, true);
+      if(lastManualSyncOrigin==="toolbar") setToolbarSyncMessage("Push failed: remote file missing", true);
       toast("Validation result","Remote file not found / not created yet",true);
       return;
     }
     const detail=`${msg.status?`HTTP ${msg.status} • `:""}${msg.message||"Validation failed"}${msg.body?` • ${msg.body}`:""}`;
     setValidationMessage(`Validation failed for ${ctxText}: ${detail}`, true);
+    if(lastManualSyncOrigin==="toolbar") setToolbarSyncMessage(`Push failed: ${detail.slice(0,80)}`, true);
     toast("Validation failed", detail.slice(0,180), true);
     return;
   }
@@ -696,10 +699,11 @@ function onSyncWorkerMessage(evt){
     return;
   }
   if(msg.type==="remoteError"){
-    if(msg.code==="AUTH_REQUIRED"){ setSyncStatus("Auth required"); toast("Auth/token missing","Add GitHub token in Settings",true); return; }
-    if(msg.code==="INVALID_REMOTE_JSON"){ setSyncStatus("Sync error"); toast("Sync error","invalid remote JSON",true); return; }
+    if(msg.code==="AUTH_REQUIRED"){ setSyncStatus("Auth required"); if(lastManualSyncOrigin==="toolbar") setToolbarSyncMessage("Sync failed: auth/token required", true); toast("Auth/token missing","Add GitHub token in Settings",true); return; }
+    if(msg.code==="INVALID_REMOTE_JSON"){ setSyncStatus("Sync error"); if(lastManualSyncOrigin==="toolbar") setToolbarSyncMessage("Pull failed: remote JSON invalid", true); toast("Sync error","invalid remote JSON",true); return; }
     setSyncStatus("Sync error");
     const detail=`${msg.status?`HTTP ${msg.status} • `:""}${msg.message||"Remote unavailable"}${msg.body?` • ${msg.body}`:""}`;
+    if(lastManualSyncOrigin==="toolbar") setToolbarSyncMessage(`Sync failed: ${detail.slice(0,80)}`, true);
     toast("Sync error", detail.slice(0,180), true);
     return;
   }
@@ -735,6 +739,12 @@ function setValidationMessage(message, isErr=false, preview=""){
   const base=`<div style="color:${isErr?"var(--err)":"var(--ok)"};font-weight:600;">${escapeHtml(message||"")}</div>`;
   const sample=preview ? `<pre style="margin-top:6px;padding:8px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;white-space:pre-wrap;word-break:break-word;">${preview}</pre>` : "";
   el.innerHTML=base+sample;
+}
+function setToolbarSyncMessage(message, isErr=false){
+  const el=$("#syncActionMsg");
+  if(!el) return;
+  el.textContent=message||"";
+  el.style.color=isErr?"var(--err)":"var(--muted)";
 }
 
 /* ===== App State ===== */
