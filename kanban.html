@@ -417,18 +417,6 @@ function sanitizeStateForSync(source){
 let syncSettings=loadSyncSettings();
 let syncState={status:"Loaded local",remoteSha:null,lastRemoteModified:0,lastSyncAt:0,pending:false};
 let syncWorker=null, syncRequestSeq=0;
-let pendingValidation=false;
-let validationTimer=null;
-function clearValidationPending(){
-  pendingValidation=false;
-  if(validationTimer){ clearTimeout(validationTimer); validationTimer=null; }
-}
-function setValidationMessage(message,isErr=false){
-  const el=document.getElementById("syncValidationMsg");
-  if(!el) return;
-  el.textContent=message||"";
-  el.style.color=isErr?"var(--err)":"var(--ok)";
-}
 function syncConfigWithoutToken(){
   return {enabled:!!syncSettings.enabled, owner:syncSettings.owner||SYNC_DEFAULTS.owner, repo:syncSettings.repo||SYNC_DEFAULTS.repo, branch:syncSettings.branch||SYNC_DEFAULTS.branch, path:syncSettings.path||SYNC_DEFAULTS.path};
 }
@@ -495,7 +483,7 @@ function buildGithubWorker(){
           if(remote.missing){ post("remoteMissing"); return; }
           let parsed=null;
           try{ parsed=JSON.parse(remote.text||"{}"); }catch{ post("remoteError",{code:"INVALID_REMOTE_JSON",message:"Remote JSON is invalid"}); return; }
-          post("remoteLoaded",{snapshot:parsed, source:(payload?.source||"startup"), sha:remote.sha||null});
+          post("remoteLoaded",{snapshot:parsed, source:"startup", sha:remote.sha||null});
           return;
         }
         if(type==="saveRemote"){
@@ -532,26 +520,14 @@ function onSyncWorkerMessage(evt){
     toast("Sync complete","Board saved to GitHub");
     return;
   }
-  if(msg.type==="remoteMissing"){
-    if(pendingValidation){ clearValidationPending(); setValidationMessage("Validation success: authenticated, repo reachable, remote file does not exist yet.", false); toast("Validation success","Repo reachable; kanban-data.json not created yet"); }
-    setSyncStatus("Remote unavailable");
-    return;
-  }
+  if(msg.type==="remoteMissing"){ setSyncStatus("Remote unavailable"); return; }
   if(msg.type==="remoteLoaded"){
-    if(msg.source==="validate"){
-      clearValidationPending();
-      const normalizedCheck=normalizeImportedState(msg.snapshot);
-      if(!normalizedCheck.ok){ setValidationMessage("Validation failed: remote JSON exists but is invalid.", true); toast("Validation failed","Remote JSON invalid",true); return; }
-      setValidationMessage("Validation success: token and repository settings are working.", false);
-      toast("Validation success","GitHub sync settings are valid");
-      return;
-    }
     const normalized=normalizeImportedState(msg.snapshot);
     if(!normalized.ok){ toast("Sync error","invalid remote JSON",true); setSyncStatus("Sync error"); return; }
     const remoteState=normalized.state;
     const localTs=Number(state.lastModified||0);
     const remoteTs=Number(remoteState.lastModified||0);
-    if(!hasPersistedState || remoteTs>=localTs){
+    if(remoteTs>=localTs){
       state=remoteState;
       state.lastModified=Number(state.lastModified||Date.now());
       render();
@@ -562,7 +538,6 @@ function onSyncWorkerMessage(evt){
     return;
   }
   if(msg.type==="remoteError"){
-    if(pendingValidation){ clearValidationPending(); setValidationMessage(`Validation failed: ${msg.message||"Could not reach GitHub"}`, true); }
     if(msg.code==="AUTH_REQUIRED"){ setSyncStatus("Auth required"); toast("Auth/token missing","Add GitHub token in Settings",true); return; }
     if(msg.code==="INVALID_REMOTE_JSON"){ setSyncStatus("Sync error"); toast("Sync error","invalid remote JSON",true); return; }
     setSyncStatus("Sync error");
@@ -1237,24 +1212,15 @@ function gatherSyncSettingsFromForm(){
     path:$("#sSyncPath").value.trim()||SYNC_DEFAULTS.path
   };
 }
-$("#btnValidateSync").addEventListener("click", (e)=>{
-  e.preventDefault();
+$("#btnValidateSync").onclick=()=>{
   const draft=gatherSyncSettingsFromForm();
   if(!draft.token){ setValidationMessage("Validation failed: add a GitHub token first.", true); toast("Validation failed","Token is required",true); return; }
-  clearValidationPending();
   pendingValidation=true;
   setValidationMessage("Validating GitHub sync settings…", false);
-  toast("Validating…","Checking token and repository settings");
-  validationTimer=setTimeout(()=>{
-    if(!pendingValidation) return;
-    clearValidationPending();
-    setValidationMessage("Validation timed out. Check network and repo settings.", true);
-    toast("Validation failed","Timed out contacting GitHub", true);
-  }, 10000);
   const worker=buildGithubWorker();
   worker.postMessage({type:"init", payload:{config:{enabled:true,owner:draft.owner,repo:draft.repo,branch:draft.branch,path:draft.path,token:draft.token}, seq:++syncRequestSeq}});
   worker.postMessage({type:"loadRemote", payload:{seq:++syncRequestSeq, source:"validate"}});
-});
+};
 $("#btnNew").onclick=()=> openEditor(null, state.stages[0]);
 $("#btnSettings").onclick=()=>{
   $("#sPlatforms").value=state.platforms.join(", ");
@@ -1266,8 +1232,6 @@ $("#btnSettings").onclick=()=>{
   $("#sSyncRepo").value=syncSettings.repo||SYNC_DEFAULTS.repo;
   $("#sSyncBranch").value=syncSettings.branch||SYNC_DEFAULTS.branch;
   $("#sSyncPath").value=syncSettings.path||SYNC_DEFAULTS.path;
-  clearValidationPending();
-  setValidationMessage("", false);
   settingsDialog.showModal();
 };
 
@@ -1282,7 +1246,14 @@ settingsDialog.addEventListener("close", ()=>{
     if(stages.length){ const newFirst=stages[0]; state.cards.forEach(c=>{ if(!stages.includes(c.stage)){ c.stage=newFirst; c.pos=topPos(newFirst); c.updatedAt=Date.now(); } }); state.stages=stages; }
     if(platforms.length) state.platforms=platforms;
     state.layout = layout;
-    const nextSync=gatherSyncSettingsFromForm();
+    const nextSync={
+      enabled:$("#sSyncEnabled").checked,
+      token:$("#sSyncToken").value.trim(),
+      owner:$("#sSyncOwner").value.trim()||SYNC_DEFAULTS.owner,
+      repo:$("#sSyncRepo").value.trim()||SYNC_DEFAULTS.repo,
+      branch:$("#sSyncBranch").value.trim()||SYNC_DEFAULTS.branch,
+      path:$("#sSyncPath").value.trim()||SYNC_DEFAULTS.path
+    };
     syncSettings=saveSyncSettings({...syncSettings,...nextSync});
     initSyncWorker();
     if(syncSettings.enabled){
