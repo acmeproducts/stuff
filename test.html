@@ -317,14 +317,17 @@ textarea.field-input{resize:none;}
 .pp-chip{flex-shrink:0;padding:4px 10px;border:1px solid var(--border);border-radius:18px;font-size:11px;font-weight:600;background:#fff;color:var(--ink-mid);cursor:pointer;white-space:nowrap;font-family:"DM Sans",sans-serif;}
 .pp-chip.active{background:var(--teal);color:#fff;border-color:var(--teal);}
 .pp-list{margin-top:4px;}
-.pp-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);}
+.pp-row{padding:10px 0;border-bottom:1px solid var(--border);}
 .pp-row:last-child{border-bottom:none;}
-.pp-tts{background:none;border:none;cursor:pointer;color:var(--ink-mid);opacity:.5;flex-shrink:0;line-height:0;padding:4px;}
+.pp-sides{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.pp-side{border:1px solid var(--border);border-radius:10px;padding:8px;background:#fff;}
+.pp-side-label{font-size:10px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.35px;margin-bottom:4px;}
+.pp-text{font-size:13px;line-height:1.35;min-height:28px;word-break:break-word;}
+.pp-actions{display:flex;gap:6px;margin-top:7px;}
+.pp-tts{background:none;border:none;cursor:pointer;color:var(--ink-mid);opacity:.5;line-height:0;padding:4px;}
 .pp-tts:hover,.pp-tts.playing{opacity:1;}
-.pp-texts{flex:1;min-width:0;}
-.pp-source{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.pp-target{font-size:12px;color:var(--ink-dim);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.pp-insert-btn{background:var(--teal);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;flex-shrink:0;}
+.pp-insert-btn{background:var(--teal-light);color:var(--teal);border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;}
+.pp-insert-btn:hover{background:var(--teal);color:#fff;}
 
 /* TAG PICKER */
 .tag-grid{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
@@ -471,6 +474,9 @@ textarea.field-input{resize:none;}
     </button>
     <button class="ribbon-btn" id="ribbon-share" onclick="shareCurrentSession()" title="Share">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    </button>
+    <button class="ribbon-btn" onclick="openPhrasePicker()" title="Phrasebook">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
     </button>
     <button class="ribbon-btn" id="autoread-btn" onclick="toggleAutoRead()" title="Auto-read">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
@@ -1258,6 +1264,7 @@ function buildBblFoot(msg){
     +'<button class="bbl-act" onclick="bblBackTranslate(\''+id+'\')" title="Back-translate">'+ICON_BACK+'</button>'
     +'<button class="bbl-act" id="btts-f-'+id+'" onclick="bblTTSFoot(\''+id+'\',this)" title="Listen">'+ICON_TTS+'</button>'
     +'</div>'
+    +'<div class="clarify-block" id="bclarify-'+id+'" style="display:none;"></div>'
     +'<div class="bbl-backtrans" id="bbt-'+id+'"><div id="bbt-t-'+id+'" style="line-height:1.45;margin-bottom:6px;color:var(--ink-dim);font-style:italic;">Tap ↺ to verify</div><div id="bbt-v-'+id+'"></div></div></div>';
 }
 function renderMsg(msg){
@@ -1283,7 +1290,7 @@ function updateTransDOM(msg){var sides=getSides(msg);var el=document.getElementB
 // Bubble actions
 function bblTTS(id,side,btn){var msg=findMsg(id);if(!msg)return;var s=getSides(msg);var t=side==='src'?s.srcTxt:s.tgtTxt;var l=side==='src'?s.srcLang:s.tgtLang;if(t)speak(t,l,btn);}
 function bblTTSFoot(id,btn){var msg=findMsg(id);if(!msg)return;var s=getSides(msg);speak(s.tgtTxt||s.srcTxt,s.tgtTxt?s.tgtLang:s.srcLang,btn);}
-function bblShare(id){var msg=findMsg(id);if(!msg)return;var s=getSides(msg);var t=[s.srcTxt,s.tgtTxt].filter(Boolean).join('\n→ ');if(navigator.share){navigator.share({text:t}).catch(function(){});return;}if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(function(){toast('Copied');});else fallbackCopy(t);}
+function bblShare(id){var msg=findMsg(id);if(!msg)return;var s=getSides(msg);var t=[s.srcTxt,s.tgtTxt].filter(Boolean).join('\n→ ');if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){toast('Copied');}).catch(function(){fallbackCopy(t);});}else fallbackCopy(t);if(navigator.share)navigator.share({text:t}).catch(function(){});}
 function bblSave(id){var msg=findMsg(id);if(!msg)return;var s=getSides(msg);openNewCard(null,s.srcTxt,s.tgtTxt,s.srcLang,s.tgtLang);}
 function bblClarifyMotif(msg){var st=(msg&&msg.clarify&&msg.clarify.status)||'none';if(st==='requested')return '→';if(st==='answered')return '✓';return '?';}
 
@@ -1306,8 +1313,8 @@ function bblGood(id){var msg=findMsg(id);if(!msg)return;msg._verdict='good';save
 function bblFlag(id){var msg=findMsg(id);if(!msg)return;msg._verdict='flag';saveMsgs(state.activeConvId,state.messages);var vEl=document.getElementById('bbt-v-'+id);if(vEl)vEl.innerHTML='<div class="bbl-verdict-pill bad">⚠ Flagged</div>';toast('Flagged ⚠');}
 
 // Clarify
-function bblClarifyClick(id){var msg=findMsg(id);if(!msg)return;var st=(msg.clarify&&msg.clarify.status)||'none';if(msg.from==='me'&&st==='requested'){openClarifyAns(id);return;}if(st==='answered'){var p=document.getElementById('bbt-'+id);if(p)p.classList.toggle('open');}else openClarifyReq(id);}
-function updateBblClarify(msg){var btn=document.getElementById('bact-c-'+msg.id);if(!btn)return;btn.className='bbl-act clarify-btn';btn.textContent=bblClarifyMotif(msg);}
+function bblClarifyClick(id){var msg=findMsg(id);if(!msg)return;var st=(msg.clarify&&msg.clarify.status)||'none';if(st==='requested'){openClarifyAns(id);return;}if(st==='answered'){var blk=document.getElementById('bclarify-'+id);if(blk)blk.style.display=blk.style.display==='none'?'block':'none';return;}openClarifyReq(id);}
+function updateBblClarify(msg){var btn=document.getElementById('bact-c-'+msg.id);var blk=document.getElementById('bclarify-'+msg.id);var st=(msg.clarify&&msg.clarify.status)||'none';if(btn){btn.className='bbl-act clarify-btn';btn.textContent=st==='answered'?'✓':(st==='requested'?'!':'?');}if(blk){if(st==='none'){blk.style.display='none';blk.innerHTML='';}else{var o=msg.clarify&&msg.clarify.originalText?'<div style="margin-top:6px;font-size:11px;opacity:.75;"><strong>Original:</strong> '+renderMd(msg.clarify.originalText)+'</div>':'';var t=msg.clarify&&msg.clarify.translatedText?'<div style="margin-top:4px;font-size:11px;opacity:.75;"><strong>Translated:</strong> '+renderMd(msg.clarify.translatedText)+'</div>':'';blk.innerHTML=(msg.clarify.text?renderMd(msg.clarify.text):(st==='requested'?'<em>No additional context provided.</em>':'<em>No clarification text.</em>'))+o+t;blk.style.display='block';}}}
 function openClarifyReq(id){var msg=findMsg(id);if(!msg)return;var s=getSides(msg);document.getElementById('clarify-req-quote').textContent=s.srcTxt||'';document.getElementById('clarify-req-note').value='';state.clarifyTargetMsgId=id;document.getElementById('clarify-req-overlay').hidden=false;}
 function sendClarifyRequest(){var id=state.clarifyTargetMsgId;if(!id)return;var msg=findMsg(id);if(!msg)return;var note=document.getElementById('clarify-req-note').value.trim();var s=getSides(msg);msg.clarify={status:'requested',text:note,originalText:s.srcTxt||'',translatedText:s.tgtTxt||''};saveMsgs(state.activeConvId,state.messages);transportSend({type:'clarify',id:id,note:note,originalText:s.srcTxt||'',translatedText:s.tgtTxt||''});document.getElementById('clarify-req-overlay').hidden=true;updateBblClarify(msg);toast('Clarification requested');}
 function openClarifyAns(id){var msg=findMsg(id);if(!msg)return;var s=getSides(msg);document.getElementById('clarify-ans-quote').textContent=s.srcTxt||'';document.getElementById('clarify-ans-text').value='';state.clarifyTargetMsgId=id;document.getElementById('clarify-ans-overlay').hidden=false;}
@@ -1359,7 +1366,7 @@ function runOmniSearch(){var q=(document.getElementById('omni-search').value||''
 
 // Phrasebook
 function openPhrasePicker(){renderPhrasePicker();document.getElementById('phrase-picker-overlay').hidden=false;}
-function renderPhrasePicker(){var q=(document.getElementById('pp-search')&&document.getElementById('pp-search').value||'').trim().toLowerCase();var cards=getCards();if(q)cards=cards.filter(function(c){return(c.source||'').toLowerCase().indexOf(q)>=0||(c.target||'').toLowerCase().indexOf(q)>=0;});cards.sort(function(a,b){return(b.createdAt||0)-(a.createdAt||0);});document.getElementById('pp-counter').textContent=cards.length;var list=document.getElementById('pp-list');if(!cards.length){list.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-dim);">No phrases.</div>';return;}list.innerHTML=cards.map(function(c){var aS=attrSafe(c.source||'');var aT=attrSafe(c.target||c.source||'');var aL=attrSafe(c.sourceLang||'en');return '<div class="pp-row"><button class="pp-tts" onclick="speak('+aS+','+aL+',this)" title="Listen">'+ICON_TTS+'</button><div class="pp-texts"><div class="pp-source">'+escHtml(c.source)+'</div><div class="pp-target">'+escHtml(c.target)+'</div></div><button class="pp-insert-btn" onclick="insertPhrase('+aS+','+aT+','+aL+')">Use</button></div>';}).join('');}
+function renderPhrasePicker(){var q=(document.getElementById('pp-search')&&document.getElementById('pp-search').value||'').trim().toLowerCase();var cards=getCards();if(q)cards=cards.filter(function(c){return(c.source||'').toLowerCase().indexOf(q)>=0||(c.target||'').toLowerCase().indexOf(q)>=0;});cards.sort(function(a,b){return(b.createdAt||0)-(a.createdAt||0);});document.getElementById('pp-counter').textContent=cards.length;var list=document.getElementById('pp-list');if(!cards.length){list.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-dim);">No phrases.</div>';return;}list.innerHTML=cards.map(function(c){var aS=attrSafe(c.source||'');var aT=attrSafe(c.target||c.source||'');var aSL=attrSafe(c.sourceLang||'en');var aTL=attrSafe(c.targetLang||'th');return '<div class="pp-row"><div class="pp-sides"><div class="pp-side"><div class="pp-side-label">Source</div><div class="pp-text">'+escHtml(c.source||'')+'</div><div class="pp-actions"><button class="pp-tts" onclick="speak('+aS+','+aSL+',this)" title="Listen">'+ICON_TTS+'</button><button class="pp-insert-btn" onclick="insertPhrase('+aS+','+aT+','+aSL+')">Use</button></div></div><div class="pp-side"><div class="pp-side-label">Target</div><div class="pp-text">'+escHtml(c.target||'')+'</div><div class="pp-actions"><button class="pp-tts" onclick="speak('+aT+','+aTL+',this)" title="Listen">'+ICON_TTS+'</button><button class="pp-insert-btn" onclick="insertPhrase('+aT+','+aS+','+aTL+')">Use</button></div></div></div></div>';}).join('');}
 function insertPhrase(src,tgt,sLang){var sess=getSession(state.activeConvId);var myLang=(sess&&sess.myLang)||getPrefs().myLang||'en';var text=(sLang===myLang)?src:(tgt||src);document.getElementById('phrase-picker-overlay').hidden=true;if(state.activeConvId){var ta=document.getElementById('msg-input');if(ta){ta.value=text;autoResize();updateSendBtn();setTimeout(function(){ta.focus();},50);}}else toast('Start a conversation first');}
 
 // Say home
