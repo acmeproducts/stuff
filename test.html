@@ -974,7 +974,54 @@ function renderRecycleBin(){var bin=document.getElementById('recycle-bin');if(!b
 
 // Share
 function shareCurrentSession(){if(!state.activeConvId){toast('No active session');return;}shareSession(state.activeConvId);}
-function shareSession(cid){var url=location.href.split('?')[0]+'?join='+cid;var el=document.getElementById('share-link-text');if(el){el.href=url;el.textContent=url;}document.getElementById('share-overlay').hidden=false;if(navigator.share){navigator.share({url:url}).catch(function(){});}}
+var INVITE_SCHEMA_VERSION=1;
+function encodeInvitePayload(payload){
+  try{return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));}
+  catch(_){return '';}
+}
+function decodeInvitePayload(encoded){
+  if(!encoded)return null;
+  try{return JSON.parse(decodeURIComponent(escape(atob(encoded))));}
+  catch(_){return null;}
+}
+function validateInvitePayload(payload){
+  if(!payload||typeof payload!=='object')return null;
+  if(payload.schemaVersion!==INVITE_SCHEMA_VERSION)return null;
+  if(typeof payload.sessionId!=='string'||!payload.sessionId.trim())return null;
+  if(typeof payload.initiatorDeviceId!=='string'||!payload.initiatorDeviceId.trim())return null;
+  if(typeof payload.initiatorGlobalName!=='string'||!payload.initiatorGlobalName.trim())return null;
+  if(typeof payload.initiatorLang!=='string'||!payload.initiatorLang.trim())return null;
+  if(typeof payload.createdAt!=='number'||!isFinite(payload.createdAt))return null;
+  return payload;
+}
+function buildInvitePayload(sess,prefs){
+  return {
+    sessionId:sess.convId,
+    initiatorDeviceId:PART_ID,
+    initiatorGlobalName:sess.myName||prefs.userName||'yournamehere',
+    initiatorLang:sess.myLang||prefs.myLang||'en',
+    createdAt:Date.now(),
+    schemaVersion:INVITE_SCHEMA_VERSION
+  };
+}
+function hydrateSessionFromInvite(sess,invite){
+  if(!sess||!invite)return sess;
+  if(!sess.partnerName&&invite.initiatorGlobalName)sess.partnerName=invite.initiatorGlobalName;
+  if(!sess.partnerLang&&invite.initiatorLang)sess.partnerLang=invite.initiatorLang;
+  if(sess.title==='new chat'&&invite.initiatorGlobalName)sess.title=invite.initiatorGlobalName;
+  sess.inviterDeviceId=sess.inviterDeviceId||invite.initiatorDeviceId;
+  sess.inviteCreatedAt=sess.inviteCreatedAt||invite.createdAt;
+  return sess;
+}
+function shareSession(cid){
+  var sess=getSession(cid);if(!sess){toast('Not found');return;}
+  var invite=buildInvitePayload(sess,getPrefs());
+  var encoded=encodeInvitePayload(invite);if(!encoded){toast('Could not build invite');return;}
+  var url=location.href.split('?')[0]+'?invite='+encodeURIComponent(encoded);
+  var el=document.getElementById('share-link-text');if(el){el.href=url;el.textContent=url;}
+  document.getElementById('share-overlay').hidden=false;
+  if(navigator.share){navigator.share({url:url}).catch(function(){});}
+}
 function copyShareLink(){var el=document.getElementById('share-link-text');var url=el?el.href:'';if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(function(){toast('Copied');document.getElementById('share-overlay').hidden=true;});else{fallbackCopy(url);document.getElementById('share-overlay').hidden=true;}}
 
 // ════════════════════ TRANSLATION ════════════════════
@@ -1243,11 +1290,28 @@ document.addEventListener('DOMContentLoaded',function(){
   populateLangSelect('nc-tgt-lang',p.partnerLang||'th');
 
   // Deep link
-  var up=new URLSearchParams(location.search);var jc=up.get('join');
+  var up=new URLSearchParams(location.search);
+  var invite=validateInvitePayload(decodeInvitePayload(up.get('invite')));
+  var jc=up.get('join');
+  if(invite){
+    history.replaceState({},'',location.pathname);
+    var sess=getSession(invite.sessionId);
+    if(!sess){
+      sess={convId:invite.sessionId,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};
+      hydrateSessionFromInvite(sess,invite);
+      putSession(sess);
+      var order=getSessionOrder();order.unshift(invite.sessionId);saveSessionOrder(order);
+    }else if(!getMsgs(invite.sessionId).length){
+      hydrateSessionFromInvite(sess,invite);
+      putSession(sess);
+    }
+    openSession(invite.sessionId);
+    return;
+  }
   if(jc){
     history.replaceState({},'',location.pathname);
-    var sess=getSession(jc);
-    if(!sess){sess={convId:jc,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};putSession(sess);var order=getSessionOrder();order.unshift(jc);saveSessionOrder(order);}
+    var sess2=getSession(jc);
+    if(!sess2){sess2={convId:jc,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};putSession(sess2);var order2=getSessionOrder();order2.unshift(jc);saveSessionOrder(order2);}
     openSession(jc);
     return;
   }
