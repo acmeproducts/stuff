@@ -419,6 +419,7 @@ let syncSettings=loadSyncSettings();
 let syncState={status:"Loaded local",remoteSha:null,lastRemoteModified:0,lastSyncAt:0,pending:false};
 let syncWorker=null, syncRequestSeq=0;
 let pendingValidation=false;
+let validationTimeoutId=null;
 let syncPollTimer=null;
 
 function getSyncPollIntervalMs(raw=syncSettings.pollIntervalSec){
@@ -463,8 +464,15 @@ function buildGithubWorker(){
       const tx=await res.text();
       return {status:res.status,message:\`${prefix} failed (\${res.status}): \${tx.slice(0,180)}\`,body:tx.slice(0,180)};
     }
+    async function fetchWithTimeout(url, opts={}, timeoutMs=20000){
+      const ctrl=new AbortController();
+      const t=setTimeout(()=>ctrl.abort(), timeoutMs);
+      try{ return await fetch(url,{...opts,signal:ctrl.signal}); }
+      catch(err){ if(err?.name==="AbortError") throw {status:408,message:\`Request timed out after \${Math.round(timeoutMs/1000)}s\`}; throw err; }
+      finally{ clearTimeout(t); }
+    }
     async function getRemote(targetCfg=cfg){
-      const res=await fetch(apiUrl(targetCfg),{method:"GET",headers:headers(targetCfg.token)});
+      const res=await fetchWithTimeout(apiUrl(targetCfg),{method:"GET",headers:headers(targetCfg.token)});
       if(res.status===404) return {missing:true};
       if(!res.ok) throw await buildError(res, "GET");
       const json=await res.json();
@@ -490,7 +498,7 @@ function buildGithubWorker(){
       const body={message:"Update kanban board snapshot",branch:cfg.branch,content:b64(JSON.stringify(snapshot,null,2))};
       if(!remote.missing && (remote.sha||remoteSha)) body.sha=remote.sha||remoteSha;
       post("remoteWriteAttempt",{path:cfg.path, branch:cfg.branch, forced:!!force});
-      const res=await fetch(apiUrl(),{method:"PUT",headers:headers(cfg.token),body:JSON.stringify(body)});
+      const res=await fetchWithTimeout(apiUrl(),{method:"PUT",headers:headers(cfg.token),body:JSON.stringify(body)});
       if(!res.ok) throw await buildError(res, "PUT");
       const out=await res.json();
       remoteSha=out?.content?.sha||remoteSha;
@@ -525,7 +533,18 @@ function buildGithubWorker(){
           post("remoteStatus",{status:"Validation read in progress…"});
           const remote=await getRemote(draft);
           const context={owner:draft.owner,repo:draft.repo,path:draft.path,branch:draft.branch};
-          if(remote.missing){ post("validationResult",{ok:false, missing:true, message:"Remote file not found", context}); return; }
+          if(remote.missing){
+            if(payload?.createIfMissing && payload?.snapshot){
+              const body={message:"Create kanban board snapshot",branch:draft.branch,content:b64(JSON.stringify(payload.snapshot,null,2))};
+              const createRes=await fetchWithTimeout(apiUrl(draft),{method:"PUT",headers:headers(draft.token),body:JSON.stringify(body)});
+              if(!createRes.ok) throw await buildError(createRes, "PUT create");
+              const out=await createRes.json();
+              post("validationResult",{ok:true, created:true, sha:out?.content?.sha||null, snapshot:payload.snapshot, context});
+              return;
+            }
+            post("validationResult",{ok:false, missing:true, message:"Remote file not found", context});
+            return;
+          }
           try{
             const parsed=JSON.parse(remote.text||"{}");
             post("validationResult",{ok:true, snapshot:parsed, context});
@@ -586,14 +605,15 @@ function onSyncWorkerMessage(evt){
   if(msg.type==="remoteMissing"){
     const path=syncSettings.path||SYNC_DEFAULTS.path;
     setSyncStatus(`Remote file not found (${path})`);
-    if(msg.source==="startup" && isSyncConfigured()){
+    if(isSyncConfigured()){
       toast("Remote file missing",`Creating ${path} from local board`);
-      scheduleRemoteSyncDebounced();
+      flushRemoteSync();
     }
     return;
   }
   if(msg.type==="validationResult"){
     pendingValidation=false;
+    if(validationTimeoutId){ clearTimeout(validationTimeoutId); validationTimeoutId=null; }
     const ctx=msg.context||{};
     const ctxText=`${ctx.owner||SYNC_DEFAULTS.owner}/${ctx.repo||SYNC_DEFAULTS.repo}@${ctx.branch||SYNC_DEFAULTS.branch}:${ctx.path||SYNC_DEFAULTS.path}`;
     if(msg.ok){
@@ -602,7 +622,7 @@ function onSyncWorkerMessage(evt){
       const pretty=JSON.stringify(snap,null,2)||"{}";
       const snippet=escapeHtml(pretty.slice(0,200));
       setValidationMessage(`Validation success: readable JSON at ${ctxText}.`, false, `keys: ${keys} • lastModified: ${Number(snap.lastModified||0) || "n/a"}\n${snippet}`);
-      toast("Validation success",`Read remote file ${ctx.path||SYNC_DEFAULTS.path}`);
+      toast("Validation success", msg.created ? `Created remote file ${ctx.path||SYNC_DEFAULTS.path}` : `Read remote file ${ctx.path||SYNC_DEFAULTS.path}`);
       return;
     }
     if(msg.missing){
@@ -1328,9 +1348,16 @@ $("#btnValidateSync").onclick=()=>{
   const draft=gatherSyncSettingsFromForm();
   if(!draft.token){ setValidationMessage("Validation failed: add a GitHub token first.", true); toast("Validation failed","Token is required",true); return; }
   pendingValidation=true;
-  setValidationMessage("Validating GitHub sync settings…", false);
+  setValidationMessage("Validating GitHub sync settings… (up to 20s)", false);
+  if(validationTimeoutId){ clearTimeout(validationTimeoutId); validationTimeoutId=null; }
+  validationTimeoutId=setTimeout(()=>{
+    if(!pendingValidation) return;
+    pendingValidation=false;
+    setValidationMessage("Validation timed out after 20s. Check token scopes, repo/path/branch, and network.", true);
+    toast("Validation timeout","No response from GitHub within 20s", true);
+  }, 21000);
   const worker=buildGithubWorker();
-  worker.postMessage({type:"validateRemote", payload:{config:{enabled:true,owner:draft.owner,repo:draft.repo,branch:draft.branch,path:draft.path,token:draft.token}, seq:++syncRequestSeq}});
+  worker.postMessage({type:"validateRemote", payload:{config:{enabled:true,owner:draft.owner,repo:draft.repo,branch:draft.branch,path:draft.path,token:draft.token}, createIfMissing:true, snapshot:sanitizeStateForSync(state), seq:++syncRequestSeq}});
 };
 $("#btnNew").onclick=()=> openEditor(null, state.stages[0]);
 $("#btnSettings").onclick=()=>{
