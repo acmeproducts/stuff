@@ -457,7 +457,7 @@ function buildGithubWorker(){
   const workerCode = `
     let cfg=null, remoteSha=null, pendingSave=null, saveTimer=null, isSaving=false;
     const post=(type,payload={})=>self.postMessage({type,...payload});
-    function headers(token){ return {"Authorization":\`Bearer \${token}\`,"Accept":"application/vnd.github+json","Content-Type":"application/json"}; }
+    function headers(token, includeJson=false){ const h={"Authorization":\`token \${token}\`,"Accept":"application/vnd.github.v3+json"}; if(includeJson) h["Content-Type"]="application/json"; return h; }
     function apiUrl(c=cfg){ return \`https://api.github.com/repos/\${encodeURIComponent(c.owner)}/\${encodeURIComponent(c.repo)}/contents/\${c.path.split('/').map(encodeURIComponent).join('/')}?ref=\${encodeURIComponent(c.branch)}\`; }
     function b64(str){ return btoa(unescape(encodeURIComponent(str))); }
     async function buildError(res, prefix){
@@ -578,6 +578,21 @@ function buildGithubWorker(){
   const blob=new Blob([workerCode],{type:"application/javascript"});
   syncWorker=new Worker(URL.createObjectURL(blob));
   syncWorker.onmessage=onSyncWorkerMessage;
+  syncWorker.onerror=(evt)=>{
+    pendingValidation=false;
+    if(validationTimeoutId){ clearTimeout(validationTimeoutId); validationTimeoutId=null; }
+    setValidationMessage(`Worker error: ${evt?.message||"unknown worker failure"}`, true);
+    setSyncStatus("Sync worker error");
+    toast("Sync worker error", evt?.message||"Worker crashed", true);
+    try{ syncWorker.terminate(); }catch{}
+    syncWorker=null;
+  };
+  syncWorker.onmessageerror=()=>{
+    pendingValidation=false;
+    if(validationTimeoutId){ clearTimeout(validationTimeoutId); validationTimeoutId=null; }
+    setValidationMessage("Worker message serialization failed.", true);
+    setSyncStatus("Sync worker error");
+  };
   return syncWorker;
 }
 function onSyncWorkerMessage(evt){
