@@ -810,13 +810,18 @@ function stampExistingMessageNames(msgs,sess){
   });
   return changed;
 }
-function addSystemNote(text,timestamp){
-  if(!state.activeConvId)return;
+function addSystemNote(convId,text,timestamp){
+  if(!convId)return;
   var m={id:uid(),from:'system',text:text,timestamp:timestamp||Date.now()};
-  state.messages.push(m);
-  renderMsg(m);
-  var sess=getSession(state.activeConvId);
-  if(sess){sess.lastActivity=m.timestamp;putSession(sess);saveMsgs(sess.convId,state.messages);}
+  var msgs=(convId===state.activeConvId)?state.messages:getMsgs(convId);
+  msgs.push(m);
+  if(convId===state.activeConvId){
+    state.messages=msgs;
+    renderMsg(m);
+  }
+  var sess=getSession(convId);
+  if(sess){sess.lastActivity=m.timestamp;putSession(sess);}
+  saveMsgs(convId,msgs);
 }
 function updateSessionNames(sess,nextMe,nextThem,changedBy){
   if(!sess)return false;
@@ -832,7 +837,7 @@ function updateSessionNames(sess,nextMe,nextThem,changedBy){
   sess.partnerName=them;
   sess.title=them;
   putSession(sess);
-  addSystemNote((changedBy||me)+' changed names to '+me+'/'+them);
+  addSystemNote(sess.convId,(changedBy||me)+' changed names to '+me+'/'+them);
   return true;
 }
 
@@ -908,11 +913,11 @@ function sendInitialHelloPresence(sess){
 }
 function upsertPartnerFromEnvelope(sess,d){
   if(!sess||!d)return;
-  ensureSessionNames(sess);
+  var names=ensureSessionNames(sess);
   var partnerName=d.name||sess.partnerName||sess.names.themAlias||'Partner';
   var partnerLang=d.lang||sess.partnerLang||getPrefs().partnerLang||'th';
   sess.partnerName=partnerName;
-  sess.names.themAlias=partnerName;
+  if(!names.themAlias||names.themAlias==='new chat'||names.themAlias==='Partner')names.themAlias=partnerName;
   sess.partnerLang=partnerLang;
   if(sess.title==='new chat'&&partnerName)sess.title=partnerName;
   putSession(sess);
@@ -972,7 +977,7 @@ function backToCatalogs(){showScreen('say-screen');renderSayHome();}
 // ════════════════════ LEFT PANEL ════════════════════
 function openLeftPanel(){document.getElementById('left-panel').classList.add('open');document.getElementById('left-scrim').classList.add('show');renderSessionList();}
 function closeLeftPanel(){document.getElementById('left-panel').classList.remove('open');document.getElementById('left-scrim').classList.remove('show');}
-function saveLocalName(el){var v=(el.textContent||'').trim();if(!v){el.textContent=getPrefs().userName||'yournamehere';return;}var p=getPrefs();p.userName=v;savePrefs(p);if(state.activeConvId){var sess=getSession(state.activeConvId);if(sess){ensureSessionNames(sess);if(updateSessionNames(sess,v,sess.names.themAlias,v)){renderSessionList();}}}toast('Name saved');}
+function saveLocalName(el){var v=(el.textContent||'').trim();if(!v){el.textContent=getPrefs().userName||'yournamehere';return;}var p=getPrefs();p.userName=v;savePrefs(p);toast('Name saved');}
 
 function createNewSession(){
   var cid=uid();var p=getPrefs();
