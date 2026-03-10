@@ -906,6 +906,20 @@ function sendInitialHelloPresence(sess){
   transportSend({type:'hello',name:sess.myName||getPrefs().userName||'yournamehere',lang:sess.myLang||getPrefs().myLang||'en'});
   transportSend({type:'presence'});
 }
+function upsertPartnerFromEnvelope(sess,d){
+  if(!sess||!d)return;
+  ensureSessionNames(sess);
+  var partnerName=d.name||sess.partnerName||sess.names.themAlias||'Partner';
+  var partnerLang=d.lang||sess.partnerLang||getPrefs().partnerLang||'th';
+  sess.partnerName=partnerName;
+  sess.names.themAlias=partnerName;
+  sess.partnerLang=partnerLang;
+  if(sess.title==='new chat'&&partnerName)sess.title=partnerName;
+  putSession(sess);
+  if(state.activeConvId===sess.convId){
+    document.getElementById('shell-partner-name').textContent=sess.title||sess.names.themAlias||sess.partnerName||'new chat';
+  }
+}
 function startPresence(){stopPresence();presenceTimer=setInterval(function(){if(socketState!=='open'||!state.activeConvId)return;transportSend({type:'presence'});},PRESENCE_INTERVAL_MS);}
 function stopPresence(){if(presenceTimer){clearInterval(presenceTimer);presenceTimer=null;}}
 function startPeerWatch(){if(peerWatchTimer)return;peerWatchTimer=setInterval(updateDot,1000);}
@@ -1161,29 +1175,14 @@ function handleRelayEvent(d){
   if(d.type==='presence-ack'&&d.from!==DEVICE_ID){markPeerSeen();return;}
   if(d.from===DEVICE_ID)return;
   markPeerSeen();
-  ensureSessionNames(sess);
-  if((d.name&&!sess.partnerName)||(d.lang&&!sess.partnerLang)){
-    if(d.name&&!sess.partnerName){sess.partnerName=d.name;sess.names.themAlias=d.name;}
-    if(d.lang&&!sess.partnerLang)sess.partnerLang=d.lang;
-    if(sess.title==='new chat'&&d.name)sess.title=d.name;
-    putSession(sess);
-    document.getElementById('shell-partner-name').textContent=sess.title||sess.names.themAlias||sess.partnerName||'new chat';
-  }
   if(d.type==='hello'){
-    if(d.name){sess.partnerName=d.name;sess.names.themAlias=d.name;}if(d.lang)sess.partnerLang=d.lang;
-    if(sess.title==='new chat'&&d.name)sess.title=d.name;
-    putSession(sess);document.getElementById('shell-partner-name').textContent=sess.title||sess.names.themAlias||sess.partnerName||'new chat';
+    upsertPartnerFromEnvelope(sess,d);
     transportSend({type:'hello-ack'});return;
   }
   if(d.type==='hello-ack'){return;}
   if(d.type==='msg'){
     if(d.id&&findMsg(d.id))return;
-    if(d.name){sess.partnerName=d.name;sess.names.themAlias=d.name;}else{sess.partnerName=sess.partnerName||'Partner';}
-    sess.partnerLang=d.lang||sess.partnerLang||'th';
-    if(sess.title==='new chat'&&sess.partnerName)sess.title=sess.partnerName;
-    putSession(sess);
-    document.getElementById('shell-partner-name').textContent=sess.title||sess.names.themAlias||sess.partnerName||'new chat';
-    ensureSessionNames(sess);
+    upsertPartnerFromEnvelope(sess,d);
     var pLang=d.lang||sess.partnerLang||'th';var mLang=sess.myLang||'en';
     var msg={id:d.id,from:'them',orig:d.orig||d.text||'',text:null,lang:pLang,status:'received',timestamp:d.timestamp||Date.now(),clarify:{status:'none',text:''},attachment:d.attachment||null};
     stampMsgNames(msg,sess);
@@ -1287,8 +1286,9 @@ function sendMessage(){
   stampMsgNames(msg,sess);
   state.messages.push(msg);renderMsg(msg);ta.value='';autoResize();updateSendBtn();scrollBottom();
   sess.lastActivity=msg.timestamp;putSession(sess);saveMsgs(sess.convId,state.messages);
-  var ok=transportSend({type:'msg',id:msg.id,orig:text,lang:outLang,timestamp:msg.timestamp});
-  if(!ok){msg.status='queued';msgQueue.push({msgId:msg.id,payload:{type:'msg',id:msg.id,orig:text,lang:outLang,timestamp:msg.timestamp}});}
+  var payload={type:'msg',id:msg.id,orig:text,lang:outLang,timestamp:msg.timestamp,name:sess.myName||getPrefs().userName||'yournamehere'};
+  var ok=transportSend(payload);
+  if(!ok){msg.status='queued';msgQueue.push({msgId:msg.id,payload:payload});}
 }
 function flushMsgQ(){if(!msgQueue.length)return;var q=msgQueue.slice();msgQueue=[];q.forEach(function(m){if(!transportSend(m.payload))msgQueue.push(m);else{var msg=findMsg(m.msgId);if(msg)msg.status='sent';}});}
 
