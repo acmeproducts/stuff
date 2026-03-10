@@ -121,6 +121,12 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
 .chip button:hover{color:#000}
+.attachment-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.attachment-item{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--border);border-radius:10px;padding:6px 8px;background:#fff}
+.attachment-item .attachment-link,.attachment-item .attachment-name{font-size:12px;color:#1f6feb;text-decoration:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.attachment-item .attachment-name{color:var(--muted)}
+.attachment-delete{border:none;background:transparent;color:#777;cursor:pointer;font-size:16px;line-height:1;padding:0 2px;border-radius:6px;flex:0 0 auto}
+.attachment-delete:hover{color:var(--danger);background:#f6f6f8}
 /* Landing target outline (orange) */
 .drop-highlight{ border-color:var(--highlight) !important; box-shadow:0 0 0 2px var(--highlight) inset; }
 
@@ -652,7 +658,55 @@ function renderCard(card){
     dev: card.dev||"",
     live: card.live||"",
     tags: (card.tags||[]).join(", "),
-    notes: card.notes||""
+    notes: card.notes||"",
+    files: Array.isArray(card.files) ? card.files.slice() : []
+  };
+  const renderInlineAttachments=()=>{
+    attachmentsWrap.innerHTML="";
+    if(!inlineState.files.length){
+      const empty=document.createElement("span");
+      empty.className="muted";
+      empty.textContent="No attachments";
+      attachmentsWrap.append(empty);
+      return;
+    }
+    inlineState.files.forEach((f, idx)=>{
+      const item=document.createElement("li");
+      item.className="attachment-item";
+      const meta=[f?.type, typeof f?.size==="number" && f.size>=0 ? fmtBytes(f.size) : ""].filter(Boolean).join(" • ");
+      const fileName=f?.name||"attachment";
+      if(typeof f?.data === "string" && f.data){
+        const link=document.createElement("a");
+        link.className="attachment-link";
+        link.href=f.data;
+        link.download=fileName;
+        link.target="_blank";
+        link.rel="noopener";
+        link.textContent=meta ? `${fileName} (${meta})` : fileName;
+        link.addEventListener("click", e=>e.stopPropagation());
+        link.addEventListener("pointerdown", e=>e.stopPropagation());
+        link.addEventListener("pointerup", e=>e.stopPropagation());
+        item.append(link);
+      }else{
+        const text=document.createElement("span");
+        text.className="attachment-name";
+        text.textContent=meta ? `${fileName} (${meta})` : fileName;
+        item.append(text);
+      }
+      const rm=document.createElement("button");
+      rm.type="button";
+      rm.className="attachment-delete";
+      rm.textContent="×";
+      rm.title="Remove attachment";
+      rm.setAttribute("aria-label",`Remove ${fileName}`);
+      rm.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        inlineState.files.splice(idx,1);
+        renderInlineAttachments();
+      });
+      item.append(rm);
+      attachmentsWrap.append(item);
+    });
   };
   const saveInline=()=>{
     const tags=inlineState.tags.split(",").map(t=>t.trim()).filter(Boolean);
@@ -663,7 +717,8 @@ function renderCard(card){
       dev:inlineState.dev.trim(),
       live:inlineState.live.trim(),
       notes:inlineState.notes.trim(),
-      tags
+      tags,
+      files:inlineState.files.slice()
     };
     if(
       patch.title===card.title &&
@@ -672,7 +727,8 @@ function renderCard(card){
       patch.dev===card.dev &&
       patch.live===card.live &&
       patch.notes===card.notes &&
-      JSON.stringify(tags)===JSON.stringify(card.tags||[])
+      JSON.stringify(tags)===JSON.stringify(card.tags||[]) &&
+      JSON.stringify(patch.files)===JSON.stringify(card.files||[])
     ) return;
     updateCard(card.id, patch);
   };
@@ -729,43 +785,12 @@ function renderCard(card){
     }
   });
 
-  const attachmentsWrap=document.createElement("div");
-  attachmentsWrap.className="chips card-links";
+  const attachmentsWrap=document.createElement("ul");
+  attachmentsWrap.className="attachment-list";
   attachmentsWrap.addEventListener("click", e=>e.stopPropagation());
   attachmentsWrap.addEventListener("pointerdown", e=>e.stopPropagation());
   attachmentsWrap.addEventListener("pointerup", e=>e.stopPropagation());
-  const attachmentFiles=Array.isArray(card.files)?card.files.filter(f=>f && typeof f==="object"):[];
-  if(attachmentFiles.length){
-    attachmentFiles.forEach(f=>{
-      const chip=document.createElement("span");
-      chip.className="chip";
-      const meta=[f?.type, typeof f?.size==="number" && f.size>=0 ? fmtBytes(f.size) : ""].filter(Boolean).join(" • ");
-      const fileName=f?.name||"attachment";
-      if(typeof f?.data === "string" && f.data){
-        const link=document.createElement("a");
-        link.href=f.data;
-        link.download=fileName;
-        link.target="_blank";
-        link.rel="noopener";
-        link.textContent=meta ? `${fileName} (${meta})` : fileName;
-        link.addEventListener("click", e=>e.stopPropagation());
-        link.addEventListener("pointerdown", e=>e.stopPropagation());
-        link.addEventListener("pointerup", e=>e.stopPropagation());
-        chip.append(link);
-      }else{
-        const text=document.createElement("span");
-        text.className="muted";
-        text.textContent=meta ? `${fileName} (${meta})` : fileName;
-        chip.append(text);
-      }
-      attachmentsWrap.append(chip);
-    });
-  }else{
-    const empty=document.createElement("span");
-    empty.className="muted";
-    empty.textContent="No attachments";
-    attachmentsWrap.append(empty);
-  }
+  renderInlineAttachments();
 
   grid.append(
     makeField("Title", titleInput, true),
@@ -927,7 +952,31 @@ async function addFiles(files){
   for(const file of files){ const dataUrl = await readAsDataURL(file); pendingFiles.push({name:file.name,type:file.type,size:file.size,data:dataUrl}); }
   currentFiles = mergeFiles(currentFiles, pendingFiles); pendingFiles = []; renderFileChips(); }
 function mergeFiles(existing, added){ const byName=new Map(existing.map(x=>[x.name,x])); for(const f of added){ byName.set(f.name, f); } return Array.from(byName.values()); }
-function renderFileChips(){ fileChips.innerHTML=""; if(!currentFiles.length){ fileChips.innerHTML="<span class='muted'>No attachments</span>"; return; } currentFiles.forEach((f,idx)=>{ const el=document.createElement("span"); el.className="chip"; const a=document.createElement("a"); a.href=f.data; a.download=f.name; a.textContent=f.name; a.onclick=(e)=>e.stopPropagation(); const rm=document.createElement("button"); rm.textContent="×"; rm.title="remove attachment"; rm.onclick=(e)=>{ e.stopPropagation(); currentFiles.splice(idx,1); renderFileChips(); }; el.append(a, rm); fileChips.appendChild(el); }); }
+function renderFileChips(){
+  fileChips.innerHTML="";
+  if(!currentFiles.length){ fileChips.innerHTML="<span class='muted'>No attachments</span>"; return; }
+  const list=document.createElement("ul");
+  list.className="attachment-list";
+  currentFiles.forEach((f,idx)=>{
+    const item=document.createElement("li");
+    item.className="attachment-item";
+    const a=document.createElement("a");
+    a.className="attachment-link";
+    a.href=f.data;
+    a.download=f.name;
+    a.textContent=f.name;
+    a.onclick=(e)=>e.stopPropagation();
+    const rm=document.createElement("button");
+    rm.type="button";
+    rm.className="attachment-delete";
+    rm.textContent="×";
+    rm.title="remove attachment";
+    rm.onclick=(e)=>{ e.stopPropagation(); currentFiles.splice(idx,1); renderFileChips(); };
+    item.append(a, rm);
+    list.appendChild(item);
+  });
+  fileChips.appendChild(list);
+}
 function readAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
 
 /* ===== Paste images/URLs into Notes ===== */
