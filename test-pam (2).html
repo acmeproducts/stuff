@@ -395,8 +395,6 @@ textarea.field-input{resize:none;}
 .shell-dot{width:10px;height:10px;border-radius:50%;background:var(--ink-dim);transition:background .3s;flex-shrink:0;cursor:pointer;}
 .shell-dot.green{background:#22C55E;}
 .shell-dot.yellow{background:#F59E0B;animation:connPulse 1.5s ease-in-out infinite;}
-.shell-dot.red{background:#EF4444;}
-.shell-dot.gray{background:var(--ink-dim);}
 .shell-partner{text-align:center;padding:2px 16px 8px;font-family:"Lora",serif;font-size:16px;font-weight:600;border-bottom:1px solid var(--border);flex-shrink:0;}
 .shell-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--ink-dim);font-size:14px;padding:40px;}
 .shell-empty-logo{font-family:"Lora",serif;font-size:48px;font-weight:600;color:var(--teal);opacity:.25;}
@@ -777,64 +775,6 @@ function saveTags(t){lsW(SAY.tags,JSON.stringify([].concat(Array.from(new Set(t)
 function addTagToRegistry(t){var tags=getTags();if(tags.indexOf(t)<0){tags.push(t);saveTags(tags);}}
 function getPrefs(){return lsJSON(SK.prefs,{userName:'yournamehere',myLang:'en',partnerLang:'th',autoSpeakIncoming:false,autoDetectLang:true,theme:'default',accentColor:'#2E8B8B',bubbleWidth:75,bubbleFontSize:15});}
 function savePrefs(p){lsW(SK.prefs,JSON.stringify(p));}
-function ensureSessionNames(sess){
-  if(!sess)return {meAlias:'yournamehere',themAlias:'Partner',version:1};
-  var p=getPrefs();
-  if(!sess.names||typeof sess.names!=='object')sess.names={};
-  if(typeof sess.names.meAlias!=='string'||!sess.names.meAlias.trim())sess.names.meAlias=sess.myName||p.userName||'yournamehere';
-  if(typeof sess.names.themAlias!=='string'||!sess.names.themAlias.trim())sess.names.themAlias=sess.partnerName||sess.title||'new chat';
-  if(typeof sess.names.version!=='number'||!isFinite(sess.names.version)||sess.names.version<1)sess.names.version=1;
-  sess.myName=sess.names.meAlias;
-  sess.partnerName=sess.names.themAlias;
-  if(sess.title==='new chat'&&sess.names.themAlias)sess.title=sess.names.themAlias;
-  return sess.names;
-}
-function stampMsgNames(msg,sess){
-  var names=ensureSessionNames(sess);
-  if(msg.from==='me'){
-    msg.displayFromName=names.meAlias||'Me';
-    msg.displayToName=names.themAlias||'Partner';
-  }else if(msg.from==='them'){
-    msg.displayFromName=names.themAlias||'Partner';
-    msg.displayToName=names.meAlias||'Me';
-  }
-  msg.nameVersion=names.version;
-}
-function stampExistingMessageNames(msgs,sess){
-  var changed=false;
-  (msgs||[]).forEach(function(m){
-    if((m.from==='me'||m.from==='them')&&(!m.displayFromName||!m.displayToName||!m.nameVersion)){
-      stampMsgNames(m,sess);
-      changed=true;
-    }
-  });
-  return changed;
-}
-function addSystemNote(text,timestamp){
-  if(!state.activeConvId)return;
-  var m={id:uid(),from:'system',text:text,timestamp:timestamp||Date.now()};
-  state.messages.push(m);
-  renderMsg(m);
-  var sess=getSession(state.activeConvId);
-  if(sess){sess.lastActivity=m.timestamp;putSession(sess);saveMsgs(sess.convId,state.messages);}
-}
-function updateSessionNames(sess,nextMe,nextThem,changedBy){
-  if(!sess)return false;
-  var names=ensureSessionNames(sess);
-  var me=(nextMe||names.meAlias||'').trim();
-  var them=(nextThem||names.themAlias||'').trim();
-  if(!me||!them)return false;
-  if(me===names.meAlias&&them===names.themAlias)return false;
-  names.meAlias=me;
-  names.themAlias=them;
-  names.version+=1;
-  sess.myName=me;
-  sess.partnerName=them;
-  sess.title=them;
-  putSession(sess);
-  addSystemNote((changedBy||me)+' changed names to '+me+'/'+them);
-  return true;
-}
 
 // Utilities
 var uid=function(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);};
@@ -869,7 +809,7 @@ var WORKER_SRC=[
 "  try{ws=new WebSocket(url);}catch(e){scheRc();return;}",
 "  var ref=ws;",
 "  var ct=setTimeout(function(){if(ws===ref&&ws.readyState===0)ws.close(4001,'timeout');},8000);",
-"  ws.onopen=function(){if(ws!==ref)return;clearTimeout(ct);lastRx=Date.now();rcAttempts=0;pm('state',{state:'connected'});startHb();flushQ();};",
+"  ws.onopen=function(){if(ws!==ref)return;clearTimeout(ct);lastRx=Date.now();rcAttempts=0;pm('state',{state:'connected'});ws.send(JSON.stringify({type:'join',session:convId,from:deviceId,participant:participant,ts:Date.now()}));startHb();flushQ();};",
 "  ws.onmessage=function(e){if(ws!==ref)return;lastRx=Date.now();try{var m=JSON.parse(e.data);if(m.seq)seq=Math.max(seq,m.seq);pm('event',{event:m});}catch(_){}};",
 "  ws.onclose=function(){if(ws!==ref)return;ws=null;stopHb();pm('state',{state:'reconnecting'});scheRc();};",
 "  ws.onerror=function(){if(ws===ref&&ws)ws.close();};",
@@ -884,84 +824,31 @@ var WORKER_SRC=[
 ].join('\n');
 
 var relayWorker=null;
-var socketState='closed';
-var sessionState='idle';
 var transportState='disconnected';
 var transportHandlers=[];
-var presenceTimer=null;
-var peerWatchTimer=null;
-var lastPeerSeenAt=0;
-var PEER_TIMEOUT_MS=30000;
-var PRESENCE_INTERVAL_MS=10000;
-
-function syncTransportState(){transportState=(socketState==='open'?'connected':(socketState==='connecting'||socketState==='reconnecting'?'connecting':'disconnected'));}
-function setSocketState(s){socketState=s;syncTransportState();updateDot();}
-function setSessionState(s){sessionState=s;updateDot();}
-function markPeerSeen(){lastPeerSeenAt=Date.now();updateDot();}
-function isPeerHealthy(){return !!lastPeerSeenAt&&(Date.now()-lastPeerSeenAt)<=PEER_TIMEOUT_MS;}
-function isSessionHealthy(){return socketState==='open'&&sessionState==='joined'&&isPeerHealthy();}
-function sendJoin(){if(!state.activeConvId)return;setSessionState('joining');transportSend({type:'join',session:state.activeConvId});}
-function sendInitialHelloPresence(sess){
-  if(!state.activeConvId||!sess)return;
-  transportSend({type:'hello',name:sess.myName||getPrefs().userName||'yournamehere',lang:sess.myLang||getPrefs().myLang||'en'});
-  transportSend({type:'presence'});
-}
-function upsertPartnerFromEnvelope(sess,d){
-  if(!sess||!d)return;
-  ensureSessionNames(sess);
-  var partnerName=d.name||sess.partnerName||sess.names.themAlias||'Partner';
-  var partnerLang=d.lang||sess.partnerLang||getPrefs().partnerLang||'th';
-  sess.partnerName=partnerName;
-  sess.names.themAlias=partnerName;
-  sess.partnerLang=partnerLang;
-  if(sess.title==='new chat'&&partnerName)sess.title=partnerName;
-  putSession(sess);
-  if(state.activeConvId===sess.convId){
-    document.getElementById('shell-partner-name').textContent=sess.title||sess.names.themAlias||sess.partnerName||'new chat';
-  }
-}
-function startPresence(){stopPresence();presenceTimer=setInterval(function(){if(socketState!=='open'||!state.activeConvId)return;transportSend({type:'presence'});},PRESENCE_INTERVAL_MS);}
-function stopPresence(){if(presenceTimer){clearInterval(presenceTimer);presenceTimer=null;}}
-function startPeerWatch(){if(peerWatchTimer)return;peerWatchTimer=setInterval(updateDot,1000);}
-function stopPeerWatch(){if(peerWatchTimer){clearInterval(peerWatchTimer);peerWatchTimer=null;}}
 
 function transportConnect(convId,participant){
   if(relayWorker)relayWorker.terminate();
-  stopPresence();
-  lastPeerSeenAt=0;
-  setSessionState('joining');
   var blob=new Blob([WORKER_SRC],{type:'text/javascript'});
   relayWorker=new Worker(URL.createObjectURL(blob));
   relayWorker.onmessage=function(e){
     var d=e.data;
-    if(d.type==='state'){
-      if(d.state==='connected'){setSocketState('open');setSessionState('joining');sendJoin();startPresence();flushMsgQ();}
-      else if(d.state==='connecting'){setSocketState('connecting');setSessionState('joining');}
-      else if(d.state==='reconnecting'){setSocketState('reconnecting');setSessionState('joining');lastPeerSeenAt=0;stopPresence();}
-      else {setSocketState('closed');setSessionState('idle');stopPresence();lastPeerSeenAt=0;}
-    }
+    if(d.type==='state'){transportState=d.state;updateDot();if(d.state==='connected')flushMsgQ();}
     else if(d.type==='event'){transportHandlers.forEach(function(h){h(d.event);});}
   };
   relayWorker.postMessage({cmd:'connect',convId:convId,participant:participant,deviceId:DEVICE_ID});
-  setSocketState('connecting');
-  startPeerWatch();
+  transportState='connecting';updateDot();
 }
-function transportSend(ev){if(!relayWorker)return false;relayWorker.postMessage({cmd:'send',event:ev});return socketState==='open';}
-function transportDisconnect(){if(relayWorker)relayWorker.postMessage({cmd:'disconnect'});stopPresence();setSocketState('closed');setSessionState('idle');lastPeerSeenAt=0;updateDot();}
-function forceReconnect(){if(!state.activeConvId){toast('No active session');return;}if(relayWorker)relayWorker.postMessage({cmd:'reconnect'});setSessionState('joining');lastPeerSeenAt=0;toast('Reconnecting…');}
+function transportSend(ev){if(!relayWorker)return false;relayWorker.postMessage({cmd:'send',event:ev});return transportState==='connected';}
+function transportDisconnect(){if(relayWorker)relayWorker.postMessage({cmd:'disconnect'});transportState='disconnected';updateDot();}
+function forceReconnect(){if(transportState==='connected')return;if(!state.activeConvId){toast('No active session');return;}if(relayWorker)relayWorker.postMessage({cmd:'reconnect'});toast('Reconnecting…');}
 function onTransportEvent(h){transportHandlers.push(h);}
 
 function updateDot(){
   var dot=document.getElementById('shell-dot');if(!dot)return;
   dot.className='shell-dot';
-  if(!navigator.onLine){dot.classList.add('gray');return;}
-  if(socketState==='open'){
-    if(isSessionHealthy())dot.classList.add('green');
-    else dot.classList.add('yellow');
-    return;
-  }
-  if(socketState==='connecting'||socketState==='reconnecting')dot.classList.add('yellow');
-  else dot.classList.add('red');
+  if(transportState==='connected')dot.classList.add('green');
+  else if(transportState==='connecting'||transportState==='reconnecting')dot.classList.add('yellow');
 }
 
 // ════════════════════ NAVIGATION ════════════════════
@@ -972,35 +859,30 @@ function backToCatalogs(){showScreen('say-screen');renderSayHome();}
 // ════════════════════ LEFT PANEL ════════════════════
 function openLeftPanel(){document.getElementById('left-panel').classList.add('open');document.getElementById('left-scrim').classList.add('show');renderSessionList();}
 function closeLeftPanel(){document.getElementById('left-panel').classList.remove('open');document.getElementById('left-scrim').classList.remove('show');}
-function saveLocalName(el){var v=(el.textContent||'').trim();if(!v){el.textContent=getPrefs().userName||'yournamehere';return;}var p=getPrefs();p.userName=v;savePrefs(p);if(state.activeConvId){var sess=getSession(state.activeConvId);if(sess){ensureSessionNames(sess);if(updateSessionNames(sess,v,sess.names.themAlias,v)){renderSessionList();}}}toast('Name saved');}
+function saveLocalName(el){var v=(el.textContent||'').trim();if(!v){el.textContent=getPrefs().userName||'yournamehere';return;}var p=getPrefs();p.userName=v;savePrefs(p);toast('Name saved');}
 
 function createNewSession(){
   var cid=uid();var p=getPrefs();
-  var sess={convId:cid,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};
+  var sess={convId:cid,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};
   putSession(sess);
   var order=getSessionOrder();order.unshift(cid);saveSessionOrder(order);
   openSession(cid);closeLeftPanel();toast('New chat');
 }
 function openSession(cid){
   var sess=getSession(cid);if(!sess){toast('Not found');return;}
-  ensureSessionNames(sess);putSession(sess);
   state.activeConvId=cid;state.messages=getMsgs(cid);
-  if(stampExistingMessageNames(state.messages,sess))saveMsgs(cid,state.messages);
   setActiveConvId(cid);markViewed(cid);
   document.getElementById('shell-empty').style.display='none';
   document.getElementById('messages').style.display='flex';
   document.getElementById('composer').style.display='flex';
-  document.getElementById('shell-partner-name').textContent=sess.title||sess.names.themAlias||sess.partnerName||'new chat';
+  document.getElementById('shell-partner-name').textContent=sess.title||sess.partnerName||'new chat';
   updateAutoReadBtn();
   transportConnect(cid,PART_ID);
-  sendInitialHelloPresence(sess);
   renderAllMessages();scrollBottom();
   showScreen('chat-screen');
 }
 function showEmptyShell(){
   state.activeConvId=null;
-  stopPresence();
-  stopPeerWatch();
   document.getElementById('shell-empty').style.display='flex';
   document.getElementById('messages').style.display='none';
   document.getElementById('composer').style.display='none';
@@ -1008,19 +890,13 @@ function showEmptyShell(){
 }
 function savePartnerName(el){
   var v=(el.textContent||'').trim();if(!v||!state.activeConvId){el.textContent='new chat';return;}
-  var sess=getSession(state.activeConvId);if(!sess)return;
-  ensureSessionNames(sess);
-  if(updateSessionNames(sess,sess.names.meAlias,v,sess.names.meAlias||'Someone')){renderSessionList();}
+  var sess=getSession(state.activeConvId);if(sess){sess.title=v;sess.partnerName=v;putSession(sess);}
 }
 function saveCardTitle(cid,el){
   var v=(el.textContent||'').trim();
   if(!v){el.textContent='new chat';return;}
-  var sess=getSession(cid);if(!sess)return;
-  ensureSessionNames(sess);
-  if(updateSessionNames(sess,sess.names.meAlias,v,sess.names.meAlias||'Someone')){
-    renderSessionList();
-    if(state.activeConvId===cid)document.getElementById('shell-partner-name').textContent=v;
-  }
+  var sess=getSession(cid);if(sess){sess.title=v;sess.partnerName=v;putSession(sess);}
+  if(state.activeConvId===cid){document.getElementById('shell-partner-name').textContent=v;}
 }
 
 // Session list with drag-sort
@@ -1054,54 +930,7 @@ function renderRecycleBin(){var bin=document.getElementById('recycle-bin');if(!b
 
 // Share
 function shareCurrentSession(){if(!state.activeConvId){toast('No active session');return;}shareSession(state.activeConvId);}
-var INVITE_SCHEMA_VERSION=1;
-function encodeInvitePayload(payload){
-  try{return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));}
-  catch(_){return '';}
-}
-function decodeInvitePayload(encoded){
-  if(!encoded)return null;
-  try{return JSON.parse(decodeURIComponent(escape(atob(encoded))));}
-  catch(_){return null;}
-}
-function validateInvitePayload(payload){
-  if(!payload||typeof payload!=='object')return null;
-  if(payload.schemaVersion!==INVITE_SCHEMA_VERSION)return null;
-  if(typeof payload.sessionId!=='string'||!payload.sessionId.trim())return null;
-  if(typeof payload.initiatorDeviceId!=='string'||!payload.initiatorDeviceId.trim())return null;
-  if(typeof payload.initiatorGlobalName!=='string'||!payload.initiatorGlobalName.trim())return null;
-  if(typeof payload.initiatorLang!=='string'||!payload.initiatorLang.trim())return null;
-  if(typeof payload.createdAt!=='number'||!isFinite(payload.createdAt))return null;
-  return payload;
-}
-function buildInvitePayload(sess,prefs){
-  return {
-    sessionId:sess.convId,
-    initiatorDeviceId:PART_ID,
-    initiatorGlobalName:sess.myName||prefs.userName||'yournamehere',
-    initiatorLang:sess.myLang||prefs.myLang||'en',
-    createdAt:Date.now(),
-    schemaVersion:INVITE_SCHEMA_VERSION
-  };
-}
-function hydrateSessionFromInvite(sess,invite){
-  if(!sess||!invite)return sess;
-  if(!sess.partnerName&&invite.initiatorGlobalName)sess.partnerName=invite.initiatorGlobalName;
-  if(!sess.partnerLang&&invite.initiatorLang)sess.partnerLang=invite.initiatorLang;
-  if(sess.title==='new chat'&&invite.initiatorGlobalName)sess.title=invite.initiatorGlobalName;
-  sess.inviterDeviceId=sess.inviterDeviceId||invite.initiatorDeviceId;
-  sess.inviteCreatedAt=sess.inviteCreatedAt||invite.createdAt;
-  return sess;
-}
-function shareSession(cid){
-  var sess=getSession(cid);if(!sess){toast('Not found');return;}
-  var invite=buildInvitePayload(sess,getPrefs());
-  var encoded=encodeInvitePayload(invite);if(!encoded){toast('Could not build invite');return;}
-  var url=location.href.split('?')[0]+'?invite='+encodeURIComponent(encoded);
-  var el=document.getElementById('share-link-text');if(el){el.href=url;el.textContent=url;}
-  document.getElementById('share-overlay').hidden=false;
-  if(navigator.share){navigator.share({url:url}).catch(function(){});}
-}
+function shareSession(cid){var url=location.href.split('?')[0]+'?join='+cid;var el=document.getElementById('share-link-text');if(el){el.href=url;el.textContent=url;}document.getElementById('share-overlay').hidden=false;if(navigator.share){navigator.share({url:url}).catch(function(){});}}
 function copyShareLink(){var el=document.getElementById('share-link-text');var url=el?el.href:'';if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(function(){toast('Copied');document.getElementById('share-overlay').hidden=true;});else{fallbackCopy(url);document.getElementById('share-overlay').hidden=true;}}
 
 // ════════════════════ TRANSLATION ════════════════════
@@ -1165,27 +994,20 @@ function toggleSTT(){
 
 // ════════════════════ RELAY EVENTS ════════════════════
 function handleRelayEvent(d){
-  if(!d||!d.type)return;
+  if(!d||!d.type||d.from===DEVICE_ID)return;
   var sess=getSession(state.activeConvId);if(!sess)return;
   if(d.session&&d.session!==state.activeConvId)return;
-  if(d.type==='ping'||d.type==='pong')return;
-  if(d.type==='join'&&d.from!==DEVICE_ID){markPeerSeen();transportSend({type:'join-ack'});return;}
-  if(d.type==='join-ack'&&d.from!==DEVICE_ID){setSessionState('joined');markPeerSeen();transportSend({type:'presence'});return;}
-  if(d.type==='presence'&&d.from!==DEVICE_ID){markPeerSeen();transportSend({type:'presence-ack'});return;}
-  if(d.type==='presence-ack'&&d.from!==DEVICE_ID){markPeerSeen();return;}
-  if(d.from===DEVICE_ID)return;
-  markPeerSeen();
+  if(d.type==='ping'||d.type==='pong'||d.type==='join')return;
   if(d.type==='hello'){
-    upsertPartnerFromEnvelope(sess,d);
-    transportSend({type:'hello-ack'});return;
+    if(d.name)sess.partnerName=d.name;if(d.lang)sess.partnerLang=d.lang;
+    if(sess.title==='new chat'&&d.name)sess.title=d.name;
+    putSession(sess);document.getElementById('shell-partner-name').textContent=sess.title||sess.partnerName||'new chat';
+    transportSend({type:'hello',name:sess.myName||getPrefs().userName,lang:sess.myLang||getPrefs().myLang});return;
   }
-  if(d.type==='hello-ack'){return;}
   if(d.type==='msg'){
     if(d.id&&findMsg(d.id))return;
-    upsertPartnerFromEnvelope(sess,d);
     var pLang=d.lang||sess.partnerLang||'th';var mLang=sess.myLang||'en';
     var msg={id:d.id,from:'them',orig:d.orig||d.text||'',text:null,lang:pLang,status:'received',timestamp:d.timestamp||Date.now(),clarify:{status:'none',text:''},attachment:d.attachment||null};
-    stampMsgNames(msg,sess);
     state.messages.push(msg);renderMsg(msg);scrollBottom();
     sess.lastActivity=msg.timestamp;putSession(sess);saveMsgs(sess.convId,state.messages);
     translate(msg.orig,pLang,mLang).then(function(tr){msg.text=tr||msg.orig;updateTransDOM(msg);saveMsgs(sess.convId,state.messages);transportSend({type:'tr',id:d.id,text:tr||msg.orig});if(state.autoSpeakIncoming&&msg.text)speak(msg.text,mLang,null);});
@@ -1217,11 +1039,9 @@ function buildBblFoot(msg){
     +'<div class="bbl-backtrans" id="bbt-'+id+'"><div id="bbt-t-'+id+'" style="line-height:1.45;margin-bottom:6px;color:var(--ink-dim);font-style:italic;">Tap ↺ to verify</div><div id="bbt-v-'+id+'"></div></div></div>';
 }
 function renderMsg(msg){
-  if(msg.from==='system'){addSysMsg(msg.text||'');return;}
   var isMine=msg.from==='me';var sides=getSides(msg);var time=fmtTime(msg.timestamp||Date.now());
   var sess=getSession(state.activeConvId);
-  ensureSessionNames(sess);
-  var name=msg.displayFromName||(isMine?(sess&&sess.names&&sess.names.meAlias||'Me'):(sess&&sess.names&&sess.names.themAlias||'Partner'));
+  var name=isMine?(sess&&sess.myName||'Me'):(sess&&sess.partnerName||'Partner');
   var tgtCls=sides.tgtTxt?'bbl-txt':'bbl-txt loading';
   var html='<div class="bubble-card">'
     +'<div class="bbl-hdr"><span class="bbl-sender">'+escHtml(name)+'</span><span class="bbl-time">'+escHtml(time)+'</span></div>'
@@ -1281,18 +1101,15 @@ function sendMessage(){
   var ta=document.getElementById('msg-input');var text=ta.value.trim();if(!text)return;
   var sess=getSession(state.activeConvId);if(!sess)return;
   var p=getPrefs();var outLang=(p.autoDetectLang!==false)?detectLang(text,sess.myLang):sess.myLang;
-  ensureSessionNames(sess);
   var msg={id:uid(),from:'me',text:text,lang:outLang,translated:null,status:'sent',timestamp:Date.now(),clarify:{status:'none',text:''},attachment:null};
-  stampMsgNames(msg,sess);
   state.messages.push(msg);renderMsg(msg);ta.value='';autoResize();updateSendBtn();scrollBottom();
   sess.lastActivity=msg.timestamp;putSession(sess);saveMsgs(sess.convId,state.messages);
-  var payload={type:'msg',id:msg.id,orig:text,lang:outLang,timestamp:msg.timestamp,name:sess.myName||getPrefs().userName||'yournamehere'};
-  var ok=transportSend(payload);
-  if(!ok){msg.status='queued';msgQueue.push({msgId:msg.id,payload:payload});}
+  var ok=transportSend({type:'msg',id:msg.id,orig:text,lang:outLang,timestamp:msg.timestamp});
+  if(!ok){msg.status='queued';msgQueue.push({msgId:msg.id,payload:{type:'msg',id:msg.id,orig:text,lang:outLang,timestamp:msg.timestamp}});}
 }
 function flushMsgQ(){if(!msgQueue.length)return;var q=msgQueue.slice();msgQueue=[];q.forEach(function(m){if(!transportSend(m.payload))msgQueue.push(m);else{var msg=findMsg(m.msgId);if(msg)msg.status='sent';}});}
 
-function handleAttachFile(e){var file=e.target.files&&e.target.files[0];if(!file)return;if(file.size>4*1024*1024){toast('Too large');return;}var reader=new FileReader();reader.onload=function(ev){var isImg=file.type.indexOf('image/')===0;var att={type:isImg?'image':'file',name:file.name,dataUrl:ev.target.result};var sess=getSession(state.activeConvId);if(!sess)return;ensureSessionNames(sess);var msg={id:uid(),from:'me',text:'',lang:sess.myLang,translated:'',status:'sent',timestamp:Date.now(),clarify:{status:'none',text:''},attachment:att};stampMsgNames(msg,sess);state.messages.push(msg);renderMsg(msg);scrollBottom();saveMsgs(sess.convId,state.messages);transportSend({type:'msg',id:msg.id,orig:'',lang:sess.myLang,timestamp:msg.timestamp,attachment:att});};reader.readAsDataURL(file);e.target.value='';}
+function handleAttachFile(e){var file=e.target.files&&e.target.files[0];if(!file)return;if(file.size>4*1024*1024){toast('Too large');return;}var reader=new FileReader();reader.onload=function(ev){var isImg=file.type.indexOf('image/')===0;var att={type:isImg?'image':'file',name:file.name,dataUrl:ev.target.result};var sess=getSession(state.activeConvId);if(!sess)return;var msg={id:uid(),from:'me',text:'',lang:sess.myLang,translated:'',status:'sent',timestamp:Date.now(),clarify:{status:'none',text:''},attachment:att};state.messages.push(msg);renderMsg(msg);scrollBottom();saveMsgs(sess.convId,state.messages);transportSend({type:'msg',id:msg.id,orig:'',lang:sess.myLang,timestamp:msg.timestamp,attachment:att});};reader.readAsDataURL(file);e.target.value='';}
 
 // Settings
 var THEMES=[{id:'default',label:'Ocean',mine:'#2E8B8B',theirs:'#F5F1EC',hdr:'#267878'},{id:'midnight',label:'Midnight',mine:'#1e293b',theirs:'#f8fafc',hdr:'#0f172a'},{id:'rose',label:'Rose',mine:'#be123c',theirs:'#fff1f2',hdr:'#9f1239'},{id:'forest',label:'Forest',mine:'#166534',theirs:'#f0fdf4',hdr:'#14532d'},{id:'amber',label:'Amber',mine:'#b45309',theirs:'#fffbeb',hdr:'#92400e'},{id:'purple',label:'Violet',mine:'#7c3aed',theirs:'#f5f3ff',hdr:'#6d28d9'}];
@@ -1363,29 +1180,12 @@ document.addEventListener('DOMContentLoaded',function(){
   populateLangSelect('nc-tgt-lang',p.partnerLang||'th');
 
   // Deep link
-  var up=new URLSearchParams(location.search);
-  var invite=validateInvitePayload(decodeInvitePayload(up.get('invite')));
-  var jc=up.get('join');
-  if(invite){
-    history.replaceState({},'',location.pathname);
-    var sess=getSession(invite.sessionId);
-    if(!sess){
-      sess={convId:invite.sessionId,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};
-      hydrateSessionFromInvite(sess,invite);
-      putSession(sess);
-      var order=getSessionOrder();order.unshift(invite.sessionId);saveSessionOrder(order);
-    }else if(!getMsgs(invite.sessionId).length){
-      hydrateSessionFromInvite(sess,invite);
-      putSession(sess);
-    }
-    openSession(invite.sessionId);
-    return;
-  }
+  var up=new URLSearchParams(location.search);var jc=up.get('join');
   if(jc){
     history.replaceState({},'',location.pathname);
-    var sess2=getSession(jc);
-    if(!sess2){sess2={convId:jc,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};putSession(sess2);var order2=getSessionOrder();order2.unshift(jc);saveSessionOrder(order2);}
-    openSession(jc);
+    var sess=getSession(jc);
+    if(!sess){sess={convId:jc,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};putSession(sess);var order=getSessionOrder();order.unshift(jc);saveSessionOrder(order);}
+    openSession(jc);setTimeout(function(){transportSend({type:'hello',name:p.userName||'yournamehere',lang:p.myLang||'en'});},500);
     return;
   }
   var aid=getActiveConvId();
@@ -1394,8 +1194,7 @@ document.addEventListener('DOMContentLoaded',function(){
   // Sheet drag-dismiss
   document.querySelectorAll('.overlay .sheet-handle').forEach(function(h){var sy=0,dy=0;h.addEventListener('pointerdown',function(e){sy=e.clientY;dy=0;h.setPointerCapture(e.pointerId);});h.addEventListener('pointermove',function(e){if(!h.hasPointerCapture(e.pointerId))return;dy=e.clientY-sy;if(dy>0)h.closest('.sheet').style.transform='translateY('+Math.min(dy,120)+'px)';});h.addEventListener('pointerup',function(e){var sh=h.closest('.sheet');if(sh)sh.style.transform='';if(dy>70){var ov=h.closest('.overlay');if(ov)ov.hidden=true;}try{h.releasePointerCapture(e.pointerId);}catch(_){}});});
   window.addEventListener('online',function(){if(state.activeConvId)forceReconnect();});
-  window.addEventListener('offline',function(){setSocketState('closed');setSessionState('idle');stopPresence();updateDot();});
-  document.addEventListener('visibilitychange',function(){if(!state.activeConvId)return;if(document.visibilityState==='visible'){if(socketState!=='open'||sessionState!=='joined')forceReconnect();else sendJoin();}});
+  window.addEventListener('offline',function(){transportState='disconnected';updateDot();});
 });
 </script>
 </body>
