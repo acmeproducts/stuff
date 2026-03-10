@@ -186,9 +186,12 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
   <div class="toolbar">
     <button id="btnNew" class="btn primary" title="New card" aria-label="New card">New</button>
     <button id="btnSettings" class="btn" title="Settings" aria-label="Settings">Settings</button>
+    <button id="btnSyncPush" class="btn" title="Push board to GitHub" aria-label="Push board to GitHub">Push</button>
+    <button id="btnSyncPull" class="btn" title="Pull board from GitHub" aria-label="Pull board from GitHub">Pull</button>
     <button id="btnExport" class="btn" title="Export JSON" aria-label="Export JSON">Export</button>
     <button id="btnImport" class="btn" title="Import JSON" aria-label="Import JSON">Import</button>
     <input id="fileImport" type="file" accept="application/json" class="hidden" aria-hidden="true" tabindex="-1" />
+    <span id="syncActionMsg" class="muted" aria-live="polite"></span>
   </div>
   <div class="searchbar">
     <input id="search" placeholder="Omni search… (use -term to exclude)" aria-label="Omni search"/>
@@ -338,7 +341,8 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
       <button class="btn primary" value="save">Apply</button>
       <button class="btn" value="cancel">Cancel</button>
       <button type="button" class="btn" id="btnOpenArchive">Archive</button>
-      <button type="button" class="btn" id="btnValidateSync">Validate</button>
+      <button type="button" class="btn" id="btnValidateSync">Push</button>
+      <button type="button" class="btn" id="btnPullRemote">Pull</button>
       <button class="btn danger" id="btnReset" value="reset">Reset Board</button>
     </div>
     <div class="muted" id="syncValidationMsg" aria-live="polite"></div>
@@ -419,6 +423,8 @@ let syncSettings=loadSyncSettings();
 let syncState={status:"Loaded local",remoteSha:null,lastRemoteModified:0,lastSyncAt:0,pending:false};
 let syncWorker=null, syncRequestSeq=0;
 let pendingValidation=false;
+let validationTimeoutId=null;
+let lastManualSyncOrigin="";
 let syncPollTimer=null;
 
 function getSyncPollIntervalMs(raw=syncSettings.pollIntervalSec){
@@ -456,15 +462,22 @@ function buildGithubWorker(){
   const workerCode = `
     let cfg=null, remoteSha=null, pendingSave=null, saveTimer=null, isSaving=false;
     const post=(type,payload={})=>self.postMessage({type,...payload});
-    function headers(token){ return {"Authorization":\`Bearer \${token}\`,"Accept":"application/vnd.github+json","Content-Type":"application/json"}; }
+    function headers(token, includeJson=false){ const h={"Authorization":\`token \${token}\`,"Accept":"application/vnd.github.v3+json"}; if(includeJson) h["Content-Type"]="application/json"; return h; }
     function apiUrl(c=cfg){ return \`https://api.github.com/repos/\${encodeURIComponent(c.owner)}/\${encodeURIComponent(c.repo)}/contents/\${c.path.split('/').map(encodeURIComponent).join('/')}?ref=\${encodeURIComponent(c.branch)}\`; }
     function b64(str){ return btoa(unescape(encodeURIComponent(str))); }
     async function buildError(res, prefix){
       const tx=await res.text();
       return {status:res.status,message:\`${prefix} failed (\${res.status}): \${tx.slice(0,180)}\`,body:tx.slice(0,180)};
     }
+    async function fetchWithTimeout(url, opts={}, timeoutMs=20000){
+      const ctrl=new AbortController();
+      const t=setTimeout(()=>ctrl.abort(), timeoutMs);
+      try{ return await fetch(url,{...opts,signal:ctrl.signal}); }
+      catch(err){ if(err?.name==="AbortError") throw {status:408,message:\`Request timed out after \${Math.round(timeoutMs/1000)}s\`}; throw err; }
+      finally{ clearTimeout(t); }
+    }
     async function getRemote(targetCfg=cfg){
-      const res=await fetch(apiUrl(targetCfg),{method:"GET",headers:headers(targetCfg.token)});
+      const res=await fetchWithTimeout(apiUrl(targetCfg),{method:"GET",headers:headers(targetCfg.token)});
       if(res.status===404) return {missing:true};
       if(!res.ok) throw await buildError(res, "GET");
       const json=await res.json();
@@ -472,6 +485,15 @@ function buildGithubWorker(){
       let decoded="";
       try{ decoded=decodeURIComponent(escape(atob((json.content||"").replace(/\n/g,"")))); }catch{ decoded=atob((json.content||"").replace(/\n/g,"")); }
       return {missing:false, sha:json.sha||null, text:decoded};
+    }
+    async function upsertSnapshot(targetCfg, snapshot){
+      const remote=await getRemote(targetCfg);
+      const body={message:remote.missing?"Create kanban board snapshot":"Update kanban board snapshot",branch:targetCfg.branch,content:b64(JSON.stringify(snapshot,null,2))};
+      if(!remote.missing && (remote.sha||remoteSha)) body.sha=remote.sha||remoteSha;
+      const res=await fetchWithTimeout(apiUrl(targetCfg),{method:"PUT",headers:headers(targetCfg.token,true),body:JSON.stringify(body)});
+      if(!res.ok) throw await buildError(res, remote.missing?"PUT create":"PUT update");
+      const out=await res.json();
+      return {created:remote.missing, sha:out?.content?.sha||remoteSha||null};
     }
     async function putRemote(snapshot, force=false){
       const remote=await getRemote();
@@ -490,7 +512,7 @@ function buildGithubWorker(){
       const body={message:"Update kanban board snapshot",branch:cfg.branch,content:b64(JSON.stringify(snapshot,null,2))};
       if(!remote.missing && (remote.sha||remoteSha)) body.sha=remote.sha||remoteSha;
       post("remoteWriteAttempt",{path:cfg.path, branch:cfg.branch, forced:!!force});
-      const res=await fetch(apiUrl(),{method:"PUT",headers:headers(cfg.token),body:JSON.stringify(body)});
+      const res=await fetchWithTimeout(apiUrl(),{method:"PUT",headers:headers(cfg.token,true),body:JSON.stringify(body)});
       if(!res.ok) throw await buildError(res, "PUT");
       const out=await res.json();
       remoteSha=out?.content?.sha||remoteSha;
@@ -522,9 +544,15 @@ function buildGithubWorker(){
         if(type==="validateRemote"){
           const draft=payload?.config||{};
           if(!draft?.token){ post("validationResult",{ok:false, code:"AUTH_REQUIRED", message:"Missing GitHub token", context:{owner:draft.owner,repo:draft.repo,path:draft.path}}); return; }
+          const context={owner:draft.owner,repo:draft.repo,path:draft.path,branch:draft.branch};
+          if(payload?.snapshot){
+            post("remoteStatus",{status:"Validation push in progress…"});
+            const write=await upsertSnapshot(draft, payload.snapshot);
+            post("validationResult",{ok:true, created:!!write.created, updated:!write.created, sha:write.sha||null, snapshot:payload.snapshot, context});
+            return;
+          }
           post("remoteStatus",{status:"Validation read in progress…"});
           const remote=await getRemote(draft);
-          const context={owner:draft.owner,repo:draft.repo,path:draft.path,branch:draft.branch};
           if(remote.missing){ post("validationResult",{ok:false, missing:true, message:"Remote file not found", context}); return; }
           try{
             const parsed=JSON.parse(remote.text||"{}");
@@ -559,6 +587,21 @@ function buildGithubWorker(){
   const blob=new Blob([workerCode],{type:"application/javascript"});
   syncWorker=new Worker(URL.createObjectURL(blob));
   syncWorker.onmessage=onSyncWorkerMessage;
+  syncWorker.onerror=(evt)=>{
+    pendingValidation=false;
+    if(validationTimeoutId){ clearTimeout(validationTimeoutId); validationTimeoutId=null; }
+    setValidationMessage(`Worker error: ${evt?.message||"unknown worker failure"}`, true);
+    setSyncStatus("Sync worker error");
+    toast("Sync worker error", evt?.message||"Worker crashed", true);
+    try{ syncWorker.terminate(); }catch{}
+    syncWorker=null;
+  };
+  syncWorker.onmessageerror=()=>{
+    pendingValidation=false;
+    if(validationTimeoutId){ clearTimeout(validationTimeoutId); validationTimeoutId=null; }
+    setValidationMessage("Worker message serialization failed.", true);
+    setSyncStatus("Sync worker error");
+  };
   return syncWorker;
 }
 function onSyncWorkerMessage(evt){
@@ -586,14 +629,20 @@ function onSyncWorkerMessage(evt){
   if(msg.type==="remoteMissing"){
     const path=syncSettings.path||SYNC_DEFAULTS.path;
     setSyncStatus(`Remote file not found (${path})`);
-    if(msg.source==="startup" && isSyncConfigured()){
+    if(msg.source==="manual_pull"){
+      toast("Pull failed",`Remote file ${path} not found`,true);
+      if(lastManualSyncOrigin==="toolbar") setToolbarSyncMessage(`Pull failed: ${path} not found`, true);
+      return;
+    }
+    if(isSyncConfigured()){
       toast("Remote file missing",`Creating ${path} from local board`);
-      scheduleRemoteSyncDebounced();
+      flushRemoteSync();
     }
     return;
   }
   if(msg.type==="validationResult"){
     pendingValidation=false;
+    if(validationTimeoutId){ clearTimeout(validationTimeoutId); validationTimeoutId=null; }
     const ctx=msg.context||{};
     const ctxText=`${ctx.owner||SYNC_DEFAULTS.owner}/${ctx.repo||SYNC_DEFAULTS.repo}@${ctx.branch||SYNC_DEFAULTS.branch}:${ctx.path||SYNC_DEFAULTS.path}`;
     if(msg.ok){
@@ -601,17 +650,20 @@ function onSyncWorkerMessage(evt){
       const keys=Object.keys(snap).slice(0,8).join(", ")||"(none)";
       const pretty=JSON.stringify(snap,null,2)||"{}";
       const snippet=escapeHtml(pretty.slice(0,200));
-      setValidationMessage(`Validation success: readable JSON at ${ctxText}.`, false, `keys: ${keys} • lastModified: ${Number(snap.lastModified||0) || "n/a"}\n${snippet}`);
-      toast("Validation success",`Read remote file ${ctx.path||SYNC_DEFAULTS.path}`);
+      setValidationMessage(`Validation success: ${msg.created?"created":"updated"} JSON at ${ctxText}.`, false, `keys: ${keys} • lastModified: ${Number(snap.lastModified||0) || "n/a"}\n${snippet}`);
+      if(lastManualSyncOrigin==="toolbar") setToolbarSyncMessage(`Push passed: ${msg.created?"created":"updated"} ${ctx.path||SYNC_DEFAULTS.path}`, false);
+      toast("Validation success", msg.created ? `Created remote file ${ctx.path||SYNC_DEFAULTS.path}` : (msg.updated ? `Updated remote file ${ctx.path||SYNC_DEFAULTS.path}` : `Read remote file ${ctx.path||SYNC_DEFAULTS.path}`));
       return;
     }
     if(msg.missing){
       setValidationMessage(`Validation result: file not found / not created yet at ${ctxText}.`, true);
+      if(lastManualSyncOrigin==="toolbar") setToolbarSyncMessage("Push failed: remote file missing", true);
       toast("Validation result","Remote file not found / not created yet",true);
       return;
     }
     const detail=`${msg.status?`HTTP ${msg.status} • `:""}${msg.message||"Validation failed"}${msg.body?` • ${msg.body}`:""}`;
     setValidationMessage(`Validation failed for ${ctxText}: ${detail}`, true);
+    if(lastManualSyncOrigin==="toolbar") setToolbarSyncMessage(`Push failed: ${detail.slice(0,80)}`, true);
     toast("Validation failed", detail.slice(0,180), true);
     return;
   }
@@ -634,6 +686,7 @@ function onSyncWorkerMessage(evt){
       setSyncStatus("Loaded remote");
       if(remoteTs>localTs) toast("Remote newer","Applied latest board from GitHub");
       else if(msg.source==="startup") toast("Remote load success","Loaded latest board from GitHub");
+      else if(msg.source==="manual_pull"){ toast("Pull complete","Loaded board from GitHub"); if(lastManualSyncOrigin==="toolbar") setToolbarSyncMessage("Pull passed: loaded remote board", false); }
     }else if(msg.source==="startup" && isSyncConfigured()){
       setSyncStatus("Local snapshot newer; pushing to GitHub");
       scheduleRemoteSyncDebounced();
@@ -641,10 +694,11 @@ function onSyncWorkerMessage(evt){
     return;
   }
   if(msg.type==="remoteError"){
-    if(msg.code==="AUTH_REQUIRED"){ setSyncStatus("Auth required"); toast("Auth/token missing","Add GitHub token in Settings",true); return; }
-    if(msg.code==="INVALID_REMOTE_JSON"){ setSyncStatus("Sync error"); toast("Sync error","invalid remote JSON",true); return; }
+    if(msg.code==="AUTH_REQUIRED"){ setSyncStatus("Auth required"); if(lastManualSyncOrigin==="toolbar") setToolbarSyncMessage("Sync failed: auth/token required", true); toast("Auth/token missing","Add GitHub token in Settings",true); return; }
+    if(msg.code==="INVALID_REMOTE_JSON"){ setSyncStatus("Sync error"); if(lastManualSyncOrigin==="toolbar") setToolbarSyncMessage("Pull failed: remote JSON invalid", true); toast("Sync error","invalid remote JSON",true); return; }
     setSyncStatus("Sync error");
     const detail=`${msg.status?`HTTP ${msg.status} • `:""}${msg.message||"Remote unavailable"}${msg.body?` • ${msg.body}`:""}`;
+    if(lastManualSyncOrigin==="toolbar") setToolbarSyncMessage(`Sync failed: ${detail.slice(0,80)}`, true);
     toast("Sync error", detail.slice(0,180), true);
     return;
   }
@@ -680,6 +734,12 @@ function setValidationMessage(message, isErr=false, preview=""){
   const base=`<div style="color:${isErr?"var(--err)":"var(--ok)"};font-weight:600;">${escapeHtml(message||"")}</div>`;
   const sample=preview ? `<pre style="margin-top:6px;padding:8px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;white-space:pre-wrap;word-break:break-word;">${preview}</pre>` : "";
   el.innerHTML=base+sample;
+}
+function setToolbarSyncMessage(message, isErr=false){
+  const el=$("#syncActionMsg");
+  if(!el) return;
+  el.textContent=message||"";
+  el.style.color=isErr?"var(--err)":"var(--muted)";
 }
 
 /* ===== App State ===== */
@@ -1324,14 +1384,52 @@ function gatherSyncSettingsFromForm(){
     path:$("#sSyncPath").value.trim()||SYNC_DEFAULTS.path
   };
 }
-$("#btnValidateSync").onclick=()=>{
-  const draft=gatherSyncSettingsFromForm();
-  if(!draft.token){ setValidationMessage("Validation failed: add a GitHub token first.", true); toast("Validation failed","Token is required",true); return; }
+function runManualSyncPush(draft, origin="settings"){
+  lastManualSyncOrigin=origin;
+  setToolbarSyncMessage("Push in progress…", false);
+  if(!draft.token){ setValidationMessage("Validation failed: add a GitHub token first.", true); setToolbarSyncMessage("Push failed: token required", true); toast("Validation failed","Token is required",true); return; }
   pendingValidation=true;
-  setValidationMessage("Validating GitHub sync settings…", false);
+  setValidationMessage("Validating GitHub sync settings… (up to 20s)", false);
+  if(validationTimeoutId){ clearTimeout(validationTimeoutId); validationTimeoutId=null; }
+  validationTimeoutId=setTimeout(()=>{
+    if(!pendingValidation) return;
+    pendingValidation=false;
+    setValidationMessage("Validation timed out after 20s. Check token scopes, repo/path/branch, and network.", true);
+    if(lastManualSyncOrigin==="toolbar") setToolbarSyncMessage("Push failed: timed out after 20s", true);
+    toast("Validation timeout","No response from GitHub within 20s", true);
+  }, 21000);
+  if(syncWorker){ try{ syncWorker.terminate(); }catch{} syncWorker=null; }
   const worker=buildGithubWorker();
-  worker.postMessage({type:"validateRemote", payload:{config:{enabled:true,owner:draft.owner,repo:draft.repo,branch:draft.branch,path:draft.path,token:draft.token}, seq:++syncRequestSeq}});
-};
+  worker.postMessage({type:"validateRemote", payload:{config:{enabled:true,owner:draft.owner,repo:draft.repo,branch:draft.branch,path:draft.path,token:draft.token}, createIfMissing:true, snapshot:sanitizeStateForSync(state), seq:++syncRequestSeq}});
+}
+function runManualSyncPull(draft, origin="settings"){
+  lastManualSyncOrigin=origin;
+  setToolbarSyncMessage("Pull in progress…", false);
+  if(!draft.token){ setValidationMessage("Pull failed: add a GitHub token first.", true); setToolbarSyncMessage("Pull failed: token required", true); toast("Pull failed","Token is required",true); return; }
+  setValidationMessage(`Pulling remote JSON from ${draft.owner}/${draft.repo}@${draft.branch}:${draft.path}…`, false);
+  if(syncWorker){ try{ syncWorker.terminate(); }catch{} syncWorker=null; }
+  const worker=buildGithubWorker();
+  worker.postMessage({type:"init", payload:{config:{enabled:true,owner:draft.owner,repo:draft.repo,branch:draft.branch,path:draft.path,token:draft.token}, seq:++syncRequestSeq}});
+  worker.postMessage({type:"loadRemote", payload:{seq:++syncRequestSeq, source:"manual_pull"}});
+}
+$("#btnValidateSync").onclick=()=> runManualSyncPush(gatherSyncSettingsFromForm(), "settings");
+$("#btnPullRemote").onclick=()=> runManualSyncPull(gatherSyncSettingsFromForm(), "settings");
+$("#btnSyncPush").onclick=()=> runManualSyncPush({
+  enabled:!!syncSettings.enabled,
+  token:String(syncSettings.token||"").trim(),
+  owner:syncSettings.owner||SYNC_DEFAULTS.owner,
+  repo:syncSettings.repo||SYNC_DEFAULTS.repo,
+  branch:syncSettings.branch||SYNC_DEFAULTS.branch,
+  path:syncSettings.path||SYNC_DEFAULTS.path
+}, "toolbar");
+$("#btnSyncPull").onclick=()=> runManualSyncPull({
+  enabled:!!syncSettings.enabled,
+  token:String(syncSettings.token||"").trim(),
+  owner:syncSettings.owner||SYNC_DEFAULTS.owner,
+  repo:syncSettings.repo||SYNC_DEFAULTS.repo,
+  branch:syncSettings.branch||SYNC_DEFAULTS.branch,
+  path:syncSettings.path||SYNC_DEFAULTS.path
+}, "toolbar");
 $("#btnNew").onclick=()=> openEditor(null, state.stages[0]);
 $("#btnSettings").onclick=()=>{
   $("#sPlatforms").value=state.platforms.join(", ");
