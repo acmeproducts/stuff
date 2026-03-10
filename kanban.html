@@ -498,7 +498,7 @@ function buildGithubWorker(){
       const body={message:"Update kanban board snapshot",branch:cfg.branch,content:b64(JSON.stringify(snapshot,null,2))};
       if(!remote.missing && (remote.sha||remoteSha)) body.sha=remote.sha||remoteSha;
       post("remoteWriteAttempt",{path:cfg.path, branch:cfg.branch, forced:!!force});
-      const res=await fetchWithTimeout(apiUrl(),{method:"PUT",headers:headers(cfg.token,true),body:JSON.stringify(body)});
+      const res=await fetchWithTimeout(apiUrl(),{method:"PUT",headers:headers(cfg.token),body:JSON.stringify(body)});
       if(!res.ok) throw await buildError(res, "PUT");
       const out=await res.json();
       remoteSha=out?.content?.sha||remoteSha;
@@ -536,7 +536,7 @@ function buildGithubWorker(){
           if(remote.missing){
             if(payload?.createIfMissing && payload?.snapshot){
               const body={message:"Create kanban board snapshot",branch:draft.branch,content:b64(JSON.stringify(payload.snapshot,null,2))};
-              const createRes=await fetchWithTimeout(apiUrl(draft),{method:"PUT",headers:headers(draft.token,true),body:JSON.stringify(body)});
+              const createRes=await fetchWithTimeout(apiUrl(draft),{method:"PUT",headers:headers(draft.token),body:JSON.stringify(body)});
               if(!createRes.ok) throw await buildError(createRes, "PUT create");
               const out=await createRes.json();
               post("validationResult",{ok:true, created:true, sha:out?.content?.sha||null, snapshot:payload.snapshot, context});
@@ -1371,7 +1371,6 @@ $("#btnValidateSync").onclick=()=>{
     setValidationMessage("Validation timed out after 20s. Check token scopes, repo/path/branch, and network.", true);
     toast("Validation timeout","No response from GitHub within 20s", true);
   }, 21000);
-  if(syncWorker){ try{ syncWorker.terminate(); }catch{} syncWorker=null; }
   const worker=buildGithubWorker();
   worker.postMessage({type:"validateRemote", payload:{config:{enabled:true,owner:draft.owner,repo:draft.repo,branch:draft.branch,path:draft.path,token:draft.token}, createIfMissing:true, snapshot:sanitizeStateForSync(state), seq:++syncRequestSeq}});
 };
