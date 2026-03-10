@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Talk + Say Relay</title>
+<style>
+:root{
+  --bg:#f7f4ef;--panel:#fff;--ink:#1f1b18;--muted:#7c7570;--border:#ddd6cf;--accent:#2f8a8a;
+  --ok:#2d7f4e;--ok-bg:#e8f5ee;--bad:#b63c2f;--bad-bg:#fdeceb;--chip:#ece7ff;--chip-ink:#5e49b8;
+}
+*{box-sizing:border-box;margin:0;padding:0;font-family:Inter,system-ui,sans-serif}
+html,body{height:100%;background:var(--bg);color:var(--ink)}
+#app{height:100dvh;max-width:520px;margin:0 auto;display:flex;flex-direction:column;position:relative;overflow:hidden;background:var(--bg)}
+header{display:grid;grid-template-columns:36px 1fr auto auto auto;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--panel);position:relative;z-index:5}
+.hbtn{height:32px;width:32px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer}
+#partner-wrap{display:flex;align-items:center;justify-content:center;gap:6px;min-width:0}
+#partner-name{text-align:center;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;cursor:text;padding:2px 6px;border-radius:6px}
+#partner-name:focus{outline:1px solid var(--accent);background:#f2fcfc}
+#conn-dot{width:10px;height:10px;border-radius:50%;background:#bdb7b1;justify-self:center}
+#conn-dot.connected{background:var(--ok)}
+#conn-dot.reconnecting,#conn-dot.resyncing,#conn-dot.connecting{background:#c07a2f}
+
+#drawer-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s;z-index:18}
+#drawer-backdrop.show{opacity:1;pointer-events:auto}
+#drawer{position:absolute;inset:0 auto 0 0;width:82%;max-width:360px;background:#fff;border-right:1px solid var(--border);transform:translateX(-101%);transition:transform .2s;z-index:20;display:flex;flex-direction:column}
+#drawer.open{transform:translateX(0)}
+.drawer-head{padding:12px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center}
+#omni-search{flex:1;border:1px solid var(--border);border-radius:8px;padding:8px}
+#session-list{flex:1;overflow:auto;padding:10px 10px 70px}
+.session-card{border:1px solid var(--border);border-radius:12px;padding:12px 10px;margin-bottom:8px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.session-card.active{border-color:var(--accent);background:#eef8f8}
+.session-name{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-unread{font-size:11px;color:var(--muted);background:#f3f0eb;border-radius:999px;padding:2px 8px;flex-shrink:0}
+#new-chat-fab{position:absolute;right:12px;bottom:14px;height:42px;width:42px;border:none;background:var(--accent);color:#fff;border-radius:50%;font-size:24px;cursor:pointer;z-index:21}
+
+#messages{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.msg-row{display:flex}.msg-row.me{justify-content:flex-end}
+.bubble{max-width:88%;border-radius:12px;background:#fff;border:1px solid var(--border);overflow:hidden}
+.msg-row.me .bubble{background:#1f7878;color:#fff;border-color:#1f7878}
+.bhead{padding:6px 10px;font-size:11px;display:flex;gap:6px;align-items:center;background:rgba(0,0,0,.03)}
+.msg-row.me .bhead{background:rgba(255,255,255,.18)}
+.status-chip{font-size:10px;padding:2px 7px;border-radius:999px;background:var(--chip);color:var(--chip-ink)}
+.status-chip.pass{background:var(--ok-bg);color:var(--ok)}
+.status-chip.fail{background:var(--bad-bg);color:var(--bad)}
+.btext{padding:10px;line-height:1.4;white-space:pre-wrap}
+.bfooter{display:flex;gap:6px;padding:7px 8px;border-top:1px solid rgba(0,0,0,.08);align-items:center}
+.msg-row.me .bfooter{border-top-color:rgba(255,255,255,.18)}
+.icon-only{border:none;background:rgba(0,0,0,.06);height:24px;min-width:24px;border-radius:7px;cursor:pointer;display:grid;place-items:center}
+.msg-row.me .icon-only{background:rgba(255,255,255,.2);color:#fff}
+.icon-only svg{width:14px;height:14px;fill:currentColor}
+.clarify-btn{margin-left:auto;border:1px solid var(--border);padding:0 8px;height:24px;border-radius:999px;cursor:pointer}
+.clarify-btn.dormant{background:#b9b9b9;color:#2b2b2b}
+.clarify-btn.open{background:#fff;color:#111}
+.clarify-btn.closed{background:#111;color:#fff}
+
+#composer{display:flex;align-items:flex-end;gap:6px;padding:7px 10px max(8px,env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--border)}
+.composer-icon{height:36px;min-width:36px;border:none;background:transparent;color:#6f6762;border-radius:8px;cursor:pointer}
+.composer-icon:hover{background:#f2ede7}
+.composer-wrap{flex:1;position:relative}
+#input{width:100%;resize:none;min-height:40px;max-height:110px;padding:9px 14px;border:1px solid var(--border);border-radius:20px;line-height:1.4;outline:none}
+#input:focus{border-color:var(--accent)}
+#send-btn{height:40px;min-width:40px;border:none;background:var(--accent);color:#fff;border-radius:50%;cursor:pointer}
+
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.42);display:none;align-items:flex-end;z-index:30}
+.modal.show{display:flex}
+.sheet{width:100%;max-width:520px;background:#fff;border-radius:16px 16px 0 0;padding:12px;max-height:78dvh;overflow:auto}
+.theme-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.theme{border:1px solid var(--border);padding:8px;border-radius:10px;cursor:pointer}
+.small{font-size:12px;color:var(--muted)}
+.manage-item{border:1px solid var(--border);border-radius:10px;padding:8px;margin:6px 0}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="drawer-backdrop"></div>
+  <aside id="drawer">
+    <div class="drawer-head">
+      <input id="omni-search" placeholder="Search sessions, flags, clarifications" />
+      <button class="hbtn" id="open-manage" title="Manage">⌕</button>
+      <button class="hbtn" id="open-settings" title="Settings">⚙</button>
+      <button class="hbtn" id="close-drawer" title="Close">✕</button>
+    </div>
+    <div id="session-list"></div>
+    <button id="new-chat-fab" title="New chat">+</button>
+  </aside>
+
+  <header>
+    <button class="hbtn" id="menu-btn">☰</button>
+    <div id="partner-wrap">
+      <div id="partner-name" contenteditable="true" spellcheck="false">New chat</div>
+    </div>
+    <button class="hbtn" id="share-btn" title="Share">⤴</button>
+    <button class="hbtn" id="auto-read-btn" title="Auto read">🔊</button>
+    <div id="conn-dot" title="connecting"></div>
+  </header>
+
+  <main id="messages"></main>
+
+  <div id="composer">
+    <button class="composer-icon" id="attach-btn" title="Attach">＋</button>
+    <button class="composer-icon" id="mic-btn" title="Voice">🎤</button>
+    <div class="composer-wrap">
+      <textarea id="input" placeholder="Type message"></textarea>
+    </div>
+    <button id="send-btn">➤</button>
+  </div>
+</div>
+
+<div class="modal" id="settings-modal"><div class="sheet">
+  <h3>Settings</h3>
+  <p class="small">Theme presets with optional accent override.</p>
+  <div class="theme-grid" id="theme-grid"></div>
+  <label class="small" style="display:block;margin-top:10px">Accent</label>
+  <input type="color" id="accent-picker" />
+</div></div>
+
+<div class="modal" id="manage-modal"><div class="sheet">
+  <h3>Session & Phrase Management</h3>
+  <input id="manage-search" placeholder="Omni search" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px" />
+  <div id="manage-results"></div>
+</div></div>
+
+<script>
+const STORE_KEY='pam_relay_v2';
+const RELAY_WS_URL='wss://gift-signal.myacctfortracking.workers.dev/signal';
+const HEARTBEAT_INTERVAL=15000, HEARTBEAT_STALE=35000, CONNECT_TIMEOUT=8000, RECONNECT_BASE=600, RECONNECT_MAX=10000;
+const THEMES={sand:{bg:'#f7f4ef',panel:'#fff',ink:'#1f1b18',border:'#ddd6cf',accent:'#2f8a8a'},night:{bg:'#1f232b',panel:'#2a2f38',ink:'#f4f5f7',border:'#414858',accent:'#7cb7ff'},leaf:{bg:'#edf4ef',panel:'#fff',ink:'#203024',border:'#cde0d0',accent:'#3a8f5e'}};
+const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+
+const state={
+  device_id:localStorage.device_id||uid(),
+  participant_id:localStorage.participant_id||uid(),
+  participant_name:localStorage.participant_name||'Me',
+  autoRead:false,activeConversationId:null,drawerOpen:false,
+  conversations:{},messagesByConversation:{},pendingByConversation:{},lastReadByConversation:{},
+  transport:null
+};
+localStorage.device_id=state.device_id; localStorage.participant_id=state.participant_id;
+
+function load(){
+  const raw=localStorage.getItem(STORE_KEY); if(!raw) return;
+  try{Object.assign(state,{...state,...JSON.parse(raw)});}catch{}
+}
+function persist(){localStorage.setItem(STORE_KEY,JSON.stringify({
+  participant_name:state.participant_name,autoRead:state.autoRead,activeConversationId:state.activeConversationId,
+  conversations:state.conversations,messagesByConversation:state.messagesByConversation,pendingByConversation:state.pendingByConversation,lastReadByConversation:state.lastReadByConversation
+}));}
+
+function createTransport(){
+  let ws=null,eventHandler=null,reconnectTimer=null,heartbeatTimer=null,connectTimer=null,lastRx=0,retries=0;
+  let tState='connecting',queue=[],activeConversation=null,participant=null,last_seq=0;
+  const setState=s=>{tState=s;const dot=document.getElementById('conn-dot');dot.className=s;dot.title=s;};
+  const sendRaw=o=>{if(ws&&ws.readyState===1){ws.send(JSON.stringify(o));return true;} queue.push(o); return false;};
+  const flush=()=>{if(!(ws&&ws.readyState===1))return;const q=[...queue];queue=[];q.forEach(x=>ws.send(JSON.stringify(x)));};
+  const scheduleReconnect=()=>{if(reconnectTimer)return;setState('reconnecting');retries++;const jitter=1+((Math.random()*2)-1)*0.3;const d=Math.min(RECONNECT_MAX,RECONNECT_BASE*(2**(retries-1)))*jitter;reconnectTimer=setTimeout(()=>{reconnectTimer=null;connect(activeConversation,participant);},Math.max(120,d));};
+  const stopHeartbeat=()=>{clearInterval(heartbeatTimer);heartbeatTimer=null;};
+  const startHeartbeat=()=>{if(heartbeatTimer)return;heartbeatTimer=setInterval(()=>{if(!ws||ws.readyState!==1)return;if(Date.now()-lastRx>HEARTBEAT_STALE){ws.close(4000,'stale');return;}sendRaw({type:'ping',session:activeConversation,from:participant,last_seq,transient:true});},HEARTBEAT_INTERVAL);};
+  const handleMessage=(msg)=>{
+    if(msg.type==='pong'||msg.type==='ping')return;
+    if(Number.isFinite(msg.seq)&&msg.seq>last_seq)last_seq=msg.seq;
+    if(msg.type==='backfill'&&Array.isArray(msg.events)){msg.events.sort((a,b)=>(a.seq||0)-(b.seq||0)).forEach(e=>eventHandler&&eventHandler(e));return;}
+    eventHandler&&eventHandler(msg);
+  };
+  function connect(conversationId,participantId){
+    activeConversation=conversationId;participant=participantId;
+    if(ws&&(ws.readyState===0||ws.readyState===1)) return;
+    clearTimeout(connectTimer);setState(retries?'reconnecting':'connecting');
+    const url=new URL(RELAY_WS_URL);url.searchParams.set('session',conversationId);url.searchParams.set('client',participantId);url.searchParams.set('device',state.device_id);
+    ws=new WebSocket(url.toString());
+    connectTimer=setTimeout(()=>{if(ws&&ws.readyState===0)ws.close(4001,'timeout');},CONNECT_TIMEOUT);
+    ws.onopen=()=>{clearTimeout(connectTimer);lastRx=Date.now();retries=0;setState('resyncing');sendRaw({type:'hello',session:conversationId,from:participantId,device_id:state.device_id,last_seq});sendRaw({type:'resume',session:conversationId,from:participantId,last_seq});flush();setState('connected');startHeartbeat();};
+    ws.onmessage=e=>{lastRx=Date.now();let msg;try{msg=JSON.parse(e.data);}catch{return;} if(msg.session&&msg.session!==activeConversation)return; if(msg.from&&msg.from===participant) return; handleMessage(msg);};
+    ws.onclose=()=>{stopHeartbeat();scheduleReconnect();};
+    ws.onerror=()=>{if(ws)ws.close();};
+  }
+  return {connect,send:(event)=>sendRaw({...event,session:activeConversation,from:participant,device_id:state.device_id,ts:Date.now()}),disconnect:()=>{clearTimeout(reconnectTimer);stopHeartbeat();if(ws)ws.close();ws=null;setState('connecting');},onEvent:h=>eventHandler=h,getState:()=>tState};
+}
+
+function ensureConversation(conversation_id, partner='New chat'){
+  if(!state.conversations[conversation_id]) state.conversations[conversation_id]={conversation_id,partner_name:partner,created_at:Date.now(),unread:0};
+  if(!state.messagesByConversation[conversation_id]) state.messagesByConversation[conversation_id]=[];
+  if(!state.pendingByConversation[conversation_id]) state.pendingByConversation[conversation_id]={openClarify:0};
+  if(!state.lastReadByConversation[conversation_id]) state.lastReadByConversation[conversation_id]=0;
+}
+
+function activeMessages(){return state.messagesByConversation[state.activeConversationId]||[];}
+function switchConversation(id){ensureConversation(id);state.activeConversationId=id;state.lastReadByConversation[id]=Date.now();state.conversations[id].unread=0;connectActive();render();persist();closeDrawer();}
+function connectActive(){if(!state.activeConversationId)return;if(!state.transport)state.transport=createTransport();state.transport.connect(state.activeConversationId,state.participant_id);}
+
+function sendMessage(){
+  const ta=document.getElementById('input');
+  const text=ta.value.trim(); if(!text||!state.activeConversationId)return;
+  const msg={id:uid(),conversation_id:state.activeConversationId,sender:state.participant_id,text,timestamp:Date.now(),clarify_state:'dormant',verification:{status:'pending',back:''}};
+  activeMessages().push(msg);
+  state.transport.send({type:'chat',payload:{...msg,direction:detectLangDirection(text)}});
+  ta.value='';autoSizeComposer();renderMessages();persist();
+}
+function detectLangDirection(text){return /[\u0E00-\u0E7F]/.test(text)?'thai->latin':'latin->thai';}
+function verifyMessage(id){const m=activeMessages().find(x=>x.id===id);if(!m)return;m.verification.back=`${m.text}`;m.verification.status=(m.verification.status==='pass'?'fail':'pass');persist();renderMessages();}
+function verdict(id,s){const m=activeMessages().find(x=>x.id===id);if(!m)return;m.verification.status=s;persist();renderMessages();}
+function cycleClarify(id){const m=activeMessages().find(x=>x.id===id);if(!m)return;const order=['dormant','open','closed'];m.clarify_state=order[(order.indexOf(m.clarify_state)+1)%order.length];persist();renderMessages();}
+
+function onTransportEvent(evt){
+  const payload=evt.payload||evt;
+  if((evt.type||payload.type)!=='chat' || !payload.id) return;
+  if(payload.sender===state.participant_id) return;
+  const conversation_id=payload.conversation_id||evt.session||state.activeConversationId;
+  ensureConversation(conversation_id,'New chat');
+  const list=state.messagesByConversation[conversation_id];
+  if(list.some(x=>x.id===payload.id))return;
+  list.push({...payload,conversation_id,verification:payload.verification||{status:'pending',back:''},clarify_state:payload.clarify_state||'dormant'});
+  if(conversation_id!==state.activeConversationId) state.conversations[conversation_id].unread=(state.conversations[conversation_id].unread||0)+1;
+  persist();render();
+}
+
+function renderSessions(filter=''){
+  const q=filter.toLowerCase();
+  const list=document.getElementById('session-list');
+  list.innerHTML=Object.values(state.conversations)
+    .filter(c=>!q||c.partner_name.toLowerCase().includes(q))
+    .sort((a,b)=>b.created_at-a.created_at)
+    .map(c=>`<div class="session-card ${c.conversation_id===state.activeConversationId?'active':''}" data-cid="${c.conversation_id}"><div class="session-name">${escapeHtml(c.partner_name)}</div><span class="session-unread">${c.unread||0}</span></div>`).join('');
+  list.querySelectorAll('.session-card').forEach(el=>el.onclick=()=>switchConversation(el.dataset.cid));
+}
+function renderHeader(){
+  const c=state.conversations[state.activeConversationId];
+  document.getElementById('partner-name').textContent=c?c.partner_name:'New chat';
+  document.getElementById('auto-read-btn').style.opacity=state.autoRead?1:0.5;
+}
+function renderMessages(){
+  const wrap=document.getElementById('messages');
+  wrap.innerHTML=activeMessages().map(m=>{
+    const mine=m.sender===state.participant_id;
+    const v=m.verification?.status||'pending';
+    const chip=v==='pass'?'<span class="status-chip pass">Verified</span>':v==='fail'?'<span class="status-chip fail">Flagged</span>':'<span class="status-chip">Unverified</span>';
+    return `<div class="msg-row ${mine?'me':''}"><article class="bubble"><div class="bhead">${chip}</div><div class="btext">${escapeHtml(m.text)}</div><div class="bfooter">
+      <button class="icon-only" title="Verify" onclick="verifyMessage('${m.id}')">${iconCheck}</button>
+      <button class="icon-only" title="Pass" onclick="verdict('${m.id}','pass')">${iconThumbUp}</button>
+      <button class="icon-only" title="Fail" onclick="verdict('${m.id}','fail')">${iconThumbDown}</button>
+      <button class="icon-only" title="Reset" onclick="verdict('${m.id}','pending')">${iconReset}</button>
+      <button class="clarify-btn ${m.clarify_state}" onclick="cycleClarify('${m.id}')">?</button>
+    </div></article></div>`;
+  }).join('');
+  wrap.scrollTop=wrap.scrollHeight;
+}
+function renderManage(){
+  const q=(document.getElementById('manage-search').value||'').toLowerCase();
+  const rows=[];
+  Object.values(state.conversations).forEach(c=>rows.push({k:'Session',t:c.partner_name,s:c.conversation_id}));
+  Object.entries(state.messagesByConversation).forEach(([cid,msgs])=>msgs.forEach(m=>{if(m.verification?.status==='fail')rows.push({k:'Flag',t:m.text,s:cid});if(m.clarify_state==='open')rows.push({k:'Clarify',t:m.text,s:cid});}));
+  document.getElementById('manage-results').innerHTML=rows
+    .filter(r=>!q||`${r.k} ${r.t}`.toLowerCase().includes(q))
+    .map(r=>`<div class="manage-item"><strong>${r.k}</strong><div>${escapeHtml(r.t)}</div></div>`).join('')||'<p class="small" style="margin-top:8px">No results</p>';
+}
+function render(){renderHeader();renderSessions(document.getElementById('omni-search').value);renderMessages();renderManage();persist();}
+function escapeHtml(s){return (s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function openDrawer(){state.drawerOpen=true;document.getElementById('drawer').classList.add('open');document.getElementById('drawer-backdrop').classList.add('show');}
+function closeDrawer(){state.drawerOpen=false;document.getElementById('drawer').classList.remove('open');document.getElementById('drawer-backdrop').classList.remove('show');}
+
+function createConversation(partner='New chat'){
+  const conversation_id=uid();ensureConversation(conversation_id,partner);switchConversation(conversation_id);
+  return `${location.origin}${location.pathname}?c=${encodeURIComponent(conversation_id)}`;
+}
+async function shareLink(url){if(navigator.share){try{await navigator.share({title:'Join chat',url});return;}catch{}}if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(url);}
+function handleDeepLink(){
+  const p=new URLSearchParams(location.search);const cid=p.get('c')||p.get('conversation_id');if(!cid)return;
+  ensureConversation(cid,'New chat');state.activeConversationId=cid;connectActive();closeDrawer();
+}
+
+function applyTheme(name){const t=THEMES[name];if(!t)return;for(const k of ['bg','panel','ink','border','accent'])document.documentElement.style.setProperty(`--${k}`,t[k]);localStorage.theme=name;}
+function initThemes(){
+  const g=document.getElementById('theme-grid');g.innerHTML=Object.keys(THEMES).map(k=>`<button class="theme" data-t="${k}">${k}</button>`).join('');
+  g.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>applyTheme(b.dataset.t));
+  document.getElementById('accent-picker').oninput=e=>document.documentElement.style.setProperty('--accent',e.target.value);
+  if(localStorage.theme)applyTheme(localStorage.theme);
+}
+function autoSizeComposer(){const ta=document.getElementById('input');ta.style.height='auto';ta.style.height=Math.min(110,ta.scrollHeight)+'px';}
+
+const iconCheck='<svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>';
+const iconThumbUp='<svg viewBox="0 0 24 24"><path d="M2 21h4V9H2v12zm20-11c0-1.1-.9-2-2-2h-6l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 1 6.59 7.59C6.22 7.95 6 8.45 6 9v10c0 1.1.9 2 2 2h9c.82 0 1.54-.5 1.84-1.22L22 12v-2z"/></svg>';
+const iconThumbDown='<svg viewBox="0 0 24 24"><path d="M22 3h-4v12h4V3zM2 14c0 1.1.9 2 2 2h6l-.95 4.57-.03.32c0 .41.17.79.44 1.06L10.83 23l6.58-6.59c.37-.36.59-.86.59-1.41V5c0-1.1-.9-2-2-2H7c-.82 0-1.54.5-1.84 1.22L2 12v2z"/></svg>';
+const iconReset='<svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c2.76 0 5 2.24 5 5a5 5 0 0 1-8.66 3.54l-1.42 1.42A7 7 0 1 0 12 5z"/></svg>';
+
+load();
+state.transport=createTransport();
+state.transport.onEvent(onTransportEvent);
+initThemes();
+handleDeepLink();
+if(!state.activeConversationId){createConversation('New chat');}
+render();
+
+const byId=id=>document.getElementById(id);
+byId('menu-btn').onclick=openDrawer;
+byId('close-drawer').onclick=closeDrawer;
+byId('drawer-backdrop').onclick=closeDrawer;
+byId('open-manage').onclick=()=>byId('manage-modal').classList.add('show');
+byId('open-settings').onclick=()=>byId('settings-modal').classList.add('show');
+byId('manage-modal').onclick=e=>{if(e.target.id==='manage-modal')e.target.classList.remove('show');};
+byId('settings-modal').onclick=e=>{if(e.target.id==='settings-modal')e.target.classList.remove('show');};
+byId('manage-search').oninput=renderManage;
+byId('omni-search').oninput=e=>renderSessions(e.target.value);
+byId('new-chat-fab').onclick=()=>{createConversation('New chat');openDrawer();};
+byId('send-btn').onclick=sendMessage;
+byId('share-btn').onclick=()=>{if(state.activeConversationId)shareLink(`${location.origin}${location.pathname}?c=${encodeURIComponent(state.activeConversationId)}`);};
+byId('auto-read-btn').onclick=()=>{state.autoRead=!state.autoRead;renderHeader();persist();};
+byId('input').addEventListener('input',autoSizeComposer);
+byId('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
+byId('partner-name').addEventListener('blur',()=>{
+  const c=state.conversations[state.activeConversationId];if(!c)return;
+  c.partner_name=(byId('partner-name').textContent||'').trim()||'New chat';
+  renderSessions(byId('omni-search').value);persist();
+});
+byId('attach-btn').onclick=()=>{};
+byId('mic-btn').onclick=()=>{};
+window.addEventListener('beforeunload',()=>state.transport.disconnect());
+</script>
+</body>
+</html>
