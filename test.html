@@ -483,7 +483,7 @@ textarea.field-input{resize:none;}
   <!-- Empty state -->
   <div class="shell-empty" id="shell-empty">
     <div class="shell-empty-logo">talk</div>
-    <div>Tap ☰ then + to start a conversation</div>
+    <div>Start typing to begin</div>
   </div>
   <!-- Messages -->
   <div id="messages" style="display:none;"></div>
@@ -967,14 +967,15 @@ function onTransportEvent(h){transportHandlers.push(h);}
 function updateDot(){
   var dot=document.getElementById('shell-dot');if(!dot)return;
   dot.className='shell-dot';
-  if(!navigator.onLine){dot.classList.add('gray');return;}
+  dot.title='Connection';
+  if(!navigator.onLine){dot.classList.add('gray');dot.title='Offline';return;}
   if(socketState==='open'){
-    if(isSessionHealthy())dot.classList.add('green');
-    else dot.classList.add('yellow');
+    if(sessionState==='joined'){dot.classList.add('green');dot.title='Connected';}
+    else {dot.classList.add('yellow');dot.title='Joining chat…';}
     return;
   }
-  if(socketState==='connecting'||socketState==='reconnecting')dot.classList.add('yellow');
-  else dot.classList.add('red');
+  if(socketState==='connecting'||socketState==='reconnecting'){dot.classList.add('yellow');dot.title='Connecting…';}
+  else {dot.classList.add('red');dot.title='Disconnected';}
 }
 
 // ════════════════════ NAVIGATION ════════════════════
@@ -1002,12 +1003,12 @@ function saveLocalName(el){
   toast('Name saved');
 }
 
-function createNewSession(){
+function createNewSession(silent){
   var cid=uid();var p=getPrefs();
   var sess={convId:cid,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};
   putSession(sess);
   var order=getSessionOrder();order.unshift(cid);saveSessionOrder(order);
-  openSession(cid);closeLeftPanel();toast('New chat');
+  openSession(cid);closeLeftPanel();if(!silent)toast('New chat');
 }
 function openSession(cid){
   var sess=getSession(cid);if(!sess){toast('Not found');return;}
@@ -1428,7 +1429,13 @@ document.addEventListener('DOMContentLoaded',function(){
     return;
   }
   var aid=getActiveConvId();
-  if(aid&&getSession(aid)){openSession(aid);}else{showEmptyShell();}
+  if(aid&&getSession(aid)){
+    openSession(aid);
+  }else{
+    var sessions=getAllSessions();
+    if(sessions.length){openSession(sessions[0].convId);}
+    else{createNewSession(true);}
+  }
 
   // Sheet drag-dismiss
   document.querySelectorAll('.overlay .sheet-handle').forEach(function(h){var sy=0,dy=0;h.addEventListener('pointerdown',function(e){sy=e.clientY;dy=0;h.setPointerCapture(e.pointerId);});h.addEventListener('pointermove',function(e){if(!h.hasPointerCapture(e.pointerId))return;dy=e.clientY-sy;if(dy>0)h.closest('.sheet').style.transform='translateY('+Math.min(dy,120)+'px)';});h.addEventListener('pointerup',function(e){var sh=h.closest('.sheet');if(sh)sh.style.transform='';if(dy>70){var ov=h.closest('.overlay');if(ov)ov.hidden=true;}try{h.releasePointerCapture(e.pointerId);}catch(_){}});});
