@@ -777,7 +777,6 @@ var state={activeConvId:null,messages:[],connected:false,currentCatId:'all',open
 var tagPickerSelectedTags=[];
 var tEngine='cloud',ttsActive=null;
 var typingTimer=null,lastTypingTs=0;
-var msgQueue=[];
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var recognition=null,sttActive=false;
 
@@ -912,13 +911,14 @@ var WORKER_SRC=[
 "function disconnect(){if(ws)try{ws.close();}catch(_){}ws=null;stopHb();if(rcTimer){clearTimeout(rcTimer);rcTimer=null;}}",
 "function send(ev){var m=Object.assign({},ev,{session:convId,from:deviceId,participant:participant,ts:Date.now(),seq:++seq});if(ws&&ws.readyState===1){ws.send(JSON.stringify(m));return true;}outQ.push(m);return false;}",
 "function flushQ(){if(!ws||ws.readyState!==1)return;var q=outQ.slice();outQ=[];for(var i=0;i<q.length;i++){try{ws.send(JSON.stringify(q[i]));}catch(_){outQ.push(q[i]);}}}",
-"function startHb(){stopHb();hbTimer=setInterval(function(){if(!ws||ws.readyState!==1)return;if(Date.now()-lastRx>STALE){ws.close(4002,'stale');return;}ws.send(JSON.stringify({type:'ping',session:convId,from:deviceId}));},HB);}",
+"function startHb(){stopHb();hbTimer=setInterval(function(){if(!ws||ws.readyState!==1)return;ws.send(JSON.stringify({type:'ping',session:convId,from:deviceId}));},HB);}",
 "function stopHb(){if(hbTimer){clearInterval(hbTimer);hbTimer=null;}}",
 "function scheRc(){if(rcTimer)return;rcAttempts++;var j=1+(Math.random()*2-1)*JIT;var b=Math.min(RM,RB*Math.pow(2,rcAttempts-1));rcTimer=setTimeout(function(){rcTimer=null;connect();},Math.round(b*j));}",
 "self.onmessage=function(e){var d=e.data;if(d.cmd==='connect'){convId=d.convId;participant=d.participant;deviceId=d.deviceId;connect();}else if(d.cmd==='send'){send(d.event);}else if(d.cmd==='disconnect'){disconnect();}else if(d.cmd==='reconnect'){rcAttempts=0;disconnect();connect();}};"
 ].join('\n');
 
 var relayWorker=null;
+var relayWorkerUrl=null;
 var socketState='closed';
 var sessionState='idle';
 var transportState='disconnected';
@@ -959,18 +959,23 @@ function startPresence(){stopPresence();presenceTimer=setInterval(function(){if(
 function stopPresence(){if(presenceTimer){clearInterval(presenceTimer);presenceTimer=null;}}
 function startPeerWatch(){if(peerWatchTimer)return;peerWatchTimer=setInterval(updateDot,1000);}
 function stopPeerWatch(){if(peerWatchTimer){clearInterval(peerWatchTimer);peerWatchTimer=null;}}
+function cleanupRelayWorker(){
+  if(relayWorker){try{relayWorker.terminate();}catch(_){} relayWorker=null;}
+  if(relayWorkerUrl){try{URL.revokeObjectURL(relayWorkerUrl);}catch(_){} relayWorkerUrl=null;}
+}
 
 function transportConnect(convId,participant){
-  if(relayWorker)relayWorker.terminate();
+  cleanupRelayWorker();
   stopPresence();
   lastPeerSeenAt=0;
   setSessionState('joining');
   var blob=new Blob([WORKER_SRC],{type:'text/javascript'});
-  relayWorker=new Worker(URL.createObjectURL(blob));
+  relayWorkerUrl=URL.createObjectURL(blob);
+  relayWorker=new Worker(relayWorkerUrl);
   relayWorker.onmessage=function(e){
     var d=e.data;
     if(d.type==='state'){
-      if(d.state==='connected'){setSocketState('open');setSessionState('joining');sendJoin();startPresence();flushMsgQ();}
+      if(d.state==='connected'){setSocketState('open');setSessionState('joining');sendJoin();startPresence();}
       else if(d.state==='connecting'){setSocketState('connecting');setSessionState('joining');}
       else if(d.state==='reconnecting'){setSocketState('reconnecting');setSessionState('joining');lastPeerSeenAt=0;stopPresence();}
       else {setSocketState('closed');setSessionState('idle');stopPresence();lastPeerSeenAt=0;}
@@ -982,8 +987,17 @@ function transportConnect(convId,participant){
   startPeerWatch();
 }
 function transportSend(ev){if(!relayWorker)return false;relayWorker.postMessage({cmd:'send',event:ev});return socketState==='open';}
-function transportDisconnect(){if(relayWorker)relayWorker.postMessage({cmd:'disconnect'});stopPresence();setSocketState('closed');setSessionState('idle');lastPeerSeenAt=0;updateDot();}
-function forceReconnect(){if(!state.activeConvId){toast('No active session');return;}if(relayWorker)relayWorker.postMessage({cmd:'reconnect'});else transportConnect(state.activeConvId,PART_ID);setSessionState('joining');lastPeerSeenAt=0;toast('Reconnecting…');}
+function transportDisconnect(){if(relayWorker)relayWorker.postMessage({cmd:'disconnect'});cleanupRelayWorker();stopPresence();setSocketState('closed');setSessionState('idle');lastPeerSeenAt=0;updateDot();}
+function forceReconnect(){
+  if(!state.activeConvId){toast('No active session');return;}
+  if(socketState==='connecting'||socketState==='reconnecting')return;
+  if(relayWorker&&socketState!=='closed'){return;}
+  if(relayWorker)relayWorker.postMessage({cmd:'reconnect'});
+  else transportConnect(state.activeConvId,PART_ID);
+  setSessionState('joining');
+  lastPeerSeenAt=0;
+  toast('Reconnecting…');
+}
 function onTransportEvent(h){transportHandlers.push(h);}
 
 function updateDot(){
@@ -992,8 +1006,8 @@ function updateDot(){
   dot.title='Connection';
   if(!navigator.onLine){dot.classList.add('gray');dot.title='Offline';return;}
   if(socketState==='open'){
-    if(sessionState==='joined'){dot.classList.add('green');dot.title='Connected';}
-    else {dot.classList.add('yellow');dot.title='Joining chat…';}
+    dot.classList.add('green');
+    dot.title=(sessionState==='joined')?'Connected':'Connected (waiting for peer)';
     return;
   }
   if(socketState==='connecting'||socketState==='reconnecting'){dot.classList.add('yellow');dot.title='Connecting…';}
@@ -1362,9 +1376,8 @@ function sendMessage(){
   sess.lastActivity=msg.timestamp;putSession(sess);saveMsgs(sess.convId,state.messages);
   var payload={type:'msg',id:msg.id,orig:text,lang:outLang,timestamp:msg.timestamp,name:sess.myName||getPrefs().userName||'yournamehere'};
   var ok=transportSend(payload);
-  if(!ok){msg.status='queued';msgQueue.push({msgId:msg.id,payload:payload});}
+  if(!ok){msg.status='queued';saveMsgs(sess.convId,state.messages);}
 }
-function flushMsgQ(){if(!msgQueue.length)return;var q=msgQueue.slice();msgQueue=[];q.forEach(function(m){if(!transportSend(m.payload))msgQueue.push(m);else{var msg=findMsg(m.msgId);if(msg)msg.status='sent';}});}
 
 function handleAttachFile(e){var file=e.target.files&&e.target.files[0];if(!file)return;if(file.size>4*1024*1024){toast('Too large');return;}var reader=new FileReader();reader.onload=function(ev){var isImg=file.type.indexOf('image/')===0;var att={type:isImg?'image':'file',name:file.name,dataUrl:ev.target.result};var sess=getSession(state.activeConvId);if(!sess)return;ensureSessionNames(sess);var msg={id:uid(),from:'me',text:'',lang:sess.myLang,translated:'',status:'sent',timestamp:Date.now(),clarify:{status:'none',text:''},attachment:att};stampMsgNames(msg,sess);state.messages.push(msg);renderMsg(msg);scrollBottom();saveMsgs(sess.convId,state.messages);transportSend({type:'msg',id:msg.id,orig:'',lang:sess.myLang,timestamp:msg.timestamp,attachment:att});};reader.readAsDataURL(file);e.target.value='';}
 
@@ -1474,8 +1487,8 @@ document.addEventListener('DOMContentLoaded',function(){
   // Sheet drag-dismiss
   document.querySelectorAll('.overlay .sheet-handle').forEach(function(h){var sy=0,dy=0;h.addEventListener('pointerdown',function(e){sy=e.clientY;dy=0;h.setPointerCapture(e.pointerId);});h.addEventListener('pointermove',function(e){if(!h.hasPointerCapture(e.pointerId))return;dy=e.clientY-sy;if(dy>0)h.closest('.sheet').style.transform='translateY('+Math.min(dy,120)+'px)';});h.addEventListener('pointerup',function(e){var sh=h.closest('.sheet');if(sh)sh.style.transform='';if(dy>70){var ov=h.closest('.overlay');if(ov)ov.hidden=true;}try{h.releasePointerCapture(e.pointerId);}catch(_){}});});
   window.addEventListener('online',function(){if(state.activeConvId)forceReconnect();});
-  window.addEventListener('offline',function(){setSocketState('closed');setSessionState('idle');stopPresence();updateDot();});
-  document.addEventListener('visibilitychange',function(){if(!state.activeConvId)return;if(document.visibilityState==='visible'){if(socketState!=='open'||sessionState!=='joined')forceReconnect();else sendJoin();}});
+  window.addEventListener('offline',function(){transportDisconnect();});
+  document.addEventListener('visibilitychange',function(){if(!state.activeConvId)return;if(document.visibilityState==='visible'&&socketState==='closed')forceReconnect();});
 });
 </script>
 </body>
