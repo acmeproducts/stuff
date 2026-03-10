@@ -323,6 +323,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
         <input id="sSyncBranch" placeholder="Branch (default: main)"/>
         <input id="sSyncPath" placeholder="Path (default: kanban-data.json)"/>
       </div>
+      <input id="sSyncPollInterval" type="number" min="60" max="120" step="5" placeholder="Polling interval seconds (60-120)"/>
       <div class="row">
         <button type="button" class="btn small" id="btnClearToken">Clear token</button>
       </div>
@@ -359,7 +360,7 @@ const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
 const SYNC_KEY = "ai_jobs_kanban_sync";
 const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
-const SYNC_DEFAULTS = { enabled:false, provider:"github", owner:"acmeproducts", repo:"stuff", branch:"main", path:"kanban-data.json", token:"" };
+const SYNC_DEFAULTS = { enabled:false, provider:"github", owner:"acmeproducts", repo:"stuff", branch:"main", path:"kanban-data.json", token:"", pollIntervalSec:90 };
 let dirty=false, saveTimer=null;
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
 async function persistNow(opts={}){
@@ -418,6 +419,31 @@ let syncSettings=loadSyncSettings();
 let syncState={status:"Loaded local",remoteSha:null,lastRemoteModified:0,lastSyncAt:0,pending:false};
 let syncWorker=null, syncRequestSeq=0;
 let pendingValidation=false;
+let syncPollTimer=null;
+
+function getSyncPollIntervalMs(raw=syncSettings.pollIntervalSec){
+  const sec=Math.max(60, Math.min(120, Number(raw)||SYNC_DEFAULTS.pollIntervalSec));
+  return Math.round(sec*1000);
+}
+function hasPendingLocalEdits(){
+  return !!(dirty || editorDirty);
+}
+function stopRemotePolling(){
+  if(syncPollTimer){
+    clearInterval(syncPollTimer);
+    syncPollTimer=null;
+  }
+}
+function startRemotePolling(){
+  stopRemotePolling();
+  if(!isSyncConfigured()) return;
+  const intervalMs=getSyncPollIntervalMs();
+  syncPollTimer=setInterval(()=>requestRemoteLoad("poll"), intervalMs);
+}
+function restartRemotePolling(){
+  stopRemotePolling();
+  startRemotePolling();
+}
 function syncConfigWithoutToken(){
   return {enabled:!!syncSettings.enabled, owner:syncSettings.owner||SYNC_DEFAULTS.owner, repo:syncSettings.repo||SYNC_DEFAULTS.repo, branch:syncSettings.branch||SYNC_DEFAULTS.branch, path:syncSettings.path||SYNC_DEFAULTS.path};
 }
@@ -546,7 +572,7 @@ function onSyncWorkerMessage(evt){
   if(msg.type==="remoteWriteSkipped"){
     syncState.pending=false;
     setSyncStatus("Sync skipped (remote newer)");
-    toast("Sync skipped","Remote snapshot is newer; loaded remote instead",true);
+    toast("Sync skipped","Remote snapshot is newer; merge/adopt policy applied",true);
     return;
   }
   if(msg.type==="remoteSaved"){
@@ -595,13 +621,19 @@ function onSyncWorkerMessage(evt){
     const remoteState=normalized.state;
     const localTs=Number(state.lastModified||0);
     const remoteTs=Number(remoteState.lastModified||0);
+    if(remoteTs>localTs && hasPendingLocalEdits()){
+      setSyncStatus("Remote update available (local edits pending)");
+      toast("Remote update available","Local unsaved edits detected; remote changes will apply after local save",true);
+      return;
+    }
     if(remoteTs>=localTs){
       state=remoteState;
       state.lastModified=Number(state.lastModified||Date.now());
       render();
       persistNow({skipRemote:true, preserveTimestamp:true});
       setSyncStatus("Loaded remote");
-      if(msg.source==="startup") toast("Remote load success","Loaded latest board from GitHub");
+      if(remoteTs>localTs) toast("Remote newer","Applied latest board from GitHub");
+      else if(msg.source==="startup") toast("Remote load success","Loaded latest board from GitHub");
     }else if(msg.source==="startup" && isSyncConfigured()){
       setSyncStatus("Local snapshot newer; pushing to GitHub");
       scheduleRemoteSyncDebounced();
@@ -622,10 +654,11 @@ function initSyncWorker(){
   worker.postMessage({type:"init", payload:{config:getSyncRuntimeConfig(), seq:++syncRequestSeq}});
   return worker;
 }
-function requestRemoteLoad(){
+function requestRemoteLoad(source="manual"){
   if(!syncSettings.enabled) return;
+  if(!String(syncSettings.token||"").trim()) return;
   const worker=initSyncWorker();
-  worker.postMessage({type:"loadRemote", payload:{seq:++syncRequestSeq}});
+  worker.postMessage({type:"loadRemote", payload:{seq:++syncRequestSeq, source}});
 }
 function scheduleRemoteSyncDebounced(){
   if(!syncSettings.enabled) return;
@@ -1310,10 +1343,11 @@ $("#btnSettings").onclick=()=>{
   $("#sSyncRepo").value=syncSettings.repo||SYNC_DEFAULTS.repo;
   $("#sSyncBranch").value=syncSettings.branch||SYNC_DEFAULTS.branch;
   $("#sSyncPath").value=syncSettings.path||SYNC_DEFAULTS.path;
+  $("#sSyncPollInterval").value=Math.round(getSyncPollIntervalMs(syncSettings.pollIntervalSec)/1000);
   settingsDialog.showModal();
 };
 
-$("#btnClearToken").onclick=()=>{ $("#sSyncToken").value=""; syncSettings=saveSyncSettings({...syncSettings, token:""}); setSyncStatus("Auth required"); toast("Token removed","GitHub token cleared locally"); };
+$("#btnClearToken").onclick=()=>{ $("#sSyncToken").value=""; syncSettings=saveSyncSettings({...syncSettings, token:""}); stopRemotePolling(); setSyncStatus("Auth required"); toast("Token removed","GitHub token cleared locally"); };
 settingsDialog.addEventListener("close", ()=>{
   const v=settingsDialog.returnValue; if(v==="cancel") return;
   if(v==="reset"){ if(confirm("Remove all cards? (Archive remains)")){ state.cards=[]; scheduleSave(); render(); } return; }
@@ -1330,13 +1364,15 @@ settingsDialog.addEventListener("close", ()=>{
       owner:$("#sSyncOwner").value.trim()||SYNC_DEFAULTS.owner,
       repo:$("#sSyncRepo").value.trim()||SYNC_DEFAULTS.repo,
       branch:$("#sSyncBranch").value.trim()||SYNC_DEFAULTS.branch,
-      path:$("#sSyncPath").value.trim()||SYNC_DEFAULTS.path
+      path:$("#sSyncPath").value.trim()||SYNC_DEFAULTS.path,
+      pollIntervalSec:Math.max(60, Math.min(120, Number($("#sSyncPollInterval").value)||SYNC_DEFAULTS.pollIntervalSec))
     };
     syncSettings=saveSyncSettings({...syncSettings,...nextSync});
     initSyncWorker();
+    restartRemotePolling();
     if(syncSettings.enabled){
       if(!syncSettings.token) toast("Auth/token missing","Add GitHub token in Settings",true);
-      else requestRemoteLoad();
+      else requestRemoteLoad("settings_save");
     }
     scheduleSave(); render();
   }
@@ -1763,18 +1799,22 @@ function sanitizeMarkdownImages(s){
 }
 
 /* ===== Init ===== */
-window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow({reason:"beforeunload"}); flushRemoteSync(); });
+window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow({reason:"beforeunload"}); flushRemoteSync(); stopRemotePolling(); });
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden") flushRemoteSync(); });
-window.addEventListener("pagehide", ()=>{ flushRemoteSync(); });
+window.addEventListener("pagehide", ()=>{ flushRemoteSync(); stopRemotePolling(); });
 (async ()=>{
   setSyncStatus("Loaded local");
   render();
   if(syncSettings.enabled){
     if(syncSettings.token){
-      requestRemoteLoad();
+      requestRemoteLoad("startup");
+      startRemotePolling();
     }else{
       setSyncStatus("Auth required");
+      stopRemotePolling();
     }
+  }else{
+    stopRemotePolling();
   }
 })();
 </script>
