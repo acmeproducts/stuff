@@ -826,6 +826,7 @@ function addSystemNote(convId,text,timestamp){
 function updateSessionNames(sess,nextMe,nextThem,changedBy){
   if(!sess)return false;
   var names=ensureSessionNames(sess);
+  var actor=(changedBy||names.meAlias||'Someone').trim()||'Someone';
   var me=(nextMe||names.meAlias||'').trim();
   var them=(nextThem||names.themAlias||'').trim();
   if(!me||!them)return false;
@@ -837,7 +838,7 @@ function updateSessionNames(sess,nextMe,nextThem,changedBy){
   sess.partnerName=them;
   sess.title=them;
   putSession(sess);
-  addSystemNote(sess.convId,(changedBy||me)+' changed names to '+me+'/'+them);
+  addSystemNote(sess.convId,actor+' changed names to '+me+'/'+them);
   return true;
 }
 
@@ -977,7 +978,22 @@ function backToCatalogs(){showScreen('say-screen');renderSayHome();}
 // ════════════════════ LEFT PANEL ════════════════════
 function openLeftPanel(){document.getElementById('left-panel').classList.add('open');document.getElementById('left-scrim').classList.add('show');renderSessionList();}
 function closeLeftPanel(){document.getElementById('left-panel').classList.remove('open');document.getElementById('left-scrim').classList.remove('show');}
-function saveLocalName(el){var v=(el.textContent||'').trim();if(!v){el.textContent=getPrefs().userName||'yournamehere';return;}var p=getPrefs();p.userName=v;savePrefs(p);toast('Name saved');}
+function saveLocalName(el){
+  var v=(el.textContent||'').trim();
+  if(!v){el.textContent=getPrefs().userName||'yournamehere';return;}
+  var p=getPrefs();
+  p.userName=v;
+  savePrefs(p);
+  if(state.activeConvId){
+    var sess=getSession(state.activeConvId);
+    if(sess){
+      ensureSessionNames(sess);
+      updateSessionNames(sess,v,sess.names.themAlias,sess.names.meAlias||'Someone');
+      renderSessionList();
+    }
+  }
+  toast('Name saved');
+}
 
 function createNewSession(){
   var cid=uid();var p=getPrefs();
