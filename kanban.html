@@ -510,7 +510,7 @@ function buildGithubWorker(){
       const body={message:"Update kanban board snapshot",branch:cfg.branch,content:b64(JSON.stringify(snapshot,null,2))};
       if(!remote.missing && (remote.sha||remoteSha)) body.sha=remote.sha||remoteSha;
       post("remoteWriteAttempt",{path:cfg.path, branch:cfg.branch, forced:!!force});
-      const res=await fetchWithTimeout(apiUrl(),{method:"PUT",headers:headers(cfg.token,true),body:JSON.stringify(body)});
+      const res=await fetchWithTimeout(apiUrl(),{method:"PUT",headers:headers(cfg.token),body:JSON.stringify(body)});
       if(!res.ok) throw await buildError(res, "PUT");
       const out=await res.json();
       remoteSha=out?.content?.sha||remoteSha;
@@ -551,7 +551,19 @@ function buildGithubWorker(){
           }
           post("remoteStatus",{status:"Validation read in progress…"});
           const remote=await getRemote(draft);
-          if(remote.missing){ post("validationResult",{ok:false, missing:true, message:"Remote file not found", context}); return; }
+          const context={owner:draft.owner,repo:draft.repo,path:draft.path,branch:draft.branch};
+          if(remote.missing){
+            if(payload?.createIfMissing && payload?.snapshot){
+              const body={message:"Create kanban board snapshot",branch:draft.branch,content:b64(JSON.stringify(payload.snapshot,null,2))};
+              const createRes=await fetchWithTimeout(apiUrl(draft),{method:"PUT",headers:headers(draft.token),body:JSON.stringify(body)});
+              if(!createRes.ok) throw await buildError(createRes, "PUT create");
+              const out=await createRes.json();
+              post("validationResult",{ok:true, created:true, sha:out?.content?.sha||null, snapshot:payload.snapshot, context});
+              return;
+            }
+            post("validationResult",{ok:false, missing:true, message:"Remote file not found", context});
+            return;
+          }
           try{
             const parsed=JSON.parse(remote.text||"{}");
             post("validationResult",{ok:true, snapshot:parsed, context});
@@ -643,8 +655,8 @@ function onSyncWorkerMessage(evt){
       const keys=Object.keys(snap).slice(0,8).join(", ")||"(none)";
       const pretty=JSON.stringify(snap,null,2)||"{}";
       const snippet=escapeHtml(pretty.slice(0,200));
-      setValidationMessage(`Validation success: ${msg.created?"created":"updated"} JSON at ${ctxText}.`, false, `keys: ${keys} • lastModified: ${Number(snap.lastModified||0) || "n/a"}\n${snippet}`);
-      toast("Validation success", msg.created ? `Created remote file ${ctx.path||SYNC_DEFAULTS.path}` : (msg.updated ? `Updated remote file ${ctx.path||SYNC_DEFAULTS.path}` : `Read remote file ${ctx.path||SYNC_DEFAULTS.path}`));
+      setValidationMessage(`Validation success: readable JSON at ${ctxText}.`, false, `keys: ${keys} • lastModified: ${Number(snap.lastModified||0) || "n/a"}\n${snippet}`);
+      toast("Validation success", msg.created ? `Created remote file ${ctx.path||SYNC_DEFAULTS.path}` : `Read remote file ${ctx.path||SYNC_DEFAULTS.path}`);
       return;
     }
     if(msg.missing){
@@ -1378,36 +1390,9 @@ function runManualSyncPush(draft){
     setValidationMessage("Validation timed out after 20s. Check token scopes, repo/path/branch, and network.", true);
     toast("Validation timeout","No response from GitHub within 20s", true);
   }, 21000);
-  if(syncWorker){ try{ syncWorker.terminate(); }catch{} syncWorker=null; }
   const worker=buildGithubWorker();
   worker.postMessage({type:"validateRemote", payload:{config:{enabled:true,owner:draft.owner,repo:draft.repo,branch:draft.branch,path:draft.path,token:draft.token}, createIfMissing:true, snapshot:sanitizeStateForSync(state), seq:++syncRequestSeq}});
-}
-function runManualSyncPull(draft){
-  if(!draft.token){ setValidationMessage("Pull failed: add a GitHub token first.", true); toast("Pull failed","Token is required",true); return; }
-  setValidationMessage(`Pulling remote JSON from ${draft.owner}/${draft.repo}@${draft.branch}:${draft.path}…`, false);
-  if(syncWorker){ try{ syncWorker.terminate(); }catch{} syncWorker=null; }
-  const worker=buildGithubWorker();
-  worker.postMessage({type:"init", payload:{config:{enabled:true,owner:draft.owner,repo:draft.repo,branch:draft.branch,path:draft.path,token:draft.token}, seq:++syncRequestSeq}});
-  worker.postMessage({type:"loadRemote", payload:{seq:++syncRequestSeq, source:"manual_pull"}});
-}
-$("#btnValidateSync").onclick=()=> runManualSyncPush(gatherSyncSettingsFromForm());
-$("#btnPullRemote").onclick=()=> runManualSyncPull(gatherSyncSettingsFromForm());
-$("#btnSyncPush").onclick=()=> runManualSyncPush({
-  enabled:!!syncSettings.enabled,
-  token:String(syncSettings.token||"").trim(),
-  owner:syncSettings.owner||SYNC_DEFAULTS.owner,
-  repo:syncSettings.repo||SYNC_DEFAULTS.repo,
-  branch:syncSettings.branch||SYNC_DEFAULTS.branch,
-  path:syncSettings.path||SYNC_DEFAULTS.path
-});
-$("#btnSyncPull").onclick=()=> runManualSyncPull({
-  enabled:!!syncSettings.enabled,
-  token:String(syncSettings.token||"").trim(),
-  owner:syncSettings.owner||SYNC_DEFAULTS.owner,
-  repo:syncSettings.repo||SYNC_DEFAULTS.repo,
-  branch:syncSettings.branch||SYNC_DEFAULTS.branch,
-  path:syncSettings.path||SYNC_DEFAULTS.path
-});
+};
 $("#btnNew").onclick=()=> openEditor(null, state.stages[0]);
 $("#btnSettings").onclick=()=>{
   $("#sPlatforms").value=state.platforms.join(", ");
