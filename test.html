@@ -989,8 +989,8 @@ function startHelloLoop(){
 }
 function stopHelloLoop(){if(helloTimer){clearInterval(helloTimer);helloTimer=null;}}
 
-function transportConnect(convId,participant){
-  transportDisconnect();
+function transportConnect(convId,participant,opts){
+  transportDisconnect(opts);
   connectedConvId=convId;
   intentionalClose=false;
   var url=RELAY_WS_URL+'?session='+encodeURIComponent(convId)+'&client='+encodeURIComponent(DEVICE_ID);
@@ -1053,16 +1053,25 @@ function flushOutQueue(){
   if(!ws||ws.readyState!==1)return;
   var q=outQ.slice();
   outQ=[];
+  var didFlushMsg=false;
   for(var i=0;i<q.length;i++){
-    try{ws.send(JSON.stringify(q[i]));if(q[i].type==='msg'){var m=findMsg(q[i].id);if(m)m.status='sent';}}catch(_){outQ.push(q[i]);}
+    try{
+      ws.send(JSON.stringify(q[i]));
+      if(q[i].type==='msg'){
+        var m=findMsg(q[i].id);
+        if(m){m.status='sent';didFlushMsg=true;}
+      }
+    }catch(_){outQ.push(q[i]);}
   }
-  if(q.length){saveMsgs(state.activeConvId,state.messages);renderAllMessages();dbg('flushed',q.length,'queued messages');}
+  if(didFlushMsg&&state.activeConvId){saveMsgs(state.activeConvId,state.messages);renderAllMessages();}
+  if(q.length){dbg('flushed',q.length,'queued messages');}
 }
-function transportDisconnect(){
+function transportDisconnect(opts){
+  opts=opts||{};
   intentionalClose=true;
   if(ws){try{ws.close();}catch(_){}ws=null;}
   if(rcTimer){clearTimeout(rcTimer);rcTimer=null;}
-  outQ=[];
+  if(!opts.preserveQueue)outQ=[];
   connectedConvId=null;
   stopHelloLoop();
   peerState.connected=false;
@@ -1095,7 +1104,7 @@ function scheduleReconnect(){
     rcTimer=null;
     if(state.activeConvId===targetSession){
       intentionalClose=false;
-      transportConnect(targetSession,PART_ID);
+      transportConnect(targetSession,PART_ID,{preserveQueue:true});
     }else{
       dbg('session changed during backoff, abandoning reconnect to',targetSession);
     }
@@ -1105,8 +1114,8 @@ function forceReconnect(){
   if(!state.activeConvId){toast('No active session');return;}
   dbg('force reconnect requested');
   rcAttempts=0;
-  transportDisconnect();
-  transportConnect(state.activeConvId,PART_ID);
+  transportDisconnect({preserveQueue:true});
+  transportConnect(state.activeConvId,PART_ID,{preserveQueue:true});
   toast('Reconnecting…');
 }
 function onTransportEvent(h){transportHandlers.push(h);}
@@ -1609,7 +1618,7 @@ document.addEventListener('DOMContentLoaded',function(){
   // Sheet drag-dismiss
   document.querySelectorAll('.overlay .sheet-handle').forEach(function(h){var sy=0,dy=0;h.addEventListener('pointerdown',function(e){sy=e.clientY;dy=0;h.setPointerCapture(e.pointerId);});h.addEventListener('pointermove',function(e){if(!h.hasPointerCapture(e.pointerId))return;dy=e.clientY-sy;if(dy>0)h.closest('.sheet').style.transform='translateY('+Math.min(dy,120)+'px)';});h.addEventListener('pointerup',function(e){var sh=h.closest('.sheet');if(sh)sh.style.transform='';if(dy>70){var ov=h.closest('.overlay');if(ov)ov.hidden=true;}try{h.releasePointerCapture(e.pointerId);}catch(_){}});});
   window.addEventListener('online',function(){if(state.activeConvId)forceReconnect();});
-  window.addEventListener('offline',function(){transportDisconnect();});
+  window.addEventListener('offline',function(){transportDisconnect({preserveQueue:true});});
   document.addEventListener('visibilitychange',function(){if(!state.activeConvId)return;if(document.visibilityState==='visible'&&socketState==='closed')forceReconnect();});
 });
 </script>
