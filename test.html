@@ -904,8 +904,8 @@ function populateLangSelect(id,def){var sel=document.getElementById(id);if(!sel)
 var WORKER_SRC=[
 "'use strict';",
 "var ws=null,convId=null,participant=null,deviceId=null;",
-"var hbTimer=null,rcTimer=null,rcAttempts=0,outQ=[],seq=0;",
-"var HB=15000,STALE=45000,RB=1200,RM=20000,JIT=0.3,lastRx=Date.now();",
+"var rcTimer=null,rcAttempts=0,outQ=[],seq=0;",
+"var RB=1200,RM=20000,JIT=0.3,lastRx=Date.now();",
 "var WSURL='"+RELAY_WS_URL+"';",
 "function pm(t,d){self.postMessage(Object.assign({type:t},d||{}));}",
 "function connect(){",
@@ -916,16 +916,14 @@ var WORKER_SRC=[
 "  try{ws=new WebSocket(url);}catch(e){scheRc();return;}",
 "  var ref=ws;",
 "  var ct=setTimeout(function(){if(ws===ref&&ws.readyState===0)ws.close(4001,'timeout');},8000);",
-"  ws.onopen=function(){if(ws!==ref)return;clearTimeout(ct);lastRx=Date.now();rcAttempts=0;pm('state',{state:'connected'});startHb();flushQ();};",
+"  ws.onopen=function(){if(ws!==ref)return;clearTimeout(ct);lastRx=Date.now();rcAttempts=0;pm('state',{state:'connected'});flushQ();};",
 "  ws.onmessage=function(e){if(ws!==ref)return;lastRx=Date.now();try{var m=JSON.parse(e.data);if(m.seq)seq=Math.max(seq,m.seq);pm('event',{event:m});}catch(_){}};",
-"  ws.onclose=function(){if(ws!==ref)return;ws=null;stopHb();pm('state',{state:'reconnecting'});scheRc();};",
+"  ws.onclose=function(){if(ws!==ref)return;ws=null;pm('state',{state:'reconnecting'});scheRc();};",
 "  ws.onerror=function(){if(ws===ref&&ws)ws.close();};",
 "}",
-"function disconnect(){if(ws)try{ws.close();}catch(_){}ws=null;stopHb();if(rcTimer){clearTimeout(rcTimer);rcTimer=null;}}",
+"function disconnect(){if(ws)try{ws.close();}catch(_){}ws=null;if(rcTimer){clearTimeout(rcTimer);rcTimer=null;}}",
 "function send(ev){var m=Object.assign({},ev,{session:convId,from:deviceId,participant:participant,ts:Date.now(),seq:++seq});if(ws&&ws.readyState===1){ws.send(JSON.stringify(m));return true;}outQ.push(m);return false;}",
 "function flushQ(){if(!ws||ws.readyState!==1)return;var q=outQ.slice();outQ=[];for(var i=0;i<q.length;i++){try{ws.send(JSON.stringify(q[i]));}catch(_){outQ.push(q[i]);}}}",
-"function startHb(){stopHb();hbTimer=setInterval(function(){if(!ws||ws.readyState!==1)return;ws.send(JSON.stringify({type:'ping',session:convId,from:deviceId}));},HB);}",
-"function stopHb(){if(hbTimer){clearInterval(hbTimer);hbTimer=null;}}",
 "function scheRc(){if(rcTimer)return;rcAttempts++;var j=1+(Math.random()*2-1)*JIT;var b=Math.min(RM,RB*Math.pow(2,rcAttempts-1));rcTimer=setTimeout(function(){rcTimer=null;connect();},Math.round(b*j));}",
 "self.onmessage=function(e){var d=e.data;if(d.cmd==='connect'){convId=d.convId;participant=d.participant;deviceId=d.deviceId;connect();}else if(d.cmd==='send'){send(d.event);}else if(d.cmd==='disconnect'){disconnect();}else if(d.cmd==='reconnect'){rcAttempts=0;disconnect();connect();}};"
 ].join('\n');
@@ -933,26 +931,13 @@ var WORKER_SRC=[
 var relayWorker=null;
 var relayWorkerUrl=null;
 var socketState='closed';
-var sessionState='idle';
-var transportState='disconnected';
 var transportHandlers=[];
-var presenceTimer=null;
-var peerWatchTimer=null;
-var lastPeerSeenAt=0;
-var PEER_TIMEOUT_MS=300000;
-var PRESENCE_INTERVAL_MS=10000;
 
-function syncTransportState(){transportState=(socketState==='open'?'connected':(socketState==='connecting'||socketState==='reconnecting'?'connecting':'disconnected'));}
-function setSocketState(s){socketState=s;syncTransportState();updateDot();}
-function setSessionState(s){sessionState=s;updateDot();}
-function markPeerSeen(){lastPeerSeenAt=Date.now();updateDot();}
-function isPeerHealthy(){return !!lastPeerSeenAt&&(Date.now()-lastPeerSeenAt)<=PEER_TIMEOUT_MS;}
+function setSocketState(s){socketState=s;updateDot();}
 function isSessionHealthy(){return socketState==='open';}
-function sendJoin(){if(!state.activeConvId)return;transportSend({type:'join',session:state.activeConvId});}
-function sendInitialHelloPresence(sess){
+function sendInitialHello(sess){
   if(!state.activeConvId||!sess)return;
   transportSend({type:'hello',name:sess.myName||getPrefs().userName||'yournamehere',lang:sess.myLang||getPrefs().myLang||'en'});
-  transportSend({type:'presence'});
 }
 function upsertPartnerFromEnvelope(sess,d){
   if(!sess||!d)return;
@@ -972,10 +957,6 @@ function upsertPartnerFromEnvelope(sess,d){
     document.getElementById('shell-partner-name').textContent=sess.title||sess.names.themAlias||sess.partnerName||'new chat';
   }
 }
-function startPresence(){stopPresence();presenceTimer=setInterval(function(){if(socketState!=='open'||!state.activeConvId)return;transportSend({type:'presence'});},PRESENCE_INTERVAL_MS);}
-function stopPresence(){if(presenceTimer){clearInterval(presenceTimer);presenceTimer=null;}}
-function startPeerWatch(){if(peerWatchTimer)return;peerWatchTimer=setInterval(updateDot,1000);}
-function stopPeerWatch(){if(peerWatchTimer){clearInterval(peerWatchTimer);peerWatchTimer=null;}}
 function cleanupRelayWorker(){
   if(relayWorker){try{relayWorker.terminate();}catch(_){} relayWorker=null;}
   if(relayWorkerUrl){try{URL.revokeObjectURL(relayWorkerUrl);}catch(_){} relayWorkerUrl=null;}
@@ -983,35 +964,29 @@ function cleanupRelayWorker(){
 
 function transportConnect(convId,participant){
   cleanupRelayWorker();
-  stopPresence();
-  lastPeerSeenAt=0;
-  setSessionState('joining');
   var blob=new Blob([WORKER_SRC],{type:'text/javascript'});
   relayWorkerUrl=URL.createObjectURL(blob);
   relayWorker=new Worker(relayWorkerUrl);
   relayWorker.onmessage=function(e){
     var d=e.data;
     if(d.type==='state'){
-      if(d.state==='connected'){setSocketState('open');setSessionState('joined');sendJoin();startPresence();}
-      else if(d.state==='connecting'){setSocketState('connecting');setSessionState('joining');}
-      else if(d.state==='reconnecting'){setSocketState('reconnecting');setSessionState('joining');lastPeerSeenAt=0;stopPresence();}
-      else {setSocketState('closed');setSessionState('idle');stopPresence();lastPeerSeenAt=0;}
+      if(d.state==='connected'){setSocketState('open');}
+      else if(d.state==='connecting'){setSocketState('connecting');}
+      else if(d.state==='reconnecting'){setSocketState('reconnecting');}
+      else {setSocketState('closed');}
     }
     else if(d.type==='event'){transportHandlers.forEach(function(h){h(d.event);});}
   };
   relayWorker.postMessage({cmd:'connect',convId:convId,participant:participant,deviceId:DEVICE_ID});
   setSocketState('connecting');
-  startPeerWatch();
 }
 function transportSend(ev){if(!relayWorker)return false;relayWorker.postMessage({cmd:'send',event:ev});return socketState==='open';}
-function transportDisconnect(){if(relayWorker)relayWorker.postMessage({cmd:'disconnect'});cleanupRelayWorker();stopPresence();setSocketState('closed');setSessionState('idle');lastPeerSeenAt=0;updateDot();}
+function transportDisconnect(){if(relayWorker)relayWorker.postMessage({cmd:'disconnect'});cleanupRelayWorker();setSocketState('closed');updateDot();}
 function forceReconnect(){
   if(!state.activeConvId){toast('No active session');return;}
   if(socketState==='connecting'||socketState==='reconnecting'||socketState==='open')return;
   if(relayWorker)relayWorker.postMessage({cmd:'reconnect'});
   else transportConnect(state.activeConvId,PART_ID);
-  setSessionState('joining');
-  lastPeerSeenAt=0;
   toast('Reconnecting…');
 }
 function onTransportEvent(h){transportHandlers.push(h);}
@@ -1074,14 +1049,12 @@ function openSession(cid){
   document.getElementById('shell-partner-name').textContent=sess.title||sess.names.themAlias||sess.partnerName||'new chat';
   updateAutoReadBtn();
   transportConnect(cid,PART_ID);
-  sendInitialHelloPresence(sess);
+  sendInitialHello(sess);
   renderAllMessages();scrollBottom();
   showScreen('chat-screen');
 }
 function showEmptyShell(){
   state.activeConvId=null;
-  stopPresence();
-  stopPeerWatch();
   document.getElementById('shell-empty').style.display='flex';
   document.getElementById('messages').style.display='none';
   document.getElementById('composer').style.display='none';
@@ -1272,19 +1245,11 @@ function handleRelayEvent(d){
   if(!d||!d.type)return;
   var sess=getSession(state.activeConvId);if(!sess)return;
   if(d.session&&d.session!==state.activeConvId)return;
-    if(d.type==='join'&&d.from!==DEVICE_ID){markPeerSeen();transportSend({type:'join-ack'});return;}
-  if(d.type==='join-ack'&&d.from!==DEVICE_ID){markPeerSeen();transportSend({type:'presence'});return;}
-  if(d.type==='ping'&&d.from!==DEVICE_ID){transportSend({type:'pong'});markPeerSeen();return;}
-  if(d.type==='pong'&&d.from!==DEVICE_ID){markPeerSeen();return;}
-  if(d.type==='presence'&&d.from!==DEVICE_ID){markPeerSeen();transportSend({type:'presence-ack'});return;}
-  if(d.type==='presence-ack'&&d.from!==DEVICE_ID){markPeerSeen();return;}
   if(d.from===DEVICE_ID)return;
-  markPeerSeen();
   if(d.type==='hello'){
     upsertPartnerFromEnvelope(sess,d);
-    transportSend({type:'hello-ack'});return;
+    return;
   }
-  if(d.type==='hello-ack'){return;}
   if(d.type==='msg'){
     if(d.id&&findMsg(d.id))return;
     upsertPartnerFromEnvelope(sess,d);
