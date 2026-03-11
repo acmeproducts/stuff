@@ -605,9 +605,12 @@ textarea.field-input{resize:none;}
     </div>
     <div class="settings-group">
       <div class="settings-group-title">Data</div>
-      <div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">Export</div><div class="settings-row-meta">Download sessions and phrasebook JSON</div></div><button class="settings-icon-btn" onclick="exportData()">⬇</button></div>
-      <div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">Clear</div><div class="settings-row-meta">Clear local sessions and phrasebook</div></div><button class="settings-icon-btn danger" onclick="clearDataOnly()">🗑</button></div>
-      <div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">Export + Clear</div><div class="settings-row-meta">Download backup then clear local data</div></div><button class="settings-icon-btn danger" onclick="exportThenClear()">⚠</button></div>
+      <div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">Export sessions</div><div class="settings-row-meta">Download session history JSON</div></div><button class="settings-icon-btn" onclick="exportSessionsData()">⬇</button></div>
+      <div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">Import sessions</div><div class="settings-row-meta">Restore session history JSON</div></div><button class="settings-icon-btn" onclick="importSessionsData()">⬆</button></div>
+      <div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">Clear sessions</div><div class="settings-row-meta">Clear local sessions only</div></div><button class="settings-icon-btn danger" onclick="clearDataOnly()">🗑</button></div>
+      <div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">Export phrasebook</div><div class="settings-row-meta">Download phrasebook catalogs/cards JSON</div></div><button class="settings-icon-btn" onclick="exportPhrasebookData()">⬇</button></div>
+      <div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">Import phrasebook</div><div class="settings-row-meta">Restore phrasebook catalogs/cards JSON</div></div><button class="settings-icon-btn" onclick="importPhrasebookData()">⬆</button></div>
+      <div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">Export + Clear sessions</div><div class="settings-row-meta">Download sessions backup then clear sessions</div></div><button class="settings-icon-btn danger" onclick="exportThenClear()">⚠</button></div>
     </div>
 
     <div class="settings-group" style="border-bottom:none;">
@@ -633,6 +636,8 @@ textarea.field-input{resize:none;}
 </div>
 
 </div><!-- #app -->
+
+<input id="settings-import-file" type="file" accept="application/json" style="display:none" onchange="handleImportFile(event)">
 
 <!-- OVERLAYS -->
 <div class="overlay" id="clarify-req-overlay" hidden onclick="if(event.target===this)this.hidden=true">
@@ -1607,9 +1612,17 @@ function confirmCancel(){document.getElementById('confirm-overlay').hidden=true;
 function openSessionNote(cid){state.noteSessionId=cid;var notes=getSessionNotes();document.getElementById('session-note-text').value=notes[cid]||'';document.getElementById('session-note-overlay').hidden=false;}
 function closeSessionNote(){document.getElementById('session-note-overlay').hidden=true;}
 function saveSessionNote(){if(!state.noteSessionId)return;var notes=getSessionNotes();notes[state.noteSessionId]=(document.getElementById('session-note-text').value||'').trim();saveSessionNotes(notes);closeSessionNote();toast('Note saved');}
-function exportData(){var payload={sessions:getAllSessions(),order:getSessionOrder(),recycled:getRecycled(),notes:getSessionNotes(),cards:getCards(),catalogs:getCatalogs(),tags:getTags(),prefs:getPrefs(),exportedAt:Date.now()};var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='talk-say-export-'+Date.now()+'.json';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},0);toast('Exported');}
-function clearDataOnly(){if(!confirm('Clear local sessions and phrasebook?'))return;var keys=[];for(var i=0;i<localStorage.length;i++)keys.push(localStorage.key(i));keys.forEach(function(k){if(k&&k.indexOf('ts3_')===0)localStorage.removeItem(k);if(k&&k.indexOf('say3_')===0)localStorage.removeItem(k);});location.reload();}
-function exportThenClear(){exportData();setTimeout(clearDataOnly,120);}
+function downloadJSON(payload,filePrefix){var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filePrefix+'-'+Date.now()+'.json';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},0);}
+function exportSessionsData(){downloadJSON({type:'sessions',sessions:getAllSessions(),order:getSessionOrder(),recycled:getRecycled(),notes:getSessionNotes(),exportedAt:Date.now()},'talk-say-sessions-export');toast('Sessions exported');}
+function exportPhrasebookData(){downloadJSON({type:'phrasebook',cards:getCards(),catalogs:getCatalogs(),tags:getTags(),exportedAt:Date.now()},'talk-say-phrasebook-export');toast('Phrasebook exported');}
+function openImportPicker(kind){var input=document.getElementById('settings-import-file');if(!input)return;input.dataset.kind=kind;input.value='';input.click();}
+function importSessionsData(){openImportPicker('sessions');}
+function importPhrasebookData(){openImportPicker('phrasebook');}
+function handleImportFile(event){var input=event&&event.target;var file=input&&input.files&&input.files[0];if(!file)return;var kind=(input.dataset&&input.dataset.kind)||'';var reader=new FileReader();reader.onload=function(){try{var payload=JSON.parse(String(reader.result||'{}'));if(kind==='sessions')applySessionsImport(payload);else if(kind==='phrasebook')applyPhrasebookImport(payload);else toast('Unknown import type');}catch(_){toast('Invalid JSON file');}};reader.onerror=function(){toast('Import failed');};reader.readAsText(file);}
+function applySessionsImport(payload){if(!payload||typeof payload!=='object'){toast('Invalid sessions file');return;}saveSessions(Array.isArray(payload.sessions)?payload.sessions:[]);saveSessionOrder(Array.isArray(payload.order)?payload.order:[]);saveRecycled(Array.isArray(payload.recycled)?payload.recycled:[]);saveSessionNotes(payload.notes&&typeof payload.notes==='object'?payload.notes:{});state.activeConvId='';lsW(SK.activeConv,'');renderSessions();var sessions=getAllSessions();if(sessions.length)openSession(sessions[0].convId);else renderMessages();toast('Sessions imported');}
+function applyPhrasebookImport(payload){if(!payload||typeof payload!=='object'){toast('Invalid phrasebook file');return;}saveCards(Array.isArray(payload.cards)?payload.cards:[]);saveCatalogs(Array.isArray(payload.catalogs)?payload.catalogs:[]);saveTags(Array.isArray(payload.tags)?payload.tags:[]);renderSayHome();if(state.currentCatId)renderCatalogCards();toast('Phrasebook imported');}
+function clearDataOnly(){if(!confirm('Clear local sessions only?'))return;var keys=[];for(var i=0;i<localStorage.length;i++)keys.push(localStorage.key(i));keys.forEach(function(k){if(k&&k.indexOf('ts3_')===0)localStorage.removeItem(k);});location.reload();}
+function exportThenClear(){exportSessionsData();setTimeout(clearDataOnly,120);}
 
 // Seed
 function seedStarterData(){if(getCatalogs().length||getCards().length)return;var catId='cat-th';saveCatalogs([{id:catId,name:'Thailand Travel',emoji:'🇹🇭',desc:'Essential phrases',createdAt:Date.now()}]);var starter=[{source:'Hello',target:'สวัสดี'},{source:'Thank you',target:'ขอบคุณ'},{source:'How much?',target:'เท่าไหร่?'},{source:'Where is the bathroom?',target:'ห้องน้ำอยู่ที่ไหน?'},{source:"I don't understand",target:'ฉันไม่เข้าใจ'}];saveCards(starter.map(function(p,i){return normalizeCard({id:'s'+i,catalogIds:[catId],sourceLang:'en',targetLang:'th',source:p.source,target:p.target,notes:'',tags:['essential'],backtranslate:{result:'',verdict:'',updatedAt:Date.now()},clarifyChain:[],createdAt:Date.now()-i*1000,updatedAt:Date.now()});}));}
