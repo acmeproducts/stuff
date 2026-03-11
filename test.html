@@ -915,43 +915,22 @@ function fallbackCopy(t){var ta=document.createElement('textarea');ta.value=t;ta
 function scrollBottom(){var c=document.getElementById('messages');if(c)c.scrollTop=c.scrollHeight;}
 function populateLangSelect(id,def){var sel=document.getElementById(id);if(!sel)return;sel.innerHTML='';LANGS.forEach(function(l){var o=document.createElement('option');o.value=l.code;o.textContent=l.label;if(l.code===def)o.selected=true;sel.appendChild(o);});}
 
-// ════════════════════ BLOB WORKER TRANSPORT (Phase 2) ════════════════════
-// Worker source as a plain string — NO template literals to avoid interpolation bugs
-var WORKER_SRC=[
-"'use strict';",
-"var ws=null,convId=null,participant=null,deviceId=null;",
-"var rcTimer=null,rcAttempts=0,outQ=[],seq=0;",
-"var RB=1200,RM=20000,JIT=0.3,lastRx=Date.now();",
-"var WSURL='"+RELAY_WS_URL+"';",
-"function pm(t,d){self.postMessage(Object.assign({type:t},d||{}));}",
-"function connect(){",
-"  if(ws&&(ws.readyState===0||ws.readyState===1))return;",
-"  if(rcTimer){clearTimeout(rcTimer);rcTimer=null;}",
-"  var url=WSURL+'?session='+encodeURIComponent(convId)+'&client='+encodeURIComponent(deviceId);",
-"  pm('state',{state:'connecting'});",
-"  try{ws=new WebSocket(url);}catch(e){scheRc();return;}",
-"  var ref=ws;",
-"  var ct=setTimeout(function(){if(ws===ref&&ws.readyState===0)ws.close(4001,'timeout');},8000);",
-"  ws.onopen=function(){if(ws!==ref)return;clearTimeout(ct);lastRx=Date.now();rcAttempts=0;pm('state',{state:'connected'});flushQ();};",
-"  ws.onmessage=function(e){if(ws!==ref)return;lastRx=Date.now();try{var m=JSON.parse(e.data);if(m.seq)seq=Math.max(seq,m.seq);pm('event',{event:m});}catch(_){}};",
-"  ws.onclose=function(){if(ws!==ref)return;ws=null;pm('state',{state:'reconnecting'});scheRc();};",
-"  ws.onerror=function(){if(ws===ref&&ws)ws.close();};",
-"}",
-"function disconnect(){if(ws)try{ws.close();}catch(_){}ws=null;if(rcTimer){clearTimeout(rcTimer);rcTimer=null;}}",
-"function send(ev){var m=Object.assign({},ev,{session:convId,from:deviceId,participant:participant,ts:Date.now(),seq:++seq});if(ws&&ws.readyState===1){ws.send(JSON.stringify(m));return true;}outQ.push(m);return false;}",
-"function flushQ(){if(!ws||ws.readyState!==1)return;var q=outQ.slice();outQ=[];for(var i=0;i<q.length;i++){try{ws.send(JSON.stringify(q[i]));}catch(_){outQ.push(q[i]);}}}",
-"function scheRc(){if(rcTimer)return;rcAttempts++;var j=1+(Math.random()*2-1)*JIT;var b=Math.min(RM,RB*Math.pow(2,rcAttempts-1));rcTimer=setTimeout(function(){rcTimer=null;connect();},Math.round(b*j));}",
-"self.onmessage=function(e){var d=e.data;if(d.cmd==='connect'){convId=d.convId;participant=d.participant;deviceId=d.deviceId;connect();}else if(d.cmd==='send'){send(d.event);}else if(d.cmd==='disconnect'){disconnect();}else if(d.cmd==='reconnect'){rcAttempts=0;disconnect();connect();}};"
-].join('\n');
-
-var relayWorker=null;
-var relayWorkerUrl=null;
+// ════════════════════ DIRECT WEBSOCKET TRANSPORT ════════════════════
+var ws=null;
+var connectedConvId=null;
+var intentionalClose=false;
+var rcTimer=null;
+var rcAttempts=0;
+var outQ=[];
+var msgSeq=0;
 var socketState='closed';
 var transportHandlers=[];
 var peerState={connected:false,lastSeenAt:0};
 var helloTimer=null;
 var PEER_STALE_MS=45000;
+var SESSION_DEBUG=false;
 
+function dbg(){if(SESSION_DEBUG)console.log.apply(console,['[relay]'].concat(Array.prototype.slice.call(arguments)));}
 function setSocketState(s){socketState=s;if(s!=='open'){peerState.connected=false;}updateDot();}
 function markPeerSeen(){peerState.connected=true;peerState.lastSeenAt=Date.now();updateDot();}
 function peerIsFresh(){return peerState.connected&&(Date.now()-peerState.lastSeenAt)<PEER_STALE_MS;}
@@ -989,36 +968,109 @@ function startHelloLoop(){
 }
 function stopHelloLoop(){if(helloTimer){clearInterval(helloTimer);helloTimer=null;}}
 
-function cleanupRelayWorker(){
-  if(relayWorker){try{relayWorker.terminate();}catch(_){} relayWorker=null;}
-  if(relayWorkerUrl){try{URL.revokeObjectURL(relayWorkerUrl);}catch(_){} relayWorkerUrl=null;}
-}
-
 function transportConnect(convId,participant){
-  cleanupRelayWorker();
-  var blob=new Blob([WORKER_SRC],{type:'text/javascript'});
-  relayWorkerUrl=URL.createObjectURL(blob);
-  relayWorker=new Worker(relayWorkerUrl);
-  relayWorker.onmessage=function(e){
-    var d=e.data;
-    if(d.type==='state'){
-      if(d.state==='connected'){setSocketState('open');startHelloLoop();var sess=getSession(state.activeConvId);sendInitialHello(sess);}
-      else if(d.state==='connecting'){setSocketState('connecting');}
-      else if(d.state==='reconnecting'){setSocketState('reconnecting');}
-      else {setSocketState('closed');}
-    }
-    else if(d.type==='event'){transportHandlers.forEach(function(h){h(d.event);});}
-  };
-  relayWorker.postMessage({cmd:'connect',convId:convId,participant:participant,deviceId:DEVICE_ID});
+  transportDisconnect();
+  connectedConvId=convId;
+  intentionalClose=false;
+  var url=RELAY_WS_URL+'?session='+encodeURIComponent(convId)+'&client='+encodeURIComponent(DEVICE_ID);
   setSocketState('connecting');
+  dbg('connecting to',convId,'participant',participant);
+  try{ws=new WebSocket(url);}catch(e){dbg('ws create failed',e);scheduleReconnect();return;}
+  var ref=ws;
+  var connectTimeout=setTimeout(function(){
+    if(ws===ref&&ws.readyState===0){
+      dbg('connect timeout after 8s');
+      ws.close(4001,'timeout');
+    }
+  },8000);
+  ws.onopen=function(){
+    if(ws!==ref)return;
+    clearTimeout(connectTimeout);
+    if(rcTimer){clearTimeout(rcTimer);rcTimer=null;}
+    rcAttempts=0;
+    setSocketState('open');
+    dbg('connected, session='+connectedConvId);
+    startHelloLoop();
+    var sess=getSession(connectedConvId);
+    sendInitialHello(sess);
+    flushOutQueue();
+  };
+  ws.onmessage=function(e){
+    if(ws!==ref)return;
+    try{
+      var m=JSON.parse(e.data);
+      if(m.seq)msgSeq=Math.max(msgSeq,m.seq);
+      dbg('rx',m.type,m.from?m.from.slice(0,8):'?');
+      transportHandlers.forEach(function(h){h(m);});
+    }catch(_){dbg('parse error',e.data);}
+  };
+  ws.onclose=function(e){
+    if(ws!==ref)return;
+    ws=null;
+    dbg('closed',e.code,e.reason,intentionalClose?'(intentional)':'');
+    if(intentionalClose){setSocketState('closed');return;}
+    setSocketState('reconnecting');
+    scheduleReconnect();
+  };
+  ws.onerror=function(){
+    dbg('ws error');
+    if(ws===ref&&ws)ws.close();
+  };
 }
-function transportSend(ev){if(!relayWorker)return false;relayWorker.postMessage({cmd:'send',event:ev});return socketState==='open';}
-function transportDisconnect(){if(relayWorker)relayWorker.postMessage({cmd:'disconnect'});cleanupRelayWorker();stopHelloLoop();peerState.connected=false;setSocketState('closed');updateDot();}
+function transportSend(ev){
+  if(!connectedConvId)return false;
+  var m=Object.assign({},ev,{session:connectedConvId,from:DEVICE_ID,participant:PART_ID,ts:Date.now(),seq:++msgSeq});
+  if(ws&&ws.readyState===1){ws.send(JSON.stringify(m));dbg('tx',m.type);return true;}
+  outQ.push(m);
+  dbg('queued',m.type,'outQ='+outQ.length);
+  return false;
+}
+function flushOutQueue(){
+  if(!ws||ws.readyState!==1)return;
+  var q=outQ.slice();
+  outQ=[];
+  for(var i=0;i<q.length;i++){
+    try{ws.send(JSON.stringify(q[i]));}catch(_){outQ.push(q[i]);}
+  }
+  if(q.length)dbg('flushed',q.length,'queued messages');
+}
+function transportDisconnect(){
+  intentionalClose=true;
+  if(ws){try{ws.close();}catch(_){}ws=null;}
+  if(rcTimer){clearTimeout(rcTimer);rcTimer=null;}
+  outQ=[];
+  connectedConvId=null;
+  stopHelloLoop();
+  peerState.connected=false;
+  setSocketState('closed');
+  updateDot();
+  dbg('disconnected (intentional)');
+}
+function scheduleReconnect(){
+  if(rcTimer)return;
+  if(!connectedConvId){dbg('no session to reconnect to');return;}
+  rcAttempts++;
+  var jitter=1+(Math.random()*2-1)*0.3;
+  var backoff=Math.min(15000,1200*Math.pow(2,rcAttempts-1));
+  var delay=Math.round(backoff*jitter);
+  var targetSession=connectedConvId;
+  dbg('reconnect in',delay+'ms','attempt',rcAttempts,'session='+targetSession);
+  rcTimer=setTimeout(function(){
+    rcTimer=null;
+    if(state.activeConvId===targetSession){
+      intentionalClose=false;
+      transportConnect(targetSession,PART_ID);
+    }else{
+      dbg('session changed during backoff, abandoning reconnect to',targetSession);
+    }
+  },delay);
+}
 function forceReconnect(){
   if(!state.activeConvId){toast('No active session');return;}
-  if(socketState==='connecting'||socketState==='reconnecting'||socketState==='open')return;
-  if(relayWorker)relayWorker.postMessage({cmd:'reconnect'});
-  else transportConnect(state.activeConvId,PART_ID);
+  dbg('force reconnect requested');
+  rcAttempts=0;
+  transportDisconnect();
+  transportConnect(state.activeConvId,PART_ID);
   toast('Reconnecting…');
 }
 function onTransportEvent(h){transportHandlers.push(h);}
@@ -1081,7 +1133,6 @@ function openSession(cid){
   document.getElementById('shell-partner-name').textContent=sess.title||sess.names.themAlias||sess.partnerName||'new chat';
   updateAutoReadBtn();
   transportConnect(cid,PART_ID);
-  sendInitialHello(sess);
   renderAllMessages();scrollBottom();
   showScreen('chat-screen');
 }
