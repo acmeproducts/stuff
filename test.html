@@ -805,12 +805,25 @@ function saveTags(t){lsW(SAY.tags,JSON.stringify([].concat(Array.from(new Set(t)
 function addTagToRegistry(t){var tags=getTags();if(tags.indexOf(t)<0){tags.push(t);saveTags(tags);}}
 function getPrefs(){return lsJSON(SK.prefs,{userName:'yournamehere',myLang:'en',partnerLang:'th',autoSpeakIncoming:false,autoDetectLang:true,theme:'default',accentColor:'#2E8B8B',bubbleWidth:75,bubbleFontSize:15});}
 function savePrefs(p){lsW(SK.prefs,JSON.stringify(p));}
+function isPlaceholderName(name){
+  var v=(name||'').trim().toLowerCase();
+  return !v||v==='new chat'||v==='partner';
+}
+function firstRealName(){
+  for(var i=0;i<arguments.length;i++){
+    var v=(arguments[i]||'').trim();
+    if(v&&!isPlaceholderName(v))return v;
+  }
+  return '';
+}
 function ensureSessionNames(sess){
   if(!sess)return {meAlias:'yournamehere',themAlias:'Partner',version:1};
   var p=getPrefs();
   if(!sess.names||typeof sess.names!=='object')sess.names={};
   if(typeof sess.names.meAlias!=='string'||!sess.names.meAlias.trim())sess.names.meAlias=sess.myName||p.userName||'yournamehere';
-  if(typeof sess.names.themAlias!=='string'||!sess.names.themAlias.trim())sess.names.themAlias=sess.partnerName||sess.title||'new chat';
+  var preferredThem=firstRealName(sess.names.themAlias,sess.partnerName,sess.title);
+  if(preferredThem)sess.names.themAlias=preferredThem;
+  else if(typeof sess.names.themAlias!=='string'||!sess.names.themAlias.trim())sess.names.themAlias='new chat';
   if(typeof sess.names.version!=='number'||!isFinite(sess.names.version)||sess.names.version<1)sess.names.version=1;
   sess.myName=sess.names.meAlias;
   sess.partnerName=sess.names.themAlias;
@@ -926,7 +939,7 @@ var transportHandlers=[];
 var presenceTimer=null;
 var peerWatchTimer=null;
 var lastPeerSeenAt=0;
-var PEER_TIMEOUT_MS=30000;
+var PEER_TIMEOUT_MS=300000;
 var PRESENCE_INTERVAL_MS=10000;
 
 function syncTransportState(){transportState=(socketState==='open'?'connected':(socketState==='connecting'||socketState==='reconnecting'?'connecting':'disconnected'));}
@@ -934,8 +947,8 @@ function setSocketState(s){socketState=s;syncTransportState();updateDot();}
 function setSessionState(s){sessionState=s;updateDot();}
 function markPeerSeen(){lastPeerSeenAt=Date.now();updateDot();}
 function isPeerHealthy(){return !!lastPeerSeenAt&&(Date.now()-lastPeerSeenAt)<=PEER_TIMEOUT_MS;}
-function isSessionHealthy(){return socketState==='open'&&sessionState==='joined'&&isPeerHealthy();}
-function sendJoin(){if(!state.activeConvId)return;setSessionState('joining');transportSend({type:'join',session:state.activeConvId});}
+function isSessionHealthy(){return socketState==='open';}
+function sendJoin(){if(!state.activeConvId)return;transportSend({type:'join',session:state.activeConvId});}
 function sendInitialHelloPresence(sess){
   if(!state.activeConvId||!sess)return;
   transportSend({type:'hello',name:sess.myName||getPrefs().userName||'yournamehere',lang:sess.myLang||getPrefs().myLang||'en'});
@@ -944,12 +957,14 @@ function sendInitialHelloPresence(sess){
 function upsertPartnerFromEnvelope(sess,d){
   if(!sess||!d)return;
   var names=ensureSessionNames(sess);
-  var partnerName=d.name||sess.partnerName||sess.names.themAlias||'Partner';
+  var partnerName=firstRealName(d.name,sess.partnerName,names.themAlias,sess.title);
+  if(partnerName){
+    sess.partnerName=partnerName;
+    names.themAlias=partnerName;
+    sess.title=partnerName;
+  }
   var partnerLang=d.lang||sess.partnerLang||getPrefs().partnerLang||'th';
-  sess.partnerName=partnerName;
-  if(!names.themAlias||names.themAlias==='new chat'||names.themAlias==='Partner')names.themAlias=partnerName;
   sess.partnerLang=partnerLang;
-  if(sess.title==='new chat'&&partnerName)sess.title=partnerName;
   putSession(sess);
   if(state.activeConvId===sess.convId){
     document.getElementById('shell-partner-name').textContent=sess.title||sess.names.themAlias||sess.partnerName||'new chat';
@@ -975,7 +990,7 @@ function transportConnect(convId,participant){
   relayWorker.onmessage=function(e){
     var d=e.data;
     if(d.type==='state'){
-      if(d.state==='connected'){setSocketState('open');setSessionState('joining');sendJoin();startPresence();}
+      if(d.state==='connected'){setSocketState('open');setSessionState('joined');sendJoin();startPresence();}
       else if(d.state==='connecting'){setSocketState('connecting');setSessionState('joining');}
       else if(d.state==='reconnecting'){setSocketState('reconnecting');setSessionState('joining');lastPeerSeenAt=0;stopPresence();}
       else {setSocketState('closed');setSessionState('idle');stopPresence();lastPeerSeenAt=0;}
@@ -990,8 +1005,7 @@ function transportSend(ev){if(!relayWorker)return false;relayWorker.postMessage(
 function transportDisconnect(){if(relayWorker)relayWorker.postMessage({cmd:'disconnect'});cleanupRelayWorker();stopPresence();setSocketState('closed');setSessionState('idle');lastPeerSeenAt=0;updateDot();}
 function forceReconnect(){
   if(!state.activeConvId){toast('No active session');return;}
-  if(socketState==='connecting'||socketState==='reconnecting')return;
-  if(relayWorker&&socketState!=='closed'){return;}
+  if(socketState==='connecting'||socketState==='reconnecting'||socketState==='open')return;
   if(relayWorker)relayWorker.postMessage({cmd:'reconnect'});
   else transportConnect(state.activeConvId,PART_ID);
   setSessionState('joining');
@@ -1007,7 +1021,7 @@ function updateDot(){
   if(!navigator.onLine){dot.classList.add('gray');dot.title='Offline';return;}
   if(socketState==='open'){
     dot.classList.add('green');
-    dot.title=(sessionState==='joined')?'Connected':'Connected (waiting for peer)';
+    dot.title='Connected';
     return;
   }
   if(socketState==='connecting'||socketState==='reconnecting'){dot.classList.add('yellow');dot.title='Connecting…';}
@@ -1168,9 +1182,14 @@ function buildInvitePayload(sess,prefs){
 }
 function hydrateSessionFromInvite(sess,invite){
   if(!sess||!invite)return sess;
-  if(!sess.partnerName&&invite.initiatorGlobalName)sess.partnerName=invite.initiatorGlobalName;
+  ensureSessionNames(sess);
+  var inviteName=firstRealName(invite.initiatorGlobalName);
+  if(inviteName){
+    sess.partnerName=inviteName;
+    sess.title=inviteName;
+    sess.names.themAlias=inviteName;
+  }
   if(!sess.partnerLang&&invite.initiatorLang)sess.partnerLang=invite.initiatorLang;
-  if(sess.title==='new chat'&&invite.initiatorGlobalName)sess.title=invite.initiatorGlobalName;
   sess.inviterDeviceId=sess.inviterDeviceId||invite.initiatorDeviceId;
   sess.inviteCreatedAt=sess.inviteCreatedAt||invite.createdAt;
   return sess;
@@ -1251,7 +1270,7 @@ function handleRelayEvent(d){
   var sess=getSession(state.activeConvId);if(!sess)return;
   if(d.session&&d.session!==state.activeConvId)return;
     if(d.type==='join'&&d.from!==DEVICE_ID){markPeerSeen();transportSend({type:'join-ack'});return;}
-  if(d.type==='join-ack'&&d.from!==DEVICE_ID){setSessionState('joined');markPeerSeen();transportSend({type:'presence'});return;}
+  if(d.type==='join-ack'&&d.from!==DEVICE_ID){markPeerSeen();transportSend({type:'presence'});return;}
   if(d.type==='ping'&&d.from!==DEVICE_ID){transportSend({type:'pong'});markPeerSeen();return;}
   if(d.type==='pong'&&d.from!==DEVICE_ID){markPeerSeen();return;}
   if(d.type==='presence'&&d.from!==DEVICE_ID){markPeerSeen();transportSend({type:'presence-ack'});return;}
