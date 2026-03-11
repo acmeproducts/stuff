@@ -942,6 +942,7 @@ var connectedConvId=null;
 var intentionalClose=false;
 var rcTimer=null;
 var rcAttempts=0;
+var rcStrategy='fast';
 var outQ=[];
 var msgSeq=0;
 var socketState='closed';
@@ -1029,6 +1030,9 @@ function transportConnect(convId,participant){
     ws=null;
     dbg('closed',e.code,e.reason,intentionalClose?'(intentional)':'');
     if(intentionalClose){setSocketState('closed');return;}
+    var reason=(e.reason||'').toLowerCase();
+    var isSlowClose=e.code===1008||e.code===1013||e.code===4401||e.code===4403||/auth|token|forbidden|throttle|rate/.test(reason);
+    rcStrategy=isSlowClose?'slow':'fast';
     setSocketState('reconnecting');
     scheduleReconnect();
   };
@@ -1070,11 +1074,23 @@ function scheduleReconnect(){
   if(rcTimer)return;
   if(!connectedConvId){dbg('no session to reconnect to');return;}
   rcAttempts++;
-  var jitter=1+(Math.random()*2-1)*0.3;
-  var backoff=Math.min(15000,1200*Math.pow(2,rcAttempts-1));
-  var delay=Math.round(backoff*jitter);
+  var delay=0;
+  if(rcStrategy==='slow'){
+    var slowBackoff=Math.min(30000,2000*Math.pow(2,rcAttempts-1));
+    if(rcAttempts===1)delay=slowBackoff;
+    else delay=Math.round(slowBackoff*(1+(Math.random()*2-1)*0.3));
+  }else if(rcAttempts===1){
+    delay=Math.round(Math.random()*100);
+  }else if(rcAttempts===2){
+    delay=250;
+  }else if(rcAttempts===3){
+    delay=500;
+  }else{
+    var backoff=Math.min(15000,1000*Math.pow(2,rcAttempts-4));
+    delay=Math.round(backoff*(1+(Math.random()*2-1)*0.3));
+  }
   var targetSession=connectedConvId;
-  dbg('reconnect in',delay+'ms','attempt',rcAttempts,'session='+targetSession);
+  dbg('reconnect in',delay+'ms','attempt',rcAttempts,'strategy='+rcStrategy,'session='+targetSession);
   rcTimer=setTimeout(function(){
     rcTimer=null;
     if(state.activeConvId===targetSession){
