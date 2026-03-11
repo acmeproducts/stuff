@@ -189,6 +189,8 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     <button id="btnShare" class="btn icon-btn" title="Share" aria-label="Share">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.39 1.2l-6.71-3.35a3.1 3.1 0 0 0 0-1.7l6.7-3.35A3 3 0 1 0 15 7a3.1 3.1 0 0 0 .1.75l-6.7 3.35a3 3 0 1 0 0 1.8l6.7 3.35A3 3 0 1 0 18 16Z"/></svg>
     </button>
+    <button id="btnPullGitHub" class="btn" title="Pull board from GitHub">Pull</button>
+    <button id="btnPushGitHub" class="btn primary" title="Push board to GitHub">Push</button>
     <input id="fileImport" type="file" accept="application/json" class="hidden" aria-hidden="true" tabindex="-1" />
   </div>
   <div class="searchbar">
@@ -335,10 +337,13 @@ const BUILD = "2025-10-28";
 /* ===== Persistence ===== */
 const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
+const GITHUB_PAT_KEY = "github_pat";
+const GITHUB_SYNC_KEY = "ai_jobs_kanban_github_sync";
 const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
 let dirty=false, saveTimer=null;
+let githubToken = null;
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
-function persistNow(){ state.lastModified=Date.now(); const ok=trySave(STABLE_KEY, JSON.stringify(state)); triggerRealtimeDriveSync(); setStatus((ok? "Saved" : "Local save failed (likely storage limit)")+" • Build "+BUILD+" • "+new Date().toLocaleTimeString()); dirty=false; }
+function persistNow(){ state.lastModified=Date.now(); const ok=trySave(STABLE_KEY, JSON.stringify(state)); triggerRealtimeDriveSync(); setStatus(ok? "Saved" : "Local save failed (likely storage limit)"); dirty=false; }
 function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); }
 function loadState(){
   let raw = localStorage.getItem(STABLE_KEY);
@@ -367,6 +372,13 @@ state.archive = Array.isArray(state.archive)? state.archive : [];
 let tagHistory = loadTagHistory();
 const $ = s=>document.querySelector(s), $$ = s=>Array.from(document.querySelectorAll(s));
 function uid(){return Math.random().toString(36).slice(2,10)}
+function formatLastUpdated(ts){
+  const n=Number(ts||0);
+  if(!n) return "Never";
+  const d=new Date(n);
+  if(Number.isNaN(d.getTime())) return "Never";
+  return d.toLocaleString();
+}
 function fmtBytes(bytes){
   const n=Number(bytes);
   if(!Number.isFinite(n)||n<0) return "";
@@ -1188,7 +1200,119 @@ function hideTooltip(){ tooltip.style.display="none"; tooltip.setAttribute("aria
 /* ===== Helpers ===== */
 function fmtDate(ts){ if(!ts) return ""; const d=new Date(ts); const pad=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=> ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
-function setStatus(t){ document.getElementById("status").textContent=t; }
+function setStatus(t){
+  const detail=t? `${t} • ` : "";
+  document.getElementById("status").textContent=`${detail}Last updated: ${formatLastUpdated(state.lastModified)} • Build ${BUILD}`;
+}
+function b64EncodeUnicode(str){ return btoa(unescape(encodeURIComponent(str))); }
+function b64DecodeUnicode(b64){ return decodeURIComponent(escape(atob(b64))); }
+async function validateToken(token){
+  if(!token || !token.trim()) return false;
+  try{
+    const res=await fetch("https://api.github.com/user",{ headers:{ "Authorization":"token "+token.trim(), "Accept":"application/vnd.github.v3+json" } });
+    return res.ok;
+  }catch{ return false; }
+}
+function requestTokenInApp(message=""){
+  return new Promise((resolve)=>{
+    const existing=document.getElementById("tokenGate");
+    if(existing) existing.remove();
+    const gate=document.createElement("div");
+    gate.id="tokenGate";
+    gate.style.cssText="position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px;";
+    gate.innerHTML=`<div style="width:min(560px,100%);background:#1e1e1e;color:#f3f3f3;border:1px solid #3a3a3a;border-radius:14px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.45);font-family:Inter,system-ui,sans-serif;"><h2 style="margin:0 0 10px 0;font-size:18px;">GitHub Personal Access Token</h2><p style="margin:0 0 10px 0;font-size:13px;line-height:1.45;color:#d5d5d5;">Enter a token once. This app stores it in local storage and reuses it until GitHub rejects it.</p><p id="tokenGateMessage" style="margin:0 0 10px 0;font-size:12px;color:#ffb9b9;min-height:1em;">${message||""}</p><input id="tokenGateInput" type="password" autocomplete="off" placeholder="ghp_..." style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #4a4a4a;background:#121212;color:#f3f3f3;outline:none;"><div style="margin-top:12px;display:flex;justify-content:flex-end;gap:8px;"><button id="tokenGateSave" type="button" style="padding:9px 12px;border-radius:10px;border:1px solid #1f6feb;background:#238636;color:#fff;cursor:pointer;">Save & Continue</button></div></div>`;
+    document.body.appendChild(gate);
+    const input=gate.querySelector("#tokenGateInput");
+    const saveBtn=gate.querySelector("#tokenGateSave");
+    const messageEl=gate.querySelector("#tokenGateMessage");
+    input.focus();
+    const submit=()=>{
+      const value=input.value.trim();
+      if(!value){ messageEl.textContent="Token is required."; input.focus(); return; }
+      gate.remove();
+      resolve(value);
+    };
+    input.addEventListener("keydown",(e)=>{ if(e.key==="Enter") submit(); });
+    saveBtn.addEventListener("click",submit);
+  });
+}
+async function ensureGithubToken(){
+  if(githubToken && await validateToken(githubToken)) return githubToken;
+  const storedToken=localStorage.getItem(GITHUB_PAT_KEY);
+  if(storedToken && await validateToken(storedToken)){ githubToken=storedToken.trim(); return githubToken; }
+  if(storedToken) localStorage.removeItem(GITHUB_PAT_KEY);
+  let message=storedToken?"Saved token is no longer valid. Enter a new token.":"";
+  while(!githubToken){
+    const input=await requestTokenInApp(message);
+    if(await validateToken(input)){
+      githubToken=input.trim();
+      localStorage.setItem(GITHUB_PAT_KEY, githubToken);
+      return githubToken;
+    }
+    message="That token is invalid. Please try again.";
+  }
+  return githubToken;
+}
+function loadGitHubSyncConfig(){
+  try{ return JSON.parse(localStorage.getItem(GITHUB_SYNC_KEY)||"{}"); }catch{ return {}; }
+}
+function saveGitHubSyncConfig(cfg){ trySave(GITHUB_SYNC_KEY, JSON.stringify(cfg)); }
+function promptGitHubSyncConfig(){
+  const saved=loadGitHubSyncConfig();
+  const owner=(prompt("GitHub owner/user", saved.owner||"acmeproducts")||"").trim();
+  if(!owner) return null;
+  const repo=(prompt("Repository name", saved.repo||"stuff")||"").trim();
+  if(!repo) return null;
+  const path=(prompt("Path for kanban JSON", saved.path||"ai-jobs-kanban.json")||"").trim();
+  if(!path) return null;
+  const branch=(prompt("Branch", saved.branch||"main")||"").trim()||"main";
+  const cfg={owner,repo,path,branch};
+  saveGitHubSyncConfig(cfg);
+  return cfg;
+}
+async function githubFetch(url, options={}){
+  const token=await ensureGithubToken();
+  const headers={"Authorization":"token "+token,"Accept":"application/vnd.github.v3+json",...(options.headers||{})};
+  const res=await fetch(url,{...options,headers});
+  if(!res.ok) throw new Error(`GitHub API error (${res.status})`);
+  if(res.status===204) return null;
+  return res.json();
+}
+async function fetchGitHubBoard(cfg){
+  const url=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(cfg.path)}?ref=${encodeURIComponent(cfg.branch)}`;
+  const data=await githubFetch(url);
+  const text=b64DecodeUnicode((data.content||"").replace(/\n/g,""));
+  return { sha:data.sha, board:JSON.parse(text) };
+}
+async function pushBoardToGitHub(){
+  const cfg=promptGitHubSyncConfig();
+  if(!cfg) return;
+  setStatus("Pushing to GitHub…");
+  const payload={ message:`Update Kanban board (${new Date().toISOString()})`, content:b64EncodeUnicode(JSON.stringify(state,null,2)), branch:cfg.branch };
+  try{
+    try{ payload.sha=(await fetchGitHubBoard(cfg)).sha; }catch{}
+    const url=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(cfg.path)}`;
+    await githubFetch(url,{ method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
+    toast("Push successful","Board saved to GitHub");
+    setStatus(`Pushed to ${cfg.owner}/${cfg.repo}:${cfg.path}`);
+  }catch(err){
+    toast("Push failed", err.message||"GitHub push failed", true);
+    setStatus("GitHub push failed");
+  }
+}
+async function pullBoardFromGitHub(){
+  const cfg=promptGitHubSyncConfig();
+  if(!cfg) return;
+  setStatus("Pulling from GitHub…");
+  try{
+    const remote=await fetchGitHubBoard(cfg);
+    applyImportedBoard(remote.board, `GitHub (${cfg.owner}/${cfg.repo}:${cfg.path})`);
+    toast("Pull successful","Board loaded from GitHub");
+  }catch(err){
+    toast("Pull failed", err.message||"GitHub pull failed", true);
+    setStatus("GitHub pull failed");
+  }
+}
 function normalizeUrl(url){
   const val=String(url||"").trim();
   if(!val) return "";
@@ -1264,8 +1388,11 @@ window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
 (async ()=>{
   render();
   await bootstrapCentralizedBoard();
-  setStatus("Loaded • Build "+BUILD+" • "+new Date().toLocaleTimeString());
+  setStatus("Loaded");
 })();
+
+$("#btnPushGitHub").addEventListener("click", ()=>{ pushBoardToGitHub(); });
+$("#btnPullGitHub").addEventListener("click", ()=>{ pullBoardFromGitHub(); });
 </script>
 </body>
 </html>
