@@ -807,7 +807,7 @@ function getPrefs(){return lsJSON(SK.prefs,{userName:'yournamehere',myLang:'en',
 function savePrefs(p){lsW(SK.prefs,JSON.stringify(p));}
 function isPlaceholderName(name){
   var v=(name||'').trim().toLowerCase();
-  return !v||v==='new chat'||v==='partner';
+  return !v||v==='new chat'||v==='partner'||v==='yournamehere';
 }
 function firstRealName(){
   for(var i=0;i<arguments.length;i++){
@@ -957,7 +957,9 @@ function sendInitialHelloPresence(sess){
 function upsertPartnerFromEnvelope(sess,d){
   if(!sess||!d)return;
   var names=ensureSessionNames(sess);
-  var partnerName=firstRealName(d.name,sess.partnerName,names.themAlias,sess.title);
+  var lockedInviteName=firstRealName(sess.invitePartnerName,sess.partnerName,names.themAlias,sess.title);
+  var envelopeName=firstRealName(d.name);
+  var partnerName=firstRealName(envelopeName,lockedInviteName);
   if(partnerName){
     sess.partnerName=partnerName;
     names.themAlias=partnerName;
@@ -1188,6 +1190,7 @@ function hydrateSessionFromInvite(sess,invite){
     sess.partnerName=inviteName;
     sess.title=inviteName;
     sess.names.themAlias=inviteName;
+    sess.invitePartnerName=inviteName;
   }
   if(!sess.partnerLang&&invite.initiatorLang)sess.partnerLang=invite.initiatorLang;
   sess.inviterDeviceId=sess.inviterDeviceId||invite.initiatorDeviceId;
@@ -1487,13 +1490,11 @@ document.addEventListener('DOMContentLoaded',function(){
     var sess=getSession(invite.sessionId);
     if(!sess){
       sess={convId:invite.sessionId,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};
-      hydrateSessionFromInvite(sess,invite);
       putSession(sess);
       var order=getSessionOrder();order.unshift(invite.sessionId);saveSessionOrder(order);
-    }else if(!getMsgs(invite.sessionId).length){
-      hydrateSessionFromInvite(sess,invite);
-      putSession(sess);
     }
+    hydrateSessionFromInvite(sess,invite);
+    putSession(sess);
     openSession(invite.sessionId);
     return;
   }
