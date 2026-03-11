@@ -949,7 +949,12 @@ var socketState='closed';
 var transportHandlers=[];
 var peerState={connected:false,lastSeenAt:0};
 var helloTimer=null;
-var PEER_STALE_MS=45000;
+var hbTimer=null;
+var lastRxAt=0;
+var lastPongAt=0;
+var HEARTBEAT_MS=4000;
+var HEARTBEAT_TIMEOUT_MS=9000;
+var PEER_STALE_MS=12000;
 var SESSION_DEBUG=false;
 
 function dbg(){if(SESSION_DEBUG)console.log.apply(console,['[relay]'].concat(Array.prototype.slice.call(arguments)));}
@@ -957,6 +962,22 @@ function setSocketState(s){socketState=s;if(s!=='open'){peerState.connected=fals
 function markPeerSeen(){peerState.connected=true;peerState.lastSeenAt=Date.now();updateDot();}
 function peerIsFresh(){return peerState.connected&&(Date.now()-peerState.lastSeenAt)<PEER_STALE_MS;}
 function isSessionHealthy(){return socketState==='open'&&peerIsFresh();}
+function startHeartbeatLoop(){
+  if(hbTimer)clearInterval(hbTimer);
+  hbTimer=setInterval(function(){
+    if(!ws||ws.readyState!==1||socketState!=='open')return;
+    var now=Date.now();
+    var hb={type:'ping',session:connectedConvId,from:DEVICE_ID,participant:PART_ID,ts:now};
+    try{ws.send(JSON.stringify(hb));dbg('tx ping');}catch(_){return;}
+    var lastSignal=Math.max(lastPongAt,lastRxAt,peerState.lastSeenAt);
+    if(lastSignal&&now-lastSignal>HEARTBEAT_TIMEOUT_MS){
+      dbg('heartbeat timeout, closing stale socket');
+      ws.close(4002,'heartbeat-timeout');
+    }
+    updateDot();
+  },HEARTBEAT_MS);
+}
+function stopHeartbeatLoop(){if(hbTimer){clearInterval(hbTimer);hbTimer=null;}}
 function sendInitialHello(sess){
   if(!state.activeConvId||!sess)return;
   transportSend({type:'hello',name:sess.myName||getPrefs().userName||'yournamehere',lang:sess.myLang||getPrefs().myLang||'en'});
@@ -1010,16 +1031,30 @@ function transportConnect(convId,participant,opts){
     if(rcTimer){clearTimeout(rcTimer);rcTimer=null;}
     rcAttempts=0;
     setSocketState('open');
+    lastRxAt=Date.now();
+    lastPongAt=Date.now();
     dbg('connected, session='+connectedConvId);
     startHelloLoop();
+    startHeartbeatLoop();
     var sess=getSession(connectedConvId);
     sendInitialHello(sess);
     flushOutQueue();
   };
   ws.onmessage=function(e){
     if(ws!==ref)return;
+    lastRxAt=Date.now();
     try{
       var m=JSON.parse(e.data);
+      if(m.type==='ping'){
+        markPeerSeen();
+        try{ws.send(JSON.stringify({type:'pong',session:connectedConvId,from:DEVICE_ID,participant:PART_ID,ts:Date.now()}));dbg('tx pong');}catch(_){ }
+        return;
+      }
+      if(m.type==='pong'){
+        lastPongAt=Date.now();
+        markPeerSeen();
+        return;
+      }
       if(m.seq)msgSeq=Math.max(msgSeq,m.seq);
       dbg('rx',m.type,m.from?m.from.slice(0,8):'?');
       transportHandlers.forEach(function(h){h(m);});
@@ -1028,6 +1063,7 @@ function transportConnect(convId,participant,opts){
   ws.onclose=function(e){
     if(ws!==ref)return;
     ws=null;
+    stopHeartbeatLoop();
     dbg('closed',e.code,e.reason,intentionalClose?'(intentional)':'');
     if(intentionalClose){setSocketState('closed');return;}
     var reason=(e.reason||'').toLowerCase();
@@ -1074,6 +1110,9 @@ function transportDisconnect(opts){
   if(!opts.preserveQueue)outQ=[];
   connectedConvId=null;
   stopHelloLoop();
+  stopHeartbeatLoop();
+  lastRxAt=0;
+  lastPongAt=0;
   peerState.connected=false;
   setSocketState('closed');
   updateDot();
