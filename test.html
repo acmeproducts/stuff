@@ -831,6 +831,18 @@ textarea.field-input{resize:none;}
   </div></div>
 </div>
 
+<div class="overlay" id="cloud-fallback-overlay" hidden>
+  <div class="sheet"><div class="sheet-handle"></div><div class="sheet-body">
+    <div class="sheet-title">Cloud translation fallback</div>
+    <div style="font-size:13px;color:var(--ink-mid);line-height:1.55;">On-device translation is unavailable. Allow sending this message to cloud translation?</div>
+    <div class="sheet-btn-row">
+      <button class="sheet-btn secondary" onclick="chooseCloudFallback('deny')">Not approved</button>
+      <button class="sheet-btn secondary" onclick="chooseCloudFallback('once')">Approve once</button>
+      <button class="sheet-btn primary" onclick="chooseCloudFallback('always')">Approve fallback</button>
+    </div>
+  </div></div>
+</div>
+
 <div id="toast"></div>
 <script>
 'use strict';
@@ -911,7 +923,7 @@ function upsertCardLastWins(nextCard){var cards=getCards();var key=cardPairKey(n
 function getTags(){return lsJSON(SAY.tags,STARTER_TAGS.slice());}
 function saveTags(t){lsW(SAY.tags,JSON.stringify([].concat(Array.from(new Set(t))).sort()));}
 function addTagToRegistry(t){var tags=getTags();if(tags.indexOf(t)<0){tags.push(t);saveTags(tags);}}
-function getPrefs(){return lsJSON(SK.prefs,{userName:'yournamehere',myLang:'en',partnerLang:'th',autoSpeakIncoming:false,autoDetectLang:true,theme:'default',sourceTheme:'default',targetTheme:'default',accentColor:'#2E8B8B',targetAccentColor:'#2E8B8B',phrasebookAccentColor:'#2E8B8B',bubbleWidth:75,bubbleFontSize:15,targetBubbleFontSize:15});}
+function getPrefs(){return lsJSON(SK.prefs,{userName:'yournamehere',myLang:'en',partnerLang:'th',autoSpeakIncoming:false,autoDetectLang:true,cloudFallbackConsent:'ask',theme:'default',sourceTheme:'default',targetTheme:'default',accentColor:'#2E8B8B',targetAccentColor:'#2E8B8B',phrasebookAccentColor:'#2E8B8B',bubbleWidth:75,bubbleFontSize:15,targetBubbleFontSize:15});}
 function savePrefs(p){lsW(SK.prefs,JSON.stringify(p));}
 function isPlaceholderName(name){
   var v=(name||'').trim().toLowerCase();
@@ -1462,6 +1474,36 @@ function copyShareLink(){var el=document.getElementById('share-link-text');var u
 
 // ════════════════════ TRANSLATION ════════════════════
 var trCache=new Map();
+var cloudFallbackResolver=null;
+function chooseCloudFallback(choice){
+  var ov=document.getElementById('cloud-fallback-overlay');
+  if(ov)ov.hidden=true;
+  if(cloudFallbackResolver){
+    var done=cloudFallbackResolver;
+    cloudFallbackResolver=null;
+    done(choice);
+  }
+}
+function requestCloudFallbackApproval(){
+  var p=getPrefs();
+  if(p.cloudFallbackConsent==='always')return Promise.resolve(true);
+  return new Promise(function(resolve){
+    var ov=document.getElementById('cloud-fallback-overlay');
+    if(!ov){resolve(false);return;}
+    cloudFallbackResolver=function(choice){
+      if(choice==='always'){
+        var prefs=getPrefs();
+        prefs.cloudFallbackConsent='always';
+        savePrefs(prefs);
+        toast('Cloud fallback approved');
+        resolve(true);
+        return;
+      }
+      resolve(choice==='once');
+    };
+    ov.hidden=false;
+  });
+}
 function translate(text,from,to){
   if(!text||!text.trim()||from===to)return Promise.resolve(text);
   var key=from+'|'+to+'|'+text;
@@ -1479,9 +1521,12 @@ function translate(text,from,to){
   return p.then(function(result){
     if(result){trCache.set(key,result);return result;}
     // Fallback: MyMemory
-    return fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+from+'|'+to).then(function(r){return r.json();}).then(function(data){
-      if(data.responseStatus===200&&data.responseData&&data.responseData.translatedText){var t=data.responseData.translatedText;if(t.indexOf('MYMEMORY')>=0)return null;tEngine='cloud';trCache.set(key,t);return t;}return null;
-    }).catch(function(){return null;});
+    return requestCloudFallbackApproval().then(function(allowed){
+      if(!allowed)return null;
+      return fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+from+'|'+to).then(function(r){return r.json();}).then(function(data){
+        if(data.responseStatus===200&&data.responseData&&data.responseData.translatedText){var t=data.responseData.translatedText;if(t.indexOf('MYMEMORY')>=0)return null;tEngine='cloud';trCache.set(key,t);return t;}return null;
+      }).catch(function(){return null;});
+    });
   });
 }
 
