@@ -2304,8 +2304,16 @@
                             return;
                         }
                         entry.translations[target] = translated;
+                        entry.updatedAt = Date.now();
                         saveChatHistory(chatHistory);
                         node.innerHTML = renderMarkdown(translated);
+                        sendRelayMessage({
+                            type: 'translation',
+                            id: entry.id,
+                            target,
+                            text: translated,
+                            ts: entry.updatedAt
+                        });
                     };
 
                     if (langA === langB) {
@@ -2490,6 +2498,17 @@
                 if (document.hasFocus() && isChatAtBottom()) {
                     markMessagesRead();
                 }
+                return;
+            }
+            if (message.type === 'translation') {
+                if (!message.id || !message.target || typeof message.text !== 'string') return;
+                const entry = chatHistory.find(item => item.id === message.id);
+                if (!entry || entry.deleted) return;
+                entry.translations = entry.translations || {};
+                entry.translations[message.target] = message.text;
+                entry.updatedAt = Math.max(entry.updatedAt || 0, message.ts || now);
+                saveChatHistory(chatHistory);
+                renderChat();
                 return;
             }
             if (message.type === 'read') {
@@ -2736,6 +2755,15 @@
             return mergedReads;
         }
 
+        function mergeTranslations(currentTranslations = {}, incomingTranslations = {}) {
+            const mergedTranslations = { ...currentTranslations };
+            Object.entries(incomingTranslations || {}).forEach(([langCode, translatedText]) => {
+                if (!langCode || typeof translatedText !== 'string' || !translatedText.trim()) return;
+                mergedTranslations[langCode] = translatedText;
+            });
+            return mergedTranslations;
+        }
+
         function mergeChatEntry(current, incoming) {
             let changed = false;
             const currentUpdated = Math.max(current.updatedAt || 0, current.ts || 0);
@@ -2745,7 +2773,7 @@
                 merged.name = incoming.name || merged.name;
                 merged.message = incoming.message || merged.message;
                 merged.attachments = Array.isArray(incoming.attachments) ? incoming.attachments : merged.attachments;
-                merged.translations = incoming.translations || merged.translations;
+                merged.translations = mergeTranslations(merged.translations, incoming.translations);
                 merged.deleted = incoming.deleted || merged.deleted;
                 merged.replyTo = incoming.replyTo || merged.replyTo;
                 merged.style = incoming.style || merged.style;
