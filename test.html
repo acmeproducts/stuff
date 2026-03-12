@@ -911,6 +911,7 @@ function getSession(cid){return getAllSessions().find(function(s){return s.convI
 function putSession(sess){if(!sess)return;var ss=getAllSessions();var idx=ss.findIndex(function(s){return s.convId===sess.convId;});if(idx>=0)ss[idx]=sess;else ss.unshift(sess);saveSessions(ss);setActiveConvId(sess.convId);}
 function getMsgs(cid){return lsJSON('ts3_m_'+cid,[]);}
 function saveMsgs(cid,m){lsW('ts3_m_'+cid,JSON.stringify((m||[]).slice(-300)));}
+function getMsgTranslatedText(msg,targetLang,fallback){var map=ensureMsgTranslations(msg);if(targetLang&&typeof map[targetLang]==='string'&&map[targetLang].trim())return map[targetLang];return fallback||'';}
 function deleteSessData(cid){lsDel('ts3_m_'+cid);}
 function markViewed(cid){var ss=getAllSessions();var s=ss.find(function(x){return x.convId===cid;});if(s){s.lastViewedAt=Date.now();saveSessions(ss);}}
 function getCatalogs(){return lsJSON(SAY.catalogs,[]);}
@@ -1013,6 +1014,9 @@ function fmtTime(t){return new Date(t).toLocaleTimeString([],{hour:'2-digit',min
 function fmtDateTime(t){if(!t)return'';return new Date(t).toLocaleString([],{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});}
 function langLabel(c){return LANG_MAP[c]||c||'?';}
 function findMsg(id){return state.messages.find(function(m){return m.id===id;});}
+function ensureMsgTranslations(msg){if(!msg||typeof msg!=='object')return{};if(!msg.translations||typeof msg.translations!=='object')msg.translations={};return msg.translations;}
+function setMsgTranslation(msg,targetLang,text){if(!msg||!targetLang||typeof text!=='string'||!text.trim())return false;var map=ensureMsgTranslations(msg);if(map[targetLang]===text)return false;map[targetLang]=text;return true;}
+function mergeMsgTranslations(msg,incoming){if(!msg||!incoming||typeof incoming!=='object')return false;var changed=false;Object.keys(incoming).forEach(function(lang){if(setMsgTranslation(msg,lang,incoming[lang]))changed=true;});return changed;}
 function normalizeTag(s){return s.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'').slice(0,24);}
 function detectLang(text,fb){var t=(text||'').trim();if(!t)return fb||'en';if(/[฀-๿]/.test(t))return'th';if(/[぀-ヿ]/.test(t))return'ja';if(/[一-鿿]/.test(t))return'zh';if(/[가-힯]/.test(t))return'ko';if(/[؀-ۿ]/.test(t))return'ar';return fb||'en';}
 function fallbackCopy(t){var ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;left:-9999px;';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('Copied');}catch(e){}document.body.removeChild(ta);}
@@ -1580,19 +1584,42 @@ function handleRelayEvent(d){
     if(d.id)transportSend({type:'ack',ackType:'msg',id:d.id,timestamp:Date.now()});
     if(d.id&&findMsg(d.id)){
       var existing=findMsg(d.id);
+      if(existing&&mergeMsgTranslations(existing,d.translations)){updateTransDOM(existing);saveMsgs(state.activeConvId,state.messages);}
       if(existing&&existing.from==='them'&&existing.text)sendReliable({type:'tr',id:d.id,text:existing.text});
       return;
     }
     upsertPartnerFromEnvelope(sess,d);
     var pLang=d.lang||sess.partnerLang||'th';var mLang=sess.myLang||'en';
-    var msg={id:d.id,from:'them',orig:d.orig||d.text||'',text:null,lang:pLang,status:'received',timestamp:d.timestamp||Date.now(),clarify:{status:'none',text:'',thread:[]},attachment:d.attachment||null};
+    var msg={id:d.id,from:'them',orig:d.orig||d.text||'',text:null,lang:pLang,status:'received',timestamp:d.timestamp||Date.now(),clarify:{status:'none',text:'',thread:[]},translations:{},attachment:d.attachment||null};
+    mergeMsgTranslations(msg,d.translations);
     stampMsgNames(msg,sess);
     state.messages.push(msg);renderMsg(msg);scrollBottom();
     sess.lastActivity=msg.timestamp;putSession(sess);saveMsgs(sess.convId,state.messages);
-    translate(msg.orig,pLang,mLang).then(function(tr){msg.text=tr||msg.orig;updateTransDOM(msg);saveMsgs(sess.convId,state.messages);sendReliable({type:'tr',id:d.id,text:tr||msg.orig});if(state.autoSpeakIncoming&&msg.text)speak(msg.text,mLang,null);});
+    translate(msg.orig,pLang,mLang).then(function(tr){
+      var translated=tr||msg.orig;
+      msg.text=translated;
+      setMsgTranslation(msg,mLang,translated);
+      updateTransDOM(msg);
+      saveMsgs(sess.convId,state.messages);
+      sendReliable({type:'tr',id:d.id,text:translated});
+      sendReliable({type:'translation',id:d.id,targetLang:mLang,text:translated,timestamp:Date.now()});
+      if(state.autoSpeakIncoming&&msg.text)speak(msg.text,mLang,null);
+    });
     return;
   }
-  if(d.type==='tr'){markPeerSeen();if(d.id)transportSend({type:'ack',ackType:'tr',id:d.id,timestamp:Date.now()});var m2=findMsg(d.id);if(m2){m2.translated=d.text;m2.status='translated';updateTransDOM(m2);saveMsgs(state.activeConvId,state.messages);}return;}
+  if(d.type==='tr'){markPeerSeen();if(d.id)transportSend({type:'ack',ackType:'tr',id:d.id,timestamp:Date.now()});var m2=findMsg(d.id);if(m2){m2.translated=d.text;m2.status='translated';var trTarget=m2.from==='me'?(sess.partnerLang||'th'):(sess.myLang||'en');setMsgTranslation(m2,trTarget,d.text||'');updateTransDOM(m2);saveMsgs(state.activeConvId,state.messages);}return;}
+  if(d.type==='translation'){
+    markPeerSeen();
+    var mt=findMsg(d.id);
+    if(mt&&setMsgTranslation(mt,d.targetLang||d.target||'',d.text||'')){
+      if(mt.from==='them'&&(d.targetLang||d.target||'')===(sess.myLang||'en'))mt.text=d.text;
+      if(mt.from==='me'&&(d.targetLang||d.target||'')===(sess.partnerLang||'th'))mt.translated=d.text;
+      mt.status='translated';
+      updateTransDOM(mt);
+      saveMsgs(state.activeConvId,state.messages);
+    }
+    return;
+  }
   if(d.type==='ack'){markPeerSeen();if(d.ackType==='msg'){clearReliableAck('msg',d.id);var mAck=findMsg(d.id);if(mAck&&mAck.from==='me'){mAck.status='delivered';saveMsgs(state.activeConvId,state.messages);renderAllMessages();}}else if(d.ackType==='tr'){clearReliableAck('tr',d.id);}return;}
   if(d.type==='typing'){markPeerSeen();showTyping(d.name);return;}
   if(d.type==='clarify-note'){markPeerSeen();var m5=findMsg(d.id);if(m5){appendClarifyNote(m5,d.text||'',d.name||'Partner',d.timestamp||Date.now());saveMsgs(state.activeConvId,state.messages);updateBblClarify(m5);}return;}
@@ -1603,8 +1630,8 @@ function handleRelayEvent(d){
 // ════════════════════ BUBBLES ════════════════════
 function getSides(msg){
   var sess=getSession(state.activeConvId);
-  if(msg.from==='me')return{srcLang:(sess&&sess.myLang)||'en',srcTxt:msg.text,tgtLang:(sess&&sess.partnerLang)||'th',tgtTxt:msg.translated};
-  return{srcLang:msg.lang||(sess&&sess.partnerLang)||'th',srcTxt:msg.orig||msg.text,tgtLang:(sess&&sess.myLang)||'en',tgtTxt:msg.text};
+  if(msg.from==='me')return{srcLang:(sess&&sess.myLang)||'en',srcTxt:msg.text,tgtLang:(sess&&sess.partnerLang)||'th',tgtTxt:getMsgTranslatedText(msg,(sess&&sess.partnerLang)||'th',msg.translated)};
+  return{srcLang:msg.lang||(sess&&sess.partnerLang)||'th',srcTxt:msg.orig||msg.text,tgtLang:(sess&&sess.myLang)||'en',tgtTxt:getMsgTranslatedText(msg,(sess&&sess.myLang)||'en',msg.text)};
 }
 function buildBblFoot(msg){
   var id=msg.id;
@@ -1695,7 +1722,7 @@ function sendMessage(){
   var sess=getSession(state.activeConvId);if(!sess)return;
   var p=getPrefs();var outLang=(p.autoDetectLang!==false)?detectLang(text,sess.myLang):sess.myLang;
   ensureSessionNames(sess);
-  var msg={id:uid(),from:'me',text:text,lang:outLang,translated:null,status:'sent',timestamp:Date.now(),clarify:{status:'none',text:'',thread:[]},attachment:null};
+  var msg={id:uid(),from:'me',text:text,lang:outLang,translated:null,status:'sent',timestamp:Date.now(),clarify:{status:'none',text:'',thread:[]},translations:{},attachment:null};
   stampMsgNames(msg,sess);
   state.messages.push(msg);renderMsg(msg);ta.value='';autoResize();updateSendBtn();scrollBottom();
   sess.lastActivity=msg.timestamp;putSession(sess);saveMsgs(sess.convId,state.messages);
