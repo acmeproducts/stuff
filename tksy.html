@@ -133,7 +133,8 @@ textarea.field-input{resize:none;}
 .chat-menu-btn{background:none;border:none;cursor:pointer;color:var(--ink-mid);padding:6px;border-radius:8px;line-height:1;}
 .chat-menu-btn:hover{background:var(--paper);}
 .engine-badge{font-size:10px;color:var(--ink-dim);padding:3px 14px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--cream);}
-.engine-badge.on-device{color:var(--green);}
+.engine-badge.cloud{color:#9C6B00;}
+.engine-badge.onboard{color:var(--green);}
 
 /* MESSAGES */
 #messages{flex:1;overflow-y:auto;padding:10px 12px 6px;display:flex;flex-direction:column;gap:6px;-webkit-overflow-scrolling:touch;}
@@ -635,6 +636,7 @@ textarea.field-input{resize:none;}
     <button class="lang-chip-btn" id="chat-lang-chip" onclick="openLangPicker()">🇺🇸 English ↔ 🇹🇭 Thai</button>
     <button class="auto-tts-btn" id="auto-tts-btn" onclick="toggleAutoSpeakIncoming()" title="Auto-read incoming translations" aria-pressed="false">🔇 Auto-read</button>
   </div>
+  <div class="engine-badge" id="engine-badge">Engine: Hybrid · waiting</div>
   <div id="messages"></div>
   <div class="typing-bar" id="typing-bar"></div>
   <div class="offline-indicator" id="offline-indicator">Offline — queuing messages</div>
@@ -677,6 +679,16 @@ textarea.field-input{resize:none;}
       <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:var(--ink-mid);">
         <input type="checkbox" id="settings-auto-detect" onchange="saveAutoDetectSetting()" style="accent-color:var(--teal);width:16px;height:16px;">
         Auto-detect outgoing language
+      </label>
+      <label class="field-label">Translation mode</label>
+      <select class="field-select" id="settings-translation-mode" onchange="saveTranslationModeSetting()">
+        <option value="Hybrid">Hybrid (recommended)</option>
+        <option value="Onboard">Onboard</option>
+        <option value="Cloud">Cloud</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:var(--ink-mid);">
+        <input type="checkbox" id="settings-high-quality" onchange="saveHighQualitySetting()" style="accent-color:var(--teal);width:16px;height:16px;">
+        Prefer high quality (force cloud)
       </label>
     </div>
 
@@ -1098,7 +1110,7 @@ const ICON_TTS='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stro
 const ICON_SHARE='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
 // ════════════════════ STATE ════════════════════
 let state={screen:'home',tab:'talk',session:null,messages:[],connected:false,currentCatId:'all',openCardId:null,ppTagFilter:[],tagPickerCtx:null,tagPickerCardId:null,ncTags:[],confirmCallback:null,myLang:'en',activeClarifyMsgId:null,autoSpeakIncoming:false,sideTab:'chats'};
-let peer=null,conn=null,tEngine='cloud',ttsActive=null;
+let peer=null,conn=null,tEngine='hybrid-waiting',ttsActive=null;
 let typingTimer=null,lastTypingTs=0;
 let reconnectTimer=null,reconnectAttempts=0,heartbeatTimer=null;
 let msgQueue=[];// offline message queue
@@ -1130,7 +1142,7 @@ function saveCards(c){lsW(SAY.cards,JSON.stringify(c));}
 function getTags(){return lsJSON(SAY.tags,STARTER_TAGS.slice());}
 function saveTags(t){lsW(SAY.tags,JSON.stringify([...new Set(t)].sort()));}
 function addTagToRegistry(t){const tags=getTags();if(!tags.includes(t)){tags.push(t);saveTags(tags);}}
-function getPrefs(){return lsJSON(SK.prefs,{userName:'',myLang:'en',partnerLang:'th',autoSpeakIncoming:false,autoDetectLang:true});}
+function getPrefs(){return lsJSON(SK.prefs,{userName:'',myLang:'en',partnerLang:'th',autoSpeakIncoming:false,autoDetectLang:true,translationMode:'Hybrid',highQuality:false});}
 function savePrefs(p){lsW(SK.prefs,JSON.stringify(p));}
 
 // ════════════════════ UTILS ════════════════════
@@ -1149,11 +1161,27 @@ function normName(n){return(n||'').trim().toLowerCase().replace(/\s+/g,'-').repl
 function makeGuestName(){return 'Guest-'+Math.floor(100+Math.random()*900);}
 function queueOutgoing(msgId,payload){if(!msgId||!payload)return;const exists=msgQueue.some(q=>q.msgId===msgId);if(!exists)msgQueue.push({msgId,payload});}
 function detectLangHeuristic(text,fallback){const t=(text||'').trim();if(!t)return fallback||'en';if(/[฀-๿]/.test(t))return 'th';if(/[぀-ヿㇰ-ㇿ]/.test(t))return 'ja';if(/[一-鿿]/.test(t))return 'zh';if(/[가-힯]/.test(t))return 'ko';if(/[؀-ۿ]/.test(t))return 'ar';return fallback||'en';}
+function detectLanguageLocal(text,fallback){const lang=detectLangHeuristic(text,fallback);let confidence=.58;const t=(text||'').trim();if(!t)return{lang:fallback||'en',confidence:.1};if(/[฀-๿]/.test(t)||/[぀-ヿㇰ-ㇿ]/.test(t)||/[一-鿿]/.test(t)||/[가-힯]/.test(t)||/[؀-ۿ]/.test(t))confidence=.95;else if(/[A-Za-z]/.test(t))confidence=.9;else if(t.length<4)confidence=.45;return{lang,confidence};}
+function onboardPairSupported(from,to){if(!from||!to||from===to)return true;if(!window.translation?.createTranslator)return false;return LANGS.some(l=>l.code===from)&&LANGS.some(l=>l.code===to);}
+function estimateTranslationQuality(src,out,det){if(!out||!out.trim())return .05;const srcLen=(src||'').trim().length||1;const outLen=out.trim().length;let q=Math.min(srcLen,outLen)/Math.max(srcLen,outLen);if(out.includes('MYMEMORY'))q-=.35;if(det.confidence<.7)q-=.2;return Math.max(0,Math.min(1,q));}
+function persistLanguageTurn(meta){const s=state.session;if(!s)return;const timeline=s.languageTimeline||[];timeline.push({turnIndex:timeline.length+1,speakerId:meta.speakerId,sourceLang:meta.sourceLang,targetLang:meta.targetLang,engineUsed:meta.engineUsed});if(timeline.length>200)timeline.splice(0,timeline.length-200);s.languageTimeline=timeline;saveSession();}
+async function translateCloud(text,from,to){try{const resp=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`);const data=await resp.json();if(data.responseStatus===200&&data.responseData?.translatedText){const tr=data.responseData.translatedText;if(tr&&!tr.includes('MYMEMORY'))return tr;}}catch(e){}return null;}
+async function translateOnboard(text,from,to){if(!window.translation?.createTranslator)return null;const cacheK=`${from}-${to}`;try{if(!window._tr)window._tr={};if(!window._tr[cacheK])window._tr[cacheK]=await window.translation.createTranslator({sourceLanguage:from,targetLanguage:to});return await window._tr[cacheK].translate(text);}catch(e){return null;}}
+async function translateRouter(text,from,to,opt={}){if(!text?.trim()||from===to)return{text:text||'',engineUsed:'none',sourceLang:from,targetLang:to};const prefs=getPrefs();const mode=opt.mode||prefs.translationMode||'Hybrid';const det=detectLanguageLocal(text,from);const src=det.lang||from;const target=to;const reasons=[];let engine='onboard';let translated=null;const forceCloud=mode==='Cloud'||prefs.highQuality===true||opt.highQuality===true;if(mode==='Onboard'&&!onboardPairSupported(src,target))reasons.push('unsupported-pair');if(det.confidence<.6)reasons.push('low-language-id-confidence');if(mode==='Onboard'&&!onboardPairSupported(src,target)){translated=null;}else if(!forceCloud&&mode!=='Cloud'){translated=await translateOnboard(text,src,target);}if(translated){const q=estimateTranslationQuality(text,translated,det);if(q<.45){reasons.push('low-translation-quality');translated=null;}}
+if(forceCloud||!translated||mode==='Cloud'||(!onboardPairSupported(src,target)&&mode==='Hybrid')){if(forceCloud)reasons.push('high-quality');if(!onboardPairSupported(src,target))reasons.push('unsupported-pair');const cloud=await translateCloud(text,src,target);if(cloud){translated=cloud;engine='cloud';}else if(translated){engine='onboard';}else{engine='cloud';}}
+if(!translated&&mode==='Onboard'){translated=await translateCloud(text,src,target);if(translated){engine='cloud';reasons.push('unsupported-pair');}}
+if(!translated){translated=text;engine=forceCloud?'cloud':'onboard';}
+const engineUsed=engine==='cloud'?'cloud':'onboard';tEngine=engineUsed;updateEngineBadge(mode,reasons);
+if(opt.sessionTrack!==false){persistLanguageTurn({speakerId:opt.speakerId||'unknown',sourceLang:src,targetLang:target,engineUsed});}
+return{text:translated,engineUsed,sourceLang:src,targetLang:target,reasons};}
+
 function openChatSidePanel(){const p=document.getElementById('chat-side-panel');const s=document.getElementById('chat-side-scrim');if(p)p.classList.add('open');if(s)s.classList.add('show');switchChatSideTab('chats');}
 function closeChatSidePanel(){const p=document.getElementById('chat-side-panel');const s=document.getElementById('chat-side-scrim');if(p)p.classList.remove('open');if(s)s.classList.remove('show');}
 function switchChatSideTab(tab){state.sideTab=tab;['chats','phrasebook','settings'].forEach(t=>{const b=document.getElementById('side-tab-'+t);if(b)b.classList.toggle('active',t===tab);});renderChatSidePanel();}
 function renderChatSidePanel(){const body=document.getElementById('chat-side-body');if(!body)return;const tab=state.sideTab||'chats';if(tab==='phrasebook'){body.innerHTML='<button class="sheet-btn primary" style="width:100%;" onclick="closeChatSidePanel();openPhrasePicker();">Open phrasebook</button>';return;}if(tab==='settings'){body.innerHTML='<button class="sheet-btn primary" style="width:100%;" onclick="closeChatSidePanel();goToSettings();">Open settings</button>';return;}const ss=getAllSessions().slice().sort((a,b)=>(b.lastActivity||0)-(a.lastActivity||0));if(!ss.length){body.innerHTML='<div class="empty-state" style="padding:18px;">No chats yet.</div>';return;}body.innerHTML=ss.map(s=>{const msgs=getMsgs(s.sessionId);const unread=msgs.filter(m=>m.from==='them'&&(m.timestamp||0)>(s.lastViewedAt||0)).length;return `<div class="side-session-row ${state.session?.sessionId===s.sessionId?'active':''}" onclick="loadSession('${s.sessionId}');closeChatSidePanel();"><div class="side-session-meta"><div class="side-session-name">${escHtml(s.partnerName||'Partner')}</div><div class="side-session-sub">${escHtml(s.sessionId)}</div></div>${unread?`<span class="side-pill">${unread} new</span>`:''}</div>`;}).join('');}
 function saveAutoDetectSetting(){const p=getPrefs();const c=document.getElementById('settings-auto-detect');p.autoDetectLang=!!c?.checked;savePrefs(p);toast('Auto-detect '+(p.autoDetectLang?'on':'off'));}
+function saveTranslationModeSetting(){const p=getPrefs();const m=document.getElementById('settings-translation-mode')?.value||'Hybrid';p.translationMode=m;savePrefs(p);if(state.session){state.session.translationMode=m;saveSession();}updateEngineBadge();toast('Translation mode: '+m);}
+function saveHighQualitySetting(){const p=getPrefs();const on=!!document.getElementById('settings-high-quality')?.checked;p.highQuality=on;savePrefs(p);if(state.session){state.session.highQuality=on;saveSession();}updateEngineBadge();toast('High quality '+(on?'on':'off'));}
 function makeSessionCode(){return Math.floor(100000+Math.random()*900000).toString();}
 function makeSessionId(a,b){return normName(a)+'-'+normName(b);}// kept for legacy session loading only
 function peerId(sid,role){return'talksay_'+sid+'_'+role;}
@@ -1169,7 +1197,7 @@ function goHome(){
   const nameEl=document.getElementById('home-your-name');
   if(nameEl)nameEl.textContent=p.userName||'yournamehere';
 }
-function goToSettings(){state._settingsOrigin=state.screen;const p=getPrefs();const el=document.getElementById('settings-name');if(el)el.value=p.userName||'';populateLangSelect('settings-my-lang',p.myLang||state.myLang||'en');populateLangSelect('settings-partner-lang',p.partnerLang||'th');const ad=document.getElementById('settings-auto-detect');if(ad)ad.checked=p.autoDetectLang!==false;loadBubbleSettingsUI();showScreen('settings-screen');}
+function goToSettings(){state._settingsOrigin=state.screen;const p=getPrefs();const el=document.getElementById('settings-name');if(el)el.value=p.userName||'';populateLangSelect('settings-my-lang',p.myLang||state.myLang||'en');populateLangSelect('settings-partner-lang',p.partnerLang||'th');const ad=document.getElementById('settings-auto-detect');if(ad)ad.checked=p.autoDetectLang!==false;const tm=document.getElementById('settings-translation-mode');if(tm)tm.value=p.translationMode||state.session?.translationMode||'Hybrid';const hq=document.getElementById('settings-high-quality');if(hq)hq.checked=(state.session?.highQuality??p.highQuality)===true;loadBubbleSettingsUI();showScreen('settings-screen');}
 function renderSettingsScreen(){/* deprecated — settings now renders in goToSettings */}
 function backFromSettings(){const origin=state._settingsOrigin||'home-screen';if(origin==='chat-screen'&&state.session){showScreen('chat-screen');}else{goHome();}}
 function enterChat(){showScreen('chat-screen');updateChatHeader();markSessionViewed(state.session?.sessionId);
@@ -1241,7 +1269,7 @@ function quickStart(){
   const partnerLang=p.partnerLang||'th';
   // Use 6-digit random code as session ID
   const sessionId=makeSessionCode();
-  const sess={sessionId,isInitiator:true,myName,partnerName,myLang,partnerLang,pin:'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false};
+  const sess={sessionId,isInitiator:true,myName,partnerName,myLang,partnerLang,pin:'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false,languageTimeline:[],translationMode:p.translationMode||'Hybrid',highQuality:p.highQuality===true};
   state.session=sess;state.messages=[];msgQueue=[];
   saveSession();renderAllMessages();updateChatHeader();setConnected(false);
   showScreen('chat-screen');addSysMsg('Waiting for '+partnerName+'…');
@@ -1298,7 +1326,8 @@ function doJoin(){
 function doJoinWithPrefs(code,myName,myLang,partnerLang){
   const sessionId=code;
   const existing=getAllSessions().find(s=>s.sessionId===sessionId);
-  const sess={sessionId,isInitiator:false,myName,partnerName:existing?.partnerName||'Host',myLang,partnerLang:existing?.partnerLang||partnerLang,pin:'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false};
+  const prefs=getPrefs();
+  const sess={sessionId,isInitiator:false,myName,partnerName:existing?.partnerName||'Host',myLang,partnerLang:existing?.partnerLang||partnerLang,pin:'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false,languageTimeline:existing?.languageTimeline||[],translationMode:existing?.translationMode||prefs.translationMode||'Hybrid',highQuality:(existing?.highQuality??prefs.highQuality)===true};
   state.session=sess;state.messages=existing?getMsgs(sessionId):[];msgQueue=[];
   saveSession();renderAllMessages();updateChatHeader();setConnected(false);
   showScreen('chat-screen');addSysMsg('Connecting…');
@@ -1311,6 +1340,8 @@ function loadSession(sid){
   const s=getAllSessions().find(x=>x.sessionId===sid);
   if(!s){toast('Session not found');return;}
   state.session=s;state.messages=getMsgs(sid);msgQueue=[];
+  if(!Array.isArray(state.session.languageTimeline))state.session.languageTimeline=[];
+  if(!state.session.translationMode)state.session.translationMode=getPrefs().translationMode||'Hybrid';
   setActiveId(sid);renderAllMessages();updateChatHeader();
   setConnected(false);showScreen('chat-screen');
   addSysMsg('Reconnecting…');
@@ -1382,6 +1413,7 @@ function updateChatHeader(){
     chip.style.borderColor=same?'var(--amber)':'';
   }
   updateAutoSpeakBtn();
+  updateEngineBadge();
 }
 
 // Inline name editing — saves on blur, propagates to all bubbles (Item 7)
@@ -1496,6 +1528,7 @@ function saveSettingsLang(){
   if(state.session){
     if(ml)state.session.myLang=ml;
     if(pl)state.session.partnerLang=pl;
+    if(!Array.isArray(state.session.languageTimeline))state.session.languageTimeline=[];
     saveSession();updateChatHeader();
     toast('Languages updated for this session');
   } else {
@@ -1510,24 +1543,16 @@ function confirmCancel(){document.getElementById('confirm-overlay').hidden=true;
 
 // ════════════════════ TRANSLATION ════════════════════
 const trCache=new Map();
-async function translate(text,from,to){
+async function translate(text,from,to,opt={}){
   if(!text?.trim()||from===to)return text;
-  const key=`${from}|${to}|${text}`;
+  const key=`${from}|${to}|${text}|${opt.speakerId||''}|${opt.mode||''}|${opt.highQuality?'hq':''}`;
   if(trCache.has(key))return trCache.get(key);
-  let result=null;
-  if(window.translation?.createTranslator){
-    const cacheK=`${from}-${to}`;
-    try{if(!window._tr)window._tr={};if(!window._tr[cacheK])window._tr[cacheK]=await window.translation.createTranslator({sourceLanguage:from,targetLanguage:to});result=await window._tr[cacheK].translate(text);tEngine='on-device';updateEngineBadge();}catch(e){result=null;}
-  }
-  if(!result){
-    try{const resp=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`);const data=await resp.json();if(data.responseStatus===200&&data.responseData?.translatedText){result=data.responseData.translatedText;// Fix: mymemory sometimes returns HTML-encoded or truncated
-      if(result.includes('MYMEMORY'))result=null;}tEngine='cloud';updateEngineBadge();}catch(e){}
-  }
-  if(result)trCache.set(key,result);
-  return result||null;
+  const routed=await translateRouter(text,from,to,opt);
+  if(routed?.text)trCache.set(key,routed.text);
+  return routed?.text||null;
 }
-function detectEngine(){if(window.translation?.createTranslator)tEngine='on-device';updateEngineBadge();}
-function updateEngineBadge(){/* engine badge removed v1.9 */}
+function detectEngine(){updateEngineBadge();}
+function updateEngineBadge(mode,reasons){const badge=document.getElementById('engine-badge');if(!badge)return;const prefs=getPrefs();const activeMode=mode||state.session?.translationMode||prefs.translationMode||'Hybrid';const engine=tEngine==='cloud'?'Cloud':(tEngine==='onboard'?'Onboard':'Waiting');badge.className='engine-badge '+(tEngine==='cloud'?'cloud':(tEngine==='onboard'?'onboard':''));const why=(reasons&&reasons.length)?(' · '+[...new Set(reasons)].join(', ')):'';badge.textContent='Engine: '+activeMode+' · '+engine+why;}
 
 // ════════════════════ TTS ════════════════════
 const synth=window.speechSynthesis;const canSpeak='speechSynthesis' in window;
@@ -1669,12 +1694,12 @@ function handleData(d){
     sess.lastActivity=msg.timestamp||Date.now();saveSession();
     saveMsgs(sess.sessionId,state.messages);
     // Translate locally
-    translate(msg.orig,partnerLang,myLang).then(tr=>{
+    translate(msg.orig,partnerLang,myLang,{speakerId:'partner',mode:sess.translationMode||getPrefs().translationMode,highQuality:(sess.highQuality??getPrefs().highQuality)===true}).then(tr=>{
       msg.text=tr||msg.orig;
       updateTransDOM(msg);
       saveMsgs(sess.sessionId,state.messages);
       // Send translation receipt back so sender sees it
-      if(conn?.open)try{conn.send({type:'tr',id:d.id,text:tr||msg.orig});}catch(e){}
+      if(conn?.open)try{conn.send({type:'tr',id:d.id,text:tr||msg.orig,engineUsed:tEngine});}catch(e){}
       if(state.autoSpeakIncoming&&msg.text){
         const ttsBtn=document.getElementById('btts-tgt-'+msg.id)||null;
         speak(msg.text,myLang,ttsBtn);
@@ -1687,6 +1712,8 @@ function handleData(d){
     const msg=findMsg(d.id);if(!msg)return;
     msg.translated=d.text;
     updateTransDOM(msg);
+    if(d.engineUsed){tEngine=d.engineUsed;updateEngineBadge();}
+    persistLanguageTurn({speakerId:'me',sourceLang:msg.lang||sess.myLang||'en',targetLang:sess.partnerLang||'th',engineUsed:d.engineUsed||'unknown'});
     saveMsgs(sess.sessionId,state.messages);
     return;
   }
@@ -2033,7 +2060,7 @@ function sendMessage(){
   const text=ta.value.trim();if(!text)return;
   const s=state.session;if(!s)return;
   // Sender sends RAW text — no translation on sender side
-  const p=getPrefs();const outLang=(p.autoDetectLang!==false)?detectLangHeuristic(text,s.myLang):s.myLang;
+  const p=getPrefs();const outLang=(p.autoDetectLang!==false)?detectLanguageLocal(text,s.myLang).lang:s.myLang;
   const msg={id:uid(),from:'me',text,lang:outLang,translated:null,status:state.connected?'sending':'queued',timestamp:Date.now(),clarify:{status:'none',text:''},attachment:null};
   state.messages.push(msg);renderMsg(msg);ta.value='';autoResize();updateSendBtn();scrollBottom();
   s.lastActivity=msg.timestamp;saveSession();
