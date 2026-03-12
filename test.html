@@ -1157,13 +1157,21 @@ function transportSend(ev){
   if(ws&&ws.readyState===1){
     try{ws.send(JSON.stringify(m));dbg('tx',m.type);return true;}catch(_){ }
   }
-  outQ.push(m);
+  queueOutEvent(m);
   dbg('queued',m.type,'outQ='+outQ.length);
   if(socketState==='closed'&&!rcTimer){
     setSocketState('reconnecting');
     scheduleReconnect();
   }
   return false;
+}
+function queueOutEvent(ev){
+  if(ev&&ev.type&&ev.id){
+    for(var i=0;i<outQ.length;i++){
+      if(outQ[i]&&outQ[i].type===ev.type&&outQ[i].id===ev.id)return;
+    }
+  }
+  outQ.push(ev);
 }
 function trackReliableOutbound(m){
   if(!m||!m.id)return;
@@ -1193,7 +1201,7 @@ function flushOutQueue(){
         var m=findMsg(q[i].id);
         if(m){m.status='sent';didFlushMsg=true;}
       }
-    }catch(_){outQ.push(q[i]);}
+    }catch(_){queueOutEvent(q[i]);}
   }
   if(didFlushMsg&&state.activeConvId){saveMsgs(state.activeConvId,state.messages);renderAllMessages();}
   if(q.length){dbg('flushed',q.length,'queued messages');}
@@ -1204,7 +1212,7 @@ function resendPendingReliables(){
   Object.keys(pendingMsgAcks).forEach(function(id){resend.push(pendingMsgAcks[id]);});
   Object.keys(pendingTrAcks).forEach(function(id){resend.push(pendingTrAcks[id]);});
   for(var i=0;i<resend.length;i++){
-    try{ws.send(JSON.stringify(resend[i]));dbg('retry',resend[i].type,resend[i].id||'');}catch(_){outQ.push(resend[i]);}
+    try{ws.send(JSON.stringify(resend[i]));dbg('retry',resend[i].type,resend[i].id||'');}catch(_){queueOutEvent(resend[i]);}
   }
 }
 function transportDisconnect(opts){
