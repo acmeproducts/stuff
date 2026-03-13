@@ -453,6 +453,10 @@ textarea.field-input{resize:none;}
 .shell-dot.red{background:#EF4444;}
 .shell-dot.gray{background:var(--ink-dim);}
 .shell-partner{text-align:center;padding:2px 16px 8px;font-family:"Lora",serif;font-size:16px;font-weight:600;border-bottom:1px solid var(--border);flex-shrink:0;}
+.session-lang-bar{display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--paper);flex-shrink:0;}
+.session-lang-col{flex:1;min-width:0;}
+.session-lang-lbl{font-size:10px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;}
+.session-lang-sel{width:100%;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:12px;font-family:"DM Sans",sans-serif;background:#fff;color:var(--ink);outline:none;}
 .shell-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--ink-dim);font-size:14px;padding:40px;}
 .shell-empty-logo{font-family:"Lora",serif;font-size:48px;font-weight:600;color:var(--teal);opacity:.25;}
 
@@ -539,6 +543,16 @@ textarea.field-input{resize:none;}
   </div>
   <!-- Row 2: Partner name -->
   <div class="shell-partner" id="shell-partner-name" contenteditable="true" spellcheck="false" onblur="savePartnerName(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">new chat</div>
+  <div class="session-lang-bar">
+    <div class="session-lang-col">
+      <div class="session-lang-lbl">Send language</div>
+      <select id="session-send-lang" class="session-lang-sel" onchange="setSessionSendLang(this.value)"></select>
+    </div>
+    <div class="session-lang-col">
+      <div class="session-lang-lbl">Receive language</div>
+      <select id="session-receive-lang" class="session-lang-sel" onchange="setSessionReceiveLang(this.value)"></select>
+    </div>
+  </div>
   <!-- Empty state -->
   <div class="shell-empty" id="shell-empty">
     <div class="shell-empty-logo">talk</div>
@@ -1039,6 +1053,13 @@ function setLastDetectedLang(id,lang){var ps=ensureParticipantState(id);if(ps)ps
 function setPreferredOutputLang(id,lang){var ps=ensureParticipantState(id);if(ps)ps.preferredOutputLang=(lang||'').trim();}
 function getParticipantOutputPref(id){var ps=ensureParticipantState(id);return(ps&&ps.preferredOutputLang)||'';}
 function getParticipantDetectedLang(id){var ps=ensureParticipantState(id);return(ps&&ps.lastDetectedLang)||'';}
+function normalizeLangCode(v,fb){var code=(v||'').trim().toLowerCase();if(code&&LANG_MAP[code])return code;return fb||'en';}
+function getSessionSendLang(sess){if(!sess)return'en';return normalizeLangCode(sess.sendLang||sess.myLang||getPrefs().myLang||'en','en');}
+function getSessionReceiveLang(sess){if(!sess)return'th';return normalizeLangCode(sess.receiveLang||sess.partnerLang||getPrefs().partnerLang||'th','th');}
+function ensureSessionLangConfig(sess){if(!sess)return sess;var changed=false;var send=getSessionSendLang(sess);var receive=getSessionReceiveLang(sess);if(sess.sendLang!==send){sess.sendLang=send;changed=true;}if(sess.receiveLang!==receive){sess.receiveLang=receive;changed=true;}if(!sess.myLang){sess.myLang=send;changed=true;}if(!sess.partnerLang){sess.partnerLang=receive;changed=true;}if(changed)putSession(sess);return sess;}
+function renderSessionLangControls(sess){var p=getPrefs();populateLangSelect('session-send-lang',getSessionSendLang(sess||{sendLang:p.myLang||'en'}));populateLangSelect('session-receive-lang',getSessionReceiveLang(sess||{receiveLang:p.partnerLang||'th'}));}
+function setSessionSendLang(lang){if(!state.activeConvId)return;var sess=getSession(state.activeConvId);if(!sess)return;var next=normalizeLangCode(lang,getSessionSendLang(sess));if(sess.sendLang===next)return;sess.sendLang=next;putSession(sess);renderSessionLangControls(sess);toast('Send language saved');}
+function setSessionReceiveLang(lang){if(!state.activeConvId)return;var sess=getSession(state.activeConvId);if(!sess)return;var next=normalizeLangCode(lang,getSessionReceiveLang(sess));if(sess.receiveLang===next)return;sess.receiveLang=next;putSession(sess);renderSessionLangControls(sess);toast('Receive language saved');}
 function resolveTargetLang(opts){
   opts=opts||{};
   var detectedSource=opts.detectedSource||'';
@@ -1498,13 +1519,14 @@ function saveLocalName(el){
 
 function createNewSession(silent){
   var cid=uid();var p=getPrefs();
-  var sess={convId:cid,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};
+  var sess={convId:cid,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',sendLang:p.myLang||'en',receiveLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};
   putSession(sess);
   var order=getSessionOrder();order.unshift(cid);saveSessionOrder(normalizeSessionOrder(order));
   openSession(cid);closeLeftPanel();if(!silent)toast('New chat');
 }
 function openSession(cid){
   var sess=getSession(cid);if(!sess){toast('Not found');return;}
+  ensureSessionLangConfig(sess);
   ensureSessionNames(sess);putSession(sess);
   state.activeConvId=cid;state.messages=getMsgs(cid);
   if(stampExistingMessageNames(state.messages,sess))saveMsgs(cid,state.messages);
@@ -1513,6 +1535,7 @@ function openSession(cid){
   document.getElementById('messages').style.display='flex';
   document.getElementById('composer').style.display='flex';
   document.getElementById('shell-partner-name').textContent=getSessionDisplayName(sess);
+  renderSessionLangControls(sess);
   updateAutoReadBtn();
   transportConnect(cid,PART_ID);
   renderAllMessages();scrollBottom();
@@ -1524,6 +1547,7 @@ function showEmptyShell(){
   document.getElementById('messages').style.display='none';
   document.getElementById('composer').style.display='none';
   document.getElementById('shell-partner-name').textContent='talk';
+  renderSessionLangControls(null);
 }
 function savePartnerName(el){
   var v=(el.textContent||'').trim();if(!v||!state.activeConvId){el.textContent='new chat';return;}
@@ -1754,9 +1778,11 @@ function handleRelayEvent(d){
     var sourceSpeaker=(d.participant||d.from||'deviceB');
     var listener=(PART_ID||DEVICE_ID||'deviceA');
     var srcTxt=d.sourceText||d.orig||d.text||'';
-    var srcLang=d.sourceLang||d.lang||detectLang(srcTxt,sess.partnerLang||'th')||sess.partnerLang||'th';
+    var fixedInboundSource=getSessionSendLang(sess);
+    var srcLang=d.sourceLang||d.lang||fixedInboundSource||detectLang(srcTxt,sess.partnerLang||'th')||sess.partnerLang||'th';
     setLastDetectedLang(sourceSpeaker,srcLang);
-    var targetLang=d.targetLang||resolveTargetLang({detectedSource:srcLang,listenerId:listener,listenerDefault:sess.myLang||'en',oppositeId:sourceSpeaker,oppositeDefault:sess.partnerLang||'th'});
+    var detectedFallback=detectLang(srcTxt,getSessionSendLang(sess));
+    var targetLang=d.targetLang||getSessionReceiveLang(sess)||resolveTargetLang({detectedSource:(srcLang||detectedFallback),listenerId:listener,listenerDefault:sess.myLang||'en',oppositeId:sourceSpeaker,oppositeDefault:sess.partnerLang||'th'});
 
     if(d.id&&findMsg(d.id)){
       var existing=findMsg(d.id);
@@ -2006,9 +2032,12 @@ function sendMessage(){
   var p=getPrefs();
   var speaker=(PART_ID||DEVICE_ID||'deviceA');
   var listener=(sess.inviterDeviceId||'deviceB');
-  var outLang=(p.autoDetectLang!==false)?detectLang(text,sess.myLang):sess.myLang;
+  var fixedSendLang=getSessionSendLang(sess);
+  var fixedReceiveLang=getSessionReceiveLang(sess);
+  var detectedOutLang=detectLang(text,fixedSendLang||sess.myLang);
+  var outLang=fixedSendLang||((p.autoDetectLang!==false)?detectedOutLang:sess.myLang);
   setLastDetectedLang(speaker,outLang);
-  var targetLang=resolveTargetLang({detectedSource:outLang,listenerId:listener,listenerDefault:sess.partnerLang||'th',oppositeId:speaker,oppositeDefault:sess.myLang||'en'});
+  var targetLang=fixedReceiveLang||resolveTargetLang({detectedSource:(outLang||detectedOutLang),listenerId:listener,listenerDefault:sess.partnerLang||'th',oppositeId:speaker,oppositeDefault:sess.myLang||'en'});
   ensureSessionNames(sess);
   var msg=normalizeMsgSchema({id:uid(),from:'me',sourceText:text,sourceLang:outLang,targetLang:targetLang,targetText:'',text:text,lang:outLang,translated:null,status:'sent',timestamp:Date.now(),clarify:{status:'none',text:'',thread:[]},translations:{},attachment:null},{sourceLang:outLang,targetLang:targetLang});
   stampMsgNames(msg,sess);
@@ -2305,6 +2334,7 @@ document.addEventListener('DOMContentLoaded',function(){
   applyBubbleTheme();
   updateAutoReadBtn();
   onTransportEvent(handleRelayEvent);
+  renderSessionLangControls(null);
   populateLangSelect('nc-src-lang',p.myLang||'en');
   populateLangSelect('nc-tgt-lang',p.partnerLang||'th');
   initTagPickerInput();
@@ -2316,7 +2346,7 @@ document.addEventListener('DOMContentLoaded',function(){
     history.replaceState({},'',location.pathname);
     var sess=getSession(invite.sessionId);
     if(!sess){
-      sess={convId:invite.sessionId,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};
+      sess={convId:invite.sessionId,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',sendLang:p.myLang||'en',receiveLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now()};
       putSession(sess);
       var order=getSessionOrder();order.unshift(invite.sessionId);saveSessionOrder(normalizeSessionOrder(order));
     }
