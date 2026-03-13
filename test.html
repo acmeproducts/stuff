@@ -1234,7 +1234,21 @@ function peerIsFresh(){return peerState.connected&&(Date.now()-peerState.lastSee
 function isSessionHealthy(){return socketState==='open';}
 function pruneInboundSeen(now){if(!inboundSeen.size)return;var t=now||Date.now();inboundSeen.forEach(function(exp,key){if(exp<=t)inboundSeen.delete(key);});}
 function shouldDropInboundDuplicate(d){if(!d||!d.id)return false;if(['msg','tr','clarify','clarify-note','clarify-ans'].indexOf(d.type)<0)return false;var now=Date.now();pruneInboundSeen(now);var key=d.type+'::'+d.id;var exp=inboundSeen.get(key);if(exp&&exp>now)return true;inboundSeen.set(key,now+INBOUND_DEDUPE_TTL_MS);return false;}
-function canAttemptReconnect(){if(!state.activeConvId)return false;if(!navigator.onLine)return false;if(reconnectInProgress)return false;if(Date.now()<reconnectCooldownUntil)return false;if(socketState==='open'||socketState==='connecting'||socketState==='reconnecting')return false;return true;}
+function getReconnectBlockReason(){
+  if(!state.activeConvId)return 'no-session';
+  if(!navigator.onLine)return 'offline';
+  if(Date.now()<reconnectCooldownUntil)return 'cooldown';
+  if(reconnectInProgress||socketState==='connecting'||socketState==='reconnecting')return 'socket-connecting';
+  return null;
+}
+function reconnectBlockText(reason){
+  if(reason==='no-session')return 'No active session';
+  if(reason==='offline')return 'Offline — reconnect when internet returns';
+  if(reason==='cooldown')return 'Reconnect cooldown active — wait a moment';
+  if(reason==='socket-connecting')return 'Socket is already connecting';
+  return 'Ready to reconnect';
+}
+function canAttemptReconnect(){return !getReconnectBlockReason();}
 function startHeartbeatLoop(){
   if(hbTimer)clearInterval(hbTimer);
   hbTimer=setInterval(function(){
@@ -1291,10 +1305,11 @@ function transportConnect(convId,participant,opts){
   transportDisconnect(opts);
   connectedConvId=convId;
   intentionalClose=false;
+  reconnectInProgress=true;
   var url=RELAY_WS_URL+'?session='+encodeURIComponent(convId)+'&client='+encodeURIComponent(DEVICE_ID);
   setSocketState('connecting');
   dbg('connecting to',convId,'participant',participant);
-  try{ws=new WebSocket(url);}catch(e){dbg('ws create failed',e);scheduleReconnect();return;}
+  try{ws=new WebSocket(url);}catch(e){reconnectInProgress=false;dbg('ws create failed',e);scheduleReconnect();return;}
   var ref=ws;
   var connectTimeout=setTimeout(function(){
     if(ws===ref&&ws.readyState===0){
@@ -1472,10 +1487,9 @@ function scheduleReconnect(){
   },delay);
 }
 function forceReconnect(){
-  if(!state.activeConvId){toast('No active session');return;}
-  if(!canAttemptReconnect()){if(socketState!=='open')toast('Reconnect already in progress');return;}
+  var blockedReason=getReconnectBlockReason();
+  if(blockedReason){toast(reconnectBlockText(blockedReason));return;}
   dbg('force reconnect requested');
-  reconnectInProgress=true;
   reconnectCooldownUntil=Date.now()+RECONNECT_COOLDOWN_MS;
   rcAttempts=0;
   transportDisconnect({preserveQueue:true});
@@ -1486,9 +1500,13 @@ function onTransportEvent(h){transportHandlers.push(h);}
 
 function updateDot(){
   var dot=document.getElementById('shell-dot');if(!dot)return;
+  var reconnectBlockedReason=getReconnectBlockReason();
   dot.className='shell-dot';
   dot.title='Connection';
-  if(!navigator.onLine){dot.classList.add('gray');dot.title='Offline';return;}
+  if(reconnectBlockedReason==='offline'){dot.classList.add('gray');dot.title=reconnectBlockText(reconnectBlockedReason);return;}
+  if(reconnectBlockedReason==='no-session'){dot.classList.add('gray');dot.title=reconnectBlockText(reconnectBlockedReason);return;}
+  if(reconnectBlockedReason==='socket-connecting'){dot.classList.add('yellow');dot.title=reconnectBlockText(reconnectBlockedReason);return;}
+  if(reconnectBlockedReason==='cooldown'&&socketState!=='open'){dot.classList.add('yellow');dot.title=reconnectBlockText(reconnectBlockedReason);return;}
   if(socketState==='open'){
     if(peerIsFresh()){dot.classList.add('green');dot.title='Connected (peer active)';}
     else {dot.classList.add('yellow');dot.title='Relay connected (peer idle)';}
