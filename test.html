@@ -989,6 +989,16 @@ function deleteSessData(cid){lsDel('ts3_m_'+cid);}
 function markViewed(cid){var ss=getAllSessions();var s=ss.find(function(x){return x.convId===cid;});if(s){s.lastViewedAt=Date.now();saveSessions(ss);}}
 function getCatalogs(){return lsJSON(SAY.catalogs,[]);}
 function saveCatalogs(c){lsW(SAY.catalogs,JSON.stringify(c));}
+function collapseCharPerLineText(text){
+  var v=(text||'');
+  var lines=v.split(/\r?\n/);
+  if(lines.length<3)return v;
+  var meaningful=lines.filter(function(line){return line.trim().length>0;});
+  if(meaningful.length<3)return v;
+  var singleCount=meaningful.filter(function(line){return line.trim().length===1;}).length;
+  if(singleCount/meaningful.length>=0.8)return meaningful.map(function(line){return line.trim();}).join('');
+  return v;
+}
 function normalizeBacktranslatePayload(payload,fallbacks){
   var now=Date.now();
   var base=(payload&&typeof payload==='object')?payload:{};
@@ -997,7 +1007,7 @@ function normalizeBacktranslatePayload(payload,fallbacks){
     sourceLang:base.sourceLang||fb.sourceLang||'',
     targetLang:base.targetLang||fb.targetLang||'',
     inputText:base.inputText||fb.inputText||'',
-    resultText:base.resultText||base.result||fb.resultText||fb.result||'',
+    resultText:collapseCharPerLineText(base.resultText||base.result||fb.resultText||fb.result||''),
     verdict:base.verdict||fb.verdict||'',
     updatedAt:base.updatedAt||fb.updatedAt||now
   };
@@ -1811,11 +1821,16 @@ function handleRelayEvent(d){
 function getSides(msg){
   var sess=getSession(state.activeConvId)||{};
   normalizeMsgSchema(msg,{sourceLang:msg&&msg.from==='me'?(sess.myLang||'en'):(msg.lang||sess.partnerLang||'th'),targetLang:msg&&msg.from==='me'?(sess.partnerLang||'th'):(sess.myLang||'en')});
-  var localLang=sess.myLang||'en';
-  var pairedLang=sess.partnerLang||msg.sourceLang||'th';
-  var localTxt=(localLang===msg.sourceLang)?msg.sourceText:getMsgTranslatedText(msg,localLang,msg.targetLang===localLang?msg.targetText:msg.text);
-  var pairTxt=(pairedLang===msg.sourceLang)?msg.sourceText:getMsgTranslatedText(msg,pairedLang,msg.targetLang===pairedLang?msg.targetText:msg.translated);
-  return{srcLang:localLang,srcTxt:localTxt||'',tgtLang:pairedLang,tgtTxt:pairTxt||''};
+  var sourceLang=msg.sourceLang||detectLang(msg.sourceText||'',sess.partnerLang||sess.myLang||'en');
+  var sourceTxt=msg.sourceText||msg.orig||msg.text||'';
+  var localLang=sess.myLang||sourceLang||'en';
+  var localTxt=(localLang===sourceLang)?sourceTxt:getMsgTranslatedText(msg,localLang,msg.targetLang===localLang?msg.targetText:'');
+  if(!localTxt)localTxt=sourceTxt;
+  var pairedLang=(localLang===sourceLang)?(msg.targetLang||sess.partnerLang||sourceLang):sourceLang;
+  var pairTxt=(pairedLang===sourceLang)?sourceTxt:getMsgTranslatedText(msg,pairedLang,msg.targetLang===pairedLang?msg.targetText:'');
+  if(!pairTxt&&pairedLang!==sourceLang)pairTxt=msg.targetText||sourceTxt;
+  if(pairTxt===localTxt&&sourceTxt&&sourceTxt!==localTxt)pairTxt=sourceTxt;
+  return{srcLang:localLang,srcTxt:localTxt||'',tgtLang:pairedLang||sourceLang,tgtTxt:pairTxt||''};
 }
 function renderBubbleHeaderBlock(opts){
   opts=opts||{};
@@ -1908,7 +1923,7 @@ function updateTransDOM(msg){var sides=getSides(msg);var el=document.getElementB
 
 // Bubble actions
 function bblTTS(id,side,btn){var msg=findMsg(id);if(!msg)return;var s=getSides(msg);var t=side==='src'?s.srcTxt:s.tgtTxt;var l=side==='src'?s.srcLang:s.tgtLang;if(t)speak(t,l,btn);}
-function bblTTSFoot(id,btn){var msg=findMsg(id);if(!msg)return;var s=getSides(msg);speak(s.tgtTxt||s.srcTxt,s.tgtTxt?s.tgtLang:s.srcLang,btn);}
+function bblTTSFoot(id,btn){var msg=findMsg(id);if(!msg)return;var bt=getMsgBacktranslate(msg);var txt=bt.resultText||'';var lang=bt.targetLang||'';if(!txt){var s=getSides(msg);txt=s.tgtTxt||s.srcTxt;lang=s.tgtTxt?s.tgtLang:s.srcLang;}speak(txt,lang,btn);}
 function bblSave(id){var msg=findMsg(id);if(!msg)return;msg._saved=true;saveMsgs(state.activeConvId,state.messages);var s=getSides(msg);var bt=getMsgBacktranslate(msg);var thread=(msg&&msg.clarify&&Array.isArray(msg.clarify.thread))?msg.clarify.thread:[];openNewCard(null,{mode:'chat-save',messageId:id,sourceText:s.srcTxt||'',targetText:s.tgtTxt||'',sourceLang:s.srcLang||'en',targetLang:s.tgtLang||'th',tags:sanitizeTagList(msg.tags||[]),clarifyChain:thread.map(function(item){return{text:(item&&item.text)||'',author:(item&&item.author)||'Partner',timestamp:(item&&item.timestamp)||Date.now()};}),backtranslate:normalizeBacktranslatePayload(bt,{sourceLang:bt.sourceLang||s.tgtLang||'th',targetLang:bt.targetLang||s.srcLang||'en',inputText:bt.inputText||s.tgtTxt||'',resultText:bt.resultText||'',verdict:bt.verdict||'',updatedAt:bt.updatedAt||Date.now()})});renderAllMessages();}
 function bblClarifyMotif(msg){var thread=(msg&&msg.clarify&&msg.clarify.thread)||[];return '💬';}
 function ensureClarifyThread(msg){if(!msg.clarify||typeof msg.clarify!=='object')msg.clarify={status:'none',text:''};if(!Array.isArray(msg.clarify.thread))msg.clarify.thread=[];return msg.clarify.thread;}
@@ -2005,6 +2020,30 @@ function sendMessage(){
   var payload={type:'msg',id:msg.id,sourceText:msg.sourceText,sourceLang:msg.sourceLang,targetText:msg.targetText||'',targetLang:msg.targetLang,translations:msg.translations,orig:msg.sourceText,lang:msg.sourceLang,timestamp:msg.timestamp,name:sess.myName||getPrefs().userName||'yournamehere'};
   var ok=sendReliable(payload);
   if(!ok){msg.status='queued';saveMsgs(sess.convId,state.messages);}else{msg.status='sent';saveMsgs(sess.convId,state.messages);}
+
+  var localLang=sess.myLang||'en';
+  if(localLang&&localLang!==outLang&&localLang!==targetLang){
+    translate(msg.sourceText,outLang,localLang).then(function(localTr){
+      if(!localTr)return;
+      if(setMsgTranslation(msg,localLang,localTr)){
+        updateTransDOM(msg);
+        saveMsgs(sess.convId,state.messages);
+        renderAllMessages();
+      }
+    });
+  }
+  if(!shouldSkipSameLanguage(outLang,targetLang)){
+    translate(msg.sourceText,outLang,targetLang).then(function(tr){
+      var translated=tr||msg.sourceText;
+      applyMsgTarget(msg,targetLang,translated);
+      updateTransDOM(msg);
+      saveMsgs(sess.convId,state.messages);
+      sendReliable({type:'tr',id:msg.id,sourceText:msg.sourceText,sourceLang:msg.sourceLang,targetText:msg.targetText,targetLang:msg.targetLang,translations:msg.translations,text:msg.targetText});
+      sendReliable({type:'translation',id:msg.id,sourceText:msg.sourceText,sourceLang:msg.sourceLang,targetText:msg.targetText,targetLang:msg.targetLang,translations:msg.translations,text:msg.targetText,timestamp:Date.now()});
+      logTranslationDebug('me',outLang,targetLang,translated);
+      renderAllMessages();
+    });
+  }
   renderAllMessages();
 }
 
@@ -2116,7 +2155,7 @@ function renderCatalogCards(){
       onSend:'saveCardClarify(\''+c.id+'\')'
     });
 
-    var backModule='<div class="bbl-backtrans'+(state.pbBackOpen[c.id]?' open':'')+'" id="card-bbt-'+c.id+'"><div class="bbl-back-row"><button class="retranslate-btn" onclick="rerunCardBacktranslate(\''+c.id+'\')">Back translate</button></div><div class="bbl-back-row"><div id="card-bbt-t-'+c.id+'" class="bbl-back-text">'+escHtml(bt.resultText||'No backtranslation yet.')+'</div><button class="bbl-act" onclick="event.stopPropagation();speak('+(bt.resultText?attrSafe(bt.resultText):'\'\'')+','+aSL+',this)" title="Listen">'+ICON_TTS+'</button></div><div class="bbl-back-row" id="card-bbt-v-'+c.id+'"></div></div>';
+    var backModule='<div class="bbl-backtrans'+(state.pbBackOpen[c.id]?' open':'')+'" id="card-bbt-'+c.id+'"><div class="bbl-back-row"><button class="retranslate-btn" onclick="rerunCardBacktranslate(\''+c.id+'\')">Back translate</button></div><div class="bbl-back-row"><div id="card-bbt-t-'+c.id+'" class="bbl-back-text">'+escHtml(bt.resultText||'No backtranslation yet.')+'</div><button class="bbl-act" onclick="event.stopPropagation();speak('+(bt.resultText?attrSafe(bt.resultText):'\'\'')+','+(bt.targetLang?attrSafe(bt.targetLang):aSL)+',this)" title="Listen">'+ICON_TTS+'</button></div><div class="bbl-back-row" id="card-bbt-v-'+c.id+'"></div></div>';
 
     var footer=renderBubbleFooterActionBar({
       saveAction:'<button class="bbl-act" onclick="event.stopPropagation();saveCardToNew(\''+c.id+'\')" title="Save">'+ICON_SAVE+'</button>',
