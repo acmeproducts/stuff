@@ -1848,17 +1848,39 @@ function handleRelayEvent(d){
 // ════════════════════ BUBBLES ════════════════════
 function getSides(msg){
   var sess=getSession(state.activeConvId)||{};
-  normalizeMsgSchema(msg,{sourceLang:msg&&msg.from==='me'?(sess.myLang||'en'):(msg.lang||sess.partnerLang||'th'),targetLang:msg&&msg.from==='me'?(sess.partnerLang||'th'):(sess.myLang||'en')});
-  var sourceLang=msg.sourceLang||detectLang(msg.sourceText||'',sess.partnerLang||sess.myLang||'en');
+  var isMine=!!(msg&&msg.from==='me');
+  var sendLang=getSessionSendLang(sess);
+  var receiveLang=getSessionReceiveLang(sess);
+  normalizeMsgSchema(msg,{sourceLang:isMine?sendLang:(msg.lang||receiveLang),targetLang:isMine?receiveLang:sendLang});
+  var sourceLang=msg.sourceLang||detectLang(msg.sourceText||'',receiveLang||sendLang||'en');
   var sourceTxt=msg.sourceText||msg.orig||msg.text||'';
-  var localLang=sess.myLang||sourceLang||'en';
-  var localTxt=(localLang===sourceLang)?sourceTxt:getMsgTranslatedText(msg,localLang,msg.targetLang===localLang?msg.targetText:'');
-  if(!localTxt)localTxt=sourceTxt;
-  var pairedLang=(localLang===sourceLang)?(msg.targetLang||sess.partnerLang||sourceLang):sourceLang;
-  var pairTxt=(pairedLang===sourceLang)?sourceTxt:getMsgTranslatedText(msg,pairedLang,msg.targetLang===pairedLang?msg.targetText:'');
-  if(!pairTxt&&pairedLang!==sourceLang)pairTxt=msg.targetText||sourceTxt;
-  if(pairTxt===localTxt&&sourceTxt&&sourceTxt!==localTxt)pairTxt=sourceTxt;
-  return{srcLang:localLang,srcTxt:localTxt||'',tgtLang:pairedLang||sourceLang,tgtTxt:pairTxt||''};
+  var sideSpec={
+    localLang:isMine?sendLang:receiveLang,
+    remoteLang:isMine?receiveLang:sendLang,
+    sourceLang:sourceLang,
+    sourceTxt:sourceTxt
+  };
+  return {
+    srcLang:sideSpec.localLang||sourceLang,
+    srcTxt:normalizeSideTextByContract(msg,sideSpec,'left'),
+    tgtLang:sideSpec.remoteLang||sourceLang,
+    tgtTxt:normalizeSideTextByContract(msg,sideSpec,'right')
+  };
+}
+function normalizeSideTextByContract(msg,sideSpec,side){
+  var spec=sideSpec||{};
+  var sourceLang=spec.sourceLang||'';
+  var sourceTxt=spec.sourceTxt||'';
+  var localLang=spec.localLang||'';
+  var remoteLang=spec.remoteLang||'';
+  var isLeft=side==='left';
+  var wantedLang=isLeft?localLang:remoteLang;
+  var fallback=(msg&&msg.targetLang===wantedLang)?msg.targetText:'';
+  if(wantedLang&&wantedLang===sourceLang)return sourceTxt;
+  var translated=getMsgTranslatedText(msg,wantedLang,fallback);
+  if(translated)return translated;
+  if(!isLeft)return sourceTxt||msg.targetText||'';
+  return sourceTxt||msg.targetText||'';
 }
 function renderBubbleHeaderBlock(opts){
   opts=opts||{};
