@@ -917,7 +917,7 @@ var DEVICE_ID=getDeviceId();
 var PART_ID=getPartId();
 
 // State
-var state={activeConvId:null,messages:[],connected:false,currentCatId:'all',openCardId:null,ppTagFilter:[],tagPickerCtx:null,tagPickerCardId:null,ncTags:[],confirmCallback:null,autoSpeakIncoming:false,clarifyTargetMsgId:null,activeClarifyMsgId:null,_newCatEmoji:'📝',pbLaunchFlow:false,pbBackOpen:{},pbClarifyOpen:{},pbClarifyDrafts:{},pbClarifyErrors:{},participants:{},saveContext:null};
+var state={activeConvId:null,messages:[],connected:false,currentCatId:'all',openCardId:null,ppTagFilter:[],tagPickerCtx:null,tagPickerCardId:null,ncTags:[],confirmCallback:null,autoSpeakIncoming:false,clarifyTargetMsgId:null,activeClarifyMsgId:null,_newCatEmoji:'📝',pbLaunchFlow:false,pbBackOpen:{},pbClarifyOpen:{},pbClarifyDrafts:{},pbClarifyErrors:{},msgBackOpen:{},participants:{},saveContext:null};
 var tagPickerSelectedTags=[];
 var tEngine='cloud',ttsActive=null;
 var typingTimer=null,lastTypingTs=0;
@@ -1817,18 +1817,69 @@ function getSides(msg){
   var pairTxt=(pairedLang===msg.sourceLang)?msg.sourceText:getMsgTranslatedText(msg,pairedLang,msg.targetLang===pairedLang?msg.targetText:msg.translated);
   return{srcLang:localLang,srcTxt:localTxt||'',tgtLang:pairedLang,tgtTxt:pairTxt||''};
 }
+function renderBubbleHeaderBlock(opts){
+  opts=opts||{};
+  return '<div class="bbl-hdr">'
+    +'<span class="bbl-sender">'+(opts.senderHtml||'')+'</span>'
+    +'<span class="bbl-time">'+escHtml(opts.metaText||'')+'</span>'
+    +(opts.actionsHtml||'')
+    +'</div>';
+}
+function renderBubbleTwoLangBodyBlock(opts){
+  opts=opts||{};
+  var srcClass=opts.srcClass||'bbl-txt';
+  var tgtClass=opts.tgtClass||'bbl-txt';
+  var srcTts=opts.srcTtsHtml||'';
+  var tgtTts=opts.tgtTtsHtml||'';
+  return '<div class="bbl-body">'
+    +'<div class="bbl-side"><div class="'+srcClass+'">'+(opts.srcHtml||'')+'</div>'+srcTts+'</div>'
+    +'<div class="bbl-divider"></div>'
+    +'<div class="bbl-side"><div class="'+tgtClass+'">'+(opts.tgtHtml||'')+'</div>'+tgtTts+'</div>'
+    +'</div>';
+}
+function renderBubbleFooterActionBar(opts){
+  opts=opts||{};
+  return '<div class="bbl-foot"><div class="bbl-foot-bar">'
+    +(opts.saveAction||'')
+    +(opts.tagAction||'')
+    +(opts.clarifyAction||'')
+    +(opts.backtranslateAction||'')
+    +(opts.extraAction||'')
+    +'</div>'
+    +(opts.modulesHtml||'')
+    +'</div>';
+}
+function renderBubbleTagDrawer(opts){
+  opts=opts||{};
+  return '<div class="'+(opts.wrapperClass||'tag-drawer')+(opts.open?' open':'')+'" id="'+escHtml(opts.id||'')+'">'
+    +'<div class="'+(opts.tagsRowClass||'pb-tags-row')+'" id="'+escHtml(opts.assignedId||'')+'">'+(opts.tagsHtml||'')+'</div>'
+    +'<input class="'+(opts.inputClass||'tag-drawer-input')+'" id="'+escHtml(opts.inputId||'')+'" placeholder="'+escHtml(opts.placeholder||'Find or add tag…')+'" '
+    +'oninput="'+(opts.onInput||'')+'" onkeydown="'+(opts.onEnter||'')+'">'
+    +'<div class="'+(opts.resultsClass||'tag-search-results')+'" id="'+escHtml(opts.resultsId||'')+'">'+(opts.resultsHtml||'')+'</div>'
+    +'</div>';
+}
+function renderBubbleClarifyModule(opts){
+  opts=opts||{};
+  var style=opts.styleAttr||(opts.open?'display:block;':'display:none;');
+  return '<div class="'+(opts.wrapperClass||'clarify-block')+'" id="'+escHtml(opts.id||'')+'" style="'+style+'">'
+    +'<div class="'+(opts.threadClass||'clarify-thread')+'" id="'+escHtml(opts.threadId||'')+'">'+(opts.threadHtml||'')+'</div>'
+    +'<div class="'+(opts.composeClass||'clarify-compose')+'"><input class="'+(opts.inputClass||'clarify-input')+'" id="'+escHtml(opts.inputId||'')+'" placeholder="'+escHtml(opts.placeholder||'Add clarify note…')+'" value="'+escHtml(opts.inputValue||'')+'" oninput="'+(opts.onInput||'')+'" onkeydown="'+(opts.onEnter||'')+'">'
+    +'<button class="'+(opts.buttonClass||'bbl-act')+'" onclick="'+(opts.onSend||'')+'">'+escHtml(opts.buttonLabel||'Send')+'</button></div>'
+    +(opts.extraHtml||'')
+    +'</div>';
+}
 function buildBblFoot(msg){
   var id=msg.id;
-  var thread=(msg&&msg.clarify&&msg.clarify.thread)||[];
-  return '<div class="bbl-foot"><div class="bbl-foot-bar">'
-    +'<button class="bbl-act" onclick="bblSave(\''+id+'\')" title="Save">'+ICON_SAVE+'</button>'
-    +'<button class="bbl-act" onclick="toggleMsgTagDrawer(\''+id+'\')" title="Tags">#</button>'
-    +'<button class="bbl-act clarify-btn" id="bact-c-'+id+'" onclick="bblClarifyClick(\''+id+'\')" title="Clarify">'+bblClarifyMotif(msg)+'</button>'
-    +'<button class="bbl-act" onclick="toggleBubbleBacktranslate(\''+id+'\')" title="Back-translate">'+ICON_BACK+'</button>'
-    +'</div>'
-    +'<div class="tag-drawer" id="msg-tag-drawer-'+id+'"><div class="pb-tags-row" id="msg-tag-assigned-'+id+'"></div><input class="tag-drawer-input" id="msg-tag-input-'+id+'" placeholder="Find or add tag…" oninput="renderMsgTagResults(\''+id+'\')" onkeydown="if(event.key===\'Enter\'){event.preventDefault();submitMsgTagInput(\''+id+'\');}"><div class="tag-search-results" id="msg-tag-results-'+id+'"></div></div>'
-    +'<div class="clarify-block" id="bclarify-'+id+'" style="display:none;"><div class="clarify-thread" id="bclarify-thread-'+id+'"></div><div class="clarify-compose"><input class="clarify-input" id="bclarify-input-'+id+'" placeholder="Add clarify note…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();sendClarifyNote(\''+id+'\');}"><button class="bbl-act" onclick="sendClarifyNote(\''+id+'\')">Send</button></div></div>'
-    +'<div class="bbl-backtrans" id="bbt-'+id+'"><div class="bbl-back-row"><button class="retranslate-btn" onclick="rerunBubbleBacktranslate(\''+id+'\')">Back translate</button></div><div class="bbl-back-row"><div id="bbt-t-'+id+'" class="bbl-back-text">Consistent on toggle</div><button class="bbl-act" onclick="bblTTSFoot(\''+id+'\',this)" title="Listen">'+ICON_TTS+'</button></div><div class="bbl-back-row" id="bbt-v-'+id+'"></div></div></div>';
+  return renderBubbleFooterActionBar({
+    saveAction:'<button class="bbl-act" onclick="bblSave(\''+id+'\')" title="Save">'+ICON_SAVE+'</button>',
+    tagAction:'<button class="bbl-act" onclick="toggleMsgTagDrawer(\''+id+'\')" title="Tags">#</button>',
+    clarifyAction:'<button class="bbl-act clarify-btn" id="bact-c-'+id+'" onclick="bblClarifyClick(\''+id+'\')" title="Clarify">'+bblClarifyMotif(msg)+'</button>',
+    backtranslateAction:'<button class="bbl-act" onclick="toggleBubbleBacktranslate(\''+id+'\')" title="Back-translate">'+ICON_BACK+'</button>',
+    modulesHtml:
+      renderBubbleTagDrawer({id:'msg-tag-drawer-'+id,assignedId:'msg-tag-assigned-'+id,inputId:'msg-tag-input-'+id,resultsId:'msg-tag-results-'+id,onInput:'renderMsgTagResults(\''+id+'\')',onEnter:'if(event.key===\'Enter\'){event.preventDefault();submitMsgTagInput(\''+id+'\');}'})
+      +renderBubbleClarifyModule({id:'bclarify-'+id,threadId:'bclarify-thread-'+id,inputId:'bclarify-input-'+id,onEnter:'if(event.key===\'Enter\'){event.preventDefault();sendClarifyNote(\''+id+'\');}',onSend:'sendClarifyNote(\''+id+'\')'})
+      +'<div class="bbl-backtrans'+(state.msgBackOpen&&state.msgBackOpen[id]?' open':'')+'" id="bbt-'+id+'"><div class="bbl-back-row"><button class="retranslate-btn" onclick="rerunBubbleBacktranslate(\''+id+'\')">Back translate</button></div><div class="bbl-back-row"><div id="bbt-t-'+id+'" class="bbl-back-text">Consistent on toggle</div><button class="bbl-act" onclick="bblTTSFoot(\''+id+'\',this)" title="Listen">'+ICON_TTS+'</button></div><div class="bbl-back-row" id="bbt-v-'+id+'"></div></div>'
+  });
 }
 
 function renderMsg(msg){
@@ -1839,16 +1890,20 @@ function renderMsg(msg){
   var name=msg.displayFromName||(isMine?(sess&&sess.names&&sess.names.meAlias||'Me'):(sess&&sess.names&&sess.names.themAlias||'Partner'));
   var tgtCls=sides.tgtTxt?'bbl-txt':'bbl-txt loading';
   var html='<div class="bubble-card">'
-    +'<div class="bbl-hdr"><span class="bbl-sender">'+escHtml(name)+(msg.status==='queued'?'<span class=\"queued-badge\">Queued</span>':'')+'</span><span class="bbl-time">'+escHtml(time)+'</span></div>'
-    +'<div class="bbl-body">'
-    +'<div class="bbl-side"><div class="bbl-txt" id="bsrc-'+msg.id+'">'+renderMd(sides.srcTxt||'')+'</div><button class="bbl-tts" onclick="bblTTS(\''+msg.id+'\',\'src\',this)">'+ICON_TTS+'</button></div>'
-    +'<div class="bbl-divider"></div>'
-    +'<div class="bbl-side"><div class="'+tgtCls+'" id="btgt-'+msg.id+'">'+(sides.tgtTxt?renderMd(sides.tgtTxt):'')+'</div><button class="bbl-tts" onclick="bblTTS(\''+msg.id+'\',\'tgt\',this)">'+ICON_TTS+'</button></div>'
-    +'</div>'+buildBblFoot(msg)+'</div>';
+    +renderBubbleHeaderBlock({senderHtml:escHtml(name)+(msg.status==='queued'?'<span class="queued-badge">Queued</span>':''),metaText:time})
+    +renderBubbleTwoLangBodyBlock({
+      srcClass:'bbl-txt',
+      tgtClass:tgtCls,
+      srcHtml:'<div id="bsrc-'+msg.id+'">'+renderMd(sides.srcTxt||'')+'</div>',
+      tgtHtml:'<div id="btgt-'+msg.id+'">'+(sides.tgtTxt?renderMd(sides.tgtTxt):'')+'</div>',
+      srcTtsHtml:'<button class="bbl-tts" onclick="bblTTS(\''+msg.id+'\',\'src\',this)">'+ICON_TTS+'</button>',
+      tgtTtsHtml:'<button class="bbl-tts" onclick="bblTTS(\''+msg.id+'\',\'tgt\',this)">'+ICON_TTS+'</button>'
+    })
+    +buildBblFoot(msg)+'</div>';
   var el=document.createElement('div');el.className='msg-row'+(isMine?' mine':' theirs');el.id='row-'+msg.id;el.innerHTML=html;
   document.getElementById('messages').appendChild(el);
 }
-function renderAllMessages(){var c=document.getElementById('messages');c.innerHTML='';state.messages.forEach(function(m){renderMsg(m);if(m.clarify&&m.clarify.status&&m.clarify.status!=='none')updateBblClarify(m);});scrollBottom();}
+function renderAllMessages(){var c=document.getElementById('messages');c.innerHTML='';state.messages.forEach(function(m){renderMsg(m);if(m.clarify&&m.clarify.status&&m.clarify.status!=='none')updateBblClarify(m);if(state.msgBackOpen&&state.msgBackOpen[m.id])renderBubbleBacktranslateFooter(m.id);});scrollBottom();}
 function updateTransDOM(msg){var sides=getSides(msg);var el=document.getElementById('btgt-'+msg.id);if(el&&sides.tgtTxt){el.innerHTML=renderMd(sides.tgtTxt);el.classList.remove('loading');}}
 
 // Bubble actions
@@ -1887,7 +1942,7 @@ function renderBubbleBacktranslateFooter(id){
     else vEl.innerHTML='<button class="bbl-vbtn good" onclick="bblGood(\''+id+'\')">Sounds right</button> <button class="bbl-vbtn bad" onclick="bblFlag(\''+id+'\')">Flag</button>';
   }
 }
-function toggleBubbleBacktranslate(id){var panel=document.getElementById('bbt-'+id);if(!panel)return;var isOpen=panel.classList.contains('open');panel.classList.toggle('open');if(!isOpen){renderBubbleBacktranslateFooter(id);rerunBubbleBacktranslate(id);}}
+function toggleBubbleBacktranslate(id){var panel=document.getElementById('bbt-'+id);if(!panel)return;var isOpen=panel.classList.contains('open');if(!state.msgBackOpen)state.msgBackOpen={};state.msgBackOpen[id]=!isOpen;panel.classList.toggle('open',state.msgBackOpen[id]);if(state.msgBackOpen[id]){renderBubbleBacktranslateFooter(id);rerunBubbleBacktranslate(id);}}
 function rerunBubbleBacktranslate(id){
   var msg=findMsg(id);if(!msg)return;
   var panel=document.getElementById('bbt-'+id);var tEl=document.getElementById('bbt-t-'+id);
@@ -1901,11 +1956,10 @@ function rerunBubbleBacktranslate(id){
     msg.backtranslate=normalizeBacktranslatePayload(msg.backtranslate,{sourceLang:from,targetLang:to,inputText:txt,resultText:back||'',verdict:msg.backtranslate.verdict||'',updatedAt:Date.now()});
     renderBubbleBacktranslateFooter(id);
     saveMsgs(state.activeConvId,state.messages);
-    renderAllMessages();
   });
 }
-function bblGood(id){var msg=findMsg(id);if(!msg)return;var bt=getMsgBacktranslate(msg);msg.backtranslate=normalizeBacktranslatePayload(bt,{verdict:'good',updatedAt:Date.now()});saveMsgs(state.activeConvId,state.messages);renderBubbleBacktranslateFooter(id);renderAllMessages();toast('Verified ✓');}
-function bblFlag(id){var msg=findMsg(id);if(!msg)return;var bt=getMsgBacktranslate(msg);msg.backtranslate=normalizeBacktranslatePayload(bt,{verdict:'flag',updatedAt:Date.now()});saveMsgs(state.activeConvId,state.messages);renderBubbleBacktranslateFooter(id);renderAllMessages();toast('Flagged ⚠');}
+function bblGood(id){var msg=findMsg(id);if(!msg)return;var bt=getMsgBacktranslate(msg);msg.backtranslate=normalizeBacktranslatePayload(bt,{verdict:'good',updatedAt:Date.now()});saveMsgs(state.activeConvId,state.messages);renderBubbleBacktranslateFooter(id);toast('Verified ✓');}
+function bblFlag(id){var msg=findMsg(id);if(!msg)return;var bt=getMsgBacktranslate(msg);msg.backtranslate=normalizeBacktranslatePayload(bt,{verdict:'flag',updatedAt:Date.now()});saveMsgs(state.activeConvId,state.messages);renderBubbleBacktranslateFooter(id);toast('Flagged ⚠');}
 
 // Clarify
 function bblClarifyClick(id){var msg=findMsg(id);if(!msg)return;var blk=document.getElementById('bclarify-'+id);if(!blk)return;var open=blk.style.display==='block';blk.style.display=open?'none':'block';if(!open){ensureClarifyThread(msg);updateBblClarify(msg);var input=document.getElementById('bclarify-input-'+id);if(input)input.focus();}}
@@ -2003,11 +2057,101 @@ function clearSaySearch(){var el=document.getElementById('say-search');if(el)el.
 function clearCatalogSearch(){var el=document.getElementById('cat-search');if(el)el.value='';renderCatalogCards();}
 function getActivePhrasebookCatalogId(){return state.currentCatId||'all';}
 function renderPhrasebookCatalogFilter(){var host=document.getElementById('catalog-filter-list');if(!host)return;var cats=getCatalogs().slice().sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});var active=getActivePhrasebookCatalogId();var allCls=active==='all'?' tp-tag-chip selected':' tp-tag-chip';var allBtn='<button class="'+allCls+'" onclick="selectCatalogFilter(\'all\')">All catalogs</button>';var catBtns=cats.map(function(c){var cls='tp-tag-chip'+(c.id===active?' selected':'');var lbl=(c.emoji?c.emoji+' ':'')+(c.name||'Catalog');return '<button class="'+cls+'" onclick="selectCatalogFilter(\''+c.id+'\')">'+escHtml(lbl)+'</button>';}).join('');host.innerHTML=allBtn+catBtns;}
-function renderCatalogCards(){var q=(document.getElementById('cat-search')&&document.getElementById('cat-search').value||'').trim().toLowerCase();var cards=getCards();var activeCatalogId=getActivePhrasebookCatalogId();if(activeCatalogId!=='all')cards=cards.filter(function(c){return(c.catalogIds||[]).indexOf(activeCatalogId)>=0;});if(q)cards=cards.filter(function(c){return(c.source||'').toLowerCase().indexOf(q)>=0||(c.target||'').toLowerCase().indexOf(q)>=0||(c.tags||[]).join(' ').toLowerCase().indexOf(q)>=0;});cards.sort(function(a,b){return(b.updatedAt||0)-(a.updatedAt||0);});var list=document.getElementById('card-list');if(!list)return;var width=(getPrefs().bubbleWidth||75)+'%';var clear=document.getElementById('cat-search-clear');if(clear)clear.classList.toggle('show',!!q);if(!cards.length){list.innerHTML='<div style="text-align:center;padding:24px;color:var(--ink-dim);">No phrases.</div>';return;}list.innerHTML=cards.map(function(c){var aS=attrSafe(c.source||'');var aT=attrSafe(c.target||'');var aSL=attrSafe(c.sourceLang||'en');var bt=normalizeBacktranslatePayload(c.backtranslate,{sourceLang:c.targetLang||'th',targetLang:c.sourceLang||'en',inputText:c.target||c.source||'',resultText:'',verdict:''});var clarifyItems=(c.clarifyChain||[]).map(function(item,idx){var txt=item.text||item.answer||'';var author=item.author||'Note';return '<div class="pb-clarify-item"><div><strong>'+escHtml(author)+':</strong> '+renderMd(txt)+'</div><div class="pb-clarify-time">'+fmtDateTime(item.timestamp||Date.now())+' <button class="clarify-remove" onclick="removeCardClarify(\''+c.id+'\','+idx+')" title="Remove">×</button></div></div>';}).join('')||'<div class="pb-row-text" style="color:var(--ink-dim);font-style:italic;">No clarify entries yet.</div>';var draft=state.pbClarifyDrafts[c.id]||'';var tags=(c.tags||[]).map(function(t){return '<span class="pb-tag-pill">#'+escHtml(t)+'<button onclick="event.stopPropagation();removeCardTag(\''+c.id+'\',\''+t+'\')">×</button></span>';}).join('');var hasClarify=(c.clarifyChain||[]).length>0;var hasVerdict=!!bt.verdict;var drawer=(state.pbTagDrawer&&state.pbTagDrawer[c.id])?'<div class="tag-drawer open"><div class="pb-tags-row">'+tags+'</div><input class="tag-drawer-input" id="card-tag-input-'+c.id+'" placeholder="Find or add tag…" oninput="renderCardTagResults(\''+c.id+'\')" onkeydown="if(event.key===\'Enter\'){event.preventDefault();submitCardTagInput(\''+c.id+'\');}"><div class="tag-search-results" id="card-tag-results-'+c.id+'"></div></div>':'';return '<div class="pb-card-shell"><div class="pb-card" style="max-width:'+width+';"><div class="pb-card-header"><button class="pb-icon" onclick="event.stopPropagation();toggleCardTagDrawer(\''+c.id+'\')" title="Assign tags">#</button><button class="pb-icon" onclick="event.stopPropagation();confirmDeleteCard(\''+c.id+'\')" title="Delete">×</button></div><div class="pb-sides"><div class="pb-side"><div class="pb-source">'+escHtml(c.source)+'</div><div class="pb-side-actions"><button class="pb-icon" onclick="event.stopPropagation();speak('+aS+','+aSL+',this)">'+ICON_TTS+'</button><button class="pb-use-chip" onclick="event.stopPropagation();insertPhrase('+aS+')">Use</button></div></div><div class="pb-side"><div class="pb-target">'+escHtml(c.target)+'</div><div class="pb-side-actions"><button class="pb-icon" onclick="event.stopPropagation();speak('+aT+','+attrSafe(c.targetLang||'th')+',this)">'+ICON_TTS+'</button><button class="pb-use-chip" onclick="event.stopPropagation();insertPhrase('+aT+')">Use</button></div></div></div><div class="pb-toolbar"><div class="pb-tags-row">'+tags+'</div><div class="pb-hdr-actions"><button class="pb-icon" onclick="event.stopPropagation();toggleCardBacktranslate(\''+c.id+'\')" title="Backtranslate">'+ICON_BACK+'</button><button class="pb-icon" onclick="event.stopPropagation();toggleCardClarify(\''+c.id+'\')" title="Clarify">'+ICON_CLARIFY+'</button></div></div>'+drawer+(state.pbBackOpen[c.id]?'<div class="pb-module"><div class="pb-row"><button class="retranslate-btn" onclick="rerunCardBacktranslate(\''+c.id+'\')">Backtranslate</button></div><div class="pb-row"><div class="pb-row-text">'+escHtml(bt.resultText||'No backtranslation yet.')+'</div><button class="pb-icon" onclick="event.stopPropagation();speak('+(bt.resultText?attrSafe(bt.resultText):'\'\'')+','+aSL+',this)">'+ICON_TTS+'</button></div><div class="pb-row"><button class="pb-chip good'+(bt.verdict==='good'?' active':'')+'" onclick="setCardVerdict(\''+c.id+'\',\'good\')">Sounds good</button><button class="pb-chip flag'+(bt.verdict==='flag'?' active':'')+'" onclick="setCardVerdict(\''+c.id+'\',\'flag\')">Flag</button></div><div class="pb-row"><div class="pb-state">'+escHtml(bt.verdict==='good'?'Persisted: Sounds good':bt.verdict==='flag'?'Persisted: Flagged':'Persisted: Pending verdict')+'</div></div></div>':'')+(state.pbClarifyOpen[c.id]?'<div class="pb-module">'+clarifyItems+'<div class="pb-clarify-form"><input class="pb-clarify-input" placeholder="Add clarify note…" value="'+escHtml(draft)+'" oninput="updateCardClarifyDraft(\''+c.id+'\',this.value)"><button class="retranslate-btn" onclick="saveCardClarify(\''+c.id+'\')">Send</button></div></div>':'')+'<div class="card-meta">Updated '+timeAgo(c.updatedAt)+'</div></div></div>';}).join('');}
-function setCardVerdict(id,val){var card=getCardById(id);if(!card)return;var bt=normalizeBacktranslatePayload(card.backtranslate,{sourceLang:card.targetLang||'th',targetLang:card.sourceLang||'en',inputText:card.target||card.source||'',resultText:'',verdict:'',updatedAt:Date.now()});bt.verdict=(bt.verdict===val?'':val);bt.updatedAt=Date.now();card.backtranslate=bt;saveUpdatedCard(card);}
-function toggleCardBacktranslate(id){state.pbBackOpen[id]=!state.pbBackOpen[id];renderCatalogCards();}
+function renderCatalogCards(){
+  var q=(document.getElementById('cat-search')&&document.getElementById('cat-search').value||'').trim().toLowerCase();
+  var cards=getCards();
+  var activeCatalogId=getActivePhrasebookCatalogId();
+  if(activeCatalogId!=='all')cards=cards.filter(function(c){return(c.catalogIds||[]).indexOf(activeCatalogId)>=0;});
+  if(q)cards=cards.filter(function(c){return(c.source||'').toLowerCase().indexOf(q)>=0||(c.target||'').toLowerCase().indexOf(q)>=0||(c.tags||[]).join(' ').toLowerCase().indexOf(q)>=0;});
+  cards.sort(function(a,b){return(b.updatedAt||0)-(a.updatedAt||0);});
+  var list=document.getElementById('card-list');if(!list)return;
+  var width=(getPrefs().bubbleWidth||75)+'%';
+  var clear=document.getElementById('cat-search-clear');if(clear)clear.classList.toggle('show',!!q);
+  if(!cards.length){list.innerHTML='<div style="text-align:center;padding:24px;color:var(--ink-dim);">No phrases.</div>';return;}
+
+  list.innerHTML=cards.map(function(c){
+    var aS=attrSafe(c.source||'');
+    var aT=attrSafe(c.target||'');
+    var aSL=attrSafe(c.sourceLang||'en');
+    var aTL=attrSafe(c.targetLang||'th');
+    var bt=normalizeBacktranslatePayload(c.backtranslate,{sourceLang:c.targetLang||'th',targetLang:c.sourceLang||'en',inputText:c.target||c.source||'',resultText:'',verdict:''});
+    var tags=(c.tags||[]).map(function(t){return '<span class="pb-tag-pill">#'+escHtml(t)+'<button onclick="event.stopPropagation();removeCardTag(\''+c.id+'\',\''+t+'\')">×</button></span>';}).join('');
+    var clarifyItems=(c.clarifyChain||[]).map(function(item,idx){
+      var txt=item.text||item.answer||'';
+      var author=item.author||'Note';
+      return '<div class="clarify-item"><strong>'+escHtml(author)+':</strong> '+renderMd(txt)+' <span class="clarify-time">'+fmtDateTime(item.timestamp||Date.now())+'</span><button class="clarify-remove" onclick="removeCardClarify(\''+c.id+'\','+idx+')" title="Remove">×</button></div>';
+    }).join('')||'<div class="clarify-empty">No clarify entries yet.</div>';
+    var draft=state.pbClarifyDrafts[c.id]||'';
+
+    var sourceColumn='<div id="card-src-'+c.id+'">'+renderMd(c.source||'')+'</div><div class="pb-side-actions"><button class="pb-icon" onclick="event.stopPropagation();speak('+aS+','+aSL+',this)">'+ICON_TTS+'</button><button class="pb-use-chip" onclick="event.stopPropagation();insertPhrase('+aS+')">Use</button></div>';
+    var targetColumn='<div id="card-tgt-'+c.id+'">'+renderMd(c.target||'')+'</div><div class="pb-side-actions"><button class="pb-icon" onclick="event.stopPropagation();speak('+aT+','+aTL+',this)">'+ICON_TTS+'</button><button class="pb-use-chip" onclick="event.stopPropagation();insertPhrase('+aT+')">Use</button></div>';
+
+    var body=renderBubbleTwoLangBodyBlock({
+      srcClass:'bbl-txt',
+      tgtClass:'bbl-txt',
+      srcHtml:sourceColumn,
+      tgtHtml:targetColumn
+    });
+
+    var tagDrawer=renderBubbleTagDrawer({
+      id:'card-tag-drawer-'+c.id,
+      assignedId:'card-tag-assigned-'+c.id,
+      inputId:'card-tag-input-'+c.id,
+      resultsId:'card-tag-results-'+c.id,
+      tagsHtml:tags,
+      open:!!(state.pbTagDrawer&&state.pbTagDrawer[c.id]),
+      onInput:'renderCardTagResults(\''+c.id+'\')',
+      onEnter:'if(event.key===\'Enter\'){event.preventDefault();submitCardTagInput(\''+c.id+'\');}'
+    });
+
+    var clarifyModule=renderBubbleClarifyModule({
+      id:'card-clarify-'+c.id,
+      open:!!state.pbClarifyOpen[c.id],
+      threadId:'card-clarify-thread-'+c.id,
+      threadHtml:clarifyItems,
+      inputId:'card-clarify-input-'+c.id,
+      inputValue:draft,
+      onInput:'updateCardClarifyDraft(\''+c.id+'\',this.value)',
+      onEnter:'if(event.key===\'Enter\'){event.preventDefault();saveCardClarify(\''+c.id+'\');}',
+      onSend:'saveCardClarify(\''+c.id+'\')'
+    });
+
+    var backModule='<div class="bbl-backtrans'+(state.pbBackOpen[c.id]?' open':'')+'" id="card-bbt-'+c.id+'"><div class="bbl-back-row"><button class="retranslate-btn" onclick="rerunCardBacktranslate(\''+c.id+'\')">Back translate</button></div><div class="bbl-back-row"><div id="card-bbt-t-'+c.id+'" class="bbl-back-text">'+escHtml(bt.resultText||'No backtranslation yet.')+'</div><button class="bbl-act" onclick="event.stopPropagation();speak('+(bt.resultText?attrSafe(bt.resultText):'\'\'')+','+aSL+',this)" title="Listen">'+ICON_TTS+'</button></div><div class="bbl-back-row" id="card-bbt-v-'+c.id+'"></div></div>';
+
+    var footer=renderBubbleFooterActionBar({
+      saveAction:'<button class="bbl-act" onclick="event.stopPropagation();saveCardToNew(\''+c.id+'\')" title="Save">'+ICON_SAVE+'</button>',
+      tagAction:'<button class="bbl-act" onclick="event.stopPropagation();toggleCardTagDrawer(\''+c.id+'\')" title="Tags">#</button>',
+      clarifyAction:'<button class="bbl-act clarify-btn" onclick="event.stopPropagation();toggleCardClarify(\''+c.id+'\')" title="Clarify">'+ICON_CLARIFY+'</button>',
+      backtranslateAction:'<button class="bbl-act" onclick="event.stopPropagation();toggleCardBacktranslate(\''+c.id+'\')" title="Back-translate">'+ICON_BACK+'</button>',
+      modulesHtml:tagDrawer+clarifyModule+backModule
+    });
+
+    return '<div class="pb-card-shell"><div class="msg-row theirs" style="width:'+width+';max-width:'+width+';"><div class="bubble-card">'
+      +renderBubbleHeaderBlock({senderHtml:escHtml(fmtDateTime(c.updatedAt||c.createdAt||Date.now())),metaText:'',actionsHtml:'<button class="pb-icon del" onclick="event.stopPropagation();confirmDeleteCard(\''+c.id+'\')" title="Delete">×</button>'})
+      +body
+      +footer
+      +'</div></div></div>';
+  }).join('');
+
+  cards.forEach(function(c){if(state.pbBackOpen[c.id])renderCardBacktranslateFooter(c.id);});
+}
+
+function saveCardToNew(id){var card=getCardById(id);if(!card)return;openNewCard((card.catalogIds&&card.catalogIds[0])||'',{mode:'chat-save',sourceText:card.source||'',targetText:card.target||'',sourceLang:card.sourceLang||'en',targetLang:card.targetLang||'th',tags:sanitizeTagList(card.tags||[]),clarifyChain:(card.clarifyChain||[]).slice(),backtranslate:normalizeBacktranslatePayload(card.backtranslate,{sourceLang:card.targetLang||'th',targetLang:card.sourceLang||'en',inputText:card.target||card.source||'',resultText:'',verdict:'',updatedAt:Date.now()})});}
+function renderCardBacktranslateFooter(id){
+  var card=getCardById(id);if(!card)return;
+  var bt=normalizeBacktranslatePayload(card.backtranslate,{sourceLang:card.targetLang||'th',targetLang:card.sourceLang||'en',inputText:card.target||card.source||'',resultText:'',verdict:''});
+  var tEl=document.getElementById('card-bbt-t-'+id);var vEl=document.getElementById('card-bbt-v-'+id);
+  if(tEl)tEl.textContent=bt.resultText||'No backtranslation yet.';
+  if(vEl){
+    if(bt.verdict==='good')vEl.innerHTML='<div class="bbl-verdict-pill good">Sounds right</div>';
+    else if(bt.verdict==='flag')vEl.innerHTML='<div class="bbl-verdict-pill bad">Flagged</div>';
+    else vEl.innerHTML='<button class="bbl-vbtn good" onclick="setCardVerdict(\''+id+'\',\'good\')">Sounds right</button> <button class="bbl-vbtn bad" onclick="setCardVerdict(\''+id+'\',\'flag\')">Flag</button>';
+  }
+}
+function setCardVerdict(id,val){var card=getCardById(id);if(!card)return;var bt=normalizeBacktranslatePayload(card.backtranslate,{sourceLang:card.targetLang||'th',targetLang:card.sourceLang||'en',inputText:card.target||card.source||'',resultText:'',verdict:'',updatedAt:Date.now()});bt.verdict=(bt.verdict===val?'':val);bt.updatedAt=Date.now();card.backtranslate=bt;saveUpdatedCard(card);renderCardBacktranslateFooter(id);}
+function toggleCardBacktranslate(id){state.pbBackOpen[id]=!state.pbBackOpen[id];renderCatalogCards();if(state.pbBackOpen[id]){renderCardBacktranslateFooter(id);rerunCardBacktranslate(id);}}
 function toggleCardClarify(id){state.pbClarifyOpen[id]=!state.pbClarifyOpen[id];renderCatalogCards();}
-function rerunCardBacktranslate(id){var card=getCardById(id);if(!card)return;var inputText=(card.target||'').trim();if(!inputText){toast('No text');return;}var sourceLang=card.targetLang||'th';var targetLang=card.sourceLang||'en';card.backtranslate=normalizeBacktranslatePayload(card.backtranslate,{sourceLang:sourceLang,targetLang:targetLang,inputText:inputText,resultText:'',verdict:'',updatedAt:Date.now()});translate(inputText,sourceLang,targetLang).then(function(back){card.backtranslate=normalizeBacktranslatePayload(card.backtranslate,{sourceLang:sourceLang,targetLang:targetLang,inputText:inputText,resultText:back||'',verdict:card.backtranslate.verdict||'',updatedAt:Date.now()});saveUpdatedCard(card);renderCatalogCards();}).catch(function(){toast('Backtranslate failed');});}
+function rerunCardBacktranslate(id){var card=getCardById(id);if(!card)return;var inputText=(card.target||'').trim();if(!inputText){toast('No text');return;}var sourceLang=card.targetLang||'th';var targetLang=card.sourceLang||'en';card.backtranslate=normalizeBacktranslatePayload(card.backtranslate,{sourceLang:sourceLang,targetLang:targetLang,inputText:inputText,resultText:'',verdict:'',updatedAt:Date.now()});renderCardBacktranslateFooter(id);translate(inputText,sourceLang,targetLang).then(function(back){card.backtranslate=normalizeBacktranslatePayload(card.backtranslate,{sourceLang:sourceLang,targetLang:targetLang,inputText:inputText,resultText:back||'',verdict:card.backtranslate.verdict||'',updatedAt:Date.now()});saveUpdatedCard(card);renderCardBacktranslateFooter(id);}).catch(function(){toast('Backtranslate failed');});}
 function updateCardClarifyDraft(id,val){state.pbClarifyDrafts[id]=val;}
 function saveCardClarify(id){var card=getCardById(id);if(!card)return;var note=(state.pbClarifyDrafts[id]||'').trim();if(!note)return;card.clarifyChain=(card.clarifyChain||[]).concat([{text:note,author:'Me',timestamp:Date.now()}]);saveUpdatedCard(card);state.pbClarifyDrafts[id]='';renderCatalogCards();}
 function removeCardClarify(id,idx){var card=getCardById(id);if(!card)return;var chain=card.clarifyChain||[];if(idx<0||idx>=chain.length)return;chain.splice(idx,1);card.clarifyChain=chain;saveUpdatedCard(card);renderCatalogCards();}
