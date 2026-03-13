@@ -133,8 +133,10 @@ textarea.field-input{resize:none;}
 .bbl-act{background:none;border:none;cursor:pointer;font-size:11px;font-weight:600;font-family:"DM Sans",sans-serif;width:100%;height:26px;line-height:26px;padding:0;border-radius:7px;color:var(--ink-dim);transition:background .12s;display:flex;align-items:center;justify-content:center;text-align:center;}
 .bbl-act svg{display:block;margin:auto;}
 .bbl-act:hover{background:rgba(0,0,0,.06);}
+.bbl-act:active{background:rgba(0,0,0,.1);}
 .msg-row.mine .bbl-act{color:rgba(255,255,255,.8);}
 .msg-row.mine .bbl-act:hover{background:rgba(255,255,255,.12);}
+.msg-row.mine .bbl-act:active{background:rgba(255,255,255,.2);}
 .bbl-act.active-chip{background:rgba(0,0,0,.1);color:var(--ink);}
 .msg-row.mine .bbl-act.active-chip{background:rgba(255,255,255,.24);color:#fff;}
 .bbl-act.c-active{color:var(--amber);}
@@ -1819,10 +1821,10 @@ function buildBblFoot(msg){
   var id=msg.id;
   var thread=(msg&&msg.clarify&&msg.clarify.thread)||[];
   return '<div class="bbl-foot"><div class="bbl-foot-bar">'
-    +'<button class="bbl-act'+(msg._saved?' active-chip':'')+'" onclick="bblSave(\''+id+'\')" title="Save">'+ICON_SAVE+'</button>'
+    +'<button class="bbl-act" onclick="bblSave(\''+id+'\')" title="Save">'+ICON_SAVE+'</button>'
     +'<button class="bbl-act" onclick="toggleMsgTagDrawer(\''+id+'\')" title="Tags">#</button>'
-    +'<button class="bbl-act clarify-btn'+(thread.length?' active-chip':'')+'" id="bact-c-'+id+'" onclick="bblClarifyClick(\''+id+'\')" title="Clarify">'+bblClarifyMotif(msg)+'</button>'
-    +'<button class="bbl-act'+((msg.backtranslate&&msg.backtranslate.verdict)?' active-chip':'')+'" onclick="toggleBubbleBacktranslate(\''+id+'\')" title="Back-translate">'+ICON_BACK+'</button>'
+    +'<button class="bbl-act clarify-btn" id="bact-c-'+id+'" onclick="bblClarifyClick(\''+id+'\')" title="Clarify">'+bblClarifyMotif(msg)+'</button>'
+    +'<button class="bbl-act" onclick="toggleBubbleBacktranslate(\''+id+'\')" title="Back-translate">'+ICON_BACK+'</button>'
     +'</div>'
     +'<div class="tag-drawer" id="msg-tag-drawer-'+id+'"><div class="pb-tags-row" id="msg-tag-assigned-'+id+'"></div><input class="tag-drawer-input" id="msg-tag-input-'+id+'" placeholder="Find or add tag…" oninput="renderMsgTagResults(\''+id+'\')" onkeydown="if(event.key===\'Enter\'){event.preventDefault();submitMsgTagInput(\''+id+'\');}"><div class="tag-search-results" id="msg-tag-results-'+id+'"></div></div>'
     +'<div class="clarify-block" id="bclarify-'+id+'" style="display:none;"><div class="clarify-thread" id="bclarify-thread-'+id+'"></div><div class="clarify-compose"><input class="clarify-input" id="bclarify-input-'+id+'" placeholder="Add clarify note…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();sendClarifyNote(\''+id+'\');}"><button class="bbl-act" onclick="sendClarifyNote(\''+id+'\')">Send</button></div></div>'
@@ -1907,7 +1909,7 @@ function bblFlag(id){var msg=findMsg(id);if(!msg)return;var bt=getMsgBacktransla
 
 // Clarify
 function bblClarifyClick(id){var msg=findMsg(id);if(!msg)return;var blk=document.getElementById('bclarify-'+id);if(!blk)return;var open=blk.style.display==='block';blk.style.display=open?'none':'block';if(!open){ensureClarifyThread(msg);updateBblClarify(msg);var input=document.getElementById('bclarify-input-'+id);if(input)input.focus();}}
-function updateBblClarify(msg){var btn=document.getElementById('bact-c-'+msg.id);var threadEl=document.getElementById('bclarify-thread-'+msg.id);var thread=ensureClarifyThread(msg);if(btn){btn.className='bbl-act clarify-btn'+(thread.length?' active-chip':'');btn.textContent='💬';}if(threadEl){threadEl.innerHTML=thread.length?thread.map(function(item,idx){return '<div class="clarify-item"><strong>'+escHtml(item.author||'Partner')+':</strong> '+renderMd(item.text||'')+' <span class="clarify-time">'+fmtDateTime(item.timestamp||Date.now())+'</span> <button class="clarify-remove" onclick="removeClarifyNote(\''+msg.id+'\','+idx+')" title="Remove">×</button></div>';}).join(''):'<div class="clarify-empty">No clarify notes yet.</div>';}}
+function updateBblClarify(msg){var btn=document.getElementById('bact-c-'+msg.id);var threadEl=document.getElementById('bclarify-thread-'+msg.id);var thread=ensureClarifyThread(msg);if(btn){btn.className='bbl-act clarify-btn';btn.textContent='💬';}if(threadEl){threadEl.innerHTML=thread.length?thread.map(function(item,idx){return '<div class="clarify-item"><strong>'+escHtml(item.author||'Partner')+':</strong> '+renderMd(item.text||'')+' <span class="clarify-time">'+fmtDateTime(item.timestamp||Date.now())+'</span> <button class="clarify-remove" onclick="removeClarifyNote(\''+msg.id+'\','+idx+')" title="Remove">×</button></div>';}).join(''):'<div class="clarify-empty">No clarify notes yet.</div>';}}
 function removeClarifyNote(id,idx){var msg=findMsg(id);if(!msg)return;var thread=ensureClarifyThread(msg);if(idx<0||idx>=thread.length)return;thread.splice(idx,1);saveMsgs(state.activeConvId,state.messages);updateBblClarify(msg);upsertClarifiedPhrase(msg);}
 function sendClarifyNote(id){var msg=findMsg(id);if(!msg)return;var input=document.getElementById('bclarify-input-'+id);if(!input)return;var note=(input.value||'').trim();if(!note)return;var sess=getSession(state.activeConvId);appendClarifyNote(msg,note,(sess&&sess.names&&sess.names.meAlias)||'Me',Date.now());input.value='';saveMsgs(state.activeConvId,state.messages);transportSend({type:'clarify-note',id:id,text:note,name:(sess&&sess.names&&sess.names.meAlias)||'Me',timestamp:Date.now()});updateBblClarify(msg);upsertClarifiedPhrase(msg);}
 function openClarifyReq(id){bblClarifyClick(id);}
