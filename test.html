@@ -645,11 +645,6 @@ textarea.field-input{resize:none;}
       <input type="color" id="set-target-accent" value="#1A1714" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;" oninput="applyTargetAccent(this.value)">
     </div>
     <div class="settings-group">
-      <div class="settings-group-title">Phrasebook theme</div>
-      <label class="field-label" style="margin-top:0;">Color</label>
-      <input type="color" id="set-pb-accent" value="#2E8B8B" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;" oninput="applyPhrasebookAccent(this.value)">
-    </div>
-    <div class="settings-group">
       <div class="settings-group-title">Translation behavior</div>
       <div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">Skip no-op translation on same language</div><div class="settings-row-meta">When source and target match, bypass translation.</div></div><label><input type="checkbox" id="set-noop-same" onchange="toggleNoOpOnSameLanguage(this.checked)"></label></div>
       <div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">Force opposite-party language</div><div class="settings-row-meta">Avoid accidental same-language output in bilingual sessions.</div></div><label><input type="checkbox" id="set-force-opposite" onchange="toggleForceOppositePartyLanguage(this.checked)"></label></div>
@@ -1026,8 +1021,9 @@ function upsertCardLastWins(nextCard){var cards=getCards();var key=cardPairKey(n
 function getTags(){return lsJSON(SAY.tags,STARTER_TAGS.slice());}
 function saveTags(t){lsW(SAY.tags,JSON.stringify([].concat(Array.from(new Set(t))).sort()));}
 function addTagToRegistry(t){var tags=getTags();if(tags.indexOf(t)<0){tags.push(t);saveTags(tags);}}
-function getPrefs(){return lsJSON(SK.prefs,{userName:'yournamehere',myLang:'en',partnerLang:'th',autoSpeakIncoming:false,autoDetectLang:true,noOpOnSameLanguage:true,forceOppositePartyLanguage:false,cloudFallbackConsent:'ask',theme:'default',sourceTheme:'default',targetTheme:'default',accentColor:'#2E8B8B',targetAccentColor:'#1A1714',phrasebookAccentColor:'#2E8B8B',bubbleWidth:75,bubbleFontSize:15,targetBubbleFontSize:15});}
-function savePrefs(p){lsW(SK.prefs,JSON.stringify(p));}
+function sanitizePrefs(p){var next=Object.assign({},p||{});delete next.phrasebookAccentColor;return next;}
+function getPrefs(){return sanitizePrefs(lsJSON(SK.prefs,{userName:'yournamehere',myLang:'en',partnerLang:'th',autoSpeakIncoming:false,autoDetectLang:true,noOpOnSameLanguage:true,forceOppositePartyLanguage:false,cloudFallbackConsent:'ask',theme:'default',sourceTheme:'default',targetTheme:'default',accentColor:'#2E8B8B',targetAccentColor:'#1A1714',bubbleWidth:75,bubbleFontSize:15,targetBubbleFontSize:15}));}
+function savePrefs(p){lsW(SK.prefs,JSON.stringify(sanitizePrefs(p)));}
 function ensureParticipantState(id){if(!id)return null;if(!state.participants[id])state.participants[id]={lastDetectedLang:'',preferredOutputLang:''};return state.participants[id];}
 function setLastDetectedLang(id,lang){var ps=ensureParticipantState(id);if(ps)ps.lastDetectedLang=(lang||'').trim();}
 function setPreferredOutputLang(id,lang){var ps=ensureParticipantState(id);if(ps)ps.preferredOutputLang=(lang||'').trim();}
@@ -2014,13 +2010,14 @@ function handleAttachFile(){toast('Attachments are disabled in this release.');}
 // Settings
 var THEMES=[{id:'default',label:'Ocean',mine:'#2E8B8B',theirs:'#F5F1EC',hdr:'#267878'},{id:'midnight',label:'Midnight',mine:'#1e293b',theirs:'#f8fafc',hdr:'#0f172a'},{id:'rose',label:'Rose',mine:'#be123c',theirs:'#fff1f2',hdr:'#9f1239'},{id:'forest',label:'Forest',mine:'#166534',theirs:'#f0fdf4',hdr:'#14532d'},{id:'amber',label:'Amber',mine:'#b45309',theirs:'#fffbeb',hdr:'#92400e'},{id:'purple',label:'Violet',mine:'#7c3aed',theirs:'#f5f3ff',hdr:'#6d28d9'}];
 var BUBBLE_DEFAULTS={sourceTheme:'default',targetTheme:'default',bubbleWidth:75,bubbleFontSize:15,targetBubbleFontSize:15,accentColor:'#2E8B8B',targetAccentColor:'#1A1714'};
-function openSettings(){document.getElementById('settings-overlay').classList.add('open');renderThemeGrid('source');renderThemeGrid('target');var p=getPrefs();document.getElementById('set-bbl-width').value=p.bubbleWidth||75;document.getElementById('set-bbl-width-val').textContent=(p.bubbleWidth||75)+'%';document.getElementById('set-bbl-size').value=p.bubbleFontSize||15;document.getElementById('set-bbl-size-val').textContent=(p.bubbleFontSize||15)+'px';document.getElementById('set-target-size').value=p.targetBubbleFontSize||15;document.getElementById('set-target-size-val').textContent=(p.targetBubbleFontSize||15)+'px';document.getElementById('set-accent').value=p.accentColor||'#2E8B8B';document.getElementById('set-target-accent').value=p.targetAccentColor||BUBBLE_DEFAULTS.targetAccentColor;document.getElementById('set-pb-accent').value=p.phrasebookAccentColor||'#2E8B8B';var noop=document.getElementById('set-noop-same');if(noop)noop.checked=p.noOpOnSameLanguage!==false;var force=document.getElementById('set-force-opposite');if(force)force.checked=!!p.forceOppositePartyLanguage;var mine=document.getElementById('set-my-pref-output');if(mine)mine.value=getParticipantOutputPref(PART_ID||DEVICE_ID);var sess=getSession(state.activeConvId);var partnerId=(sess&&sess.inviterDeviceId)||'deviceB';var partner=document.getElementById('set-partner-pref-output');if(partner)partner.value=getParticipantOutputPref(partnerId);}
+function getSourceBubbleStyleContract(){var p=getPrefs();if(Array.isArray(p.themeLibrary)&&p.themeLibrary.length)THEMES=p.themeLibrary;var src=THEMES.find(function(x){return x.id===(p.sourceTheme||p.theme||BUBBLE_DEFAULTS.sourceTheme);})||THEMES[0];var tgt=THEMES.find(function(x){return x.id===(p.targetTheme||BUBBLE_DEFAULTS.targetTheme);})||THEMES[0];return {sourceThemeId:src.id,sourceBubbleColor:src.mine,targetBubbleColor:tgt.theirs,bubbleWidth:(p.bubbleWidth||BUBBLE_DEFAULTS.bubbleWidth),sourceFontSize:(p.bubbleFontSize||BUBBLE_DEFAULTS.bubbleFontSize),targetFontSize:(p.targetBubbleFontSize||BUBBLE_DEFAULTS.targetBubbleFontSize),targetTextColor:(p.targetAccentColor||BUBBLE_DEFAULTS.targetAccentColor)};}
+function openSettings(){document.getElementById('settings-overlay').classList.add('open');renderThemeGrid('source');renderThemeGrid('target');var p=getPrefs();document.getElementById('set-bbl-width').value=p.bubbleWidth||75;document.getElementById('set-bbl-width-val').textContent=(p.bubbleWidth||75)+'%';document.getElementById('set-bbl-size').value=p.bubbleFontSize||15;document.getElementById('set-bbl-size-val').textContent=(p.bubbleFontSize||15)+'px';document.getElementById('set-target-size').value=p.targetBubbleFontSize||15;document.getElementById('set-target-size-val').textContent=(p.targetBubbleFontSize||15)+'px';document.getElementById('set-accent').value=p.accentColor||'#2E8B8B';document.getElementById('set-target-accent').value=p.targetAccentColor||BUBBLE_DEFAULTS.targetAccentColor;var noop=document.getElementById('set-noop-same');if(noop)noop.checked=p.noOpOnSameLanguage!==false;var force=document.getElementById('set-force-opposite');if(force)force.checked=!!p.forceOppositePartyLanguage;var mine=document.getElementById('set-my-pref-output');if(mine)mine.value=getParticipantOutputPref(PART_ID||DEVICE_ID);var sess=getSession(state.activeConvId);var partnerId=(sess&&sess.inviterDeviceId)||'deviceB';var partner=document.getElementById('set-partner-pref-output');if(partner)partner.value=getParticipantOutputPref(partnerId);}
 function closeSettings(){document.getElementById('settings-overlay').classList.remove('open');}
 function renderThemeGrid(kind){var g=document.getElementById(kind==='target'?'theme-grid-target':'theme-grid-source');if(!g)return;var p=getPrefs();if(Array.isArray(p.themeLibrary)&&p.themeLibrary.length)THEMES=p.themeLibrary;var cur=(kind==='target'?p.targetTheme:p.sourceTheme)||'default';g.innerHTML=THEMES.map(function(t,i){var c=(kind==='target'?t.theirs:t.mine);return '<div class="theme-card'+(t.id===cur?' active':'')+'" onclick="applyTheme(\''+kind+'\',\''+t.id+'\')"><div class="theme-row"><span class="theme-swatch-mini" style="background:'+c+';"></span><input class="theme-name-input" value="'+escHtml(t.label)+'" oninput="renameTheme('+i+',\''+kind+'\',this.value)" onclick="event.stopPropagation()"><input class="theme-color-mini" type="color" value="'+c+'" oninput="setThemeColor('+i+',\''+kind+'\',this.value)" onclick="event.stopPropagation()"></div></div>';}).join('');}
 function renameTheme(i,kind,val){if(i<0||i>=THEMES.length)return;THEMES[i].label=(val||'').trim()||THEMES[i].label;var p=getPrefs();p.themeLibrary=THEMES;savePrefs(p);renderThemeGrid(kind);}
 function setThemeColor(i,kind,val){if(i<0||i>=THEMES.length)return;if(kind==='target')THEMES[i].theirs=val;else THEMES[i].mine=val;var p=getPrefs();p.themeLibrary=THEMES;savePrefs(p);applyTheme(kind,THEMES[i].id);}
 function applyTheme(kind,id){var t=THEMES.find(function(x){return x.id===id;});if(!t)return;var p=getPrefs();if(kind==='target')p.targetTheme=id;else p.sourceTheme=id;p.theme=id;if(kind!=='target'){p.accentColor=t.mine;document.documentElement.style.setProperty('--teal',t.mine);document.documentElement.style.setProperty('--teal-mid',t.hdr);}p.themeLibrary=THEMES;savePrefs(p);renderThemeGrid('source');renderThemeGrid('target');applyBubbleTheme();}
-function applyBubbleTheme(){var s=document.getElementById('bubble-theme-tag');if(!s){s=document.createElement('style');s.id='bubble-theme-tag';document.head.appendChild(s);}var p=getPrefs();if(Array.isArray(p.themeLibrary)&&p.themeLibrary.length)THEMES=p.themeLibrary;var src=THEMES.find(function(x){return x.id===(p.sourceTheme||p.theme||BUBBLE_DEFAULTS.sourceTheme);})||THEMES[0];var tgt=THEMES.find(function(x){return x.id===(p.targetTheme||BUBBLE_DEFAULTS.targetTheme);})||THEMES[0];var width=p.bubbleWidth||BUBBLE_DEFAULTS.bubbleWidth;var srcSize=p.bubbleFontSize||BUBBLE_DEFAULTS.bubbleFontSize;var tgtSize=p.targetBubbleFontSize||BUBBLE_DEFAULTS.targetBubbleFontSize;var targetTxt=p.targetAccentColor||BUBBLE_DEFAULTS.targetAccentColor;s.textContent='.msg-row.mine .bubble-card{background:'+src.mine+';border-color:'+src.mine+';}.msg-row.theirs .bubble-card{background:'+tgt.theirs+';border-color:'+tgt.theirs+';}.msg-row.mine .bbl-hdr{border-bottom-color:rgba(255,255,255,.14);}.msg-row{max-width:96%;width:'+width+'%;}.bbl-side:first-child .bbl-txt{font-size:'+srcSize+'px;}.bbl-side:last-child .bbl-txt{font-size:'+tgtSize+'px;}.msg-row.mine .bbl-txt{color:#fff;}.msg-row.theirs .bbl-txt{color:'+targetTxt+';}';}
+function applyBubbleTheme(){var s=document.getElementById('bubble-theme-tag');if(!s){s=document.createElement('style');s.id='bubble-theme-tag';document.head.appendChild(s);}var c=getSourceBubbleStyleContract();s.textContent='.msg-row.mine .bubble-card{background:'+c.sourceBubbleColor+';border-color:'+c.sourceBubbleColor+';}.msg-row.theirs .bubble-card{background:'+c.targetBubbleColor+';border-color:'+c.targetBubbleColor+';}.msg-row.mine .bbl-hdr{border-bottom-color:rgba(255,255,255,.14);}.msg-row{max-width:96%;width:'+c.bubbleWidth+'%;}.bbl-side:first-child .bbl-txt{font-size:'+c.sourceFontSize+'px;}.bbl-side:last-child .bbl-txt{font-size:'+c.targetFontSize+'px;}.msg-row.mine .bbl-txt{color:#fff;}.msg-row.theirs .bbl-txt{color:'+c.targetTextColor+';}';}
 function applyGlobalWidth(v){var p=getPrefs();p.bubbleWidth=parseInt(v);savePrefs(p);document.getElementById('set-bbl-width-val').textContent=v+'%';applyBubbleTheme();}
 function applyGlobalSize(v){var p=getPrefs();p.bubbleFontSize=parseInt(v);savePrefs(p);document.getElementById('set-bbl-size-val').textContent=v+'px';applyBubbleTheme();}
 function applyAccent(v){var p=getPrefs();p.accentColor=v;savePrefs(p);document.documentElement.style.setProperty('--teal',v);}
@@ -2033,8 +2030,6 @@ function setMyPreferredOutputLang(v){setPreferredOutputLang(PART_ID||DEVICE_ID,n
 function setPartnerPreferredOutputLang(v){var sess=getSession(state.activeConvId);setPreferredOutputLang((sess&&sess.inviterDeviceId)||'deviceB',normalizeLangCode(v));}
 function resetSourceBubbleDefaults(){var p=getPrefs();p.sourceTheme=BUBBLE_DEFAULTS.sourceTheme;p.bubbleWidth=BUBBLE_DEFAULTS.bubbleWidth;p.bubbleFontSize=BUBBLE_DEFAULTS.bubbleFontSize;p.accentColor=BUBBLE_DEFAULTS.accentColor;savePrefs(p);document.documentElement.style.setProperty('--teal',BUBBLE_DEFAULTS.accentColor);openSettings();applyBubbleTheme();toast('Source bubble reset');}
 function resetTargetBubbleDefaults(){var p=getPrefs();p.targetTheme=BUBBLE_DEFAULTS.targetTheme;p.targetBubbleFontSize=BUBBLE_DEFAULTS.targetBubbleFontSize;p.targetAccentColor=BUBBLE_DEFAULTS.targetAccentColor;savePrefs(p);openSettings();applyBubbleTheme();toast('Target bubble reset');}
-function applyPhrasebookAccent(v){var p=getPrefs();p.phrasebookAccentColor=v;savePrefs(p);document.documentElement.style.setProperty('--tag-bg',v+'22');document.documentElement.style.setProperty('--tag-text',v);} 
-
 function openInfoModal(kind){var title=document.getElementById('info-title');var body=document.getElementById('info-body');if(kind==='privacy'){title.textContent='Privacy';body.innerHTML='<strong>Local-first storage.</strong><br>All session and phrasebook data stays in localStorage unless you export it yourself.';}else{title.textContent='About';body.innerHTML='<strong>Talk + Say · v3.0</strong><br>Shell-first bilingual chat &amp; phrasebook with back-translation and clarify workflows.';}document.getElementById('info-overlay').hidden=false;}
 function openPrintPhrasebookModal(){document.getElementById('print-overlay').hidden=false;}
 function printPhrasebookSelection(){document.getElementById('print-overlay').hidden=true;var includeBack=!!(document.getElementById('print-include-back')&&document.getElementById('print-include-back').checked);var prevBack=state.pbBackOpen;var prevClarify=state.pbClarifyOpen;if(includeBack){state.pbBackOpen={};getCards().forEach(function(c){state.pbBackOpen[c.id]=true;});}renderCatalogCards();setTimeout(function(){window.print();state.pbBackOpen=prevBack;state.pbClarifyOpen=prevClarify;renderCatalogCards();},60);}
@@ -2052,6 +2047,28 @@ function renderPhrasePicker(){var q=(document.getElementById('pp-search')&&docum
 function insertPhrase(src){document.getElementById('phrase-picker-overlay').hidden=true;if(state.activeConvId){var ta=document.getElementById('msg-input');if(ta){ta.value=src||'';autoResize();updateSendBtn();setTimeout(function(){ta.focus();},50);}}else toast('Start a conversation first');}
 
 // Say home
+function renderSayHome(){
+  var cards=getCards();
+  var grid=document.getElementById('catalog-grid');
+  var langSel=document.getElementById('say-lang-filter');
+  if(!grid||!langSel)return;
+  var langMap={};
+  cards.forEach(function(c){if(c.sourceLang)langMap[c.sourceLang]=true;if(c.targetLang)langMap[c.targetLang]=true;});
+  var selected=langSel.value||'all';
+  var langOptions=['<option value="all">All languages</option>'].concat(Object.keys(langMap).sort().map(function(code){return '<option value="'+escHtml(code)+'"'+(selected===code?' selected':'')+'>'+escHtml(code.toUpperCase())+'</option>';}));
+  langSel.innerHTML=langOptions.join('');
+  if(!selected||(!langMap[selected]&&selected!=='all'))selected='all';
+  langSel.value=selected;
+  var filtered=selected==='all'?cards:cards.filter(function(c){return c.sourceLang===selected||c.targetLang===selected;});
+  var counts={};
+  filtered.forEach(function(c){(c.catalogIds||[]).forEach(function(id){counts[id]=(counts[id]||0)+1;});});
+  var c=getSourceBubbleStyleContract();
+  var allCount=filtered.length;
+  var cats=getCatalogs().slice().sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
+  grid.innerHTML='<button class="cat-card all-phrases" onclick="openPhrasebookModal()" style="border-color:'+c.sourceBubbleColor+';background:linear-gradient(135deg,'+c.sourceBubbleColor+'22,#fff);"><div class="cat-name">All phrases</div><div class="cat-count">'+allCount+' cards</div></button>'
+    +cats.map(function(cat){var n=counts[cat.id]||0;return '<button class="cat-card" onclick="state.currentCatId=\''+cat.id+'\';document.getElementById(\'cat-screen-title\').textContent=\''+escHtml((cat.emoji?cat.emoji+' ':'')+(cat.name||'Catalog'))+'\';renderCatalogCards();showScreen(\'catalog-screen\');"><div class="cat-emoji">'+escHtml(cat.emoji||'📝')+'</div><div class="cat-name">'+escHtml(cat.name||'Catalog')+'</div><div class="cat-count">'+n+' cards</div><button class="cat-del" onclick="event.stopPropagation();confirmDeleteCatalog(\''+cat.id+'\')">×</button></button>';}).join('')
+    +'<button class="cat-card new-cat" onclick="document.getElementById(\'new-cat-overlay\').hidden=false"><div class="new-cat-icon" style="color:'+c.sourceBubbleColor+'">＋</div><div class="new-cat-lbl" style="color:'+c.sourceBubbleColor+'">New catalog</div></button>';
+}
 function saySearchInput(){var q=(document.getElementById('say-search')&&document.getElementById('say-search').value||'').trim().toLowerCase();var clear=document.getElementById('say-search-clear');if(clear)clear.classList.toggle('show',!!q);if(q){var cards=getCards().filter(function(c){return(c.source||'').toLowerCase().indexOf(q)>=0||(c.target||'').toLowerCase().indexOf(q)>=0||(c.tags||[]).join(' ').toLowerCase().indexOf(q)>=0;});if(cards.length){state.currentCatId='all';document.getElementById('cat-screen-title').textContent='Search';renderPhrasebookCatalogFilter();renderCatalogCards();showScreen('catalog-screen');return;}}renderSayHome();}
 function clearSaySearch(){var el=document.getElementById('say-search');if(el)el.value='';saySearchInput();}
 function clearCatalogSearch(){var el=document.getElementById('cat-search');if(el)el.value='';renderCatalogCards();}
@@ -2065,7 +2082,8 @@ function renderCatalogCards(){
   if(q)cards=cards.filter(function(c){return(c.source||'').toLowerCase().indexOf(q)>=0||(c.target||'').toLowerCase().indexOf(q)>=0||(c.tags||[]).join(' ').toLowerCase().indexOf(q)>=0;});
   cards.sort(function(a,b){return(b.updatedAt||0)-(a.updatedAt||0);});
   var list=document.getElementById('card-list');if(!list)return;
-  var width=(getPrefs().bubbleWidth||75)+'%';
+  var contract=getSourceBubbleStyleContract();
+  var width=contract.bubbleWidth+'%';
   var clear=document.getElementById('cat-search-clear');if(clear)clear.classList.toggle('show',!!q);
   if(!cards.length){list.innerHTML='<div style="text-align:center;padding:24px;color:var(--ink-dim);">No phrases.</div>';return;}
 
@@ -2126,7 +2144,7 @@ function renderCatalogCards(){
       modulesHtml:tagDrawer+clarifyModule+backModule
     });
 
-    return '<div class="pb-card-shell"><div class="msg-row theirs" style="width:'+width+';max-width:'+width+';"><div class="bubble-card">'
+    return '<div class="pb-card-shell"><div class="msg-row theirs" style="width:'+width+';max-width:'+width+';"><div class="bubble-card" style="background:'+contract.sourceBubbleColor+';border-color:'+contract.sourceBubbleColor+';">'
       +renderBubbleHeaderBlock({senderHtml:escHtml(fmtDateTime(c.updatedAt||c.createdAt||Date.now())),metaText:'',actionsHtml:'<button class="pb-icon del" onclick="event.stopPropagation();confirmDeleteCard(\''+c.id+'\')" title="Delete">×</button>'})
       +body
       +footer
@@ -2240,7 +2258,6 @@ document.addEventListener('DOMContentLoaded',function(){
   var nameEl=document.getElementById('left-local-name');if(nameEl&&p.userName&&p.userName!=='yournamehere')nameEl.textContent=p.userName;
   if(Array.isArray(p.themeLibrary)&&p.themeLibrary.length)THEMES=p.themeLibrary;
   applyBubbleTheme();
-  if(p.phrasebookAccentColor)applyPhrasebookAccent(p.phrasebookAccentColor);
   updateAutoReadBtn();
   onTransportEvent(handleRelayEvent);
   populateLangSelect('nc-src-lang',p.myLang||'en');
