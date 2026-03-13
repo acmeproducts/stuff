@@ -1071,6 +1071,11 @@ function firstRealName(){
   }
   return '';
 }
+function getSessionDisplayName(sess){
+  if(!sess)return 'new chat';
+  ensureSessionNames(sess);
+  return firstRealName(sess.title,sess.names&&sess.names.themAlias,sess.partnerName)||'new chat';
+}
 function ensureSessionNames(sess){
   if(!sess)return {meAlias:'yournamehere',themAlias:'Partner',version:1};
   var p=getPrefs();
@@ -1239,12 +1244,13 @@ function upsertPartnerFromEnvelope(sess,d){
   if(partnerName){
     sess.partnerName=partnerName;
     names.themAlias=partnerName;
+    if(isPlaceholderName(sess.title))sess.title=partnerName;
   }
   var partnerLang=d.lang||sess.partnerLang||getPrefs().partnerLang||'th';
   sess.partnerLang=partnerLang;
   putSession(sess);
   if(state.activeConvId===sess.convId){
-    document.getElementById('shell-partner-name').textContent=sess.title||sess.names.themAlias||sess.partnerName||'new chat';
+    document.getElementById('shell-partner-name').textContent=getSessionDisplayName(sess);
   }
 }
 function startHelloLoop(){
@@ -1510,7 +1516,7 @@ function openSession(cid){
   document.getElementById('shell-empty').style.display='none';
   document.getElementById('messages').style.display='flex';
   document.getElementById('composer').style.display='flex';
-  document.getElementById('shell-partner-name').textContent=sess.title||sess.names.themAlias||sess.partnerName||'new chat';
+  document.getElementById('shell-partner-name').textContent=getSessionDisplayName(sess);
   updateAutoReadBtn();
   transportConnect(cid,PART_ID);
   renderAllMessages();scrollBottom();
@@ -1551,7 +1557,7 @@ function renderSessionList(){
     var isActive=state.activeConvId===s.convId;
     var msgs=getMsgs(s.convId);var unread=msgs.filter(function(m){return m.from==='them'&&(m.timestamp||0)>(s.lastViewedAt||0);}).length;
     return '<div class="sess-card'+(isActive?' active':'')+'" draggable="true" data-conv="'+s.convId+'" ondragstart="dragStart(event)" ondragover="event.preventDefault()" ondrop="dragDrop(event)" ondragend="dragEnd(event)" onclick="openSession(\''+s.convId+'\');closeLeftPanel();">'
-      +'<div class="sess-card-info"><div class="sess-card-title" contenteditable="true" spellcheck="false" onclick="event.stopPropagation();this.focus();" onblur="saveCardTitle(\''+s.convId+'\',this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'+escHtml(s.title||s.partnerName||'new chat')+'</div><div class="sess-card-sub">'+timeAgo(s.lastActivity||s.createdAt)+'</div></div>'
+      +'<div class="sess-card-info"><div class="sess-card-title" contenteditable="true" spellcheck="false" onclick="event.stopPropagation();this.focus();" onblur="saveCardTitle(\''+s.convId+'\',this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'+escHtml(getSessionDisplayName(s))+'</div><div class="sess-card-sub">'+timeAgo(s.lastActivity||s.createdAt)+'</div></div>'
       +(unread?'<span class="sess-card-badge">'+unread+'</span>':'')
       +'<div style="display:flex;gap:2px;flex-shrink:0;"><button class="sess-card-act" onclick="event.stopPropagation();openSessionNote(\''+s.convId+'\')" title="Notes">'+ICON_CLARIFY+'</button><button class="sess-card-act" onclick="event.stopPropagation();shareSession(\''+s.convId+'\')" title="Share">'+ICON_SHARE+'</button><button class="sess-card-act del" onclick="event.stopPropagation();softDelete(\''+s.convId+'\')" title="Delete">'+ICON_DELETE+'</button></div></div>';
   }).join('');
