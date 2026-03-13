@@ -98,8 +98,11 @@ textarea.field-input{resize:none;}
 .msg-row.mine .bbl-hdr{border-bottom-color:rgba(255,255,255,.14);}
 .bbl-time{font-size:10px;opacity:.5;font-variant-numeric:tabular-nums;}
 .msg-row.mine .bbl-time{color:#fff;}
-.bbl-status{font-size:10px;opacity:.4;}
-.msg-row.mine .bbl-status{color:#fff;}
+.bbl-status{display:inline-flex;align-items:center;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.2px;line-height:1.45;}
+.bbl-status.queued{background:var(--amber-light);color:var(--amber);}
+.bbl-status.sent{background:var(--teal-light);color:var(--teal);}
+.bbl-status.delivered{background:var(--green-light);color:var(--green);}
+.bbl-status.translated{background:var(--tag-bg);color:var(--tag-text);}
 
 /* Bubble body — two columns */
 .bbl-body{display:grid;grid-template-columns:1fr 1px 1fr;}
@@ -184,6 +187,7 @@ textarea.field-input{resize:none;}
 .bbl-sender{font-size:12px;font-weight:700;color:var(--ink-mid);}
 .msg-row.mine .bbl-sender{color:rgba(255,255,255,.75);}
 .queued-badge{font-size:9px;font-weight:700;color:var(--amber);opacity:.8;margin-left:4px;}
+.queue-indicator{font-size:10px;font-weight:700;color:var(--ink-dim);padding:2px 7px;border:1px solid var(--border);border-radius:999px;line-height:1.2;white-space:nowrap;}
 
 /* TYPING + COMPOSER */
 .typing-bar{padding:2px 16px;font-size:12px;color:var(--ink-dim);min-height:20px;flex-shrink:0;}
@@ -540,6 +544,7 @@ textarea.field-input{resize:none;}
     </button>
     <div style="flex:1;"></div>
     <div class="shell-dot" id="shell-dot" onclick="forceReconnect()" title="Connection"></div>
+    <span class="queue-indicator" id="queue-indicator" title="Queue/ack status">Q0 · M0 · T0</span>
   </div>
   <!-- Row 2: Partner name -->
   <div class="shell-partner" id="shell-partner-name" contenteditable="true" spellcheck="false" onblur="savePartnerName(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">new chat</div>
@@ -1394,6 +1399,7 @@ function queueOutEvent(ev){
     }
   }
   outQ.push(ev);
+  refreshQueueIndicators();
 }
 function trackReliableOutbound(m){
   if(!m||!m.id)return;
@@ -1403,29 +1409,61 @@ function trackReliableOutbound(m){
 function clearReliableAck(kind,id){
   if(kind==='msg')delete pendingMsgAcks[id];
   if(kind==='tr')delete pendingTrAcks[id];
+  refreshQueueIndicators();
+}
+function getPendingAckCounts(){
+  return {msg:Object.keys(pendingMsgAcks).length,tr:Object.keys(pendingTrAcks).length,out:outQ.length};
+}
+function refreshQueueIndicators(){
+  var el=document.getElementById('queue-indicator');
+  if(!el)return;
+  var counts=getPendingAckCounts();
+  el.textContent='Q'+counts.out+' · M'+counts.msg+' · T'+counts.tr;
+  el.title='Outbound queue '+counts.out+' · Pending msg ack '+counts.msg+' · Pending translation ack '+counts.tr;
+}
+function msgStatusLabel(status){
+  if(status==='queued')return'Queued';
+  if(status==='delivered')return'Delivered';
+  if(status==='translated')return'Translated';
+  return'Sent';
+}
+function renderStatusBadge(msg){
+  if(!msg||msg.from!=='me')return'';
+  var st=(msg.status==='queued'||msg.status==='delivered'||msg.status==='translated')?msg.status:'sent';
+  return '<span class="bbl-status '+st+'" id="status-'+msg.id+'">'+msgStatusLabel(st)+'</span>';
+}
+function refreshMsgStatus(msg){
+  if(!msg||!msg.id)return;
+  var el=document.getElementById('status-'+msg.id);
+  if(!el)return;
+  var st=(msg.status==='queued'||msg.status==='delivered'||msg.status==='translated')?msg.status:'sent';
+  el.className='bbl-status '+st;
+  el.textContent=msgStatusLabel(st);
 }
 function sendReliable(ev){
   var ok=transportSend(ev);
   if(ok)trackReliableOutbound(Object.assign({},ev,{session:connectedConvId,from:DEVICE_ID,participant:PART_ID}));
   else if(outQ.length)trackReliableOutbound(outQ[outQ.length-1]);
+  refreshQueueIndicators();
   return ok;
 }
 function flushOutQueue(){
   if(!ws||ws.readyState!==1)return;
   var q=outQ.slice();
   outQ=[];
-  var didFlushMsg=false;
+  var flushedMsgIds=[];
   for(var i=0;i<q.length;i++){
     try{
       ws.send(JSON.stringify(q[i]));
       trackReliableOutbound(q[i]);
       if(q[i].type==='msg'){
         var m=findMsg(q[i].id);
-        if(m){m.status='sent';didFlushMsg=true;}
+        if(m&&m.status==='queued'){m.status='sent';flushedMsgIds.push(m.id);}
       }
     }catch(_){queueOutEvent(q[i]);}
   }
-  if(didFlushMsg&&state.activeConvId){saveMsgs(state.activeConvId,state.messages);renderAllMessages();}
+  if(flushedMsgIds.length&&state.activeConvId){saveMsgs(state.activeConvId,state.messages);for(var j=0;j<flushedMsgIds.length;j++){var fm=findMsg(flushedMsgIds[j]);if(fm)refreshMsgStatus(fm);}}
+  refreshQueueIndicators();
   if(q.length){dbg('flushed',q.length,'queued messages');}
 }
 function resendPendingReliables(){
@@ -1436,6 +1474,7 @@ function resendPendingReliables(){
   for(var i=0;i<resend.length;i++){
     try{ws.send(JSON.stringify(resend[i]));dbg('retry',resend[i].type,resend[i].id||'');}catch(_){queueOutEvent(resend[i]);}
   }
+  refreshQueueIndicators();
 }
 function transportDisconnect(opts){
   opts=opts||{};
@@ -1443,6 +1482,7 @@ function transportDisconnect(opts){
   if(ws){try{ws.close();}catch(_){}ws=null;}
   if(rcTimer){clearTimeout(rcTimer);rcTimer=null;}
   if(!opts.preserveQueue){outQ=[];pendingMsgAcks={};pendingTrAcks={};}
+  refreshQueueIndicators();
   connectedConvId=null;
   stopHelloLoop();
   stopHeartbeatLoop();
@@ -1499,6 +1539,7 @@ function forceReconnect(){
 function onTransportEvent(h){transportHandlers.push(h);}
 
 function updateDot(){
+  refreshQueueIndicators();
   var dot=document.getElementById('shell-dot');if(!dot)return;
   var reconnectBlockedReason=getReconnectBlockReason();
   dot.className='shell-dot';
@@ -1563,6 +1604,7 @@ function openSession(cid){
   updateAutoReadBtn();
   transportConnect(cid,PART_ID);
   renderAllMessages();scrollBottom();
+  refreshQueueIndicators();
   showScreen('chat-screen');
 }
 function showEmptyShell(){
@@ -1847,7 +1889,7 @@ function handleRelayEvent(d){
     });
     return;
   }
-  if(d.type==='tr'){markPeerSeen();var m2=findMsg(d.id);if(m2){normalizeMsgSchema(m2,{sourceLang:m2.sourceLang||m2.lang||'en',targetLang:d.targetLang||(m2.from==='me'?(sess.partnerLang||'th'):(sess.myLang||'en'))});applyMsgTarget(m2,d.targetLang||m2.targetLang,d.targetText||d.text||'');m2.status='translated';updateTransDOM(m2);saveMsgs(state.activeConvId,state.messages);}return;}
+  if(d.type==='tr'){markPeerSeen();var m2=findMsg(d.id);if(m2){normalizeMsgSchema(m2,{sourceLang:m2.sourceLang||m2.lang||'en',targetLang:d.targetLang||(m2.from==='me'?(sess.partnerLang||'th'):(sess.myLang||'en'))});applyMsgTarget(m2,d.targetLang||m2.targetLang,d.targetText||d.text||'');if(m2.from==='me')m2.status='translated';updateTransDOM(m2);if(m2.from==='me')refreshMsgStatus(m2);saveMsgs(state.activeConvId,state.messages);}return;}
   if(d.type==='translation'){
     markPeerSeen();
     var mt=findMsg(d.id);
@@ -1861,7 +1903,7 @@ function handleRelayEvent(d){
     }
     return;
   }
-  if(d.type==='ack'){markPeerSeen();if(d.ackType==='msg'){clearReliableAck('msg',d.id);var mAck=findMsg(d.id);if(mAck&&mAck.from==='me'){mAck.status='delivered';saveMsgs(state.activeConvId,state.messages);renderAllMessages();}}else if(d.ackType==='tr'){clearReliableAck('tr',d.id);}return;}
+  if(d.type==='ack'){markPeerSeen();if(d.ackType==='msg'){clearReliableAck('msg',d.id);var mAck=findMsg(d.id);if(mAck&&mAck.from==='me'){mAck.status='delivered';saveMsgs(state.activeConvId,state.messages);refreshMsgStatus(mAck);}}else if(d.ackType==='tr'){clearReliableAck('tr',d.id);}return;}
   if(d.type==='typing'){markPeerSeen();showTyping(d.name);return;}
   if(d.type==='clarify-note'){markPeerSeen();var m5=findMsg(d.id);if(m5){appendClarifyNote(m5,d.text||'',d.name||'Partner',d.timestamp||Date.now());saveMsgs(state.activeConvId,state.messages);updateBblClarify(m5);}return;}
   if(d.type==='clarify'){markPeerSeen();var m3=findMsg(d.id);if(m3){appendClarifyNote(m3,d.note||'',d.name||'Partner',d.timestamp||Date.now());saveMsgs(state.activeConvId,state.messages);updateBblClarify(m3);}return;}
@@ -1911,6 +1953,7 @@ function renderBubbleHeaderBlock(opts){
   return '<div class="bbl-hdr">'
     +'<span class="bbl-sender">'+(opts.senderHtml||'')+'</span>'
     +'<span class="bbl-time">'+escHtml(opts.metaText||'')+'</span>'
+    +(opts.statusHtml||'')
     +(opts.actionsHtml||'')
     +'</div>';
 }
@@ -1979,7 +2022,7 @@ function renderMsg(msg){
   var name=msg.displayFromName||(isMine?(sess&&sess.names&&sess.names.meAlias||'Me'):(sess&&sess.names&&sess.names.themAlias||'Partner'));
   var tgtCls=sides.tgtTxt?'bbl-txt':'bbl-txt loading';
   var html='<div class="bubble-card">'
-    +renderBubbleHeaderBlock({senderHtml:escHtml(name)+(msg.status==='queued'?'<span class="queued-badge">Queued</span>':''),metaText:time})
++renderBubbleHeaderBlock({senderHtml:escHtml(name),metaText:time,statusHtml:renderStatusBadge(msg)})
     +renderBubbleTwoLangBodyBlock({
       srcClass:'bbl-txt',
       tgtClass:tgtCls,
@@ -2104,6 +2147,8 @@ function sendMessage(){
   var payload={type:'msg',id:msg.id,sourceText:msg.sourceText,sourceLang:msg.sourceLang,targetText:msg.targetText||'',targetLang:msg.targetLang,translations:msg.translations,orig:msg.sourceText,lang:msg.sourceLang,timestamp:msg.timestamp,name:sess.myName||getPrefs().userName||'yournamehere'};
   var ok=sendReliable(payload);
   if(!ok){msg.status='queued';saveMsgs(sess.convId,state.messages);}else{msg.status='sent';saveMsgs(sess.convId,state.messages);}
+  refreshMsgStatus(msg);
+  refreshQueueIndicators();
 
   var localLang=sess.myLang||'en';
   if(localLang&&localLang!==outLang&&localLang!==targetLang){
@@ -2113,6 +2158,7 @@ function sendMessage(){
         updateTransDOM(msg);
         saveMsgs(sess.convId,state.messages);
         renderAllMessages();
+        refreshQueueIndicators();
       }
     });
   }
