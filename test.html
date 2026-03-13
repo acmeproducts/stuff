@@ -936,7 +936,43 @@ function getActiveConvId(){return ls(SK.activeConv)||null;}
 function setActiveConvId(id){if(id)lsW(SK.activeConv,id);else lsDel(SK.activeConv);}
 function getSession(cid){return getAllSessions().find(function(s){return s.convId===cid;})||null;}
 function putSession(sess){if(!sess)return;var ss=getAllSessions();var idx=ss.findIndex(function(s){return s.convId===sess.convId;});if(idx>=0)ss[idx]=sess;else ss.unshift(sess);saveSessions(ss);setActiveConvId(sess.convId);}
-function getMsgs(cid){return lsJSON('ts3_m_'+cid,[]);}
+function normalizeMsgSchema(msg,defaults){
+  var m=(msg&&typeof msg==='object')?msg:{};
+  var defs=defaults||{};
+  var sourceLang=m.sourceLang||m.lang||defs.sourceLang||'en';
+  var sourceText=m.sourceText||m.orig||m.text||'';
+  var targetLang=m.targetLang||defs.targetLang||'';
+  var map=(m.translations&&typeof m.translations==='object')?m.translations:{};
+  var legacyTarget=m.targetText||m.translated||'';
+  if(targetLang&&legacyTarget&&!map[targetLang])map[targetLang]=legacyTarget;
+  if(targetLang&&!legacyTarget&&typeof map[targetLang]==='string')legacyTarget=map[targetLang];
+  m.sourceLang=sourceLang;
+  m.sourceText=sourceText;
+  m.targetLang=targetLang;
+  m.targetText=legacyTarget||'';
+  m.translations=map;
+  if(m.sourceText&&!m.translations[m.sourceLang])m.translations[m.sourceLang]=m.sourceText;
+  if(m.targetLang&&m.targetText&&!m.translations[m.targetLang])m.translations[m.targetLang]=m.targetText;
+  // compatibility shim during migration
+  if(!m.lang)m.lang=m.sourceLang;
+  if(!m.orig)m.orig=m.sourceText;
+  if(!m.text)m.text=m.from==='me'?m.sourceText:(m.targetText||m.sourceText);
+  if(!m.translated&&m.targetText)m.translated=m.targetText;
+  return m;
+}
+function getMsgs(cid){
+  var sess=getSession(cid)||{};
+  var raw=lsJSON('ts3_m_'+cid,[]);
+  var changed=false;
+  var norm=(raw||[]).map(function(msg){
+    var before=JSON.stringify(msg||{});
+    var next=normalizeMsgSchema(msg,{sourceLang:(msg&&msg.from==='me')?(sess.myLang||'en'):(msg&&msg.lang)||sess.partnerLang||'th',targetLang:(msg&&msg.from==='me')?(sess.partnerLang||'th'):(sess.myLang||'en')});
+    if(before!==JSON.stringify(next))changed=true;
+    return next;
+  });
+  if(changed)saveMsgs(cid,norm);
+  return norm;
+}
 function saveMsgs(cid,m){lsW('ts3_m_'+cid,JSON.stringify((m||[]).slice(-300)));}
 function getMsgTranslatedText(msg,targetLang,fallback){var map=ensureMsgTranslations(msg);if(targetLang&&typeof map[targetLang]==='string'&&map[targetLang].trim())return map[targetLang];return fallback||'';}
 function deleteSessData(cid){lsDel('ts3_m_'+cid);}
@@ -1066,6 +1102,18 @@ function findMsg(id){return state.messages.find(function(m){return m.id===id;});
 function ensureMsgTranslations(msg){if(!msg||typeof msg!=='object')return{};if(!msg.translations||typeof msg.translations!=='object')msg.translations={};return msg.translations;}
 function setMsgTranslation(msg,targetLang,text){if(!msg||!targetLang||typeof text!=='string'||!text.trim())return false;var map=ensureMsgTranslations(msg);if(map[targetLang]===text)return false;map[targetLang]=text;return true;}
 function mergeMsgTranslations(msg,incoming){if(!msg||!incoming||typeof incoming!=='object')return false;var changed=false;Object.keys(incoming).forEach(function(lang){if(setMsgTranslation(msg,lang,incoming[lang]))changed=true;});return changed;}
+function applyMsgTarget(msg,targetLang,targetText){
+  if(!msg||!targetLang)return false;
+  var changed=false;
+  if(setMsgTranslation(msg,targetLang,targetText||''))changed=true;
+  if(msg.targetLang!==targetLang){msg.targetLang=targetLang;changed=true;}
+  var next=getMsgTranslatedText(msg,targetLang,targetText||'');
+  if((msg.targetText||'')!==next){msg.targetText=next;changed=true;}
+  if(targetLang===msg.sourceLang&&msg.sourceText&&!(msg.translations||{})[targetLang]){setMsgTranslation(msg,targetLang,msg.sourceText);}
+  if(msg.from==='them'&&targetLang===((getSession(state.activeConvId)||{}).myLang||'en'))msg.text=msg.targetText||msg.sourceText;
+  if(msg.from==='me'&&targetLang===((getSession(state.activeConvId)||{}).partnerLang||'th'))msg.translated=msg.targetText||'';
+  return changed;
+}
 function normalizeTag(s){return s.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'').slice(0,24);}
 function detectLang(text,fb){var t=(text||'').trim();if(!t)return fb||'en';if(/[฀-๿]/.test(t))return'th';if(/[぀-ヿ]/.test(t))return'ja';if(/[一-鿿]/.test(t))return'zh';if(/[가-힯]/.test(t))return'ko';if(/[؀-ۿ]/.test(t))return'ar';return fb||'en';}
 function fallbackCopy(t){var ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;left:-9999px;';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('Copied');}catch(e){}document.body.removeChild(ta);}
@@ -1652,58 +1700,63 @@ function handleRelayEvent(d){
   }
   if(d.type==='msg'){
     markPeerSeen();
+    var sourceSpeaker=(d.participant||d.from||'deviceB');
+    var listener=(PART_ID||DEVICE_ID||'deviceA');
+    var srcTxt=d.sourceText||d.orig||d.text||'';
+    var srcLang=d.sourceLang||d.lang||detectLang(srcTxt,sess.partnerLang||'th')||sess.partnerLang||'th';
+    setLastDetectedLang(sourceSpeaker,srcLang);
+    var targetLang=d.targetLang||resolveTargetLang({detectedSource:srcLang,listenerId:listener,listenerDefault:sess.myLang||'en',oppositeId:sourceSpeaker,oppositeDefault:sess.partnerLang||'th'});
 
     if(d.id&&findMsg(d.id)){
       var existing=findMsg(d.id);
-      if(existing&&mergeMsgTranslations(existing,d.translations)){updateTransDOM(existing);saveMsgs(state.activeConvId,state.messages);}
-      if(existing&&existing.from==='them'&&existing.text)sendReliable({type:'tr',id:d.id,text:existing.text});
+      normalizeMsgSchema(existing,{sourceLang:srcLang,targetLang:targetLang});
+      var changed=mergeMsgTranslations(existing,d.translations||{});
+      if(srcTxt&&existing.sourceText!==srcTxt){existing.sourceText=srcTxt;existing.orig=srcTxt;changed=true;}
+      if(srcLang&&existing.sourceLang!==srcLang){existing.sourceLang=srcLang;existing.lang=srcLang;changed=true;}
+      if(d.targetText||d.text)changed=applyMsgTarget(existing,targetLang,d.targetText||d.text)||changed;
+      if(changed){updateTransDOM(existing);saveMsgs(state.activeConvId,state.messages);}
+      if(existing&&existing.from==='them'&&existing.targetText)sendReliable({type:'tr',id:d.id,sourceText:existing.sourceText,sourceLang:existing.sourceLang,targetText:existing.targetText,targetLang:existing.targetLang,translations:existing.translations,text:existing.targetText});
       return;
     }
     upsertPartnerFromEnvelope(sess,d);
-    var sourceSpeaker=(d.participant||d.from||'deviceB');
-    var listener=(PART_ID||DEVICE_ID||'deviceA');
-    var pLang=d.lang||detectLang(d.orig||d.text||'',sess.partnerLang||'th')||sess.partnerLang||'th';
-    setLastDetectedLang(sourceSpeaker,pLang);
-    var mLang=resolveTargetLang({detectedSource:pLang,listenerId:listener,listenerDefault:sess.myLang||'en',oppositeId:sourceSpeaker,oppositeDefault:sess.partnerLang||'th'});
-    var msg={id:d.id,from:'them',orig:d.orig||d.text||'',text:null,lang:pLang,status:'received',timestamp:d.timestamp||Date.now(),clarify:{status:'none',text:'',thread:[]},translations:{},attachment:d.attachment||null};
-    mergeMsgTranslations(msg,d.translations);
+    var msg=normalizeMsgSchema({id:d.id,from:'them',sourceText:srcTxt,sourceLang:srcLang,targetLang:targetLang,targetText:d.targetText||'',orig:srcTxt,text:null,lang:srcLang,status:'received',timestamp:d.timestamp||Date.now(),clarify:{status:'none',text:'',thread:[]},translations:{},attachment:d.attachment||null},{sourceLang:srcLang,targetLang:targetLang});
+    mergeMsgTranslations(msg,d.translations||{});
     stampMsgNames(msg,sess);
     state.messages.push(msg);renderMsg(msg);scrollBottom();
     sess.lastActivity=msg.timestamp;putSession(sess);saveMsgs(sess.convId,state.messages);
-    if(shouldSkipSameLanguage(pLang,mLang)){
-      msg.text=msg.orig;
-      setMsgTranslation(msg,mLang,msg.orig);
+    if(shouldSkipSameLanguage(srcLang,targetLang)){
+      applyMsgTarget(msg,targetLang,msg.sourceText);
       updateTransDOM(msg);
       saveMsgs(sess.convId,state.messages);
-      sendReliable({type:'tr',id:d.id,text:msg.orig});
-      sendReliable({type:'translation',id:d.id,targetLang:mLang,text:msg.orig,timestamp:Date.now()});
-      logTranslationDebug('them',pLang,mLang,msg.orig);
-      if(state.autoSpeakIncoming&&msg.text)speak(msg.text,mLang,null);
+      sendReliable({type:'tr',id:d.id,sourceText:msg.sourceText,sourceLang:msg.sourceLang,targetText:msg.targetText,targetLang:msg.targetLang,translations:msg.translations,text:msg.targetText});
+      sendReliable({type:'translation',id:d.id,sourceText:msg.sourceText,sourceLang:msg.sourceLang,targetText:msg.targetText,targetLang:msg.targetLang,translations:msg.translations,text:msg.targetText,timestamp:Date.now()});
+      logTranslationDebug('them',srcLang,targetLang,msg.targetText);
+      if(state.autoSpeakIncoming&&msg.targetText)speak(msg.targetText,targetLang,null);
       return;
     }
-    translate(msg.orig,pLang,mLang).then(function(tr){
-      var translated=tr||msg.orig;
-      msg.text=translated;
-      setMsgTranslation(msg,mLang,translated);
+    translate(msg.sourceText,srcLang,targetLang).then(function(tr){
+      var translated=tr||msg.sourceText;
+      applyMsgTarget(msg,targetLang,translated);
       updateTransDOM(msg);
       saveMsgs(sess.convId,state.messages);
-      sendReliable({type:'tr',id:d.id,text:translated});
-      sendReliable({type:'translation',id:d.id,targetLang:mLang,text:translated,timestamp:Date.now()});
-      logTranslationDebug('them',pLang,mLang,translated);
-      if(state.autoSpeakIncoming&&msg.text)speak(msg.text,mLang,null);
+      sendReliable({type:'tr',id:d.id,sourceText:msg.sourceText,sourceLang:msg.sourceLang,targetText:msg.targetText,targetLang:msg.targetLang,translations:msg.translations,text:msg.targetText});
+      sendReliable({type:'translation',id:d.id,sourceText:msg.sourceText,sourceLang:msg.sourceLang,targetText:msg.targetText,targetLang:msg.targetLang,translations:msg.translations,text:msg.targetText,timestamp:Date.now()});
+      logTranslationDebug('them',srcLang,targetLang,translated);
+      if(state.autoSpeakIncoming&&msg.targetText)speak(msg.targetText,targetLang,null);
     });
     return;
   }
-  if(d.type==='tr'){markPeerSeen();var m2=findMsg(d.id);if(m2){m2.translated=d.text;m2.status='translated';var trTarget=m2.from==='me'?(sess.partnerLang||'th'):(sess.myLang||'en');setMsgTranslation(m2,trTarget,d.text||'');updateTransDOM(m2);saveMsgs(state.activeConvId,state.messages);}return;}
+  if(d.type==='tr'){markPeerSeen();var m2=findMsg(d.id);if(m2){normalizeMsgSchema(m2,{sourceLang:m2.sourceLang||m2.lang||'en',targetLang:d.targetLang||(m2.from==='me'?(sess.partnerLang||'th'):(sess.myLang||'en'))});applyMsgTarget(m2,d.targetLang||m2.targetLang,d.targetText||d.text||'');m2.status='translated';updateTransDOM(m2);saveMsgs(state.activeConvId,state.messages);}return;}
   if(d.type==='translation'){
     markPeerSeen();
     var mt=findMsg(d.id);
-    if(mt&&setMsgTranslation(mt,d.targetLang||d.target||'',d.text||'')){
-      if(mt.from==='them'&&(d.targetLang||d.target||'')===(sess.myLang||'en'))mt.text=d.text;
-      if(mt.from==='me'&&(d.targetLang||d.target||'')===(sess.partnerLang||'th'))mt.translated=d.text;
-      mt.status='translated';
-      updateTransDOM(mt);
-      saveMsgs(state.activeConvId,state.messages);
+    if(mt){
+      normalizeMsgSchema(mt,{sourceLang:mt.sourceLang||mt.lang||'en',targetLang:d.targetLang||d.target||mt.targetLang||''});
+      if(applyMsgTarget(mt,d.targetLang||d.target||mt.targetLang,d.targetText||d.text||'')){
+        mt.status='translated';
+        updateTransDOM(mt);
+        saveMsgs(state.activeConvId,state.messages);
+      }
     }
     return;
   }
@@ -1714,11 +1767,16 @@ function handleRelayEvent(d){
   if(d.type==='clarify-ans'){markPeerSeen();var m4=findMsg(d.id);if(m4){appendClarifyNote(m4,d.answer||'',d.name||'Partner',d.timestamp||Date.now());saveMsgs(state.activeConvId,state.messages);updateBblClarify(m4);upsertClarifiedPhrase(m4);}return;}
 }
 
+
 // ════════════════════ BUBBLES ════════════════════
 function getSides(msg){
-  var sess=getSession(state.activeConvId);
-  if(msg.from==='me')return{srcLang:(sess&&sess.myLang)||'en',srcTxt:msg.text,tgtLang:(sess&&sess.partnerLang)||'th',tgtTxt:getMsgTranslatedText(msg,(sess&&sess.partnerLang)||'th',msg.translated)};
-  return{srcLang:msg.lang||(sess&&sess.partnerLang)||'th',srcTxt:msg.orig||msg.text,tgtLang:(sess&&sess.myLang)||'en',tgtTxt:getMsgTranslatedText(msg,(sess&&sess.myLang)||'en',msg.text)};
+  var sess=getSession(state.activeConvId)||{};
+  normalizeMsgSchema(msg,{sourceLang:msg&&msg.from==='me'?(sess.myLang||'en'):(msg.lang||sess.partnerLang||'th'),targetLang:msg&&msg.from==='me'?(sess.partnerLang||'th'):(sess.myLang||'en')});
+  var localLang=sess.myLang||'en';
+  var pairedLang=sess.partnerLang||msg.sourceLang||'th';
+  var localTxt=(localLang===msg.sourceLang)?msg.sourceText:getMsgTranslatedText(msg,localLang,msg.targetLang===localLang?msg.targetText:msg.text);
+  var pairTxt=(pairedLang===msg.sourceLang)?msg.sourceText:getMsgTranslatedText(msg,pairedLang,msg.targetLang===pairedLang?msg.targetText:msg.translated);
+  return{srcLang:localLang,srcTxt:localTxt||'',tgtLang:pairedLang,tgtTxt:pairTxt||''};
 }
 function buildBblFoot(msg){
   var id=msg.id;
@@ -1817,20 +1875,21 @@ function sendMessage(){
   setLastDetectedLang(speaker,outLang);
   var targetLang=resolveTargetLang({detectedSource:outLang,listenerId:listener,listenerDefault:sess.partnerLang||'th',oppositeId:speaker,oppositeDefault:sess.myLang||'en'});
   ensureSessionNames(sess);
-  var msg={id:uid(),from:'me',text:text,lang:outLang,translated:null,status:'sent',timestamp:Date.now(),clarify:{status:'none',text:'',thread:[]},translations:{},attachment:null};
+  var msg=normalizeMsgSchema({id:uid(),from:'me',sourceText:text,sourceLang:outLang,targetLang:targetLang,targetText:'',text:text,lang:outLang,translated:null,status:'sent',timestamp:Date.now(),clarify:{status:'none',text:'',thread:[]},translations:{},attachment:null},{sourceLang:outLang,targetLang:targetLang});
   stampMsgNames(msg,sess);
   state.messages.push(msg);renderMsg(msg);ta.value='';autoResize();updateSendBtn();scrollBottom();
-  sess.lastActivity=msg.timestamp;putSession(sess);saveMsgs(sess.convId,state.messages);
-  var payload={type:'msg',id:msg.id,orig:text,lang:outLang,timestamp:msg.timestamp,name:sess.myName||getPrefs().userName||'yournamehere'};
-  var ok=sendReliable(payload);
-  if(!ok){msg.status='queued';saveMsgs(sess.convId,state.messages);}else{msg.status='sent';saveMsgs(sess.convId,state.messages);}
+  sess.lastActivity=msg.timestamp;putSession(sess);
   if(shouldSkipSameLanguage(outLang,targetLang)){
-    msg.translated=text;
-    setMsgTranslation(msg,targetLang,text);
+    applyMsgTarget(msg,targetLang,text);
     logTranslationDebug('me',outLang,targetLang,text);
   }
+  saveMsgs(sess.convId,state.messages);
+  var payload={type:'msg',id:msg.id,sourceText:msg.sourceText,sourceLang:msg.sourceLang,targetText:msg.targetText||'',targetLang:msg.targetLang,translations:msg.translations,orig:msg.sourceText,lang:msg.sourceLang,timestamp:msg.timestamp,name:sess.myName||getPrefs().userName||'yournamehere'};
+  var ok=sendReliable(payload);
+  if(!ok){msg.status='queued';saveMsgs(sess.convId,state.messages);}else{msg.status='sent';saveMsgs(sess.convId,state.messages);}
   renderAllMessages();
 }
+
 
 function handleAttachFile(){toast('Attachments are disabled in this release.');}
 
@@ -1856,7 +1915,8 @@ function setMyPreferredOutputLang(v){setPreferredOutputLang(PART_ID||DEVICE_ID,n
 function setPartnerPreferredOutputLang(v){var sess=getSession(state.activeConvId);setPreferredOutputLang((sess&&sess.inviterDeviceId)||'deviceB',normalizeLangCode(v));}
 function resetSourceBubbleDefaults(){var p=getPrefs();p.sourceTheme=BUBBLE_DEFAULTS.sourceTheme;p.bubbleWidth=BUBBLE_DEFAULTS.bubbleWidth;p.bubbleFontSize=BUBBLE_DEFAULTS.bubbleFontSize;p.accentColor=BUBBLE_DEFAULTS.accentColor;savePrefs(p);document.documentElement.style.setProperty('--teal',BUBBLE_DEFAULTS.accentColor);openSettings();applyBubbleTheme();toast('Source bubble reset');}
 function resetTargetBubbleDefaults(){var p=getPrefs();p.targetTheme=BUBBLE_DEFAULTS.targetTheme;p.targetBubbleFontSize=BUBBLE_DEFAULTS.targetBubbleFontSize;p.targetAccentColor=BUBBLE_DEFAULTS.targetAccentColor;savePrefs(p);openSettings();applyBubbleTheme();toast('Target bubble reset');}
-function applyPhrasebookAccent(v){var p=getPrefs();p.phrasebookAccentColor=v;savePrefs(p);document.documentElement.style.setProperty('--tag-bg',v+'22');document.documentElement.style.setProperty('--tag-text',v);}
+function applyPhrasebookAccent(v){var p=getPrefs();p.phrasebookAccentColor=v;savePrefs(p);document.documentElement.style.setProperty('--tag-bg',v+'22');document.documentElement.style.setProperty('--tag-text',v);} 
+
 function openInfoModal(kind){var title=document.getElementById('info-title');var body=document.getElementById('info-body');if(kind==='privacy'){title.textContent='Privacy';body.innerHTML='<strong>Local-first storage.</strong><br>All session and phrasebook data stays in localStorage unless you export it yourself.';}else{title.textContent='About';body.innerHTML='<strong>Talk + Say · v3.0</strong><br>Shell-first bilingual chat &amp; phrasebook with back-translation and clarify workflows.';}document.getElementById('info-overlay').hidden=false;}
 function openPrintPhrasebookModal(){document.getElementById('print-overlay').hidden=false;}
 function printPhrasebookSelection(){document.getElementById('print-overlay').hidden=true;var includeBack=!!(document.getElementById('print-include-back')&&document.getElementById('print-include-back').checked);var prevBack=state.pbBackOpen;var prevClarify=state.pbClarifyOpen;if(includeBack){state.pbBackOpen={};getCards().forEach(function(c){state.pbBackOpen[c.id]=true;});}renderCatalogCards();setTimeout(function(){window.print();state.pbBackOpen=prevBack;state.pbClarifyOpen=prevClarify;renderCatalogCards();},60);}
