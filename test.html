@@ -451,11 +451,16 @@ textarea.field-input{resize:none;}
 .shell-ribbon{display:flex;align-items:center;gap:4px;padding:8px 10px 4px;background:var(--cream);flex-shrink:0;}
 .ribbon-btn{background:none;border:none;cursor:pointer;color:var(--ink-dim);padding:7px 8px;border-radius:9px;line-height:0;transition:background .12s,color .12s;}
 .ribbon-btn:hover{background:var(--paper);color:var(--teal);}
-.shell-dot{width:10px;height:10px;border-radius:50%;background:var(--ink-dim);transition:background .3s;flex-shrink:0;cursor:pointer;}
-.shell-dot.green{background:#22C55E;}
-.shell-dot.yellow{background:#F59E0B;animation:connPulse 1.5s ease-in-out infinite;}
-.shell-dot.red{background:#EF4444;}
-.shell-dot.gray{background:var(--ink-dim);}
+.shell-dot{width:14px;height:14px;border-radius:50%;background:var(--ink-dim);transition:background .3s;flex-shrink:0;cursor:pointer;position:relative;display:inline-flex;align-items:center;justify-content:center;}
+.shell-dot-main{width:10px;height:10px;border-radius:50%;background:var(--ink-dim);transition:background .3s;}
+.shell-dot.transport-open .shell-dot-main{background:#22C55E;}
+.shell-dot.transport-connecting .shell-dot-main{background:#F59E0B;animation:connPulse 1.5s ease-in-out infinite;}
+.shell-dot.transport-closed .shell-dot-main{background:#EF4444;}
+.shell-dot.transport-blocked .shell-dot-main{background:var(--ink-dim);}
+.shell-dot-peer{position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:var(--ink-dim);border:1.5px solid var(--bg-card);}
+.shell-dot.peer-fresh .shell-dot-peer{background:#22C55E;}
+.shell-dot.peer-idle .shell-dot-peer{background:#F59E0B;}
+.shell-dot.peer-unknown .shell-dot-peer{background:var(--ink-dim);}
 .shell-partner{text-align:center;padding:2px 16px 8px;font-family:"Lora",serif;font-size:16px;font-weight:600;border-bottom:1px solid var(--border);flex-shrink:0;}
 .session-lang-bar{display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--paper);flex-shrink:0;}
 .session-lang-col{flex:1;min-width:0;}
@@ -543,7 +548,10 @@ textarea.field-input{resize:none;}
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
     </button>
     <div style="flex:1;"></div>
-    <div class="shell-dot" id="shell-dot" onclick="forceReconnect()" title="Connection"></div>
+    <div class="shell-dot" id="shell-dot" onclick="forceReconnect()" title="Connection">
+      <span class="shell-dot-main" aria-hidden="true"></span>
+      <span class="shell-dot-peer" aria-hidden="true"></span>
+    </div>
     <span class="queue-indicator" id="queue-indicator" title="Queue/ack status">Q0 · M0 · T0</span>
   </div>
   <!-- Row 2: Partner name -->
@@ -1543,18 +1551,49 @@ function updateDot(){
   var dot=document.getElementById('shell-dot');if(!dot)return;
   var reconnectBlockedReason=getReconnectBlockReason();
   dot.className='shell-dot';
-  dot.title='Connection';
-  if(reconnectBlockedReason==='offline'){dot.classList.add('gray');dot.title=reconnectBlockText(reconnectBlockedReason);return;}
-  if(reconnectBlockedReason==='no-session'){dot.classList.add('gray');dot.title=reconnectBlockText(reconnectBlockedReason);return;}
-  if(reconnectBlockedReason==='socket-connecting'){dot.classList.add('yellow');dot.title=reconnectBlockText(reconnectBlockedReason);return;}
-  if(reconnectBlockedReason==='cooldown'&&socketState!=='open'){dot.classList.add('yellow');dot.title=reconnectBlockText(reconnectBlockedReason);return;}
-  if(socketState==='open'){
-    if(peerIsFresh()){dot.classList.add('green');dot.title='Connected (peer active)';}
-    else {dot.classList.add('yellow');dot.title='Relay connected (peer idle)';}
+  var relayStatus='Relay: disconnected';
+  var peerStatus='Peer: unknown';
+
+  if(reconnectBlockedReason==='offline'){
+    dot.classList.add('transport-blocked','peer-unknown');
+    relayStatus='Relay: offline';
+    peerStatus='Peer: unknown (relay offline)';
+    dot.title=relayStatus+'\n'+peerStatus;
     return;
   }
-  if(socketState==='connecting'||socketState==='reconnecting'){dot.classList.add('yellow');dot.title='Connecting…';}
-  else {dot.classList.add('red');dot.title='Disconnected';}
+  if(reconnectBlockedReason==='no-session'){
+    dot.classList.add('transport-blocked','peer-unknown');
+    relayStatus='Relay: waiting for session';
+    peerStatus='Peer: unknown';
+    dot.title=relayStatus+'\n'+peerStatus;
+    return;
+  }
+
+  if(socketState==='open'){
+    dot.classList.add('transport-open');
+    relayStatus='Relay: connected';
+  }else if(socketState==='connecting'||socketState==='reconnecting'||reconnectBlockedReason==='socket-connecting'||(reconnectBlockedReason==='cooldown'&&socketState!=='open')){
+    dot.classList.add('transport-connecting');
+    relayStatus='Relay: connecting';
+  }else{
+    dot.classList.add('transport-closed');
+    relayStatus='Relay: disconnected';
+  }
+
+  if(socketState==='open'){
+    if(peerIsFresh()){
+      dot.classList.add('peer-fresh');
+      peerStatus='Peer: active';
+    }else{
+      dot.classList.add('peer-idle');
+      peerStatus='Peer: idle';
+    }
+  }else{
+    dot.classList.add('peer-unknown');
+    peerStatus='Peer: unknown';
+  }
+
+  dot.title=relayStatus+'\n'+peerStatus;
 }
 
 // ════════════════════ NAVIGATION ════════════════════
