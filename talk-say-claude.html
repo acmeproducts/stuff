@@ -1716,6 +1716,29 @@ function closeTagPicker(){const ctx=state.tagPickerCtx;if(ctx==='newcard'){state
 
 // ════════════════════ PHRASE PICKER ════════════════════
 function openPhrasePicker(){renderPhrasePicker();document.getElementById('phrase-picker-overlay').hidden=false;}
+function closePhrasebookUi(){
+  const picker=document.getElementById('phrase-picker-overlay');
+  if(picker)picker.hidden=true;
+}
+function navigateToActiveChatFromPhrasebook(){
+  closePhrasebookUi();
+  if(state.tab!=='talk')switchTab('talk');
+  if(state.screen!=='chat-screen')enterChat();
+}
+function applyPhraseToComposer(text){
+  if(!state.session){
+    toast('Open an active Talk chat first to use phrasebook phrases');
+    return false;
+  }
+  const ta=document.getElementById('msg-input');
+  if(!ta)return false;
+  ta.value=text||'';
+  autoResize();
+  updateSendBtn();
+  ta.focus();
+  navigateToActiveChatFromPhrasebook();
+  return true;
+}
 function renderPhrasePicker(){
   const q=(document.getElementById('pp-search')?.value||'').toLowerCase().trim();
   const ppTagF=state.ppTagFilter||[];
@@ -1741,15 +1764,16 @@ function renderPhrasePicker(){
     const insertSrc=JSON.stringify(c.source||'');
     const insertTgt=JSON.stringify(c.target||c.source||'');
     const insertLang=JSON.stringify(c.sourceLang||'en');
-    return`<div class="pp-row"><button class="pp-tts" onclick="speak(${JSON.stringify(c.source||'')},${JSON.stringify(c.sourceLang||'en')},this)" title="Listen">${ICON_TTS}</button><div class="pp-texts"><div class="pp-source">${escHtml(c.source||'')}</div><div class="pp-target">${escHtml(c.target||'')}</div></div><button class="pp-insert-btn" onclick="insertPhrase(${insertSrc},${insertTgt},${insertLang})">Use</button></div>`;
+    return`<div class="pp-row"><button class="pp-tts" onclick="speak(${JSON.stringify(c.source||'')},${JSON.stringify(c.sourceLang||'en')},this)" title="Listen">${ICON_TTS}</button><div class="pp-texts"><div class="pp-source">${escHtml(c.source||'')}</div><div class="pp-target">${escHtml(c.target||'')}</div></div><button class="pp-insert-btn" onclick="insertPhrase(${insertSrc},${insertTgt},${insertLang},'auto')">Use</button><button class="pp-insert-btn" onclick="insertPhrase(${insertSrc},${insertTgt},${insertLang},'source')" title="Use source phrase" style="margin-left:6px;">Source</button><button class="pp-insert-btn" onclick="insertPhrase(${insertSrc},${insertTgt},${insertLang},'target')" title="Use translation" style="margin-left:6px;">Target</button></div>`;
   }).join('');
 }
 function togglePpTag(t){const i=(state.ppTagFilter||[]).indexOf(t);if(i>=0)state.ppTagFilter.splice(i,1);else{if(!state.ppTagFilter)state.ppTagFilter=[];state.ppTagFilter.push(t);}renderPhrasePicker();}
-function insertPhrase(src,tgt,srcLang){
+function insertPhrase(src,tgt,srcLang,side='auto'){
   // Insert the side that matches what I speak; fall back to target
   const myLang=state.session?.myLang||state.myLang||'en';
-  const text=(srcLang&&srcLang===myLang)?src:(tgt||src);
-  const ta=document.getElementById('msg-input');ta.value=text;autoResize();updateSendBtn();document.getElementById('phrase-picker-overlay').hidden=true;if(state.screen!=='chat-screen')enterChat();
+  const autoText=(srcLang&&srcLang===myLang)?src:(tgt||src);
+  const text=side==='source'?(src||tgt):side==='target'?(tgt||src):autoText;
+  applyPhraseToComposer(text);
 }
 
 // ════════════════════ ONBOARDING ════════════════════
