@@ -540,7 +540,7 @@ textarea.field-input{resize:none;}
     </button>
     <div style="flex:1;"></div>
     <div class="shell-dot" id="shell-dot" onclick="forceReconnect()" title="Connection"></div>
-    <span class="queue-indicator" id="queue-indicator" title="Queue/ack status">Q0 · M0 · T0</span>
+    <span class="queue-indicator" id="queue-indicator" title="Queue/ack status" style="display:none;">Q0 · M0 · T0</span>
   </div>
   <!-- Row 2: Partner name -->
   <div class="shell-partner" id="shell-partner-name" contenteditable="true" spellcheck="false" onblur="savePartnerName(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">new chat</div>
@@ -739,27 +739,45 @@ textarea.field-input{resize:none;}
   </div>
 </div>
 
-<div class="overlay" id="new-card-overlay" hidden onclick="if(event.target===this)this.hidden=true">
+<div class="overlay" id="new-card-overlay" hidden>
   <div class="sheet"><div class="sheet-handle"></div><div class="sheet-body">
     <div class="sheet-title" id="nc-title">New phrase</div>
-    <label class="field-label" style="margin-top:0;">Source phrase *</label>
-    <textarea class="field-input" id="nc-source" rows="2" placeholder="What do you want to say?" style="resize:none;" oninput="ncSourceInput()"></textarea>
-    <div style="display:flex;gap:8px;margin-top:4px;">
+    <div class="bbl-body" style="margin-top:2px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+      <div class="bbl-side">
+        <div class="pb-side-label">Source</div>
+        <textarea class="field-input" id="nc-source" rows="2" placeholder="What do you want to say?" style="resize:none;" oninput="ncSourceInput()"></textarea>
+        <div class="pb-side-actions"><button class="pb-icon" onclick="speak((document.getElementById('nc-source').value||''),(document.getElementById('nc-src-lang').value||'en'),this)" title="TTS">TTS</button><button class="pb-use-chip" onclick="insertPhrase((document.getElementById('nc-source').value||''))">Use</button></div>
+      </div>
+      <div class="bbl-divider"></div>
+      <div class="bbl-side">
+        <div class="pb-side-label">Target</div>
+        <textarea class="field-input" id="nc-target" rows="2" placeholder="Translation" style="resize:none;"></textarea>
+        <div class="pb-side-actions"><button class="pb-icon" onclick="speak((document.getElementById('nc-target').value||''),(document.getElementById('nc-tgt-lang').value||'th'),this)" title="TTS">TTS</button><button class="pb-use-chip" onclick="insertPhrase((document.getElementById('nc-target').value||''))">Use</button></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
       <select class="field-select" id="nc-src-lang" style="flex:1;font-size:12px;padding:6px 8px;"></select>
       <button style="background:var(--teal-light);border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--teal);cursor:pointer;" id="nc-auto-btn" onclick="ncAutoTranslate()" disabled>Translate →</button>
       <select class="field-select" id="nc-tgt-lang" style="flex:1;font-size:12px;padding:6px 8px;"></select>
     </div>
-    <label class="field-label">Translation</label>
-    <textarea class="field-input" id="nc-target" rows="2" placeholder="Translation" style="resize:none;"></textarea>
-    <label class="field-label">Notes</label>
-    <textarea class="field-input" id="nc-notes" rows="2" placeholder="Usage tips…" style="resize:none;"></textarea>
-    <label class="field-label">Tags</label>
-    <div class="tags-wrap" id="nc-tags-wrap"><button class="add-tag-btn" onclick="openTagPicker('newcard')">#</button></div>
     <label class="field-label">Catalog</label>
     <select class="field-select" id="nc-catalog"></select>
+    <div class="bbl-foot" style="margin-top:10px;"><div class="bbl-foot-bar">
+      <button class="bbl-act" id="nc-save-btn" onclick="saveNewCard()" disabled title="Save">Save</button>
+      <button class="bbl-act" onclick="openTagPicker('newcard')" title="Tags">#</button>
+      <button class="bbl-act" onclick="toggleNewCardClarify()" title="Clarify">Clarify</button>
+      <button class="bbl-act" onclick="runNewCardBacktranslate()" title="Back translate">Back Translate</button>
+    </div></div>
+    <div class="tag-drawer open" id="nc-tag-inline" style="margin-top:8px;">
+      <div class="pb-tags-row" id="nc-tags-wrap"><button class="add-tag-btn" onclick="openTagPicker('newcard')">#</button></div>
+    </div>
+    <div class="clarify-block" id="nc-clarify" style="display:none;margin-top:8px;">
+      <div class="clarify-thread" id="nc-clarify-thread"></div>
+      <div class="clarify-compose"><input class="clarify-input" id="nc-notes" placeholder="Add clarify note…"></div>
+    </div>
+    <div class="bbl-backtrans" id="nc-back" style="margin-top:8px;"><div class="bbl-back-row"><div id="nc-back-label" class="bbl-back-langs">Right → Left</div></div><div class="bbl-back-row"><div id="nc-back-text" class="bbl-back-text">No backtranslation yet.</div></div></div>
     <div class="sheet-btn-row">
-      <button class="sheet-btn secondary" onclick="this.closest('.overlay').hidden=true">Cancel</button>
-      <button class="sheet-btn primary" id="nc-save-btn" onclick="saveNewCard()" disabled>Save</button>
+      <button class="sheet-btn secondary" onclick="closeNewCardOverlay()">Cancel</button>
     </div>
   </div></div>
 </div>
@@ -1019,6 +1037,9 @@ function normalizeBacktranslatePayload(payload,fallbacks){
     sourceLang:base.sourceLang||fb.sourceLang||'',
     targetLang:base.targetLang||fb.targetLang||'',
     inputText:base.inputText||fb.inputText||'',
+    inputLang:base.inputLang||fb.inputLang||base.sourceLang||fb.sourceLang||'',
+    outputText:base.outputText||fb.outputText||'',
+    outputLang:base.outputLang||fb.outputLang||base.targetLang||fb.targetLang||'',
     inputSide:base.inputSide||fb.inputSide||'',
     outputSide:base.outputSide||fb.outputSide||'',
     resultText:collapseCharPerLineText(base.resultText||base.result||fb.resultText||fb.result||''),
@@ -1029,7 +1050,14 @@ function normalizeBacktranslatePayload(payload,fallbacks){
 function normalizeCard(c){
   var now=Date.now();
   var card=c||{};
+  card.sourceText=card.sourceText||card.source||'';
+  card.sourceLang=card.sourceLang||'en';
+  card.targetText=card.targetText||card.target||'';
+  card.targetLang=card.targetLang||'th';
+  card.sender=card.sender||'saved';
+  card.sentAt=card.sentAt||card.createdAt||now;
   card.tags=(card.tags||[]).map(normalizeTag).filter(Boolean);
+  card.clarify=Array.isArray(card.clarify)?card.clarify:(Array.isArray(card.clarifyChain)?card.clarifyChain:[]);
   card.backtranslate=normalizeBacktranslatePayload(card.backtranslate,{
     sourceLang:card.targetLang||'th',
     targetLang:card.sourceLang||'en',
@@ -1040,7 +1068,9 @@ function normalizeCard(c){
     verdict:(card.backFlagged?'flag':(card.backApproved?'good':'')),
     updatedAt:card.updatedAt||now
   });
-  card.clarifyChain=Array.isArray(card.clarifyChain)?card.clarifyChain:[];
+  card.source=card.sourceText;
+  card.target=card.targetText;
+  card.clarifyChain=Array.isArray(card.clarifyChain)?card.clarifyChain:card.clarify.slice();
   card.updatedAt=card.updatedAt||card.createdAt||now;
   card.createdAt=card.createdAt||now;
   return card;
@@ -1958,12 +1988,14 @@ function renderBubbleTwoLangBodyBlock(opts){
   opts=opts||{};
   var srcClass=opts.srcClass||'bbl-txt';
   var tgtClass=opts.tgtClass||'bbl-txt';
-  var srcTts=opts.srcTtsHtml||'';
-  var tgtTts=opts.tgtTtsHtml||'';
+  var srcLabel=opts.srcLabelHtml||'';
+  var tgtLabel=opts.tgtLabelHtml||'';
+  var srcActions=opts.srcActionsHtml||'';
+  var tgtActions=opts.tgtActionsHtml||'';
   return '<div class="bbl-body">'
-    +'<div class="bbl-side"><div class="'+srcClass+'">'+(opts.srcHtml||'')+'</div>'+srcTts+'</div>'
+    +'<div class="bbl-side">'+srcLabel+'<div class="'+srcClass+'">'+(opts.srcHtml||'')+'</div>'+srcActions+'</div>'
     +'<div class="bbl-divider"></div>'
-    +'<div class="bbl-side"><div class="'+tgtClass+'">'+(opts.tgtHtml||'')+'</div>'+tgtTts+'</div>'
+    +'<div class="bbl-side">'+tgtLabel+'<div class="'+tgtClass+'">'+(opts.tgtHtml||'')+'</div>'+tgtActions+'</div>'
     +'</div>';
 }
 function renderBubbleFooterActionBar(opts){
@@ -2021,12 +2053,15 @@ function renderMsg(msg){
   var html='<div class="bubble-card">'
 +renderBubbleHeaderBlock({senderHtml:escHtml(name),metaText:time})
     +renderBubbleTwoLangBodyBlock({
+      // QA invariant A/B: every bubble body renders explicit Source+Target phrase areas.
       srcClass:'bbl-txt',
       tgtClass:tgtCls,
       srcHtml:'<div id="bsrc-'+msg.id+'">'+renderMd(sides.srcTxt||'')+'</div>',
       tgtHtml:'<div id="btgt-'+msg.id+'">'+(sides.tgtTxt?renderMd(sides.tgtTxt):'')+'</div>',
-      srcTtsHtml:'<button class="bbl-tts" onclick="bblTTS(\''+msg.id+'\',\'src\',this)">'+ICON_TTS+'</button>',
-      tgtTtsHtml:'<button class="bbl-tts" onclick="bblTTS(\''+msg.id+'\',\'tgt\',this)">'+ICON_TTS+'</button>'
+      srcLabelHtml:'<div class="pb-side-label">Source · '+escHtml(langLabel(sides.srcLang))+'</div>',
+      tgtLabelHtml:'<div class="pb-side-label">Target · '+escHtml(langLabel(sides.tgtLang))+'</div>',
+      srcActionsHtml:'<div class="pb-side-actions"><button class="pb-icon" onclick="bblTTS(\''+msg.id+'\',\'src\',this)" title="TTS">'+ICON_TTS+'</button><button class="pb-use-chip" onclick="bblUse(\''+msg.id+'\',\'src\')">Use</button></div>',
+      tgtActionsHtml:'<div class="pb-side-actions"><button class="pb-icon" onclick="bblTTS(\''+msg.id+'\',\'tgt\',this)" title="TTS">'+ICON_TTS+'</button><button class="pb-use-chip" onclick="bblUse(\''+msg.id+'\',\'tgt\')">Use</button></div>'
     })
     +buildBblFoot(msg)+'</div>';
   var el=document.createElement('div');el.className='msg-row'+(isMine?' mine':' theirs');el.id='row-'+msg.id;el.innerHTML=html;
@@ -2037,8 +2072,9 @@ function updateTransDOM(msg){var sides=getSides(msg);var el=document.getElementB
 
 // Bubble actions
 function bblTTS(id,side,btn){var msg=findMsg(id);if(!msg)return;var s=getSides(msg);var t=side==='src'?s.srcTxt:s.tgtTxt;var l=side==='src'?s.srcLang:s.tgtLang;if(!t||!l){console.warn('[bblTTS] Missing side text/lang',{id:id,side:side,text:t||'',lang:l||'',sides:s});return;}speak(t,l,btn);}
+function bblUse(id,side){var msg=findMsg(id);if(!msg)return;var s=getSides(msg);var t=side==='src'?s.srcTxt:s.tgtTxt;if(!t)return;insertPhrase(t);}
 function bblTTSFoot(id,btn){var msg=findMsg(id);if(!msg)return;var s=getSides(msg);var hasTgt=!!(s.tgtTxt&&s.tgtLang);var hasSrc=!!(s.srcTxt&&s.srcLang);var t=hasTgt?s.tgtTxt:(hasSrc?s.srcTxt:'');var l=hasTgt?s.tgtLang:(hasSrc?s.srcLang:'');if(!t||!l){console.warn('[bblTTSFoot] Missing side text/lang',{id:id,text:t||'',lang:l||'',sides:s});return;}speak(t,l,btn);}
-function bblSave(id){var msg=findMsg(id);if(!msg)return;msg._saved=true;saveMsgs(state.activeConvId,state.messages);var s=getSides(msg);var bt=getMsgBacktranslate(msg);var thread=(msg&&msg.clarify&&Array.isArray(msg.clarify.thread))?msg.clarify.thread:[];openNewCard(null,{mode:'chat-save',messageId:id,sourceText:s.srcTxt||'',targetText:s.tgtTxt||'',sourceLang:s.srcLang||'en',targetLang:s.tgtLang||'th',tags:sanitizeTagList(msg.tags||[]),clarifyChain:thread.map(function(item){return{text:(item&&item.text)||'',author:(item&&item.author)||'Partner',timestamp:(item&&item.timestamp)||Date.now()};}),backtranslate:normalizeBacktranslatePayload(bt,{sourceLang:bt.sourceLang||s.tgtLang||'th',targetLang:bt.targetLang||s.srcLang||'en',inputText:bt.inputText||s.tgtTxt||'',inputSide:bt.inputSide||'right',outputSide:bt.outputSide||'left',resultText:bt.resultText||'',verdict:bt.verdict||'',updatedAt:bt.updatedAt||Date.now()})});renderAllMessages();}
+function bblSave(id){var msg=findMsg(id);if(!msg)return;msg._saved=true;saveMsgs(state.activeConvId,state.messages);var s=getSides(msg);var bt=getMsgBacktranslate(msg);var thread=(msg&&msg.clarify&&Array.isArray(msg.clarify.thread))?msg.clarify.thread:[];openNewCard(null,{mode:'chat-save',messageId:id,sourceText:s.srcTxt||'',targetText:s.tgtTxt||'',sourceLang:s.srcLang||'en',targetLang:s.tgtLang||'th',tags:sanitizeTagList(msg.tags||[]),clarifyChain:thread.map(function(item){return{text:(item&&item.text)||'',author:(item&&item.author)||'Partner',timestamp:(item&&item.timestamp)||Date.now()};}),backtranslate:normalizeBacktranslatePayload(bt,{sourceLang:bt.sourceLang||s.tgtLang||'th',targetLang:bt.targetLang||s.srcLang||'en',inputLang:bt.inputLang||bt.sourceLang||s.tgtLang||'th',outputLang:bt.outputLang||bt.targetLang||s.srcLang||'en',inputText:bt.inputText||s.tgtTxt||'',outputText:bt.outputText||s.srcTxt||'',inputSide:bt.inputSide||'right',outputSide:bt.outputSide||'left',resultText:bt.resultText||'',verdict:bt.verdict||'',updatedAt:bt.updatedAt||Date.now()})});renderAllMessages();}
 function bblClarifyMotif(msg){var thread=(msg&&msg.clarify&&msg.clarify.thread)||[];return '💬';}
 function ensureClarifyThread(msg){if(!msg.clarify||typeof msg.clarify!=='object')msg.clarify={status:'none',text:''};if(!Array.isArray(msg.clarify.thread))msg.clarify.thread=[];return msg.clarify.thread;}
 function appendClarifyNote(msg,text,author,ts){var body=(text||'').trim();if(!body)return;var thread=ensureClarifyThread(msg);thread.push({text:body,author:author||'Partner',timestamp:ts||Date.now()});msg.clarify.status='thread';msg.clarify.text=body;}
@@ -2049,7 +2085,10 @@ function getMsgBacktranslate(msg){
   msg.backtranslate=normalizeBacktranslatePayload(msg.backtranslate,{
     sourceLang:sides.tgtLang||'',
     targetLang:sides.srcLang||'',
+    inputLang:sides.tgtLang||'',
+    outputLang:sides.srcLang||'',
     inputText:sides.tgtTxt||'',
+    outputText:sides.srcTxt||'',
     inputSide:'right',
     outputSide:'left'
   });
@@ -2271,14 +2310,18 @@ function renderCatalogCards(){
     }).join('')||'<div class="clarify-empty">No clarify entries yet.</div>';
     var draft=state.pbClarifyDrafts[c.id]||'';
 
-    var sourceColumn='<div id="card-src-'+c.id+'">'+renderMd(c.source||'')+'</div><div class="pb-side-actions"><button class="pb-icon" onclick="event.stopPropagation();speak('+aS+','+aSL+',this)">'+ICON_TTS+'</button><button class="pb-use-chip" onclick="event.stopPropagation();insertPhrase('+aS+')">Use</button></div>';
-    var targetColumn='<div id="card-tgt-'+c.id+'">'+renderMd(c.target||'')+'</div><div class="pb-side-actions"><button class="pb-icon" onclick="event.stopPropagation();speak('+aT+','+aTL+',this)">'+ICON_TTS+'</button><button class="pb-use-chip" onclick="event.stopPropagation();insertPhrase('+aT+')">Use</button></div>';
+    var sourceColumn='<div id="card-src-'+c.id+'">'+renderMd(c.source||'')+'</div>';
+    var targetColumn='<div id="card-tgt-'+c.id+'">'+renderMd(c.target||'')+'</div>';
 
     var body=renderBubbleTwoLangBodyBlock({
       srcClass:'bbl-txt',
       tgtClass:'bbl-txt',
       srcHtml:sourceColumn,
-      tgtHtml:targetColumn
+      tgtHtml:targetColumn,
+      srcLabelHtml:'<div class="pb-side-label">Source · '+escHtml(langLabel(c.sourceLang||'en'))+'</div>',
+      tgtLabelHtml:'<div class="pb-side-label">Target · '+escHtml(langLabel(c.targetLang||'th'))+'</div>',
+      srcActionsHtml:'<div class="pb-side-actions"><button class="pb-icon" onclick="event.stopPropagation();speak('+aS+','+aSL+',this)" title="TTS">'+ICON_TTS+'</button><button class="pb-use-chip" onclick="event.stopPropagation();insertPhrase('+aS+')">Use</button></div>',
+      tgtActionsHtml:'<div class="pb-side-actions"><button class="pb-icon" onclick="event.stopPropagation();speak('+aT+','+aTL+',this)" title="TTS">'+ICON_TTS+'</button><button class="pb-use-chip" onclick="event.stopPropagation();insertPhrase('+aT+')">Use</button></div>'
     });
 
     var tagDrawer=renderBubbleTagDrawer({
@@ -2357,7 +2400,7 @@ function openNewCard(catId,srcText,tgtText,srcLang,tgtLang){var overlay=document
 
 function removeNcTag(tag){state.ncTags=state.ncTags.filter(function(t){return t!==tag;});renderNcTags();}
 function renderNcTags(){var w=document.getElementById('nc-tags-wrap');w.innerHTML=state.ncTags.map(function(t){return '<span class="tag-pill">#'+escHtml(t)+'<button class="tag-remove" onclick="removeNcTag(\''+t+'\')">×</button></span>';}).join('')+'<button class="add-tag-btn" onclick="openTagPicker(\'newcard\')">#</button>';}
-function saveNewCard(){var src=document.getElementById('nc-source').value.trim();if(!src)return;var tgt=document.getElementById('nc-target').value.trim();var sl=document.getElementById('nc-src-lang').value;var tl=document.getElementById('nc-tgt-lang').value;var notes=document.getElementById('nc-notes').value.trim();var catId=document.getElementById('nc-catalog').value;var saveCtx=getNewCardSaveContext(state.saveContext);var cardTags=sanitizeTagList(state.ncTags);var backtranslate=normalizeBacktranslatePayload(saveCtx&&saveCtx.backtranslate?saveCtx.backtranslate:null,{sourceLang:tl||'th',targetLang:sl||'en',inputText:tgt||src||'',inputSide:'right',outputSide:'left',resultText:'',verdict:'',updatedAt:Date.now()});var clarifyChain=(saveCtx&&Array.isArray(saveCtx.clarifyChain))?saveCtx.clarifyChain.map(function(item){return{text:(item&&item.text)||'',author:(item&&item.author)||'Partner',timestamp:(item&&item.timestamp)||Date.now()};}):[];var card=normalizeCard({id:uid(),catalogIds:catId?[catId]:[],sourceLang:sl,targetLang:tl,source:src,target:tgt,notes:notes,tags:cardTags,backtranslate:backtranslate,clarifyChain:clarifyChain,createdAt:Date.now(),updatedAt:Date.now()});upsertCardLastWins(card);card.tags.forEach(function(t){addTagToRegistry(t);});document.getElementById('new-card-overlay').hidden=true;toast('Saved');renderSayHome();renderCatalogCards();state.pbLaunchFlow=false;state.saveContext=null;}
+function saveNewCard(){var src=document.getElementById('nc-source').value.trim();if(!src)return;var tgt=document.getElementById('nc-target').value.trim();var sl=document.getElementById('nc-src-lang').value;var tl=document.getElementById('nc-tgt-lang').value;var notes=(document.getElementById('nc-notes').value||'').trim();var catId=document.getElementById('nc-catalog').value;var saveCtx=getNewCardSaveContext(state.saveContext);var cardTags=sanitizeTagList(state.ncTags);var backtranslate=normalizeBacktranslatePayload(saveCtx&&saveCtx.backtranslate?saveCtx.backtranslate:null,{sourceLang:tl||'th',targetLang:sl||'en',inputLang:tl||'th',outputLang:sl||'en',inputText:tgt||src||'',outputText:src||'',inputSide:'right',outputSide:'left',resultText:'',verdict:'',updatedAt:Date.now()});var clarifyChain=(saveCtx&&Array.isArray(saveCtx.clarifyChain))?saveCtx.clarifyChain.map(function(item){return{text:(item&&item.text)||'',author:(item&&item.author)||'Partner',timestamp:(item&&item.timestamp)||Date.now()};}):[];if(notes)clarifyChain.push({text:notes,author:'Me',timestamp:Date.now()});var card=normalizeCard({id:uid(),catalogIds:catId?[catId]:[],sourceText:src,sourceLang:sl,targetText:tgt,targetLang:tl,source:src,target:tgt,sender:'saved',sentAt:Date.now(),notes:notes,tags:cardTags,clarify:clarifyChain.slice(),backtranslate:backtranslate,clarifyChain:clarifyChain,createdAt:Date.now(),updatedAt:Date.now()});upsertCardLastWins(card);card.tags.forEach(function(t){addTagToRegistry(t);});document.getElementById('new-card-overlay').hidden=true;toast('Saved');renderSayHome();renderCatalogCards();state.pbLaunchFlow=false;state.saveContext=null;}
 
 function closePhrasebookView(){showScreen('chat-screen');}
 function openCatalogFilterModal(){renderPhrasebookCatalogFilter();document.getElementById('catalog-filter-overlay').hidden=false;}
@@ -2368,6 +2411,22 @@ function buildEmojiGrid(){var g=document.getElementById('emoji-grid');if(!g)retu
 function saveNewCatalog(){var name=document.getElementById('ncat-name').value.trim();if(!name)return;var desc=document.getElementById('ncat-desc').value.trim();var cats=getCatalogs();cats.push({id:uid(),name:name,desc:desc,emoji:state._newCatEmoji||'📝',createdAt:Date.now()});saveCatalogs(cats);document.getElementById('new-cat-overlay').hidden=true;document.getElementById('ncat-name').value='';renderSayHome();renderPhrasebookCatalogFilter();toast('Created');}
 function confirmDeleteCatalog(catId){showConfirm('Delete catalog?','Cards move to All.',function(){saveCatalogs(getCatalogs().filter(function(c){return c.id!==catId;}));var cards=getCards();cards.forEach(function(c){c.catalogIds=(c.catalogIds||[]).filter(function(id){return id!==catId;});});saveCards(cards);renderSayHome();renderPhrasebookCatalogFilter();toast('Deleted');});}
 function confirmDeleteCard(id){showConfirm('Delete phrase?','Cannot be undone.',function(){saveCards(getCards().filter(function(c){return c.id!==id;}));renderCatalogCards();renderSayHome();renderPhrasebookCatalogFilter();toast('Deleted');});}
+
+function closeNewCardOverlay(){document.getElementById('new-card-overlay').hidden=true;state.saveContext=null;}
+function toggleNewCardClarify(){var el=document.getElementById('nc-clarify');if(!el)return;el.style.display=el.style.display==='none'?'block':'none';}
+function runNewCardBacktranslate(){
+  var src=(document.getElementById('nc-source').value||'').trim();
+  var tgt=(document.getElementById('nc-target').value||'').trim();
+  var sl=(document.getElementById('nc-src-lang').value||'en');
+  var tl=(document.getElementById('nc-tgt-lang').value||'th');
+  if(!tgt){toast('No text to verify');return;}
+  var out=document.getElementById('nc-back-text');
+  var lbl=document.getElementById('nc-back-label');
+  if(lbl)lbl.textContent='Right → Left: '+tl+' → '+sl;
+  if(out)out.textContent='Checking…';
+  // QA contract: deterministic back translate uses right-side target as input and outputs left-side language.
+  translate(tgt,tl,sl).then(function(back){if(out)out.textContent=collapseCharPerLineText(back||'');state.saveContext=Object.assign({},getNewCardSaveContext(state.saveContext)||{}, {backtranslate:normalizeBacktranslatePayload((state.saveContext&&state.saveContext.backtranslate)||null,{sourceLang:tl,targetLang:sl,inputLang:tl,outputLang:sl,inputText:tgt,outputText:src,inputSide:'right',outputSide:'left',resultText:back||'',updatedAt:Date.now()})});});
+}
 function launchPhrasebookFlow(){state.pbLaunchFlow=false;state.saveContext=null;openNewCard(state.currentCatId==='all'?null:state.currentCatId);}
 
 function renderTagSearchChips(query,pickFn,id){var q=(query||'').trim().toLowerCase();if(!q)return '';return sanitizeTagList(getTags()).filter(function(t){return t.indexOf(q)>=0;}).slice(0,8).map(function(t){return '<button class="tag-res-chip" onclick="'+pickFn+'(\''+id+'\',\''+t+'\')">#'+escHtml(t)+'</button>';}).join('');}

@@ -1,125 +1,112 @@
 # Talk Session End-to-End QA Script (Reference)
 
 ## Scope
-Validate full lifecycle from new session creation through chat, translation, back-translate, clarify, save to phrasebook, and tag management.
+Validate first-session lifecycle in two browsers from session creation through chat, translation, back-translate, clarify, save to phrasebook, tags, and phrasebook-first authoring continuity.
 
 ## Standard Terms
-- **L1**: Sender's local language for a given message.
+- **L1**: Sender local language.
 - **L2/L3**: Alternate target language(s).
-- **Source**: Original text sent by sender.
-- **Target**: Translated text for receiver.
-- **Back Translate**: Translate Target back into Source language for verification.
+- **Source**: Left phrase area.
+- **Target**: Right phrase area.
+- **Back Translate**: Right-side text translated back to left-side language.
 
 ## Personas
 - **Bob**: L1 = English.
 - **Sue**: L1 = Thai.
 
-## Preconditions
-1. Two devices/browsers connected to same environment.
-2. Bob and Sue can join the same session.
-3. Phrasebook panel is available.
-4. Chat bubbles and phrasebook cards show Source + Target sections, each with TTS and USE.
+## Preconditions (first-session runnable)
+1. Open Browser A and Browser B to `test.html`.
+2. In each browser, set local name (`yournamehere`) to Bob (A) and Sue (B).
+3. Bob creates a new session and shares invite; Sue opens invite and joins.
+4. Phrasebook tab is reachable from chat and from the Say tab.
+5. Run in default mode (`SESSION_DEBUG=false`).
 
-## Acceptance Invariants (must hold for every message/card)
-1. Bubble/card contains both **Source** and **Target** phrase areas.
-2. Both areas expose **TTS** and **USE** controls.
-3. Footer exposes **Save**, **Tag (#)**, **Clarify**, and **Back Translate**.
-4. Back Translate is deterministic: **right-side phrase -> left-side language**.
-5. Saving preserves sender identity + timestamp + source/target text/lang.
+## Acceptance Invariants (binary)
+1. Every chat bubble and phrasebook card body shows **Source** and **Target** sections.
+2. Each section always has **TTS** and **USE** controls.
+3. Footer actions are exactly ordered: **Save**, **Tag (#)**, **Clarify**, **Back Translate**.
+4. Back translate is always **Right → Left** (input anchor right phrase/language, output anchor left language).
+5. Saved data preserves canonical fields: `sourceText`, `sourceLang`, `targetText`, `targetLang`, `sender`, `sentAt`, `tags[]`, `clarify[]`, `backtranslate{inputText,inputLang,outputText,outputLang,updatedAt}`.
+6. Header shows sender + time only (no delivery/diagnostic chip text).
+7. Connection indicator is one dot only: relay fill (gray/yellow/green) + peer border (white/black).
+8. Default UI shows no queue/metric/debug chip text.
 
 ---
 
-## Scenario A - Session inception + 3 chats + language switching
+## Updated QA Lifecycle Test Plan
 
 ### A1. Create session
-1. Bob launches app with empty session list.
-2. Bob clicks **+** in left pane and creates session with Sue.
-3. Sue joins same session.
+1. Bob creates a new chat.
+2. Bob shares invite to Sue; Sue joins from invite link.
+3. Observe connection indicator on both browsers.
 
-**Expected**
-- Session appears for both users.
-- Connection indicator shows connected state without verbose debug clutter.
+**Pass observation**
+- Dot fill reflects relay state and border reflects peer presence (single dot, no extra chips).
 
 ### A2. Chat #1 (Target=L2)
-1. Bob sends Source (English): "Hi Sue, are you free for lunch?"
-2. Sue sees Target in Thai.
-3. Bob runs **Back Translate** on this bubble.
-4. Bob adds **Clarify** note: "By lunch I mean 12:30."
-5. Bob tags in chat: `#lunch #availability`.
-6. Bob taps **Save**.
+1. Bob sends: `Hi Sue, are you free for lunch?`
+2. Sue verifies bubble body contains Source+Target; each side has TTS+USE.
+3. Bob opens footer actions and verifies order Save/#/Clarify/Back Translate.
+4. Bob runs Back Translate and confirms label shows `Right → Left`.
+5. Bob adds Clarify: `By lunch I mean 12:30.`
+6. Bob tags `#lunch #availability`.
+7. Bob presses Save.
 
-**Expected**
-- Back Translate returns coherent English meaning.
-- Clarify is attached to this bubble.
-- Tags persist after save.
-- Saved phrasebook entry inherits sender/timestamp/content.
+**Pass observation**
+- Saved phrase appears in phrasebook with same tags/clarify/backtranslate context.
 
 ### A3. Chat #2 (switch Target L2 -> L1)
-1. Switch session target behavior to L1 (English) for confirmation pass.
-2. Sue sends Source (Thai): "ได้ค่ะ เจอกันที่ร้านเดิม"
-3. Bob sees Target in English.
-4. Bob runs **Back Translate**.
-5. Bob adds **Clarify**: "Do you mean the cafe on 3rd Street?"
-6. Bob tags in chat: `#meeting-point #confirmed`.
-7. Bob taps **Save**.
+1. Set receive/target behavior to English for Bob.
+2. Sue sends Thai: `ได้ค่ะ เจอกันที่ร้านเดิม`.
+3. Bob verifies Target is English and Source remains Thai.
+4. Bob runs Back Translate and adds Clarify + tags; Save.
 
-**Expected**
-- Translation orientation is correct (no doubled English/Thai).
-- Back Translate maps from shown Target back to Thai meaning.
-- Second saved entry appears in phrasebook with inherited metadata.
+**Pass observation**
+- Direction remains right->left and no source/target transposition.
 
 ### A4. Chat #3 (switch Target L1 -> L2 -> L3)
-1. Switch target back to L2 (Thai).
-2. Bob sends Source (English): "Please bring the project notes."
-3. Run **Back Translate** on chat #3.
-4. Switch target to L3 (example: Japanese).
-5. Bob sends another message to verify L3 targeting.
+1. Switch target to Thai, send one Bob message, run Back Translate.
+2. Switch target to Japanese, send one Bob message.
 
-**Expected**
-- Switches are honored in sequence: L2 -> L1 -> L2 -> L3.
-- Chat #3 back-translate works.
-- No verticalized text (`y<br>o<br>u`) in back-translate output.
-
----
-
-## Scenario B - Phrasebook lifecycle
+**Pass observation**
+- Language switching sequence is honored and backtranslate output is normal horizontal text (no `y<br>o<br>u` style verticalization).
 
 ### B1. Validate two chat-saved entries
 1. Open phrasebook.
-2. Confirm two entries from Chat #1 and Chat #2 exist.
-3. Open each card and verify Source/Target, TTS/USE, footer actions.
+2. Open two entries saved from A2/A3.
 
-**Expected**
-- Phrasebook card body matches chat bubble body behavior.
-- Only allowed structural difference is phrasebook header delete `X`.
+**Pass observation**
+- Card body parity with chat body: Source+Target, each with TTS+USE, same footer order Save/#/Clarify/Back Translate.
 
-### B2. Update tags inside phrasebook (1 item)
-1. Open saved entry #1 in phrasebook.
-2. Use tag UI to remove one tag and add one new tag.
-3. Verify recently used tags appear under input.
+### B2. Tag update in phrasebook
+1. Open saved entry #1.
+2. Remove one tag and add one new tag using shared tag UI.
+3. Reopen card.
 
-**Expected**
-- Tag edits persist and reflect in card metadata.
+**Pass observation**
+- Tag changes persist and are visible in metadata/chips.
 
-### B3. Create brand-new phrasebook entry from scratch (no modal break)
-1. Start "new phrase" flow from phrasebook.
-2. Entry UI should look/behave like chat bubble composition flow (not disconnected modal).
-3. Enter Source phrase, pick target language, generate onboard translation.
-4. Use Back Translate.
-5. Add tags and save.
+### B3. New phrase flow continuity (no disconnected modal break)
+1. Start new phrase from phrasebook.
+2. Use chat-like bilingual composition: source input, target generation, back translate, tags, save.
 
-**Expected**
-- New entry flow is visually/behaviorally consistent with chat bubble interaction.
-- Saved card includes full bilingual contract + tags + metadata.
+**Pass observation**
+- Flow remains continuous in same interaction model and saves a complete bilingual entry.
 
 ---
 
-## Regression checks
-1. No doubled-language rendering (English+English or Thai+Thai unless explicitly intended).
-2. No source/target transposition between Bob and Sue.
-3. TTS language matches the visible phrase language.
-4. Back Translate always runs against the same side contract.
-5. No verticalized back-translate text.
+## Strict Visual Verification Checklist (binary)
+Mark each item Pass/Fail.
+1. Bubble shows Source+Target sections, each with TTS+USE.
+2. Footer order exactly Save / Tag / Clarify / Back Translate.
+3. No header diagnostic status clutter (`sent`, `queued`, `delivered`, `translated`, etc.).
+4. Back-translate label and direction are Right → Left.
+5. Back-translate output is not verticalized per-character.
+6. Phrasebook card body parity with chat bubble body.
+7. New phrase flow continuity (not a disconnected modal-only break).
+8. Connection dot uses required color+border semantics.
+9. No debug/queue chip text in normal mode.
 
-## Exit criteria
-Pass only if all scenarios and invariants succeed without manual data correction, message rewrites, or UI workarounds.
+## Pass/Fail Rubric
+- **PASS**: All scenarios complete and every checklist item is Pass.
+- **FAIL**: Any checklist item fails, any invariant breaks, or workflow needs manual data correction/workaround.
