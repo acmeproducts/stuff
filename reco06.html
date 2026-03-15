@@ -202,15 +202,7 @@ textarea.field-input{resize:none;}
 .composer-icon:hover{color:var(--teal);}
 .composer-icon.active{color:var(--red);}
 .composer-wrap{flex:1;position:relative;}
-.lang-flag-btn{position:absolute;left:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;line-height:1;padding:2px;border-radius:6px;z-index:2;transition:background .12s;}
-.lang-flag-btn:hover{background:var(--teal-light);}
-.lang-dropdown{position:absolute;bottom:calc(100% + 6px);left:0;background:#fff;border:1.5px solid var(--border);border-radius:12px;box-shadow:var(--shadow);z-index:50;min-width:180px;max-height:260px;overflow-y:auto;display:none;}
-.lang-dropdown.open{display:block;}
-.lang-opt{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:13px;font-family:"DM Sans",sans-serif;}
-.lang-opt:hover{background:var(--teal-light);}
-.lang-opt.active{font-weight:700;color:var(--teal);}
-.lang-opt-flag{font-size:16px;width:20px;text-align:center;}
-.composer-ta{width:100%;border:1.5px solid var(--border);border-radius:20px;padding:9px 14px 9px 38px;font-size:15px;font-family:"DM Sans",sans-serif;background:#fff;resize:none;outline:none;min-height:40px;max-height:110px;line-height:1.4;}
+.composer-ta{width:100%;border:1.5px solid var(--border);border-radius:20px;padding:9px 14px;font-size:15px;font-family:"DM Sans",sans-serif;background:#fff;resize:none;outline:none;min-height:40px;max-height:110px;line-height:1.4;}
 .composer-ta:focus{border-color:var(--teal);}
 .send-btn{width:40px;height:40px;border-radius:50%;border:none;background:var(--teal);color:#fff;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:opacity .12s;}
 .send-btn:disabled{opacity:.3;}
@@ -243,13 +235,9 @@ textarea.field-input{resize:none;}
 .card-list{flex:1;overflow-y:auto;padding:8px 16px 80px;}
 
 /* ════ PHRASEBOOK BUBBLE CARD ════
-   Uses same .bubble-card/.bbl-* contract as chat bubbles.
-   Context passed via pb-ctx class on .msg-row wrapper. */
-.pb-row-wrap{display:flex;justify-content:center;margin-bottom:8px;}
-.pb-row-wrap .msg-row{width:100%;max-width:100%;align-self:unset;}
-/* Phrasebook uses source-bubble theme */
-.pb-row-wrap .bubble-card{background:var(--paper);border-color:var(--border);}
-.pb-meta{font-size:10px;color:var(--ink-dim);padding:2px 12px 6px;text-align:right;}
+   Width and color inherit from applyBubbleTheme() via .msg-row.theirs rules.
+   No width or color overrides here — theme settings control both. */
+.pb-row-wrap{display:flex;justify-content:flex-start;margin-bottom:8px;}
 
 /* ════ SETTINGS OVERLAY ════ */
 .settings-overlay{position:fixed;inset:0;background:var(--cream);z-index:40;display:none;flex-direction:column;}
@@ -381,14 +369,12 @@ textarea.field-input{resize:none;}
   <div id="messages" style="display:none;"></div>
   <div class="typing-bar" id="typing-bar"></div>
 
-  <!-- Composer: [mic] [flag+textarea] [send] — no phrasebook icon -->
+  <!-- Composer: [mic] [textarea] [send] -->
   <div class="composer" id="composer" style="display:none;">
     <button class="composer-icon" id="stt-btn" onclick="toggleSTT()" title="Voice input">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
     </button>
     <div class="composer-wrap">
-      <button class="lang-flag-btn" id="lang-flag-btn" onclick="toggleLangDropdown()" title="Language"></button>
-      <div class="lang-dropdown" id="lang-dropdown"></div>
       <textarea class="composer-ta" id="msg-input" placeholder="Type or speak…" rows="1" oninput="composerInput()" onkeydown="composerKeydown(event)"></textarea>
     </div>
     <button class="send-btn" id="send-btn" onclick="sendMessage()" disabled>
@@ -397,7 +383,35 @@ textarea.field-input{resize:none;}
   </div>
 </div>
 
-<!-- ══ CATALOG SCREEN (unified phrasebook surface) ══ -->
+<!-- ══ INVITE SCREEN ══ -->
+<div id="invite-screen" class="screen">
+  <div class="scr-header">
+    <button class="scr-back" onclick="closeInviteScreen()">←</button>
+    <div class="scr-title">New Chat</div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;padding:28px 24px;gap:20px;overflow-y:auto;">
+    <!-- QR code placeholder -->
+    <div id="invite-qr" style="width:180px;height:180px;background:var(--paper);border:1.5px solid var(--border);border-radius:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      <canvas id="qr-canvas" width="164" height="164"></canvas>
+    </div>
+    <div style="font-size:13px;color:var(--ink-dim);text-align:center;line-height:1.6;max-width:280px;">Share this link or QR code.<br>Chat starts when your partner joins.</div>
+    <div style="width:100%;background:var(--paper);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;word-break:break-all;">
+      <a id="invite-link-text" style="color:var(--teal);font-size:13px;font-weight:600;" href="#" target="_blank"></a>
+    </div>
+    <div style="display:flex;gap:8px;width:100%;">
+      <button onclick="copyInviteLink()" style="flex:1;background:var(--teal);color:#fff;border:none;border-radius:11px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Copy Link</button>
+      <button id="invite-native-share" onclick="nativeShareInvite()" style="display:none;flex:1;background:var(--paper);color:var(--ink-mid);border:1.5px solid var(--border);border-radius:11px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Share…</button>
+    </div>
+    <!-- Waiting state -->
+    <div id="invite-waiting" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 0;">
+      <div style="width:32px;height:32px;border:3px solid var(--teal-light);border-top-color:var(--teal);border-radius:50%;animation:spin 1s linear infinite;"></div>
+      <div style="font-size:13px;color:var(--ink-dim);">Waiting for partner…</div>
+    </div>
+    <button onclick="resendInvite()" style="background:none;border:none;color:var(--teal);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;text-decoration:underline;">Resend</button>
+  </div>
+</div>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+
 <div id="catalog-screen" class="screen">
   <div class="scr-header">
     <div class="scr-title" id="cat-screen-title">Phrasebook</div>
@@ -709,9 +723,7 @@ var state={
   participants:{},
   saveContext:null,
   noteSessionId:null,
-  // composer language override (send-language policy)
-  composerLang:null,
-  composerLangLocked:false
+  pendingInviteId:null
 };
 var tagPickerSelectedTags=[];
 var tEngine='cloud',ttsActive=null;
@@ -1250,7 +1262,65 @@ function createNewSession(silent){
   var sess={convId:cid,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),status:'pending'};
   putSession(sess);
   var order=getSessionOrder();order.unshift(cid);saveSessionOrder(normalizeSessionOrder(order));
-  openSession(cid);closeLeftPanel();if(!silent)toast('New chat');
+  closeLeftPanel();
+  openInviteScreen(cid);
+}
+
+function openInviteScreen(cid){
+  var sess=getSession(cid);if(!sess)return;
+  state.pendingInviteId=cid;
+  var url=location.href.split('?')[0]+'?j='+encodeURIComponent(cid);
+  var linkEl=document.getElementById('invite-link-text');
+  if(linkEl){linkEl.href=url;linkEl.textContent=url;}
+  // Draw minimal QR using URL encoding into a canvas (simple dot-matrix fallback)
+  drawSimpleQR(url);
+  var shareBtn=document.getElementById('invite-native-share');
+  if(shareBtn)shareBtn.style.display=navigator.share?'flex':'none';
+  // Connect to relay to receive responder hello
+  transportConnect(cid,PART_ID);
+  showScreen('invite-screen');
+}
+
+function closeInviteScreen(){
+  // If session never got a responder, keep it as pending in list
+  if(state.pendingInviteId){
+    var sess=getSession(state.pendingInviteId);
+    if(sess&&sess.status==='pending'){
+      // leave pending — show in session list with waiting badge
+      renderSessionList();
+    }
+  }
+  state.pendingInviteId=null;
+  transportDisconnect({preserveQueue:true});
+  showScreen('chat-screen');
+}
+
+function copyInviteLink(){
+  var el=document.getElementById('invite-link-text');var url=el?el.href:'';
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(function(){toast('Link copied');});
+  else{fallbackCopy(url);}
+}
+function nativeShareInvite(){
+  var el=document.getElementById('invite-link-text');var url=el?el.href:'';
+  if(navigator.share)navigator.share({url:url}).catch(function(){});
+}
+function resendInvite(){
+  if(state.pendingInviteId){var sess=getSession(state.pendingInviteId);if(sess)sendInitialHello(sess);}
+  toast('Invite resent');
+}
+
+// Simple QR placeholder — draws URL as centered text if qr lib absent
+function drawSimpleQR(url){
+  var canvas=document.getElementById('qr-canvas');if(!canvas)return;
+  var ctx=canvas.getContext('2d');if(!ctx)return;
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,164,164);
+  ctx.fillStyle='#1A1714';ctx.font='9px monospace';ctx.textAlign='center';
+  // Wrap URL text lines as fallback visual
+  var words=url.replace('https://','').split('');var lines=[],line='';
+  words.forEach(function(c){line+=c;if(line.length>20){lines.push(line);line='';}});
+  if(line)lines.push(line);
+  lines.forEach(function(l,i){ctx.fillText(l,82,30+i*12);});
+  ctx.strokeStyle='var(--teal)';ctx.lineWidth=3;ctx.strokeRect(4,4,156,156);
 }
 
 function openSession(cid){
@@ -1264,7 +1334,6 @@ function openSession(cid){
   document.getElementById('composer').style.display='flex';
   document.getElementById('shell-partner-name').textContent=sess.title||sess.names.themAlias||sess.partnerName||'new chat';
   updateAutoReadBtn();
-  initComposerLang(sess);
   transportConnect(cid,PART_ID);
   renderAllMessages();scrollBottom();
   showScreen('chat-screen');
@@ -1300,13 +1369,24 @@ function renderSessionList(){
   if(!ss.length){c.innerHTML='<div style="text-align:center;padding:20px;font-size:13px;color:var(--ink-dim);">No conversations yet.</div>';renderRecycleBin();return;}
   c.innerHTML=ss.map(function(s){
     var isActive=state.activeConvId===s.convId;
+    var isPending=s.status==='pending';
     var msgs=getMsgs(s.convId);var unread=msgs.filter(function(m){return m.from==='them'&&(m.timestamp||0)>(s.lastViewedAt||0);}).length;
-    return '<div class="sess-card'+(isActive?' active':'')+'" draggable="true" data-conv="'+s.convId+'" ondragstart="dragStart(event)" ondragover="event.preventDefault()" ondrop="dragDrop(event)" ondragend="dragEnd(event)" onclick="openSession(\''+s.convId+'\');closeLeftPanel();">'
-      +'<div class="sess-card-info"><div class="sess-card-title" contenteditable="true" spellcheck="false" onclick="event.stopPropagation();this.focus();" onblur="saveCardTitle(\''+s.convId+'\',this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'+escHtml(s.title||s.partnerName||'new chat')+'</div><div class="sess-card-sub">'+timeAgo(s.lastActivity||s.createdAt)+'</div></div>'
-      +(unread?'<span class="sess-card-badge">'+unread+'</span>':'')
-      +'<div style="display:flex;gap:2px;flex-shrink:0;"><button class="sess-card-act" onclick="event.stopPropagation();openSessionNote(\''+s.convId+'\')" title="Notes">'+ICON_CLARIFY+'</button><button class="sess-card-act" onclick="event.stopPropagation();shareSession(\''+s.convId+'\')" title="Share">'+ICON_SHARE+'</button><button class="sess-card-act del" onclick="event.stopPropagation();softDelete(\''+s.convId+'\')" title="Delete">'+ICON_DELETE+'</button></div></div>';
+    return '<div class="sess-card'+(isActive?' active':'')+'" draggable="true" data-conv="'+s.convId+'" ondragstart="dragStart(event)" ondragover="event.preventDefault()" ondrop="dragDrop(event)" ondragend="dragEnd(event)" onclick="onSessCardClick(event,\''+s.convId+'\')">'
+      +'<div class="sess-card-info"><div class="sess-card-title" contenteditable="true" spellcheck="false" onclick="event.stopPropagation();this.focus();" onblur="saveCardTitle(\''+s.convId+'\',this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'+escHtml(s.title||s.partnerName||'new chat')+'</div><div class="sess-card-sub">'+(isPending?'<span style="color:var(--amber);font-weight:700;">Waiting…</span>':timeAgo(s.lastActivity||s.createdAt))+'</div></div>'
+      +(unread?'<span class="sess-card-badge">'+unread+'</span>':isPending?'<span class="sess-card-badge" style="background:var(--amber);">⏳</span>':'')
+      +'<div style="display:flex;gap:2px;flex-shrink:0;">'
+      +(isPending?'<button class="sess-card-act" onclick="event.stopPropagation();openInviteScreen(\''+s.convId+'\')" title="Resend invite">'+ICON_SHARE+'</button>':'')
+      +'<button class="sess-card-act" onclick="event.stopPropagation();openSessionNote(\''+s.convId+'\')" title="Notes">'+ICON_CLARIFY+'</button>'
+      +'<button class="sess-card-act del" onclick="event.stopPropagation();softDelete(\''+s.convId+'\')" title="Delete">'+ICON_DELETE+'</button>'
+      +'</div></div>';
   }).join('');
   renderRecycleBin();
+}
+function onSessCardClick(e,cid){
+  var sess=getSession(cid);if(!sess)return;
+  closeLeftPanel();
+  if(sess.status==='pending'){openInviteScreen(cid);}
+  else{openSession(cid);}
 }
 function dragStart(e){dragSrcId=e.currentTarget.dataset.conv;e.currentTarget.classList.add('dragging');if(e.dataTransfer){e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',dragSrcId);}catch(_){}}}
 function dragDrop(e){e.preventDefault();var tgt=e.currentTarget.dataset.conv;if(!tgt||tgt===dragSrcId)return;var order=normalizeSessionOrder(getSessionOrder());var fi=order.indexOf(dragSrcId);var ti=order.indexOf(tgt);if(fi<0||ti<0)return;order.splice(fi,1);order.splice(ti,0,dragSrcId);saveSessionOrder(normalizeSessionOrder(order,false));renderSessionList();}
@@ -1359,56 +1439,6 @@ function shareSession(cid){
   if(navigator.share){navigator.share({url:url}).catch(function(){});}
 }
 function copyShareLink(){var el=document.getElementById('share-link-text');var url=el?el.href:'';if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(function(){toast('Copied');document.getElementById('share-overlay').hidden=true;});else{fallbackCopy(url);document.getElementById('share-overlay').hidden=true;}}
-
-// ════════════════════════════════════════════════════════
-// COMPOSER LANGUAGE SELECTOR
-// ════════════════════════════════════════════════════════
-function initComposerLang(sess){
-  state.composerLang=sess&&sess.myLang||getPrefs().myLang||'en';
-  state.composerLangLocked=false;
-  renderLangFlag();
-  buildLangDropdown();
-}
-function renderLangFlag(){
-  var btn=document.getElementById('lang-flag-btn');if(!btn)return;
-  var lang=state.composerLang||getPrefs().myLang||'en';
-  btn.textContent=langFlag(lang)||'🌐';
-  btn.title=langLabel(lang);
-}
-function buildLangDropdown(){
-  var dd=document.getElementById('lang-dropdown');if(!dd)return;
-  var cur=state.composerLang||getPrefs().myLang||'en';
-  dd.innerHTML=LANGS.map(function(l){
-    return '<div class="lang-opt'+(l.code===cur?' active':'')+'" onclick="selectComposerLang(\''+l.code+'\')"><span class="lang-opt-flag">'+l.flag+'</span>'+escHtml(l.label)+'</div>';
-  }).join('');
-}
-function toggleLangDropdown(){
-  var dd=document.getElementById('lang-dropdown');if(!dd)return;
-  dd.classList.toggle('open');
-  if(dd.classList.contains('open'))buildLangDropdown();
-}
-function selectComposerLang(code){
-  state.composerLang=code;
-  state.composerLangLocked=true;
-  var dd=document.getElementById('lang-dropdown');if(dd)dd.classList.remove('open');
-  renderLangFlag();
-  // Update session myLang and trigger send-lang policy update
-  if(state.activeConvId){
-    var sess=getSession(state.activeConvId);
-    if(sess){
-      sess.myLang=code;
-      putSession(sess);
-      // Update participant state for send=receive policy
-      setLastDetectedLang(PART_ID,code);
-    }
-  }
-  var p=getPrefs();p.myLang=code;savePrefs(p);
-}
-// Close dropdown on outside click
-document.addEventListener('click',function(e){
-  var dd=document.getElementById('lang-dropdown');var btn=document.getElementById('lang-flag-btn');
-  if(dd&&btn&&!dd.contains(e.target)&&!btn.contains(e.target))dd.classList.remove('open');
-});
 
 // ════════════════════════════════════════════════════════
 // TRANSLATION
@@ -1483,7 +1513,7 @@ function toggleSTT(){
   if(sttActive){if(recognition)recognition.stop();return;}
   var sess=getSession(state.activeConvId);
   recognition=new SpeechRec();
-  recognition.lang=TTS_LOCALE[state.composerLang||(sess&&sess.myLang)||getPrefs().myLang||'en']||'en';
+  recognition.lang=TTS_LOCALE[(sess&&sess.myLang)||getPrefs().myLang||'en']||'en';
   recognition.interimResults=true;recognition.continuous=false;
   var btn=document.getElementById('stt-btn');
   recognition.onstart=function(){sttActive=true;if(btn)btn.classList.add('active');};
@@ -1522,11 +1552,19 @@ function handleRelayEvent(d){
   if(d.type==='hello'){
     markPeerSeen();
     upsertPartnerFromEnvelope(sess,d);
-    // Active session instantiation: if session was pending, mark active now
+    // Active session instantiation: if this hello comes in while on invite screen, transition to chat
     if(sess.status==='pending'){
       sess.status='active';
       putSession(sess);
-      addSystemNote(sess.convId,(d.name||'Partner')+' joined',Date.now());
+      // Transition to active chat
+      if(state.pendingInviteId===sess.convId){
+        state.pendingInviteId=null;
+        addSystemNote(sess.convId,(d.name||'Partner')+' joined',Date.now());
+        openSession(sess.convId);
+        toast((d.name||'Partner')+' joined!');
+      }else{
+        addSystemNote(sess.convId,(d.name||'Partner')+' joined',Date.now());
+      }
       renderSessionList();
     }
     return;
@@ -1554,6 +1592,16 @@ function handleRelayEvent(d){
     }
 
     upsertPartnerFromEnvelope(sess,d);
+    // Also instantiate if still pending (msg arrived before hello)
+    if(sess.status==='pending'){
+      sess.status='active';putSession(sess);
+      if(state.pendingInviteId===sess.convId){
+        state.pendingInviteId=null;
+        openSession(sess.convId);
+        toast((d.name||'Partner')+' joined!');
+      }
+      renderSessionList();
+    }
     var msg=normalizeMsgSchema({id:d.id,from:'them',sourceText:srcTxt,sourceLang:srcLang,targetLang:targetLang,targetText:d.targetText||'',orig:srcTxt,text:null,lang:srcLang,status:'received',timestamp:d.timestamp||Date.now(),clarify:{status:'none',text:'',thread:[]},translations:{},attachment:null},{sourceLang:srcLang,targetLang:targetLang});
     mergeMsgTranslations(msg,d.translations||{});
     stampMsgNames(msg,sess);
@@ -1803,6 +1851,7 @@ function toggleBubbleBacktranslate(id,ctx){
   var panel=document.getElementById('bbt-'+id);if(!panel)return;
   var isOpen=panel.classList.contains('open');
   panel.classList.toggle('open');
+  if(ctx==='phrasebook')state.pbBackOpen[id]=!isOpen;
   if(!isOpen){renderBubbleBacktranslateFooter(id,ctx||'chat');rerunBubbleBacktranslate(id,ctx||'chat');}
 }
 
@@ -1853,8 +1902,10 @@ function bblBtTTS(id,ctx,btn){
 // Clarify (shared)
 function bblClarifyClick(id,ctx){
   var blk=document.getElementById('bclarify-'+id);if(!blk)return;
+  var isOpen=blk.classList.contains('open');
   blk.classList.toggle('open');
-  if(blk.classList.contains('open')){
+  if(ctx==='phrasebook')state.pbClarifyOpen[id]=!isOpen;
+  if(!isOpen){
     var msg=ctx==='phrasebook'?null:findMsg(id);
     if(msg)updateBblClarify(msg,ctx);
     else updateBblClarifyFromCard(id);
@@ -2009,15 +2060,6 @@ function updateSendBtn(){var el=document.getElementById('msg-input');var sb=docu
 function composerInput(){
   autoResize();updateSendBtn();
   var now=Date.now();if(now-lastTypingTs>2000){sendTyping();lastTypingTs=now;}
-  // Auto-detect if not locked
-  if(!state.composerLangLocked){
-    var ta=document.getElementById('msg-input');
-    var text=(ta&&ta.value)||'';
-    if(text.length>2){
-      var detected=detectLang(text,'');
-      if(detected&&detected!==state.composerLang){state.composerLang=detected;renderLangFlag();}
-    }
-  }
 }
 function composerKeydown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}}
 function sendTyping(){var sess=getSession(state.activeConvId);transportSend({type:'typing',name:(sess&&sess.myName)||getPrefs().userName});}
@@ -2030,8 +2072,8 @@ function sendMessage(){
   var speaker=(PART_ID||DEVICE_ID||'deviceA');
   var listener=(sess.inviterDeviceId||'deviceB');
 
-  // Use composer lang (may be auto-detected or user-selected)
-  var outLang=state.composerLang||detectLang(text,sess.myLang||p.myLang||'en');
+  // Auto-detect language from text content
+  var outLang=detectLang(text,sess.myLang||p.myLang||'en');
   setLastDetectedLang(speaker,outLang);
 
   // Send-language = receive-language: partner receives in the language I'm sending
@@ -2051,9 +2093,6 @@ function sendMessage(){
   if(!ok){msg.status='queued';saveMsgs(sess.convId,state.messages);}
   else{msg.status='sent';saveMsgs(sess.convId,state.messages);}
   renderAllMessages();
-
-  // Reset composer lang lock after send (auto-detect resumes)
-  if(state.composerLangLocked){}  // keep lock until user changes or session changes
 }
 
 function insertPhrase(src){
@@ -2105,7 +2144,6 @@ function renderCatalogCards(){
       +'<div class="msg-row theirs" id="row-'+c.id+'">'
       +'<div class="bubble-card">'+inner+'</div>'
       +'</div>'
-      +'<div class="pb-meta">'+(tags.map(function(t){return '<span class="pb-tag-pill">#'+escHtml(t)+'</span>';}).join(' '))+'</div>'
       +'</div>';
   }).join('');
 
@@ -2363,7 +2401,6 @@ document.addEventListener('DOMContentLoaded',function(){
 
   var p=getPrefs();
   state.autoSpeakIncoming=!!p.autoSpeakIncoming;
-  state.composerLang=p.myLang||'en';
 
   var nameEl=document.getElementById('left-local-name');
   if(nameEl&&p.userName&&p.userName!=='yournamehere')nameEl.textContent=p.userName;
@@ -2377,19 +2414,20 @@ document.addEventListener('DOMContentLoaded',function(){
   populateLangSelect('nc-src-lang',p.myLang||'en');
   populateLangSelect('nc-tgt-lang',p.partnerLang||'th');
   initTagPickerInput();
-  renderLangFlag();
-  buildLangDropdown();
 
-  // Deep link — short ?j= format
+  // Deep link — short ?j= format (responder joining)
   var up=new URLSearchParams(location.search);
   var invite=parseInviteFromSearch(up);
   if(invite){
     history.replaceState({},'',location.pathname);
     var sess=getSession(invite.sessionId);
     if(!sess){
-      sess={convId:invite.sessionId,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),status:'pending'};
+      sess={convId:invite.sessionId,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),status:'active'};
       putSession(sess);
       var order=getSessionOrder();order.unshift(invite.sessionId);saveSessionOrder(normalizeSessionOrder(order));
+    }else{
+      // If we're the responder joining, mark active
+      sess.status='active';putSession(sess);
     }
     hydrateSessionFromInvite(sess,invite);putSession(sess);
     openSession(invite.sessionId);
@@ -2397,8 +2435,17 @@ document.addEventListener('DOMContentLoaded',function(){
   }
 
   var aid=getActiveConvId();
-  if(aid&&getSession(aid)){openSession(aid);}
-  else{var sessions=getAllSessions();if(sessions.length){openSession(sessions[0].convId);}else{createNewSession(true);}}
+  if(aid&&getSession(aid)){
+    var savedSess=getSession(aid);
+    if(savedSess&&savedSess.status==='pending'){openInviteScreen(aid);}
+    else{openSession(aid);}
+  }else{
+    var sessions=getAllSessions().filter(function(s){return s.status!=='pending';});
+    var pendingSessions=getAllSessions().filter(function(s){return s.status==='pending';});
+    if(sessions.length){openSession(sessions[0].convId);}
+    else if(pendingSessions.length){openInviteScreen(pendingSessions[0].convId);}
+    else{showEmptyShell();}
+  }
 
   // Sheet drag-dismiss
   document.querySelectorAll('.overlay .sheet-handle').forEach(function(h){
@@ -2412,7 +2459,6 @@ document.addEventListener('DOMContentLoaded',function(){
   window.addEventListener('offline',function(){transportDisconnect({preserveQueue:true});});
   document.addEventListener('visibilitychange',function(){
     if(!state.activeConvId)return;
-    // Only reconnect if actually disconnected, not just on every visibility change
     if(document.visibilityState==='visible'&&canAttemptReconnect())forceReconnect();
   });
 });
