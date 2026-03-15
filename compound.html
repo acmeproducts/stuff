@@ -1,0 +1,377 @@
+<!-- Compound Interest-v9.0-2026-03-14 09:34 PM -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compound Interest</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f5f4f0; --card: #ffffff; --border: #e6e5e0;
+  --text: #1a1917; --muted: #7d7a74; --label: #a3a19a;
+  --accent: #2b52a0; --radius: 12px;
+  --font: 'DM Sans', system-ui, sans-serif;
+  --mono: 'DM Mono', monospace;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; padding: 1rem 1rem 4rem; }
+.layout { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+
+/* INPUT BAR - Horizontal & Compact */
+.input-bar { display: flex; flex-wrap: wrap; align-items: stretch; }
+.input-cell { padding: 1rem 1.25rem; border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 160px; }
+.input-cell:last-child { border-right: none; }
+
+@media (max-width: 680px) {
+  .input-cell { border-right: none; border-bottom: 1px solid var(--border); min-width: 50%; }
+  .input-cell:nth-last-child(-n+2) { border-bottom: none; }
+}
+@media (max-width: 400px) { .input-cell { min-width: 100%; border-bottom: 1px solid var(--border); } }
+
+.field-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--label); }
+.spin-wrap { position: relative; display: flex; align-items: center; }
+.pfx { position: absolute; left: 10px; font-size: 14px; color: var(--muted); pointer-events: none; font-family: var(--mono); }
+.sfx { position: absolute; right: 34px; font-size: 14px; color: var(--muted); pointer-events: none; font-family: var(--mono); }
+
+input[type="number"], select { 
+  width: 100%; height: 38px; border: 1px solid #dcdbd3; border-radius: 8px; 
+  font-size: 14px; font-family: var(--mono); font-weight: 500; color: var(--text); 
+  background: #fafafa; outline: none; transition: all 0.1s; padding: 0 8px;
+}
+input[type="number"].has-pfx { padding-left: 20px; }
+input[type="number"]:focus, select:focus { border-color: var(--accent); background: #fff; }
+
+.spinners { position: absolute; right: 1px; top: 1px; bottom: 1px; width: 26px; display: flex; flex-direction: column; border-left: 1px solid var(--border); overflow: hidden; border-radius: 0 7px 7px 0; }
+.spin-btn { flex: 1; background: #fff; border: none; cursor: pointer; font-size: 7px; color: var(--label); }
+.spin-btn:hover { background: #f0f4ff; color: var(--accent); }
+.spin-btn + .spin-btn { border-top: 1px solid var(--border); }
+
+/* RESULTS - Structured Grid */
+.results-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 800px) { .results-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { .results-grid { grid-template-columns: 1fr; } }
+
+.ritem { padding: 1.1rem 1.25rem; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.ritem:nth-child(4n) { border-right: none; }
+.rlbl { font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--label); margin-bottom: 4px; }
+.rval { font-family: var(--mono); font-size: 15px; font-weight: 500; color: var(--text); }
+.ritem.highlight { background: #fafafa; }
+.ritem.highlight .rval { color: var(--accent); font-weight: 700; }
+
+/* CHART */
+.chart-card { padding: 1.25rem; }
+.chart-wrap { position: relative; width: 100%; height: 240px; }
+#tip { position: absolute; display: none; background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 10px; pointer-events: none; z-index: 20; min-width: 180px; box-shadow: 0 8px 16px rgba(0,0,0,0.06); }
+.tip-head { font-size: 9px; font-weight: 700; text-transform: uppercase; color: var(--label); margin-bottom: 6px; }
+.tip-row { display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 12px; }
+
+/* TABLE */
+.table-outer { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); background: #fff; }
+.table-scroll { max-height: 240px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; }
+thead th { position: sticky; top: 0; background: #faf9f7; padding: 10px 12px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; color: var(--label); border-bottom: 1px solid var(--border); text-align: right; }
+thead th:first-child { text-align: left; }
+tbody td { padding: 8px 12px; border-bottom: 1px solid #f2f1ed; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--text); }
+tbody td:first-child { text-align: left; font-family: var(--font); color: var(--muted); }
+
+/* ACTIONS */
+.action-bar { display: flex; gap: 8px; justify-content: flex-end; padding: 4px 0; }
+.btn { display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all 0.1s; }
+.btn:hover { background: #fafafa; color: var(--text); border-color: #dcdbd3; }
+.btn.primary { background: var(--accent); color: #fff; border: none; }
+.btn.primary:hover { background: #1f3f84; }
+
+/* FOOTER */
+#master-footer { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; padding: 10px; text-align: center; font-size: 10px; color: var(--label); border-top: 1px solid var(--border); font-family: var(--mono); z-index: 100; }
+
+/* PRINT */
+.print-only { display: none; }
+@media print {
+  @page { size: A4 portrait; margin: 15mm; }
+  body { background: #fff; padding: 0; }
+  .no-print, .action-bar, #master-footer { display: none !important; }
+  .print-only { display: block; }
+  .ph-title { font-size: 16pt; font-weight: 700; margin-bottom: 8px; }
+  .ph-params { display: flex; gap: 15px; font-size: 9pt; color: #666; padding-bottom: 8px; border-bottom: 1px solid #ddd; margin-bottom: 15px; }
+  .ps-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid #ddd; border-radius: 6px; margin-bottom: 15px; overflow: hidden; }
+  .ps-cell { padding: 8px; border-right: 1px solid #ddd; }
+  .ps-val { font-size: 12pt; font-weight: 700; }
+  .pc-wrap img { width: 100%; border: 1px solid #eee; border-radius: 6px; }
+  .pt-section table { width: 100%; border-collapse: collapse; font-size: 8pt; }
+  .pt-section thead th { background: #f8f8f8; border-bottom: 1px solid #bbb; padding: 5px; }
+  .pt-section tbody td { padding: 4px; border-bottom: 1px solid #eee; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Inputs -->
+  <div class="card input-bar no-print">
+    <div class="input-cell">
+      <span class="field-lbl">Amount</span>
+      <div class="spin-wrap">
+        <span class="pfx">$</span>
+        <input type="number" id="P" class="has-pfx" value="100000" min="0" step="1000">
+        <div class="spinners">
+          <button class="spin-btn" onclick="nudge('P',1000)">▲</button>
+          <button class="spin-btn" onclick="nudge('P',-1000)">▼</button>
+        </div>
+      </div>
+    </div>
+    <div class="input-cell">
+      <span class="field-lbl">Rate</span>
+      <div class="spin-wrap">
+        <input type="number" id="R" value="12" min="0" max="100" step="0.5" style="padding-right:42px;">
+        <span class="sfx">%</span>
+        <div class="spinners">
+          <button class="spin-btn" onclick="nudge('R',0.5)">▲</button>
+          <button class="spin-btn" onclick="nudge('R',-0.5)">▼</button>
+        </div>
+      </div>
+    </div>
+    <div class="input-cell">
+      <span class="field-lbl">Duration</span>
+      <div class="spin-wrap">
+        <input type="number" id="N" value="20" min="1" step="1">
+        <div class="spinners">
+          <button class="spin-btn" onclick="nudge('N',1)">▲</button>
+          <button class="spin-btn" onclick="nudge('N',-1)">▼</button>
+        </div>
+      </div>
+    </div>
+    <div class="input-cell">
+      <span class="field-lbl">Period</span>
+      <select id="period" onchange="compute()">
+        <option value="year">Year</option>
+        <option value="quarter" selected>Quarter</option>
+        <option value="month">Month</option>
+        <option value="week">Week</option>
+        <option value="day">Day</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="card results-grid no-print">
+    <div class="ritem highlight"><div class="rlbl">Ending Balance</div><div class="rval" id="r-end">—</div></div>
+    <div class="ritem highlight"><div class="rlbl">Total Return %</div><div class="rval" id="r-ret-pct">—</div></div>
+    <div class="ritem highlight"><div class="rlbl">Total Return $</div><div class="rval" id="r-ret-usd">—</div></div>
+    <div class="ritem"><div class="rlbl">Beginning</div><div class="rval" id="r-begin">—</div></div>
+    <div class="ritem"><div class="rlbl">Equiv. duration</div><div class="rval" id="r-equiv">—</div></div>
+    <div class="ritem"><div class="rlbl">Multiplier</div><div class="rval" id="r-mult">—</div></div>
+    <div class="ritem"><div class="rlbl">Ann. return %</div><div class="rval" id="r-ann-pct">—</div></div>
+    <div class="ritem"><div class="rlbl">Ann. return $</div><div class="rval" id="r-ann-usd">—</div></div>
+    <div class="ritem"><div class="rlbl">Avg / period %</div><div class="rval" id="r-avg-pct">—</div></div>
+    <div class="ritem"><div class="rlbl">Avg / period $</div><div class="rval" id="r-avg-usd">—</div></div>
+  </div>
+
+  <!-- Chart -->
+  <div class="card chart-card no-print">
+    <div class="chart-wrap" id="chart-wrap">
+      <canvas id="ch"></canvas>
+      <div id="tip">
+        <div class="tip-head" id="tip-head">—</div>
+        <div class="tip-row"><span class="tip-lbl">Ending balance</span><span class="tip-val" id="tip-b">—</span></div>
+        <div class="tip-row"><span class="tip-lbl">Total interest</span><span class="tip-val" id="tip-i">—</span></div>
+        <div class="tip-row"><span class="tip-lbl">Gain from start</span><span class="tip-val" id="tip-g">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-outer no-print">
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th id="th-n">Period</th><th>Incremental interest</th><th>Cumulative interest</th><th>Gain from start</th></tr></thead>
+        <tbody id="tb"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="action-bar no-print">
+    <button class="btn" onclick="exportCSV()">Export CSV</button>
+    <button class="btn" onclick="exportPNG()">Export Chart PNG</button>
+    <button class="btn primary" onclick="doPrint()">Print PDF Report</button>
+  </div>
+
+  <!-- Print View -->
+  <div class="print-only">
+    <div class="ph">
+      <div class="ph-title">Compound Interest Analysis</div>
+      <div class="ph-params" id="pr-params"></div>
+      <div class="ps-grid" id="pr-stats"></div>
+    </div>
+    <div class="pc-wrap" style="margin-bottom: 15px;"><img id="pr-img" alt="chart"></div>
+    <div class="pt-section">
+      <table>
+        <thead><tr><th id="pr-th-n">Period</th><th>Incremental interest</th><th>Cumulative interest</th><th>Gain from start</th></tr></thead>
+        <tbody id="pr-tb"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer id="master-footer">
+    Compound Interest Calculator v9.0 | 2026-03-14 09:34 PM
+  </footer>
+
+</div>
+
+<script>
+var myChart = null, tableRows = [], baseP = 0;
+var ptCfg = {
+  year:    { n:1,   sg:'Year',    pl:'years'    },
+  quarter: { n:4,   sg:'Quarter', pl:'quarters' },
+  month:   { n:12,  sg:'Month',   pl:'months'   },
+  week:    { n:52,  sg:'Week',    pl:'weeks'    },
+  day:     { n:365, sg:'Day',     pl:'days'     }
+};
+
+function nudge(id, d) {
+  var el=document.getElementById(id), v=parseFloat(el.value)||0, nv=v+d;
+  if(nv<0)nv=0; if(id==='N'&&nv<1)nv=1;
+  el.value = id==='R' ? parseFloat(nv.toFixed(4)) : (id==='N' ? Math.round(nv) : nv);
+  compute();
+}
+
+function $f(v){ return '$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function $s(v){ return '$'+Math.round(v).toLocaleString(); }
+function pp(v,d){ return (v>=0?'+':'')+v.toFixed(d===undefined?2:d)+'%'; }
+
+function equivTime(n,pt){
+  var days={year:365.25,quarter:91.31,month:30.44,week:7,day:1}[pt]*n;
+  var yrs=days/365.25;
+  if(yrs>=1){ var yW=Math.floor(yrs),mR=Math.round((yrs-yW)*12); if(mR===12){yW++;mR=0;} return yW+' yr'+(yW!==1?'s':'')+(mR?' '+mR+' mo':''); }
+  var mo=Math.round(days/30.44); if(mo>=1)return mo+' mo';
+  return Math.round(days)+' day'+(Math.round(days)!==1?'s':'');
+}
+
+function compute(){
+  var P=Math.max(0,parseFloat(document.getElementById('P').value)||0);
+  var R=Math.max(0,parseFloat(document.getElementById('R').value)||0);
+  var N=Math.max(1,parseInt(document.getElementById('N').value)||1);
+  var pt=document.getElementById('period').value;
+  var c=ptCfg[pt], r=R/100/c.n;
+  baseP=P;
+
+  tableRows=[]; var prev=P;
+  for(var i=1;i<=N;i++){
+    var b=P*Math.pow(1+r,i);
+    tableRows.push({i:i,b:b,inc:b-prev,cum:b-P,pct:P>0?(b-P)/P*100:0});
+    prev=b;
+  }
+  var fin=tableRows.length?tableRows[tableRows.length-1].b:P;
+  var tInt=fin-P, tPct=P>0?tInt/P*100:0;
+  var tYrs=N/c.n, annUsd=tYrs>0?tInt/tYrs:0;
+  var avgPct=N>0?tPct/N:0, avgUsd=N>0?tInt/N:0;
+
+  document.getElementById('r-end').textContent=$s(fin);
+  document.getElementById('r-ret-pct').textContent=pp(tPct);
+  document.getElementById('r-ret-usd').textContent=$s(tInt);
+  document.getElementById('r-begin').textContent=$s(P);
+  document.getElementById('r-equiv').textContent=equivTime(N,pt);
+  document.getElementById('r-mult').textContent=(fin/Math.max(1,P)).toFixed(2)+'x';
+  document.getElementById('r-ann-pct').textContent=pp(R);
+  document.getElementById('r-ann-usd').textContent=$s(annUsd);
+  document.getElementById('r-avg-pct').textContent=pp(avgPct);
+  document.getElementById('r-avg-usd').textContent=$f(avgUsd);
+  document.getElementById('th-n').textContent=c.sg;
+
+  document.getElementById('tb').innerHTML=tableRows.map(function(row){
+    return '<tr><td>'+row.i+'</td><td>'+$f(row.inc)+'</td><td>'+$f(row.cum)+'</td><td>'+pp(row.pct)+'</td></tr>';
+  }).join('');
+
+  hideTip(); updateChart(N,P);
+}
+
+function updateChart(N,P){
+  var MAX=120, step=N>MAX?Math.ceil(N/MAX):1;
+  var labels=['Start'], vals=[Math.round(P)], lin=[Math.round(P)];
+  tableRows.forEach(function(row){
+    if(row.i%step===0||row.i===N){ labels.push(row.i); vals.push(Math.round(row.b)); lin.push(Math.round(P)); }
+  });
+  if(myChart){ myChart.data.labels=labels; myChart.data.datasets[0].data=vals; myChart.data.datasets[1].data=lin; myChart.update(); return; }
+  myChart=new Chart(document.getElementById('ch'),{
+    type:'line',
+    data:{ labels:labels, datasets:[
+      {data:vals,borderColor:'#2b52a0',backgroundColor:'rgba(43,82,160,0.06)',fill:true,tension:0.35,pointRadius:N<=60?4:2,pointHoverRadius:7,borderWidth:2,pointBackgroundColor:'#2b52a0',pointBorderColor:'#fff',pointBorderWidth:1.5},
+      {data:lin,borderColor:'#d1d1cf',backgroundColor:'transparent',fill:false,tension:0,pointRadius:0,borderWidth:1.2,borderDash:[6,4]}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
+      onClick:function(evt,els){
+        if(els.length&&els[0].datasetIndex===0&&els[0].index>0){
+          var pNum=myChart.data.labels[els[0].index];
+          showTip(tableRows[pNum-1],evt);
+        } else { hideTip(); }
+      },
+      scales:{
+        x:{ticks:{autoSkip:true,maxTicksLimit:10,font:{size:10.5},color:'#a3a19a'},grid:{display:false}},
+        y:{ticks:{callback:v=>'$'+(v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(0)+'k':v),font:{size:10.5},color:'#a3a19a'},grid:{color:'rgba(0,0,0,0.02)'}}
+      }
+    }
+  });
+}
+
+function showTip(row,evt){
+  if(!row)return;
+  var wrap=document.getElementById('chart-wrap').getBoundingClientRect();
+  var tip=document.getElementById('tip'), pt=document.getElementById('period').value;
+  document.getElementById('tip-head').textContent=ptCfg[pt].sg+' '+row.i;
+  document.getElementById('tip-b').textContent=$f(row.b);
+  document.getElementById('tip-i').textContent=$f(row.cum);
+  document.getElementById('tip-g').textContent=pp(row.pct);
+  var cx=evt.native.clientX-wrap.left, cy=evt.native.clientY-wrap.top;
+  var tw=190,th=100,lft=cx+12,top=cy-th/2;
+  if(lft+tw>wrap.width-4)lft=cx-tw-12;
+  if(top<4)top=4; if(top+th>wrap.height-4)top=wrap.height-th-4;
+  tip.style.left=lft+'px'; tip.style.top=top+'px'; tip.style.display='block';
+}
+function hideTip(){ document.getElementById('tip').style.display='none'; }
+
+function exportCSV(){
+  var pt=document.getElementById('period').value, R=document.getElementById('R').value;
+  var lines=['#,Balance ($),Periodic Interest ($),Total Interest ($),Gain (%)'];
+  lines.push('0,'+baseP.toFixed(2)+',0.00,0.00,0.00');
+  tableRows.forEach(r => lines.push([r.i,r.b.toFixed(2),r.inc.toFixed(2),r.cum.toFixed(2),r.pct.toFixed(2)].join(',')));
+  var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));
+  a.download='compound_results_'+pt+'.csv'; a.click();
+}
+
+function exportPNG(){
+  var c=document.getElementById('ch'), off=document.createElement('canvas');
+  off.width=c.width; off.height=c.height;
+  var ctx=off.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,off.width,off.height); ctx.drawImage(c,0,0);
+  var a=document.createElement('a'); a.href=off.toDataURL('image/png'); a.download='growth_chart.png'; a.click();
+}
+
+function buildPrint(){
+  var P=parseFloat(document.getElementById('P').value)||0, R=parseFloat(document.getElementById('R').value)||0, N=parseInt(document.getElementById('N').value)||1;
+  var pt=document.getElementById('period').value, c=ptCfg[pt];
+  var c2=document.getElementById('ch'), off=document.createElement('canvas');
+  off.width=c2.width; off.height=c2.height;
+  var ctx=off.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,off.width,off.height); ctx.drawImage(c2,0,0);
+  document.getElementById('pr-img').src=off.toDataURL('image/png');
+  document.getElementById('pr-params').innerHTML='<span>Amount: <strong>'+$f(P)+'</strong></span><span>Rate: <strong>'+R+'%</strong></span><span>Duration: <strong>'+N+' '+c.pl+'</strong></span>';
+  var fin=tableRows.length?tableRows[tableRows.length-1].b:P, tInt=fin-P, tPct=P>0?tInt/P*100:0;
+  document.getElementById('pr-stats').innerHTML=
+    '<div class="ps-cell"><div class="ps-lbl">Initial</div><div class="ps-val">'+$s(P)+'</div></div>'+
+    '<div class="ps-cell"><div class="ps-lbl">Final</div><div class="ps-val">'+$s(fin)+'</div></div>'+
+    '<div class="ps-cell"><div class="ps-lbl">Growth %</div><div class="ps-val">'+pp(tPct)+'</div></div>'+
+    '<div class="ps-cell"><div class="ps-lbl">Earnings</div><div class="ps-val">'+$s(tInt)+'</div></div>';
+  document.getElementById('pr-th-n').textContent=c.sg;
+  document.getElementById('pr-tb').innerHTML=tableRows.map(r => '<tr><td>'+r.i+'</td><td>'+$f(r.inc)+'</td><td>'+$f(r.cum)+'</td><td>'+pp(r.pct)+'</td></tr>').join('');
+}
+
+function doPrint(){ buildPrint(); setTimeout(() => window.print(), 100); }
+
+['P','R','N'].forEach(id => document.getElementById(id).addEventListener('input',compute));
+compute();
+</script>
+</body>
+</html>
+
