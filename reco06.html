@@ -1213,19 +1213,26 @@ function scheduleReconnect(){
   addDiagLog('RECONNECT scheduled in '+delay+'ms attempt='+rcAttempts+' strategy='+rcStrategy);
   rcTimer=setTimeout(function(){
     rcTimer=null;
-    if(state.activeConvId===targetSession){
-      intentionalClose=false;
-      addDiagLog('RECONNECT attempt='+rcAttempts);
-      transportConnect(targetSession,PART_ID,{preserveQueue:true});
-    }else{
-      addDiagLog('RECONNECT aborted: session changed','warn');
+    // If user has switched sessions, don't reconnect the old one
+    if(state.activeConvId!==targetSession){
+      addDiagLog('RECONNECT aborted: session changed (active='+String(state.activeConvId||'').slice(0,8)+' target='+targetSession.slice(0,8)+')','warn');
+      return;
     }
+    intentionalClose=false;
+    addDiagLog('RECONNECT attempt='+rcAttempts);
+    transportConnect(targetSession,PART_ID,{preserveQueue:true});
   },delay);
 }
 
 function forceReconnect(){
   if(!state.activeConvId){toast('No active session');return;}
+  // Only reconnect if we're actually supposed to be connected to the active session
+  if(connectedConvId&&connectedConvId!==state.activeConvId){
+    addDiagLog('forceReconnect: clearing stale connectedConvId '+connectedConvId.slice(0,8),'warn');
+    transportDisconnect({preserveQueue:false});
+  }
   if(!canAttemptReconnect()){if(socketState!=='open')toast('Reconnect already in progress');return;}
+  addDiagLog('forceReconnect: '+state.activeConvId.slice(0,8));
   reconnectInProgress=true;
   reconnectCooldownUntil=Date.now()+RECONNECT_COOLDOWN_MS;
   rcAttempts=0;
@@ -1275,8 +1282,12 @@ function createNewSession(silent){
 function openInviteScreen(cid){
   var sess=getSession(cid);if(!sess)return;
   state.pendingInviteId=cid;
-  // Immediately open session as active — partner joins seamlessly
   sess.status='active';putSession(sess);
+  // Disconnect from any different current session
+  if(connectedConvId&&connectedConvId!==cid){
+    addDiagLog('openInviteScreen: disconnecting from '+connectedConvId.slice(0,8));
+    transportDisconnect({preserveQueue:false});
+  }
   state.activeConvId=cid;
   state.messages=getMsgs(cid);
   setActiveConvId(cid);markViewed(cid);
@@ -1336,6 +1347,11 @@ function resendInvite(){
 function openSession(cid){
   var sess=getSession(cid);if(!sess){toast('Not found');return;}
   ensureSessionNames(sess);putSession(sess);
+  // Disconnect from previous session if different
+  if(connectedConvId&&connectedConvId!==cid){
+    addDiagLog('openSession: disconnecting from '+connectedConvId.slice(0,8)+' to switch to '+cid.slice(0,8));
+    transportDisconnect({preserveQueue:false});
+  }
   state.activeConvId=cid;state.messages=getMsgs(cid);
   if(stampExistingMessageNames(state.messages,sess))saveMsgs(cid,state.messages);
   setActiveConvId(cid);markViewed(cid);
@@ -1576,8 +1592,10 @@ function upsertPartnerFromEnvelope(sess,d){
   var envelopeName=firstRealName(d.name);
   var partnerName=firstRealName(envelopeName,lockedInviteName);
   if(partnerName){sess.partnerName=partnerName;names.themAlias=partnerName;}
-  var partnerLang=d.lang||sess.partnerLang||getPrefs().partnerLang||'th';
-  sess.partnerLang=partnerLang;
+  // partnerLang: NEVER overwrite from hello envelope — partner's UI lang ≠ what they type.
+  // Only set partnerLang if completely absent (first join). Actual send-lang is detected from messages.
+  if(!sess.partnerLang&&d.lang)sess.partnerLang=d.lang;
+  if(!sess.partnerLang)sess.partnerLang=getPrefs().partnerLang||'th';
   putSession(sess);
   if(state.activeConvId===sess.convId)document.getElementById('shell-partner-name').textContent=sess.title||sess.names.themAlias||sess.partnerName||'new chat';
 }
@@ -1619,6 +1637,11 @@ function handleRelayEvent(d){
     var srcLang=d.sourceLang||d.lang||detectLang(srcTxt,sess.partnerLang||'th')||sess.partnerLang||'th';
     // Receiver always wants translation in their own language
     var myLang=sess.myLang||getPrefs().myLang||'en';
+    // Update partnerLang from detected actual send-language (not from hello)
+    if(srcLang&&srcLang!==myLang&&!sess._partnerLangDetected){
+      sess.partnerLang=srcLang;sess._partnerLangDetected=true;putSession(sess);
+      addDiagLog('partnerLang set from msg: '+srcLang);
+    }
     addDiagLog('RX msg id='+String(d.id||'').slice(0,8)+' srcLang='+srcLang+' myLang='+myLang+' text='+(srcTxt||'').slice(0,30));
     // If message is already in my language, no translation needed
     var targetLang=(srcLang===myLang)?myLang:myLang;
@@ -1663,7 +1686,7 @@ function handleRelayEvent(d){
     }
     translate(msg.sourceText,srcLang,myLang).then(function(tr){
       var translated=tr||msg.sourceText;
-      addDiagLog('TRANSLATE '+srcLang+'>'+myLang+' result='+(tr?tr.slice(0,30):'NULL fallback=source'),'warn');
+      addDiagLog(tr?('TRANSLATE ok '+srcLang+'>'+myLang+' "'+tr.slice(0,25)+'"'):('TRANSLATE null '+srcLang+'>'+myLang+' fallback=source'),'warn');
       applyMsgTarget(msg,myLang,translated);
       updateTransDOM(msg);saveMsgs(sess.convId,state.messages);
       sendReliable({type:'tr',id:d.id,sourceText:msg.sourceText,sourceLang:msg.sourceLang,targetText:msg.targetText,targetLang:myLang,translations:msg.translations});
