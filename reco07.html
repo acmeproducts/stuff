@@ -327,6 +327,11 @@ textarea.field-input{resize:none;}
 .save-confirm a{color:var(--teal);cursor:pointer;text-decoration:underline;margin-left:4px;}
 
 /* TOAST */
+/* Input field consistency */
+.field-input,.field-select,.composer-ta,.clarify-input,.tag-drawer-input,.cat-omni,.search-input,.nc-field-row input{background:#fff!important;color:var(--ink)!important;}
+.field-input::placeholder,.composer-ta::placeholder,.clarify-input::placeholder,.tag-drawer-input::placeholder,.cat-omni::placeholder,.search-input::placeholder{color:var(--ink-dim);opacity:.7;}
+input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
+
 #toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(26,23,20,.88);color:#fff;font-size:13px;font-weight:600;padding:9px 18px;border-radius:22px;z-index:1000;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 </style>
@@ -1523,8 +1528,11 @@ function renderSessionList(){
   var ICON_DIAG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>';
   c.innerHTML=ss.map(function(s){
     var isActive=state.activeConvId===s.convId;
+    var isPending=s.status==='pending';
+    var statusBadge=isPending?'<span class="sess-card-badge" style="background:var(--amber);">Pending</span>':'';
     return '<div class="sess-card'+(isActive?' active':'')+'" draggable="true" data-conv="'+s.convId+'" ondragstart="dragStart(event)" ondragover="event.preventDefault()" ondrop="dragDrop(event)" ondragend="dragEnd(event)" onclick="onSessCardClick(event,\''+s.convId+'\')">'
       +'<div class="sess-card-info"><div class="sess-card-title" contenteditable="true" spellcheck="false" onclick="event.stopPropagation();this.focus();" onblur="saveCardTitle(\''+s.convId+'\',this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'+escHtml(s.title||s.partnerName||'new chat')+'</div><div class="sess-card-sub">'+timeAgo(s.lastActivity||s.createdAt)+'</div></div>'
+      +statusBadge
       +'<div style="display:flex;gap:2px;flex-shrink:0;">'
       +'<button class="sess-card-act" onclick="event.stopPropagation();openDiagModal(\''+s.convId+'\')" title="Diagnostics">'+ICON_DIAG+'</button>'
       +'<button class="sess-card-act del" onclick="event.stopPropagation();softDelete(\''+s.convId+'\')" title="Delete">'+ICON_DELETE+'</button>'
@@ -1674,18 +1682,42 @@ function translate(text,from,to){
 // TTS
 // ════════════════════════════════════════════════════════
 var synth=window.speechSynthesis;var canSpeak='speechSynthesis' in window;
+var _voicesReady=false;var _voicesList=[];
+function ensureVoices(cb){
+  if(_voicesReady&&_voicesList.length){cb(_voicesList);return;}
+  var voices=synth.getVoices();
+  if(voices&&voices.length){_voicesReady=true;_voicesList=voices;cb(voices);return;}
+  // Voices not yet loaded — wait for event
+  var waited=false;
+  var onReady=function(){
+    if(waited)return;waited=true;
+    _voicesList=synth.getVoices();_voicesReady=true;
+    cb(_voicesList);
+  };
+  if(synth.onvoiceschanged!==undefined)synth.addEventListener('voiceschanged',onReady,{once:true});
+  // Fallback timeout — some browsers never fire the event
+  setTimeout(function(){if(!waited){_voicesList=synth.getVoices()||[];_voicesReady=true;cb(_voicesList);}},500);
+}
 function speak(text,lang,btn){
   if(!canSpeak||!text)return;
   if(btn&&ttsActive===btn){synth.cancel();setTTSBtn(btn,false);ttsActive=null;return;}
   if(ttsActive){synth.cancel();setTTSBtn(ttsActive,false);ttsActive=null;}
-  var utt=new SpeechSynthesisUtterance(text);
-  var locale=TTS_LOCALE[lang]||lang;var voices=synth.getVoices();
-  var voice=voices.find(function(v){return v.lang===locale;})||voices.find(function(v){return v.lang&&v.lang.indexOf(lang+'-')===0;});
-  if(voice)utt.voice=voice;else utt.lang=locale;
-  setTTSBtn(btn,true);ttsActive=btn;
-  utt.onend=function(){setTTSBtn(btn,false);if(ttsActive===btn)ttsActive=null;};
-  utt.onerror=function(){setTTSBtn(btn,false);if(ttsActive===btn)ttsActive=null;};
-  try{synth.speak(utt);}catch(e){setTTSBtn(btn,false);ttsActive=null;}
+  // Chrome bug: cancel() then speak() in same tick sometimes fails
+  synth.cancel();
+  ensureVoices(function(voices){
+    var utt=new SpeechSynthesisUtterance(text);
+    var locale=TTS_LOCALE[lang]||lang;
+    var voice=voices.find(function(v){return v.lang===locale;})||voices.find(function(v){return v.lang&&v.lang.indexOf(lang+'-')===0;});
+    if(voice)utt.voice=voice;else utt.lang=locale;
+    setTTSBtn(btn,true);ttsActive=btn;
+    utt.onend=function(){setTTSBtn(btn,false);if(ttsActive===btn)ttsActive=null;clearInterval(utt._keepAlive);};
+    utt.onerror=function(){setTTSBtn(btn,false);if(ttsActive===btn)ttsActive=null;clearInterval(utt._keepAlive);};
+    try{
+      synth.speak(utt);
+      // Chrome Android workaround: pause/resume keeps utterance alive past 15s
+      utt._keepAlive=setInterval(function(){if(!synth.speaking){clearInterval(utt._keepAlive);return;}synth.pause();synth.resume();},10000);
+    }catch(e){setTTSBtn(btn,false);ttsActive=null;}
+  });
 }
 function setTTSBtn(btn,on){if(!btn)return;btn.classList.toggle('playing',on);}
 function toggleAutoRead(){state.autoSpeakIncoming=!state.autoSpeakIncoming;var p=getPrefs();p.autoSpeakIncoming=state.autoSpeakIncoming;savePrefs(p);updateAutoReadBtn();if(state.autoSpeakIncoming&&!canSpeak)toast('Auto-read enabled but speech unavailable');else toast('Auto-read '+(state.autoSpeakIncoming?'on':'off'));}
@@ -1946,9 +1978,9 @@ function buildBubbleCard(cfg){
   var footer='<div class="bbl-foot">'
     +'<div class="bbl-foot-bar">'
     +saveBtn
-    +'<button class="bbl-act" onclick="toggleMsgTagDrawer(\''+id+'\')" title="Tags">#</button>'
-    +'<button class="bbl-act" id="bact-c-'+id+'" onclick="bblClarifyClick(\''+id+'\',\''+ctx+'\')" title="Clarify">'+ICON_CLARIFY+'</button>'
-    +'<button class="bbl-act" onclick="toggleBubbleBacktranslate(\''+id+'\',\''+ctx+'\')" title="Back-translate">'+ICON_BACK+'</button>'
+    +'<button class="bbl-act" data-role="tags" onclick="toggleMsgTagDrawer(\''+id+'\')" title="Tags">#</button>'
+    +'<button class="bbl-act" data-role="clarify" id="bact-c-'+id+'" onclick="bblClarifyClick(\''+id+'\',\''+ctx+'\')" title="Clarify">'+ICON_CLARIFY+'</button>'
+    +'<button class="bbl-act" data-role="bt" onclick="toggleBubbleBacktranslate(\''+id+'\',\''+ctx+'\')" title="Back-translate">'+ICON_BACK+'</button>'
     +'</div>'
     // Tag drawer
     +'<div class="tag-drawer" id="msg-tag-drawer-'+id+'">'
@@ -2111,16 +2143,22 @@ function renderBubbleBacktranslateFooter(id,ctx){
   var tEl=document.getElementById('bbt-t-'+id);
   var vEl=document.getElementById('bbt-v-'+id);
   if(tEl){
-    if(bt.stale){tEl.innerHTML='<span class="bbl-stale-prompt" onclick="rerunBubbleBacktranslate(\''+id+'\',\''+ctx+'\')">Verification out of date — tap to re-check.</span>';}
+    if(bt.stale){tEl.innerHTML='<span class="bbl-stale-prompt" onclick="rerunBubbleBacktranslate(\''+id+'\',\''+ctx+'\')">Verification out of date \u2014 tap to re-check.</span>';}
     else{tEl.textContent=bt.resultText||'No back-translation yet.';}
   }
   if(vEl){
-    if(bt.verdict==='good')vEl.innerHTML='<div class="bbl-verdict-pill good">Good match</div>';
-    else if(bt.verdict==='partial')vEl.innerHTML='<div class="bbl-verdict-pill partial">Partial match</div>';
-    else if(bt.verdict==='poor')vEl.innerHTML='<div class="bbl-verdict-pill bad">Poor match</div>';
-    else if(bt.verdict==='flag')vEl.innerHTML='<div class="bbl-verdict-pill bad">Flagged</div>';
-    else if(bt.resultText)vEl.innerHTML='<button class="bbl-vbtn good" onclick="bblSetVerdict(\''+id+'\',\'good\',\''+ctx+'\')">Sounds right</button> <button class="bbl-vbtn bad" onclick="bblSetVerdict(\''+id+'\',\'flag\',\''+ctx+'\')">Flag</button>';
-    else vEl.innerHTML='';
+    var html='';
+    // Auto quality suggestion (non-interactive label)
+    if(bt.resultText&&bt.autoQuality){
+      var qCls=bt.autoQuality==='good'?'good':bt.autoQuality==='partial'?'partial':'bad';
+      var qLabel=bt.autoQuality==='good'?'Good match':bt.autoQuality==='partial'?'Partial match':'Poor match';
+      html+='<div class="bbl-verdict-pill '+qCls+'" style="margin-right:6px;">'+qLabel+'</div>';
+    }
+    // Manual verdict state
+    if(bt.verdict==='good')html+='<div class="bbl-verdict-pill good">Sounds right \u2713</div>';
+    else if(bt.verdict==='flag')html+='<div class="bbl-verdict-pill bad">Flagged</div>';
+    else if(bt.resultText)html+='<button class="bbl-vbtn good" onclick="bblSetVerdict(\''+id+'\',\'good\',\''+ctx+'\')">Sounds right</button> <button class="bbl-vbtn bad" onclick="bblSetVerdict(\''+id+'\',\'flag\',\''+ctx+'\')">Flag</button>';
+    vEl.innerHTML=html;
   }
 }
 
@@ -2130,7 +2168,28 @@ function toggleBubbleBacktranslate(id,ctx){
   panel.classList.toggle('open');
   syncFooterButtonState(id);
   if(ctx==='phrasebook')state.pbBackOpen[id]=!isOpen;
-  if(!isOpen){renderBubbleBacktranslateFooter(id,ctx||'chat');rerunBubbleBacktranslate(id,ctx||'chat');}
+  if(!isOpen){
+    // Reset and retranslate fresh every time panel opens
+    resetBacktranslateState(id,ctx||'chat');
+    renderBubbleBacktranslateFooter(id,ctx||'chat');
+    rerunBubbleBacktranslate(id,ctx||'chat');
+  }
+}
+
+// Clear previous back-translate result and verdict so it runs fresh
+function resetBacktranslateState(id,ctx){
+  if(ctx==='phrasebook'){
+    var card=getCardById(id);if(!card)return;
+    card.backtranslate=normalizeBacktranslatePayload(card.backtranslate,{});
+    card.backtranslate.verdict='';card.backtranslate.autoQuality='';card.backtranslate.resultText='';
+    card.backtranslate.stale=false;
+    saveUpdatedCard(card);
+  }else{
+    var msg=findMsg(id);if(!msg)return;
+    var bt=getMsgBacktranslate(msg);
+    bt.verdict='';bt.autoQuality='';bt.resultText='';bt.stale=false;
+    saveMsgs(state.activeConvId,state.messages);
+  }
 }
 
 function rerunBubbleBacktranslate(id,ctx){
@@ -2169,12 +2228,10 @@ function autoSetMatchQuality(id,ctx){
   }
   if(!originalText)return;
   var quality=computeMatchQuality(originalText,src.bt.resultText);
-  // Only auto-set if no manual flag already set
-  if(src.bt.verdict!=='flag'){
-    src.bt.verdict=quality;
-    if(ctx==='phrasebook'){var card2=getCardById(id);if(card2){card2.backtranslate=src.bt;saveUpdatedCard(card2);}}
-    else{saveMsgs(state.activeConvId,state.messages);}
-  }
+  // Store as suggestion label (autoQuality), never overwrite manual verdict
+  src.bt.autoQuality=quality;
+  if(ctx==='phrasebook'){var card2=getCardById(id);if(card2){card2.backtranslate=src.bt;saveUpdatedCard(card2);}}
+  else{saveMsgs(state.activeConvId,state.messages);}
   renderBubbleBacktranslateFooter(id,ctx);
 }
 function computeMatchQuality(original,backTranslated){
@@ -2208,8 +2265,7 @@ function bblSetVerdict(id,val,ctx){
     transportSend({type:'msg-meta',id:id,verdict:bt2.verdict,timestamp:Date.now()});
   }
   renderBubbleBacktranslateFooter(id,ctx||'chat');
-  if(ctx!=='phrasebook')renderAllMessages();
-  toast(val==='good'?'Verified ✓':'Flagged <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>');
+  toast(val==='good'?'Verified \u2713':'Flagged');
 }
 
 function bblBtTTS(id,ctx,btn){
@@ -2359,10 +2415,12 @@ function syncFooterButtonState(id){
   var clarifyOpen=document.getElementById('bclarify-'+id);
   var btOpen=document.getElementById('bbt-'+id);
   var row=document.getElementById('row-'+id);if(!row)return;
-  var btns=row.querySelectorAll('.bbl-foot-bar .bbl-act');
-  if(btns[1])btns[1].classList.toggle('active-chip',!!(tagOpen&&tagOpen.classList.contains('open')));
-  if(btns[2])btns[2].classList.toggle('active-chip',!!(clarifyOpen&&clarifyOpen.classList.contains('open')));
-  if(btns[3])btns[3].classList.toggle('active-chip',!!(btOpen&&btOpen.classList.contains('open')));
+  var tagBtn=row.querySelector('.bbl-act[data-role="tags"]');
+  var clarifyBtn=row.querySelector('.bbl-act[data-role="clarify"]');
+  var btBtn=row.querySelector('.bbl-act[data-role="bt"]');
+  if(tagBtn)tagBtn.classList.toggle('active-chip',!!(tagOpen&&tagOpen.classList.contains('open')));
+  if(clarifyBtn)clarifyBtn.classList.toggle('active-chip',!!(clarifyOpen&&clarifyOpen.classList.contains('open')));
+  if(btBtn)btBtn.classList.toggle('active-chip',!!(btOpen&&btOpen.classList.contains('open')));
 }
 function ensureMsgTags(msg){if(!msg)return[];if(!Array.isArray(msg.tags))msg.tags=[];msg.tags=sanitizeTagList(msg.tags);return msg.tags;}
 function renderMsgAssignedTags(id){
@@ -2589,10 +2647,8 @@ function applyBubbleTheme(){
   var width=p.bubbleWidth||BUBBLE_DEFAULTS.bubbleWidth;
   var srcSize=p.bubbleFontSize||BUBBLE_DEFAULTS.bubbleFontSize;
   var tgtSize=p.targetBubbleFontSize||BUBBLE_DEFAULTS.targetBubbleFontSize;
-  var targetTxt=p.targetAccentColor||BUBBLE_DEFAULTS.targetAccentColor;
-  // Compute luminance-based readable color for mine bubble text/icons
-  // Use white for dark backgrounds, dark for light backgrounds
   function hexLum(h){h=h.replace('#','');var r=parseInt(h.slice(0,2),16)/255,g=parseInt(h.slice(2,4),16)/255,b=parseInt(h.slice(4,6),16)/255;return 0.2126*r+0.7152*g+0.0722*b;}
+  // Mine bubble colors (source theme)
   var mineLum=hexLum(src.mine||'#2E8B8B');
   var mineText=mineLum>0.45?'#1A1714':'#ffffff';
   var mineTextDim=mineLum>0.45?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)';
@@ -2600,35 +2656,37 @@ function applyBubbleTheme(){
   var mineBorder=mineLum>0.45?'rgba(0,0,0,.12)':'rgba(255,255,255,.2)';
   var mineHover=mineLum>0.45?'rgba(0,0,0,.08)':'rgba(255,255,255,.14)';
   var mineUseBg=mineLum>0.45?'rgba(0,0,0,.1)':'rgba(255,255,255,.22)';
+  // Theirs bubble colors (target theme) — same luminance treatment
+  var theirsLum=hexLum(tgt.theirs||'#F5F1EC');
+  var theirsText=theirsLum>0.45?'#1A1714':'#ffffff';
+  var theirsTextDim=theirsLum>0.45?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)';
+  var theirsTextFaint=theirsLum>0.45?'rgba(0,0,0,.4)':'rgba(255,255,255,.5)';
+  var theirsBorder=theirsLum>0.45?'rgba(0,0,0,.10)':'rgba(255,255,255,.18)';
+  var theirsHover=theirsLum>0.45?'rgba(0,0,0,.06)':'rgba(255,255,255,.12)';
+  var theirsUseBg=theirsLum>0.45?'rgba(0,0,0,.08)':'rgba(255,255,255,.18)';
   s.textContent=
     '.msg-row.mine .bubble-card{background:'+src.mine+';border-color:'+src.mine+';}'
     +'.msg-row.theirs .bubble-card{background:'+tgt.theirs+';border-color:'+tgt.theirs+';}'
     +'.msg-row{max-width:96%;width:'+width+'%;}'
     +'.bbl-side:first-child .bbl-txt{font-size:'+srcSize+'px;}'
     +'.bbl-side:last-child .bbl-txt{font-size:'+tgtSize+'px;}'
+    // Mine text + icons
     +'.msg-row.mine .bbl-txt{color:'+mineText+';}'
-    +'.msg-row.theirs .bbl-txt{color:'+targetTxt+';}'
-    // Header
     +'.msg-row.mine .bbl-sender{color:'+mineTextDim+';}'
     +'.msg-row.mine .bbl-time{color:'+mineTextFaint+';}'
     +'.msg-row.mine .bbl-prov{color:'+mineTextFaint+';background:'+mineHover+';}'
     +'.msg-row.mine .bbl-hdr{border-bottom-color:'+mineBorder+';}'
-    // Body divider
     +'.msg-row.mine .bbl-divider{background:'+mineBorder+';}'
-    // Use button
     +'.msg-row.mine .bbl-use{background:'+mineUseBg+';color:'+mineText+';}'
     +'.msg-row.mine .bbl-use:hover{background:'+mineHover+';}'
-    // TTS icon
     +'.msg-row.mine .bbl-tts{color:'+mineText+';}'
-    // Footer
     +'.msg-row.mine .bbl-foot{border-top-color:'+mineBorder+';}'
     +'.msg-row.mine .bbl-act{color:'+mineTextDim+';}'
     +'.msg-row.mine .bbl-act:hover{background:'+mineHover+';}'
-    // Tag drawer
+    +'.msg-row.mine .bbl-act.active-chip{background:'+mineUseBg+';color:'+mineText+';}'
     +'.msg-row.mine .tag-drawer{border-top-color:'+mineBorder+';}'
     +'.msg-row.mine .tag-drawer-input{background:'+mineUseBg+';border-color:'+mineBorder+';color:'+mineText+';}'
     +'.msg-row.mine .pb-tag-pill{background:'+mineUseBg+';color:'+mineText+';}'
-    // Clarify block
     +'.msg-row.mine .clarify-block{border-top-color:'+mineBorder+';background:'+mineHover+';}'
     +'.msg-row.mine .clarify-author{color:'+mineText+';}'
     +'.msg-row.mine .clarify-ts{color:'+mineTextFaint+';}'
@@ -2637,10 +2695,37 @@ function applyBubbleTheme(){
     +'.msg-row.mine .clarify-input{background:'+mineUseBg+';border-color:'+mineBorder+';color:'+mineText+';}'
     +'.msg-row.mine .clarify-send{background:'+mineUseBg+';color:'+mineText+';}'
     +'.msg-row.mine .clarify-empty{color:'+mineTextDim+';}'
-    // Back-translate
     +'.msg-row.mine .bbl-backtrans{border-top-color:'+mineBorder+';}'
     +'.msg-row.mine .bbl-back-text{color:'+mineTextDim+';}'
-    +'.msg-row.mine .retranslate-btn{background:'+mineUseBg+';color:'+mineText+';}';
+    +'.msg-row.mine .retranslate-btn{background:'+mineUseBg+';color:'+mineText+';}'
+    // Theirs text + icons — complementary with target background
+    +'.msg-row.theirs .bbl-txt{color:'+theirsText+';}'
+    +'.msg-row.theirs .bbl-sender{color:'+theirsTextDim+';}'
+    +'.msg-row.theirs .bbl-time{color:'+theirsTextFaint+';}'
+    +'.msg-row.theirs .bbl-prov{color:'+theirsTextFaint+';background:'+theirsHover+';}'
+    +'.msg-row.theirs .bbl-hdr{border-bottom-color:'+theirsBorder+';}'
+    +'.msg-row.theirs .bbl-divider{background:'+theirsBorder+';}'
+    +'.msg-row.theirs .bbl-use{background:'+theirsUseBg+';color:'+theirsText+';}'
+    +'.msg-row.theirs .bbl-use:hover{background:'+theirsHover+';}'
+    +'.msg-row.theirs .bbl-tts{color:'+theirsText+';}'
+    +'.msg-row.theirs .bbl-foot{border-top-color:'+theirsBorder+';}'
+    +'.msg-row.theirs .bbl-act{color:'+theirsTextDim+';}'
+    +'.msg-row.theirs .bbl-act:hover{background:'+theirsHover+';}'
+    +'.msg-row.theirs .bbl-act.active-chip{background:'+theirsUseBg+';color:'+theirsText+';}'
+    +'.msg-row.theirs .tag-drawer{border-top-color:'+theirsBorder+';}'
+    +'.msg-row.theirs .tag-drawer-input{background:#fff;border-color:'+theirsBorder+';color:'+theirsText+';}'
+    +'.msg-row.theirs .pb-tag-pill{background:'+theirsUseBg+';color:'+theirsText+';}'
+    +'.msg-row.theirs .clarify-block{border-top-color:'+theirsBorder+';}'
+    +'.msg-row.theirs .clarify-author{color:'+theirsText+';}'
+    +'.msg-row.theirs .clarify-ts{color:'+theirsTextFaint+';}'
+    +'.msg-row.theirs .clarify-body{color:'+theirsText+';}'
+    +'.msg-row.theirs .clarify-remove{color:'+theirsTextDim+';}'
+    +'.msg-row.theirs .clarify-input{background:#fff;border-color:'+theirsBorder+';color:'+theirsText+';}'
+    +'.msg-row.theirs .clarify-send{background:'+theirsUseBg+';color:'+theirsText+';}'
+    +'.msg-row.theirs .clarify-empty{color:'+theirsTextDim+';}'
+    +'.msg-row.theirs .bbl-backtrans{border-top-color:'+theirsBorder+';}'
+    +'.msg-row.theirs .bbl-back-text{color:'+theirsTextDim+';}'
+    +'.msg-row.theirs .retranslate-btn{background:'+theirsUseBg+';color:'+theirsText+';}';
 }
 function applyGlobalWidth(v){var p=getPrefs();p.bubbleWidth=parseInt(v);savePrefs(p);document.getElementById('set-bbl-width-val').textContent=v+'%';applyBubbleTheme();}
 function applyGlobalSize(v){var p=getPrefs();p.bubbleFontSize=parseInt(v);savePrefs(p);document.getElementById('set-bbl-size-val').textContent=v+'px';applyBubbleTheme();}
