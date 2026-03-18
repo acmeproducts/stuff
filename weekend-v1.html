@@ -1,0 +1,628 @@
+<!-- [Financial Discipline App]-[v10.0]-2026-03-18 02:16 PM -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Financial Discipline Framework</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+    :root {
+        --primary: #007aff;
+        --bg-main: #000000;
+        --card-dark: #121212;
+        --card-light: #ffffff;
+        --border-dark: #2c2c2e;
+        --border-light: #e5e5ea;
+        --text-dark: #ffffff;
+        --text-light: #1c1c1e;
+        --muted-dark: #8e8e93;
+        --muted-light: #8e8e93;
+        --red: #ff453a;
+        --green: #32d74b;
+        --font: 'Inter', sans-serif;
+        --mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    body { font-family: var(--font); background: var(--bg-main); color: var(--text-dark); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    
+    header { background: var(--card-dark); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-dark); }
+    header h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em; }
+    .icon-btn { cursor: pointer; font-size: 1.2rem; padding: 4px 8px; border-radius: 6px; }
+    .icon-btn:hover { background: rgba(255,255,255,0.1); }
+
+    .tabs { display: flex; background: var(--card-dark); overflow-x: auto; border-bottom: 1px solid var(--border-dark); }
+    .tab { flex: 1; padding: 12px 16px; text-align: center; font-weight: 600; cursor: pointer; color: var(--muted-dark); border-bottom: 2px solid transparent; font-size: 0.85rem; white-space: nowrap; }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    main { flex: 1; overflow-y: auto; padding: 16px; padding-bottom: 80px; }
+    .tab-content { display: none; max-width: 1000px; margin: 0 auto; }
+    .tab-content.active { display: block; }
+
+    .card { background: var(--card-dark); border-radius: 12px; border: 1px solid var(--border-dark); padding: 16px; margin-bottom: 16px; }
+    .card-header { font-size: 1rem; font-weight: 700; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border-dark); display: flex; justify-content: space-between; align-items: center; }
+
+    .form-group { margin-bottom: 12px; }
+    .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    .label { font-size: 10px; font-weight: 700; color: var(--muted-dark); text-transform: uppercase; margin-bottom: 4px; display: block; }
+    .input-wrap { display: flex; align-items: center; border: 1px solid var(--border-dark); border-radius: 6px; background: #1c1c1e; height: 38px; }
+    .input-wrap:focus-within { border-color: var(--primary); }
+    .pfx { font-size: 13px; font-weight: 600; color: var(--muted-dark); margin-left: 10px; position: absolute; pointer-events: none; }
+    .sfx { font-size: 13px; font-weight: 600; color: var(--muted-dark); margin-right: 10px; position: absolute; right: 0; pointer-events: none; }
+    input, select, textarea { width: 100%; border: none; background: transparent; font-size: 14px; font-weight: 600; color: var(--text-dark); outline: none; padding: 0 10px; }
+    input.mono { font-family: var(--mono); }
+    input.has-pfx { padding-left: 24px; }
+    input.has-sfx { padding-right: 24px; }
+    select { appearance: none; cursor: pointer; }
+    textarea { padding: 10px; resize: vertical; font-family: var(--font); height: 60px; }
+
+    .btn { padding: 10px 16px; border-radius: 6px; border: none; font-weight: 600; cursor: pointer; font-size: 0.9rem; width: 100%; display: inline-flex; justify-content: center; align-items: center; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-secondary { background: #2c2c2e; color: #fff; }
+    
+    .time-ctrl { display: flex; gap: 4px; justify-content: center; margin-bottom: 16px; }
+    .time-btn { background: transparent; border: none; color: var(--muted-dark); font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 12px; cursor: pointer; }
+    .time-btn.active { background: #2c2c2e; color: #fff; }
+
+    .chart-box { height: 200px; width: 100%; position: relative; }
+    .main-chart { height: 300px; width: 100%; position: relative; }
+    
+    .small-multiples-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .sm-card { background: #1c1c1e; border: 1px solid var(--border-dark); border-radius: 8px; padding: 12px; cursor: pointer; transition: transform 0.1s; }
+    .sm-card:hover { transform: scale(1.02); border-color: var(--primary); }
+    .sm-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+    .sm-title { font-size: 13px; font-weight: 700; }
+    .sm-val { font-family: var(--mono); font-size: 16px; font-weight: 700; }
+    .sm-sub { font-family: var(--mono); font-size: 11px; }
+
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; justify-content: center; align-items: center; padding: 16px; }
+    .modal { background: var(--card-dark); width: 100%; max-width: 650px; border-radius: 12px; padding: 20px; max-height: 90vh; overflow-y: auto; border: 1px solid var(--border-dark); }
+    
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border-dark); border-radius: 8px; margin-bottom: 16px; background: #000; }
+    table { width: 100%; border-collapse: collapse; }
+    th { position: sticky; top: 0; background: #1c1c1e; padding: 8px; font-size: 10px; color: var(--muted-dark); text-transform: uppercase; border-bottom: 1px solid var(--border-dark); text-align: right; }
+    th:first-child, td:first-child { text-align: left; padding-left: 12px; }
+    td { padding: 8px; border-bottom: 1px solid #1c1c1e; font-size: 12px; text-align: right; font-family: var(--mono); white-space: nowrap; }
+    
+    .cl-log { background: #1c1c1e; border-radius: 8px; padding: 10px; margin-bottom: 8px; border: 1px solid var(--border-dark); }
+    .cl-head { display: flex; justify-content: space-between; font-size: 11px; font-family: var(--mono); color: var(--muted-dark); margin-bottom: 4px; }
+    .cl-body { font-size: 13px; line-height: 1.4; }
+
+    .tag-pill { display: inline-block; background: #2c2c2e; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; margin: 0 4px 4px 0; }
+    
+    footer { background: var(--card-dark); padding: 8px; text-align: center; border-top: 1px solid var(--border-dark); position: fixed; bottom: 0; width: 100%; z-index: 50; font-size: 10px; color: var(--muted-dark); font-family: var(--mono); }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>Financial Discipline</h1>
+    <div class="icon-btn" onclick="openModal('settings-modal')" title="Admin">⚙️</div>
+</header>
+
+<div class="tabs">
+    <div class="tab active" onclick="switchTab('dashboard')">Dashboard</div>
+    <div class="tab" onclick="switchTab('multiples')">Small Multiples</div>
+    <div class="tab" onclick="switchTab('plan')">Manage Plan</div>
+    <div class="tab" onclick="switchTab('actuals')">Track Actuals</div>
+</div>
+
+<main>
+    <!-- DASHBOARD -->
+    <div id="tab-dashboard" class="tab-content active">
+        <div class="card">
+            <div class="card-header">Book Variance Summary ($)</div>
+            <div class="main-chart"><canvas id="varianceChart"></canvas></div>
+        </div>
+        <div class="form-row">
+            <div class="card">
+                <div class="card-header" style="color:var(--red);">Mandatory Reviews</div>
+                <div id="dash-under" style="font-size:13px; color:var(--muted-dark);">None</div>
+            </div>
+            <div class="card">
+                <div class="card-header" style="color:var(--primary);">Suggested Actions (Targets)</div>
+                <div id="dash-over" style="font-size:13px; color:var(--muted-dark);">None</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SMALL MULTIPLES -->
+    <div id="tab-multiples" class="tab-content">
+        <div class="card">
+            <div class="card-header">
+                <span>Visual Analytics</span>
+                <select id="sm-filter" onchange="renderMultiples()" style="width:auto; background:#1c1c1e; border:1px solid var(--border-dark); border-radius:6px; font-size:12px; padding:4px;">
+                    <option value="all">Entire Book</option>
+                </select>
+            </div>
+            <div class="time-ctrl">
+                <button class="time-btn" onclick="setTime('1M')">1M</button>
+                <button class="time-btn" onclick="setTime('YTD')">YTD</button>
+                <button class="time-btn" onclick="setTime('1Y')">1Y</button>
+                <button class="time-btn" onclick="setTime('3Y')">3Y</button>
+                <button class="time-btn active" onclick="setTime('ALL')">ALL</button>
+            </div>
+            <div id="sm-grid" class="small-multiples-grid"></div>
+        </div>
+    </div>
+
+    <!-- MANAGE PLAN -->
+    <div id="tab-plan" class="tab-content">
+        <div class="card">
+            <div class="card-header">1. Structure</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <span class="label">Book of Business</span>
+                    <div class="input-wrap"><input type="text" id="p-book" placeholder="e.g. Master Trust"></div>
+                </div>
+                <div class="form-group">
+                    <span class="label">Portfolio Name</span>
+                    <div class="input-wrap"><input type="text" id="p-port" placeholder="e.g. Brokerage"></div>
+                </div>
+                <div class="form-group">
+                    <span class="label">Tax Status</span>
+                    <div class="input-wrap">
+                        <select id="p-tax"><option>Pre-Tax</option><option>Post-Tax</option></select>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-secondary" onclick="saveStructure()">Save Structure</button>
+        </div>
+
+        <div class="card">
+            <div class="card-header">2. What-If Sandbox</div>
+            <div class="form-group">
+                <span class="label">Investment Strategy Type</span>
+                <div class="input-wrap">
+                    <select id="p-type" onchange="toggleLadderUI()">
+                        <option value="Standard">Standard Investment</option>
+                        <option value="Ladder">Ladder Strategy (Multiple Rungs)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="ui-standard">
+                <div class="form-row">
+                    <div class="form-group"><span class="label">Name</span><div class="input-wrap"><input type="text" id="p-name" placeholder="e.g. Core S&P"></div></div>
+                    <div class="form-group"><span class="label">Initial Capital ($)</span><div class="input-wrap"><input type="number" id="p-init" class="mono" oninput="calcWI('i')"></div></div>
+                    <div class="form-group"><span class="label">Duration (Months)</span><div class="input-wrap"><input type="number" id="p-dur" class="mono" oninput="calcWI('d')"></div></div>
+                </div>
+                <div style="padding:12px; background:#1c1c1e; border-radius:8px; margin-bottom:12px; border:1px solid #333;">
+                    <span class="label" style="color:#fff;">3-Way Solver: Fill any ONE target</span>
+                    <div class="form-row">
+                        <div class="form-group"><span class="label">Gain (%)</span><div class="input-wrap"><input type="number" id="p-pct" class="mono" step="0.1" oninput="calcWI('p')"></div></div>
+                        <div class="form-group"><span class="label">Profit ($)</span><div class="input-wrap"><input type="number" id="p-prof" class="mono" oninput="calcWI('r')"></div></div>
+                        <div class="form-group"><span class="label">Ending Val ($)</span><div class="input-wrap"><input type="number" id="p-end" class="mono" oninput="calcWI('e')"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="ui-ladder" style="display:none;">
+                <div class="form-group"><span class="label">Ladder Name</span><div class="input-wrap"><input type="text" id="l-name" placeholder="e.g. Bond Ladder"></div></div>
+                <div id="rung-container"></div>
+                <button class="btn btn-secondary" style="margin-bottom:12px; font-size:12px; padding:6px;" onclick="addRung()">➕ Add Rung</button>
+            </div>
+
+            <div class="main-chart" style="height:250px; margin-bottom:16px;"><canvas id="whatIfChart"></canvas></div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <span class="label">Exit Strategy</span>
+                    <div class="input-wrap">
+                        <select id="p-exit">
+                            <option>Buy and Hold</option>
+                            <option>Liquidate Principal</option>
+                            <option>Harvest Profit</option>
+                            <option>Recover Principal (Profit remains invested)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <span class="label">Custom Exit Strategy (Overrides Dropdown)</span>
+                    <div class="input-wrap"><input type="text" id="p-cust-exit" placeholder="Name new strategy"></div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <span class="label">Assign to Portfolio</span>
+                <div class="input-wrap"><select id="p-assign"></select></div>
+            </div>
+            <button class="btn btn-primary" onclick="commitPlan()">Commit Investment</button>
+        </div>
+    </div>
+
+    <!-- TRACK ACTUALS -->
+    <div id="tab-actuals" class="tab-content">
+        <div class="card">
+            <div class="card-header">Log Value & Adjustments</div>
+            <div class="form-group"><span class="label">Investment</span><div class="input-wrap"><select id="a-chunk"></select></div></div>
+            <div class="form-row">
+                <div class="form-group"><span class="label">Date</span><div class="input-wrap"><input type="date" id="a-date" class="mono"></div></div>
+                <div class="form-group"><span class="label">Current Value ($)</span><div class="input-wrap"><input type="number" id="a-val" class="mono" step="0.01"></div></div>
+            </div>
+            <div class="form-group">
+                <span class="label">Capital Adjustment (+ Deposit / - Withdrawal)</span>
+                <div class="input-wrap"><input type="number" id="a-adj" class="mono" placeholder="0.00" value="0"></div>
+                <span style="font-size:10px; color:var(--muted-dark); display:block; margin-top:4px;">Changes forward-looking baseline expected return.</span>
+            </div>
+            <div class="form-group"><span class="label">Clarify Note</span><textarea id="a-note" placeholder="Market context..."></textarea></div>
+            <button class="btn btn-primary" onclick="saveActual()">Save Log</button>
+        </div>
+    </div>
+</main>
+
+<!-- DRILL DOWN MODAL -->
+<div class="modal-overlay" id="drill-modal" onclick="if(event.target===this)closeModal('drill-modal')">
+    <div class="modal">
+        <div class="card-header" style="border:none; padding:0; margin-bottom:8px;">
+            <h2 id="dm-title" style="font-size:1.2rem;">Inv Name</h2>
+            <div class="icon-btn" onclick="closeModal('drill-modal')">✖</div>
+        </div>
+        <div id="dm-path" style="font-size:10px; color:var(--muted-dark); text-transform:uppercase; margin-bottom:16px;">Book > Port</div>
+        
+        <div class="chart-box" style="margin-bottom:16px;"><canvas id="dm-chart"></canvas></div>
+
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>#</th><th>Date</th><th>Net Cap</th><th>Plan</th><th>Actual</th><th>Delta</th><th>Gain%</th></tr></thead>
+                <tbody id="dm-tb"></tbody>
+            </table>
+        </div>
+
+        <div style="font-size:10px; font-weight:700; color:var(--muted-dark); text-transform:uppercase; margin-bottom:8px;">Clarify Logs</div>
+        <div id="dm-logs" style="max-height:150px; overflow-y:auto;"></div>
+    </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settings-modal" onclick="if(event.target===this)closeModal('settings-modal')">
+    <div class="modal" style="max-width:300px;">
+        <div class="card-header">System<div class="icon-btn" onclick="closeModal('settings-modal')">✖</div></div>
+        <button class="btn btn-secondary" style="margin-bottom:8px;" onclick="expD()">Export JSON</button>
+        <button class="btn btn-secondary" style="margin-bottom:24px;" onclick="document.getElementById('file-imp').click()">Import JSON</button>
+        <button class="btn btn-secondary" style="color:var(--red); border:1px solid var(--red);" onclick="facRst()">Factory Reset</button>
+    </div>
+</div>
+<input type="file" id="file-imp" accept=".json" style="display:none;" onchange="impD(event)">
+
+<footer>
+    <div>Financial Discipline Framework | v10.0 | 2026-03-18 02:16 PM</div>
+</footer>
+
+<script>
+    const STORE = 'fd_v10';
+    const NOW = new Date('2026-03-18T14:16:00');
+    
+    let db = { books: [], ports: [], chunks: [], logs: [] };
+    let gTime = 'ALL';
+    let wiChart = null;
+    let dmChartInst = null;
+    let smCharts = {};
+    let varChart = null;
+
+    Chart.defaults.color = '#8e8e93';
+    Chart.defaults.font.family = "'JetBrains Mono', monospace";
+    Chart.defaults.plugins.tooltip.callbacks.title = function(ctx) { let l = ctx[0].chart.data.labels[ctx[0].dataIndex]; return Array.isArray(l) ? l.join(' ') : l; };
+
+    function init() {
+        try { db = JSON.parse(localStorage.getItem(STORE)) || seedDB(); } catch(e) { db = seedDB(); }
+        document.getElementById('a-date').value = NOW.toISOString().split('T')[0];
+        addRung(); 
+        refresh();
+        updWIChart();
+    }
+
+    function seedDB() {
+        return {
+            books: [{id:'b1', name:'Family Trust'}],
+            ports: [{id:'p1', bid:'b1', name:'Fidelity IRA', tax:'Pre-Tax'}],
+            chunks: [{id:'c1', pid:'p1', name:'S&P Core', type:'Standard', init:10000, dur:24, pct:15, exit:'Harvest Profit', st:'2025-01-01', rungs:[]}],
+            logs: [
+                {id:'l1', cid:'c1', dt:'2025-06-01', val:10200, adj:0, note:'Steady.'},
+                {id:'l2', cid:'c1', dt:'2025-12-01', val:15000, adj:4000, note:'Added 4k bonus.'},
+                {id:'l3', cid:'c1', dt:'2026-03-18', val:14500, adj:0, note:'Slight dip.'}
+            ]
+        };
+    }
+    function save() { localStorage.setItem(STORE, JSON.stringify(db)); refresh(); }
+
+    function switchTab(t) {
+        document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById('tab-' + t).classList.add('active');
+        if(t==='multiples') renderMultiples();
+        if(t==='dashboard') renderDash();
+    }
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    function refresh() {
+        const pAssign = document.getElementById('p-assign');
+        const aChunk = document.getElementById('a-chunk');
+        const smF = document.getElementById('sm-filter');
+        pAssign.innerHTML=''; aChunk.innerHTML=''; smF.innerHTML='<option value="all">Entire Book</option>';
+        
+        db.ports.forEach(p => {
+            const b = db.books.find(x=>x.id===p.bid);
+            pAssign.innerHTML += `<option value="${p.id}">${b?b.name:''} > ${p.name} (${p.tax})</option>`;
+            smF.innerHTML += `<option value="${p.id}">Filter: ${p.name}</option>`;
+        });
+        db.chunks.forEach(c => { aChunk.innerHTML += `<option value="${c.id}">${c.name}</option>`; });
+        
+        if(document.getElementById('tab-dashboard').classList.contains('active')) renderDash();
+        if(document.getElementById('tab-multiples').classList.contains('active')) renderMultiples();
+    }
+
+    // --- MATH & PROJECTIONS ---
+    function projChunk(c, upToDate) {
+        const logs = db.logs.filter(l => l.cid === c.id).sort((a,b) => new Date(a.dt) - new Date(b.dt));
+        const st = new Date(c.st);
+        let pts = [];
+        
+        if (c.type === 'Ladder') {
+            // Aggregate rungs
+            const maxD = Math.max(...c.rungs.map(r=>r.d));
+            let currentCap = c.rungs.reduce((s,r)=>s+r.i, 0);
+            pts.push({ m:0, dt:c.st, p:currentCap, a:currentCap, nc:currentCap, note:'' });
+            
+            // Simplified ladder projection for visuals (aggregate expected end)
+            const tgtEnd = c.rungs.reduce((s,r) => s + (r.i * (1 + r.p/100)), 0);
+            
+            logs.forEach(l => {
+                const mo = Math.round((new Date(l.dt) - st)/(1000*60*60*24*30.44));
+                const pPct = Math.min(1, mo/maxD);
+                const plan = currentCap + ((tgtEnd - currentCap)*pPct);
+                currentCap += l.adj;
+                pts.push({ m:mo, dt:l.dt, p:plan, a:l.val, nc:currentCap, delta: l.val-plan, note:l.note });
+            });
+            const lastL = logs.length ? logs[logs.length-1] : null;
+            const moNow = Math.round((upToDate - st)/(1000*60*60*24*30.44));
+            const pPctNow = Math.min(1, moNow/maxD);
+            const planNow = currentCap + ((tgtEnd - currentCap)*pPctNow);
+            
+            return { pts, c, lastA: lastL?lastL.val:currentCap, expNow: planNow, var: (lastL?lastL.val:currentCap)-planNow };
+        } else {
+            // Standard with Adjustments
+            let nc = c.init;
+            pts.push({ m:0, dt:c.st, p:nc, a:nc, nc:nc, note:'' });
+            let lastPlan = nc;
+            
+            logs.forEach(l => {
+                const mo = Math.round((new Date(l.dt) - st)/(1000*60*60*24*30.44));
+                const pctTime = Math.min(1, mo/c.dur);
+                // Plan is based on current net capital
+                lastPlan = nc + (nc * (c.pct/100) * pctTime);
+                nc += l.adj; // apply adjustment for next periods
+                pts.push({ m:mo, dt:l.dt, p:lastPlan, a:l.val, nc:nc, delta: l.val-lastPlan, note:l.note, adj:l.adj });
+            });
+            
+            const moNow = Math.round((upToDate - st)/(1000*60*60*24*30.44));
+            const pctTimeNow = Math.min(1, moNow/c.dur);
+            const planNow = nc + (nc * (c.pct/100) * pctTimeNow);
+            const lastA = logs.length ? logs[logs.length-1].val : c.init;
+            
+            return { pts, c, lastA, expNow: planNow, var: lastA - planNow };
+        }
+    }
+
+    // --- WHAT-IF SANDBOX ---
+    function toggleLadderUI() {
+        const t = document.getElementById('p-type').value;
+        document.getElementById('ui-standard').style.display = t==='Standard' ? 'block' : 'none';
+        document.getElementById('ui-ladder').style.display = t==='Ladder' ? 'block' : 'none';
+        updWIChart();
+    }
+    
+    let rngC = 0;
+    function addRung() {
+        rngC++;
+        const h = `<div class="form-row" id="rng-${rngC}" style="background:#1c1c1e; padding:8px; border-radius:6px; margin-bottom:8px; border:1px solid #333;">
+            <div class="form-group" style="margin:0;"><span class="label">Cap ($)</span><div class="input-wrap"><input type="number" class="mono r-cap" value="5000" oninput="updWIChart()"></div></div>
+            <div class="form-group" style="margin:0;"><span class="label">Dur (Mo)</span><div class="input-wrap"><input type="number" class="mono r-dur" value="12" oninput="updWIChart()"></div></div>
+            <div class="form-group" style="margin:0;"><span class="label">Rate (%)</span><div class="input-wrap"><input type="number" class="mono r-rate" value="5.0" oninput="updWIChart()"></div></div>
+        </div>`;
+        document.getElementById('rung-container').insertAdjacentHTML('beforeend', h);
+        updWIChart();
+    }
+
+    function calcWI(src) {
+        const i = parseFloat(document.getElementById('p-init').value)||0;
+        const pt = document.getElementById('p-pct'), pr = document.getElementById('p-prof'), en = document.getElementById('p-end');
+        let p = parseFloat(pt.value)||0, r = parseFloat(pr.value)||0, e = parseFloat(en.value)||0;
+        if(!i) return;
+        if(src==='p') { r = i*(p/100); e = i+r; pr.value=r.toFixed(0); en.value=e.toFixed(0); }
+        if(src==='r') { p = (r/i)*100; e = i+r; pt.value=p.toFixed(2); en.value=e.toFixed(0); }
+        if(src==='e') { r = e-i; p = (r/i)*100; pr.value=r.toFixed(0); pt.value=p.toFixed(2); }
+        updWIChart();
+    }
+
+    function updWIChart() {
+        const t = document.getElementById('p-type').value;
+        let d = 0, ptsP = [], ptsF = [];
+        
+        if(t==='Standard') {
+            const i = parseFloat(document.getElementById('p-init').value)||0;
+            d = parseInt(document.getElementById('p-dur').value)||12;
+            const p = parseFloat(document.getElementById('p-pct').value)||0;
+            const end = i + (i*(p/100));
+            ptsP = [{x:0, y:i}, {x:d, y:i}]; // baseline
+            ptsF = [{x:0, y:i}, {x:d, y:end}]; // forecast
+        } else {
+            let maxD=0, totI=0, totE=0;
+            document.querySelectorAll('.r-cap').forEach((el, idx) => {
+                const c = parseFloat(el.value)||0;
+                const rD = parseInt(document.querySelectorAll('.r-dur')[idx].value)||12;
+                const rP = parseFloat(document.querySelectorAll('.r-rate')[idx].value)||0;
+                if(rD>maxD) maxD=rD; totI+=c; totE+=(c+(c*(rP/100)));
+            });
+            d = maxD;
+            ptsP = [{x:0, y:totI}, {x:d, y:totI}];
+            ptsF = [{x:0, y:totI}, {x:d, y:totE}];
+        }
+
+        if(wiChart) wiChart.destroy();
+        wiChart = new Chart(document.getElementById('whatIfChart').getContext('2d'), {
+            type: 'line',
+            data: { datasets: [
+                { label:'Baseline', data:ptsP, borderColor:'#8e8e93', borderDash:[5,5], fill:false, pointRadius:0, tension:0 },
+                { label:'Forecast', data:ptsF, borderColor:'#007aff', fill:false, pointRadius:4, tension:0 }
+            ]},
+            options: { responsive:true, maintainAspectRatio:false, scales:{x:{type:'linear', max:d, title:{display:true, text:'Months'}}} }
+        });
+    }
+
+    // --- FORM ACTIONS ---
+    function saveStructure() {
+        const bn = document.getElementById('p-book').value, pn = document.getElementById('p-port').value;
+        if(!bn||!pn) return alert('Fill book & port');
+        let bid = 'b_'+Date.now();
+        db.books.push({id:bid, name:bn});
+        db.ports.push({id:'p_'+Date.now(), bid, name:pn, tax:document.getElementById('p-tax').value});
+        document.getElementById('p-book').value=''; document.getElementById('p-port').value='';
+        save(); alert('Saved');
+    }
+
+    function commitPlan() {
+        const t = document.getElementById('p-type').value;
+        let n, i, d, p, rungs=[];
+        if(t==='Standard') {
+            n=document.getElementById('p-name').value; i=parseFloat(document.getElementById('p-init').value);
+            d=parseInt(document.getElementById('p-dur').value); p=parseFloat(document.getElementById('p-pct').value);
+            if(!n||!i||!d) return alert('Fields missing');
+        } else {
+            n=document.getElementById('l-name').value;
+            document.querySelectorAll('.r-cap').forEach((el, idx) => {
+                rungs.push({ i:parseFloat(el.value)||0, d:parseInt(document.querySelectorAll('.r-dur')[idx].value)||12, p:parseFloat(document.querySelectorAll('.r-rate')[idx].value)||0 });
+            });
+            if(!n||!rungs.length) return alert('Fields missing');
+            i = rungs.reduce((s,r)=>s+r.i,0); d = Math.max(...rungs.map(r=>r.d)); p=0;
+        }
+        let ext = document.getElementById('p-cust-exit').value || document.getElementById('p-exit').value;
+        db.chunks.push({ id:'c_'+Date.now(), pid:document.getElementById('p-assign').value, name:n, type:t, init:i, dur:d, pct:p, exit:ext, st:NOW.toISOString().split('T')[0], rungs });
+        save(); alert('Committed'); switchTab('multiples');
+    }
+
+    function saveActual() {
+        const c=document.getElementById('a-chunk').value, v=parseFloat(document.getElementById('a-val').value);
+        if(!c||isNaN(v)) return;
+        db.logs.push({ id:'l_'+Date.now(), cid:c, dt:document.getElementById('a-date').value, val:v, adj:parseFloat(document.getElementById('a-adj').value)||0, note:document.getElementById('a-note').value });
+        document.getElementById('a-val').value=''; document.getElementById('a-adj').value='0'; document.getElementById('a-note').value='';
+        save(); alert('Logged');
+    }
+
+    // --- DASHBOARD & MULTIPLES ---
+    function renderDash() {
+        const res = db.chunks.map(c => projChunk(c, NOW));
+        if(varChart) varChart.destroy();
+        varChart = new Chart(document.getElementById('varianceChart').getContext('2d'), {
+            type: 'bar',
+            data: { labels: res.map(r=>r.c.name), datasets:[{data: res.map(r=>parseFloat(r.var.toFixed(2))), backgroundColor: res.map(r=>r.var<0?'#ff453a':'#32d74b')}] },
+            options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{grid:{color:'#2c2c2e'}}} }
+        });
+        
+        let u='', o='';
+        res.forEach(r => {
+            if(r.var < 0) u += `<div class="action-item underperform" onclick="openDM('${r.c.id}')"><div style="font-weight:700;">${r.c.name}</div><div class="mono" style="font-size:12px; color:var(--muted-dark);">-$${Math.abs(r.var).toFixed(0)}</div></div>`;
+            else if(r.var > 0) o += `<div class="action-item exitreached" onclick="openDM('${r.c.id}')"><div style="font-weight:700;">${r.c.name}</div><div class="mono" style="font-size:12px; color:var(--muted-dark);">+$${r.var.toFixed(0)}</div></div>`;
+        });
+        document.getElementById('dash-under').innerHTML = u||'None'; document.getElementById('dash-over').innerHTML = o||'None';
+    }
+
+    function setTime(t) {
+        gTime = t;
+        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        renderMultiples();
+    }
+
+    function renderMultiples() {
+        const f = document.getElementById('sm-filter').value;
+        const grid = document.getElementById('sm-grid');
+        grid.innerHTML = '';
+        Object.values(smCharts).forEach(c => c.destroy()); smCharts = {};
+
+        let chunks = db.chunks;
+        if(f !== 'all') chunks = chunks.filter(c => c.pid === f);
+
+        const limitDt = new Date(NOW);
+        if(gTime==='1M') limitDt.setMonth(limitDt.getMonth()-1);
+        if(gTime==='YTD') limitDt.setMonth(0,1);
+        if(gTime==='1Y') limitDt.setFullYear(limitDt.getFullYear()-1);
+        if(gTime==='3Y') limitDt.setFullYear(limitDt.getFullYear()-3);
+
+        chunks.forEach(c => {
+            const p = projChunk(c, NOW);
+            const cl = p.var < 0 ? 'var(--red)' : 'var(--green)';
+            const sg = `<div class="sm-card" onclick="openDM('${c.id}')">
+                <div class="sm-header"><span class="sm-title">${c.name}</span><span class="sm-val" style="color:${cl};">$${p.lastA.toLocaleString(undefined,{maximumFractionDigits:0})}</span></div>
+                <div class="sm-sub" style="color:${cl}; margin-bottom:8px;">${p.var>0?'+':''}$${p.var.toFixed(0)} Var</div>
+                <div class="chart-box"><canvas id="smc-${c.id}"></canvas></div>
+            </div>`;
+            grid.insertAdjacentHTML('beforeend', sg);
+
+            let pts = p.pts;
+            if(gTime !== 'ALL') pts = pts.filter(pt => new Date(pt.dt) >= limitDt);
+
+            smCharts[c.id] = new Chart(document.getElementById(`smc-${c.id}`).getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: pts.map(pt=>pt.dt),
+                    datasets: [
+                        { label:'Base', data:pts.map(pt=>pt.nc), borderColor:'#8e8e93', borderDash:[2,2], pointRadius:0, tension:0, fill:false, borderWidth:1 },
+                        { label:'Plan', data:pts.map(pt=>pt.p), borderColor:'rgba(255,255,255,0.3)', pointRadius:0, tension:0, fill:false, borderWidth:1 },
+                        { label:'Actual', data:pts.map(pt=>pt.a), borderColor:cl, pointRadius:2, tension:0.1, fill:false, borderWidth:2 }
+                    ]
+                },
+                options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{display:false},y:{display:false}} }
+            });
+        });
+    }
+
+    function openDM(id) {
+        const c = db.chunks.find(x=>x.id===id); if(!c) return;
+        const pt = db.ports.find(x=>x.id===c.pid); const bk = db.books.find(x=>x.id===pt.bid);
+        const p = projChunk(c, NOW);
+
+        document.getElementById('dm-title').innerText = c.name;
+        document.getElementById('dm-path').innerText = `${bk?bk.name:''} > ${pt?pt.name:''} (${pt?pt.tax:''}) | Exit: ${c.exit}`;
+        
+        if(dmChartInst) dmChartInst.destroy();
+        dmChartInst = new Chart(document.getElementById('dm-chart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: p.pts.map(pt=>pt.dt),
+                datasets: [
+                    { label:'Net Cap', data:p.pts.map(pt=>pt.nc), borderColor:'#8e8e93', borderDash:[5,5], pointRadius:0, tension:0, fill:false },
+                    { label:'Plan', data:p.pts.map(pt=>pt.p), borderColor:'rgba(255,255,255,0.5)', pointRadius:0, tension:0, fill:false },
+                    { label:'Actual', data:p.pts.map(pt=>pt.a), borderColor:(p.var<0?'#ff453a':'#32d74b'), pointRadius:4, tension:0.1, fill:false }
+                ]
+            },
+            options: { responsive:true, maintainAspectRatio:false, scales:{x:{ticks:{color:'#8e8e93'}},y:{ticks:{color:'#8e8e93'}}} }
+        });
+
+        let tH=''; let lH='';
+        p.pts.forEach((pt, i) => {
+            const dl = pt.delta ? pt.delta : 0;
+            const gn = pt.nc ? ((pt.a-pt.nc)/pt.nc)*100 : 0;
+            const cCl = dl<0?'color:var(--red);':'color:var(--green);';
+            tH += `<tr><td>${pt.m}</td><td>${pt.dt}</td><td>$${pt.nc.toLocaleString()}</td><td>$${pt.p.toFixed(0)}</td><td>$${pt.a.toLocaleString()}</td><td style="${cCl}">${dl>0?'+':''}$${dl.toFixed(0)}</td><td>${gn.toFixed(1)}%</td></tr>`;
+            if(pt.note) lH += `<div class="cl-log"><div class="cl-head"><span>${pt.dt}</span><span>Val: $${pt.a.toLocaleString()} | Adj: $${pt.adj||0}</span></div><div class="cl-body">${pt.note}</div></div>`;
+        });
+        document.getElementById('dm-tb').innerHTML = tH;
+        document.getElementById('dm-logs').innerHTML = lH || '<div style="font-size:12px; color:var(--muted-dark);">No notes.</div>';
+
+        openModal('drill-modal');
+    }
+
+    // --- ADMIN ---
+    function expD() { const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(db)],{type:"application/json"})); a.download='FD_Data.json'; a.click(); }
+    function impD(e) { const r=new FileReader(); r.onload=function(){try{db=JSON.parse(r.result);save();closeModal('settings-modal');alert('Imported');}catch(err){alert('Error');}}; r.readAsText(e.target.files[0]); }
+    function facRst() { if(confirm('Wipe all?')){localStorage.clear();location.reload();} }
+
+    window.onload = init;
+</script>
+</body>
+</html>
