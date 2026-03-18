@@ -1482,12 +1482,10 @@ function resendInvite(){
 function openSession(cid){
   var sess=getSession(cid);if(!sess){toast('Not found');return;}
   ensureSessionNames(sess);putSession(sess);
-  // Disconnect from previous session if different
   if(connectedConvId&&connectedConvId!==cid){
     addDiagLog('openSession: disconnecting from '+connectedConvId.slice(0,8)+' to switch to '+cid.slice(0,8));
     transportDisconnect({preserveQueue:false});
   }
-  // Clear pending invite state if switching away from that session
   if(state.pendingInviteId&&state.pendingInviteId!==cid){
     var oldCard=document.getElementById('invite-card-'+state.pendingInviteId);
     if(oldCard)oldCard.remove();
@@ -1499,12 +1497,16 @@ function openSession(cid){
   document.getElementById('shell-empty').style.display='none';
   document.getElementById('messages').style.display='flex';
   document.getElementById('composer').style.display='flex';
-  document.getElementById('shell-partner-name').textContent='';
-  // Fix 4: Show appropriate header based on session state
   updatePartnerHeader(sess);
   updateAutoReadBtn();
   transportConnect(cid,PART_ID);
-  renderAllMessages();scrollBottom();
+  renderAllMessages();
+  // Re-inject invite card if partner hasn't joined yet
+  if(!sess._partnerJoined){
+    state.pendingInviteId=cid;
+    injectInviteCard(cid);
+  }
+  scrollBottom();
   showScreen('chat-screen');
 }
 
@@ -1530,7 +1532,7 @@ function showEmptyShell(){
   document.getElementById('shell-empty').style.display='flex';
   document.getElementById('messages').style.display='none';
   document.getElementById('composer').style.display='none';
-  document.getElementById('shell-partner-name').textContent='talk';
+  document.getElementById('shell-partner-name').textContent='';
 }
 
 function savePartnerName(el){
@@ -1868,11 +1870,13 @@ function handleRelayEvent(d){
     }
 
     upsertPartnerFromEnvelope(sess,d);
-    // Update header when partner's identity becomes known via message
     updatePartnerHeader(sess);
+    // Mark partner as joined and remove invite card
+    if(!sess._partnerJoined){
+      sess._partnerJoined=true;putSession(sess);
+    }
     if(state.pendingInviteId===sess.convId){
       state.pendingInviteId=null;
-      // Remove invite card since partner is actively chatting
       var ic2=document.getElementById('invite-card-'+sess.convId);if(ic2)ic2.remove();
     }
     var msg=normalizeMsgSchema({id:d.id,from:'them',sourceText:srcTxt,sourceLang:srcLang,targetLang:myLang,targetText:d.targetText||'',orig:srcTxt,text:null,lang:srcLang,status:'received',timestamp:d.timestamp||Date.now(),clarify:{status:'none',text:'',thread:[]},translations:{}},{sourceLang:srcLang,targetLang:myLang});
@@ -3006,7 +3010,9 @@ document.addEventListener('DOMContentLoaded',function(){
       // If we're the responder joining, mark active
       sess.status='active';putSession(sess);
     }
-    hydrateSessionFromInvite(sess,invite);putSession(sess);
+    hydrateSessionFromInvite(sess,invite);
+    sess._partnerJoined=true; // Responder IS the partner — no invite card needed
+    putSession(sess);
     openSession(invite.sessionId);
     return;
   }
