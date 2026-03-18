@@ -1834,20 +1834,20 @@ function handleRelayEvent(d){
     var partnerId=(sess.inviterDeviceId||d.from||'partner');
     recordLangTally(partnerId,srcLang);
     // Language signal from partner:
-    // - First message in a different language from me = strong signal, update immediately
-    // - After that, require 2+ messages (tally majority) to shift
-    if(srcLang!==myLang){
-      var ps=ensureParticipantState(partnerId);
-      var tally=ps&&ps.langTally||{};
-      var totalPartnerMsgs=0;
-      Object.keys(tally).forEach(function(l){totalPartnerMsgs+=tally[l];});
+    // - First message from partner = sets partnerLang to whatever they sent in
+    //   (even if it matches myLang — that means they speak my language, no translation needed)
+    // - After first signal, require 2+ messages in a new language to shift
+    var ps=ensureParticipantState(partnerId);
+    var tally=ps&&ps.langTally||{};
+    var totalPartnerMsgs=0;
+    Object.keys(tally).forEach(function(l){totalPartnerMsgs+=tally[l];});
+    if(!sess._partnerLangFromMsg){
+      // First message ever from partner — strongest signal
+      sess.partnerLang=srcLang;sess._partnerLangFromMsg=true;putSession(sess);
+      addDiagLog('partnerLang set (first signal): '+srcLang);
+    }else if(srcLang!==sess.partnerLang){
       var srcCount=tally[srcLang]||0;
-      // First message ever from partner, or first in a new language = immediate update
-      var isFirstSignal=(totalPartnerMsgs<=1)||(!sess._partnerLangFromMsg);
-      if(isFirstSignal&&srcLang!==sess.partnerLang){
-        sess.partnerLang=srcLang;sess._partnerLangFromMsg=true;putSession(sess);
-        addDiagLog('partnerLang set (first signal): '+srcLang);
-      }else if(srcCount>=2&&srcLang!==sess.partnerLang){
+      if(srcCount>=2){
         sess.partnerLang=srcLang;putSession(sess);
         addDiagLog('partnerLang updated (tally majority): '+srcLang+' ('+getLangTallySummary(partnerId)+')');
       }
