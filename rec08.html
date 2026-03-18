@@ -1,10 +1,10 @@
-
 <!DOCTYPE html>
+<!-- Talk + Say v3.3 · Build 2026-03-17T04:30:00Z -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Talk + Say · v3.2</title>
+<title>Talk + Say · v3.3</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Lora:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -849,7 +849,7 @@ function getMsgs(cid){
   var changed=false;
   var norm=(raw||[]).map(function(msg){
     var before=JSON.stringify(msg||{});
-    var next=normalizeMsgSchema(msg,{sourceLang:(msg&&msg.from==='me')?(sess.myLang||'en'):(msg&&msg.lang)||sess.partnerLang||'th',targetLang:(msg&&msg.from==='me')?(sess.partnerLang||'th'):(sess.myLang||'en')});
+    var next=normalizeMsgSchema(msg,{sourceLang:(msg&&msg.from==='me')?(sess.myLang||'en'):(msg&&msg.lang)||sess.partnerLang||'en',targetLang:(msg&&msg.from==='me')?(sess.partnerLang||'en'):(sess.myLang||'en')});
     if(before!==JSON.stringify(next))changed=true;
     return next;
   });
@@ -869,7 +869,7 @@ function normalizeCard(c){
   var card=c||{};
   card.tags=(card.tags||[]).map(normalizeTag).filter(Boolean);
   card.backtranslate=normalizeBacktranslatePayload(card.backtranslate,{
-    sourceLang:card.targetLang||'th',
+    sourceLang:card.targetLang||'en',
     targetLang:card.sourceLang||'en',
     inputText:card.target||card.source||'',
     resultText:card.backTranslation||'',
@@ -929,14 +929,14 @@ function saveCards(c){
   }
   lsW(SAY.cards,JSON.stringify(pruned));
 }
-function cardPairKey(source,sourceLang,target,targetLang){return [(sourceLang||'en').trim().toLowerCase(),(source||'').trim(),(targetLang||'th').trim().toLowerCase(),(target||'').trim()].join('||');}
+function cardPairKey(source,sourceLang,target,targetLang){return [(sourceLang||'en').trim().toLowerCase(),(source||'').trim(),(targetLang||'en').trim().toLowerCase(),(target||'').trim()].join('||');}
 function upsertCardLastWins(nextCard,broadcast){var cards=getCards();var key=cardPairKey(nextCard.source,nextCard.sourceLang,nextCard.target,nextCard.targetLang);cards=cards.filter(function(c){return cardPairKey(c.source,c.sourceLang,c.target,c.targetLang)!==key;});var nc=normalizeCard(nextCard);cards.unshift(nc);saveCards(cards);if(broadcast!==false&&state.activeConvId){transportSend({type:'card',card:nc});addDiagLog('TX card source='+String(nc.source||'').slice(0,20));}}
 
 function getTags(){return lsJSON(SAY.tags,STARTER_TAGS.slice());}
 function saveTags(t){lsW(SAY.tags,JSON.stringify([].concat(Array.from(new Set(t))).sort()));}
 function addTagToRegistry(t){var tags=getTags();if(tags.indexOf(t)<0){tags.push(t);saveTags(tags);}}
 
-function getPrefs(){return lsJSON(SK.prefs,{userName:'yournamehere',myLang:'en',partnerLang:'th',autoSpeakIncoming:false,autoDetectLang:true,noOpOnSameLanguage:true,forceOppositePartyLanguage:false,sourceTheme:'default',targetTheme:'default',accentColor:'#2E8B8B',targetAccentColor:'#1A1714',phrasebookAccentColor:'#2E8B8B',bubbleWidth:75,bubbleFontSize:15,targetBubbleFontSize:15});}
+function getPrefs(){return lsJSON(SK.prefs,{userName:'yournamehere',myLang:'en',partnerLang:'en',autoSpeakIncoming:false,autoDetectLang:true,noOpOnSameLanguage:true,forceOppositePartyLanguage:false,sourceTheme:'default',targetTheme:'default',accentColor:'#2E8B8B',targetAccentColor:'#1A1714',phrasebookAccentColor:'#2E8B8B',bubbleWidth:75,bubbleFontSize:15,targetBubbleFontSize:15});}
 function savePrefs(p){lsW(SK.prefs,JSON.stringify(p));}
 
 // ════════════════════════════════════════════════════════
@@ -977,7 +977,7 @@ function resolveTargetLang(opts){
   // Returns the language the partner needs to receive in.
   opts=opts||{};
   var myLang=opts.myLang||opts.detectedSource||'en';
-  var partnerLang=opts.partnerLang||opts.listenerDefault||'th';
+  var partnerLang=opts.partnerLang||opts.listenerDefault||'en';
   // If I'm sending in partner's language already, they receive in my language
   if(myLang===partnerLang)return opts.myDefaultLang||opts.oppositeDefault||'en';
   return partnerLang;
@@ -1068,7 +1068,7 @@ function applyMsgTarget(msg,targetLang,targetText){
   if((msg.targetText||'')!==next){msg.targetText=next;changed=true;}
   if(targetLang===msg.sourceLang&&msg.sourceText&&!(msg.translations||{})[targetLang]){setMsgTranslation(msg,targetLang,msg.sourceText);}
   if(msg.from==='them'&&targetLang===((getSession(state.activeConvId)||{}).myLang||'en'))msg.text=msg.targetText||msg.sourceText;
-  if(msg.from==='me'&&targetLang===((getSession(state.activeConvId)||{}).partnerLang||'th'))msg.translated=msg.targetText||'';
+  if(msg.from==='me'&&targetLang===((getSession(state.activeConvId)||{}).partnerLang||'en'))msg.translated=msg.targetText||'';
   // Invalidate back-translate if target text changed
   if(changed&&msg.backtranslate){
     var newHash=btContentHash(msg.sourceText,msg.targetText);
@@ -1410,7 +1410,7 @@ function saveLocalName(el){
 
 function createNewSession(silent){
   var cid=uid();var p=getPrefs();
-  var sess={convId:cid,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),status:'active'};
+  var sess={convId:cid,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.myLang||'en',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),status:'active'};
   putSession(sess);
   var order=getSessionOrder();order.unshift(cid);saveSessionOrder(normalizeSessionOrder(order));
   closeLeftPanel();
@@ -1821,7 +1821,7 @@ function upsertPartnerFromEnvelope(sess,d){
   // partnerLang: NEVER overwrite from hello envelope — partner's UI lang ≠ what they type.
   // Only set partnerLang if completely absent (first join). Actual send-lang is detected from messages.
   if(!sess.partnerLang&&d.lang)sess.partnerLang=d.lang;
-  if(!sess.partnerLang)sess.partnerLang=getPrefs().partnerLang||'th';
+  if(!sess.partnerLang)sess.partnerLang=getPrefs().partnerLang||'en';
   putSession(sess);
   if(state.activeConvId===sess.convId)updatePartnerHeader(sess);
 }
@@ -1866,7 +1866,7 @@ function handleRelayEvent(d){
   if(d.type==='msg'){
     markPeerSeen();
     var srcTxt=d.sourceText||d.orig||d.text||'';
-    var srcLang=d.sourceLang||d.lang||detectLang(srcTxt,sess.partnerLang||'th')||sess.partnerLang||'th';
+    var srcLang=d.sourceLang||d.lang||detectLang(srcTxt,sess.partnerLang||'en')||sess.partnerLang||'en';
     // Receiver always wants translation in their own language
     var myLang=sess.myLang||getPrefs().myLang||'en';
     // Record partner's detected language in tally (partner messages only)
@@ -1947,7 +1947,7 @@ function handleRelayEvent(d){
     markPeerSeen();
     var m2=findMsg(d.id);
     if(m2){
-      normalizeMsgSchema(m2,{sourceLang:m2.sourceLang||'en',targetLang:d.targetLang||(m2.from==='me'?(sess.partnerLang||'th'):(sess.myLang||'en'))});
+      normalizeMsgSchema(m2,{sourceLang:m2.sourceLang||'en',targetLang:d.targetLang||(m2.from==='me'?(sess.partnerLang||'en'):(sess.myLang||'en'))});
       applyMsgTarget(m2,d.targetLang||m2.targetLang,d.targetText||d.text||'');
       m2.status='translated';updateTransDOM(m2);saveMsgs(state.activeConvId,state.messages);
     }
@@ -2014,7 +2014,7 @@ function buildBubbleCard(cfg){
   var srcTxt=cfg.srcTxt||'';
   var tgtTxt=cfg.tgtTxt||'';
   var srcLang=cfg.srcLang||'en';
-  var tgtLang=cfg.tgtLang||'th';
+  var tgtLang=cfg.tgtLang||'en';
   var isMine=!!cfg.isMine;
   var ctx=cfg.ctx||'chat';
 
@@ -2101,7 +2101,7 @@ function buildBubbleCard(cfg){
 function getSides(msg){
   var sess=getSession(state.activeConvId)||{};
   var myLang=sess.myLang||getPrefs().myLang||'en';
-  var partnerLang=sess.partnerLang||getPrefs().partnerLang||'th';
+  var partnerLang=sess.partnerLang||getPrefs().partnerLang||'en';
 
   if(msg.from==='me'){
     // Left: what I typed (my lang). Right: translation into partner's lang.
@@ -2128,7 +2128,7 @@ function getSides(msg){
 function getBacktranslateContextFromMsg(msg){
   var sess=getSession(state.activeConvId)||{};
   var myLang=sess.myLang||getPrefs().myLang||'en';
-  var partnerLang=sess.partnerLang||getPrefs().partnerLang||'th';
+  var partnerLang=sess.partnerLang||getPrefs().partnerLang||'en';
   if(msg.from==='me'){
     // Back-translate: take partner-lang translation, translate back to my lang
     var tgtTxt=getMsgTranslatedText(msg,partnerLang,msg.targetText||'');
@@ -2223,7 +2223,7 @@ function getBacktranslateSource(id,ctx){
   if(ctx==='phrasebook'){
     var card=getCardById(id);if(!card)return null;
     // Back-translate: take target text, translate back to source lang
-    return {inputText:card.target||'',fromLang:card.targetLang||'th',toLang:card.sourceLang||'en',bt:normalizeBacktranslatePayload(card.backtranslate,{})};
+    return {inputText:card.target||'',fromLang:card.targetLang||'en',toLang:card.sourceLang||'en',bt:normalizeBacktranslatePayload(card.backtranslate,{})};
   }
   var msg=findMsg(id);if(!msg)return null;
   var bt=getMsgBacktranslate(msg);
@@ -2448,7 +2448,7 @@ function bblSave(id){
   var msg=findMsg(id);if(!msg)return;
   var sess=getSession(state.activeConvId)||{};
   var myLang=sess.myLang||getPrefs().myLang||'en';
-  var partnerLang=sess.partnerLang||getPrefs().partnerLang||'th';
+  var partnerLang=sess.partnerLang||getPrefs().partnerLang||'en';
 
   // Card always stores: source = what was originally typed, target = translation
   var sourceText, sourceLang, targetText, targetLang;
@@ -2492,9 +2492,9 @@ function upsertClarifiedPhrase(msg){
   var cards=getCards();var thread=ensureClarifyThread(msg);
   var chain=thread.map(function(item){return{text:item.text||'',author:item.author||'Partner',timestamp:item.timestamp||Date.now()};});
   var notes=chain.map(function(item){return(item.author||'Partner')+': '+(item.text||'');}).join('\n');
-  var card=cards.find(function(c){return(c.source||'').trim()===src&&(c.sourceLang||'en')===s.srcLang&&(c.target||'').trim()===tgt&&(c.targetLang||'th')===s.tgtLang;});
+  var card=cards.find(function(c){return(c.source||'').trim()===src&&(c.sourceLang||'en')===s.srcLang&&(c.target||'').trim()===tgt&&(c.targetLang||'en')===s.tgtLang;});
   if(card){card.notes=notes||card.notes||'';card.clarifyChain=chain.slice();card.updatedAt=Date.now();}
-  else{cards.unshift(normalizeCard({id:uid(),catalogIds:[],sourceLang:s.srcLang||'en',targetLang:s.tgtLang||'th',source:src,target:tgt,notes:notes||'',tags:[],backtranslate:{sourceLang:'',targetLang:'',inputText:'',resultText:'',verdict:'',updatedAt:Date.now()},clarifyChain:chain.slice(),createdAt:Date.now(),updatedAt:Date.now()}));}
+  else{cards.unshift(normalizeCard({id:uid(),catalogIds:[],sourceLang:s.srcLang||'en',targetLang:s.tgtLang||'en',source:src,target:tgt,notes:notes||'',tags:[],backtranslate:{sourceLang:'',targetLang:'',inputText:'',resultText:'',verdict:'',updatedAt:Date.now()},clarifyChain:chain.slice(),createdAt:Date.now(),updatedAt:Date.now()}));}
   saveCards(cards);
 }
 
@@ -2584,7 +2584,7 @@ function sendMessage(){
   // Target: the language my partner needs to receive in
   // If I'm typing in my partner's language, they don't need translation — but I probably
   // want to show the translation in MY language (the other side of the pair)
-  var partnerLang=sess.partnerLang||p.partnerLang||'th';
+  var partnerLang=sess.partnerLang||p.partnerLang||'en';
   var myLang=sess.myLang||p.myLang||'en';
   // Target = whichever language in the pair I'm NOT currently typing in
   var targetLang=(outLang===partnerLang)?myLang:partnerLang;
@@ -2645,7 +2645,7 @@ function renderCatalogCards(){
   if(!cards.length){list.innerHTML='<div style="text-align:center;padding:24px;color:var(--ink-dim);">No phrases.</div>';return;}
 
   list.innerHTML=cards.map(function(c){
-    var bt=normalizeBacktranslatePayload(c.backtranslate,{sourceLang:c.targetLang||'th',targetLang:c.sourceLang||'en',inputText:c.target||'',resultText:'',verdict:'',contentHash:btContentHash(c.source,c.target)});
+    var bt=normalizeBacktranslatePayload(c.backtranslate,{sourceLang:c.targetLang||'en',targetLang:c.sourceLang||'en',inputText:c.target||'',resultText:'',verdict:'',contentHash:btContentHash(c.source,c.target)});
     var thread=c.clarifyChain||[];
     var tags=sanitizeTagList(c.tags||[]);
     var savedBy=c.savedBy?('Saved by '+c.savedBy+' \u00b7 '+fmtDateTime(c.createdAt)):(fmtDateTime(c.createdAt)||'');
@@ -2653,7 +2653,7 @@ function renderCatalogCards(){
     var inner=buildBubbleCard({
       id:c.id,
       srcTxt:c.source||'',srcLang:c.sourceLang||'en',
-      tgtTxt:c.target||'',tgtLang:c.targetLang||'th',
+      tgtTxt:c.target||'',tgtLang:c.targetLang||'en',
       headerLeft:savedBy,
       time:timeAgo(c.updatedAt),
       prov:'',
@@ -2882,7 +2882,7 @@ function resetSourceBubbleDefaults(){var p=getPrefs();p.sourceTheme=BUBBLE_DEFAU
 function resetTargetBubbleDefaults(){var p=getPrefs();p.targetTheme=BUBBLE_DEFAULTS.targetTheme;p.targetBubbleFontSize=BUBBLE_DEFAULTS.targetBubbleFontSize;p.targetAccentColor=BUBBLE_DEFAULTS.targetAccentColor;savePrefs(p);openSettings();applyBubbleTheme();toast('Target bubble reset');}
 function applyPhrasebookAccent(v){var p=getPrefs();p.phrasebookAccentColor=v;savePrefs(p);}
 
-function openInfoModal(kind){var title=document.getElementById('info-title');var body=document.getElementById('info-body');if(kind==='privacy'){title.textContent='Privacy';body.innerHTML='<strong>Local-first storage.</strong><br>All session and phrasebook data stays in localStorage unless you export it yourself.';}else{title.textContent='About';body.innerHTML='<strong>Talk + Say · v3.2</strong><br>Shell-first bilingual chat &amp; phrasebook with unified bubble renderer, back-translation, and clarify workflows.';}document.getElementById('info-overlay').hidden=false;}
+function openInfoModal(kind){var title=document.getElementById('info-title');var body=document.getElementById('info-body');if(kind==='privacy'){title.textContent='Privacy';body.innerHTML='<strong>Local-first storage.</strong><br>All session and phrasebook data stays in localStorage unless you export it yourself.';}else{title.textContent='About';body.innerHTML='<strong>Talk + Say · v3.3</strong><br>Shell-first bilingual chat &amp; phrasebook with unified bubble renderer, back-translation, and clarify workflows.';}document.getElementById('info-overlay').hidden=false;}
 function openPrintPhrasebookModal(){document.getElementById('print-overlay').hidden=false;}
 function printPhrasebookSelection(){document.getElementById('print-overlay').hidden=true;renderCatalogCards();setTimeout(function(){window.print();},60);}
 
@@ -2937,7 +2937,7 @@ function openNewCard(catId,opts){
   var ctx=opts||{};
   // Populate compact language selectors (flag + 2-char code)
   populateLangSelectCompact('nc-src-lang',ctx.sourceLang||p.myLang||'en');
-  populateLangSelectCompact('nc-tgt-lang',ctx.targetLang||p.partnerLang||'th');
+  populateLangSelectCompact('nc-tgt-lang',ctx.targetLang||p.partnerLang||'en');
   populateNewCardCatalogs(validCat);
   // Populate contenteditable fields
   var srcEl=document.getElementById('nc-source');
@@ -2970,7 +2970,7 @@ function ncLangChanged(){ncCheckLangMismatch();}
 function ncAutoTranslate(){
   var src=(document.getElementById('nc-source').textContent||'').trim();if(!src)return;
   var sl=document.getElementById('nc-src-lang').value||'en';
-  var tl=document.getElementById('nc-tgt-lang').value||'th';
+  var tl=document.getElementById('nc-tgt-lang').value||'en';
   var btn=document.getElementById('nc-auto-btn');if(btn)btn.disabled=true;
   translate(src,sl,tl).then(function(out){
     document.getElementById('nc-target').textContent=out||'';
@@ -2979,7 +2979,7 @@ function ncAutoTranslate(){
 function ncBackTranslate(){
   var tgt=(document.getElementById('nc-target').textContent||'').trim();if(!tgt)return;
   var sl=document.getElementById('nc-src-lang').value||'en';
-  var tl=document.getElementById('nc-tgt-lang').value||'th';
+  var tl=document.getElementById('nc-tgt-lang').value||'en';
   var btPanel=document.getElementById('nc-bt-result');
   var btText=document.getElementById('nc-bt-text');
   btPanel.style.display='block';
@@ -3043,7 +3043,7 @@ function saveNewCard(){
   var tl=document.getElementById('nc-tgt-lang').value;
   var catId=(document.getElementById('nc-catalog')||{}).value||'';
   var cardTags=sanitizeTagList(state.ncTags);
-  var card=normalizeCard({id:uid(),catalogIds:catId?[catId]:[],sourceLang:sl,targetLang:tl,source:src,target:tgt,notes:'',tags:cardTags,backtranslate:{sourceLang:tl||'th',targetLang:sl||'en',inputText:tgt||src||'',resultText:'',verdict:'',contentHash:btContentHash(src,tgt),updatedAt:Date.now()},clarifyChain:[],savedBy:getPrefs().userName||'Me',createdAt:Date.now(),updatedAt:Date.now()});
+  var card=normalizeCard({id:uid(),catalogIds:catId?[catId]:[],sourceLang:sl,targetLang:tl,source:src,target:tgt,notes:'',tags:cardTags,backtranslate:{sourceLang:tl||'en',targetLang:sl||'en',inputText:tgt||src||'',resultText:'',verdict:'',contentHash:btContentHash(src,tgt),updatedAt:Date.now()},clarifyChain:[],savedBy:getPrefs().userName||'Me',createdAt:Date.now(),updatedAt:Date.now()});
   upsertCardLastWins(card);card.tags.forEach(function(t){addTagToRegistry(t);});
   document.getElementById('new-card-overlay').hidden=true;
   toast('Saved');renderCatalogCards();state.saveContext=null;
@@ -3056,7 +3056,7 @@ function confirmDeleteCatalog(catId){showConfirm('Delete catalog?','Cards move t
 function buildEmojiGrid(){}
 function openNewCatalog(){
   var p=getPrefs();
-  populateLangSelect('ncat-lang',p.partnerLang||'th');
+  populateLangSelect('ncat-lang',p.partnerLang||'en');
   document.getElementById('ncat-name').value='';
   document.getElementById('ncat-desc').value='';
   document.getElementById('ncat-save-btn').disabled=true;
@@ -3161,7 +3161,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
   onTransportEvent(handleRelayEvent);
   // nc-src-lang and nc-tgt-lang are populated in openNewCard()
-  populateLangSelect('ncat-lang',p.partnerLang||'th');
+  populateLangSelect('ncat-lang',p.partnerLang||'en');
   ncatLangChanged();
   initTagPickerInput();
 
@@ -3172,7 +3172,7 @@ document.addEventListener('DOMContentLoaded',function(){
     history.replaceState({},'',location.pathname);
     var sess=getSession(invite.sessionId);
     if(!sess){
-      sess={convId:invite.sessionId,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),status:'active'};
+      sess={convId:invite.sessionId,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.myLang||'en',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),status:'active'};
       putSession(sess);
       var order=getSessionOrder();order.unshift(invite.sessionId);saveSessionOrder(normalizeSessionOrder(order));
     }else{
@@ -3223,5 +3223,5 @@ document.addEventListener('DOMContentLoaded',function(){
   });
 });
 </script>
-</body>
+<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">v3.3 · 2026-03-17T04:30:00Z</div></body>
 </html>
