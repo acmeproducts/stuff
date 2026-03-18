@@ -2021,14 +2021,14 @@ function buildBubbleCard(cfg){
     +'<div class="bbl-side">'
     +'<div class="'+srcClass+'" id="bsrc-'+id+'">'+renderMd(srcTxt)+'</div>'
     +'<div class="bbl-side-acts">'
-    +'<button class="bbl-use" onclick="insertPhrase('+aS+')">Use</button>'
+    +'<button class="bbl-use" data-use-src="'+id+'">Use</button>'
     +'<button class="bbl-tts" onclick="speak('+aS+','+aSL+',this)" title="Listen">'+ICON_TTS+'</button>'
     +'</div></div>'
     +'<div class="bbl-divider"></div>'
     +'<div class="bbl-side">'
     +'<div class="'+tgtClass+'" id="btgt-'+id+'">'+renderMd(tgtTxt)+'</div>'
     +'<div class="bbl-side-acts">'
-    +'<button class="bbl-use" onclick="insertPhrase('+aT+')">Use</button>'
+    +'<button class="bbl-use" data-use-tgt="'+id+'">Use</button>'
     +'<button class="bbl-tts" onclick="speak('+aT+','+aTL+',this)" title="Listen">'+ICON_TTS+'</button>'
     +'</div></div>'
     +'</div>';
@@ -2485,16 +2485,25 @@ function toggleMsgTagDrawer(id){
 }
 // Fix 5: Sync all footer button active states for a bubble
 function syncFooterButtonState(id){
-  var tagOpen=document.getElementById('msg-tag-drawer-'+id);
-  var clarifyOpen=document.getElementById('bclarify-'+id);
-  var btOpen=document.getElementById('bbt-'+id);
   var row=document.getElementById('row-'+id);if(!row)return;
-  var tagBtn=row.querySelector('.bbl-act[data-role="tags"]');
-  var clarifyBtn=row.querySelector('.bbl-act[data-role="clarify"]');
-  var btBtn=row.querySelector('.bbl-act[data-role="bt"]');
-  if(tagBtn)tagBtn.classList.toggle('active-chip',!!(tagOpen&&tagOpen.classList.contains('open')));
-  if(clarifyBtn)clarifyBtn.classList.toggle('active-chip',!!(clarifyOpen&&clarifyOpen.classList.contains('open')));
-  if(btBtn)btBtn.classList.toggle('active-chip',!!(btOpen&&btOpen.classList.contains('open')));
+  // Read actual DOM state of each drawer
+  var tagDrawer=document.getElementById('msg-tag-drawer-'+id);
+  var clarifyDrawer=document.getElementById('bclarify-'+id);
+  var btDrawer=document.getElementById('bbt-'+id);
+  var tagIsOpen=tagDrawer&&tagDrawer.classList.contains('open');
+  var clarifyIsOpen=clarifyDrawer&&clarifyDrawer.classList.contains('open');
+  var btIsOpen=btDrawer&&btDrawer.classList.contains('open');
+  // Find buttons and set/clear active state explicitly
+  var btns=row.querySelectorAll('.bbl-act[data-role]');
+  for(var i=0;i<btns.length;i++){
+    var role=btns[i].getAttribute('data-role');
+    var active=false;
+    if(role==='tags')active=!!tagIsOpen;
+    else if(role==='clarify')active=!!clarifyIsOpen;
+    else if(role==='bt')active=!!btIsOpen;
+    if(active){btns[i].classList.add('active-chip');}
+    else{btns[i].classList.remove('active-chip');}
+  }
 }
 function ensureMsgTags(msg){if(!msg)return[];if(!Array.isArray(msg.tags))msg.tags=[];msg.tags=sanitizeTagList(msg.tags);return msg.tags;}
 function renderMsgAssignedTags(id){
@@ -2650,9 +2659,18 @@ function sendMessage(){
 function insertPhrase(src){
   var ta=document.getElementById('msg-input');
   if(ta){ta.value=src||'';autoResize();updateSendBtn();setTimeout(function(){ta.focus();},50);}
-  // Close phrasebook if open
   if(document.getElementById('catalog-screen').classList.contains('active'))closePhrasebookView();
 }
+// Event delegation for Use buttons — reads text from sibling .bbl-txt element
+document.addEventListener('click',function(e){
+  var btn=e.target.closest('.bbl-use[data-use-src],.bbl-use[data-use-tgt]');
+  if(!btn)return;
+  var id=btn.getAttribute('data-use-src')||btn.getAttribute('data-use-tgt');
+  if(!id)return;
+  var isSrc=btn.hasAttribute('data-use-src');
+  var textEl=document.getElementById(isSrc?'bsrc-'+id:'btgt-'+id);
+  if(textEl){insertPhrase(textEl.textContent.trim());}
+});
 
 // ════════════════════════════════════════════════════════
 // PHRASEBOOK CARD RENDERING (unified bubble renderer)
@@ -3234,5 +3252,5 @@ document.addEventListener('DOMContentLoaded',function(){
   window.addEventListener('offline',function(){transportDisconnect({preserveQueue:true});});
 });
 </script>
-<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">v3.3 · 2026-03-18T05:15:00Z</div></body>
+<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">v3.3 · 2026-03-18T05:30:00Z</div></body>
 </html>
