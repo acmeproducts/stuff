@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Talk + Say v3.3 · Build 2026-03-17T10:30:00Z -->
+<!-- Talk + Say v3.3 · Build 2026-03-17T11:30:00Z -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -440,8 +440,7 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
     <div class="settings-group">
       <div class="settings-group-title">Source bubble (mine)</div>
       <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
-        <div style="flex:1;"><label class="field-label" style="margin:0 0 4px;">Background</label><input type="color" id="set-src-bg" value="#2E8B8B" style="width:48px;height:32px;border:none;border-radius:8px;cursor:pointer;" oninput="applySrcBg(this.value)"></div>
-        <div style="flex:1;"><label class="field-label" style="margin:0 0 4px;">Text</label><input type="color" id="set-src-text" value="#ffffff" style="width:48px;height:32px;border:none;border-radius:8px;cursor:pointer;" oninput="applySrcText(this.value)"></div>
+        <div><label class="field-label" style="margin:0 0 4px;">Background</label><input type="color" id="set-src-bg" value="#2E8B8B" style="width:48px;height:32px;border:none;border-radius:8px;cursor:pointer;" oninput="applySrcBg(this.value)"></div>
       </div>
       <label class="field-label" style="margin-top:4px;">Font size</label>
       <div style="display:flex;align-items:center;gap:8px;"><input type="range" min="12" max="20" step="1" id="set-bbl-size" style="flex:1;accent-color:var(--teal);" oninput="applyGlobalSize(this.value)"><span id="set-bbl-size-val" style="font-size:12px;font-weight:700;color:var(--teal);">15px</span></div>
@@ -449,8 +448,7 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
     <div class="settings-group">
       <div class="settings-group-title">Target bubble (theirs)</div>
       <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
-        <div style="flex:1;"><label class="field-label" style="margin:0 0 4px;">Background</label><input type="color" id="set-tgt-bg" value="#F5F1EC" style="width:48px;height:32px;border:none;border-radius:8px;cursor:pointer;" oninput="applyTgtBg(this.value)"></div>
-        <div style="flex:1;"><label class="field-label" style="margin:0 0 4px;">Text</label><input type="color" id="set-tgt-text" value="#1A1714" style="width:48px;height:32px;border:none;border-radius:8px;cursor:pointer;" oninput="applyTgtText(this.value)"></div>
+        <div><label class="field-label" style="margin:0 0 4px;">Background</label><input type="color" id="set-tgt-bg" value="#F5F1EC" style="width:48px;height:32px;border:none;border-radius:8px;cursor:pointer;" oninput="applyTgtBg(this.value)"></div>
       </div>
       <label class="field-label" style="margin-top:4px;">Font size</label>
       <div style="display:flex;align-items:center;gap:8px;"><input type="range" min="12" max="20" step="1" id="set-target-size" style="flex:1;accent-color:var(--teal);" oninput="applyTargetSize(this.value)"><span id="set-target-size-val" style="font-size:12px;font-weight:700;color:var(--teal);">15px</span></div>
@@ -1104,15 +1102,20 @@ var msgSeq=0;
 var lastSeenSeq=0;
 
 function catchUpMissedMessages(){
-  if(!connectedConvId||!lastSeenSeq)return;
+  if(!connectedConvId)return;
+  var sinceSeq=lastSeenSeq||0;
   var url=RELAY_WS_URL.replace('wss://','https://').replace('ws://','http://')
     +'?session='+encodeURIComponent(connectedConvId)
     +'&client='+encodeURIComponent(DEVICE_ID)
-    +'&since='+lastSeenSeq;
+    +'&since='+sinceSeq;
   fetch(url).then(function(r){return r.json();}).then(function(msgs){
     if(!Array.isArray(msgs)||!msgs.length)return;
-    addDiagLog('CATCHUP: '+msgs.length+' missed messages since seq='+lastSeenSeq);
-    msgs.forEach(function(m){
+    // Filter out messages already in local state
+    var existingIds=new Set(state.messages.map(function(m){return m.id;}).filter(Boolean));
+    var newMsgs=msgs.filter(function(m){return m.id&&!existingIds.has(m.id);});
+    if(!newMsgs.length){addDiagLog('CATCHUP: '+msgs.length+' fetched, 0 new');return;}
+    addDiagLog('CATCHUP: '+newMsgs.length+' new of '+msgs.length+' fetched since seq='+sinceSeq);
+    newMsgs.forEach(function(m){
       if(m.seq>lastSeenSeq)lastSeenSeq=m.seq;
       if(m.seq)msgSeq=Math.max(msgSeq,m.seq);
       transportHandlers.forEach(function(h){h(m);});
@@ -1138,7 +1141,7 @@ var lastReattachAt=0;
 var REATTACH_WINDOW_MS=10000;
 var MAX_REATTACH_BEFORE_BACKOFF=3;
 var inboundSeen=new Map();
-var INBOUND_DEDUPE_TTL_MS=12000;
+var INBOUND_DEDUPE_TTL_MS=300000;
 
 function dbg(){if(false)console.log.apply(console,['[relay]'].concat(Array.prototype.slice.call(arguments)));}
 function setSocketState(s){socketState=s;if(s!=='open'){peerState.connected=false;}updateDot();}
@@ -2767,13 +2770,11 @@ var BUBBLE_DEFAULTS={sourceTheme:'default',targetTheme:'default',bubbleWidth:75,
 function openSettings(){
   document.getElementById('settings-overlay').classList.add('open');
   var p=getPrefs();
-  // Source bubble pickers
+  // Source bubble picker
   document.getElementById('set-src-bg').value=p.srcBgColor||'#2E8B8B';
-  document.getElementById('set-src-text').value=p.srcTextColor||'#ffffff';
   document.getElementById('set-bbl-size').value=p.bubbleFontSize||15;document.getElementById('set-bbl-size-val').textContent=(p.bubbleFontSize||15)+'px';
-  // Target bubble pickers
+  // Target bubble picker
   document.getElementById('set-tgt-bg').value=p.tgtBgColor||'#F5F1EC';
-  document.getElementById('set-tgt-text').value=p.targetAccentColor||'#1A1714';
   document.getElementById('set-target-size').value=p.targetBubbleFontSize||15;document.getElementById('set-target-size-val').textContent=(p.targetBubbleFontSize||15)+'px';
   // Layout
   document.getElementById('set-bbl-width').value=p.bubbleWidth||75;document.getElementById('set-bbl-width-val').textContent=(p.bubbleWidth||75)+'%';
@@ -2785,26 +2786,17 @@ function closeSettings(){document.getElementById('settings-overlay').classList.r
 
 // Direct color controls — source bubble
 function applySrcBg(val){
-  var p=getPrefs();p.srcBgColor=val;
-  // Auto-suggest text color from luminance
-  var suggested=hexLumGlobal(val)>0.45?'#1A1714':'#ffffff';
-  p.srcTextColor=suggested;
-  document.getElementById('set-src-text').value=suggested;
-  p.accentColor=val;
+  var p=getPrefs();p.srcBgColor=val;p.accentColor=val;
   savePrefs(p);
   document.documentElement.style.setProperty('--teal',val);
   applyBubbleTheme();
 }
-function applySrcText(val){var p=getPrefs();p.srcTextColor=val;savePrefs(p);applyBubbleTheme();}
-// Direct color controls — target bubble
+function applySrcText(){}
 function applyTgtBg(val){
   var p=getPrefs();p.tgtBgColor=val;
-  var suggested=hexLumGlobal(val)>0.45?'#1A1714':'#ffffff';
-  p.targetAccentColor=suggested;
-  document.getElementById('set-tgt-text').value=suggested;
   savePrefs(p);applyBubbleTheme();
 }
-function applyTgtText(val){var p=getPrefs();p.targetAccentColor=val;savePrefs(p);applyBubbleTheme();}
+function applyTgtText(){}
 function resetAllBubbleDefaults(){
   var p=getPrefs();
   p.srcBgColor='#2E8B8B';p.srcTextColor='#ffffff';p.accentColor='#2E8B8B';
@@ -2833,27 +2825,21 @@ function applyBubbleTheme(){
   var srcSize=p.bubbleFontSize||BUBBLE_DEFAULTS.bubbleFontSize;
   var tgtSize=p.targetBubbleFontSize||BUBBLE_DEFAULTS.targetBubbleFontSize;
   function hexLum(h){h=(h||'#888').replace('#','');var r=parseInt(h.slice(0,2),16)/255,g=parseInt(h.slice(2,4),16)/255,b=parseInt(h.slice(4,6),16)/255;return 0.2126*r+0.7152*g+0.0722*b;}
-  // Source (mine) bubble
+  // Source (mine) bubble — text ALWAYS computed from background
   var mineBg=p.srcBgColor||'#2E8B8B';
   var mineLum=hexLum(mineBg);
-  // Always compute readable text from background luminance — ignore stale prefs if contrast is bad
-  var mineTextAuto=mineLum>0.45?'#1A1714':'#ffffff';
-  var mineTextPref=p.srcTextColor||mineTextAuto;
-  var mineText=(Math.abs(mineLum-hexLum(mineTextPref))<0.25)?mineTextAuto:mineTextPref;
+  var mineText=mineLum>0.45?'#1A1714':'#ffffff';
   var mineTextDim=mineLum>0.45?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)';
   var mineTextFaint=mineLum>0.45?'rgba(0,0,0,.4)':'rgba(255,255,255,.5)';
   var mineBorder=mineLum>0.45?'rgba(0,0,0,.12)':'rgba(255,255,255,.2)';
   var mineHover=mineLum>0.45?'rgba(0,0,0,.08)':'rgba(255,255,255,.14)';
   var mineUseBg=mineLum>0.45?'rgba(0,0,0,.1)':'rgba(255,255,255,.22)';
-  // Target (theirs) bubble
+  // Target (theirs) bubble — text ALWAYS computed from background
   var theirsBg=p.tgtBgColor||'#F5F1EC';
   var theirsLum=hexLum(theirsBg);
-  var theirsTextAuto=theirsLum>0.45?'#1A1714':'#ffffff';
-  var theirsTextPref=p.targetAccentColor||theirsTextAuto;
-  var theirsText=(Math.abs(theirsLum-hexLum(theirsTextPref))<0.25)?theirsTextAuto:theirsTextPref;
-  var txtLum=hexLum(theirsText);
-  var theirsTextDim=txtLum>0.45?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)';
-  var theirsTextFaint=txtLum>0.45?'rgba(0,0,0,.4)':'rgba(255,255,255,.5)';
+  var theirsText=theirsLum>0.45?'#1A1714':'#ffffff';
+  var theirsTextDim=theirsLum>0.45?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)';
+  var theirsTextFaint=theirsLum>0.45?'rgba(0,0,0,.4)':'rgba(255,255,255,.5)';
   var theirsBorder=theirsLum>0.45?'rgba(0,0,0,.10)':'rgba(255,255,255,.18)';
   var theirsHover=theirsLum>0.45?'rgba(0,0,0,.06)':'rgba(255,255,255,.12)';
   var theirsUseBg=theirsLum>0.45?'rgba(0,0,0,.08)':'rgba(255,255,255,.18)';
@@ -3208,6 +3194,8 @@ document.addEventListener('DOMContentLoaded',function(){
   if(nameEl&&p.userName&&p.userName!=='yournamehere')nameEl.textContent=p.userName;
 
   if(Array.isArray(p.themeLibrary)&&p.themeLibrary.length)THEMES=p.themeLibrary;
+  // Purge stale text color prefs — colors are always computed from background now
+  delete p.srcTextColor;delete p.targetAccentColor;savePrefs(p);
   applyBubbleTheme();
   if(p.phrasebookAccentColor)applyPhrasebookAccent(p.phrasebookAccentColor);
   updateAutoReadBtn();
