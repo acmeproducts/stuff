@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Talk + Say v3.3 · Build 2026-03-17T08:00:00Z -->
+<!-- Talk + Say v3.3 · Build 2026-03-17T10:30:00Z -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -144,7 +144,7 @@ textarea.field-input{resize:none;}
 .bbl-act:hover{background:rgba(0,0,0,.06);}
 
 
-.bbl-act.active-chip{background:var(--teal)!important;color:#fff!important;}
+.bbl-act.active-chip{background:rgba(0,0,0,.12);box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.15);}
 
 
 /* Tag drawer */
@@ -1101,6 +1101,24 @@ var outQTimestamps=[];  // parallel array for TTL
 var pendingMsgAcks={};
 var pendingTrAcks={};
 var msgSeq=0;
+var lastSeenSeq=0;
+
+function catchUpMissedMessages(){
+  if(!connectedConvId||!lastSeenSeq)return;
+  var url=RELAY_WS_URL.replace('wss://','https://').replace('ws://','http://')
+    +'?session='+encodeURIComponent(connectedConvId)
+    +'&client='+encodeURIComponent(DEVICE_ID)
+    +'&since='+lastSeenSeq;
+  fetch(url).then(function(r){return r.json();}).then(function(msgs){
+    if(!Array.isArray(msgs)||!msgs.length)return;
+    addDiagLog('CATCHUP: '+msgs.length+' missed messages since seq='+lastSeenSeq);
+    msgs.forEach(function(m){
+      if(m.seq>lastSeenSeq)lastSeenSeq=m.seq;
+      if(m.seq)msgSeq=Math.max(msgSeq,m.seq);
+      transportHandlers.forEach(function(h){h(m);});
+    });
+  }).catch(function(e){addDiagLog('CATCHUP failed: '+String(e),'warn');});
+}
 var socketState='closed';
 var transportHandlers=[];
 var peerState={connected:false,lastSeenAt:0};
@@ -1199,6 +1217,8 @@ function transportConnect(convId,participant,opts){
     pruneOutQueue();
     flushOutQueue();
     resendPendingReliables();
+    // Fetch any messages missed during disconnection
+    catchUpMissedMessages();
   };
   ws.onmessage=function(e){
     if(ws!==ref)return;
@@ -1211,7 +1231,7 @@ function transportConnect(convId,participant,opts){
         return;
       }
       if(m.type==='pong'){lastPongAt=Date.now();markPeerSeen();return;}
-      if(m.seq)msgSeq=Math.max(msgSeq,m.seq);
+      if(m.seq){msgSeq=Math.max(msgSeq,m.seq);lastSeenSeq=Math.max(lastSeenSeq,m.seq);}
       transportHandlers.forEach(function(h){h(m);});
     }catch(_){}
   };
@@ -1297,6 +1317,18 @@ function resendPendingReliables(){
   Object.keys(pendingTrAcks).forEach(function(id){resend.push(pendingTrAcks[id]);});
   resend=resend.slice(0,MAX_RETRY_ATTEMPTS);
   for(var i=0;i<resend.length;i++){try{ws.send(JSON.stringify(resend[i]));}catch(_){queueOutEvent(resend[i]);}}
+}
+
+function resendPreJoinMessages(){
+  if(!ws||ws.readyState!==1||!state.activeConvId)return;
+  var sess=getSession(state.activeConvId);if(!sess)return;
+  var msgs=state.messages.filter(function(m){return m.from==='me'&&m.id;});
+  var count=0;
+  msgs.forEach(function(m){
+    var payload={type:'msg',id:m.id,sourceText:m.sourceText,sourceLang:m.sourceLang,targetText:m.targetText||'',targetLang:m.targetLang,translations:m.translations||{},orig:m.sourceText,lang:m.sourceLang,timestamp:m.timestamp,name:sess.myName||getPrefs().userName||'Me'};
+    try{ws.send(JSON.stringify(Object.assign({},payload,{session:connectedConvId,from:DEVICE_ID,participant:PART_ID,ts:Date.now(),seq:++msgSeq})));count++;}catch(_){}
+  });
+  if(count)addDiagLog('Resent '+count+' pre-join messages');
 }
 
 function transportDisconnect(opts){
@@ -1433,7 +1465,6 @@ function createNewSession(silent){
 function openInviteScreen(cid){
   var sess=getSession(cid);if(!sess)return;
   state.pendingInviteId=cid;
-  // Session is active from birth — no pending state
   if(connectedConvId&&connectedConvId!==cid){
     addDiagLog('openInviteScreen: disconnecting from '+connectedConvId.slice(0,8));
     transportDisconnect({preserveQueue:false});
@@ -1441,6 +1472,8 @@ function openInviteScreen(cid){
   state.activeConvId=cid;
   state.messages=getMsgs(cid);
   setActiveConvId(cid);markViewed(cid);
+  // Add invite system message if not already present
+  addInviteMessage(cid);
   document.getElementById('shell-empty').style.display='none';
   document.getElementById('messages').style.display='flex';
   document.getElementById('composer').style.display='flex';
@@ -1448,69 +1481,23 @@ function openInviteScreen(cid){
   updateAutoReadBtn();
   transportConnect(cid,PART_ID);
   renderAllMessages();
-  injectInviteCard(cid);
   scrollBottom();
   showScreen('chat-screen');
   renderSessionList();
   addDiagLog('Session created: '+cid.slice(0,8));
 }
 
-function injectInviteCard(cid){
+function addInviteMessage(cid){
+  // Only add once per session
+  var exists=state.messages.some(function(m){return m.from==='invite'&&m.convId===cid;});
+  if(exists)return;
   var url=location.href.split('?')[0]+'?j='+encodeURIComponent(cid);
-  var container=document.getElementById('messages');if(!container)return;
-  // Don't re-inject if already exists
-  if(document.getElementById('invite-card-'+cid))return;
-  var card=document.createElement('div');
-  card.id='invite-card-'+cid;
-  card.style.cssText='background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:16px;margin:8px 0;display:flex;flex-direction:column;align-items:center;gap:12px;';
-  card.dataset.inviteUrl=url;
-  var label=document.createElement('div');
-  label.style.cssText='font-size:11px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.4px;';
-  label.textContent='Session created \u00b7 '+fmtDateTime(Date.now());
-  card.appendChild(label);
-  var qrWrap=document.createElement('div');
-  qrWrap.id='invite-card-qr-'+cid;
-  qrWrap.style.cssText='width:160px;height:160px;background:#fff;border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;';
-  card.appendChild(qrWrap);
-  var linkDiv=document.createElement('div');
-  linkDiv.style.cssText='width:100%;background:var(--paper);border:1px solid var(--border);border-radius:8px;padding:8px 10px;word-break:break-all;font-size:11px;color:var(--teal);font-weight:600;';
-  linkDiv.textContent=url;
-  card.appendChild(linkDiv);
-  var btnRow=document.createElement('div');
-  btnRow.style.cssText='display:flex;gap:8px;width:100%;';
-  var copyBtn=document.createElement('button');
-  copyBtn.textContent='Copy Link';
-  copyBtn.style.cssText='flex:1;background:var(--teal);color:#fff;border:none;border-radius:9px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;';
-  copyBtn.addEventListener('click',function(){copyTextToClipboard(card.dataset.inviteUrl);});
-  btnRow.appendChild(copyBtn);
-  if(navigator.share){
-    var shareBtn=document.createElement('button');
-    shareBtn.textContent='Share…';
-    shareBtn.style.cssText='flex:1;background:var(--paper);color:var(--ink-mid);border:1.5px solid var(--border);border-radius:9px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;';
-    shareBtn.addEventListener('click',function(){navigator.share({url:card.dataset.inviteUrl}).catch(function(){});});
-    btnRow.appendChild(shareBtn);
-  }
-  card.appendChild(btnRow);
-  var statusDiv=document.createElement('div');
-  statusDiv.id='invite-status-'+cid;
-  statusDiv.style.cssText='font-size:12px;color:var(--ink-dim);';
-  statusDiv.textContent='Send this link to start chatting';
-  card.appendChild(statusDiv);
-  container.insertBefore(card,container.firstChild);
-  // Draw QR
-  function tryQR(){
-    if(window.QRCode){
-      try{new QRCode(qrWrap,{text:url,width:150,height:150,colorDark:'#1A1714',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}
-      catch(e){qrWrap.textContent=url;}
-    }else{
-      var fb=document.createElement('div');
-      fb.style.cssText='font-size:9px;padding:10px;word-break:break-all;text-align:center;color:var(--ink-dim);';
-      fb.textContent=url.replace(location.origin,'');
-      qrWrap.appendChild(fb);
-    }
-  }
-  if(window.QRCode)tryQR();else setTimeout(tryQR,900);
+  var msg={id:'inv-'+cid,from:'invite',convId:cid,inviteUrl:url,text:'Session created',timestamp:Date.now()};
+  state.messages.push(msg);
+  saveMsgs(cid,state.messages);
 }
+
+function injectInviteCard(cid){/* Now handled by addInviteMessage + renderInviteCard */}
 function copyTextToClipboard(text){
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(function(){toast('Link copied');});
   else{fallbackCopy(text);}
@@ -1550,12 +1537,12 @@ function openSession(cid){
   updatePartnerHeader(sess);
   updateAutoReadBtn();
   transportConnect(cid,PART_ID);
-  renderAllMessages();
-  // Re-inject invite card if partner hasn't joined yet
+  // Ensure invite message exists if partner hasn't joined
   if(!sess._partnerJoined){
     state.pendingInviteId=cid;
-    injectInviteCard(cid);
+    addInviteMessage(cid);
   }
+  renderAllMessages();
   scrollBottom();
   showScreen('chat-screen');
 }
@@ -1860,14 +1847,14 @@ function handleRelayEvent(d){
     markPeerSeen();
     upsertPartnerFromEnvelope(sess,d);
     addDiagLog('HELLO from '+(d.name||'?')+' lang='+(d.lang||'?'));
-    // Update invite card status (card stays as permanent record)
-    var statusEl=document.getElementById('invite-status-'+sess.convId);
-    if(statusEl){statusEl.textContent=(d.name||'Partner')+' connected \u2713 \u00b7 '+fmtDateTime(Date.now());statusEl.style.color='var(--green)';}
     updatePartnerHeader(sess);
+    renderSessionList();
     if(!sess._partnerJoined){
       sess._partnerJoined=true;putSession(sess);
       addSystemNote(sess.convId,(d.name||'Partner')+' joined \u00b7 '+fmtDateTime(Date.now()),Date.now());
-      renderSessionList();
+      // Resend any messages sent before partner joined
+      resendPreJoinMessages();
+      renderAllMessages();scrollBottom();
       toast((d.name||'Partner')+' joined!');
     }
     return;
@@ -2151,6 +2138,7 @@ function getBacktranslateContextFromMsg(msg){
 
 function renderMsg(msg){
   if(msg.from==='system'){addSysMsg(msg.text||'');return;}
+  if(msg.from==='invite'){renderInviteCard(msg);return;}
   var isMine=msg.from==='me';
   var sides=getSides(msg);
   var sess=getSession(state.activeConvId);
@@ -2294,14 +2282,14 @@ function resetBacktranslateState(id,ctx){
 }
 
 function rerunBubbleBacktranslate(id,ctx){
-  // Reset previous result + verdict every time (button tap or panel open)
   resetBacktranslateState(id,ctx||'chat');
   var src=getBacktranslateSource(id,ctx||'chat');if(!src)return;
   var txt=src.inputText;var from=src.fromLang;var to=src.toLang;
-  if(!txt||!from||!to){toast('No text to verify');return;}
   var tEl=document.getElementById('bbt-t-'+id);
-  if(tEl){tEl.textContent='Checking\u2026';tEl.style.fontStyle='normal';}
   var vEl=document.getElementById('bbt-v-'+id);
+  if(!txt){if(tEl)tEl.textContent='No text to verify';return;}
+  if(from===to){if(tEl)tEl.textContent='Same language \u2014 no back-translation needed';return;}
+  if(tEl){tEl.textContent='Checking\u2026';tEl.style.fontStyle='normal';}
   if(vEl)vEl.innerHTML='';
   translate(txt,from,to).then(function(back){
     if(ctx==='phrasebook'){
@@ -2572,6 +2560,57 @@ function removeMsgTag(id,tag){
 // Sys msg
 function addSysMsg(t){var c=document.getElementById('messages');if(!c)return;var d=document.createElement('div');d.className='sys-msg';d.textContent=t;c.appendChild(d);scrollBottom();}
 
+function renderInviteCard(msg){
+  var c=document.getElementById('messages');if(!c)return;
+  var url=msg.inviteUrl||'';
+  var card=document.createElement('div');
+  card.id='invite-card-'+msg.id;
+  card.style.cssText='background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:16px;margin:8px 0;display:flex;flex-direction:column;align-items:center;gap:10px;';
+  // Timestamp
+  var ts=document.createElement('div');
+  ts.style.cssText='font-size:10px;color:var(--ink-dim);';
+  ts.textContent='Session created \u00b7 '+fmtDateTime(msg.timestamp);
+  card.appendChild(ts);
+  // QR code
+  var qrWrap=document.createElement('div');
+  qrWrap.style.cssText='width:140px;height:140px;background:#fff;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;';
+  card.appendChild(qrWrap);
+  // Link
+  var linkDiv=document.createElement('div');
+  linkDiv.style.cssText='width:100%;background:var(--paper);border:1px solid var(--border);border-radius:8px;padding:6px 8px;word-break:break-all;font-size:10px;color:var(--teal);font-weight:600;';
+  linkDiv.textContent=url;
+  card.appendChild(linkDiv);
+  // Buttons
+  var btnRow=document.createElement('div');
+  btnRow.style.cssText='display:flex;gap:6px;width:100%;';
+  var copyBtn=document.createElement('button');
+  copyBtn.textContent='Copy';
+  copyBtn.style.cssText='flex:1;background:var(--teal);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;';
+  copyBtn.addEventListener('click',function(){copyTextToClipboard(url);});
+  btnRow.appendChild(copyBtn);
+  if(navigator.share){
+    var shareBtn=document.createElement('button');
+    shareBtn.textContent='Share';
+    shareBtn.style.cssText='flex:1;background:var(--paper);color:var(--ink-mid);border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;';
+    shareBtn.addEventListener('click',function(){navigator.share({url:url}).catch(function(){});});
+    btnRow.appendChild(shareBtn);
+  }
+  card.appendChild(btnRow);
+  // Status line
+  var statusDiv=document.createElement('div');
+  statusDiv.id='invite-status-'+msg.convId;
+  statusDiv.style.cssText='font-size:11px;color:var(--ink-dim);';
+  var sess=getSession(msg.convId||state.activeConvId);
+  statusDiv.textContent=(sess&&sess._partnerJoined)?((sess.partnerName||'Partner')+' connected \u2713'):'Send link to connect';
+  if(sess&&sess._partnerJoined)statusDiv.style.color='var(--green)';
+  card.appendChild(statusDiv);
+  c.appendChild(card);
+  // Draw QR
+  if(url&&window.QRCode){
+    try{new QRCode(qrWrap,{text:url,width:130,height:130,colorDark:'#1A1714',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}catch(e){}
+  }
+}
+
 // Composer
 function autoResize(){var el=document.getElementById('msg-input');if(!el)return;el.style.height='auto';el.style.height=Math.min(el.scrollHeight,110)+'px';}
 function updateSendBtn(){var el=document.getElementById('msg-input');var sb=document.getElementById('send-btn');if(sb)sb.disabled=!(el&&el.value.trim());}
@@ -2794,24 +2833,24 @@ function applyBubbleTheme(){
   var srcSize=p.bubbleFontSize||BUBBLE_DEFAULTS.bubbleFontSize;
   var tgtSize=p.targetBubbleFontSize||BUBBLE_DEFAULTS.targetBubbleFontSize;
   function hexLum(h){h=(h||'#888').replace('#','');var r=parseInt(h.slice(0,2),16)/255,g=parseInt(h.slice(2,4),16)/255,b=parseInt(h.slice(4,6),16)/255;return 0.2126*r+0.7152*g+0.0722*b;}
-  // Source (mine) bubble — direct from prefs
+  // Source (mine) bubble
   var mineBg=p.srcBgColor||'#2E8B8B';
-  var mineTextRaw=p.srcTextColor||(hexLum(mineBg)>0.45?'#1A1714':'#ffffff');
-  var mineTextLum=hexLum(mineTextRaw);
-  var mineText=(Math.abs(mineLum-mineTextLum)<0.3)?(mineLum>0.45?'#1A1714':'#ffffff'):mineTextRaw;
   var mineLum=hexLum(mineBg);
+  // Always compute readable text from background luminance — ignore stale prefs if contrast is bad
+  var mineTextAuto=mineLum>0.45?'#1A1714':'#ffffff';
+  var mineTextPref=p.srcTextColor||mineTextAuto;
+  var mineText=(Math.abs(mineLum-hexLum(mineTextPref))<0.25)?mineTextAuto:mineTextPref;
   var mineTextDim=mineLum>0.45?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)';
   var mineTextFaint=mineLum>0.45?'rgba(0,0,0,.4)':'rgba(255,255,255,.5)';
   var mineBorder=mineLum>0.45?'rgba(0,0,0,.12)':'rgba(255,255,255,.2)';
   var mineHover=mineLum>0.45?'rgba(0,0,0,.08)':'rgba(255,255,255,.14)';
   var mineUseBg=mineLum>0.45?'rgba(0,0,0,.1)':'rgba(255,255,255,.22)';
-  // Target (theirs) bubble — direct from prefs
+  // Target (theirs) bubble
   var theirsBg=p.tgtBgColor||'#F5F1EC';
-  var theirsTextRaw=p.targetAccentColor||(hexLum(theirsBg)>0.45?'#1A1714':'#ffffff');
-  // Validate contrast — if text and bg are both light or both dark, auto-correct
-  var theirsTextLum=hexLum(theirsTextRaw);
-  var theirsText=(Math.abs(theirsLum-theirsTextLum)<0.3)?(theirsLum>0.45?'#1A1714':'#ffffff'):theirsTextRaw;
   var theirsLum=hexLum(theirsBg);
+  var theirsTextAuto=theirsLum>0.45?'#1A1714':'#ffffff';
+  var theirsTextPref=p.targetAccentColor||theirsTextAuto;
+  var theirsText=(Math.abs(theirsLum-hexLum(theirsTextPref))<0.25)?theirsTextAuto:theirsTextPref;
   var txtLum=hexLum(theirsText);
   var theirsTextDim=txtLum>0.45?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)';
   var theirsTextFaint=txtLum>0.45?'rgba(0,0,0,.4)':'rgba(255,255,255,.5)';
