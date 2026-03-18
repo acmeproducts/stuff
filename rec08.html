@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Talk + Say v3.3 · Build 2026-03-17T04:30:00Z -->
+<!-- Talk + Say v3.3 · Build 2026-03-17T08:00:00Z -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1038,7 +1038,7 @@ function updateSessionNames(sess,nextMe,nextThem,changedBy){
   names.meAlias=me;names.themAlias=them;names.version+=1;
   sess.myName=me;sess.partnerName=them;
   putSession(sess);
-  addSystemNote(sess.convId,actor+' changed names to '+me+'/'+them);
+  addSystemNote(sess.convId,actor+' changed names to '+me+'/'+them+' \u00b7 '+fmtDateTime(Date.now()));
   return true;
 }
 
@@ -1408,13 +1408,26 @@ function saveLocalName(el){
   toast('Name saved');
 }
 
+function ensureUserName(callback){
+  var p=getPrefs();
+  if(!isPlaceholderName(p.userName)){callback(p.userName);return;}
+  var name=prompt('Enter your name:');
+  if(!name||!name.trim()){toast('Name required');return;}
+  name=name.trim();
+  p.userName=name;savePrefs(p);
+  var nameEl=document.getElementById('left-local-name');
+  if(nameEl)nameEl.textContent=name;
+  callback(name);
+}
 function createNewSession(silent){
-  var cid=uid();var p=getPrefs();
-  var sess={convId:cid,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.myLang||'en',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),status:'active'};
-  putSession(sess);
-  var order=getSessionOrder();order.unshift(cid);saveSessionOrder(normalizeSessionOrder(order));
-  closeLeftPanel();
-  openInviteScreen(cid);
+  ensureUserName(function(name){
+    var cid=uid();var p=getPrefs();
+    var sess={convId:cid,partId:PART_ID,title:'new chat',myName:name,partnerName:'',names:{meAlias:name,themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.myLang||'en',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),status:'active'};
+    putSession(sess);
+    var order=getSessionOrder();order.unshift(cid);saveSessionOrder(normalizeSessionOrder(order));
+    closeLeftPanel();
+    openInviteScreen(cid);
+  });
 }
 
 function openInviteScreen(cid){
@@ -1445,15 +1458,15 @@ function openInviteScreen(cid){
 function injectInviteCard(cid){
   var url=location.href.split('?')[0]+'?j='+encodeURIComponent(cid);
   var container=document.getElementById('messages');if(!container)return;
-  var old=document.getElementById('invite-card-'+cid);if(old)old.remove();
+  // Don't re-inject if already exists
+  if(document.getElementById('invite-card-'+cid))return;
   var card=document.createElement('div');
   card.id='invite-card-'+cid;
   card.style.cssText='background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:16px;margin:8px 0;display:flex;flex-direction:column;align-items:center;gap:12px;';
   card.dataset.inviteUrl=url;
-  // Build inner DOM safely
   var label=document.createElement('div');
   label.style.cssText='font-size:11px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.4px;';
-  label.textContent='Share link to connect';
+  label.textContent='Session created \u00b7 '+fmtDateTime(Date.now());
   card.appendChild(label);
   var qrWrap=document.createElement('div');
   qrWrap.id='invite-card-qr-'+cid;
@@ -1847,16 +1860,13 @@ function handleRelayEvent(d){
     markPeerSeen();
     upsertPartnerFromEnvelope(sess,d);
     addDiagLog('HELLO from '+(d.name||'?')+' lang='+(d.lang||'?'));
-    // Remove invite card if still showing — partner has joined
-    var ic=document.getElementById('invite-card-'+sess.convId);if(ic)ic.remove();
-    updatePartnerHeader(sess);
-    // Update invite status label if still visible
+    // Update invite card status (card stays as permanent record)
     var statusEl=document.getElementById('invite-status-'+sess.convId);
-    if(statusEl){statusEl.textContent=(d.name||'Partner')+' connected \u2713';statusEl.style.color='var(--green)';}
-    // Notify on first join (only once per session)
+    if(statusEl){statusEl.textContent=(d.name||'Partner')+' connected \u2713 \u00b7 '+fmtDateTime(Date.now());statusEl.style.color='var(--green)';}
+    updatePartnerHeader(sess);
     if(!sess._partnerJoined){
       sess._partnerJoined=true;putSession(sess);
-      addSystemNote(sess.convId,(d.name||'Partner')+' joined',Date.now());
+      addSystemNote(sess.convId,(d.name||'Partner')+' joined \u00b7 '+fmtDateTime(Date.now()),Date.now());
       renderSessionList();
       toast((d.name||'Partner')+' joined!');
     }
@@ -1908,13 +1918,12 @@ function handleRelayEvent(d){
 
     upsertPartnerFromEnvelope(sess,d);
     updatePartnerHeader(sess);
-    // Mark partner as joined and remove invite card
     if(!sess._partnerJoined){
       sess._partnerJoined=true;putSession(sess);
+      addSystemNote(sess.convId,(d.name||'Partner')+' joined \u00b7 '+fmtDateTime(Date.now()),Date.now());
     }
     if(state.pendingInviteId===sess.convId){
       state.pendingInviteId=null;
-      var ic2=document.getElementById('invite-card-'+sess.convId);if(ic2)ic2.remove();
     }
     var msg=normalizeMsgSchema({id:d.id,from:'them',sourceText:srcTxt,sourceLang:srcLang,targetLang:myLang,targetText:d.targetText||'',orig:srcTxt,text:null,lang:srcLang,status:'received',timestamp:d.timestamp||Date.now(),clarify:{status:'none',text:'',thread:[]},translations:{}},{sourceLang:srcLang,targetLang:myLang});
     // Use wire name for display, not stale session name
@@ -2787,7 +2796,9 @@ function applyBubbleTheme(){
   function hexLum(h){h=(h||'#888').replace('#','');var r=parseInt(h.slice(0,2),16)/255,g=parseInt(h.slice(2,4),16)/255,b=parseInt(h.slice(4,6),16)/255;return 0.2126*r+0.7152*g+0.0722*b;}
   // Source (mine) bubble — direct from prefs
   var mineBg=p.srcBgColor||'#2E8B8B';
-  var mineText=p.srcTextColor||(hexLum(mineBg)>0.45?'#1A1714':'#ffffff');
+  var mineTextRaw=p.srcTextColor||(hexLum(mineBg)>0.45?'#1A1714':'#ffffff');
+  var mineTextLum=hexLum(mineTextRaw);
+  var mineText=(Math.abs(mineLum-mineTextLum)<0.3)?(mineLum>0.45?'#1A1714':'#ffffff'):mineTextRaw;
   var mineLum=hexLum(mineBg);
   var mineTextDim=mineLum>0.45?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)';
   var mineTextFaint=mineLum>0.45?'rgba(0,0,0,.4)':'rgba(255,255,255,.5)';
@@ -2796,7 +2807,10 @@ function applyBubbleTheme(){
   var mineUseBg=mineLum>0.45?'rgba(0,0,0,.1)':'rgba(255,255,255,.22)';
   // Target (theirs) bubble — direct from prefs
   var theirsBg=p.tgtBgColor||'#F5F1EC';
-  var theirsText=p.targetAccentColor||(hexLum(theirsBg)>0.45?'#1A1714':'#ffffff');
+  var theirsTextRaw=p.targetAccentColor||(hexLum(theirsBg)>0.45?'#1A1714':'#ffffff');
+  // Validate contrast — if text and bg are both light or both dark, auto-correct
+  var theirsTextLum=hexLum(theirsTextRaw);
+  var theirsText=(Math.abs(theirsLum-theirsTextLum)<0.3)?(theirsLum>0.45?'#1A1714':'#ffffff'):theirsTextRaw;
   var theirsLum=hexLum(theirsBg);
   var txtLum=hexLum(theirsText);
   var theirsTextDim=txtLum>0.45?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)';
@@ -3170,17 +3184,21 @@ document.addEventListener('DOMContentLoaded',function(){
   var invite=parseInviteFromSearch(up);
   if(invite){
     history.replaceState({},'',location.pathname);
+    // Prompt for name if not set
+    if(isPlaceholderName(p.userName)){
+      var rname=prompt('Enter your name:');
+      if(rname&&rname.trim()){p.userName=rname.trim();savePrefs(p);var nameEl=document.getElementById('left-local-name');if(nameEl)nameEl.textContent=p.userName;}
+    }
     var sess=getSession(invite.sessionId);
     if(!sess){
       sess={convId:invite.sessionId,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.myLang||'en',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),status:'active'};
       putSession(sess);
       var order=getSessionOrder();order.unshift(invite.sessionId);saveSessionOrder(normalizeSessionOrder(order));
     }else{
-      // If we're the responder joining, mark active
       sess.status='active';putSession(sess);
     }
     hydrateSessionFromInvite(sess,invite);
-    sess._partnerJoined=true; // Responder IS the partner — no invite card needed
+    sess._partnerJoined=true;
     putSession(sess);
     openSession(invite.sessionId);
     return;
