@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Talk + Say v3.3 · Build 2026-03-17T11:30:00Z -->
+<!-- Talk + Say v3.3 · Build 2026-03-17T13:00:00Z -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1289,12 +1289,26 @@ function queueOutEvent(ev){
 }
 
 function trackReliableOutbound(m){if(!m||!m.id)return;if(m.type==='msg')pendingMsgAcks[m.id]=m;if(m.type==='tr')pendingTrAcks[m.id]=m;}
-function clearReliableAck(kind,id){if(kind==='msg')delete pendingMsgAcks[id];if(kind==='tr')delete pendingTrAcks[id];}
+function clearReliableAck(kind,id){if(kind==='msg')delete pendingMsgAcks[id];if(kind==='tr')delete pendingTrAcks[id];if(ackTimers[id]){clearTimeout(ackTimers[id]);delete ackTimers[id];}}
+
+var ACK_TIMEOUT_MS=3000;
+var ackTimers={};
 
 function sendReliable(ev){
   var ok=transportSend(ev);
   if(ok)trackReliableOutbound(Object.assign({},ev,{session:connectedConvId,from:DEVICE_ID,participant:PART_ID}));
   else if(outQ.length)trackReliableOutbound(outQ[outQ.length-1]);
+  // Start ACK timeout — if no ACK in 3s, socket is probably dead
+  if(ok&&ev.id&&(ev.type==='msg'||ev.type==='tr')){
+    if(ackTimers[ev.id])clearTimeout(ackTimers[ev.id]);
+    ackTimers[ev.id]=setTimeout(function(){
+      delete ackTimers[ev.id];
+      // Check if we got the ACK already
+      if(!pendingMsgAcks[ev.id]&&!pendingTrAcks[ev.id])return;
+      addDiagLog('ACK timeout id='+String(ev.id).slice(0,8)+' — forcing reconnect','warn');
+      forceReconnect();
+    },ACK_TIMEOUT_MS);
+  }
   return ok;
 }
 
@@ -1831,16 +1845,13 @@ function upsertPartnerFromEnvelope(sess,d){
 
 function handleRelayEvent(d){
   if(!d||!d.type)return;
-  // Log all inbound events
   addDiagLog('RX type='+d.type+(d.id?' id='+String(d.id||'').slice(0,8):'')+(d.from?' from='+String(d.from||'').slice(0,8):'')+(d.name?' name='+d.name:''));
-  var sess=getSession(state.activeConvId);
-  if(!sess){
-    // Might be arriving for a session we haven't opened yet
-    if(d.session){sess=getSession(d.session);}
-    if(!sess){addDiagLog('RX ignored: no active session','warn');return;}
-  }
-  if(d.session&&d.session!==state.activeConvId&&d.session!==sess.convId){addDiagLog('RX ignored: session mismatch '+d.session.slice(0,8),'warn');return;}
-  if(d.from===DEVICE_ID){addDiagLog('RX ignored: loopback');return;}
+  // Skip own messages
+  if(d.from===DEVICE_ID){return;}
+  // Find session: prefer d.session (set by relay), fall back to activeConvId
+  var sessId=d.session||state.activeConvId;
+  var sess=sessId?getSession(sessId):null;
+  if(!sess){addDiagLog('RX ignored: no session for '+String(sessId||'').slice(0,8),'warn');return;}
 
   // ACK for durable events only
   if((d.type==='msg'||d.type==='tr')&&d.id)transportSend({type:'ack',ackType:d.type,id:d.id,timestamp:Date.now()});
@@ -3225,7 +3236,10 @@ document.addEventListener('DOMContentLoaded',function(){
       sess.status='active';putSession(sess);
     }
     hydrateSessionFromInvite(sess,invite);
-    sess._partnerJoined=true;
+    // Responder gets invite card too — don't set _partnerJoined before openSession
+    state.activeConvId=invite.sessionId;
+    state.messages=getMsgs(invite.sessionId);
+    addInviteMessage(invite.sessionId);
     putSession(sess);
     openSession(invite.sessionId);
     return;
