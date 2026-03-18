@@ -1,0 +1,756 @@
+<!-- [Financial Discipline App]-[v9.0]-2026-03-17 10:36 PM -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Financial Discipline</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+    :root {
+        --primary: #007aff;
+        --bg: #f2f2f7; 
+        --card: #ffffff; 
+        --border: #d1d1d6;
+        --text: #000000; 
+        --muted: #8e8e93; 
+        --red: #ff3b30;
+        --red-light: #ffeceb;
+        --green: #34c759;
+        --yellow: #ffcc00;
+        --font: 'Inter', -apple-system, sans-serif;
+        --mono: 'JetBrains Mono', monospace;
+        --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    /* Header & Navigation */
+    header { background: var(--card); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 0.5px solid var(--border); flex-shrink: 0; }
+    header h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+    .icon-btn { cursor: pointer; font-size: 1.5rem; padding: 6px; border-radius: 8px; transition: background 0.2s; line-height: 1; }
+    .icon-btn:hover { background: var(--bg); }
+
+    .tabs { display: flex; background: var(--card); flex-shrink: 0; overflow-x: auto; border-bottom: 0.5px solid var(--border); }
+    .tab { flex: 1; padding: 14px 16px; text-align: center; font-weight: 600; cursor: pointer; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap; min-width: 120px; font-size: 0.9rem; }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    main { flex: 1; overflow-y: auto; padding: 16px; padding-bottom: 80px; -webkit-overflow-scrolling: touch; }
+    .tab-content { display: none; animation: fadeIn 0.2s ease; max-width: 900px; margin: 0 auto; }
+    .tab-content.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .card { background: var(--card); border-radius: var(--radius); border: 0.5px solid var(--border); box-shadow: 0 1px 2px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 16px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 0.5px solid var(--border); padding-bottom: 10px; }
+    .card-header h2 { font-size: 1.1rem; font-weight: 700; }
+
+    /* Inputs */
+    .form-group { margin-bottom: 16px; }
+    .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+    .label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; display: block; }
+    
+    .input-wrap { position: relative; display: flex; align-items: center; border: 0.5px solid var(--border); border-radius: 8px; background: #fff; overflow: hidden; height: 44px; transition: border-color 0.2s; }
+    .input-wrap:focus-within { border-color: var(--primary); }
+    .pfx { font-size: 14px; font-weight: 600; color: var(--muted); margin-left: 12px; position: absolute; pointer-events: none; }
+    .sfx { font-size: 14px; font-weight: 600; color: var(--muted); margin-right: 12px; position: absolute; right: 0; pointer-events: none; }
+    
+    input, select, textarea { width: 100%; border: none; background: transparent; font-size: 15px; font-weight: 600; color: var(--text); outline: none; padding: 0 12px; }
+    input.mono { font-family: var(--mono); }
+    input.has-pfx { padding-left: 28px; }
+    input.has-sfx { padding-right: 28px; }
+    textarea { padding: 12px; resize: vertical; font-family: var(--font); }
+    select { appearance: none; cursor: pointer; }
+
+    .btn { padding: 12px 16px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; font-size: 0.95rem; text-align: center; width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px; transition: opacity 0.2s; }
+    .btn:active { opacity: 0.8; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-secondary { background: var(--bg); color: var(--text); border: 0.5px solid var(--border); }
+    .btn-danger { background: var(--red-light); color: var(--red); border: 0.5px solid var(--red); }
+
+    /* Badges & Tags (OmniSearch Style) */
+    .badge { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; font-family: var(--mono); }
+    .badge-pre { background: #f5f3ff; color: #6d28d9; border: 0.5px solid #ddd6fe; }
+    .badge-post { background: #f0fdf4; color: #15803d; border: 0.5px solid #bbf7d0; }
+    
+    .tag-pill { background: #eee8ff; color: #6b4fbb; border-radius: 8px; padding: 4px 10px; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; margin: 4px 4px 0 0; cursor: pointer; border: 1px solid transparent; }
+    .tag-pill.selectable { background: #fff; border-color: var(--border); color: var(--text); }
+    .tag-pill.selectable:hover { border-color: var(--primary); color: var(--primary); }
+    .tag-rm { font-size: 0.9rem; opacity: 0.6; line-height: 1; }
+    .tag-pill:hover .tag-rm { opacity: 1; color: var(--red); }
+
+    /* Charts & Visuals */
+    .chart-wrapper { position: relative; height: 350px; width: 100%; }
+    .treemap-container { display: flex; flex-wrap: wrap; width: 100%; height: 350px; gap: 4px; align-content: flex-start; }
+    .treemap-node { display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; cursor: pointer; text-align: center; padding: 8px; overflow: hidden; border-radius: 6px; border: 0.5px solid rgba(0,0,0,0.1); transition: opacity 0.2s; }
+    .treemap-node:hover { opacity: 0.85; }
+    .tm-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 2px; }
+    .tm-val { font-family: var(--mono); font-size: 0.85rem; font-weight: 600; }
+    .tm-pct { font-size: 0.75rem; opacity: 0.9; margin-top: 2px; font-family: var(--mono); }
+
+    /* Action Lists */
+    .action-list { max-height: 250px; overflow-y: auto; margin-top: 10px; }
+    .action-item { padding: 12px; border-left: 4px solid var(--border); background: var(--bg); margin-bottom: 8px; border-radius: 0 8px 8px 0; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    .action-item.underperform { border-left-color: var(--red); }
+    .action-item.exitreached { border-left-color: var(--primary); }
+
+    /* Modals & Drill-down */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 100; justify-content: center; align-items: center; padding: 16px; }
+    .modal { background: var(--card); width: 100%; max-width: 750px; border-radius: 16px; padding: 24px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+    
+    .status-block { padding: 14px; border-radius: 8px; text-align: center; margin-bottom: 16px; font-weight: 700; font-family: var(--mono); font-size: 0.95rem; }
+    .status-red { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .status-yellow { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .status-blue { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+    
+    /* Compound Interest Style Reporting Table */
+    .table-scroll { height: 250px; overflow-y: auto; -webkit-overflow-scrolling: touch; position: relative; border: 0.5px solid var(--border); border-radius: 8px; margin-bottom: 24px; background: #fff; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th { position: sticky; top: 0; background: #f9f9f9; padding: 10px; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; border-bottom: 0.5px solid var(--border); text-align: right; z-index: 10; }
+    th:first-child { text-align: left; width: 40px; padding-left: 12px; }
+    th:nth-child(2) { text-align: left; width: 100px; }
+    
+    td { padding: 10px; border-bottom: 0.5px solid #efeff4; font-size: 13px; font-weight: 600; text-align: right; font-family: var(--mono); white-space: nowrap; }
+    td:first-child { text-align: left; color: var(--muted); padding-left: 12px; }
+    td:nth-child(2) { text-align: left; font-family: var(--font); color: var(--muted); font-size: 12px; font-weight: 500; }
+    tbody tr:last-child td { position: sticky; bottom: 0; background: #fff; z-index: 5; box-shadow: 0 -1px 0 var(--border); border-bottom: none; color: var(--text); }
+
+    /* Clarify Logs */
+    .cl-note { background: #fcfcfc; border: 0.5px solid #e2ddd8; border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+    .cl-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .cl-author { font-size: 11px; font-weight: 700; color: var(--muted); font-family: var(--mono); }
+    .cl-time { font-size: 12px; font-weight: 700; color: var(--primary); }
+    .cl-text { font-size: 14px; line-height: 1.5; color: #1a1714; }
+
+    footer { background: var(--card); padding: 12px; text-align: center; border-top: 0.5px solid var(--border); position: fixed; bottom: 0; width: 100%; z-index: 50; }
+    #master-footer { font-size: 10px; color: var(--muted); font-family: var(--mono); font-weight: 600; }
+</style>
+</head>
+<body>
+
+    <header>
+        <h1>Financial Discipline</h1>
+        <div class="icon-btn" onclick="openModal('settings-modal')" title="Settings">⚙️</div>
+    </header>
+
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('dashboard')">Dashboard</div>
+        <div class="tab" onclick="switchTab('explore')">Explore Data</div>
+        <div class="tab" onclick="switchTab('plan')">Manage Plan</div>
+        <div class="tab" onclick="switchTab('actuals')">Update Values</div>
+    </div>
+
+    <main>
+        <!-- Tab 1: Dashboard -->
+        <div id="tab-dashboard" class="tab-content active">
+            <div class="card">
+                <div class="card-header"><h2>Variance from Plan ($)</h2></div>
+                <div class="chart-wrapper">
+                    <canvas id="varianceChart"></canvas>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="card" style="margin-bottom:0;">
+                    <div class="card-header"><h2 style="color:var(--red);">Mandatory Actions</h2></div>
+                    <div class="action-list" id="list-mandatory"></div>
+                </div>
+                <div class="card" style="margin-bottom:0;">
+                    <div class="card-header"><h2 style="color:var(--primary);">Suggested Actions</h2></div>
+                    <div class="action-list" id="list-suggested"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Explore Data -->
+        <div id="tab-explore" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Visual Analytics</h2>
+                    <div class="icon-btn" onclick="openModal('vis-settings-modal')">⚙️</div>
+                </div>
+                <div class="form-group">
+                    <span class="label">Chart Type (NO PIE/DONUT)</span>
+                    <div class="input-wrap">
+                        <select id="vis-type-select" onchange="renderVisualizations()">
+                            <option value="treemap">Capital Allocation (Treemap)</option>
+                            <option value="bar">Expected vs Actual (Bar)</option>
+                            <option value="line">Historical Trend (Line)</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="vis-treemap" class="treemap-container" style="display:none;"></div>
+                <div id="vis-canvas-container" class="chart-wrapper" style="display:none;">
+                    <canvas id="exploreChart"></canvas>
+                </div>
+                <p style="font-size: 11px; color: var(--muted); margin-top: 12px; text-align: center;">Tap any visual element to open Standard Reporting.</p>
+            </div>
+        </div>
+
+        <!-- Tab 3: Manage Plan (3-Tier Hierarchy) -->
+        <div id="tab-plan" class="tab-content">
+            
+            <div class="card">
+                <div class="card-header"><h2>1. Create Book of Business</h2></div>
+                <div class="form-group">
+                    <span class="label">Book Name</span>
+                    <div class="input-wrap"><input type="text" id="book-name" placeholder="e.g. Bob's Wealth Portfolio"></div>
+                </div>
+                <button class="btn btn-secondary" onclick="saveBook()">Save Book</button>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><h2>2. Create Portfolio</h2></div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <span class="label">Select Book of Business</span>
+                        <div class="input-wrap"><select id="port-book-id"></select></div>
+                    </div>
+                    <div class="form-group">
+                        <span class="label">Portfolio Name</span>
+                        <div class="input-wrap"><input type="text" id="port-name" placeholder="e.g. Retirement"></div>
+                    </div>
+                    <div class="form-group">
+                        <span class="label">Tax Status</span>
+                        <div class="input-wrap">
+                            <select id="port-tax">
+                                <option value="Pre-Tax">Pre-Tax (IRA, 401k)</option>
+                                <option value="Post-Tax">Post-Tax (Brokerage, Roth)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="savePortfolio()">Save Portfolio</button>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><h2>3. Planning Sandbox</h2></div>
+                <div class="form-group">
+                    <span class="label">Investment Name</span>
+                    <div class="input-wrap"><input type="text" id="plan-name" placeholder="e.g. Core S&P 500"></div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <span class="label">Initial Capital ($)</span>
+                        <div class="input-wrap"><span class="pfx">$</span><input type="number" id="plan-init" class="mono has-pfx" oninput="calcPlan('init')"></div>
+                    </div>
+                    <div class="form-group">
+                        <span class="label">Duration (Months)</span>
+                        <div class="input-wrap"><input type="number" id="plan-duration" class="mono" placeholder="e.g. 24"></div>
+                    </div>
+                </div>
+
+                <div style="background: var(--bg); padding: 16px; border-radius: 12px; margin-bottom: 16px; border: 0.5px solid var(--border);">
+                    <p style="font-size:11px; color:var(--muted); margin-bottom:12px; font-weight:700;">3-WAY CALCULATOR: Fill ANY ONE target below.</p>
+                    <div class="form-row">
+                        <div class="form-group" style="margin:0;">
+                            <span class="label">Target Gain (%)</span>
+                            <div class="input-wrap"><input type="number" id="plan-pct" class="mono has-sfx" step="0.1" oninput="calcPlan('pct')"><span class="sfx">%</span></div>
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <span class="label">Target Profit ($)</span>
+                            <div class="input-wrap"><span class="pfx">$</span><input type="number" id="plan-profit" class="mono has-pfx" oninput="calcPlan('profit')"></div>
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <span class="label">Target End Value ($)</span>
+                            <div class="input-wrap"><span class="pfx">$</span><input type="number" id="plan-end" class="mono has-pfx" oninput="calcPlan('end')"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <span class="label">OmniSearch Tags</span>
+                    <div id="plan-tags-display" style="display:flex; flex-wrap:wrap; margin-bottom:8px; min-height:30px;"></div>
+                    <button class="btn btn-secondary" style="padding: 8px;" onclick="openOmniSearch()">🔍 Search / Add Tags</button>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <span class="label">Alert Threshold (% Below Plan)</span>
+                        <div class="input-wrap"><input type="number" id="plan-entry" class="mono has-sfx" step="0.1" value="2.0"><span class="sfx">%</span></div>
+                    </div>
+                    <div class="form-group">
+                        <span class="label">Exit Strategy</span>
+                        <div class="input-wrap">
+                            <select id="plan-exit">
+                                <option value="Harvest Profit">Harvest Profit</option>
+                                <option value="Liquidate Principal">Liquidate Principal</option>
+                                <option value="Reinvest for Compounding">Reinvest for Compounding</option>
+                                <option value="Buy and Hold">Buy and Hold</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <span class="label">Assign to Portfolio</span>
+                    <div class="input-wrap"><select id="plan-port-id"></select></div>
+                </div>
+                <button class="btn btn-primary" onclick="commitPlan()">Commit Investment to Plan</button>
+            </div>
+        </div>
+
+        <!-- Tab 4: Update Values -->
+        <div id="tab-actuals" class="tab-content">
+            <div class="card">
+                <div class="card-header"><h2>Log Actuals (Clarify)</h2></div>
+                <div class="form-group">
+                    <span class="label">Select Investment</span>
+                    <div class="input-wrap"><select id="log-chunk-id"></select></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <span class="label">As Of Date</span>
+                        <div class="input-wrap"><input type="date" id="log-date" class="mono"></div>
+                    </div>
+                    <div class="form-group">
+                        <span class="label">Current Value ($)</span>
+                        <div class="input-wrap"><span class="pfx">$</span><input type="number" id="log-val" class="mono has-pfx" step="0.01"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <span class="label">Clarify Note / Rationale</span>
+                    <div class="input-wrap" style="height:auto;"><textarea id="log-note" rows="3" placeholder="Log reasoning or market context..."></textarea></div>
+                </div>
+                <button class="btn btn-primary" onclick="saveActual()">Save Log Entry</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- OmniSearch Tag Modal -->
+    <div class="modal-overlay" id="omni-modal" onclick="if(event.target===this)closeModal('omni-modal')">
+        <div class="modal" style="max-width: 400px; margin-top: -10vh;">
+            <div class="card-header"><h2>OmniSearch Tags</h2><div class="icon-btn" onclick="closeModal('omni-modal')">×</div></div>
+            <div class="input-wrap" style="margin-bottom: 16px;">
+                <input type="text" id="omni-search" placeholder="Search or create tag..." oninput="renderOmniList()">
+            </div>
+            <div id="omni-list" style="display: flex; flex-wrap: wrap; margin-bottom: 24px;"></div>
+            <button class="btn btn-primary" onclick="closeModal('omni-modal')">Done</button>
+        </div>
+    </div>
+
+    <!-- Drill Down Modal (Standard Reporting) -->
+    <div class="modal-overlay" id="drill-modal" onclick="if(event.target===this)closeModal('drill-modal')">
+        <div class="modal">
+            <div class="card-header" style="border:none; padding:0; margin-bottom:12px;">
+                <h2 id="dm-title" style="font-size: 1.4rem;">Investment Details</h2>
+                <div class="icon-btn" onclick="closeModal('drill-modal')">×</div>
+            </div>
+            
+            <div id="dm-hierarchy" style="font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; margin-bottom: 16px;"></div>
+            
+            <div id="dm-status" class="status-block"></div>
+            <div id="dm-badges" style="margin-bottom: 24px;"></div>
+
+            <h3 style="font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 8px;">Standard Tabular Report</h3>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr><th>#</th><th>Date</th><th>Plan ($)</th><th>Actual ($)</th><th>Delta ($)</th><th>Gain (%)</th></tr>
+                    </thead>
+                    <tbody id="dm-table-body"></tbody>
+                </table>
+            </div>
+
+            <h3 style="font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; margin-top: 16px;">Clarify Logs</h3>
+            <div id="dm-notes" style="max-height: 250px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <!-- System Settings Modal -->
+    <div class="modal-overlay" id="settings-modal" onclick="if(event.target===this)closeModal('settings-modal')">
+        <div class="modal" style="max-width: 350px;">
+            <div class="card-header"><h2>System Settings</h2><div class="icon-btn" onclick="closeModal('settings-modal')">×</div></div>
+            
+            <span class="label">Data Management</span>
+            <button class="btn btn-secondary" style="margin-bottom:8px;" onclick="exportData('data')">Export Data (JSON)</button>
+            <button class="btn btn-secondary" style="margin-bottom:24px;" onclick="importData('data')">Import Data (JSON)</button>
+            
+            <span class="label">Settings Management</span>
+            <button class="btn btn-secondary" style="margin-bottom:8px;" onclick="exportData('settings')">Export Settings (JSON)</button>
+            <button class="btn btn-secondary" style="margin-bottom:24px;" onclick="importData('settings')">Import Settings (JSON)</button>
+            
+            <button class="btn btn-danger" onclick="factoryReset()">Factory Reset</button>
+        </div>
+    </div>
+
+    <!-- Visualization Settings Modal -->
+    <div class="modal-overlay" id="vis-settings-modal" onclick="if(event.target===this)closeModal('vis-settings-modal')">
+        <div class="modal" style="max-width: 350px;">
+            <div class="card-header"><h2>Visual Settings</h2><div class="icon-btn" onclick="closeModal('vis-settings-modal')">×</div></div>
+            <div class="form-group">
+                <span class="label">Color Theme</span>
+                <div class="input-wrap">
+                    <select id="set-theme" onchange="updateSettings()">
+                        <option value="blue">Blue/Indigo (Default)</option>
+                        <option value="teal">Teal/Emerald</option>
+                        <option value="orange">Orange/Amber</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="closeModal('vis-settings-modal')">Apply</button>
+        </div>
+    </div>
+
+    <input type="file" id="file-import" accept=".json" style="display:none;" onchange="handleFileImport(event)">
+
+    <footer>
+        <div id="master-footer"><!-- [Financial Discipline App]-[v9.0]-2026-03-17 10:36 PM --></div>
+    </footer>
+
+    <script>
+        const STORE_DATA = 'fin_disc_data_v9';
+        const STORE_SET = 'fin_disc_set_v9';
+        const NOW = new Date('2026-03-17T22:36:00');
+
+        let appData = { books: [], portfolios: [], chunks: [], actuals: [], tags: ['Retirement', 'Liquid', 'High Risk', 'Real Estate'] };
+        let appSettings = { theme: 'blue', importMode: '' };
+        let currentPlanTags = [];
+        
+        let chartVar = null;
+        let chartExp = null;
+
+        // --- Init & Data Seeding ---
+        function initApp() {
+            try { appData = JSON.parse(localStorage.getItem(STORE_DATA)) || loadDefaultData(); } catch(e) { appData = loadDefaultData(); }
+            try { appSettings = JSON.parse(localStorage.getItem(STORE_SET)) || {theme: 'blue'}; } catch(e) {}
+            
+            document.getElementById('log-date').value = NOW.toISOString().split('T')[0];
+            document.getElementById('set-theme').value = appSettings.theme;
+            
+            applyTheme();
+            refreshAll();
+        }
+
+        // Populating the Book of Business with test data meeting all criteria
+        function loadDefaultData() {
+            return {
+                books: [{ id: 'b1', name: "Bob's Wealth Portfolio" }],
+                portfolios: [
+                    { id: 'p1', bookId: 'b1', name: 'Retirement (Traditional IRA)', taxStatus: 'Pre-Tax' },
+                    { id: 'p2', bookId: 'b1', name: 'Liquid Brokerage', taxStatus: 'Post-Tax' }
+                ],
+                chunks: [
+                    { id: 'c1', portfolioId: 'p1', name: 'Core S&P 500', capital: 10000, duration: 36, targetPct: 10, entryPct: 2, exitStrategy: 'Buy and Hold', tags: ['Retirement', 'Liquid'], startDate: '2025-01-01' },
+                    { id: 'c2', portfolioId: 'p1', name: 'Value Dividend Fund', capital: 20000, duration: 24, targetPct: 5, entryPct: 2, exitStrategy: 'Reinvest for Compounding', tags: ['Retirement'], startDate: '2025-01-01' },
+                    { id: 'c3', portfolioId: 'p2', name: 'Tech Growth Sleeves', capital: 15000, duration: 18, targetPct: 20, entryPct: 5, exitStrategy: 'Harvest Profit', tags: ['High Risk'], startDate: '2025-01-01' },
+                    { id: 'c4', portfolioId: 'p2', name: 'Municipal Bonds', capital: 5000, duration: 12, targetPct: 3, entryPct: 1, exitStrategy: 'Buy and Hold', tags: ['Liquid'], startDate: '2025-06-01' },
+                    { id: 'c5', portfolioId: 'p2', name: 'Crypto Speculative', capital: 8000, duration: 24, targetPct: 100, entryPct: 10, exitStrategy: 'Liquidate Principal', tags: ['High Risk'], startDate: '2025-06-01' }
+                ],
+                actuals: [
+                    // C1: On Track (~14 mos expected 10.4k, logged 10.5k)
+                    { id: 'a1', chunkId: 'c1', date: '2026-03-17', value: 10500, note: 'Steady core growth.' },
+                    // C2: Underperforming (~14 mos expected 20.6k, logged 19.5k)
+                    { id: 'a2', chunkId: 'c2', date: '2026-03-17', value: 19500, note: 'Dividends slashed, fund dropping.' },
+                    // C3: Overperforming/Exit Reached (Target end 18k, logged 19k)
+                    { id: 'a3', chunkId: 'c3', date: '2026-03-17', value: 19000, note: 'Tech rally hit our harvest goal early.' },
+                    // C4: On Track (~9 mos expected 5.1k, logged 5.1k)
+                    { id: 'a4', chunkId: 'c4', date: '2026-03-17', value: 5100, note: 'Bonds maturing as expected.' },
+                    // C5: Underperforming (~9 mos expected 11k, logged 3k)
+                    { id: 'a5', chunkId: 'c5', date: '2026-03-17', value: 3000, note: 'Crypto winter. Heavy losses.' }
+                ],
+                tags: ['Retirement', 'Liquid', 'High Risk', 'Real Estate']
+            };
+        }
+
+        function saveData() { localStorage.setItem(STORE_DATA, JSON.stringify(appData)); }
+        function saveSettings() { localStorage.setItem(STORE_SET, JSON.stringify(appSettings)); }
+
+        // --- Core UI ---
+        function switchTab(tId) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tId).classList.add('active');
+            if(tId === 'dashboard' || tId === 'explore') renderVisualizations();
+        }
+
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function toast(m) { alert(m); } // Simple feedback for tablet environment
+
+        function refreshAll() {
+            // Populate Book & Portfolio dropdowns
+            const bSel = document.getElementById('port-book-id');
+            const pSel = document.getElementById('plan-port-id');
+            const cSel = document.getElementById('log-chunk-id');
+            
+            bSel.innerHTML = ''; pSel.innerHTML = ''; cSel.innerHTML = '';
+            
+            appData.books.forEach(b => bSel.innerHTML += `<option value="${b.id}">${b.name}</option>`);
+            
+            appData.portfolios.forEach(p => {
+                const b = appData.books.find(x => x.id === p.bookId);
+                pSel.innerHTML += `<option value="${p.id}">${b ? b.name : ''} > ${p.name} (${p.taxStatus})</option>`;
+            });
+
+            appData.chunks.forEach(c => {
+                const p = appData.portfolios.find(x => x.id === c.portfolioId);
+                const b = p ? appData.books.find(x => x.id === p.bookId) : null;
+                cSel.innerHTML += `<option value="${c.id}">${b ? b.name : ''} > ${p ? p.name : ''} > ${c.name}</option>`;
+            });
+
+            renderVisualizations();
+        }
+
+        function applyTheme() {
+            const root = document.documentElement;
+            if(appSettings.theme === 'teal') { root.style.setProperty('--primary', '#008080'); } 
+            else if(appSettings.theme === 'orange') { root.style.setProperty('--primary', '#ff9500'); } 
+            else { root.style.setProperty('--primary', '#007aff'); }
+        }
+
+        function updateSettings() {
+            appSettings.theme = document.getElementById('set-theme').value;
+            saveSettings(); applyTheme(); renderVisualizations();
+            closeModal('vis-settings-modal');
+        }
+
+        // --- 3-Way Planning Sandbox ---
+        function calcPlan(src) {
+            const P = parseFloat(document.getElementById('plan-init').value) || 0;
+            const pctEl = document.getElementById('plan-pct');
+            const profEl = document.getElementById('plan-profit');
+            const endEl = document.getElementById('plan-end');
+            if(P === 0) return;
+
+            let pct = parseFloat(pctEl.value) || 0;
+            let prof = parseFloat(profEl.value) || 0;
+            let end = parseFloat(endEl.value) || 0;
+
+            if (src === 'pct') { prof = P * (pct / 100); end = P + prof; profEl.value = prof.toFixed(2); endEl.value = end.toFixed(2); } 
+            else if (src === 'profit') { pct = (prof / P) * 100; end = P + prof; pctEl.value = pct.toFixed(2); endEl.value = end.toFixed(2); } 
+            else if (src === 'end') { prof = end - P; pct = (prof / P) * 100; profEl.value = prof.toFixed(2); pctEl.value = pct.toFixed(2); }
+        }
+
+        // --- OmniSearch & Tags ---
+        function openOmniSearch() { document.getElementById('omni-search').value = ''; renderOmniList(); openModal('omni-modal'); }
+        function renderOmniList() {
+            const q = document.getElementById('omni-search').value.toLowerCase().trim();
+            const list = document.getElementById('omni-list');
+            list.innerHTML = '';
+            let matched = false;
+            appData.tags.forEach(t => {
+                if(t.toLowerCase().includes(q)) {
+                    matched = true;
+                    const sel = currentPlanTags.includes(t);
+                    list.innerHTML += `<span class="tag-pill ${sel?'':'selectable'}" ${sel?'style="background:var(--primary); color:#fff;"':''} onclick="toggleTag('${t}')">#${t}</span>`;
+                }
+            });
+            if(q && !matched) list.innerHTML += `<button class="btn btn-secondary" onclick="createTag('${q}')">+ Create tag #${q}</button>`;
+            renderPlanTags();
+        }
+        function toggleTag(t) {
+            if(currentPlanTags.includes(t)) currentPlanTags = currentPlanTags.filter(x => x !== t);
+            else currentPlanTags.push(t);
+            renderOmniList();
+        }
+        function createTag(t) { appData.tags.push(t); saveData(); currentPlanTags.push(t); document.getElementById('omni-search').value = ''; renderOmniList(); }
+        function renderPlanTags() {
+            document.getElementById('plan-tags-display').innerHTML = currentPlanTags.map(t => `<span class="tag-pill">#${t} <span class="tag-rm" onclick="toggleTag('${t}')">×</span></span>`).join('');
+        }
+
+        // --- Form Actions ---
+        function saveBook() {
+            const name = document.getElementById('book-name').value;
+            if(!name) return;
+            appData.books.push({ id: 'b_' + Date.now(), name });
+            saveData(); document.getElementById('book-name').value = ''; refreshAll(); toast('Book of Business Saved');
+        }
+
+        function savePortfolio() {
+            const name = document.getElementById('port-name').value;
+            const bookId = document.getElementById('port-book-id').value;
+            if(!name || !bookId) return toast('Missing Fields');
+            appData.portfolios.push({ id: 'p_' + Date.now(), bookId, name, taxStatus: document.getElementById('port-tax').value });
+            saveData(); document.getElementById('port-name').value = ''; refreshAll(); toast('Portfolio Saved');
+        }
+
+        function commitPlan() {
+            const name = document.getElementById('plan-name').value;
+            const init = parseFloat(document.getElementById('plan-init').value);
+            const dur = parseInt(document.getElementById('plan-duration').value);
+            const targetPct = parseFloat(document.getElementById('plan-pct').value);
+            const port = document.getElementById('plan-port-id').value;
+            if(!name || !init || !dur || !port) return toast('Missing required fields');
+
+            appData.chunks.push({
+                id: 'c_' + Date.now(), portfolioId: port, name, capital: init, duration: dur, targetPct, 
+                entryPct: parseFloat(document.getElementById('plan-entry').value), exitStrategy: document.getElementById('plan-exit').value, 
+                tags: [...currentPlanTags], startDate: NOW.toISOString().split('T')[0]
+            });
+            saveData(); document.getElementById('plan-name').value = ''; currentPlanTags = []; renderPlanTags(); refreshAll(); toast('Investment Committed'); switchTab('dashboard');
+        }
+
+        function saveActual() {
+            const val = parseFloat(document.getElementById('log-val').value);
+            if(isNaN(val)) return;
+            appData.actuals.push({
+                id: 'a_' + Date.now(), chunkId: document.getElementById('log-chunk-id').value, date: document.getElementById('log-date').value,
+                value: val, note: document.getElementById('log-note').value
+            });
+            saveData(); document.getElementById('log-val').value = ''; document.getElementById('log-note').value = ''; refreshAll(); toast('Log Saved');
+        }
+
+        // --- Core Math ---
+        function getExpectedValue(chunk, dateObj) {
+            const start = new Date(chunk.startDate);
+            const diffDays = Math.max(0, (dateObj - start) / (1000 * 60 * 60 * 24));
+            const totalDays = chunk.duration * 30.44;
+            const pct = Math.min(1, diffDays / totalDays);
+            const prof = chunk.capital * (chunk.targetPct / 100);
+            return chunk.capital + (prof * pct);
+        }
+
+        function getEnriched() {
+            return appData.chunks.map(c => {
+                const expNow = getExpectedValue(c, NOW);
+                const hist = appData.actuals.filter(a => a.chunkId === c.id).sort((a,b) => new Date(a.date) - new Date(b.date));
+                const act = hist.length ? hist[hist.length-1].value : c.capital;
+                const variance = act - expNow;
+                const lowerT = expNow * (c.entryPct / 100);
+                
+                let stat = 'On Track', color = 'var(--yellow)', cl = 'status-yellow';
+                if(variance < -lowerT) { stat = 'Underperforming'; color = 'var(--red)'; cl = 'status-red'; }
+                else if(variance > 0 && c.exitStrategy !== 'Buy and Hold') {
+                    const targetEnd = c.capital * (1 + c.targetPct/100);
+                    if(act >= targetEnd) { stat = 'Exit Reached'; color = 'var(--primary)'; cl = 'status-blue'; }
+                }
+                
+                const port = appData.portfolios.find(p => p.id === c.portfolioId);
+                const book = port ? appData.books.find(b => b.id === port.bookId) : null;
+
+                return { ...c, expNow, act, variance, stat, color, cl, hist, taxStatus: port?port.taxStatus:'', portName: port?port.name:'', bookName: book?book.name:'' };
+            });
+        }
+
+        // --- Visualizations ---
+        function renderVisualizations() {
+            const data = getEnriched();
+            if(!data.length) return;
+
+            // Variance Bar Chart (Dashboard)
+            if(chartVar) chartVar.destroy();
+            chartVar = new Chart(document.getElementById('varianceChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels: data.map(d => d.name), datasets: [{ data: data.map(d => parseFloat(d.variance.toFixed(2))), backgroundColor: data.map(d => d.color), borderRadius: 6 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display:false} }, onClick: (e, el) => { if(el.length) openDrillDown(data[el[0].index].id); } }
+            });
+
+            // Action Lists
+            let mList = '', sList = '';
+            data.forEach(d => {
+                if(d.stat === 'Underperforming') mList += `<div class="action-item underperform" onclick="openDrillDown('${d.id}')"><div style="font-weight:700; font-size:14px; display:flex; justify-content:space-between;"><span>${d.name}</span><span style="font-family:var(--mono); color:var(--red);">-$${Math.abs(d.variance).toLocaleString()}</span></div><div style="font-size:11px; color:var(--muted); margin-top:4px;">${d.portName}</div></div>`;
+                if(d.stat === 'Exit Reached') sList += `<div class="action-item exitreached" onclick="openDrillDown('${d.id}')"><div style="font-weight:700; font-size:14px; display:flex; justify-content:space-between;"><span>${d.name}</span><span style="font-family:var(--mono); color:var(--primary);">Target Hit</span></div><div style="font-size:11px; color:var(--muted); margin-top:4px;">Strategy: ${d.exitStrategy}</div></div>`;
+            });
+            document.getElementById('list-mandatory').innerHTML = mList || '<p style="color:var(--muted); font-size:12px;">No mandatory actions.</p>';
+            document.getElementById('list-suggested').innerHTML = sList || '<p style="color:var(--muted); font-size:12px;">No targets hit.</p>';
+
+            // Explore Data (Dynamic)
+            const type = document.getElementById('vis-type-select').value;
+            const tm = document.getElementById('vis-treemap');
+            const cv = document.getElementById('vis-canvas-container');
+            
+            if(type === 'treemap') {
+                cv.style.display = 'none'; tm.style.display = 'flex';
+                const tot = data.reduce((s,d)=>s+d.act, 0);
+                tm.innerHTML = data.map(d => {
+                    const pct = (d.act / tot) * 100;
+                    return `<div class="treemap-node" style="width:calc(${pct}% - 4px); background:${d.color};" onclick="openDrillDown('${d.id}')"><div class="tm-title">${d.name}</div><div class="tm-val">$${d.act.toLocaleString()}</div><div class="tm-pct">${pct.toFixed(1)}%</div></div>`;
+                }).join('');
+            } else {
+                tm.style.display = 'none'; cv.style.display = 'block';
+                if(chartExp) chartExp.destroy();
+                const ctx = document.getElementById('exploreChart').getContext('2d');
+                if(type === 'bar') {
+                    chartExp = new Chart(ctx, {
+                        type: 'bar',
+                        data: { labels: data.map(d => d.name), datasets: [{ label: 'Plan ($)', data: data.map(d => d.expNow), backgroundColor: '#e2e8f0' }, { label: 'Actual ($)', data: data.map(d => d.act), backgroundColor: data.map(d => d.color) }]},
+                        options: { responsive: true, maintainAspectRatio: false, onClick: (e, el) => { if(el.length) openDrillDown(data[el[0].index].id); } }
+                    });
+                } else if(type === 'line') {
+                    chartExp = new Chart(ctx, {
+                        type: 'line',
+                        data: { datasets: data.map(d => ({ label: d.name, data: d.hist.map(h => ({x: h.date, y: h.value})), borderColor: d.color, fill: false, tension: 0.1 })) },
+                        options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'category', labels: [...new Set(appData.actuals.map(a=>a.date))].sort() } }, onClick: (e, el) => { if(el.length) openDrillDown(data[el[0].datasetIndex].id); } }
+                    });
+                }
+            }
+        }
+
+        // --- Drill Down (Standard Reporting & Clarify) ---
+        function openDrillDown(id) {
+            const c = getEnriched().find(x => x.id === id);
+            if(!c) return;
+            
+            document.getElementById('dm-title').innerText = c.name;
+            document.getElementById('dm-hierarchy').innerText = `${c.bookName} > ${c.portName}`;
+            
+            document.getElementById('dm-status').className = `status-block ${c.cl}`;
+            document.getElementById('dm-status').innerText = `STATUS: ${c.stat.toUpperCase()} | Variance: ${c.variance > 0 ? '+' : ''}$${c.variance.toLocaleString(undefined, {maximumFractionDigits:0})}`;
+            
+            let badges = `<span class="badge ${c.taxStatus==='Pre-Tax'?'badge-pre':'badge-post'}">${c.taxStatus}</span>`;
+            c.tags.forEach(t => badges += `<span class="badge" style="background:#f1f5f9; color:#475569; border:0.5px solid #cbd5e1; margin-left:4px;">#${t}</span>`);
+            document.getElementById('dm-badges').innerHTML = badges;
+
+            // Standard Tabular Report (Compound Interest format)
+            let tb = '';
+            const startD = new Date(c.startDate);
+            tb += `<tr><td>0</td><td>${c.startDate}</td><td>$${c.capital.toLocaleString()}</td><td>$${c.capital.toLocaleString()}</td><td>$0</td><td>0.0%</td></tr>`;
+            
+            c.hist.forEach(h => {
+                const dateObj = new Date(h.date);
+                const mo = Math.round((dateObj - startD) / (1000 * 60 * 60 * 24 * 30.44));
+                const plan = getExpectedValue(c, dateObj);
+                const delta = h.value - plan;
+                const gain = ((h.value - c.capital) / c.capital) * 100;
+                
+                tb += `<tr>
+                    <td>${mo}</td><td>${h.date}</td>
+                    <td>$${plan.toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                    <td>$${h.value.toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                    <td style="color:${delta<0?'var(--red)':'var(--green)'}">${delta>0?'+':''}$${delta.toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                    <td>${gain.toFixed(1)}%</td>
+                </tr>`;
+            });
+            document.getElementById('dm-table-body').innerHTML = tb;
+
+            // Clarify Logs
+            const notes = c.hist.filter(h => h.note).map(h => `
+                <div class="cl-note">
+                    <div class="cl-meta"><span class="cl-time">${h.date}</span><span class="cl-author">Val: $${h.value.toLocaleString()}</span></div>
+                    <div class="cl-text">${h.note}</div>
+                </div>
+            `).join('');
+            document.getElementById('dm-notes').innerHTML = notes || '<p style="color:var(--muted); font-size:12px;">No qualitative logs recorded.</p>';
+
+            openModal('drill-modal');
+        }
+
+        // --- Import / Export ---
+        function exportData(type) {
+            const data = type === 'data' ? appData : appSettings;
+            const b = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `FD_${type}.json`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+        }
+        function importData(type) { appSettings.importMode = type; document.getElementById('file-import').click(); }
+        function handleFileImport(e) {
+            const f = e.target.files[0]; if(!f) return;
+            const r = new FileReader();
+            r.onload = function() {
+                try {
+                    const p = JSON.parse(r.result);
+                    if(appSettings.importMode === 'data') { appData = p; saveData(); } else { appSettings = p; saveSettings(); applyTheme(); }
+                    refreshAll(); closeModal('settings-modal'); toast('Imported');
+                } catch(err) { toast('Invalid JSON'); }
+            };
+            r.readAsText(f);
+        }
+        function factoryReset() { if(confirm('Wipe everything?')) { localStorage.clear(); location.reload(); } }
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>
