@@ -110,6 +110,10 @@ textarea.field-input{resize:none;}
 .bbl-prov{font-size:9px;font-weight:700;color:var(--ink-dim);opacity:.5;background:rgba(0,0,0,.05);border-radius:4px;padding:1px 4px;}
 .msg-row.mine .bbl-prov{color:#fff;background:rgba(255,255,255,.15);}
 .queued-badge{font-size:9px;font-weight:700;color:var(--amber);opacity:.8;margin-left:3px;}
+.msg-status{font-size:10px;margin-left:3px;line-height:1;}
+.msg-status.sent{color:var(--ink-dim);}
+.msg-status.delivered{color:var(--teal);}
+.msg-status.read{color:var(--green);}
 
 /* Bubble body — two equal columns */
 .bbl-body{display:grid;grid-template-columns:1fr 1px 1fr;}
@@ -139,7 +143,7 @@ textarea.field-input{resize:none;}
 .bbl-act:hover{background:rgba(0,0,0,.06);}
 
 
-.bbl-act.active-chip{background:rgba(0,0,0,.1);color:var(--ink);}
+.bbl-act.active-chip{background:var(--teal)!important;color:#fff!important;}
 
 
 /* Tag drawer */
@@ -1067,9 +1071,9 @@ var hbTimer=null;
 var lastRxAt=0;
 var lastPongAt=0;
 var missedHeartbeats=0;
-var HEARTBEAT_MS=5000;
-var HEARTBEAT_TIMEOUT_MS=30000;
-var PEER_STALE_MS=40000;
+var HEARTBEAT_MS=45000;
+var HEARTBEAT_TIMEOUT_MS=90000;
+var PEER_STALE_MS=120000;
 var RECOVERY_MISSED_HEARTBEATS=3;
 var reconnectInProgress=false;
 var reconnectCooldownUntil=0;
@@ -1369,7 +1373,7 @@ function saveLocalName(el){
 
 function createNewSession(silent){
   var cid=uid();var p=getPrefs();
-  var sess={convId:cid,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),status:'pending'};
+  var sess={convId:cid,partId:PART_ID,title:'new chat',myName:p.userName||'yournamehere',partnerName:'',names:{meAlias:p.userName||'yournamehere',themAlias:'new chat',version:1},myLang:p.myLang||'en',partnerLang:p.partnerLang||'th',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),status:'active'};
   putSession(sess);
   var order=getSessionOrder();order.unshift(cid);saveSessionOrder(normalizeSessionOrder(order));
   closeLeftPanel();
@@ -1379,8 +1383,7 @@ function createNewSession(silent){
 function openInviteScreen(cid){
   var sess=getSession(cid);if(!sess)return;
   state.pendingInviteId=cid;
-  sess.status='pending';putSession(sess);
-  // Disconnect from any different current session
+  // Session is active from birth — no pending state
   if(connectedConvId&&connectedConvId!==cid){
     addDiagLog('openInviteScreen: disconnecting from '+connectedConvId.slice(0,8));
     transportDisconnect({preserveQueue:false});
@@ -1388,19 +1391,18 @@ function openInviteScreen(cid){
   state.activeConvId=cid;
   state.messages=getMsgs(cid);
   setActiveConvId(cid);markViewed(cid);
-  // Show chat-screen with invite card injected at top
   document.getElementById('shell-empty').style.display='none';
   document.getElementById('messages').style.display='flex';
   document.getElementById('composer').style.display='flex';
-  document.getElementById('shell-partner-name').textContent='Pending…';
+  updatePartnerHeader(sess);
   updateAutoReadBtn();
   transportConnect(cid,PART_ID);
-  renderAllMessages();  // renders invite card via renderMsg for pending system marker
+  renderAllMessages();
   injectInviteCard(cid);
   scrollBottom();
   showScreen('chat-screen');
   renderSessionList();
-  addDiagLog('Session created pending: '+cid.slice(0,8));
+  addDiagLog('Session created: '+cid.slice(0,8));
 }
 
 function injectInviteCard(cid){
@@ -1414,7 +1416,7 @@ function injectInviteCard(cid){
   // Build inner DOM safely
   var label=document.createElement('div');
   label.style.cssText='font-size:11px;font-weight:700;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.4px;';
-  label.textContent='New Chat · Pending';
+  label.textContent='Share link to connect';
   card.appendChild(label);
   var qrWrap=document.createElement('div');
   qrWrap.id='invite-card-qr-'+cid;
@@ -1442,7 +1444,7 @@ function injectInviteCard(cid){
   var statusDiv=document.createElement('div');
   statusDiv.id='invite-status-'+cid;
   statusDiv.style.cssText='font-size:12px;color:var(--ink-dim);';
-  statusDiv.textContent='Waiting for partner to join…';
+  statusDiv.textContent='Send this link to start chatting';
   card.appendChild(statusDiv);
   container.insertBefore(card,container.firstChild);
   // Draw QR
@@ -1512,12 +1514,14 @@ function updatePartnerHeader(sess){
   var names=ensureSessionNames(sess);
   var partnerName=firstRealName(names.themAlias,sess.partnerName,sess.title);
   var myName=firstRealName(names.meAlias,sess.myName);
-  if(sess.status==='pending'||!partnerName||isPlaceholderName(partnerName)){
-    el.textContent='Waiting for partner\u2026';
-  }else if(myName&&!isPlaceholderName(myName)){
+  if(myName&&!isPlaceholderName(myName)&&partnerName&&!isPlaceholderName(partnerName)){
     el.textContent=myName+' \u2194 '+partnerName;
-  }else{
+  }else if(myName&&!isPlaceholderName(myName)){
+    el.textContent=myName+' \u2194 ?';
+  }else if(partnerName&&!isPlaceholderName(partnerName)){
     el.textContent=partnerName;
+  }else{
+    el.textContent='new chat';
   }
 }
 
@@ -1552,8 +1556,8 @@ function renderSessionList(){
   var ICON_DIAG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>';
   c.innerHTML=ss.map(function(s){
     var isActive=state.activeConvId===s.convId;
-    var isPending=s.status==='pending';
-    var statusBadge=isPending?'<span class="sess-card-badge" style="background:var(--amber);">Pending</span>':'';
+    var isPending=false;
+    var statusBadge='';
     return '<div class="sess-card'+(isActive?' active':'')+'" draggable="true" data-conv="'+s.convId+'" ondragstart="dragStart(event)" ondragover="event.preventDefault()" ondrop="dragDrop(event)" ondragend="dragEnd(event)" onclick="onSessCardClick(event,\''+s.convId+'\')">'
       +'<div class="sess-card-info"><div class="sess-card-title" contenteditable="true" spellcheck="false" onclick="event.stopPropagation();this.focus();" onblur="saveCardTitle(\''+s.convId+'\',this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'+escHtml(s.title||s.partnerName||'new chat')+'</div><div class="sess-card-sub">'+timeAgo(s.lastActivity||s.createdAt)+'</div></div>'
       +statusBadge
@@ -1804,19 +1808,18 @@ function handleRelayEvent(d){
     markPeerSeen();
     upsertPartnerFromEnvelope(sess,d);
     addDiagLog('HELLO from '+(d.name||'?')+' lang='+(d.lang||'?'));
-    if(sess.status==='pending'){
-      sess.status='active';putSession(sess);
-      // Remove invite card — partner has joined
-      var ic=document.getElementById('invite-card-'+sess.convId);if(ic)ic.remove();
-      // Fix 4: Update header to show both names
-      updatePartnerHeader(sess);
+    // Remove invite card if still showing — partner has joined
+    var ic=document.getElementById('invite-card-'+sess.convId);if(ic)ic.remove();
+    updatePartnerHeader(sess);
+    // Update invite status label if still visible
+    var statusEl=document.getElementById('invite-status-'+sess.convId);
+    if(statusEl){statusEl.textContent=(d.name||'Partner')+' connected \u2713';statusEl.style.color='var(--green)';}
+    // Notify on first join (only once per session)
+    if(!sess._partnerJoined){
+      sess._partnerJoined=true;putSession(sess);
       addSystemNote(sess.convId,(d.name||'Partner')+' joined',Date.now());
       renderSessionList();
       toast((d.name||'Partner')+' joined!');
-    }else{
-      // Update status label in pending card if still showing
-      var statusEl=document.getElementById('invite-status-'+sess.convId);
-      if(statusEl){statusEl.textContent=(d.name||'Partner')+' connected ✓';statusEl.style.color='var(--green)';}
     }
     return;
   }
@@ -1830,16 +1833,23 @@ function handleRelayEvent(d){
     // Record partner's detected language in tally (partner messages only)
     var partnerId=(sess.inviterDeviceId||d.from||'partner');
     recordLangTally(partnerId,srcLang);
-    // Primary signal: if partner sends in a language different from myLang,
-    // and they've sent 2+ messages in that language (majority from tally),
-    // update partnerLang. This prevents one stray message from flipping.
+    // Language signal from partner:
+    // - First message in a different language from me = strong signal, update immediately
+    // - After that, require 2+ messages (tally majority) to shift
     if(srcLang!==myLang){
       var ps=ensureParticipantState(partnerId);
       var tally=ps&&ps.langTally||{};
+      var totalPartnerMsgs=0;
+      Object.keys(tally).forEach(function(l){totalPartnerMsgs+=tally[l];});
       var srcCount=tally[srcLang]||0;
-      if(srcCount>=2&&srcLang!==sess.partnerLang){
+      // First message ever from partner, or first in a new language = immediate update
+      var isFirstSignal=(totalPartnerMsgs<=1)||(!sess._partnerLangFromMsg);
+      if(isFirstSignal&&srcLang!==sess.partnerLang){
+        sess.partnerLang=srcLang;sess._partnerLangFromMsg=true;putSession(sess);
+        addDiagLog('partnerLang set (first signal): '+srcLang);
+      }else if(srcCount>=2&&srcLang!==sess.partnerLang){
         sess.partnerLang=srcLang;putSession(sess);
-        addDiagLog('partnerLang updated: '+srcLang+' ('+getLangTallySummary(partnerId)+')');
+        addDiagLog('partnerLang updated (tally majority): '+srcLang+' ('+getLangTallySummary(partnerId)+')');
       }
     }
     addDiagLog('RX msg id='+String(d.id||'').slice(0,8)+' srcLang='+srcLang+' myLang='+myLang+' text='+(srcTxt||'').slice(0,30));
@@ -1858,15 +1868,12 @@ function handleRelayEvent(d){
     }
 
     upsertPartnerFromEnvelope(sess,d);
-    // Instantiate if still pending (msg arrived before hello)
-    if(sess.status==='pending'){
-      sess.status='active';putSession(sess);
-      if(state.pendingInviteId===sess.convId){
-        state.pendingInviteId=null;
-        openSession(sess.convId);
-        toast((d.name||'Partner')+' joined!');
-      }
-      renderSessionList();
+    // Update header when partner's identity becomes known via message
+    updatePartnerHeader(sess);
+    if(state.pendingInviteId===sess.convId){
+      state.pendingInviteId=null;
+      // Remove invite card since partner is actively chatting
+      var ic2=document.getElementById('invite-card-'+sess.convId);if(ic2)ic2.remove();
     }
     var msg=normalizeMsgSchema({id:d.id,from:'them',sourceText:srcTxt,sourceLang:srcLang,targetLang:myLang,targetText:d.targetText||'',orig:srcTxt,text:null,lang:srcLang,status:'received',timestamp:d.timestamp||Date.now(),clarify:{status:'none',text:'',thread:[]},translations:{}},{sourceLang:srcLang,targetLang:myLang});
     // Use wire name for display, not stale session name
@@ -1971,9 +1978,18 @@ function buildBubbleCard(cfg){
   var ctx=cfg.ctx||'chat';
 
   // Header row
+  var statusDot='';
+  if(isMine&&ctx==='chat'){
+    var st=cfg.status||'sent';
+    if(st==='queued')statusDot='<span class="msg-status sent" title="Queued">\u25CB</span>';
+    else if(st==='sent')statusDot='<span class="msg-status sent" title="Sent">\u2022</span>';
+    else if(st==='delivered')statusDot='<span class="msg-status delivered" title="Delivered">\u2022\u2022</span>';
+    else if(st==='translated')statusDot='<span class="msg-status read" title="Read">\u2022\u2022</span>';
+  }
   var header='<div class="bbl-hdr">'
-    +'<span class="bbl-sender">'+escHtml(cfg.headerLeft||'')+(cfg.queued?'<span class="queued-badge">Queued</span>':'')+'</span>'
+    +'<span class="bbl-sender">'+escHtml(cfg.headerLeft||'')+'</span>'
     +'<div class="bbl-hdr-right">'
+    +statusDot
     +(cfg.prov?'<span class="bbl-prov">'+escHtml(cfg.prov)+'</span>':'')
     +'<span class="bbl-time">'+escHtml(cfg.time||'')+'</span>'
     +'</div></div>';
@@ -2099,9 +2115,8 @@ function renderMsg(msg){
     tgtTxt:sides.tgtTxt,tgtLang:sides.tgtLang,
     headerLeft:name,
     time:fmtTime(msg.timestamp||Date.now()),
-    prov:tEngine==='on-device'?'⚙':'☁',
-    queued:msg.status==='queued',
-    saved:!!msg._saved,
+    prov:tEngine==='on-device'?'\u2699':'\u2601',
+    status:msg.status||'sent',
     isMine:isMine,
     ctx:'chat',
     thread:thread,
@@ -2525,11 +2540,15 @@ function sendMessage(){
 
   // Sender's language (auto-detected from text)
   var outLang=detectLang(text,sess.myLang||p.myLang||'en');
-  // Tally only tracks partner messages, not mine
-  // Partner always receives in their language
+  // Target: the language my partner needs to receive in
+  // If I'm typing in my partner's language, they don't need translation — but I probably
+  // want to show the translation in MY language (the other side of the pair)
   var partnerLang=sess.partnerLang||p.partnerLang||'th';
-  // Target for sender's own bubble = partner's language (so sender sees translation)
-  var targetLang=partnerLang;
+  var myLang=sess.myLang||p.myLang||'en';
+  // Target = whichever language in the pair I'm NOT currently typing in
+  var targetLang=(outLang===partnerLang)?myLang:partnerLang;
+  // If both languages are the same (no translation pair), skip
+  if(outLang===targetLang)targetLang=outLang;
 
   ensureSessionNames(sess);
   var msg=normalizeMsgSchema({id:uid(),from:'me',sourceText:text,sourceLang:outLang,targetLang:targetLang,targetText:'',text:text,lang:outLang,translated:null,status:'sent',timestamp:Date.now(),clarify:{status:'none',text:'',thread:[]},translations:{}},{sourceLang:outLang,targetLang:targetLang});
@@ -2734,10 +2753,12 @@ function applyBubbleTheme(){
     +'.msg-row.mine .bbl-use{background:'+mineUseBg+';color:'+mineText+';}'
     +'.msg-row.mine .bbl-use:hover{background:'+mineHover+';}'
     +'.msg-row.mine .bbl-tts{color:'+mineText+';}'
+    +'.msg-row.mine .msg-status.sent{color:'+mineTextDim+';}'
+    +'.msg-row.mine .msg-status.delivered{color:'+mineText+';}'
+    +'.msg-row.mine .msg-status.read{color:'+mineText+';}'
     +'.msg-row.mine .bbl-foot{border-top-color:'+mineBorder+';}'
     +'.msg-row.mine .bbl-act{color:'+mineTextDim+';}'
     +'.msg-row.mine .bbl-act:hover{background:'+mineHover+';}'
-    +'.msg-row.mine .bbl-act.active-chip{background:'+mineUseBg+';color:'+mineText+';}'
     +'.msg-row.mine .tag-drawer{border-top-color:'+mineBorder+';}'
     +'.msg-row.mine .tag-drawer-input{background:'+mineUseBg+';border-color:'+mineBorder+';color:'+mineText+';}'
     +'.msg-row.mine .pb-tag-pill{background:'+mineUseBg+';color:'+mineText+';}'
@@ -2765,7 +2786,6 @@ function applyBubbleTheme(){
     +'.msg-row.theirs .bbl-foot{border-top-color:'+theirsBorder+';}'
     +'.msg-row.theirs .bbl-act{color:'+theirsTextDim+';}'
     +'.msg-row.theirs .bbl-act:hover{background:'+theirsHover+';}'
-    +'.msg-row.theirs .bbl-act.active-chip{background:'+theirsUseBg+';color:'+theirsText+';}'
     +'.msg-row.theirs .tag-drawer{border-top-color:'+theirsBorder+';}'
     +'.msg-row.theirs .tag-drawer-input{background:#fff;border-color:'+theirsBorder+';color:'+theirsText+';}'
     +'.msg-row.theirs .pb-tag-pill{background:'+theirsUseBg+';color:'+theirsText+';}'
@@ -2994,14 +3014,11 @@ document.addEventListener('DOMContentLoaded',function(){
   var aid=getActiveConvId();
   if(aid&&getSession(aid)){
     var savedSess=getSession(aid);
-    if(savedSess&&savedSess.status==='pending'){openInviteScreen(aid);}
-    else{openSession(aid);}
+    if(savedSess){openSession(aid);}
+    else{showEmptyShell();}
   }else{
     var allSessions=getAllSessions();
-    var activeSessions=allSessions.filter(function(s){return s.status!=='pending';});
-    var pendingSessions=allSessions.filter(function(s){return s.status==='pending';});
-    if(activeSessions.length){openSession(activeSessions[0].convId);}
-    else if(pendingSessions.length){openInviteScreen(pendingSessions[0].convId);}
+    if(allSessions.length){openSession(allSessions[0].convId);}
     else{showEmptyShell();}
   }
 
