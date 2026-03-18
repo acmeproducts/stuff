@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Double Pendulum (HTML5 + JS)</title>
+  <title>Interactive Double Pendulum</title>
   <style>
     html, body {
       margin: 0;
@@ -13,39 +13,86 @@
       height: 100%;
       overflow: hidden;
     }
-    #ui {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 10;
-      background: rgba(0,0,0,0.5);
-      padding: 8px 10px;
-      border-radius: 4px;
-      font-size: 14px;
+    #canvas {
+      display: block;
     }
-    #ui button {
+    #globalUI {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      z-index: 5;
+      background: rgba(0,0,0,0.6);
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    #globalUI button {
       margin-right: 6px;
-      padding: 4px 8px;
+      padding: 3px 7px;
       border: 1px solid #666;
       background: #222;
       color: #eee;
       cursor: pointer;
     }
-    #ui button:hover {
+    #globalUI button:hover {
       background: #333;
     }
-    #ui label {
+    #globalUI label {
       margin-left: 6px;
     }
-    #canvas {
-      display: block;
+    .popup {
+      position: absolute;
+      z-index: 10;
+      background: rgba(15,15,15,0.97);
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-size: 12px;
+      color: #eee;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.7);
+      pointer-events: auto;
+    }
+    .popup-row {
+      margin-bottom: 4px;
+      white-space: nowrap;
+    }
+    .popup-row label {
+      display: inline-block;
+      width: 70px;
+      font-size: 11px;
+    }
+    .popup-row input[type="range"] {
+      width: 110px;
+    }
+    .popup-row input[type="color"] {
+      vertical-align: middle;
+    }
+    .popup-btn {
+      padding: 2px 6px;
+      border-radius: 3px;
+      border: 1px solid #777;
+      background: #333;
+      color: #eee;
+      cursor: pointer;
+      font-size: 11px;
+    }
+    .popup-btn:hover {
+      background: #444;
+    }
+    .popup-title {
+      font-size: 11px;
+      opacity: 0.8;
+      margin-bottom: 4px;
     }
   </style>
 </head>
 <body>
-<div id="ui">
+<div id="globalUI">
+  <button id="resetBtn">Reset</button>
   <button id="pauseBtn">Pause</button>
   <button id="resumeBtn">Resume</button>
+  <button id="shareBtn">Share</button>
+  <button id="exportBtn">Export</button>
   <label>
     <input type="checkbox" id="trailChk" checked>
     Trail
@@ -59,226 +106,443 @@
   const ctx = canvas.getContext('2d');
 
   function resize() {
-    canvas.width = window.innerWidth;
+    canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
   }
   window.addEventListener('resize', resize);
   resize();
 
-  const origin = { x: canvas.width / 2, y: canvas.height / 4 };
-
-  // Physical parameters
-  let m1 = 1;
-  let m2 = 1;
-  let L1 = canvas.height / 4;
-  let L2 = canvas.height / 4;
-  let g  = 1.0;          // effective gravity, tuned for visual behavior
-  let damping = 0.999;   // velocity damping
-
-  // State
-  let a1 = Math.PI / 2;
-  let a2 = Math.PI / 2;
-  let a1_v = 0;
-  let a2_v = 0;
-
-  // Animation control
+  // Global controls
   let paused = false;
   let showTrail = true;
-  let lastTime = null;
+  document.getElementById('pauseBtn').onclick = () => paused = true;
+  document.getElementById('resumeBtn').onclick = () => { paused = false; lastTime = null; };
+  document.getElementById('trailChk').onchange = e => showTrail = e.target.checked;
 
-  // Trail buffer: we draw onto a separate canvas
+  document.getElementById('resetBtn').onclick = resetAll;
+  document.getElementById('shareBtn').onclick = () => {
+    alert('Share: implement URL export for params here.');
+  };
+  document.getElementById('exportBtn').onclick = () => {
+    alert('Export: implement image / JSON export here.');
+  };
+
+  // Trail canvas
   const trailCanvas = document.createElement('canvas');
   const trailCtx    = trailCanvas.getContext('2d');
   function resizeTrail() {
-    trailCanvas.width = canvas.width;
+    trailCanvas.width  = canvas.width;
     trailCanvas.height = canvas.height;
     trailCtx.fillStyle = 'rgba(0,0,0,1)';
-    trailCtx.fillRect(0, 0, trailCanvas.width, trailCanvas.height);
+    trailCtx.fillRect(0,0,trailCanvas.width,trailCanvas.height);
   }
   resizeTrail();
   window.addEventListener('resize', resizeTrail);
 
-  // UI wiring
-  document.getElementById('pauseBtn').onclick = () => paused = true;
-  document.getElementById('resumeBtn').onclick = () => {
-    paused = false;
-    lastTime = null;
-  };
-  document.getElementById('trailChk').onchange = e => {
-    showTrail = e.target.checked;
-    if (!showTrail) {
-      trailCtx.fillStyle = 'rgba(0,0,0,1)';
-      trailCtx.fillRect(0, 0, trailCanvas.width, trailCanvas.height);
+  class DoublePendulum {
+    constructor(originX, originY, color = '#66ccff') {
+      this.origin = { x: originX, y: originY };
+
+      // Physical parameters (per‑pendulum)
+      this.m1 = 1.0;
+      this.m2 = 1.0;
+      this.L1 = canvas.height / 4;
+      this.L2 = canvas.height / 4;
+      this.damping = 0.999;
+      this.g  = 1.0;
+
+      // State
+      this.a1 = Math.PI / 2;
+      this.a2 = Math.PI / 2 + 0.1;
+      this.a1_v = 0;
+      this.a2_v = 0;
+
+      // Visual / controls
+      this.color = color;
+      this.speed = 1.1;       // 110% default
+      this.trailStrength = 0.06; // fade coefficient
+      this.trailEnabled = true;
+
+      this.dragging = null;
     }
-  };
 
-  // Mouse interaction for dragging bobs
-  let dragging = null; // 'bob1' | 'bob2' | null
+    getPositions() {
+      const x1 = this.origin.x + this.L1 * Math.sin(this.a1);
+      const y1 = this.origin.y + this.L1 * Math.cos(this.a1);
+      const x2 = x1 + this.L2 * Math.sin(this.a2);
+      const y2 = y1 + this.L2 * Math.cos(this.a2);
+      return { x1, y1, x2, y2 };
+    }
 
-  function getBobPositions() {
-    const x1 = origin.x + L1 * Math.sin(a1);
-    const y1 = origin.y + L1 * Math.cos(a1);
-    const x2 = x1 + L2 * Math.sin(a2);
-    const y2 = y1 + L2 * Math.cos(a2);
-    return { x1, y1, x2, y2 };
+    step(dt) {
+      const m1 = this.m1, m2 = this.m2;
+      const L1 = this.L1, L2 = this.L2;
+      const g  = this.g;
+      let a1 = this.a1, a2 = this.a2;
+      let a1_v = this.a1_v, a2_v = this.a2_v;
+
+      const num1 = -g * (2 * m1 + m2) * Math.sin(a1);
+      const num2 = -m2 * g * Math.sin(a1 - 2 * a2);
+      const num3 = -2 * Math.sin(a1 - a2) * m2;
+      const num4 = a2_v * a2_v * L2 + a1_v * a1_v * L1 * Math.cos(a1 - a2);
+      const den  = L1 * (2 * m1 + m2 - m2 * Math.cos(2 * a1 - 2 * a2));
+      const a1_a = (num1 + num2 + num3 * num4) / den;
+
+      const num5 = 2 * Math.sin(a1 - a2);
+      const num6 = a1_v * a1_v * L1 * (m1 + m2);
+      const num7 = g * (m1 + m2) * Math.cos(a1);
+      const num8 = a2_v * a2_v * L2 * m2 * Math.cos(a1 - a2);
+      const den2 = L2 * (2 * m1 + m2 - m2 * Math.cos(2 * a1 - 2 * a2));
+      const a2_a = (num5 * (num6 + num7 + num8)) / den2;
+
+      const h = dt * 0.0015 * this.speed;
+      a1_v += a1_a * h;
+      a2_v += a2_a * h;
+      a1_v *= this.damping;
+      a2_v *= this.damping;
+
+      a1 += a1_v * h;
+      a2 += a2_v * h;
+
+      this.a1 = a1;
+      this.a2 = a2;
+      this.a1_v = a1_v;
+      this.a2_v = a2_v;
+    }
+
+    draw(ctx) {
+      const { x1, y1, x2, y2 } = this.getPositions();
+
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#aaa';
+      ctx.beginPath();
+      ctx.moveTo(this.origin.x, this.origin.y);
+      ctx.lineTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+
+      ctx.fillStyle = '#f5f5f5';
+      ctx.beginPath();
+      ctx.arc(this.origin.x, this.origin.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      const r1 = 10, r2 = 12;
+      ctx.fillStyle = this.dragging === 'bob1' ? '#ffcc00' : this.color;
+      ctx.beginPath();
+      ctx.arc(x1, y1, r1, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = this.dragging === 'bob2' ? '#ffcc00' : this.color;
+      ctx.beginPath();
+      ctx.arc(x2, y2, r2, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
+  const pendulums = [];
+
+  function addPendulumFrom(p) {
+    const baseColor = randomColor();
+    const dp = new DoublePendulum(
+      p ? p.origin.x + 30 : canvas.width / 2,
+      p ? p.origin.y       : canvas.height / 4,
+      baseColor
+    );
+    if (p) {
+      dp.m1 = p.m1;
+      dp.m2 = p.m2;
+      dp.L1 = p.L1;
+      dp.L2 = p.L2;
+      dp.damping = p.damping;
+      dp.g = p.g;
+      dp.a1 = p.a1;
+      dp.a2 = p.a2 + 0.01;
+      dp.speed = p.speed;
+      dp.trailStrength = p.trailStrength;
+      dp.trailEnabled  = p.trailEnabled;
+      dp.color = p.color;
+    }
+    pendulums.push(dp);
+    return dp;
+  }
+
+  function resetAll() {
+    pendulums.length = 0;
+    resize();
+    resizeTrail();
+    addPendulumFrom(null);
+    paused = false;
+  }
+
+  function randomColor() {
+    const h = Math.floor(Math.random() * 360);
+    return `hsl(${h},80%,60%)`;
+  }
+
+  // Initial
+  addPendulumFrom(null);
+
+  // Pointer utils
   function pointerPos(evt) {
     const rect = canvas.getBoundingClientRect();
     const x = (evt.touches ? evt.touches[0].clientX : evt.clientX) - rect.left;
     const y = (evt.touches ? evt.touches[0].clientY : evt.clientY) - rect.top;
     return { x, y };
   }
-
-  function dist2(x1, y1, x2, y2) {
-    const dx = x1 - x2;
-    const dy = y1 - y2;
+  function dist2(ax, ay, bx, by) {
+    const dx = ax - bx;
+    const dy = ay - by;
     return dx * dx + dy * dy;
   }
 
-  canvas.addEventListener('mousedown', startDrag);
-  canvas.addEventListener('touchstart', startDrag, { passive: false });
+  // Popup
+  let popup = null;
+  let popupPendulum = null;
 
-  function startDrag(e) {
+  function closePopup() {
+    if (popup && popup.parentNode) popup.parentNode.removeChild(popup);
+    popup = null;
+    popupPendulum = null;
+  }
+
+  function openPopup(pendulum, bobPos) {
+    closePopup();
+    popupPendulum = pendulum;
+    popup = document.createElement('div');
+    popup.className = 'popup';
+
+    const title = document.createElement('div');
+    title.className = 'popup-title';
+    title.textContent = 'Pendulum settings';
+    popup.appendChild(title);
+
+    // helper to make a range row
+    function addRangeRow(labelText, min, max, step, initial, onChange, suffix) {
+      const row = document.createElement('div');
+      row.className = 'popup-row';
+      const lab = document.createElement('label');
+      lab.textContent = labelText;
+      const range = document.createElement('input');
+      range.type = 'range';
+      range.min = String(min);
+      range.max = String(max);
+      range.step = String(step);
+      range.value = String(initial);
+      const valSpan = document.createElement('span');
+      valSpan.style.marginLeft = '4px';
+      valSpan.textContent = suffix ? (initial + suffix) : String(initial);
+      range.oninput = () => {
+        const v = parseFloat(range.value);
+        valSpan.textContent = suffix ? (v + suffix) : ('' + v);
+        onChange(v);
+      };
+      row.appendChild(lab);
+      row.appendChild(range);
+      row.appendChild(valSpan);
+      popup.appendChild(row);
+    }
+
+    // Mass 1, Length 1
+    addRangeRow('Mass 1', 0.1, 5, 0.1, pendulum.m1, v => pendulum.m1 = v, '');
+    addRangeRow('Length 1', 50, canvas.height / 2, 5, pendulum.L1, v => pendulum.L1 = v, 'px');
+
+    // Mass 2, Length 2
+    addRangeRow('Mass 2', 0.1, 5, 0.1, pendulum.m2, v => pendulum.m2 = v, '');
+    addRangeRow('Length 2', 50, canvas.height / 2, 5, pendulum.L2, v => pendulum.L2 = v, 'px');
+
+    // Damping
+    addRangeRow('Damping', 0.95, 0.999, 0.001, pendulum.damping, v => pendulum.damping = v, '');
+
+    // Trail length (mapped to fade strength)
+    const currentTrailLen = (0.12 - pendulum.trailStrength) * 1000;
+    addRangeRow('Trail Len', 10, 120, 5, currentTrailLen, v => {
+      // invert mapping: larger value -> smaller fade -> longer trail
+      pendulum.trailStrength = 0.12 - v / 1000;
+    }, '');
+
+    // Speed (%)
+    const speedPercent = Math.round(pendulum.speed * 100);
+    addRangeRow('Speed', 10, 400, 5, speedPercent, v => {
+      pendulum.speed = v / 100;
+    }, '%');
+
+    // Color row
+    const rowColor = document.createElement('div');
+    rowColor.className = 'popup-row';
+    const labColor = document.createElement('label');
+    labColor.textContent = 'Color';
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.value = colorToHex(pendulum.color);
+    colorInput.oninput = () => {
+      pendulum.color = colorInput.value;
+    };
+    rowColor.appendChild(labColor);
+    rowColor.appendChild(colorInput);
+    popup.appendChild(rowColor);
+
+    // Add + button
+    const rowAdd = document.createElement('div');
+    rowAdd.className = 'popup-row';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'popup-btn';
+    addBtn.textContent = '+ New pendulum';
+    addBtn.onclick = () => {
+      const clone = addPendulumFrom(pendulum);
+      clone.color = colorInput.value;
+    };
+    rowAdd.appendChild(addBtn);
+    popup.appendChild(rowAdd);
+
+    document.body.appendChild(popup);
+
+    const rect = canvas.getBoundingClientRect();
+    popup.style.left = (rect.left + bobPos.x + 14) + 'px';
+    popup.style.top  = (rect.top + bobPos.y - 10) + 'px';
+  }
+
+  function colorToHex(c) {
+    const ctxTmp = document.createElement('canvas').getContext('2d');
+    ctxTmp.fillStyle = c;
+    const computed = ctxTmp.fillStyle;
+    if (computed[0] === '#') return computed;
+    const m = computed.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (!m) return '#66ccff';
+    const r = Number(m[1]).toString(16).padStart(2,'0');
+    const g = Number(m[2]).toString(16).padStart(2,'0');
+    const b = Number(m[3]).toString(16).padStart(2,'0');
+    return '#' + r + g + b;
+  }
+
+  // Drag / tap
+  let activeDragPendulum = null;
+
+  function startPointer(e) {
     e.preventDefault();
     const p = pointerPos(e);
-    const { x1, y1, x2, y2 } = getBobPositions();
     const r = 14;
     const r2 = r * r;
+    let selectedPendulum = null;
+    let selectedBob = null;
 
-    if (dist2(p.x, p.y, x1, y1) < r2) {
-      dragging = 'bob1';
-      paused = true;
-    } else if (dist2(p.x, p.y, x2, y2) < r2) {
-      dragging = 'bob2';
-      paused = true;
+    for (let i = pendulums.length - 1; i >= 0; i--) {
+      const dp = pendulums[i];
+      const { x1, y1, x2, y2 } = dp.getPositions();
+      if (dist2(p.x, p.y, x1, y1) < r2) {
+        selectedPendulum = dp;
+        selectedBob = 'bob1';
+        break;
+      }
+      if (dist2(p.x, p.y, x2, y2) < r2) {
+        selectedPendulum = dp;
+        selectedBob = 'bob2';
+        break;
+      }
+    }
+
+    if (selectedPendulum && selectedBob) {
+      activeDragPendulum = selectedPendulum;
+      selectedPendulum.dragging = selectedBob;
+      closePopup();
     } else {
-      dragging = null;
+      closePopup();
     }
   }
 
-  window.addEventListener('mousemove', drag);
-  window.addEventListener('touchmove', drag, { passive: false });
-
-  function drag(e) {
-    if (!dragging) return;
+  function movePointer(e) {
+    if (!activeDragPendulum) return;
     e.preventDefault();
+    const dp = activeDragPendulum;
     const p = pointerPos(e);
 
-    if (dragging === 'bob1') {
-      const dx = p.x - origin.x;
-      const dy = p.y - origin.y;
-      a1 = Math.atan2(dx, dy);
-      a1_v = 0;
-      a2_v = 0;
-    } else if (dragging === 'bob2') {
-      const { x1, y1 } = getBobPositions();
+    if (dp.dragging === 'bob1') {
+      const dx = p.x - dp.origin.x;
+      const dy = p.y - dp.origin.y;
+      dp.a1 = Math.atan2(dx, dy);
+      dp.a1_v = 0;
+      dp.a2_v = 0;
+    } else if (dp.dragging === 'bob2') {
+      const { x1, y1 } = dp.getPositions();
       const dx = p.x - x1;
       const dy = p.y - y1;
-      a2 = Math.atan2(dx, dy);
-      a1_v = 0;
-      a2_v = 0;
+      dp.a2 = Math.atan2(dx, dy);
+      dp.a1_v = 0;
+      dp.a2_v = 0;
     }
   }
 
-  window.addEventListener('mouseup', endDrag);
-  window.addEventListener('touchend', endDrag);
-
-  function endDrag() {
-    dragging = null;
-  }
-
-  // Physics update for double pendulum
-  function step(dt) {
-    const num1 = -g * (2 * m1 + m2) * Math.sin(a1);
-    const num2 = -m2 * g * Math.sin(a1 - 2 * a2);
-    const num3 = -2 * Math.sin(a1 - a2) * m2;
-    const num4 = a2_v * a2_v * L2 + a1_v * a1_v * L1 * Math.cos(a1 - a2);
-    const den  = L1 * (2 * m1 + m2 - m2 * Math.cos(2 * a1 - 2 * a2));
-    const a1_a = (num1 + num2 + num3 * num4) / den;
-
-    const num5 = 2 * Math.sin(a1 - a2);
-    const num6 = a1_v * a1_v * L1 * (m1 + m2);
-    const num7 = g * (m1 + m2) * Math.cos(a1);
-    const num8 = a2_v * a2_v * L2 * m2 * Math.cos(a1 - a2);
-    const den2 = L2 * (2 * m1 + m2 - m2 * Math.cos(2 * a1 - 2 * a2));
-    const a2_a = (num5 * (num6 + num7 + num8)) / den2;
-
-    // basic integration (semi-fixed timestep)
-    const h = dt * 0.0015; // scale factor for stability
-    a1_v += a1_a * h;
-    a2_v += a2_a * h;
-
-    a1_v *= damping;
-    a2_v *= damping;
-
-    a1 += a1_v * h;
-    a2 += a2_v * h;
-  }
-
-  // Drawing helpers
-  function drawFrame() {
-    // fade trail slightly
-    if (showTrail) {
-      trailCtx.fillStyle = 'rgba(0,0,0,0.06)';
-      trailCtx.fillRect(0, 0, trailCanvas.width, trailCanvas.height);
+  function endPointer(e) {
+    if (!activeDragPendulum) {
+      const p = pointerPos(e);
+      const r = 16, r2 = r * r;
+      for (let i = pendulums.length - 1; i >= 0; i--) {
+        const dp = pendulums[i];
+        const { x1, y1, x2, y2 } = dp.getPositions();
+        let pos = null;
+        if (dist2(p.x, p.y, x1, y1) < r2) {
+          pos = { x: x1, y: y1 };
+        } else if (dist2(p.x, p.y, x2, y2) < r2) {
+          pos = { x: x2, y: y2 };
+        }
+        if (pos) {
+          openPopup(dp, pos);
+          break;
+        }
+      }
+      return;
     }
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const dp = activeDragPendulum;
+    dp.dragging = null;
+    activeDragPendulum = null;
+  }
 
-    const { x1, y1, x2, y2 } = getBobPositions();
+  canvas.addEventListener('mousedown', startPointer);
+  canvas.addEventListener('touchstart', startPointer, { passive: false });
+  window.addEventListener('mousemove', movePointer);
+  window.addEventListener('touchmove', movePointer, { passive: false });
+  window.addEventListener('mouseup', endPointer);
+  window.addEventListener('touchend', endPointer);
 
-    // draw trail
+  // Loop
+  let lastTime = null;
+  function loop(ts) {
+    if (lastTime == null) lastTime = ts;
+    const dt = ts - lastTime;
+    lastTime = ts;
+
+    if (!paused && !activeDragPendulum) {
+      for (const dp of pendulums) dp.step(dt);
+    }
+
+    // fade global trail based on average trailStrength
+    const avgTrail = pendulums.length
+      ? pendulums.reduce((s,p) => s + (p.trailEnabled ? p.trailStrength : 0.12), 0) / pendulums.length
+      : 0.06;
     if (showTrail) {
-      trailCtx.fillStyle = 'rgba(255,255,255,0.7)';
-      trailCtx.beginPath();
-      trailCtx.arc(x2, y2, 1.2, 0, Math.PI * 2);
-      trailCtx.fill();
+      trailCtx.fillStyle = `rgba(0,0,0,${avgTrail})`;
+      trailCtx.fillRect(0,0,trailCanvas.width,trailCanvas.height);
+    }
 
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // draw trails
+    if (showTrail) {
+      for (const dp of pendulums) {
+        if (!dp.trailEnabled) continue;
+        const { x2, y2 } = dp.getPositions();
+        trailCtx.fillStyle = dp.color;
+        trailCtx.beginPath();
+        trailCtx.arc(x2, y2, 1.4, 0, Math.PI * 2);
+        trailCtx.fill();
+      }
       ctx.drawImage(trailCanvas, 0, 0);
     }
 
-    // draw rods
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#aaa';
-    ctx.beginPath();
-    ctx.moveTo(origin.x, origin.y);
-    ctx.lineTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
+    for (const dp of pendulums) dp.draw(ctx);
 
-    // draw origin
-    ctx.fillStyle = '#f5f5f5';
-    ctx.beginPath();
-    ctx.arc(origin.x, origin.y, 4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // draw bobs
-    const r1 = 10, r2 = 12;
-    ctx.fillStyle = dragging === 'bob1' ? '#ffcc00' : '#ff6666';
-    ctx.beginPath();
-    ctx.arc(x1, y1, r1, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = dragging === 'bob2' ? '#ffcc00' : '#66ccff';
-    ctx.beginPath();
-    ctx.arc(x2, y2, r2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  function loop(timestamp) {
-    if (lastTime == null) lastTime = timestamp;
-    const dt = timestamp - lastTime;
-    lastTime = timestamp;
-
-    if (!paused && !dragging) {
-      step(dt);
-    }
-
-    drawFrame();
     requestAnimationFrame(loop);
   }
-
   requestAnimationFrame(loop);
 })();
 </script>
