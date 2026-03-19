@@ -352,7 +352,17 @@ let autoSyncTimer = null;
 let autoSyncInFlight = null;
 let syncBootstrapComplete = false;
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
-function persistNow(){ state.lastModified=Date.now(); const ok=trySave(STABLE_KEY, JSON.stringify(state)); triggerRealtimeDriveSync(); setStatus(ok? "Saved" : "Local save failed (likely storage limit)"); dirty=false; }
+function persistNow(options={}){
+  const { touchTimestamp=true, syncToGitHub=true } = options || {};
+  if(touchTimestamp) state.lastModified=Date.now();
+  const ok=trySave(STABLE_KEY, JSON.stringify(state));
+  if(ok){
+    if(syncToGitHub) triggerRealtimeDriveSync();
+    else clearAutoSync();
+  }
+  setStatus(ok? "Saved" : "Local save failed (likely storage limit)");
+  dirty=false;
+}
 function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); }
 function loadState(){
   let raw = localStorage.getItem(STABLE_KEY);
@@ -756,7 +766,6 @@ function renderCard(card){
   detail.addEventListener("focusout", (e)=>{
     if(detail.contains(e.relatedTarget)) return;
     saveInline();
-    triggerRealtimeDriveSync();
   });
 
   const grid=document.createElement("div");
@@ -912,7 +921,6 @@ $("#fNotes").addEventListener("blur", ()=>{
     editorDirty=true;
   }
 });
-editDialog.addEventListener("focusout", (e)=>{ if(editingId && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)){ persistNow(); triggerRealtimeDriveSync(); } });
 editorCloseBtn.addEventListener("click", ()=>{
   if(editorDirty){ if(confirm("Discard changes?")) { editDialog.close("cancel"); editorDirty=false; } }
   else { editDialog.close("cancel"); }
@@ -1064,7 +1072,6 @@ function applyImportedBoard(obj, sourceLabel="import", options={}){
     alert("Invalid JSON structure.");
     return false;
   }
-  const { skipAutoSync=false } = options || {};
   state=obj;
   state.collapsed = state.collapsed || {};
   state.layout = state.layout || "auto";
@@ -1072,9 +1079,10 @@ function applyImportedBoard(obj, sourceLabel="import", options={}){
   state.cardCollapsed = state.cardCollapsed || {};
   state.lastModified = Number(state.lastModified||Date.now());
   state.stages.forEach(st=>{ const list=state.cards.filter(c=>c.stage===st); list.sort((a,b)=>(a.pos??0)-(b.pos??0)||(a.createdAt-b.createdAt)); list.forEach((c,i)=>{ if(typeof c.pos!=="number") c.pos=(i+1)*1000; }); });
-  scheduleSave();
+  clearTimeout(saveTimer);
+  dirty=true;
+  persistNow({ touchTimestamp:false, syncToGitHub:false });
   render();
-  if(skipAutoSync) clearAutoSync();
   toast("Import successful","Board replaced");
   setStatus(`Imported ${sourceLabel} and saved to local storage.`);
   return true;
@@ -1262,11 +1270,13 @@ function requestTokenInApp(message=""){
   });
 }
 async function ensureGithubToken(){
-  if(githubToken && await validateToken(githubToken)) return githubToken;
+  if(githubToken) return githubToken;
   const storedToken=localStorage.getItem(GITHUB_PAT_KEY);
-  if(storedToken && await validateToken(storedToken)){ githubToken=storedToken.trim(); return githubToken; }
-  if(storedToken) localStorage.removeItem(GITHUB_PAT_KEY);
-  let message=storedToken?"Saved token is no longer valid. Enter a new token.":"";
+  if(storedToken?.trim()){
+    githubToken=storedToken.trim();
+    return githubToken;
+  }
+  let message="";
   while(!githubToken){
     const input=await requestTokenInApp(message);
     if(await validateToken(input)){
@@ -1278,6 +1288,10 @@ async function ensureGithubToken(){
   }
   return githubToken;
 }
+function resetGithubToken(){
+  githubToken=null;
+  localStorage.removeItem(GITHUB_PAT_KEY);
+}
 function getGitHubSyncConfig(){
   return DEFAULT_GITHUB_SYNC_CONFIG;
 }
@@ -1285,6 +1299,15 @@ async function githubFetch(url, options={}){
   const token=await ensureGithubToken();
   const headers={"Authorization":"token "+token,"Accept":"application/vnd.github.v3+json",...(options.headers||{})};
   const res=await fetch(url,{...options,headers});
+  if(res.status===401 || res.status===403){
+    resetGithubToken();
+    const freshToken=await ensureGithubToken();
+    const retryHeaders={"Authorization":"token "+freshToken,"Accept":"application/vnd.github.v3+json",...(options.headers||{})};
+    const retryRes=await fetch(url,{...options,headers:retryHeaders});
+    if(!retryRes.ok) throw new Error(`GitHub API error (${retryRes.status})`);
+    if(retryRes.status===204) return null;
+    return retryRes.json();
+  }
   if(!res.ok) throw new Error(`GitHub API error (${res.status})`);
   if(res.status===204) return null;
   return res.json();
@@ -1326,6 +1349,7 @@ async function pushBoardToGitHub(options={}){
 async function pullBoardFromGitHub(options={}){
   const cfg=getGitHubSyncConfig();
   const { silent=false, reason="manual pull" } = options || {};
+  clearAutoSync();
   setStatus(`Pulling from GitHub (${cfg.owner}/${cfg.repo}:${cfg.path})…`);
   try{
     const remote=await fetchGitHubBoard(cfg);
@@ -1341,6 +1365,7 @@ async function pullBoardFromGitHub(options={}){
   }
 }
 async function syncBoardWithGitHub(reason="sync"){
+  clearAutoSync();
   if(autoSyncInFlight) return autoSyncInFlight;
   autoSyncInFlight=(async()=>{
     const cfg=getGitHubSyncConfig();
