@@ -347,6 +347,10 @@ const DEFAULT_GITHUB_SYNC_CONFIG = Object.freeze({
 const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
 let dirty=false, saveTimer=null;
 let githubToken = null;
+let remoteBoardSha = null;
+let autoSyncTimer = null;
+let autoSyncInFlight = null;
+let syncBootstrapComplete = false;
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
 function persistNow(){ state.lastModified=Date.now(); const ok=trySave(STABLE_KEY, JSON.stringify(state)); triggerRealtimeDriveSync(); setStatus(ok? "Saved" : "Local save failed (likely storage limit)"); dirty=false; }
 function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); }
@@ -1054,12 +1058,13 @@ const DRIVE_JSON_URLS = DRIVE_FILE_ID
   : [];
 $("#btnExport").onclick=()=>{ const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="ai-jobs-kanban.json"; a.click(); URL.revokeObjectURL(url); setStatus("Exported current board JSON."); };
 function toast(title, desc="", isErr=false){ const t=document.getElementById("toast"); t.className=isErr? "err":""; t.querySelector(".tmsg").textContent=title; t.querySelector(".tdesc").textContent=desc; t.style.display="block"; clearTimeout(t._timer); t._timer=setTimeout(()=>{ t.style.display="none"; }, 2800); }
-function applyImportedBoard(obj, sourceLabel="import"){
+function applyImportedBoard(obj, sourceLabel="import", options={}){
   if(!(Array.isArray(obj?.cards)&&Array.isArray(obj?.platforms)&&Array.isArray(obj?.stages))){
     toast("Import failed","Invalid JSON", true);
     alert("Invalid JSON structure.");
     return false;
   }
+  const { skipAutoSync=false } = options || {};
   state=obj;
   state.collapsed = state.collapsed || {};
   state.layout = state.layout || "auto";
@@ -1069,6 +1074,7 @@ function applyImportedBoard(obj, sourceLabel="import"){
   state.stages.forEach(st=>{ const list=state.cards.filter(c=>c.stage===st); list.sort((a,b)=>(a.pos??0)-(b.pos??0)||(a.createdAt-b.createdAt)); list.forEach((c,i)=>{ if(typeof c.pos!=="number") c.pos=(i+1)*1000; }); });
   scheduleSave();
   render();
+  if(skipAutoSync) clearAutoSync();
   toast("Import successful","Board replaced");
   setStatus(`Imported ${sourceLabel} and saved to local storage.`);
   return true;
@@ -1117,8 +1123,22 @@ async function bootstrapCentralizedBoard(){
   if(!remote) return;
   applyImportedBoard(remote, "centralized Google Drive");
 }
+function clearAutoSync(){
+  if(autoSyncTimer){ clearTimeout(autoSyncTimer); autoSyncTimer=null; }
+}
+function queueAutoSync(reason="change"){
+  clearAutoSync();
+  if(!syncBootstrapComplete) return;
+  autoSyncTimer=setTimeout(()=>{
+    autoSyncTimer=null;
+    syncBoardWithGitHub(reason).catch(err=>{
+      console.warn("Auto sync failed", err);
+    });
+  }, 900);
+}
 function triggerRealtimeDriveSync(){
   if(typeof pushStateToRemote==="function") pushStateToRemote();
+  queueAutoSync("local update");
 }
 
 async function forceRefreshFromDrive(){
@@ -1275,33 +1295,81 @@ async function fetchGitHubBoard(cfg){
   const text=b64DecodeUnicode((data.content||"").replace(/\n/g,""));
   return { sha:data.sha, board:JSON.parse(text) };
 }
-async function pushBoardToGitHub(){
+function boardTimestamp(board){
+  const ts=Number(board?.lastModified||0);
+  return Number.isFinite(ts) ? ts : 0;
+}
+function boardsEqual(a,b){
+  try{ return JSON.stringify(a)===JSON.stringify(b); }catch{ return false; }
+}
+async function pushBoardToGitHub(options={}){
   const cfg=getGitHubSyncConfig();
+  const { silent=false, reason="manual push", expectedSha=null } = options || {};
   setStatus(`Pushing to GitHub (${cfg.owner}/${cfg.repo}:${cfg.path})…`);
   const payload={ message:`Update Kanban board (${new Date().toISOString()})`, content:b64EncodeUnicode(JSON.stringify(state,null,2)), branch:cfg.branch };
+  if(expectedSha) payload.sha=expectedSha;
+  else if(remoteBoardSha) payload.sha=remoteBoardSha;
   try{
-    try{ payload.sha=(await fetchGitHubBoard(cfg)).sha; }catch{}
     const url=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(cfg.path)}`;
-    await githubFetch(url,{ method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
-    toast("Push successful","Board saved to GitHub");
+    const resp=await githubFetch(url,{ method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
+    remoteBoardSha=resp?.content?.sha || resp?.commit?.sha || remoteBoardSha;
+    if(!silent) toast("Push successful",`Board saved to GitHub (${reason})`);
     setStatus(`Pushed to ${cfg.owner}/${cfg.repo}:${cfg.path}`);
+    return resp;
   }catch(err){
-    toast("Push failed", err.message||"GitHub push failed", true);
+    remoteBoardSha=null;
+    if(!silent) toast("Push failed", err.message||"GitHub push failed", true);
     setStatus("GitHub push failed");
+    throw err;
   }
 }
-async function pullBoardFromGitHub(){
+async function pullBoardFromGitHub(options={}){
   const cfg=getGitHubSyncConfig();
+  const { silent=false, reason="manual pull" } = options || {};
   setStatus(`Pulling from GitHub (${cfg.owner}/${cfg.repo}:${cfg.path})…`);
   try{
     const remote=await fetchGitHubBoard(cfg);
-    applyImportedBoard(remote.board, `GitHub (${cfg.owner}/${cfg.repo}:${cfg.path})`);
-    toast("Pull successful","Board loaded from GitHub");
+    remoteBoardSha=remote.sha || null;
+    applyImportedBoard(remote.board, `GitHub (${cfg.owner}/${cfg.repo}:${cfg.path})`, { skipAutoSync:true });
+    if(!silent) toast("Pull successful",`Board loaded from GitHub (${reason})`);
+    return remote;
   }catch(err){
-    toast("Pull failed", err.message||"GitHub pull failed", true);
+    remoteBoardSha=null;
+    if(!silent) toast("Pull failed", err.message||"GitHub pull failed", true);
     setStatus("GitHub pull failed");
+    throw err;
   }
 }
+async function syncBoardWithGitHub(reason="sync"){
+  if(autoSyncInFlight) return autoSyncInFlight;
+  autoSyncInFlight=(async()=>{
+    const cfg=getGitHubSyncConfig();
+    setStatus(`Syncing with GitHub (${cfg.owner}/${cfg.repo}:${cfg.path})…`);
+    const remote=await fetchGitHubBoard(cfg);
+    remoteBoardSha=remote.sha || null;
+    const localTs=boardTimestamp(state);
+    const remoteTs=boardTimestamp(remote.board);
+    if(boardsEqual(remote.board, state)){
+      setStatus(`GitHub already up to date (${cfg.owner}/${cfg.repo}:${cfg.path})`);
+      return { action:"noop", remote };
+    }
+    if(remoteTs > localTs){
+      applyImportedBoard(remote.board, `GitHub (${cfg.owner}/${cfg.repo}:${cfg.path})`, { skipAutoSync:true });
+      toast("GitHub updated","Loaded newer board from repository");
+      setStatus(`Pulled newer board from ${cfg.owner}/${cfg.repo}:${cfg.path}`);
+      return { action:"pull", remote };
+    }
+    await pushBoardToGitHub({ silent:true, reason, expectedSha:remote.sha || null });
+    toast("GitHub updated","Pushed latest local board to repository");
+    return { action:"push", remote };
+  })();
+  try{
+    return await autoSyncInFlight;
+  }finally{
+    autoSyncInFlight=null;
+  }
+}
+
 function normalizeUrl(url){
   const val=String(url||"").trim();
   if(!val) return "";
@@ -1379,17 +1447,18 @@ window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
   try{
     setStatus("Checking GitHub token…");
     await ensureGithubToken();
-    await pullBoardFromGitHub();
-    setStatus("Loaded from GitHub");
+    syncBootstrapComplete=true;
+    await syncBoardWithGitHub("startup refresh");
   }catch(err){
+    syncBootstrapComplete=true;
     console.warn("GitHub bootstrap failed", err);
     toast("GitHub sync unavailable", err?.message||"Using local board", true);
     setStatus("Loaded local board");
   }
 })();
 
-$("#btnPushGitHub").addEventListener("click", ()=>{ pushBoardToGitHub(); });
-$("#btnPullGitHub").addEventListener("click", ()=>{ pullBoardFromGitHub(); });
+$("#btnPushGitHub").addEventListener("click", ()=>{ syncBoardWithGitHub("manual sync").catch(err=>console.warn("Manual sync failed", err)); });
+$("#btnPullGitHub").addEventListener("click", ()=>{ pullBoardFromGitHub({ reason:"manual pull" }).catch(err=>console.warn("Manual pull failed", err)); });
 </script>
 </body>
 </html>
