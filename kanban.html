@@ -338,7 +338,12 @@ const BUILD = "2025-10-28";
 const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
 const GITHUB_PAT_KEY = "github_pat";
-const GITHUB_SYNC_KEY = "ai_jobs_kanban_github_sync";
+const DEFAULT_GITHUB_SYNC_CONFIG = Object.freeze({
+  owner:"acmeproducts",
+  repo:"stuff",
+  path:"kanban.json",
+  branch:"main"
+});
 const LEGACY_KEYS = ["ai_jobs_kanban_v3","ai_jobs_kanban_v4","ai_jobs_kanban_v5","ai_jobs_kanban_v6","ai_jobs_kanban_v7"];
 let dirty=false, saveTimer=null;
 let githubToken = null;
@@ -1253,22 +1258,8 @@ async function ensureGithubToken(){
   }
   return githubToken;
 }
-function loadGitHubSyncConfig(){
-  try{ return JSON.parse(localStorage.getItem(GITHUB_SYNC_KEY)||"{}"); }catch{ return {}; }
-}
-function saveGitHubSyncConfig(cfg){ trySave(GITHUB_SYNC_KEY, JSON.stringify(cfg)); }
-function promptGitHubSyncConfig(){
-  const saved=loadGitHubSyncConfig();
-  const owner=(prompt("GitHub owner/user", saved.owner||"acmeproducts")||"").trim();
-  if(!owner) return null;
-  const repo=(prompt("Repository name", saved.repo||"stuff")||"").trim();
-  if(!repo) return null;
-  const path=(prompt("Path for kanban JSON", saved.path||"ai-jobs-kanban.json")||"").trim();
-  if(!path) return null;
-  const branch=(prompt("Branch", saved.branch||"main")||"").trim()||"main";
-  const cfg={owner,repo,path,branch};
-  saveGitHubSyncConfig(cfg);
-  return cfg;
+function getGitHubSyncConfig(){
+  return DEFAULT_GITHUB_SYNC_CONFIG;
 }
 async function githubFetch(url, options={}){
   const token=await ensureGithubToken();
@@ -1285,9 +1276,8 @@ async function fetchGitHubBoard(cfg){
   return { sha:data.sha, board:JSON.parse(text) };
 }
 async function pushBoardToGitHub(){
-  const cfg=promptGitHubSyncConfig();
-  if(!cfg) return;
-  setStatus("Pushing to GitHub…");
+  const cfg=getGitHubSyncConfig();
+  setStatus(`Pushing to GitHub (${cfg.owner}/${cfg.repo}:${cfg.path})…`);
   const payload={ message:`Update Kanban board (${new Date().toISOString()})`, content:b64EncodeUnicode(JSON.stringify(state,null,2)), branch:cfg.branch };
   try{
     try{ payload.sha=(await fetchGitHubBoard(cfg)).sha; }catch{}
@@ -1301,9 +1291,8 @@ async function pushBoardToGitHub(){
   }
 }
 async function pullBoardFromGitHub(){
-  const cfg=promptGitHubSyncConfig();
-  if(!cfg) return;
-  setStatus("Pulling from GitHub…");
+  const cfg=getGitHubSyncConfig();
+  setStatus(`Pulling from GitHub (${cfg.owner}/${cfg.repo}:${cfg.path})…`);
   try{
     const remote=await fetchGitHubBoard(cfg);
     applyImportedBoard(remote.board, `GitHub (${cfg.owner}/${cfg.repo}:${cfg.path})`);
@@ -1387,8 +1376,16 @@ function sanitizeMarkdownImages(s){
 window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
 (async ()=>{
   render();
-  await bootstrapCentralizedBoard();
-  setStatus("Loaded");
+  try{
+    setStatus("Checking GitHub token…");
+    await ensureGithubToken();
+    await pullBoardFromGitHub();
+    setStatus("Loaded from GitHub");
+  }catch(err){
+    console.warn("GitHub bootstrap failed", err);
+    toast("GitHub sync unavailable", err?.message||"Using local board", true);
+    setStatus("Loaded local board");
+  }
 })();
 
 $("#btnPushGitHub").addEventListener("click", ()=>{ pushBoardToGitHub(); });
