@@ -317,6 +317,7 @@
                 <div class="form-group">
                     <span class="label">Investment Name</span>
                     <div class="input-wrap"><input type="text" id="plan-name" placeholder="e.g. Core S&P 500"></div>
+                    <p class="helper" style="margin-top:6px;">Freeform fields support <strong>markdown</strong>, including <code>**bold**</code> and <code>[Link](example.com)</code>; markdown links assume <code>https://</code> when no protocol is entered.</p>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -351,6 +352,10 @@
                 <div class="form-group">
                     <span class="label">Ladder Name</span>
                     <div class="input-wrap"><input type="text" id="ladder-name" placeholder="e.g. Bond Ladder"></div>
+                </div>
+                <div class="form-group">
+                    <span class="label">Actuals Source Link</span>
+                    <div class="input-wrap"><input type="text" id="ladder-source-link" placeholder="e.g. [Custodian](broker.example.com/ladder)"></div>
                 </div>
                 <div id="ladder-rungs"></div>
                 <button class="btn btn-secondary" style="margin-bottom:16px;" onclick="addRung()">➕ Add Rung</button>
@@ -390,6 +395,10 @@
                     <div class="input-wrap"><input type="text" id="plan-exit-custom" placeholder="Enter custom strategy"></div>
                 </div>
             </div>
+            <div class="form-group" id="plan-standard-source-group">
+                <span class="label">Actuals Source Link</span>
+                <div class="input-wrap"><input type="text" id="plan-source-link" placeholder="e.g. [Broker Login](broker.example.com/positions)"></div>
+            </div>
 
             <div class="form-group">
                 <span class="label">Assign to Portfolio</span>
@@ -404,7 +413,8 @@
             <div class="card-header"><h2>Log Actuals (Clarify)</h2></div>
             <div class="form-group">
                 <span class="label">Select Investment (Filtered by Global Book)</span>
-                <div class="input-wrap"><select id="log-chunk-id"></select></div>
+                <div class="input-wrap"><select id="log-chunk-id" onchange="renderActualsSourceLink()"></select></div>
+                <div id="log-source-link" class="helper" style="margin-top:8px;">No actuals source link saved for this investment.</div>
             </div>
             <div class="form-row">
                 <div class="form-group">
@@ -513,6 +523,7 @@
         <div class="report-actions">
             <button class="btn btn-secondary" onclick="exportDrillCSV()">Export CSV</button>
             <button class="btn btn-secondary" onclick="exportDrillPNG()">Export Chart PNG</button>
+            <button class="btn btn-secondary" id="dm-source-link-btn" onclick="openCurrentActualsSource()" style="display:none;">Open Actuals Source</button>
             <button class="btn btn-primary" onclick="printDrillReport()">Print / PDF Report</button>
         </div>
         <div class="chart-wrapper compact" style="margin-bottom:16px;"><canvas id="drillChart"></canvas></div>
@@ -526,6 +537,7 @@
                 <tbody id="dm-table-body"></tbody>
             </table>
         </div>
+        <div id="dm-source-link" class="helper" style="margin-bottom:12px;"></div>
         <div id="dm-notes-section">
             <h3 style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; margin-bottom:8px; margin-top:16px;">Clarify Logs</h3>
             <div id="dm-notes" style="max-height:250px; overflow-y:auto;"></div>
@@ -564,6 +576,7 @@
                 <div class="form-group"><span class="label">Strategy Type</span><div class="input-wrap"><input type="text" id="em-strategy" readonly></div></div>
                 <div class="form-group"><span class="label">Exit Strategy</span><div class="input-wrap"><input type="text" id="em-exit"></div></div>
             </div>
+            <div class="form-group"><span class="label">Actuals Source Link</span><div class="input-wrap"><input type="text" id="em-source-link" placeholder="e.g. [Custodian](broker.example.com/positions)"></div></div>
             <p class="helper">Ladder rung definitions are preserved on edit; adjust them from the planning sandbox when creating a revised ladder.</p>
         </div>
         <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
@@ -673,6 +686,86 @@ Chart.defaults.plugins.tooltip.callbacks.title = function(ctx) {
     return Array.isArray(label) ? label.join(' ') : label;
 };
 
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function escapeHtmlAttr(value) {
+    return escapeHtml(value).replace(/`/g, '&#96;');
+}
+
+function normalizeUrl(url) {
+    const trimmed = String(url || '').trim();
+    if (!trimmed) return '';
+    if (/^(https?:|mailto:|tel:)/i.test(trimmed)) return trimmed;
+    return `https://${trimmed.replace(/^\/+/, '')}`;
+}
+
+function normalizeMarkdownLinks(text) {
+    return String(text || '').replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => `[${label}](${normalizeUrl(url)})`);
+}
+
+function normalizeMarkdownInput(text) {
+    return normalizeMarkdownLinks(String(text || '').trim());
+}
+
+function renderMarkdown(value, options = {}) {
+    const multiline = options.multiline === true;
+    const escaped = escapeHtml(normalizeMarkdownInput(value));
+    const linked = escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => `<a href="${escapeHtmlAttr(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`);
+    const bolded = linked.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    return multiline ? bolded.replace(/\n/g, '<br>') : bolded;
+}
+
+function toPlainText(value) {
+    return normalizeMarkdownInput(String(value || ''))
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)')
+        .replace(/\*\*([^*]+)\*\*/g, '$1');
+}
+
+function renderActualsSourceLink() {
+    const selectedId = document.getElementById('log-chunk-id')?.value;
+    const container = document.getElementById('log-source-link');
+    if (!container) return;
+    const chunk = appData.chunks.find(item => item.id === selectedId);
+    if (!chunk?.actualsLink) {
+        container.innerHTML = 'No actuals source link saved for this investment.';
+        return;
+    }
+    container.innerHTML = `Actuals source: ${renderMarkdown(chunk.actualsLink)}`;
+}
+
+function getCurrentReportChunk() {
+    return currentReportChunkId ? getEnriched().find(x => x.id === currentReportChunkId) : null;
+}
+
+function openCurrentActualsSource() {
+    const chunk = getCurrentReportChunk();
+    const match = chunk?.actualsLink?.match(/\[[^\]]+\]\(([^)]+)\)/);
+    const target = match ? match[1] : normalizeUrl(chunk?.actualsLink || '');
+    if (!target) return toast('No actuals source link configured for this investment');
+    window.open(target, '_blank', 'noopener');
+}
+
+function renderDrillActualsSource(chunk) {
+    const source = document.getElementById('dm-source-link');
+    const button = document.getElementById('dm-source-link-btn');
+    if (!source || !button) return;
+    if (chunk.actualsLink) {
+        source.innerHTML = `Actuals source: ${renderMarkdown(chunk.actualsLink)}`;
+        button.style.display = 'inline-flex';
+    } else {
+        source.innerHTML = 'No actuals source link saved for this investment.';
+        button.style.display = 'none';
+    }
+}
+
 function initApp() {
     try {
         const saved = JSON.parse(localStorage.getItem(STORE_DATA));
@@ -711,10 +804,10 @@ function loadDefaultData() {
             { id: 'p3', bookId: 'b2', name: 'Growth Fund', taxStatus: 'Post-Tax' }
         ],
         chunks: [
-            { id: 'c1', portfolioId: 'p1', name: 'Core S&P 500', type: 'Standard', capital: 10000, duration: 36, targetPct: 10, entryPct: 2, exitStrategy: 'Buy and Hold', tags: ['Retirement', 'Liquid'], startDate: '2025-01-01', rungs: [] },
-            { id: 'c2', portfolioId: 'p1', name: 'Value Dividend Fund', type: 'Standard', capital: 20000, duration: 24, targetPct: 5, entryPct: 2, exitStrategy: 'Reinvest for Compounding', tags: ['Retirement'], startDate: '2025-01-01', rungs: [] },
-            { id: 'c3', portfolioId: 'p2', name: 'Tech Growth Sleeves', type: 'Standard', capital: 15000, duration: 18, targetPct: 20, entryPct: 5, exitStrategy: 'Harvest Profit', tags: ['High Risk'], startDate: '2025-01-01', rungs: [] },
-            { id: 'c4', portfolioId: 'p3', name: 'Alice Bond Ladder', type: 'Ladder', capital: 9000, duration: 18, targetPct: 0, entryPct: 2, exitStrategy: 'Recover Principal (Profit remains invested)', tags: ['Liquid'], startDate: '2025-06-01', rungs: [
+            { id: 'c1', portfolioId: 'p1', name: 'Core **S&P 500**', type: 'Standard', capital: 10000, duration: 36, targetPct: 10, entryPct: 2, exitStrategy: 'Buy and Hold', actualsLink: '[Custodian](broker.example.com/core-sp500)', tags: ['Retirement', 'Liquid'], startDate: '2025-01-01', rungs: [] },
+            { id: 'c2', portfolioId: 'p1', name: 'Value Dividend Fund', type: 'Standard', capital: 20000, duration: 24, targetPct: 5, entryPct: 2, exitStrategy: 'Reinvest for **Compounding**', actualsLink: '[Transfer Agent](dividends.example.com)', tags: ['Retirement'], startDate: '2025-01-01', rungs: [] },
+            { id: 'c3', portfolioId: 'p2', name: 'Tech Growth Sleeves', type: 'Standard', capital: 15000, duration: 18, targetPct: 20, entryPct: 5, exitStrategy: 'Harvest Profit', actualsLink: '[Broker Login](broker.example.com/tech-growth)', tags: ['High Risk'], startDate: '2025-01-01', rungs: [] },
+            { id: 'c4', portfolioId: 'p3', name: 'Alice Bond Ladder', type: 'Ladder', capital: 9000, duration: 18, targetPct: 0, entryPct: 2, exitStrategy: 'Recover Principal (Profit remains invested)', actualsLink: '[Trust Custodian](trust.example.com/bond-ladder)', tags: ['Liquid'], startDate: '2025-06-01', rungs: [
                 { capital: 3000, duration: 6, rate: 3.5 },
                 { capital: 3000, duration: 12, rate: 5.0 },
                 { capital: 3000, duration: 18, rate: 6.5 }
@@ -732,24 +825,25 @@ function loadDefaultData() {
 }
 
 function normalizeData(raw) {
-    const books = (raw.books || []).map(b => ({ id: b.id, name: b.name || 'Untitled Book' }));
+    const books = (raw.books || []).map(b => ({ id: b.id, name: normalizeMarkdownInput(b.name || 'Untitled Book') }));
     const portfolios = (raw.portfolios || raw.ports || []).map(p => ({
         id: p.id,
         bookId: p.bookId || p.bid,
-        name: p.name || 'Untitled Portfolio',
+        name: normalizeMarkdownInput(p.name || 'Untitled Portfolio'),
         taxStatus: p.taxStatus || p.tax || 'Post-Tax'
     }));
     const chunks = (raw.chunks || []).map(c => ({
         id: c.id,
         portfolioId: c.portfolioId || c.pid,
-        name: c.name || 'Untitled Investment',
+        name: normalizeMarkdownInput(c.name || 'Untitled Investment'),
         type: c.type || 'Standard',
         capital: Number(c.capital ?? c.init ?? 0),
         duration: Number(c.duration ?? c.dur ?? 12),
         targetPct: Number(c.targetPct ?? c.pct ?? 0),
         entryPct: Number(c.entryPct ?? c.entry ?? 2),
-        exitStrategy: c.exitStrategy || c.exit || 'Buy and Hold',
-        tags: Array.isArray(c.tags) ? c.tags : [],
+        exitStrategy: normalizeMarkdownInput(c.exitStrategy || c.exit || 'Buy and Hold'),
+        actualsLink: normalizeMarkdownInput(c.actualsLink || c.sourceLink || c.actualsUrl || ''),
+        tags: Array.isArray(c.tags) ? c.tags.map(tag => normalizeMarkdownInput(tag)).filter(Boolean) : [],
         startDate: c.startDate || c.st || NOW.toISOString().split('T')[0],
         rungs: Array.isArray(c.rungs) ? c.rungs.map(r => ({
             capital: Number(r.capital ?? r.i ?? 0),
@@ -763,7 +857,7 @@ function normalizeData(raw) {
         date: a.date || a.dt,
         value: Number(a.value ?? a.val ?? 0),
         adjustment: Number(a.adjustment ?? a.adj ?? 0),
-        note: a.note || ''
+        note: normalizeMarkdownInput(a.note || '')
     }));
     const tags = Array.from(new Set([...(raw.tags || []), ...chunks.flatMap(c => c.tags || [])])).filter(Boolean);
     return { books, portfolios, chunks, actuals, tags };
@@ -801,7 +895,7 @@ function refreshAll() {
     saveData();
 
     const gFilt = document.getElementById('global-book-filter');
-    gFilt.innerHTML = `<option value="all">All Books</option>` + appData.books.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+    gFilt.innerHTML = `<option value="all">All Books</option>` + appData.books.map(b => `<option value="${b.id}">${escapeHtmlAttr(toPlainText(b.name))}</option>`).join('');
     gFilt.value = appSettings.currentBookId || 'all';
 
     const validPorts = getFilteredPortfolios();
@@ -820,23 +914,27 @@ function refreshAll() {
     smFilter.innerHTML = '<option value="all">Entire Current Book Scope</option>';
 
     appData.books.forEach(b => {
-        bookSel.innerHTML += `<option value="${b.id}">${b.name}</option>`;
-        defBook.innerHTML += `<option value="${b.id}">${b.name}</option>`;
+        const plainName = toPlainText(b.name);
+        bookSel.innerHTML += `<option value="${b.id}">${escapeHtmlAttr(plainName)}</option>`;
+        defBook.innerHTML += `<option value="${b.id}">${escapeHtmlAttr(plainName)}</option>`;
     });
     defBook.value = appSettings.defaultBookId || '';
 
     validPorts.forEach(p => {
         const b = appData.books.find(x => x.id === p.bookId);
-        const label = `${b ? b.name : ''} > ${p.name} (${p.taxStatus})`;
-        portSel.innerHTML += `<option value="${p.id}">${label}</option>`;
-        smFilter.innerHTML += `<option value="${p.id}">${label}</option>`;
+        const label = `${b ? toPlainText(b.name) : ''} > ${toPlainText(p.name)} (${p.taxStatus})`;
+        portSel.innerHTML += `<option value="${p.id}">${escapeHtmlAttr(label)}</option>`;
+        smFilter.innerHTML += `<option value="${p.id}">${escapeHtmlAttr(label)}</option>`;
     });
 
     validChunks.forEach(c => {
         const p = appData.portfolios.find(x => x.id === c.portfolioId);
         const b = p ? appData.books.find(x => x.id === p.bookId) : null;
-        chunkSel.innerHTML += `<option value="${c.id}">${b ? b.name : ''} > ${p ? p.name : ''} > ${c.name}</option>`;
+        const label = `${b ? toPlainText(b.name) : ''} > ${p ? toPlainText(p.name) : ''} > ${toPlainText(c.name)}`;
+        chunkSel.innerHTML += `<option value="${c.id}">${escapeHtmlAttr(label)}</option>`;
     });
+
+    renderActualsSourceLink();
 
     renderPlanTags();
     renderMaintenanceLists();
@@ -951,6 +1049,7 @@ function togglePlanMode() {
     const type = document.getElementById('plan-type').value;
     document.getElementById('plan-standard').style.display = type === 'Standard' ? 'block' : 'none';
     document.getElementById('plan-ladder').style.display = type === 'Ladder' ? 'block' : 'none';
+    document.getElementById('plan-standard-source-group').style.display = type === 'Standard' ? 'block' : 'none';
     updatePlanPreview();
 }
 
@@ -993,13 +1092,14 @@ function buildPlanPreviewChunk() {
         return {
             id: 'preview',
             portfolioId: document.getElementById('plan-port-id').value || '',
-            name: document.getElementById('ladder-name').value || 'Ladder Preview',
+            name: normalizeMarkdownInput(document.getElementById('ladder-name').value) || 'Ladder Preview',
             type: 'Ladder',
             capital: totalCapital,
             duration: rungs.length ? Math.max(...rungs.map(r => r.duration)) : 12,
             targetPct: 0,
             entryPct: parseFloat(document.getElementById('plan-entry').value) || 2,
-            exitStrategy: document.getElementById('plan-exit-custom').value || document.getElementById('plan-exit').value,
+            exitStrategy: normalizeMarkdownInput(document.getElementById('plan-exit-custom').value || document.getElementById('plan-exit').value),
+            actualsLink: normalizeMarkdownInput(document.getElementById('ladder-source-link').value),
             tags: [...currentPlanTags],
             startDate: NOW.toISOString().split('T')[0],
             rungs,
@@ -1010,13 +1110,14 @@ function buildPlanPreviewChunk() {
     return {
         id: 'preview',
         portfolioId: document.getElementById('plan-port-id').value || '',
-        name: document.getElementById('plan-name').value || 'Standard Preview',
+        name: normalizeMarkdownInput(document.getElementById('plan-name').value) || 'Standard Preview',
         type: 'Standard',
         capital: Number(document.getElementById('plan-init').value || 0),
         duration: Number(document.getElementById('plan-duration').value || 12),
         targetPct: Number(document.getElementById('plan-pct').value || 0),
         entryPct: Number(document.getElementById('plan-entry').value || 2),
-        exitStrategy: document.getElementById('plan-exit-custom').value || document.getElementById('plan-exit').value,
+        exitStrategy: normalizeMarkdownInput(document.getElementById('plan-exit-custom').value || document.getElementById('plan-exit').value),
+        actualsLink: normalizeMarkdownInput(document.getElementById('plan-source-link').value),
         tags: [...currentPlanTags],
         startDate: NOW.toISOString().split('T')[0],
         rungs: [],
@@ -1089,7 +1190,7 @@ function renderPlanTags() {
 }
 
 function saveBook() {
-    const name = document.getElementById('book-name').value.trim();
+    const name = normalizeMarkdownInput(document.getElementById('book-name').value.trim());
     if (!name) return toast('Book name is required');
     appData.books.push({ id: 'b_' + Date.now(), name });
     document.getElementById('book-name').value = '';
@@ -1099,7 +1200,7 @@ function saveBook() {
 }
 
 function savePortfolio() {
-    const name = document.getElementById('port-name').value.trim();
+    const name = normalizeMarkdownInput(document.getElementById('port-name').value.trim());
     const bookId = document.getElementById('port-book-id').value;
     if (!name || !bookId) return toast('Missing fields');
     appData.portfolios.push({ id: 'p_' + Date.now(), bookId, name, taxStatus: document.getElementById('port-tax').value });
@@ -1139,6 +1240,8 @@ function resetPlanForm() {
     document.getElementById('plan-end').value = '';
     document.getElementById('ladder-name').value = '';
     document.getElementById('plan-exit-custom').value = '';
+    document.getElementById('plan-source-link').value = '';
+    document.getElementById('ladder-source-link').value = '';
     currentPlanTags = [];
     document.getElementById('ladder-rungs').innerHTML = '';
     addRung();
@@ -1156,7 +1259,7 @@ function saveActual() {
         date: document.getElementById('log-date').value,
         value,
         adjustment: parseFloat(document.getElementById('log-adj').value) || 0,
-        note: document.getElementById('log-note').value
+        note: normalizeMarkdownInput(document.getElementById('log-note').value)
     });
     document.getElementById('log-val').value = '';
     document.getElementById('log-adj').value = '0';
@@ -1179,7 +1282,7 @@ function renderMaintenanceLists() {
 
     bList.innerHTML = appData.books.map(b => `
         <div class="maint-item">
-            <div class="maint-item-text"><span class="maint-item-title">${b.name}</span><span class="maint-item-sub">ID: ${b.id}</span></div>
+            <div class="maint-item-text"><span class="maint-item-title">${renderMarkdown(b.name)}</span><span class="maint-item-sub">ID: ${escapeHtml(b.id)}</span></div>
             <div class="maint-item-actions"><button class="btn btn-secondary btn-sm" onclick="openEdit('book','${b.id}')">Edit</button><button class="btn btn-danger btn-sm" onclick="deleteRecord('book','${b.id}')">Del</button></div>
         </div>`).join('') || '<div class="maint-item">No Books</div>';
 
@@ -1187,7 +1290,7 @@ function renderMaintenanceLists() {
         const b = appData.books.find(x => x.id === p.bookId);
         return `
             <div class="maint-item">
-                <div class="maint-item-text"><span class="maint-item-title">${p.name}</span><span class="maint-item-sub">${b ? b.name : 'Unknown Book'} | ${p.taxStatus}</span></div>
+                <div class="maint-item-text"><span class="maint-item-title">${renderMarkdown(p.name)}</span><span class="maint-item-sub">${b ? escapeHtml(toPlainText(b.name)) : 'Unknown Book'} | ${escapeHtml(p.taxStatus)}</span></div>
                 <div class="maint-item-actions"><button class="btn btn-secondary btn-sm" onclick="openEdit('portfolio','${p.id}')">Edit</button><button class="btn btn-danger btn-sm" onclick="deleteRecord('portfolio','${p.id}')">Del</button></div>
             </div>`;
     }).join('') || '<div class="maint-item">No Portfolios</div>';
@@ -1199,7 +1302,7 @@ function renderMaintenanceLists() {
             : `Standard | Dur: ${c.duration} | Tgt: ${c.targetPct}%`;
         return `
             <div class="maint-item">
-                <div class="maint-item-text"><span class="maint-item-title">${c.name}</span><span class="maint-item-sub">${p ? p.name : 'Unknown Port'} | ${typeBits}</span></div>
+                <div class="maint-item-text"><span class="maint-item-title">${renderMarkdown(c.name)}</span><span class="maint-item-sub">${p ? escapeHtml(toPlainText(p.name)) : 'Unknown Port'} | ${escapeHtml(typeBits)}</span>${c.actualsLink ? `<span class="maint-item-sub">Actuals: ${renderMarkdown(c.actualsLink)}</span>` : ''}</div>
                 <div class="maint-item-actions"><button class="btn btn-secondary btn-sm" onclick="openEdit('chunk','${c.id}')">Edit</button><button class="btn btn-danger btn-sm" onclick="deleteRecord('chunk','${c.id}')">Del</button></div>
             </div>`;
     }).join('') || '<div class="maint-item">No Investments</div>';
@@ -1257,6 +1360,7 @@ function openEdit(type, id) {
         document.getElementById('em-entry').value = c?.entryPct ?? 2;
         document.getElementById('em-strategy').value = c?.type || 'Standard';
         document.getElementById('em-exit').value = c?.exitStrategy || 'Buy and Hold';
+        document.getElementById('em-source-link').value = c?.actualsLink || '';
     }
     openModal('edit-modal');
 }
@@ -1264,7 +1368,7 @@ function openEdit(type, id) {
 function saveEdit() {
     const type = document.getElementById('em-type').value;
     const id = document.getElementById('em-id').value;
-    const name = document.getElementById('em-name').value.trim();
+    const name = normalizeMarkdownInput(document.getElementById('em-name').value.trim());
     if (!name) return toast('Name required');
 
     if (type === 'book') {
@@ -1284,7 +1388,8 @@ function saveEdit() {
             c.duration = parseInt(document.getElementById('em-dur').value) || c.duration;
             c.targetPct = parseFloat(document.getElementById('em-pct').value) || 0;
             c.entryPct = parseFloat(document.getElementById('em-entry').value) || 2;
-            c.exitStrategy = document.getElementById('em-exit').value || c.exitStrategy;
+            c.exitStrategy = normalizeMarkdownInput(document.getElementById('em-exit').value) || c.exitStrategy;
+            c.actualsLink = normalizeMarkdownInput(document.getElementById('em-source-link').value);
             if (c.type === 'Ladder' && c.rungs.length) c.duration = Math.max(c.duration, ...c.rungs.map(r => r.duration));
         }
     }
@@ -1379,8 +1484,11 @@ function getEnriched() {
             ...chunk,
             hist: history,
             projection,
+            exp: projection.planNow,
             expNow: projection.planNow,
             act: projection.lastActual,
+            gainPct: projection.netCapital ? ((projection.lastActual - projection.netCapital) / projection.netCapital) * 100 : 0,
+            latestDate: history.length ? history[history.length - 1].date : chunk.startDate,
             variance: projection.variance,
             targetEnd: projection.targetEnd,
             stat,
@@ -1409,7 +1517,7 @@ function renderVisualizations() {
     chartVar = new Chart(document.getElementById('varianceChart').getContext('2d'), {
         type: 'bar',
         data: {
-            labels: data.map(d => d.name),
+            labels: data.map(d => toPlainText(d.name)),
             datasets: [{ data: data.map(d => Number(d.variance.toFixed(2))), backgroundColor: data.map(d => d.color), borderRadius: 6 }]
         },
         options: {
@@ -1424,10 +1532,10 @@ function renderVisualizations() {
     let suggested = '';
     data.forEach(d => {
         if (d.stat === 'Underperforming') {
-            mandatory += `<div class="action-item underperform" onclick="openDrillDown('${d.id}')"><div><div style="font-weight:700; font-size:14px;">${d.name}</div><div style="font-size:11px; color:var(--muted); margin-top:4px;">${d.portName} • ${d.type}</div></div><div style="font-family:var(--mono); color:var(--red);">-$${Math.abs(d.variance).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div></div>`;
+            mandatory += `<div class="action-item underperform" onclick="openDrillDown('${d.id}')"><div><div style="font-weight:700; font-size:14px;">${renderMarkdown(d.name)}</div><div style="font-size:11px; color:var(--muted); margin-top:4px;">${escapeHtml(toPlainText(d.portName))} • ${escapeHtml(d.type)}</div></div><div style="font-family:var(--mono); color:var(--red);">-$${Math.abs(d.variance).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div></div>`;
         }
         if (d.stat === 'Exit Reached') {
-            suggested += `<div class="action-item exitreached" onclick="openDrillDown('${d.id}')"><div><div style="font-weight:700; font-size:14px;">${d.name}</div><div style="font-size:11px; color:var(--muted); margin-top:4px;">${d.exitStrategy}</div></div><div style="font-family:var(--mono); color:var(--primary);">Target Hit</div></div>`;
+            suggested += `<div class="action-item exitreached" onclick="openDrillDown('${d.id}')"><div><div style="font-weight:700; font-size:14px;">${renderMarkdown(d.name)}</div><div style="font-size:11px; color:var(--muted); margin-top:4px;">${renderMarkdown(d.exitStrategy)}</div></div><div style="font-family:var(--mono); color:var(--primary);">Target Hit</div></div>`;
         }
     });
     document.getElementById('list-mandatory').innerHTML = mandatory || '<p class="helper">No mandatory actions.</p>';
@@ -1443,7 +1551,7 @@ function renderVisualizations() {
         const total = data.reduce((sum, d) => sum + Math.max(d.act, 0), 0) || 1;
         tm.innerHTML = data.map(d => {
             const pct = (Math.max(d.act, 0) / total) * 100;
-            return `<div class="treemap-node" style="width:calc(${Math.max(pct, 20)}% - 4px); background:${d.color};" onclick="openDrillDown('${d.id}')"><div class="tm-title">${d.name}</div><div class="tm-val">$${d.act.toLocaleString()}</div><div class="tm-pct">${pct.toFixed(1)}%</div></div>`;
+            return `<div class="treemap-node" style="width:calc(${Math.max(pct, 20)}% - 4px); background:${d.color};" onclick="openDrillDown('${d.id}')"><div class="tm-title">${renderMarkdown(d.name)}</div><div class="tm-val">$${d.act.toLocaleString()}</div><div class="tm-pct">${pct.toFixed(1)}%</div></div>`;
         }).join('');
         return;
     }
@@ -1456,7 +1564,7 @@ function renderVisualizations() {
         chartExp = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: data.map(d => d.name),
+                labels: data.map(d => toPlainText(d.name)),
                 datasets: [
                     { label: 'Plan ($)', data: data.map(d => d.expNow), backgroundColor: '#dbe5f1' },
                     { label: 'Actual ($)', data: data.map(d => d.act), backgroundColor: data.map(d => d.color) }
@@ -1471,7 +1579,7 @@ function renderVisualizations() {
             data: {
                 labels: labelSet,
                 datasets: data.map(d => ({
-                    label: d.name,
+                    label: toPlainText(d.name),
                     data: labelSet.map(label => {
                         const point = [...d.projection.points].reverse().find(p => p.date <= label);
                         return point ? point.actual : null;
@@ -1520,7 +1628,7 @@ function renderMultiples() {
         grid.insertAdjacentHTML('beforeend', `
             <div class="sm-card" onclick="openDrillDown('${d.id}')">
                 <div class="sm-header">
-                    <span class="sm-title">${d.name}</span>
+                    <span class="sm-title">${renderMarkdown(d.name)}</span>
                     <span class="sm-val" style="color:${color};">$${d.act.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                 </div>
                 <div class="sm-sub" style="color:${color}; margin-bottom:8px;">${d.variance > 0 ? '+' : ''}$${d.variance.toFixed(0)} variance • ${d.type}</div>
@@ -1551,14 +1659,14 @@ function openDrillDown(id, preserveModal = false) {
     if (!chunk) return;
     currentReportChunkId = id;
 
-    document.getElementById('dm-title').innerText = chunk.name;
-    document.getElementById('dm-hierarchy').innerText = `${chunk.bookName} > ${chunk.portName}`;
+    document.getElementById('dm-title').innerHTML = renderMarkdown(chunk.name);
+    document.getElementById('dm-hierarchy').innerText = `${toPlainText(chunk.bookName)} > ${toPlainText(chunk.portName)}`;
     document.getElementById('dm-status').className = `status-block ${chunk.cl}`;
     document.getElementById('dm-status').innerText = `STATUS: ${chunk.stat.toUpperCase()} | Variance: ${chunk.variance > 0 ? '+' : ''}$${chunk.variance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
-    let badges = `<span class="badge ${chunk.taxStatus === 'Pre-Tax' ? 'badge-pre' : 'badge-post'}">${chunk.taxStatus || 'Unassigned'}</span>`;
-    badges += `<span class="badge" style="background:#f1f5f9; color:#475569; border:0.5px solid #cbd5e1; margin-left:4px;">${chunk.type}</span>`;
-    chunk.tags.forEach(tag => { badges += `<span class="badge" style="background:#f8fafc; color:#475569; border:0.5px solid #cbd5e1; margin-left:4px;">#${tag}</span>`; });
+    let badges = `<span class="badge ${chunk.taxStatus === 'Pre-Tax' ? 'badge-pre' : 'badge-post'}">${escapeHtml(chunk.taxStatus || 'Unassigned')}</span>`;
+    badges += `<span class="badge" style="background:#f1f5f9; color:#475569; border:0.5px solid #cbd5e1; margin-left:4px;">${escapeHtml(chunk.type)}</span>`;
+    chunk.tags.forEach(tag => { badges += `<span class="badge" style="background:#f8fafc; color:#475569; border:0.5px solid #cbd5e1; margin-left:4px;">#${escapeHtml(toPlainText(tag))}</span>`; });
     document.getElementById('dm-badges').innerHTML = badges;
 
     if (chartDrill) chartDrill.destroy();
@@ -1579,9 +1687,9 @@ function openDrillDown(id, preserveModal = false) {
         { label: 'Current Actual', value: `$${chunk.act.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, sub: `${chunk.variance >= 0 ? 'Ahead' : 'Behind'} vs plan ${chunk.variance > 0 ? '+' : ''}$${chunk.variance.toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
         { label: 'Planned Value', value: `$${chunk.exp.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, sub: `Net capital $${chunk.capital.toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
         { label: 'Gain %', value: `${chunk.gainPct.toFixed(1)}%`, sub: `${chunk.type} • ${chunk.duration} months` },
-        { label: 'Latest Date', value: chunk.latestDate || '—', sub: `Exit: ${chunk.exitStrategy || 'n/a'}` }
+        { label: 'Latest Date', value: chunk.latestDate || '—', sub: `Exit: ${toPlainText(chunk.exitStrategy || 'n/a')}` }
     ];
-    document.getElementById('dm-summary').innerHTML = summaryStats.map(stat => `<div class="report-stat"><div class="label">${stat.label}</div><div class="report-stat-value">${stat.value}</div><div class="report-stat-sub">${stat.sub}</div></div>`).join('');
+    document.getElementById('dm-summary').innerHTML = summaryStats.map(stat => `<div class="report-stat"><div class="label">${escapeHtml(stat.label)}</div><div class="report-stat-value">${escapeHtml(stat.value)}</div><div class="report-stat-sub">${escapeHtml(stat.sub)}</div></div>`).join('');
 
     document.getElementById('dm-table-body').innerHTML = chunk.projection.points.map((p, idx, arr) => `
         <tr class="${idx === arr.length - 1 ? 'is-latest' : ''} ${p.delta < 0 ? 'is-negative' : 'is-positive'}">
@@ -1597,9 +1705,10 @@ function openDrillDown(id, preserveModal = false) {
     const notes = chunk.projection.points.filter(p => p.note).map(p => `
         <div class="cl-note">
             <div class="cl-meta"><span class="cl-time">${p.date}</span><span class="cl-author">Val: $${p.actual.toLocaleString()} | Adj: ${p.adjustment > 0 ? '+' : ''}$${p.adjustment.toLocaleString()}</span></div>
-            <div class="cl-text">${p.note}</div>
+            <div class="cl-text">${renderMarkdown(p.note, { multiline: true })}</div>
         </div>`).join('');
     document.getElementById('dm-notes').innerHTML = notes || '<p class="helper">No qualitative logs recorded.</p>';
+    renderDrillActualsSource(chunk);
     populatePrintReport(chunk);
 
     if (!preserveModal) openModal('drill-modal');
@@ -1615,7 +1724,7 @@ function exportDrillCSV() {
     });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    a.download = `${chunk.name.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}_report.csv`;
+    a.download = `${toPlainText(chunk.name).replace(/[^a-z0-9]+/gi, '_').toLowerCase()}_report.csv`;
     a.click();
 }
 
@@ -1625,23 +1734,23 @@ function exportDrillPNG() {
     if (!chunk) return;
     const a = document.createElement('a');
     a.href = document.getElementById('drillChart').toDataURL('image/png');
-    a.download = `${chunk.name.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}_chart.png`;
+    a.download = `${toPlainText(chunk.name).replace(/[^a-z0-9]+/gi, '_').toLowerCase()}_chart.png`;
     a.click();
 }
 
 function populatePrintReport(chunk) {
-    document.getElementById('print-title').innerText = `${chunk.name} Report`;
-    document.getElementById('print-meta').innerText = `${chunk.bookName} > ${chunk.portName} • ${chunk.taxStatus} • Generated ${NOW.toISOString().split('T')[0]}`;
+    document.getElementById('print-title').innerText = `${toPlainText(chunk.name)} Report`;
+    document.getElementById('print-meta').innerText = `${toPlainText(chunk.bookName)} > ${toPlainText(chunk.portName)} • ${chunk.taxStatus} • Generated ${NOW.toISOString().split('T')[0]}`;
     const stats = [
         ['Current Actual', `$${chunk.act.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, `${chunk.variance >= 0 ? 'Ahead' : 'Behind'} by ${chunk.variance > 0 ? '+' : ''}$${chunk.variance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
         ['Planned Value', `$${chunk.exp.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, `Net cap $${chunk.capital.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
         ['Gain %', `${chunk.gainPct.toFixed(1)}%`, `${chunk.type} strategy`],
-        ['Latest Date', chunk.latestDate || '—', `Exit: ${chunk.exitStrategy || 'n/a'}`]
+        ['Latest Date', chunk.latestDate || '—', `Exit: ${toPlainText(chunk.exitStrategy || 'n/a')}`]
     ];
-    document.getElementById('print-grid').innerHTML = stats.map(([label, value, sub]) => `<div class="print-cell"><div class="print-label">${label}</div><div class="print-value">${value}</div><div class="print-sub">${sub}</div></div>`).join('');
+    document.getElementById('print-grid').innerHTML = stats.map(([label, value, sub]) => `<div class="print-cell"><div class="print-label">${escapeHtml(label)}</div><div class="print-value">${escapeHtml(value)}</div><div class="print-sub">${escapeHtml(sub)}</div></div>`).join('');
     document.getElementById('print-chart-image').src = document.getElementById('drillChart').toDataURL('image/png');
     document.getElementById('print-table-body').innerHTML = chunk.projection.points.map(p => `<tr><td>${p.idx}</td><td>${p.date}</td><td>$${p.netCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td>$${p.plan.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td>$${p.actual.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td>${p.delta > 0 ? '+' : ''}$${p.delta.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td>${p.gainPct.toFixed(1)}%</td></tr>`).join('');
-    const notesHtml = appSettings.showNotes === false ? '' : chunk.projection.points.filter(p => p.note).map(p => `<div style="margin-bottom:6pt;"><strong>${p.date}</strong> — ${p.note}</div>`).join('');
+    const notesHtml = appSettings.showNotes === false ? '' : chunk.projection.points.filter(p => p.note).map(p => `<div style="margin-bottom:6pt;"><strong>${p.date}</strong> — ${renderMarkdown(p.note, { multiline: true })}</div>`).join('');
     document.getElementById('print-notes').innerHTML = notesHtml ? `<div class="print-label" style="margin-bottom:6pt;">Clarify Logs</div>${notesHtml}` : '';
 }
 
