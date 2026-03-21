@@ -238,6 +238,10 @@ textarea.field-input{resize:none;}
 .export-actions{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:12px;}
 .export-link-btn{background:none;border:none;color:var(--teal);font-size:12px;font-weight:700;cursor:pointer;padding:0;}
 .export-link-btn:hover{text-decoration:underline;}
+.export-mode-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;border:1.5px solid var(--border);border-radius:12px;background:#fff;color:var(--ink-mid);padding:10px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;transition:border-color .12s,background .12s,color .12s;}
+.export-mode-btn:hover{border-color:var(--teal);color:var(--teal);}
+.export-mode-btn.active{border-color:var(--teal);background:var(--teal-light);color:var(--teal);}
+.export-mode-meta{font-size:11px;color:var(--ink-dim);margin-top:6px;line-height:1.4;}
 .scr-action{background:var(--teal);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;}
 .cat-toolbar{padding:8px 16px 6px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;gap:8px;align-items:center;}
 .cat-omni{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:8px 12px;font-size:14px;font-family:"DM Sans",sans-serif;background:#fff;outline:none;}
@@ -534,11 +538,15 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
             <div class="bbl-txt" contenteditable="true" id="nc-source" style="min-height:28px;outline:none;border-radius:4px;" data-placeholder="Source phrase…" oninput="ncSourceInput()"></div>
             <div class="bbl-side-acts">
               <button class="bbl-use" onclick="ncAutoTranslate()" id="nc-auto-btn" disabled style="font-size:10px;">Translate &rarr;</button>
+              <button class="bbl-tts" onclick="ncSpeak('source',this)" title="Listen to source phrase"><span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></span></button>
             </div>
           </div>
           <div class="bbl-divider"></div>
           <div class="bbl-side">
             <div class="bbl-txt" contenteditable="true" id="nc-target" style="min-height:28px;outline:none;border-radius:4px;" data-placeholder="Translation…"></div>
+            <div class="bbl-side-acts">
+              <button class="bbl-tts" onclick="ncSpeak('target',this)" title="Listen to translation"><span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></span></button>
+            </div>
           </div>
         </div>
         <div class="bbl-foot">
@@ -562,7 +570,11 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
           </div>
           <!-- Back-translate result -->
           <div id="nc-bt-result" style="display:none;border-top:1px solid rgba(0,0,0,.06);padding:8px 10px;">
-            <div style="font-size:12px;color:var(--ink-dim);font-style:italic;" id="nc-bt-text"></div>
+            <div style="display:flex;align-items:flex-start;gap:8px;">
+              <div style="font-size:12px;color:var(--ink-dim);font-style:italic;flex:1;line-height:1.45;" id="nc-bt-text"></div>
+              <button class="bbl-tts" onclick="ncSpeak('backtranslate',this)" title="Listen to back translation"><span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></span></button>
+              <button class="bbl-vbtn good" id="nc-verdict-btn" onclick="cycleNcVerdict()" title="Cycle verdict">Verdict: none</button>
+            </div>
           </div>
         </div>
       </div>
@@ -661,6 +673,11 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
       <option value="json">JSON</option>
       <option value="csv">CSV</option>
     </select>
+    <button class="export-mode-btn" id="phrasebook-export-swap-btn" onclick="togglePhrasebookSwapExport()" title="Create swapped phrasebook">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/></svg>
+      <span>Swap source &amp; target</span>
+    </button>
+    <div class="export-mode-meta" id="phrasebook-export-mode-meta">Export the selected cards as they are.</div>
     <div class="export-actions">
       <div style="font-size:12px;color:var(--ink-dim);" id="phrasebook-export-summary">0 selected</div>
       <div style="display:flex;gap:12px;">
@@ -671,6 +688,7 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
     <div class="export-list" id="phrasebook-export-list"></div>
     <div class="sheet-btn-row">
       <button class="sheet-btn secondary" onclick="closePhrasebookExportModal()">Cancel</button>
+      <button class="sheet-btn secondary" id="phrasebook-save-btn" onclick="saveSelectedPhrasebookData()">Save copy</button>
       <button class="sheet-btn primary" id="phrasebook-export-btn" onclick="exportSelectedPhrasebookData()">Export</button>
     </div>
   </div></div>
@@ -794,7 +812,10 @@ var state={
   saveContext:null,
   noteSessionId:null,
   pendingInviteId:null,
-  pbExportSelection:{}
+  pbExportSelection:{},
+  pbExportSwap:false,
+  pbExportBusy:false,
+  ncBacktranslate:null
 };
 var tagPickerSelectedTags=[];
 var tEngine='cloud',ttsActive=null;
@@ -1127,6 +1148,113 @@ function scrollBottom(){var c=document.getElementById('messages');if(c)c.scrollT
 function populateLangSelect(id,def){var sel=document.getElementById(id);if(!sel)return;sel.innerHTML='';LANGS.forEach(function(l){var o=document.createElement('option');o.value=l.code;o.textContent=l.label;if(l.code===def)o.selected=true;sel.appendChild(o);});}
 function populateLangSelectCompact(id,def){var sel=document.getElementById(id);if(!sel)return;sel.innerHTML='';LANGS.forEach(function(l){var o=document.createElement('option');o.value=l.code;o.textContent=l.flag+' '+l.code;if(l.code===def)o.selected=true;sel.appendChild(o);});}
 function sanitizeTagList(tags){var out=[];(tags||[]).forEach(function(t){var n=normalizeTag(t||'');if(n&&out.indexOf(n)<0)out.push(n);});return out;}
+function clonePlain(obj){return JSON.parse(JSON.stringify(obj||{}));}
+function ncVerdictLabel(val){if(val==='good')return'Sounds right';if(val==='partial')return'Needs review';if(val==='flag')return'Flagged';return'None';}
+function ncVerdictClass(val){if(val==='good')return'good';if(val==='flag')return'bad';return'good';}
+function setNcBacktranslate(next){
+  state.ncBacktranslate=normalizeBacktranslatePayload(next,{
+    sourceLang:(document.getElementById('nc-tgt-lang')||{}).value||'en',
+    targetLang:(document.getElementById('nc-src-lang')||{}).value||'en',
+    inputText:(document.getElementById('nc-target')||{}).textContent||'',
+    resultText:'',
+    verdict:'',
+    contentHash:btContentHash((document.getElementById('nc-source')||{}).textContent||'',(document.getElementById('nc-target')||{}).textContent||''),
+    updatedAt:Date.now()
+  });
+  updateNcVerdictUI();
+}
+function updateNcVerdictUI(){
+  var btn=document.getElementById('nc-verdict-btn');
+  if(!btn)return;
+  var verdict=(state.ncBacktranslate&&state.ncBacktranslate.verdict)||'';
+  btn.textContent='Verdict: '+ncVerdictLabel(verdict);
+  btn.className='bbl-vbtn '+ncVerdictClass(verdict);
+}
+function cycleNcVerdict(){
+  if(!state.ncBacktranslate)setNcBacktranslate({});
+  var order=['','good','partial','flag'];
+  var current=(state.ncBacktranslate&&state.ncBacktranslate.verdict)||'';
+  var idx=order.indexOf(current);
+  state.ncBacktranslate.verdict=order[(idx+1)%order.length];
+  state.ncBacktranslate.updatedAt=Date.now();
+  updateNcVerdictUI();
+}
+function safeTranslateText(text,from,to){
+  var value=String(text||'').trim();
+  if(!value)return Promise.resolve('');
+  if(!from||!to||from===to)return Promise.resolve(value);
+  return translate(value,from,to).then(function(out){return(out||value).trim()||value;}).catch(function(){return value;});
+}
+function cloneCatalogForSwap(cat){
+  var copy=Object.assign({},clonePlain(cat),{
+    id:'swap-'+uid(),
+    name:(cat&&cat.name?cat.name:'Phrasebook')+' ↔',
+    desc:(cat&&cat.desc?cat.desc+' · ':'')+'Swapped source/target copy',
+    createdAt:Date.now()
+  });
+  return copy;
+}
+async function buildSwappedPhrasebook(cards){
+  var normalized=(cards||[]).map(normalizeCard);
+  var allCatalogs=getCatalogs();
+  var catalogMap={};
+  var swappedTags=[];
+  var swappedCards=await Promise.all(normalized.map(async function(card){
+    var srcLang=card.sourceLang||'en';
+    var tgtLang=card.targetLang||srcLang||'en';
+    var nextCatalogIds=(card.catalogIds||[]).map(function(catId){
+      if(!catId)return '';
+      if(!catalogMap[catId]){
+        var found=allCatalogs.find(function(cat){return cat&&cat.id===catId;});
+        catalogMap[catId]=cloneCatalogForSwap(found||{name:'Phrasebook'});
+      }
+      return catalogMap[catId].id;
+    }).filter(Boolean);
+    var translatedTags=await Promise.all((card.tags||[]).map(function(tag){return safeTranslateText(tag,srcLang,tgtLang).then(function(out){return normalizeTag(out)||normalizeTag(tag);});}));
+    translatedTags=translatedTags.filter(Boolean);
+    translatedTags.forEach(function(tag){if(swappedTags.indexOf(tag)<0)swappedTags.push(tag);});
+    var clarifyChain=await Promise.all((card.clarifyChain||[]).map(async function(item){
+      return {
+        text:await safeTranslateText(item&&item.text||'',srcLang,tgtLang),
+        author:item&&item.author||'Partner',
+        timestamp:item&&item.timestamp||Date.now()
+      };
+    }));
+    var notes=await safeTranslateText(card.notes||'',srcLang,tgtLang);
+    var backResult=card.target||await safeTranslateText(card.source||'',srcLang,tgtLang);
+    return normalizeCard({
+      id:'swap-'+uid(),
+      catalogIds:nextCatalogIds,
+      sourceLang:tgtLang,
+      targetLang:srcLang,
+      source:card.target||card.source||'',
+      target:card.source||'',
+      notes:notes,
+      tags:translatedTags,
+      backtranslate:{
+        sourceLang:srcLang,
+        targetLang:tgtLang,
+        inputText:card.source||'',
+        resultText:backResult,
+        verdict:(card.backtranslate&&card.backtranslate.verdict)||'',
+        contentHash:btContentHash(card.target||card.source||'',card.source||''),
+        updatedAt:Date.now()
+      },
+      clarifyChain:clarifyChain,
+      savedBy:(getPrefs().userName||'Me')+' · swapped export',
+      createdAt:Date.now(),
+      updatedAt:Date.now()
+    });
+  }));
+  return {
+    type:'phrasebook',
+    mode:'swapped',
+    cards:swappedCards,
+    catalogs:Object.keys(catalogMap).map(function(id){return catalogMap[id];}),
+    tags:swappedTags,
+    exportedAt:Date.now()
+  };
+}
 
 
 // ════════════════════════════════════════════════════════
@@ -3035,10 +3163,14 @@ function openNewCard(catId,opts){
   document.getElementById('nc-catalog').value=validCat;
   state.ncTags=sanitizeTagList(ctx.tags||[]);
   renderNcTagsInline();ncSourceInput();
+  setNcBacktranslate(ctx.backtranslate||{});
+  var btText=document.getElementById('nc-bt-text');
+  var btPanel=document.getElementById('nc-bt-result');
+  if(btText)btText.textContent=(state.ncBacktranslate&&state.ncBacktranslate.resultText)||'';
+  if(btPanel)btPanel.style.display=(state.ncBacktranslate&&state.ncBacktranslate.resultText)?'block':'none';
   // Reset drawers
   document.getElementById('nc-tag-drawer').style.display='none';
   document.getElementById('nc-catalog-drawer').style.display='none';
-  document.getElementById('nc-bt-result').style.display='none';
   document.getElementById('nc-lang-mismatch').style.display='none';
   var title=document.getElementById('nc-title');if(title)title.textContent=opts?'Save phrase':'New phrase';
   overlay.hidden=false;setTimeout(function(){srcEl.focus();},30);
@@ -3053,8 +3185,26 @@ function ncSourceInput(){
   var source=(document.getElementById('nc-source').textContent||'').trim();
   var autoBtn=document.getElementById('nc-auto-btn');
   if(autoBtn)autoBtn.disabled=!source;
+  if(state.ncBacktranslate){
+    state.ncBacktranslate.contentHash=btContentHash(source,(document.getElementById('nc-target').textContent||'').trim());
+  }
 }
 function ncLangChanged(){persistPhrasebookLangSelection();ncCheckLangMismatch();}
+function ncSpeak(kind,btn){
+  var text='',lang='en';
+  if(kind==='source'){
+    text=(document.getElementById('nc-source').textContent||'').trim();
+    lang=(document.getElementById('nc-src-lang').value||'en');
+  }else if(kind==='target'){
+    text=(document.getElementById('nc-target').textContent||'').trim();
+    lang=(document.getElementById('nc-tgt-lang').value||'en');
+  }else{
+    text=(state.ncBacktranslate&&state.ncBacktranslate.resultText)||'';
+    lang=(state.ncBacktranslate&&state.ncBacktranslate.targetLang)||(document.getElementById('nc-src-lang').value||'en');
+  }
+  if(!text){toast('Nothing to play');return;}
+  speak(text,lang,btn||null);
+}
 function ncAutoTranslate(){
   var src=(document.getElementById('nc-source').textContent||'').trim();if(!src)return;
   var sl=document.getElementById('nc-src-lang').value||'en';
@@ -3062,6 +3212,9 @@ function ncAutoTranslate(){
   var btn=document.getElementById('nc-auto-btn');if(btn)btn.disabled=true;
   translate(src,sl,tl).then(function(out){
     document.getElementById('nc-target').textContent=out||'';
+    if(state.ncBacktranslate){
+      state.ncBacktranslate.contentHash=btContentHash(src,out||'');
+    }
   }).catch(function(){toast('Translation failed');}).finally(function(){ncSourceInput();});
 }
 function ncBackTranslate(){
@@ -3073,7 +3226,17 @@ function ncBackTranslate(){
   btPanel.style.display='block';
   btText.textContent='Checking\u2026';
   translate(tgt,tl,sl).then(function(back){
-    btText.textContent=back||'No result';
+    var result=back||'No result';
+    btText.textContent=result;
+    setNcBacktranslate({
+      sourceLang:tl,
+      targetLang:sl,
+      inputText:tgt,
+      resultText:result,
+      verdict:(state.ncBacktranslate&&state.ncBacktranslate.verdict)||'',
+      contentHash:btContentHash((document.getElementById('nc-source').textContent||'').trim(),tgt),
+      updatedAt:Date.now()
+    });
   });
 }
 // Inline tag drawer for new card
@@ -3132,7 +3295,16 @@ function saveNewCard(){
   var catId=(document.getElementById('nc-catalog')||{}).value||'';
   var cardTags=sanitizeTagList(state.ncTags);
   persistPhrasebookLangSelection();
-  var card=normalizeCard({id:uid(),catalogIds:catId?[catId]:[],sourceLang:sl,targetLang:tl,source:src,target:tgt,notes:'',tags:cardTags,backtranslate:{sourceLang:tl||'en',targetLang:sl||'en',inputText:tgt||src||'',resultText:'',verdict:'',contentHash:btContentHash(src,tgt),updatedAt:Date.now()},clarifyChain:[],savedBy:getPrefs().userName||'Me',createdAt:Date.now(),updatedAt:Date.now()});
+  var bt=normalizeBacktranslatePayload(state.ncBacktranslate,{
+    sourceLang:tl||'en',
+    targetLang:sl||'en',
+    inputText:tgt||src||'',
+    resultText:'',
+    verdict:'',
+    contentHash:btContentHash(src,tgt),
+    updatedAt:Date.now()
+  });
+  var card=normalizeCard({id:uid(),catalogIds:catId?[catId]:[],sourceLang:sl,targetLang:tl,source:src,target:tgt,notes:'',tags:cardTags,backtranslate:bt,clarifyChain:[],savedBy:getPrefs().userName||'Me',createdAt:Date.now(),updatedAt:Date.now()});
   upsertCardLastWins(card);card.tags.forEach(function(t){addTagToRegistry(t);});
   document.getElementById('new-card-overlay').hidden=true;
   toast('Saved');renderCatalogCards();state.saveContext=null;
@@ -3210,13 +3382,85 @@ function parseCsv(text){var rows=[];var row=[];var cell='';var inQuotes=false;fo
 function parseJSONField(value,fallback){if(!value)return fallback;try{return JSON.parse(value);}catch(_){return fallback;}}
 function getPhrasebookExportSelection(){var selected=state.pbExportSelection||{};return getCards().filter(function(card){return selected[card.id]!==false;});}
 function getPhrasebookExportPayload(cards){cards=(cards||[]).map(normalizeCard);var catalogIds={};var selectedTags=[];cards.forEach(function(card){(card.catalogIds||[]).forEach(function(id){if(id)catalogIds[id]=true;});(card.tags||[]).forEach(function(tag){if(selectedTags.indexOf(tag)<0)selectedTags.push(tag);});});var catalogs=getCatalogs().filter(function(cat){return catalogIds[cat.id];});return {type:'phrasebook',cards:cards,catalogs:catalogs,tags:selectedTags,exportedAt:Date.now()};}
-function getPhrasebookCsvRows(cards){var catalogs=getCatalogs();return(cards||[]).map(function(card){card=normalizeCard(card);var rowCatalogs=catalogs.filter(function(cat){return(card.catalogIds||[]).indexOf(cat.id)>=0;});return {id:card.id||'',source:card.source||'',sourceLang:card.sourceLang||'',target:card.target||'',targetLang:card.targetLang||'',notes:card.notes||'',tags:JSON.stringify(card.tags||[]),catalogIds:JSON.stringify(card.catalogIds||[]),catalogs:JSON.stringify(rowCatalogs),clarifyChain:JSON.stringify(card.clarifyChain||[]),backtranslate:JSON.stringify(card.backtranslate||{}),backtranslateVerdict:(card.backtranslate&&card.backtranslate.verdict)||'',savedBy:card.savedBy||'',createdAt:card.createdAt||'',updatedAt:card.updatedAt||''};});}
-function openPhrasebookExportModal(){var selection={};getCards().forEach(function(card){selection[card.id]=true;});state.pbExportSelection=selection;renderPhrasebookExportList();document.getElementById('phrasebook-export-overlay').hidden=false;}
-function closePhrasebookExportModal(){document.getElementById('phrasebook-export-overlay').hidden=true;}
+function getPhrasebookCsvRows(cards,catalogsOverride){var catalogs=Array.isArray(catalogsOverride)?catalogsOverride:getCatalogs();return(cards||[]).map(function(card){card=normalizeCard(card);var rowCatalogs=catalogs.filter(function(cat){return(card.catalogIds||[]).indexOf(cat.id)>=0;});return {id:card.id||'',source:card.source||'',sourceLang:card.sourceLang||'',target:card.target||'',targetLang:card.targetLang||'',notes:card.notes||'',tags:JSON.stringify(card.tags||[]),catalogIds:JSON.stringify(card.catalogIds||[]),catalogs:JSON.stringify(rowCatalogs),clarifyChain:JSON.stringify(card.clarifyChain||[]),backtranslate:JSON.stringify(card.backtranslate||{}),backtranslateVerdict:(card.backtranslate&&card.backtranslate.verdict)||'',savedBy:card.savedBy||'',createdAt:card.createdAt||'',updatedAt:card.updatedAt||''};});}
+function getPhrasebookExportViewCards(){return getCards().map(normalizeCard).map(function(card){if(!state.pbExportSwap)return card;return normalizeCard(Object.assign({},card,{source:card.target||card.source||'',sourceLang:card.targetLang||card.sourceLang||'en',target:card.source||'',targetLang:card.sourceLang||card.targetLang||'en'}));});}
+function getPhrasebookExportSelectionFrom(cards){var selected=state.pbExportSelection||{};return(cards||[]).filter(function(card){return selected[card.id]!==false;});}
+function syncPhrasebookExportControls(count){
+  var btn=document.getElementById('phrasebook-export-btn');
+  var saveBtn=document.getElementById('phrasebook-save-btn');
+  var swapBtn=document.getElementById('phrasebook-export-swap-btn');
+  var meta=document.getElementById('phrasebook-export-mode-meta');
+  if(btn)btn.disabled=!count||state.pbExportBusy;
+  if(saveBtn){
+    saveBtn.disabled=!state.pbExportSwap||!count||state.pbExportBusy;
+    saveBtn.textContent='Save swapped copy';
+  }
+  if(swapBtn)swapBtn.classList.toggle('active',!!state.pbExportSwap);
+  if(meta)meta.textContent=state.pbExportSwap?'Source/target are swapped, and tags, clarify notes, notes, and back-translation are rebuilt for the new source language when you save or export.':'Export the selected cards as they are.';
+}
+function openPhrasebookExportModal(){var selection={};getCards().forEach(function(card){selection[card.id]=true;});state.pbExportSelection=selection;state.pbExportSwap=false;state.pbExportBusy=false;renderPhrasebookExportList();document.getElementById('phrasebook-export-overlay').hidden=false;}
+function closePhrasebookExportModal(force){if(state.pbExportBusy&&!force)return;document.getElementById('phrasebook-export-overlay').hidden=true;}
+function togglePhrasebookSwapExport(){if(state.pbExportBusy)return;state.pbExportSwap=!state.pbExportSwap;renderPhrasebookExportList();}
 function setAllPhrasebookExportSelections(on){var next={};getCards().forEach(function(card){next[card.id]=!!on;});state.pbExportSelection=next;renderPhrasebookExportList();}
 function togglePhrasebookExportSelection(id,on){state.pbExportSelection=state.pbExportSelection||{};state.pbExportSelection[id]=!!on;renderPhrasebookExportList();}
-function renderPhrasebookExportList(){var host=document.getElementById('phrasebook-export-list');var summary=document.getElementById('phrasebook-export-summary');var btn=document.getElementById('phrasebook-export-btn');if(!host||!summary||!btn)return;var cards=getCards();if(!cards.length){host.innerHTML='<div style="font-size:12px;color:var(--ink-dim);text-align:center;padding:18px 12px;border:1px dashed var(--border);border-radius:12px;">No phrasebook items to export.</div>';summary.textContent='0 selected';btn.disabled=true;return;}host.innerHTML=cards.map(function(card){var checked=(state.pbExportSelection&&state.pbExportSelection[card.id]!==false)?' checked':'';var meta=[(card.sourceLang||'').toUpperCase()+' → '+(card.targetLang||'').toUpperCase(),(card.tags||[]).length?('#'+card.tags.join(' #')):'No tags',(card.backtranslate&&card.backtranslate.verdict)?('Verdict: '+card.backtranslate.verdict):'No verdict'].join(' · ');return '<label class="export-item"><input type="checkbox"'+checked+' onchange="togglePhrasebookExportSelection(\''+card.id+'\',this.checked)"><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;line-height:1.4;">'+escHtml(card.source||'Untitled')+'</div><div style="font-size:12px;color:var(--ink-mid);line-height:1.4;margin-top:3px;">'+escHtml(card.target||'')+'</div><div class="export-item-meta">'+escHtml(meta)+'</div></div></label>';}).join('');var count=getPhrasebookExportSelection().length;summary.textContent=count+' selected';btn.disabled=!count;}
-function exportSelectedPhrasebookData(){var cards=getPhrasebookExportSelection();if(!cards.length){toast('Select at least one phrase');return;}var format=(document.getElementById('phrasebook-export-format')||{}).value||'json';if(format==='csv')downloadCSV(getPhrasebookCsvRows(cards),'talk-say-phrasebook-export');else downloadJSON(getPhrasebookExportPayload(cards),'talk-say-phrasebook-export');closePhrasebookExportModal();toast('Phrasebook exported');}
+function renderPhrasebookExportList(){var host=document.getElementById('phrasebook-export-list');var summary=document.getElementById('phrasebook-export-summary');if(!host||!summary)return;var cards=getPhrasebookExportViewCards();if(!cards.length){host.innerHTML='<div style="font-size:12px;color:var(--ink-dim);text-align:center;padding:18px 12px;border:1px dashed var(--border);border-radius:12px;">No phrasebook items to export.</div>';summary.textContent='0 selected';syncPhrasebookExportControls(0);return;}host.innerHTML=cards.map(function(card){var checked=(state.pbExportSelection&&state.pbExportSelection[card.id]!==false)?' checked':'';var meta=[(card.sourceLang||'').toUpperCase()+' → '+(card.targetLang||'').toUpperCase(),(card.tags||[]).length?('#'+card.tags.join(' #')):'No tags',(card.backtranslate&&card.backtranslate.verdict)?('Verdict: '+card.backtranslate.verdict):'No verdict'].join(' · ');return '<label class="export-item"><input type="checkbox"'+checked+' onchange="togglePhrasebookExportSelection(\''+card.id+'\',this.checked)"><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;line-height:1.4;">'+escHtml(card.source||'Untitled')+'</div><div style="font-size:12px;color:var(--ink-mid);line-height:1.4;margin-top:3px;">'+escHtml(card.target||'')+'</div><div class="export-item-meta">'+escHtml(meta)+'</div></div></label>';}).join('');var count=getPhrasebookExportSelectionFrom(cards).length;summary.textContent=count+' selected';syncPhrasebookExportControls(count);}
+function setPhrasebookExportBusy(on,label){
+  state.pbExportBusy=!!on;
+  var btn=document.getElementById('phrasebook-export-btn');
+  var saveBtn=document.getElementById('phrasebook-save-btn');
+  var swapBtn=document.getElementById('phrasebook-export-swap-btn');
+  if(btn)btn.textContent=on?(label||'Working…'):'Export';
+  if(saveBtn)saveBtn.textContent=on?'Preparing…':'Save swapped copy';
+  if(swapBtn)swapBtn.disabled=!!on;
+  syncPhrasebookExportControls(getPhrasebookExportSelectionFrom(getPhrasebookExportViewCards()).length);
+}
+async function resolvePhrasebookExportPayload(cards){
+  if(state.pbExportSwap)return buildSwappedPhrasebook(cards);
+  return getPhrasebookExportPayload(cards);
+}
+async function exportSelectedPhrasebookData(){
+  var cards=getPhrasebookExportSelection();
+  if(!cards.length){toast('Select at least one phrase');return;}
+  var format=(document.getElementById('phrasebook-export-format')||{}).value||'json';
+  setPhrasebookExportBusy(true,state.pbExportSwap?'Swapping…':'Exporting…');
+  try{
+    var payload=await resolvePhrasebookExportPayload(cards);
+    if(format==='csv')downloadCSV(getPhrasebookCsvRows(payload.cards,payload.catalogs),'talk-say-phrasebook-export');
+    else downloadJSON(payload,'talk-say-phrasebook-export');
+    setPhrasebookExportBusy(false);
+    closePhrasebookExportModal(true);
+    toast(state.pbExportSwap?'Swapped phrasebook exported':'Phrasebook exported');
+  }catch(_){
+    toast('Export failed');
+  }finally{
+    setPhrasebookExportBusy(false);
+  }
+}
+async function saveSelectedPhrasebookData(){
+  if(!state.pbExportSwap){toast('Turn on swap mode first');return;}
+  var cards=getPhrasebookExportSelection();
+  if(!cards.length){toast('Select at least one phrase');return;}
+  setPhrasebookExportBusy(true,state.pbExportSwap?'Saving swapped copy…':'Saving selection…');
+  try{
+    var payload=await resolvePhrasebookExportPayload(cards);
+    var mergedCards=getCards().slice();
+    payload.cards.forEach(function(card){mergedCards=mergedCards.filter(function(existing){return cardPairKey(existing.source,existing.sourceLang,existing.target,existing.targetLang)!==cardPairKey(card.source,card.sourceLang,card.target,card.targetLang);});mergedCards.unshift(normalizeCard(card));});
+    saveCards(mergedCards);
+    var mergedCatalogs=getCatalogs().slice();
+    (payload.catalogs||[]).forEach(function(cat){if(!mergedCatalogs.some(function(existing){return existing&&existing.id===cat.id;}))mergedCatalogs.push(cat);});
+    saveCatalogs(mergedCatalogs);
+    saveTags(sanitizeTagList(getTags().concat(payload.tags||[])));
+    renderPhrasebookCatalogFilter();
+    renderCatalogCards();
+    setPhrasebookExportBusy(false);
+    closePhrasebookExportModal(true);
+    toast(state.pbExportSwap?'Swapped phrasebook saved':'Phrase selection saved');
+  }catch(_){
+    toast('Save failed');
+  }finally{
+    setPhrasebookExportBusy(false);
+  }
+}
 function exportSessionsData(){downloadJSON({type:'sessions',sessions:getAllSessions(),order:getSessionOrder(),recycled:getRecycled(),notes:getSessionNotes(),exportedAt:Date.now()},'talk-say-sessions-export');toast('Sessions exported');}
 function exportPhrasebookData(){downloadJSON(getPhrasebookExportPayload(getCards()),'talk-say-phrasebook-export');toast('Phrasebook exported');}
 function exportAppSettings(){downloadJSON({type:'app-settings',prefs:getPrefs(),themes:THEMES,exportedAt:Date.now()},'talk-say-settings-export');toast('Settings exported');}
