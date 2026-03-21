@@ -109,14 +109,17 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .card-edit-field label{font-size:11px;color:var(--muted);font-weight:600}
 .card-edit-field input,.card-edit-field select,.card-edit-field textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;background:#fff;color:inherit}
 .card-edit-field textarea{resize:vertical;min-height:72px}
-.live-notes-preview{border:1px solid var(--border);border-radius:8px;background:#f8fafc;padding:10px;min-height:72px;font-size:13px;line-height:1.4}
-.live-notes-preview:empty::before{content:"Rendered markdown";color:#94a3b8}
-.live-notes-preview p{margin:0 0 8px}
-.live-notes-preview p:last-child{margin-bottom:0}
-.live-notes-preview ul,.live-notes-preview ol{margin:0 0 8px 18px;padding:0}
-.live-notes-preview code{background:#e2e8f0;padding:1px 4px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
-.live-notes-preview pre{margin:0 0 8px;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:8px;overflow:auto}
-.live-notes-preview a{color:#1d4ed8;text-decoration:none}
+.notes-editor{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font:inherit;background:#fff;color:inherit;min-height:144px;max-height:40vh;overflow:auto;white-space:pre-wrap;line-height:1.45;cursor:text}
+.notes-editor[data-mode="render"]{background:#f8fafc;cursor:default}
+.notes-mode-toggle{min-width:78px}
+.notes-editor:focus{outline:2px solid rgba(31,111,235,.18);border-color:var(--accent)}
+.notes-editor:empty::before{content:attr(data-placeholder);color:#94a3b8}
+.notes-editor p{margin:0 0 8px}
+.notes-editor p:last-child{margin-bottom:0}
+.notes-editor ul,.notes-editor ol{margin:0 0 8px 18px;padding:0}
+.notes-editor code{background:#e2e8f0;padding:1px 4px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.notes-editor pre{margin:0 0 8px;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:8px;overflow:auto}
+.notes-editor a{color:#1d4ed8;text-decoration:none}
 .card-tags{display:flex;gap:6px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
@@ -138,11 +141,14 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 .modal .modal-close:hover{color:#000;background:#f2f2f6}
 .field{display:flex;flex-direction:column;gap:6px;margin:10px 0}
 .field input,.field textarea,.field select{border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;width:100%}
+.field-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.field-head label{font-weight:600}
+.field .notes-editor{padding:10px}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
-/* Notes textarea scrollable */
-#fNotes{max-height:40vh;overflow:auto;resize:vertical}
+/* Notes editor scrollable */
+#fNotes{resize:none}
 
 /* Search preview */
 .results{position:sticky;top:96px;margin:0 16px 8px 16px;background:var(--panel);border:1px solid var(--border);border-radius:10px;max-height:260px;overflow:auto}
@@ -260,8 +266,12 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     </div>
 
     <div class="field">
-      <label for="fNotes">Notes (Markdown + linktext--url supported)</label>
-      <textarea id="fNotes" rows="6" placeholder="Paste images here (from clipboard), type markdown, or use linktext--url…"></textarea>
+      <div class="field-head">
+        <label id="fNotesLabel">Notes (Markdown + linktext--url supported)</label>
+        <button type="button" id="btnToggleNotesMode" class="btn small notes-mode-toggle" aria-controls="fNotes" aria-pressed="false">Edit</button>
+      </div>
+      <div id="fNotes" class="notes-editor" role="textbox" aria-labelledby="fNotesLabel" aria-describedby="fNotesHint" aria-multiline="true" tabindex="0" data-mode="render" data-placeholder="Paste images here (from clipboard), type markdown, or use linktext--url…"></div>
+      <div id="fNotesHint" class="muted">Tap Edit to change notes. Tap Done to render clickable links.</div>
     </div>
 
     <div class="row">
@@ -878,10 +888,64 @@ function bumpTagHistory(tags){ if(!tags?.length) return; tagHistory=saveTagHisto
 /* ===== Editor ===== */
 const editDialog=$("#editDialog"); const editForm=$("#editForm");
 const editorCloseBtn=$("#editorCloseBtn");
+const notesModeToggle=$("#btnToggleNotesMode");
 let editingId=null, activeTags=[], pendingFiles=[], currentFiles=[];
-function refreshNotesPreview(value){
-  const preview=$("#fNotesPreview");
-  if(preview) preview.innerHTML=renderMarkdown(value||"");
+function getNotesValue(el){ return el?.dataset?.raw ?? ""; }
+function updateNotesModeToggle(render){
+  if(!notesModeToggle) return;
+  notesModeToggle.textContent=render ? "Edit" : "Done";
+  notesModeToggle.setAttribute("aria-pressed", render ? "false" : "true");
+}
+function setNotesValue(el, value, render=true){
+  if(!el) return;
+  const normalized=String(value||"");
+  el.dataset.raw=normalized;
+  updateNotesModeToggle(render);
+  if(render){
+    el.dataset.mode="render";
+    el.contentEditable="false";
+    el.innerHTML=normalized ? renderMarkdown(normalized) : "";
+  }else{
+    el.dataset.mode="edit";
+    el.contentEditable="true";
+    el.textContent=normalized;
+  }
+}
+function syncNotesValue(el){ if(el && el.dataset.mode==="edit") el.dataset.raw=el.textContent||""; }
+function focusNotesCursor(el){
+  const range=document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  const sel=window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+function enterNotesEditMode(el){
+  if(!el || el.dataset.mode==="edit") return;
+  setNotesValue(el, getNotesValue(el), false);
+  requestAnimationFrame(()=> focusNotesCursor(el));
+}
+function exitNotesEditMode(el){
+  if(!el) return;
+  const normalized=preprocessNotes(el.textContent||getNotesValue(el));
+  setNotesValue(el, normalized, true);
+}
+function insertTextAtCursor(el, text){
+  enterNotesEditMode(el);
+  const sel=window.getSelection();
+  if(!sel || !sel.rangeCount || !el.contains(sel.anchorNode)){
+    el.textContent=(el.textContent||"")+text;
+  }else{
+    const range=sel.getRangeAt(0);
+    range.deleteContents();
+    const node=document.createTextNode(text);
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  syncNotesValue(el);
 }
 function openEditor(id=null, presetStage=null){
   editingId=id; editorDirty=false;
@@ -893,8 +957,7 @@ function openEditor(id=null, presetStage=null){
   $("#fTitle").value = c?.title || "";
   $("#fDev").value = c?.dev || "";
   $("#fLive").value = c?.live || "";
-  $("#fNotes").value = c?.notes || "";
-  refreshNotesPreview($("#fNotes").value);
+  setNotesValue($("#fNotes"), c?.notes || "", true);
   $("#btnDelete").classList.toggle("hidden", !id);
   activeTags = c?.tags ? [...c.tags] : [];
   currentFiles = Array.isArray(c?.files) ? c.files.slice() : [];
@@ -918,16 +981,27 @@ editDialog.addEventListener("close", ()=>{
 });
 editForm.addEventListener("input", ()=>{ editorDirty=true; });
 editForm.addEventListener("change", ()=>{ editorDirty=true; });
-$("#fNotes").addEventListener("input", ()=>{ refreshNotesPreview($("#fNotes").value); });
-$("#fNotes").addEventListener("blur", ()=>{
-  const notesField=$("#fNotes");
-  const normalized=preprocessNotes(notesField.value);
-  if(normalized!==notesField.value){
-    notesField.value=normalized;
-    editorDirty=true;
+notesModeToggle.addEventListener("click", ()=>{
+  const notes=$("#fNotes");
+  if(notes.dataset.mode==="edit"){
+    exitNotesEditMode(notes);
+    notes.blur();
+  }else{
+    enterNotesEditMode(notes);
+    notes.focus();
   }
-  refreshNotesPreview(notesField.value);
 });
+$("#fNotes").addEventListener("dblclick", ()=>{ enterNotesEditMode($("#fNotes")); });
+$("#fNotes").addEventListener("keydown", (e)=>{
+  const notes=$("#fNotes");
+  if(notes.dataset.mode!=="edit" && e.key==="Enter"){
+    e.preventDefault();
+    enterNotesEditMode(notes);
+    return;
+  }
+});
+$("#fNotes").addEventListener("input", ()=>{ syncNotesValue($("#fNotes")); editorDirty=true; });
+$("#fNotes").addEventListener("blur", ()=>{ if($("#fNotes").dataset.mode==="edit"){ exitNotesEditMode($("#fNotes")); editorDirty=true; } });
 editorCloseBtn.addEventListener("click", ()=>{
   if(editorDirty){ if(confirm("Discard changes?")) { editDialog.close("cancel"); editorDirty=false; } }
   else { editDialog.close("cancel"); }
@@ -935,7 +1009,7 @@ editorCloseBtn.addEventListener("click", ()=>{
 $("#fTitle").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); $("#btnSave").click(); } });
 $("#btnSaveAndNew").addEventListener("click", (e)=>{ e.preventDefault(); editDialog.close("save_new"); });
 // MODIFIED LINE 364: Use activeTags (Source of Truth) for saving, fixing the persistence deficiency.
-function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("#fStage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:$("#fNotes").value, files: currentFiles.slice() }; }
+function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("#fStage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:getNotesValue($("#fNotes")), files: currentFiles.slice() }; }
 function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join(""); $("#fStage").innerHTML = state.stages.map(s=>`<option>${s}</option>`).join(""); }
 
 /* ===== Tagging UI ===== */
@@ -1019,18 +1093,18 @@ function readAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileRe
 notesEl.addEventListener("paste", async (e)=>{
   if(!e.clipboardData) return; // safety
   const items = Array.from(e.clipboardData.items||[]);
-  // Images
   const imageItems = items.filter(it=> it.kind==="file" && it.type.startsWith("image/"));
-  for(const it of imageItems){
-    const file = it.getAsFile(); if(!file) continue;
-    const dataUrl = await readAsDataURL(file);
-    // Add as attachment AND embed markdown in notes
-    currentFiles = mergeFiles(currentFiles, [{name:file.name||("pasted-"+Date.now()+".png"), type:file.type, size:file.size, data:dataUrl}]);
-    const cursor = notesEl.selectionStart||notesEl.value.length;
-    const md = `\n![pasted](${dataUrl})\n`;
-    notesEl.value = notesEl.value.slice(0,cursor)+md+notesEl.value.slice(cursor);
+  if(imageItems.length){
+    e.preventDefault();
+    for(const it of imageItems){
+      const file = it.getAsFile(); if(!file) continue;
+      const dataUrl = await readAsDataURL(file);
+      currentFiles = mergeFiles(currentFiles, [{name:file.name||("pasted-"+Date.now()+".png"), type:file.type, size:file.size, data:dataUrl}]);
+      insertTextAtCursor(notesEl, `\n![pasted](${dataUrl})\n`);
+    }
+    renderFileChips();
+    editorDirty=true;
   }
-  // URLs
   const text = e.clipboardData.getData("text/plain");
   if(text && /^https?:\/\//i.test(text)){
     // keep as plain text in notes; linkified in tooltip render
