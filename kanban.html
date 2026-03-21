@@ -260,8 +260,9 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     </div>
 
     <div class="field">
-      <label for="fNotes">Notes (Markdown supported)</label>
-      <textarea id="fNotes" rows="6" placeholder="Paste images here (from clipboard) or type/paste URLs…"></textarea>
+      <label for="fNotes">Notes (Markdown + linktext--url supported)</label>
+      <textarea id="fNotes" rows="6" placeholder="Paste images here (from clipboard), type markdown, or use linktext--url…"></textarea>
+      <div id="fNotesPreview" class="live-notes-preview" aria-live="polite"></div>
     </div>
 
     <div class="row">
@@ -805,7 +806,7 @@ function renderCard(card){
   tagsInput.addEventListener("input", ()=>{ inlineState.tags=tagsInput.value; });
 
   const notesInput=document.createElement("textarea");
-  notesInput.rows=4; notesInput.placeholder="Notes"; notesInput.value=inlineState.notes;
+  notesInput.rows=4; notesInput.placeholder="Notes or linktext--url"; notesInput.value=inlineState.notes;
   notesInput.addEventListener("input", ()=>{ inlineState.notes=notesInput.value; });
   notesInput.addEventListener("blur", ()=>{
     const normalized=preprocessNotes(notesInput.value);
@@ -879,6 +880,10 @@ function bumpTagHistory(tags){ if(!tags?.length) return; tagHistory=saveTagHisto
 const editDialog=$("#editDialog"); const editForm=$("#editForm");
 const editorCloseBtn=$("#editorCloseBtn");
 let editingId=null, activeTags=[], pendingFiles=[], currentFiles=[];
+function refreshNotesPreview(value){
+  const preview=$("#fNotesPreview");
+  if(preview) preview.innerHTML=renderMarkdown(value||"");
+}
 function openEditor(id=null, presetStage=null){
   editingId=id; editorDirty=false;
   $("#editTitle").textContent=id? "Edit Card":"New Card";
@@ -890,6 +895,7 @@ function openEditor(id=null, presetStage=null){
   $("#fDev").value = c?.dev || "";
   $("#fLive").value = c?.live || "";
   $("#fNotes").value = c?.notes || "";
+  refreshNotesPreview($("#fNotes").value);
   $("#btnDelete").classList.toggle("hidden", !id);
   activeTags = c?.tags ? [...c.tags] : [];
   currentFiles = Array.isArray(c?.files) ? c.files.slice() : [];
@@ -913,6 +919,7 @@ editDialog.addEventListener("close", ()=>{
 });
 editForm.addEventListener("input", ()=>{ editorDirty=true; });
 editForm.addEventListener("change", ()=>{ editorDirty=true; });
+$("#fNotes").addEventListener("input", ()=>{ refreshNotesPreview($("#fNotes").value); });
 $("#fNotes").addEventListener("blur", ()=>{
   const notesField=$("#fNotes");
   const normalized=preprocessNotes(notesField.value);
@@ -920,6 +927,7 @@ $("#fNotes").addEventListener("blur", ()=>{
     notesField.value=normalized;
     editorDirty=true;
   }
+  refreshNotesPreview(notesField.value);
 });
 editorCloseBtn.addEventListener("click", ()=>{
   if(editorDirty){ if(confirm("Discard changes?")) { editDialog.close("cancel"); editorDirty=false; } }
@@ -1402,10 +1410,29 @@ function normalizeUrl(url){
   if(/^[\w.-]+\.[a-zA-Z]{2,}(?:[\/:?#]|$)/.test(val)) return `https://${val}`;
   return val;
 }
+function normalizeShorthandUrl(url){
+  const raw=String(url||"").trim();
+  if(!raw) return "";
+  if(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(raw)) return raw;
+  const match=raw.match(/^([^\/?#]+)(.*)$/);
+  if(!match) return `https://${raw}`;
+  let [, host, rest]=match;
+  if(!host.includes(".")) host += ".com";
+  return `https://${host}${rest}`;
+}
+function shorthandToMarkdown(text){
+  return String(text||"").replace(/(^|[\s(>])([^\s<>()\[\]]+)\s*--\s*([^\s<>()]+)(?=$|[\s),.!?])/g, (match, prefix, label, rawUrl)=>{
+    const trimmedLabel=label.trim();
+    const normalizedUrl=normalizeShorthandUrl(rawUrl);
+    if(!trimmedLabel || !normalizedUrl) return match;
+    return `${prefix}[**${trimmedLabel}**](${normalizedUrl})`;
+  });
+}
 function preprocessNotes(s){
   // Normalization contract:
   // - keep existing markdown links/images untouched
-  // - convert only naked http/https URLs into markdown links with compact labels
+  // - convert only linktext--url shorthand into markdown links with bold labels
+  // - convert naked http/https URLs into markdown links with compact labels
   // - avoid broad rewrites so user-authored markdown remains stable
   const source=String(s||"");
   const protectedChunks=[];
@@ -1414,7 +1441,13 @@ function preprocessNotes(s){
     protectedChunks.push(match);
     return token;
   });
-  const normalized=tokenized.replace(/https?:\/\/[^\s<>"]+/g, (rawUrl)=>{
+  const shorthandNormalized=shorthandToMarkdown(tokenized);
+  const retokenized=shorthandNormalized.replace(/!?\[[^\]]+\]\([^\)]+\)/g, (match)=>{
+    const token=`__MD_LINK_${protectedChunks.length}__`;
+    protectedChunks.push(match);
+    return token;
+  });
+  const normalized=retokenized.replace(/https?:\/\/[^\s<>"]+/g, (rawUrl)=>{
     const trimmed=rawUrl.replace(/[),.;!?]+$/g, "");
     const suffix=rawUrl.slice(trimmed.length);
     let label="link";
@@ -1440,7 +1473,7 @@ function inlineMarkdown(text){
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 }
 function renderMarkdown(source){
-  const withImages=sanitizeMarkdownImages(escapeHtml(source||""));
+  const withImages=sanitizeMarkdownImages(escapeHtml(preprocessNotes(source||"")));
   const lines=withImages.split(/\r?\n/);
   let html="", inList=false, inCode=false;
   for(const rawLine of lines){
