@@ -110,8 +110,7 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .card-edit-field input,.card-edit-field select,.card-edit-field textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;background:#fff;color:inherit}
 .card-edit-field textarea{resize:vertical;min-height:72px}
 .notes-editor{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font:inherit;background:#fff;color:inherit;min-height:144px;max-height:40vh;overflow:auto;white-space:pre-wrap;line-height:1.45;cursor:text}
-.notes-editor[data-mode="render"]{background:#f8fafc;cursor:default}
-.notes-mode-toggle{min-width:78px}
+.notes-editor[data-mode="render"]{background:#f8fafc}
 .notes-editor:focus{outline:2px solid rgba(31,111,235,.18);border-color:var(--accent)}
 .notes-editor:empty::before{content:attr(data-placeholder);color:#94a3b8}
 .notes-editor p{margin:0 0 8px}
@@ -141,8 +140,6 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 .modal .modal-close:hover{color:#000;background:#f2f2f6}
 .field{display:flex;flex-direction:column;gap:6px;margin:10px 0}
 .field input,.field textarea,.field select{border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;width:100%}
-.field-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.field-head label{font-weight:600}
 .field .notes-editor{padding:10px}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -266,12 +263,8 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     </div>
 
     <div class="field">
-      <div class="field-head">
-        <label id="fNotesLabel">Notes (Markdown + linktext--url supported)</label>
-        <button type="button" id="btnToggleNotesMode" class="btn small notes-mode-toggle" aria-controls="fNotes" aria-pressed="false">Edit</button>
-      </div>
-      <div id="fNotes" class="notes-editor" role="textbox" aria-labelledby="fNotesLabel" aria-describedby="fNotesHint" aria-multiline="true" tabindex="0" data-mode="render" data-placeholder="Paste images here (from clipboard), type markdown, or use linktext--url…"></div>
-      <div id="fNotesHint" class="muted">Tap Edit to change notes. Tap Done to render clickable links.</div>
+      <label id="fNotesLabel">Notes (Markdown + linktext--url supported)</label>
+      <div id="fNotes" class="notes-editor" role="textbox" aria-labelledby="fNotesLabel" aria-multiline="true" tabindex="0" data-mode="render" data-placeholder="Paste images here (from clipboard), type markdown, or use linktext--url…"></div>
     </div>
 
     <div class="row">
@@ -891,16 +884,10 @@ const editorCloseBtn=$("#editorCloseBtn");
 const notesModeToggle=$("#btnToggleNotesMode");
 let editingId=null, activeTags=[], pendingFiles=[], currentFiles=[];
 function getNotesValue(el){ return el?.dataset?.raw ?? ""; }
-function updateNotesModeToggle(render){
-  if(!notesModeToggle) return;
-  notesModeToggle.textContent=render ? "Edit" : "Done";
-  notesModeToggle.setAttribute("aria-pressed", render ? "false" : "true");
-}
 function setNotesValue(el, value, render=true){
   if(!el) return;
   const normalized=String(value||"");
   el.dataset.raw=normalized;
-  updateNotesModeToggle(render);
   if(render){
     el.dataset.mode="render";
     el.contentEditable="false";
@@ -981,27 +968,10 @@ editDialog.addEventListener("close", ()=>{
 });
 editForm.addEventListener("input", ()=>{ editorDirty=true; });
 editForm.addEventListener("change", ()=>{ editorDirty=true; });
-notesModeToggle.addEventListener("click", ()=>{
-  const notes=$("#fNotes");
-  if(notes.dataset.mode==="edit"){
-    exitNotesEditMode(notes);
-    notes.blur();
-  }else{
-    enterNotesEditMode(notes);
-    notes.focus();
-  }
-});
-$("#fNotes").addEventListener("dblclick", ()=>{ enterNotesEditMode($("#fNotes")); });
-$("#fNotes").addEventListener("keydown", (e)=>{
-  const notes=$("#fNotes");
-  if(notes.dataset.mode!=="edit" && e.key==="Enter"){
-    e.preventDefault();
-    enterNotesEditMode(notes);
-    return;
-  }
-});
+$("#fNotes").addEventListener("focus", ()=>{ enterNotesEditMode($("#fNotes")); });
+$("#fNotes").addEventListener("click", ()=>{ enterNotesEditMode($("#fNotes")); });
 $("#fNotes").addEventListener("input", ()=>{ syncNotesValue($("#fNotes")); editorDirty=true; });
-$("#fNotes").addEventListener("blur", ()=>{ if($("#fNotes").dataset.mode==="edit"){ exitNotesEditMode($("#fNotes")); editorDirty=true; } });
+$("#fNotes").addEventListener("blur", ()=>{ exitNotesEditMode($("#fNotes")); editorDirty=true; });
 editorCloseBtn.addEventListener("click", ()=>{
   if(editorDirty){ if(confirm("Discard changes?")) { editDialog.close("cancel"); editorDirty=false; } }
   else { editDialog.close("cancel"); }
