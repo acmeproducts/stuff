@@ -131,6 +131,15 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 .field{display:flex;flex-direction:column;gap:6px;margin:10px 0}
 .field input,.field textarea,.field select{border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;width:100%}
 .field textarea#fNotes{min-height:144px;max-height:40vh;resize:vertical;line-height:1.45}
+.live-notes-preview{border:1px solid var(--border);border-radius:10px;padding:10px;min-height:144px;max-height:40vh;overflow:auto;white-space:pre-wrap;line-height:1.45;background:#f8fafc;cursor:text}
+.live-notes-preview:focus{outline:2px solid rgba(31,111,235,.18);border-color:var(--accent)}
+.live-notes-preview:empty::before{content:attr(data-placeholder);color:#94a3b8}
+.live-notes-preview p{margin:0 0 8px}
+.live-notes-preview p:last-child{margin-bottom:0}
+.live-notes-preview ul,.live-notes-preview ol{margin:0 0 8px 18px;padding:0}
+.live-notes-preview code{background:#e2e8f0;padding:1px 4px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.live-notes-preview pre{margin:0 0 8px;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:8px;overflow:auto}
+.live-notes-preview a{color:#1d4ed8;text-decoration:none}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
@@ -251,7 +260,8 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 
     <div class="field">
       <label id="fNotesLabel">Notes (Markdown + linktext--url supported)</label>
-      <textarea id="fNotes" aria-labelledby="fNotesLabel" placeholder="Type markdown or use linktext--url…"></textarea>
+      <textarea id="fNotes" aria-labelledby="fNotesLabel" placeholder="Type markdown or use linktext--url…" class="hidden"></textarea>
+      <div id="fNotesPreview" class="live-notes-preview" role="button" aria-labelledby="fNotesLabel" tabindex="0" data-placeholder="Type markdown or use linktext--url…"></div>
     </div>
 
     <div class="row">
@@ -871,6 +881,26 @@ const editorCloseBtn=$("#editorCloseBtn");
 let editingId=null, activeTags=[], pendingFiles=[], currentFiles=[];
 function getNotesValue(el){ return el?.value ?? ""; }
 function setNotesValue(el, value){ if(el) el.value=String(value||""); }
+function refreshNotesPreview(value){
+  const preview=$("#fNotesPreview");
+  if(preview) preview.innerHTML=renderMarkdown(value||"");
+}
+function showNotesPreview(){
+  const notes=$("#fNotes"), preview=$("#fNotesPreview");
+  refreshNotesPreview(getNotesValue(notes));
+  notes.classList.add("hidden");
+  preview.classList.remove("hidden");
+}
+function enterNotesEditMode(){
+  const notes=$("#fNotes"), preview=$("#fNotesPreview");
+  preview.classList.add("hidden");
+  notes.classList.remove("hidden");
+  requestAnimationFrame(()=>{
+    notes.focus();
+    const end=notes.value.length;
+    notes.setSelectionRange(end,end);
+  });
+}
 function openEditor(id=null, presetStage=null){
   editingId=id; editorDirty=false;
   $("#editTitle").textContent=id? "Edit Card":"New Card";
@@ -882,6 +912,7 @@ function openEditor(id=null, presetStage=null){
   $("#fDev").value = c?.dev || "";
   $("#fLive").value = c?.live || "";
   setNotesValue($("#fNotes"), c?.notes || "");
+  showNotesPreview();
   $("#btnDelete").classList.toggle("hidden", !id);
   activeTags = c?.tags ? [...c.tags] : [];
   currentFiles = Array.isArray(c?.files) ? c.files.slice() : [];
@@ -905,7 +936,26 @@ editDialog.addEventListener("close", ()=>{
 });
 editForm.addEventListener("input", ()=>{ editorDirty=true; });
 editForm.addEventListener("change", ()=>{ editorDirty=true; });
-$("#fNotes").addEventListener("input", ()=>{ editorDirty=true; });
+$("#fNotesPreview").addEventListener("click", (e)=>{
+  if(e.target.closest("a")) return;
+  enterNotesEditMode();
+});
+$("#fNotesPreview").addEventListener("keydown", (e)=>{
+  if(e.key==="Enter" || e.key===" "){
+    e.preventDefault();
+    enterNotesEditMode();
+  }
+});
+$("#fNotes").addEventListener("input", ()=>{ refreshNotesPreview($("#fNotes").value); editorDirty=true; });
+$("#fNotes").addEventListener("blur", ()=>{
+  const notes=$("#fNotes");
+  const normalized=preprocessNotes(notes.value);
+  if(normalized!==notes.value){
+    notes.value=normalized;
+    editorDirty=true;
+  }
+  showNotesPreview();
+});
 editorCloseBtn.addEventListener("click", ()=>{
   if(editorDirty){ if(confirm("Discard changes?")) { editDialog.close("cancel"); editorDirty=false; } }
   else { editDialog.close("cancel"); }
