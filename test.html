@@ -115,6 +115,7 @@ textarea.field-input{resize:none;}
 .msg-status.sent{color:var(--ink-dim);}
 .msg-status.delivered{color:var(--teal);}
 .msg-status.read{color:var(--green);}
+.msg-status.failed{color:var(--red);font-weight:700;}
 
 /* Bubble body — two equal columns */
 .bbl-body{display:grid;grid-template-columns:1fr 1px 1fr;}
@@ -1272,6 +1273,7 @@ var pendingTrAcks={};
 var msgSeq=0;
 var lastRelaySeq=0;
 var socketState='closed';
+var reconnectGraceUntil=0;
 var transportHandlers=[];
 var peerState={connected:false,lastSeenAt:0};
 var hbTimer=null;
@@ -1281,8 +1283,10 @@ var missedHeartbeats=0;
 var reconnectInProgress=false;
 var reconnectCooldownUntil=0;
 var HEARTBEAT_MS=15000;
-var HEARTBEAT_STALE_MS=45000;
+var HEARTBEAT_STALE_MS=90000;
+var POST_CONNECT_GRACE_MS=60000;
 var PEER_STALE_MS=60000;
+var MAX_PENDING_MSG_RECONNECTS=5;
 var RECONNECT_COOLDOWN_MS=1600;
 var RECONNECT_BASE_MS=1200;
 var RECONNECT_MAX_MS=20000;
@@ -1298,6 +1302,20 @@ function setSocketState(s){socketState=s;if(s!=='open'){peerState.connected=fals
 function markPeerSeen(){peerState.connected=true;peerState.lastSeenAt=Date.now();updateDot();}
 function markPeerAnnounced(){peerState.connected=true;peerState.lastSeenAt=Date.now();updateDot();}
 function peerIsFresh(){return peerState.connected&&(Date.now()-peerState.lastSeenAt)<PEER_STALE_MS;}
+function resetBackfillCursor(){lastRelaySeq=0;}
+function getPendingEntry(kind,id){var store=kind==='msg'?pendingMsgAcks:pendingTrAcks;return store[id]||null;}
+function getPendingEvent(kind,id){var entry=getPendingEntry(kind,id);return entry&&entry.event?entry.event:entry;}
+function markMessageDeliveryState(convId,msgId,status){
+  if(!convId||!msgId)return;
+  var msgs=(convId===state.activeConvId)?state.messages:getMsgs(convId);
+  var changed=false;
+  for(var i=0;i<msgs.length;i++){
+    if(msgs[i]&&msgs[i].id===msgId){msgs[i].status=status;changed=true;break;}
+  }
+  if(!changed)return;
+  saveMsgs(convId,msgs);
+  if(convId===state.activeConvId)renderAllMessages();
+}
 function pruneInboundSeen(now){if(!inboundSeen.size)return;var t=now||Date.now();inboundSeen.forEach(function(exp,key){if(exp<=t)inboundSeen.delete(key);});}
 function shouldDropInboundDuplicate(d){if(!d||!d.id)return false;if(['msg','tr','clarify-note'].indexOf(d.type)<0)return false;var now=Date.now();pruneInboundSeen(now);var key=d.type+'::'+d.id;var exp=inboundSeen.get(key);if(exp&&exp>now)return true;inboundSeen.set(key,now+INBOUND_DEDUPE_TTL_MS);return false;}
 
@@ -1316,6 +1334,7 @@ function startHeartbeatLoop(){
     if(!ws||ws.readyState!==1||socketState!=='open')return;
     var now=Date.now();
     try{ws.send(JSON.stringify({type:'ping',session:connectedConvId,from:DEVICE_ID,participant:PART_ID,ts:now}));}catch(_){return;}
+    if(now<reconnectGraceUntil){updateDot();return;}
     var lastSignal=Math.max(lastPongAt,lastRxAt,peerState.lastSeenAt);
     if(lastSignal&&now-lastSignal>HEARTBEAT_STALE_MS){
       addDiagLog('HEARTBEAT stale — closing socket','warn');
@@ -1334,17 +1353,18 @@ function sendInitialHello(sess){
 // Fetch missed messages via HTTP GET (like peace.html's fetchRelayBackfill)
 function fetchBackfill(){
   if(!connectedConvId)return;
+  var since=Math.max(0,lastRelaySeq||0);
   var url=RELAY_WS_URL.replace('wss://','https://').replace('ws://','http://')
     +'?session='+encodeURIComponent(connectedConvId)
     +'&client='+encodeURIComponent(DEVICE_ID)
-    +'&since='+lastRelaySeq;
+    +'&since='+since;
   fetch(url).then(function(r){return r.json();}).then(function(msgs){
     if(!Array.isArray(msgs)||!msgs.length)return;
     // Filter out messages already in local state by ID
     var existingIds=new Set(state.messages.map(function(m){return m.id;}).filter(Boolean));
     var newMsgs=msgs.filter(function(m){return !m.id||!existingIds.has(m.id);});
-    if(!newMsgs.length){addDiagLog('BACKFILL: '+msgs.length+' fetched, 0 new');return;}
-    addDiagLog('BACKFILL: '+newMsgs.length+' new of '+msgs.length+' fetched since seq='+lastRelaySeq);
+    if(!newMsgs.length){addDiagLog('BACKFILL: '+msgs.length+' fetched, 0 new since seq='+since);return;}
+    addDiagLog('BACKFILL: '+newMsgs.length+' new of '+msgs.length+' fetched since seq='+since);
     newMsgs.forEach(function(m){
       if(m.seq&&m.seq>lastRelaySeq)lastRelaySeq=m.seq;
       if(m.seq)msgSeq=Math.max(msgSeq,m.seq);
@@ -1372,6 +1392,7 @@ function transportConnect(convId,participant,opts){
     reconnectInProgress=false;
     reconnectCooldownUntil=Date.now()+RECONNECT_COOLDOWN_MS;
     lastRxAt=Date.now();lastPongAt=Date.now();missedHeartbeats=0;
+    reconnectGraceUntil=Date.now()+POST_CONNECT_GRACE_MS;
     addDiagLog('CONNECTED session='+String(connectedConvId||'').slice(0,8));
     startHeartbeatLoop();
     // Send reattach + hello (like peace.html)
@@ -1434,7 +1455,14 @@ function queueOutEvent(ev){
   pruneOutQueue();
 }
 
-function trackReliableOutbound(m){if(!m||!m.id)return;if(m.type==='msg')pendingMsgAcks[m.id]=m;if(m.type==='tr')pendingTrAcks[m.id]=m;}
+function trackReliableOutbound(m){
+  if(!m||!m.id)return;
+  if(m.type==='msg'){
+    var existing=pendingMsgAcks[m.id];
+    pendingMsgAcks[m.id]={event:m,retries:existing&&typeof existing.retries==='number'?existing.retries:0,lastAttemptAt:Date.now()};
+  }
+  if(m.type==='tr')pendingTrAcks[m.id]={event:m,lastAttemptAt:Date.now()};
+}
 function clearReliableAck(kind,id){if(kind==='msg')delete pendingMsgAcks[id];if(kind==='tr')delete pendingTrAcks[id];}
 
 function sendReliable(ev){
@@ -1462,8 +1490,18 @@ function flushOutQueue(){
 function resendPendingReliables(){
   if(!ws||ws.readyState!==1)return;
   var resend=[];
-  Object.keys(pendingMsgAcks).forEach(function(id){resend.push(pendingMsgAcks[id]);});
-  Object.keys(pendingTrAcks).forEach(function(id){resend.push(pendingTrAcks[id]);});
+  Object.keys(pendingMsgAcks).forEach(function(id){
+    var entry=pendingMsgAcks[id];if(!entry||!entry.event)return;
+    entry.retries=(entry.retries||0)+1;entry.lastAttemptAt=Date.now();
+    if(entry.retries>MAX_PENDING_MSG_RECONNECTS){
+      addDiagLog('MSG failed after reconnect retries id='+String(id).slice(0,8),'warn');
+      markMessageDeliveryState(entry.event.session,id,'failed');
+      delete pendingMsgAcks[id];
+      return;
+    }
+    resend.push(entry.event);
+  });
+  Object.keys(pendingTrAcks).forEach(function(id){var entry=pendingTrAcks[id];if(entry&&entry.event){entry.lastAttemptAt=Date.now();resend.push(entry.event);}});
   resend=resend.slice(0,MAX_RETRY_ATTEMPTS);
   for(var i=0;i<resend.length;i++){try{ws.send(JSON.stringify(resend[i]));}catch(_){queueOutEvent(resend[i]);}}
 }
@@ -1488,7 +1526,7 @@ function transportDisconnect(opts){
   if(!opts.preserveQueue){outQ=[];outQTimestamps=[];pendingMsgAcks={};pendingTrAcks={};}
   connectedConvId=null;
   stopHeartbeatLoop();
-  lastRxAt=0;lastPongAt=0;missedHeartbeats=0;
+  lastRxAt=0;lastPongAt=0;missedHeartbeats=0;reconnectGraceUntil=0;
   peerState.connected=false;
   setSocketState('closed');
   updateDot();
@@ -1499,6 +1537,7 @@ function scheduleReconnect(){
   if(ws&&ws.readyState===0)return;
   if(!connectedConvId)return;
   rcAttempts++;
+  resetBackfillCursor();
   // Exponential backoff with jitter (like peace.html)
   var jitter=1+(Math.random()*2-1)*RECONNECT_JITTER;
   var baseDelay=Math.min(RECONNECT_MAX_MS,RECONNECT_BASE_MS*Math.pow(2,rcAttempts-1));
@@ -1529,6 +1568,7 @@ function forceReconnect(){
   reconnectCooldownUntil=Date.now()+RECONNECT_COOLDOWN_MS;
   rcAttempts=0;
   transportDisconnect({preserveQueue:true});
+  resetBackfillCursor();
   transportConnect(state.activeConvId,PART_ID,{preserveQueue:true});
   toast('Reconnecting…');
 }
@@ -1545,6 +1585,7 @@ document.addEventListener('visibilitychange',function(){
     if(!ws||ws.readyState!==1){
       addDiagLog('VISIBILITY: page visible, reconnecting');
       rcAttempts=0;
+      resetBackfillCursor();
       transportConnect(state.activeConvId,PART_ID,{preserveQueue:true});
     } else {
       startHeartbeatLoop();
@@ -1557,6 +1598,7 @@ window.addEventListener('focus',function(){
     if(!ws||ws.readyState!==1){
       addDiagLog('FOCUS: reconnecting');
       rcAttempts=0;
+      resetBackfillCursor();
       transportConnect(state.activeConvId,PART_ID,{preserveQueue:true});
     } else {
       startHeartbeatLoop();
@@ -1634,7 +1676,6 @@ function openInviteScreen(cid){
   document.getElementById('composer').style.display='flex';
   updatePartnerHeader(sess);
   updateAutoReadBtn();
-  if(sess._partnerAnnounced||sess.inviterDeviceId||sess.invitePartnerName)markPeerAnnounced();
   transportConnect(cid,PART_ID);
   renderAllMessages();
   scrollBottom();
@@ -1693,7 +1734,6 @@ function openSession(cid){
   document.getElementById('composer').style.display='flex';
   updatePartnerHeader(sess);
   updateAutoReadBtn();
-  if(sess._partnerAnnounced||sess.inviterDeviceId||sess.invitePartnerName)markPeerAnnounced();
   transportConnect(cid,PART_ID);
   // Ensure invite message exists if partner hasn't joined
   if(!sess._partnerJoined){
@@ -1759,6 +1799,7 @@ function renderSessionList(){
       +'<div class="sess-card-info"><div class="sess-card-title" contenteditable="true" spellcheck="false" onclick="event.stopPropagation();this.focus();" onblur="saveCardTitle(\''+s.convId+'\',this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'+escHtml(s.title||s.partnerName||'new chat')+'</div><div class="sess-card-sub">'+timeAgo(s.lastActivity||s.createdAt)+'</div></div>'
       +statusBadge
       +'<div style="display:flex;gap:2px;flex-shrink:0;">'
+      +'<button class="sess-card-act" onclick="event.stopPropagation();exportSessionChat(\''+s.convId+'\')" title="Export chat">⇩</button>'
       +'<button class="sess-card-act" onclick="event.stopPropagation();openDiagModal(\''+s.convId+'\')" title="Diagnostics">'+ICON_DIAG+'</button>'
       +'<button class="sess-card-act del" onclick="event.stopPropagation();softDelete(\''+s.convId+'\')" title="Delete">'+ICON_DELETE+'</button>'
       +'</div></div>';
@@ -2114,7 +2155,11 @@ function handleRelayEvent(d){
 
   if(d.type==='ack'){
     markPeerSeen();
-    if(d.ackType==='msg'){clearReliableAck('msg',d.id);var mAck=findMsg(d.id);if(mAck&&mAck.from==='me'){mAck.status='delivered';saveMsgs(state.activeConvId,state.messages);renderAllMessages();}}
+    if(d.ackType==='msg'){
+      var pendingAck=getPendingEvent('msg',d.id);
+      clearReliableAck('msg',d.id);
+      markMessageDeliveryState((pendingAck&&pendingAck.session)||state.activeConvId,d.id,'delivered');
+    }
     else if(d.ackType==='tr'){clearReliableAck('tr',d.id);}
     return;
   }
@@ -2184,6 +2229,7 @@ function buildBubbleCard(cfg){
     else if(st==='sent')statusDot='<span class="msg-status sent" title="Sent">\u2022</span>';
     else if(st==='delivered')statusDot='<span class="msg-status delivered" title="Delivered">\u2022\u2022</span>';
     else if(st==='translated')statusDot='<span class="msg-status read" title="Read">\u2022\u2022</span>';
+    else if(st==='failed')statusDot='<span class="msg-status failed" title="Not delivered">!</span>';
   }
   var header='<div class="bbl-hdr">'
     +'<span class="bbl-sender">'+escHtml(cfg.headerLeft||'')+'</span>'
@@ -3375,6 +3421,29 @@ function saveSessionNote(){if(!state.noteSessionId)return;var notes=getSessionNo
 
 // Import/Export
 function downloadBlob(content,type,fileName){var blob=new Blob([content],{type:type});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fileName;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},0);}
+function formatExportMessageBlock(msg,sess){
+  var ts=fmtDateTime(msg.timestamp||Date.now());
+  if(msg.from==='system')return '['+ts+'] System\n'+String(msg.text||'').trim();
+  if(msg.from==='invite')return '['+ts+'] Invite\n'+String(msg.inviteUrl||msg.text||'').trim();
+  var names=ensureSessionNames(sess||{});
+  var sender=msg.from==='me'?(msg.displayFromName||names.meAlias||'Me'):(msg.displayFromName||names.themAlias||'Partner');
+  return '['+ts+'] '+sender+'\n'
+    +'Source ('+String(msg.sourceLang||msg.lang||'').toUpperCase()+'): '+String(msg.sourceText||msg.orig||msg.text||'').trim()+'\n'
+    +'Target ('+String(msg.targetLang||'').toUpperCase()+'): '+String(msg.targetText||msg.translated||'').trim()
+    +(msg.status==='failed'?'\nStatus: Not delivered':'');
+}
+function exportSessionChat(cid){
+  var sess=getSession(cid);if(!sess){toast('Session not found');return;}
+  var msgs=getMsgs(cid);
+  var title=(sess.title||sess.partnerName||cid||'chat').trim()||'chat';
+  var safeTitle=title.replace(/[^a-z0-9_-]+/gi,'-').replace(/^-+|-+$/g,'').toLowerCase()||'chat';
+  var blocks=['Talk + Say chat export','Session: '+title,'Conversation ID: '+cid,'Exported: '+fmtDateTime(Date.now())];
+  if(msgs.length){blocks.push('','Conversation');msgs.forEach(function(msg){blocks.push('',formatExportMessageBlock(msg,sess));});}
+  else{blocks.push('','Conversation','','(No messages)');}
+  blocks.push('','Diagnostics','',diagLog.length?diagLog.join('\n'):'(No diagnostic entries)');
+  downloadBlob(blocks.join('\n'),'text/plain;charset=utf-8','chat-export-'+safeTitle+'-'+Date.now()+'.txt');
+  toast('Chat exported');
+}
 function downloadJSON(payload,filePrefix){downloadBlob(JSON.stringify(payload,null,2),'application/json',filePrefix+'-'+Date.now()+'.json');}
 function downloadCSV(rows,filePrefix){if(!rows.length){toast('Nothing to export');return;}var headers=Object.keys(rows[0]);var csv=[headers.map(csvEscape).join(',')].concat(rows.map(function(row){return headers.map(function(h){return csvEscape(row[h]);}).join(',');})).join('\n');downloadBlob(csv,'text/csv;charset=utf-8',filePrefix+'-'+Date.now()+'.csv');}
 function csvEscape(value){var str=value==null?'':String(value);return /[",\n]/.test(str)?'"'+str.replace(/"/g,'""')+'"':str;}
