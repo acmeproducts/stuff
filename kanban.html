@@ -109,6 +109,9 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .card-edit-field label{font-size:11px;color:var(--muted);font-weight:600}
 .card-edit-field input,.card-edit-field select,.card-edit-field textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;background:#fff;color:inherit}
 .card-edit-field textarea{resize:vertical;min-height:72px}
+.card-inline-notes{display:flex;flex-direction:column;gap:0}
+.card-inline-notes .live-notes-preview{min-height:72px;max-height:none}
+.card-inline-notes .live-notes-preview.hidden{display:none}
 .card-tags{display:flex;gap:6px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
@@ -805,15 +808,56 @@ function renderCard(card){
   tagsInput.addEventListener("input", ()=>{ inlineState.tags=tagsInput.value; });
 
   const notesInput=document.createElement("textarea");
+  const notesPreview=document.createElement("div");
+  const notesWrap=document.createElement("div");
   notesInput.rows=4; notesInput.placeholder="Notes or linktext--url"; notesInput.value=inlineState.notes;
+  notesPreview.className="live-notes-preview";
+  notesPreview.tabIndex=0;
+  notesPreview.dataset.placeholder="Notes or linktext--url";
+  notesWrap.className="card-inline-notes";
+  const syncInlineNotesPreview=()=>{
+    notesPreview.innerHTML=notesInput.value ? renderMarkdown(notesInput.value) : "";
+  };
+  const showInlineNotesPreview=()=>{
+    notesInput.classList.add("hidden");
+    notesPreview.classList.remove("hidden");
+    syncInlineNotesPreview();
+  };
+  const showInlineNotesEditor=()=>{
+    notesPreview.classList.add("hidden");
+    notesInput.classList.remove("hidden");
+    notesInput.focus();
+  };
   notesInput.addEventListener("input", ()=>{ inlineState.notes=notesInput.value; });
   notesInput.addEventListener("blur", ()=>{
     const normalized=preprocessNotes(notesInput.value);
     if(normalized!==notesInput.value){
       notesInput.value=normalized;
-      inlineState.notes=normalized;
     }
+    inlineState.notes=notesInput.value;
+    showInlineNotesPreview();
   });
+  notesPreview.addEventListener("click", (e)=>{
+    if(e.target.closest("a")) return;
+    e.stopPropagation();
+    showInlineNotesEditor();
+  });
+  notesPreview.addEventListener("pointerdown", (e)=>{
+    if(e.target.closest("a")){
+      e.stopPropagation();
+      return;
+    }
+    e.stopPropagation();
+  });
+  notesPreview.addEventListener("pointerup", (e)=>{
+    if(e.target.closest("a")){
+      e.stopPropagation();
+      return;
+    }
+    e.stopPropagation();
+  });
+  notesWrap.append(notesInput, notesPreview);
+  showInlineNotesPreview();
 
   const attachmentsWrap=document.createElement("ul");
   attachmentsWrap.className="attachment-list";
@@ -829,7 +873,7 @@ function renderCard(card){
     makeField("Dev Link", devInput),
     makeField("Live Link", liveInput),
     makeField("Tags", tagsInput, true),
-    makeField("Notes", notesInput, true),
+    makeField("Notes", notesWrap, true),
     makeField("Attachments", attachmentsWrap, true)
   );
   detail.append(grid);
@@ -1425,7 +1469,7 @@ function normalizeShorthandUrl(url){
   return `https://${host}${rest}`;
 }
 function shorthandToMarkdown(text){
-  return String(text||"").replace(/(^|[\s(>])([^\s<>()\[\]]+)\s*--\s*([^\s<>()]+)(?=$|[\s),.!?])/g, (match, prefix, label, rawUrl)=>{
+  return String(text||"").replace(/(^|[\s(>])([A-Za-z0-9][^\n<>()\[\]]*?\S)\s*--\s*([^\s<>()]+)(?=$|[\s),.!?])/g, (match, prefix, label, rawUrl)=>{
     const trimmedLabel=label.trim();
     const normalizedUrl=normalizeShorthandUrl(rawUrl);
     if(!trimmedLabel || !normalizedUrl) return match;
