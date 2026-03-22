@@ -130,17 +130,16 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 .modal .modal-close:hover{color:#000;background:#f2f2f6}
 .field{display:flex;flex-direction:column;gap:6px;margin:10px 0}
 .field input,.field textarea,.field select{border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;width:100%}
-.notes-editor{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font:inherit;background:#fff;color:inherit;min-height:144px;max-height:40vh;overflow:auto;white-space:pre-wrap;line-height:1.45;cursor:text}
-.notes-editor[data-mode="render"]{background:#f8fafc;cursor:default}
-.notes-editor:focus{outline:2px solid rgba(31,111,235,.18);border-color:var(--accent)}
-.notes-editor:empty::before{content:attr(data-placeholder);color:#94a3b8}
-.notes-editor p{margin:0 0 8px}
-.notes-editor p:last-child{margin-bottom:0}
-.notes-editor ul,.notes-editor ol{margin:0 0 8px 18px;padding:0}
-.notes-editor code{background:#e2e8f0;padding:1px 4px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
-.notes-editor pre{margin:0 0 8px;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:8px;overflow:auto}
-.notes-editor a{color:#1d4ed8;text-decoration:none}
-.field .notes-editor{padding:10px}
+.field textarea#fNotes{min-height:144px;max-height:40vh;resize:vertical;line-height:1.45}
+.live-notes-preview{width:100%;min-height:144px;max-height:40vh;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:10px;background:#f8fafc;line-height:1.45;white-space:normal;cursor:text}
+.live-notes-preview:focus{outline:2px solid rgba(31,111,235,.18);border-color:var(--accent)}
+.live-notes-preview:empty::before{content:attr(data-placeholder);color:#94a3b8}
+.live-notes-preview p{margin:0 0 8px}
+.live-notes-preview p:last-child{margin-bottom:0}
+.live-notes-preview ul,.live-notes-preview ol{margin:0 0 8px 18px;padding:0}
+.live-notes-preview code{background:#e2e8f0;padding:1px 4px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.live-notes-preview pre{margin:0 0 8px;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:8px;overflow:auto}
+.live-notes-preview a{color:#1d4ed8;text-decoration:underline}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
@@ -261,7 +260,8 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 
     <div class="field">
       <label id="fNotesLabel">Notes (Markdown + linktext--url supported)</label>
-      <div id="fNotes" class="notes-editor" role="textbox" aria-labelledby="fNotesLabel" aria-multiline="true" tabindex="0" data-mode="render" data-placeholder="Type markdown or use linktext--url…"></div>
+      <textarea id="fNotes" aria-labelledby="fNotesLabel" placeholder="Type markdown or use linktext--url…"></textarea>
+      <div id="fNotesPreview" class="live-notes-preview" aria-labelledby="fNotesLabel" tabindex="0" data-placeholder="Type markdown or use linktext--url…"></div>
     </div>
 
     <div class="row">
@@ -879,39 +879,28 @@ function bumpTagHistory(tags){ if(!tags?.length) return; tagHistory=saveTagHisto
 const editDialog=$("#editDialog"); const editForm=$("#editForm");
 const editorCloseBtn=$("#editorCloseBtn");
 let editingId=null, activeTags=[], pendingFiles=[], currentFiles=[];
-function getNotesValue(el){ return el?.dataset?.raw ?? ""; }
-function setNotesValue(el, value, render=true){
-  if(!el) return;
-  const normalized=String(value||"");
-  el.dataset.raw=normalized;
-  if(render){
-    el.dataset.mode="render";
-    el.contentEditable="false";
-    el.innerHTML=normalized ? renderMarkdown(normalized) : "";
-  }else{
-    el.dataset.mode="edit";
-    el.contentEditable="true";
-    el.textContent=normalized;
-  }
+function getNotesValue(el){ return el?.value ?? ""; }
+function setNotesValue(el, value){ if(el) el.value=String(value||""); }
+function syncNotesPreview(){
+  const notesInput=$("#fNotes");
+  const notesPreview=$("#fNotesPreview");
+  if(!notesInput || !notesPreview) return;
+  notesPreview.innerHTML=notesInput.value ? renderMarkdown(notesInput.value) : "";
 }
-function syncNotesValue(el){ if(el && el.dataset.mode==="edit") el.dataset.raw=el.textContent||""; }
-function focusNotesCursor(el){
-  const range=document.createRange();
-  range.selectNodeContents(el);
-  range.collapse(false);
-  const sel=window.getSelection();
-  sel.removeAllRanges();
-  sel.addRange(range);
+function showNotesPreview(){
+  const notesInput=$("#fNotes");
+  const notesPreview=$("#fNotesPreview");
+  if(!notesInput || !notesPreview) return;
+  notesInput.classList.add("hidden");
+  notesPreview.classList.remove("hidden");
 }
-function enterNotesEditMode(el){
-  if(!el || el.dataset.mode==="edit") return;
-  setNotesValue(el, getNotesValue(el), false);
-  requestAnimationFrame(()=> focusNotesCursor(el));
-}
-function exitNotesEditMode(el){
-  if(!el) return;
-  const normalized=preprocessNotes(el.textContent||getNotesValue(el));
-  setNotesValue(el, normalized, true);
+function showNotesEditor(){
+  const notesInput=$("#fNotes");
+  const notesPreview=$("#fNotesPreview");
+  if(!notesInput || !notesPreview) return;
+  notesPreview.classList.add("hidden");
+  notesInput.classList.remove("hidden");
+  notesInput.focus();
 }
 function openEditor(id=null, presetStage=null){
   editingId=id; editorDirty=false;
@@ -923,7 +912,9 @@ function openEditor(id=null, presetStage=null){
   $("#fTitle").value = c?.title || "";
   $("#fDev").value = c?.dev || "";
   $("#fLive").value = c?.live || "";
-  setNotesValue($("#fNotes"), c?.notes || "", true);
+  setNotesValue($("#fNotes"), c?.notes || "");
+  syncNotesPreview();
+  showNotesPreview();
   $("#btnDelete").classList.toggle("hidden", !id);
   activeTags = c?.tags ? [...c.tags] : [];
   currentFiles = Array.isArray(c?.files) ? c.files.slice() : [];
@@ -947,28 +938,30 @@ editDialog.addEventListener("close", ()=>{
 });
 editForm.addEventListener("input", ()=>{ editorDirty=true; });
 editForm.addEventListener("change", ()=>{ editorDirty=true; });
-$("#fNotes").addEventListener("click", (e)=>{
-  const notes=$("#fNotes");
-  if(notes.dataset.mode!=="render") return;
+$("#fNotesPreview").addEventListener("click", (e)=>{
   if(e.target.closest("a")) return;
-  enterNotesEditMode(notes);
+  showNotesEditor();
 });
-$("#fNotes").addEventListener("keydown", (e)=>{
+$("#fNotesPreview").addEventListener("keydown", (e)=>{
+  if(e.key!=="Enter" && e.key!==" ") return;
+  e.preventDefault();
+  showNotesEditor();
+});
+$("#fNotes").addEventListener("input", ()=>{ syncNotesPreview(); editorDirty=true; });
+$("#fNotes").addEventListener("blur", ()=>{
   const notes=$("#fNotes");
-  if(notes.dataset.mode==="render" && e.key==="Enter"){
-    e.preventDefault();
-    enterNotesEditMode(notes);
-  }
+  const normalized=preprocessNotes(notes.value);
+  if(normalized!==notes.value) notes.value=normalized;
+  syncNotesPreview();
+  showNotesPreview();
+  editorDirty=true;
 });
-$("#fNotes").addEventListener("input", ()=>{ syncNotesValue($("#fNotes")); editorDirty=true; });
-$("#fNotes").addEventListener("blur", ()=>{ if($("#fNotes").dataset.mode==="edit"){ exitNotesEditMode($("#fNotes")); editorDirty=true; } });
 editorCloseBtn.addEventListener("click", ()=>{
   if(editorDirty){ if(confirm("Discard changes?")) { editDialog.close("cancel"); editorDirty=false; } }
   else { editDialog.close("cancel"); }
 });
 $("#fTitle").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); $("#btnSave").click(); } });
 $("#btnSaveAndNew").addEventListener("click", (e)=>{ e.preventDefault(); editDialog.close("save_new"); });
-// MODIFIED LINE 364: Use activeTags (Source of Truth) for saving, fixing the persistence deficiency.
 function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("#fStage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:getNotesValue($("#fNotes")), files: currentFiles.slice() }; }
 function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join(""); $("#fStage").innerHTML = state.stages.map(s=>`<option>${s}</option>`).join(""); }
 
