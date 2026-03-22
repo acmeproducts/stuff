@@ -130,7 +130,17 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 .modal .modal-close:hover{color:#000;background:#f2f2f6}
 .field{display:flex;flex-direction:column;gap:6px;margin:10px 0}
 .field input,.field textarea,.field select{border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;width:100%}
-.field textarea#fNotes{min-height:144px;max-height:40vh;resize:vertical;line-height:1.45}
+.notes-editor{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font:inherit;background:#fff;color:inherit;min-height:144px;max-height:40vh;overflow:auto;white-space:pre-wrap;line-height:1.45;cursor:text}
+.notes-editor[data-mode="render"]{background:#f8fafc;cursor:default}
+.notes-editor:focus{outline:2px solid rgba(31,111,235,.18);border-color:var(--accent)}
+.notes-editor:empty::before{content:attr(data-placeholder);color:#94a3b8}
+.notes-editor p{margin:0 0 8px}
+.notes-editor p:last-child{margin-bottom:0}
+.notes-editor ul,.notes-editor ol{margin:0 0 8px 18px;padding:0}
+.notes-editor code{background:#e2e8f0;padding:1px 4px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.notes-editor pre{margin:0 0 8px;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:8px;overflow:auto}
+.notes-editor a{color:#1d4ed8;text-decoration:none}
+.field .notes-editor{padding:10px}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
@@ -251,7 +261,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 
     <div class="field">
       <label id="fNotesLabel">Notes (Markdown + linktext--url supported)</label>
-      <textarea id="fNotes" aria-labelledby="fNotesLabel" placeholder="Type markdown or use linktext--url…"></textarea>
+      <div id="fNotes" class="notes-editor" role="textbox" aria-labelledby="fNotesLabel" aria-multiline="true" tabindex="0" data-mode="render" data-placeholder="Type markdown or use linktext--url…"></div>
     </div>
 
     <div class="row">
@@ -869,8 +879,40 @@ function bumpTagHistory(tags){ if(!tags?.length) return; tagHistory=saveTagHisto
 const editDialog=$("#editDialog"); const editForm=$("#editForm");
 const editorCloseBtn=$("#editorCloseBtn");
 let editingId=null, activeTags=[], pendingFiles=[], currentFiles=[];
-function getNotesValue(el){ return el?.value ?? ""; }
-function setNotesValue(el, value){ if(el) el.value=String(value||""); }
+function getNotesValue(el){ return el?.dataset?.raw ?? ""; }
+function setNotesValue(el, value, render=true){
+  if(!el) return;
+  const normalized=String(value||"");
+  el.dataset.raw=normalized;
+  if(render){
+    el.dataset.mode="render";
+    el.contentEditable="false";
+    el.innerHTML=normalized ? renderMarkdown(normalized) : "";
+  }else{
+    el.dataset.mode="edit";
+    el.contentEditable="true";
+    el.textContent=normalized;
+  }
+}
+function syncNotesValue(el){ if(el && el.dataset.mode==="edit") el.dataset.raw=el.textContent||""; }
+function focusNotesCursor(el){
+  const range=document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  const sel=window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+function enterNotesEditMode(el){
+  if(!el || el.dataset.mode==="edit") return;
+  setNotesValue(el, getNotesValue(el), false);
+  requestAnimationFrame(()=> focusNotesCursor(el));
+}
+function exitNotesEditMode(el){
+  if(!el) return;
+  const normalized=preprocessNotes(el.textContent||getNotesValue(el));
+  setNotesValue(el, normalized, true);
+}
 function openEditor(id=null, presetStage=null){
   editingId=id; editorDirty=false;
   $("#editTitle").textContent=id? "Edit Card":"New Card";
@@ -881,7 +923,7 @@ function openEditor(id=null, presetStage=null){
   $("#fTitle").value = c?.title || "";
   $("#fDev").value = c?.dev || "";
   $("#fLive").value = c?.live || "";
-  setNotesValue($("#fNotes"), c?.notes || "");
+  setNotesValue($("#fNotes"), c?.notes || "", true);
   $("#btnDelete").classList.toggle("hidden", !id);
   activeTags = c?.tags ? [...c.tags] : [];
   currentFiles = Array.isArray(c?.files) ? c.files.slice() : [];
@@ -905,7 +947,21 @@ editDialog.addEventListener("close", ()=>{
 });
 editForm.addEventListener("input", ()=>{ editorDirty=true; });
 editForm.addEventListener("change", ()=>{ editorDirty=true; });
-$("#fNotes").addEventListener("input", ()=>{ editorDirty=true; });
+$("#fNotes").addEventListener("click", (e)=>{
+  const notes=$("#fNotes");
+  if(notes.dataset.mode!=="render") return;
+  if(e.target.closest("a")) return;
+  enterNotesEditMode(notes);
+});
+$("#fNotes").addEventListener("keydown", (e)=>{
+  const notes=$("#fNotes");
+  if(notes.dataset.mode==="render" && e.key==="Enter"){
+    e.preventDefault();
+    enterNotesEditMode(notes);
+  }
+});
+$("#fNotes").addEventListener("input", ()=>{ syncNotesValue($("#fNotes")); editorDirty=true; });
+$("#fNotes").addEventListener("blur", ()=>{ if($("#fNotes").dataset.mode==="edit"){ exitNotesEditMode($("#fNotes")); editorDirty=true; } });
 editorCloseBtn.addEventListener("click", ()=>{
   if(editorDirty){ if(confirm("Discard changes?")) { editDialog.close("cancel"); editorDirty=false; } }
   else { editDialog.close("cancel"); }
