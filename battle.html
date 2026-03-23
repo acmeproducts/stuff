@@ -1,0 +1,745 @@
+<!-- TOOLX_FILENAME:test.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Swarm Battle Simulator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    html, body { margin:0; padding:0; height:100%; background:#111; font-family: Arial, sans-serif; }
+    canvas { display:block; width:100vw; height:100vh; background:#222; touch-action:none; }
+    
+    #leaderboard {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 14px;
+      min-width: 200px;
+      z-index: 100;
+    }
+    
+    .swarm-stat {
+      margin: 8px 0;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s;
+      border: 2px solid transparent;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .swarm-stat:hover {
+      transform: scale(1.05);
+      border-color: rgba(255,255,255,0.5);
+    }
+    
+    .swarm-stat.red { background: rgba(255,100,100,0.4); }
+    .swarm-stat.blue { background: rgba(100,100,255,0.4); }
+    .swarm-stat.green { background: rgba(100,255,100,0.4); }
+    
+    .swarm-stat.swarmed { box-shadow: 0 0 10px rgba(255,255,255,0.8); }
+    .swarm-stat.attacking { animation: pulse 1s infinite; }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    
+    .status-indicator {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.2);
+      margin-left: 8px;
+    }
+    
+    #game-status {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      max-width: 250px;
+    }
+    
+    @media (max-width: 768px) {
+      #leaderboard, #game-status {
+        font-size: 12px;
+        padding: 10px;
+      }
+      .swarm-stat {
+        padding: 6px 10px;
+        margin: 6px 0;
+      }
+    }
+  </style>
+</head>
+<body>
+<!-- Act 1 -->
+<canvas id="boidCanvas"></canvas>
+
+<div id="leaderboard">
+  <div style="font-weight: bold; margin-bottom: 10px; text-align: center;">SWARMS</div>
+  <div class="swarm-stat red" onclick="addToSwarm(0)" ontouchstart="addToSwarm(0)">
+    <span>Red: <span id="red-count">0</span></span>
+    <span class="status-indicator" id="red-status">forming</span>
+  </div>
+  <div class="swarm-stat blue" onclick="addToSwarm(1)" ontouchstart="addToSwarm(1)">
+    <span>Blue: <span id="blue-count">0</span></span>
+    <span class="status-indicator" id="blue-status">forming</span>
+  </div>
+  <div class="swarm-stat green" onclick="addToSwarm(2)" ontouchstart="addToSwarm(2)">
+    <span>Green: <span id="green-count">0</span></span>
+    <span class="status-indicator" id="green-status">forming</span>
+  </div>
+</div>
+
+<div id="game-status">
+  <div><strong>Battle Status:</strong> <span id="battle-phase">Formation Phase</span></div>
+  <div style="margin-top: 5px; font-size: 10px;">
+    <div>Tap swarm colors to add members</div>
+    <div>Touch swarms to disperse them</div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('boidCanvas');
+const ctx = canvas.getContext('2d');
+let width = window.innerWidth;
+let height = window.innerHeight;
+canvas.width = width;
+canvas.height = height;
+
+window.addEventListener('resize', () => {
+  width = window.innerWidth;
+  height = window.innerHeight;
+  canvas.width = width;
+  canvas.height = height;
+});
+
+// Game constants
+const INITIAL_BOID_COUNT = 15;
+const BOID_SIZE = 8;
+const BOID_VIEW = 60;
+const ALIGN_FORCE = 0.05;
+const COHESION_FORCE = 0.01;
+const SEPARATION_FORCE = 0.1;
+const MAX_SPEED = 2.2;
+const MIN_DIST = 20;
+const SWARM_FORMATION_TIME = 3 * 60 * 1000; // 3 minutes in milliseconds
+const SWARM_COHESION_THRESHOLD = 80; // Distance threshold for swarm formation
+const ATTACK_RANGE = 100;
+const CIRCLING_DISTANCE = 150;
+
+// Swarm colors
+const SWARM_COLORS = [
+  { name: 'Red', color: '#ff6464', rgb: [255, 100, 100] },
+  { name: 'Blue', color: '#6464ff', rgb: [100, 100, 255] },
+  { name: 'Green', color: '#64ff64', rgb: [100, 255, 100] }
+];
+
+// Game state
+let gameState = {
+  phase: 'formation', // 'formation', 'battle', 'dispersed'
+  lastInteractionTime: 0,
+  battleStartTime: 0
+};
+
+function rand(min, max) { 
+  return Math.random() * (max - min) + min; 
+}
+
+class Boid {
+  constructor(swarmId = null) {
+    this.x = rand(50, width - 50);
+    this.y = rand(50, height - 50);
+    const angle = rand(0, 2 * Math.PI);
+    this.vx = Math.cos(angle) * rand(1, MAX_SPEED);
+    this.vy = Math.sin(angle) * rand(1, MAX_SPEED);
+    this.swarmId = swarmId !== null ? swarmId : Math.floor(Math.random() * 3);
+    this.health = 100;
+    this.age = 0;
+    this.lastSwarmTime = Date.now();
+    this.attackCooldown = 0;
+    this.isAttacking = false;
+    this.circlingAngle = Math.random() * Math.PI * 2;
+  }
+
+  update(boids, swarms) {
+    this.age++;
+    this.attackCooldown = Math.max(0, this.attackCooldown - 1);
+    
+    const mySwarm = swarms[this.swarmId];
+    const sameSwarmBoids = boids.filter(b => b.swarmId === this.swarmId);
+    
+    // Check if we're in a formed swarm
+    const inSwarm = this.isInSwarm(sameSwarmBoids);
+    if (inSwarm) {
+      this.lastSwarmTime = Date.now();
+    }
+    
+    // Flocking behavior with same swarm
+    let alignX = 0, alignY = 0, alignCount = 0;
+    let cohX = 0, cohY = 0, cohCount = 0;
+    let sepX = 0, sepY = 0;
+    
+    for (let other of sameSwarmBoids) {
+      if (other === this) continue;
+      const dx = other.x - this.x;
+      const dy = other.y - this.y;
+      const dist = Math.hypot(dx, dy);
+      
+      if (dist < BOID_VIEW) {
+        // Alignment
+        alignX += other.vx;
+        alignY += other.vy;
+        alignCount++;
+        // Cohesion
+        cohX += other.x;
+        cohY += other.y;
+        cohCount++;
+      }
+      
+      // Separation
+      if (dist < MIN_DIST && dist > 0.01) {
+        sepX -= (other.x - this.x) / dist;
+        sepY -= (other.y - this.y) / dist;
+      }
+    }
+    
+    // Combat and circling behavior
+    if (mySwarm.status === 'swarmed' && gameState.phase === 'battle') {
+      this.handleCombatBehavior(boids, swarms);
+    }
+    
+    // Apply flocking forces
+    if (alignCount) {
+      alignX /= alignCount;
+      alignY /= alignCount;
+      this.vx += (alignX - this.vx) * ALIGN_FORCE;
+      this.vy += (alignY - this.vy) * ALIGN_FORCE;
+    }
+    
+    if (cohCount) {
+      cohX /= cohCount;
+      cohY /= cohCount;
+      this.vx += (cohX - this.x) * COHESION_FORCE;
+      this.vy += (cohY - this.y) * COHESION_FORCE;
+    }
+    
+    this.vx += sepX * SEPARATION_FORCE;
+    this.vy += sepY * SEPARATION_FORCE;
+    
+    // Limit speed
+    let speed = Math.hypot(this.vx, this.vy);
+    if (speed > MAX_SPEED) {
+      this.vx = (this.vx / speed) * MAX_SPEED;
+      this.vy = (this.vy / speed) * MAX_SPEED;
+    }
+    
+    // Move
+    this.x += this.vx;
+    this.y += this.vy;
+    
+    // Wrap around edges
+    if (this.x < 0) this.x += width;
+    if (this.x > width) this.x -= width;
+    if (this.y < 0) this.y += height;
+    if (this.y > height) this.y -= height;
+    
+    // Health decay based on swarm strength
+    this.applyDecay(swarms);
+  }
+  
+  isInSwarm(sameSwarmBoids) {
+    if (sameSwarmBoids.length < 3) return false;
+    
+    let totalDistance = 0;
+    let count = 0;
+    
+    for (let other of sameSwarmBoids) {
+      if (other === this) continue;
+      const dist = Math.hypot(other.x - this.x, other.y - this.y);
+      if (dist < SWARM_COHESION_THRESHOLD) {
+        totalDistance += dist;
+        count++;
+      }
+    }
+    
+    return count >= Math.min(3, sameSwarmBoids.length - 1);
+  }
+  
+  handleCombatBehavior(boids, swarms) {
+    const mySwarm = swarms[this.swarmId];
+    const mySwarmSize = boids.filter(b => b.swarmId === this.swarmId).length;
+    
+    // Find strongest and weakest swarms
+    const swarmSizes = swarms.map(s => s.boids.length);
+    const maxSize = Math.max(...swarmSizes);
+    const minSize = Math.min(...swarmSizes);
+    const isStrongest = mySwarmSize === maxSize && swarmSizes.filter(s => s === maxSize).length === 1;
+    
+    // Determine target swarm based on alliance rules
+    let targetSwarmId = this.getTargetSwarm(swarms, isStrongest);
+    
+    if (targetSwarmId !== null) {
+      const enemyBoids = boids.filter(b => b.swarmId === targetSwarmId);
+      
+      // Check for parity (equal strength)
+      if (mySwarmSize === enemyBoids.length) {
+        this.circleEnemy(enemyBoids);
+      } else if (mySwarmSize > enemyBoids.length || this.shouldAttack(swarms)) {
+        this.attackNearestEnemy(enemyBoids);
+      } else {
+        this.circleEnemy(enemyBoids);
+      }
+    }
+  }
+  
+  getTargetSwarm(swarms, isStrongest) {
+    const mySwarmSize = swarms[this.swarmId].boids.length;
+    const otherSwarms = swarms.filter((s, i) => i !== this.swarmId && s.status === 'swarmed');
+    
+    if (otherSwarms.length === 0) return null;
+    
+    if (isStrongest) {
+      // Attack the weakest
+      let weakestId = null;
+      let weakestSize = Infinity;
+      otherSwarms.forEach((s, i) => {
+        const actualIndex = swarms.indexOf(s);
+        if (s.boids.length < weakestSize) {
+          weakestSize = s.boids.length;
+          weakestId = actualIndex;
+        }
+      });
+      return weakestId;
+    } else {
+      // Find if we should ally with someone against the strongest
+      const allSizes = swarms.map(s => s.boids.length);
+      const maxSize = Math.max(...allSizes);
+      const strongestId = allSizes.indexOf(maxSize);
+      
+      if (strongestId !== this.swarmId && maxSize > mySwarmSize) {
+        return strongestId; // Attack the strongest
+      }
+    }
+    
+    return null;
+  }
+  
+  shouldAttack(swarms) {
+    // Check alliance conditions
+    const mySize = swarms[this.swarmId].boids.length;
+    const otherSwarms = swarms.filter((s, i) => i !== this.swarmId);
+    
+    // If there's a clear strongest, weaker swarms should ally
+    const allSizes = swarms.map(s => s.boids.length);
+    const maxSize = Math.max(...allSizes);
+    const strongestCount = allSizes.filter(s => s === maxSize).length;
+    
+    return strongestCount === 1 && mySize < maxSize;
+  }
+  
+  circleEnemy(enemyBoids) {
+    if (enemyBoids.length === 0) return;
+    
+    // Find center of enemy swarm
+    const centerX = enemyBoids.reduce((sum, b) => sum + b.x, 0) / enemyBoids.length;
+    const centerY = enemyBoids.reduce((sum, b) => sum + b.y, 0) / enemyBoids.length;
+    
+    // Calculate circling position
+    this.circlingAngle += 0.02;
+    const targetX = centerX + Math.cos(this.circlingAngle) * CIRCLING_DISTANCE;
+    const targetY = centerY + Math.sin(this.circlingAngle) * CIRCLING_DISTANCE;
+    
+    // Move towards circling position
+    const dx = targetX - this.x;
+    const dy = targetY - this.y;
+    const dist = Math.hypot(dx, dy);
+    
+    if (dist > 0) {
+      this.vx += (dx / dist) * 0.1;
+      this.vy += (dy / dist) * 0.1;
+    }
+  }
+  
+  attackNearestEnemy(enemyBoids) {
+    if (enemyBoids.length === 0 || this.attackCooldown > 0) return;
+    
+    let nearestEnemy = null;
+    let nearestDist = Infinity;
+    
+    for (let enemy of enemyBoids) {
+      const dist = Math.hypot(enemy.x - this.x, enemy.y - this.y);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestEnemy = enemy;
+      }
+    }
+    
+    if (nearestEnemy && nearestDist < ATTACK_RANGE) {
+      // Move towards enemy
+      const dx = nearestEnemy.x - this.x;
+      const dy = nearestEnemy.y - this.y;
+      this.vx += (dx / nearestDist) * 0.15;
+      this.vy += (dy / nearestDist) * 0.15;
+      
+      // Attack if close enough
+      if (nearestDist < 30) {
+        nearestEnemy.health -= 10;
+        this.attackCooldown = 30;
+        this.isAttacking = true;
+        setTimeout(() => this.isAttacking = false, 200);
+      }
+    }
+  }
+  
+  applyDecay(swarms) {
+    const mySwarmSize = swarms[this.swarmId].boids.length;
+    const allSizes = swarms.map(s => s.boids.length);
+    const maxSize = Math.max(...allSizes);
+    const minSize = Math.min(...allSizes);
+    
+    let decayRate = 0.01; // Base decay
+    
+    if (mySwarmSize === maxSize && allSizes.filter(s => s === maxSize).length === 1) {
+      decayRate = 0.05; // Accelerated decay for strongest
+    } else if (mySwarmSize === minSize) {
+      decayRate = 0.005; // Reduced decay for weakest
+    }
+    
+    if (Math.random() < decayRate) {
+      this.health -= 1;
+    }
+  }
+
+  draw(ctx) {
+    const angle = Math.atan2(this.vy, this.vx);
+    const color = SWARM_COLORS[this.swarmId];
+    
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(angle);
+    
+    // Draw boid body
+    ctx.beginPath();
+    ctx.moveTo(BOID_SIZE, 0);
+    ctx.lineTo(-BOID_SIZE * 0.7, BOID_SIZE * 0.5);
+    ctx.lineTo(-BOID_SIZE * 0.7, -BOID_SIZE * 0.5);
+    ctx.closePath();
+    
+    // Color based on health and state
+    let alpha = this.health / 100;
+    if (this.isAttacking) {
+      ctx.fillStyle = '#ff0000';
+      ctx.strokeStyle = color.color;
+      ctx.lineWidth = 2;
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = color.color;
+      ctx.globalAlpha = alpha;
+      ctx.fill();
+    }
+    
+    ctx.restore();
+  }
+}
+
+class SwarmManager {
+  constructor() {
+    this.swarms = [
+      { id: 0, name: 'Red', color: SWARM_COLORS[0], boids: [], status: 'forming', formationStartTime: 0, lastSpawn: 0 },
+      { id: 1, name: 'Blue', color: SWARM_COLORS[1], boids: [], status: 'forming', formationStartTime: 0, lastSpawn: 0 },
+      { id: 2, name: 'Green', color: SWARM_COLORS[2], boids: [], status: 'forming', formationStartTime: 0, lastSpawn: 0 }
+    ];
+    this.boids = [];
+    this.lastUpdate = Date.now();
+    
+    this.initializeBoids();
+    this.setupEventListeners();
+  }
+  
+  initializeBoids() {
+    for (let i = 0; i < INITIAL_BOID_COUNT; i++) {
+      const swarmId = i % 3;
+      const boid = new Boid(swarmId);
+      this.boids.push(boid);
+      this.swarms[swarmId].boids.push(boid);
+    }
+  }
+  
+  setupEventListeners() {
+    // Touch/click to disperse swarms
+    canvas.addEventListener('click', (e) => this.handleCanvasClick(e));
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      this.handleCanvasClick({ clientX: touch.clientX, clientY: touch.clientY });
+    });
+  }
+  
+  handleCanvasClick(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    // Find which swarm was clicked
+    for (let boid of this.boids) {
+      const dist = Math.hypot(boid.x - x, boid.y - y);
+      if (dist < 50) { // Click radius
+        this.disperseSwarm(boid.swarmId);
+        break;
+      }
+    }
+  }
+  
+  disperseSwarm(swarmId) {
+    const swarm = this.swarms[swarmId];
+    swarm.status = 'dispersed';
+    swarm.formationStartTime = 0;
+    gameState.phase = 'dispersed';
+    gameState.lastInteractionTime = Date.now();
+    
+    // Scatter the swarm boids
+    swarm.boids.forEach(boid => {
+      const angle = Math.random() * Math.PI * 2;
+      const force = 5;
+      boid.vx += Math.cos(angle) * force;
+      boid.vy += Math.sin(angle) * force;
+    });
+    
+    this.updateGamePhase();
+  }
+  
+  update() {
+    const now = Date.now();
+    
+    // Update boids
+    this.boids = this.boids.filter(boid => boid.health > 0);
+    this.boids.forEach(boid => boid.update(this.boids, this.swarms));
+    
+    // Update swarm statuses
+    this.updateSwarmStatuses();
+    
+    // Handle spawning
+    this.handleSpawning();
+    
+    // Update swarm boid lists
+    this.updateSwarmBoidLists();
+    
+    // Update game phase
+    this.updateGamePhase();
+    
+    // Update UI
+    this.updateUI();
+    
+    this.lastUpdate = now;
+  }
+  
+  updateSwarmStatuses() {
+    const now = Date.now();
+    
+    for (let swarm of this.swarms) {
+      const swarmedBoids = swarm.boids.filter(boid => 
+        boid.isInSwarm(swarm.boids.filter(b => b.health > 0))
+      );
+      
+      if (swarmedBoids.length >= 3 && swarm.status !== 'swarmed') {
+        if (swarm.formationStartTime === 0) {
+          swarm.formationStartTime = now;
+          swarm.status = 'forming';
+        } else if (now - swarm.formationStartTime >= SWARM_FORMATION_TIME) {
+          swarm.status = 'swarmed';
+        }
+      } else if (swarmedBoids.length < 3) {
+        swarm.formationStartTime = 0;
+        if (swarm.status === 'swarmed') {
+          swarm.status = 'forming';
+        }
+      }
+    }
+  }
+  
+  updateSwarmBoidLists() {
+    // Reset swarm boid lists
+    this.swarms.forEach(swarm => swarm.boids = []);
+    
+    // Rebuild from living boids
+    for (let boid of this.boids) {
+      this.swarms[boid.swarmId].boids.push(boid);
+    }
+  }
+  
+  handleSpawning() {
+    const now = Date.now();
+    
+    for (let swarm of this.swarms) {
+      const swarmSize = swarm.boids.length;
+      const allSizes = this.swarms.map(s => s.boids.length);
+      const maxSize = Math.max(...allSizes);
+      
+      // Inverse spawn rate - weaker swarms spawn faster
+      let spawnRate = 10000; // Base rate
+      if (swarmSize < maxSize) {
+        spawnRate = 5000; // Faster for weaker swarms
+      } else if (swarmSize === maxSize && allSizes.filter(s => s === maxSize).length === 1) {
+        spawnRate = 20000; // Slower for strongest
+      }
+      
+      if (now - swarm.lastSpawn > spawnRate && swarmSize < 50) {
+        this.spawnBoid(swarm.id);
+        swarm.lastSpawn = now;
+      }
+    }
+  }
+  
+  spawnBoid(swarmId) {
+    const boid = new Boid(swarmId);
+    // Spawn near existing swarm members
+    const existingBoids = this.swarms[swarmId].boids;
+    if (existingBoids.length > 0) {
+      const centerX = existingBoids.reduce((sum, b) => sum + b.x, 0) / existingBoids.length;
+      const centerY = existingBoids.reduce((sum, b) => sum + b.y, 0) / existingBoids.length;
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 100;
+      boid.x = centerX + Math.cos(angle) * distance;
+      boid.y = centerY + Math.sin(angle) * distance;
+      
+      // Wrap around screen
+      boid.x = ((boid.x % width) + width) % width;
+      boid.y = ((boid.y % height) + height) % height;
+    }
+    
+    this.boids.push(boid);
+    this.swarms[swarmId].boids.push(boid);
+  }
+  
+  updateGamePhase() {
+    const swarmedCount = this.swarms.filter(s => s.status === 'swarmed').length;
+    
+    if (swarmedCount === 3) {
+      gameState.phase = 'battle';
+      if (gameState.battleStartTime === 0) {
+        gameState.battleStartTime = Date.now();
+      }
+    } else if (Date.now() - gameState.lastInteractionTime > 5000) {
+      gameState.phase = 'formation';
+    }
+  }
+  
+  updateUI() {
+    // Update swarm counts and statuses
+    this.swarms.forEach((swarm, i) => {
+      const countElement = document.getElementById(`${swarm.name.toLowerCase()}-count`);
+      const statusElement = document.getElementById(`${swarm.name.toLowerCase()}-status`);
+      const swarmElement = document.querySelector(`.swarm-stat.${swarm.name.toLowerCase()}`);
+      
+      if (countElement) countElement.textContent = swarm.boids.length;
+      if (statusElement) {
+        const timeLeft = swarm.formationStartTime > 0 ? 
+          Math.max(0, SWARM_FORMATION_TIME - (Date.now() - swarm.formationStartTime)) : 0;
+        
+        if (swarm.status === 'swarmed') {
+          statusElement.textContent = 'SWARMED';
+          swarmElement.classList.add('swarmed');
+        } else if (swarm.status === 'forming' && timeLeft > 0) {
+          statusElement.textContent = `${Math.ceil(timeLeft / 1000)}s`;
+          swarmElement.classList.remove('swarmed');
+        } else {
+          statusElement.textContent = 'forming';
+          swarmElement.classList.remove('swarmed');
+        }
+        
+        // Add attacking animation
+        const isAttacking = swarm.boids.some(b => b.isAttacking);
+        if (isAttacking) {
+          swarmElement.classList.add('attacking');
+        } else {
+          swarmElement.classList.remove('attacking');
+        }
+      }
+    });
+    
+    // Update battle status
+    const battleStatusElement = document.getElementById('battle-phase');
+    if (battleStatusElement) {
+      let status = 'Formation Phase';
+      if (gameState.phase === 'battle') {
+        status = 'Battle Phase';
+      } else if (gameState.phase === 'dispersed') {
+        status = 'Regrouping...';
+      }
+      battleStatusElement.textContent = status;
+    }
+  }
+  
+  draw(ctx) {
+    ctx.clearRect(0, 0, width, height);
+    
+    // Draw connection lines for formed swarms
+    this.swarms.forEach(swarm => {
+      if (swarm.status === 'swarmed' || swarm.status === 'forming') {
+        ctx.strokeStyle = swarm.color.color;
+        ctx.globalAlpha = 0.1;
+        ctx.lineWidth = 1;
+        
+        for (let i = 0; i < swarm.boids.length; i++) {
+          for (let j = i + 1; j < swarm.boids.length; j++) {
+            const boid1 = swarm.boids[i];
+            const boid2 = swarm.boids[j];
+            const dist = Math.hypot(boid1.x - boid2.x, boid1.y - boid2.y);
+            
+            if (dist < SWARM_COHESION_THRESHOLD) {
+              ctx.beginPath();
+              ctx.moveTo(boid1.x, boid1.y);
+              ctx.lineTo(boid2.x, boid2.y);
+              ctx.stroke();
+            }
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
+    });
+    
+    // Draw boids
+    for (let boid of this.boids) {
+      boid.draw(ctx);
+    }
+  }
+}
+
+// Global functions
+function addToSwarm(swarmId) {
+  if (swarmManager) {
+    swarmManager.spawnBoid(swarmId);
+  }
+}
+
+// Initialize and start the simulation
+let swarmManager;
+
+function animate() {
+  swarmManager.update();
+  swarmManager.draw(ctx);
+  requestAnimationFrame(animate);
+}
+
+// Start the game
+document.addEventListener('DOMContentLoaded', () => {
+  swarmManager = new SwarmManager();
+  animate();
+});
+</script>
+</body>
+</html>
