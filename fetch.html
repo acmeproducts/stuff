@@ -1,0 +1,635 @@
+<!-- WebFetch OSS-v3.0-2026-03-29 01:46 AM -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>WebFetch OSS - Advanced Crawler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@mozilla/readability@0.5.0/Readability.min.js"></script>
+<style>
+:root {
+  --bg: #09090b; /* Zinc 950 */
+  --surface: #18181b; /* Zinc 900 */
+  --surface-hover: #27272a; /* Zinc 800 */
+  --border: #27272a;
+  --border2: #3f3f46;
+  --accent: #14b8a6; /* Teal 500 */
+  --accent-hover: #0d9488; /* Teal 600 */
+  --accent2: #ef4444; /* Red 500 */
+  --accent3: #f59e0b; /* Amber 500 */
+  --text: #f4f4f5; /* Zinc 100 */
+  --muted: #a1a1aa; /* Zinc 400 */
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', sans-serif;
+  --touch-target: 44px;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.logo {
+  font-family: var(--sans);
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+
+.logo span { color: var(--accent); }
+
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--accent3);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 9999px;
+  padding: 4px 10px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted);
+  margin-left: auto;
+  transition: all 0.3s ease;
+}
+.status-dot.ready { background: var(--accent); box-shadow: 0 0 12px rgba(20, 184, 166, 0.6); }
+.status-dot.busy { background: var(--accent3); box-shadow: 0 0 12px rgba(245, 158, 11, 0.6); animation: pulse 1s infinite; }
+.status-dot.error { background: var(--accent2); box-shadow: 0 0 12px rgba(239, 68, 68, 0.6); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.2); }
+}
+
+.container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 24px 24px;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.control-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.mode-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.mode-selector::-webkit-scrollbar { display: none; }
+
+.mode-btn {
+  min-height: 36px;
+  padding: 0 16px;
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 9999px;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.mode-btn:hover { color: var(--text); border-color: var(--muted); }
+.mode-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+.url-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+#urlInput, #vbInput {
+  flex: 1;
+  min-width: 250px;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+  padding: 0 16px;
+  min-height: var(--touch-target);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+#urlInput:focus, #vbInput:focus { 
+  border-color: var(--accent); 
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.2); 
+}
+#urlInput::placeholder, #vbInput::placeholder { color: var(--muted); }
+
+#vbInput {
+  width: 100%;
+  padding: 12px 16px;
+  resize: vertical;
+  display: none;
+  min-height: 100px;
+}
+#vbInput.show { display: block; margin-bottom: 16px; }
+
+.btn-primary, .btn-danger {
+  min-height: var(--touch-target);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0 24px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-primary { background: var(--accent); color: #000; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); }
+.btn-danger { background: var(--accent2); color: #fff; display: none; }
+.btn-danger:hover { background: #dc2626; }
+.btn-primary:active, .btn-danger:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.opts-row {
+  display: flex;
+  gap: 20px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.opt-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.opt-label:hover { color: var(--text); }
+.opt-label input[type="radio"], .opt-label input[type="checkbox"] { 
+  width: 16px; 
+  height: 16px; 
+  accent-color: var(--accent); 
+  cursor: pointer;
+}
+
+.control-input {
+  width: 60px;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: var(--mono);
+  font-size: 13px;
+  text-align: center;
+  outline: none;
+}
+.control-input:focus { border-color: var(--accent); }
+
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(24, 24, 27, 0.8);
+  backdrop-filter: blur(8px);
+  flex-wrap: wrap;
+}
+
+.pane-btn {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 32px;
+}
+.pane-btn:hover { background: var(--surface-hover); border-color: var(--muted); }
+
+#output {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px;
+  line-height: 1.7;
+}
+#output::-webkit-scrollbar { width: 8px; height: 8px; }
+#output::-webkit-scrollbar-track { background: transparent; }
+#output::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+#output::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+#tabletLog {
+  background: #000;
+  border-top: 1px solid var(--border);
+  color: #888;
+  font-size: 12px;
+  font-family: var(--mono);
+  height: 150px;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: none;
+}
+#tabletLog.show { display: block; }
+.log-entry { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #1a1a1a; }
+.log-entry:last-child { border-bottom: none; }
+.log-entry.error { color: var(--accent2); }
+.log-entry.warn { color: var(--accent3); }
+
+.master-footer {
+  text-align: center;
+  padding: 16px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-family: var(--mono);
+  flex-shrink: 0;
+}
+
+.progress-bar { height: 3px; background: transparent; width: 100%; position: relative; overflow: hidden; }
+.progress-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--accent); width: 0%; transition: width 0.3s ease; }
+
+/* Article Formatting overrides */
+#output.article { font-family: Georgia, serif; font-size: 17px; max-width: 720px; margin: 0 auto; color: #d4d4d8; }
+#output.article h1 { font-family: var(--sans); color: #fff; font-size: 32px; font-weight: 700; margin-bottom: 0.75em; line-height: 1.2; }
+#output.article h2 { font-family: var(--sans); color: #e4e4e7; font-size: 24px; margin: 1.5em 0 0.75em; }
+#output.article p { margin-bottom: 1.25em; }
+#output.article a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(20, 184, 166, 0.3); transition: border-color 0.2s; }
+#output.article a:hover { border-color: var(--accent); }
+#output.article img { max-width: 100%; height: auto; border-radius: var(--radius-sm); margin: 2em 0; }
+#output.article pre, #output.article code { background: var(--bg); font-family: var(--mono); font-size: 14px; border-radius: 6px; padding: 0.2em 0.4em; }
+#output.article pre { padding: 16px; overflow-x: auto; border: 1px solid var(--border); margin-bottom: 1.5em; }
+#output.plain { white-space: pre-wrap; word-break: break-word; font-size: 13px; font-family: var(--mono); color: var(--muted); }
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Web<span>Fetch</span></div>
+  <div class="badge">Advanced</div>
+  <div id="statusDot" class="status-dot ready"></div>
+</header>
+
+<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+<div class="container">
+  <div class="control-panel">
+    <div class="mode-selector">
+      <button class="mode-btn active" data-mode="single">Single Page</button>
+      <button class="mode-btn" data-mode="crawl-v1">OSS-v1 (Crawl)</button>
+      <button class="mode-btn" data-mode="crawl-v2">OSS-v2 (vBulletin)</button>
+    </div>
+    
+    <textarea id="vbInput" placeholder="Enter URLs (one per line)"></textarea>
+    
+    <div class="url-row">
+      <input id="urlInput" type="url" placeholder="https://example.com" autocomplete="off" spellcheck="false">
+      <button id="fetchBtn" class="btn-primary">Fetch Data</button>
+      <button id="stopBtn" class="btn-danger">Stop Process</button>
+    </div>
+    
+    <div class="opts-row">
+      <label class="opt-label"><input type="radio" name="fmt" value="article" checked> Article View</label>
+      <label class="opt-label"><input type="radio" name="fmt" value="text"> Plain Text</label>
+      <label class="opt-label"><input type="radio" name="fmt" value="raw"> Raw HTML</label>
+      <div style="width: 1px; height: 16px; background: var(--border2); margin: 0 8px;"></div>
+      <label class="opt-label"><input type="checkbox" id="chkImages" checked> Keep Images</label>
+      <label class="opt-label" id="depthControl" style="display:none;">
+        Max Pages: <input type="number" id="numPages" class="control-input" value="3" min="1" max="50">
+      </label>
+      <label class="opt-label"><input type="checkbox" id="chkLog"> Show Console</label>
+    </div>
+  </div>
+
+  <div class="main-area">
+    <div class="pane-header">
+      <span style="color:var(--muted); font-size:13px; font-weight:500; margin-right:auto;" id="statsBar">System Ready</span>
+      <button id="rawBtn" class="pane-btn" style="display:none">Toggle View</button>
+      <button id="copyBtn" class="pane-btn" style="display:none">Copy Content</button>
+      <button id="downloadBtn" class="pane-btn" style="display:none">Export File</button>
+    </div>
+    <div id="output">
+      <div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--muted); font-family:var(--mono); opacity:0.5;">
+        Waiting for input...
+      </div>
+    </div>
+    <div id="tabletLog"></div>
+  </div>
+</div>
+
+<footer class="master-footer">
+  WebFetch OSS-v3.0 - 2026-03-29 01:46 AM
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+let currentMode = 'single';
+let activeController = null;
+let lastHtml = '';
+let lastText = '';
+let showingRaw = false;
+
+// UI Elements
+const els = {
+  url: $('urlInput'), vb: $('vbInput'), fetch: $('fetchBtn'), stop: $('stopBtn'),
+  out: $('output'), stats: $('statsBar'), prog: $('progressFill'), dot: $('statusDot'),
+  depth: $('depthControl'), maxPages: $('numPages'), log: $('tabletLog'),
+  copy: $('copyBtn'), raw: $('rawBtn'), dl: $('downloadBtn')
+};
+
+// --- Storage Persistence Logic ---
+function loadSettings() {
+  const savedUrl = localStorage.getItem('webfetch_url');
+  if (savedUrl) els.url.value = savedUrl;
+  
+  const savedVb = localStorage.getItem('webfetch_vb');
+  if (savedVb) els.vb.value = savedVb;
+}
+
+els.url.addEventListener('input', e => localStorage.setItem('webfetch_url', e.target.value));
+els.vb.addEventListener('input', e => localStorage.setItem('webfetch_vb', e.target.value));
+
+// Init settings
+loadSettings();
+// ---------------------------------
+
+// Tablet Logging System
+function uiLog(msg, type = 'info') {
+  const d = new Date().toLocaleTimeString([], { hour12: false });
+  const div = document.createElement('div');
+  div.className = `log-entry ${type}`;
+  div.textContent = `[${d}] ${msg}`;
+  els.log.prepend(div);
+  if (els.log.children.length > 50) els.log.lastChild.remove();
+}
+
+$('chkLog').addEventListener('change', e => {
+  els.log.classList.toggle('show', e.target.checked);
+});
+
+// Mode Switching
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = btn.dataset.mode;
+    
+    const isMulti = currentMode !== 'single';
+    els.vb.classList.toggle('show', currentMode === 'crawl-v2');
+    els.url.style.display = currentMode === 'crawl-v2' ? 'none' : 'block';
+    els.depth.style.display = isMulti ? 'flex' : 'none';
+  });
+});
+
+// Proxy List
+const PROXIES = [
+  { name: 'codetabs', url: u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`, extract: r => r.text() },
+  { name: 'allorigins', url: u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, extract: async r => (await r.json()).contents },
+  { name: 'corsproxy', url: u => `https://corsproxy.io/?${encodeURIComponent(u)}`, extract: r => r.text() }
+];
+
+async function fetchWithProxy(url, signal) {
+  let lastErr;
+  for (const p of PROXIES) {
+    if (signal.aborted) throw new Error('Aborted by user');
+    try {
+      uiLog(`Trying proxy: ${p.name} for ${url.substring(0,40)}...`);
+      const res = await fetch(p.url(url), { signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const html = await p.extract(res);
+      if (!html || html.length < 100) throw new Error('Empty response');
+      return html;
+    } catch (e) {
+      if (e.name === 'AbortError' || signal.aborted) throw new Error('Aborted by user');
+      lastErr = e.message;
+      uiLog(`Proxy ${p.name} failed: ${lastErr}`, 'warn');
+    }
+  }
+  throw new Error(`All proxies failed. Last err: ${lastErr}`);
+}
+
+function parseHTML(html, url) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  let base = doc.querySelector('base') || doc.createElement('base');
+  if(!base.parentNode) doc.head.prepend(base);
+  base.href = url;
+  return new Readability(doc).parse();
+}
+
+function rawExtract(html, keepImages) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  doc.querySelectorAll('script,style,nav,footer,aside,header,iframe').forEach(el => el.remove());
+  if (!keepImages) doc.querySelectorAll('img').forEach(el => el.remove());
+  return doc.body ? doc.body.textContent.replace(/\n{3,}/g, '\n\n').trim() : '';
+}
+
+function getFormat() { return document.querySelector('input[name="fmt"]:checked').value; }
+
+function setUIState(state) {
+  if (state === 'busy') {
+    els.fetch.style.display = 'none';
+    els.stop.style.display = 'flex';
+    els.dot.className = 'status-dot busy';
+    els.prog.style.width = '0%';
+    els.copy.style.display = 'none';
+    els.dl.style.display = 'none';
+    els.raw.style.display = 'none';
+    els.stats.textContent = 'Processing...';
+  } else {
+    els.fetch.style.display = 'flex';
+    els.stop.style.display = 'none';
+    els.dot.className = state === 'error' ? 'status-dot error' : 'status-dot ready';
+    els.prog.style.width = '100%';
+  }
+}
+
+// Single Fetch Execution
+async function runSingle(url) {
+  try {
+    const html = await fetchWithProxy(url, activeController.signal);
+    const article = parseHTML(html, url);
+    const fmt = getFormat();
+    const keepImg = $('chkImages').checked;
+    
+    if (fmt === 'raw') {
+      lastText = html;
+      els.out.className = 'plain';
+      els.out.textContent = html;
+    } else {
+      if (article && fmt === 'article') {
+        let c = article.content;
+        if(!keepImg) c = c.replace(/<img[^>]*>/gi, '');
+        lastHtml = c;
+        lastText = article.textContent;
+        els.out.className = 'article';
+        els.out.innerHTML = `<h1>${article.title || 'Untitled'}</h1>${c}`;
+        els.raw.style.display = 'block';
+      } else {
+        lastText = rawExtract(html, keepImg);
+        els.out.className = 'plain';
+        els.out.textContent = lastText;
+      }
+    }
+    
+    els.stats.textContent = `Words: ${lastText.split(/\s+/).length.toLocaleString()}`;
+    els.copy.style.display = 'block';
+    setUIState('ready');
+  } catch (e) {
+    uiLog(e.message, 'error');
+    els.out.innerHTML = `<div style="color:var(--accent2); font-family:var(--mono);">[Error] ${e.message}</div>`;
+    els.stats.textContent = 'Failed';
+    setUIState('error');
+  }
+}
+
+// Basic Multipage scaffolding
+async function runMulti(urls, mode) {
+  const max = parseInt(els.maxPages.value) || 3;
+  let results = [];
+  let processed = 0;
+  
+  els.out.innerHTML = '';
+  els.out.className = 'plain';
+
+  try {
+    for (const u of urls) {
+      for(let p = 1; p <= max; p++) {
+        if (activeController.signal.aborted) throw new Error('Aborted');
+        
+        let targetUrl = u;
+        if (mode === 'crawl-v2' && p > 1) {
+          targetUrl = `${u}${u.includes('?') ? '&' : '?'}page=${p}`;
+        } else if (mode === 'crawl-v1' && p > 1) {
+           break; 
+        }
+
+        uiLog(`Fetching: ${targetUrl}`);
+        const html = await fetchWithProxy(targetUrl, activeController.signal);
+        const text = rawExtract(html, $('chkImages').checked);
+        
+        results.push(`--- URL: ${targetUrl} ---\n${text}\n\n`);
+        processed++;
+        els.prog.style.width = `${(processed / (urls.length * max)) * 100}%`;
+      }
+    }
+    
+    lastText = results.join('\n');
+    els.out.textContent = lastText;
+    els.stats.textContent = `Processed: ${processed} pages | Words: ${lastText.split(/\s+/).length.toLocaleString()}`;
+    els.copy.style.display = 'block';
+    els.dl.style.display = 'block';
+    setUIState('ready');
+  } catch(e) {
+    uiLog(e.message, 'error');
+    els.out.textContent += `\n\n[Halted: ${e.message}]`;
+    els.stats.textContent = `Stopped. Processed: ${processed}`;
+    setUIState('error');
+  }
+}
+
+// Event Listeners
+els.fetch.addEventListener('click', () => {
+  activeController = new AbortController();
+  setUIState('busy');
+  els.out.innerHTML = '<div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--accent); font-family:var(--mono);">Fetching data...</div>';
+  
+  if (currentMode === 'single') {
+    if(!els.url.value) return setUIState('error');
+    runSingle(els.url.value);
+  } else {
+    const lines = currentMode === 'crawl-v2' ? els.vb.value : els.url.value;
+    const urls = lines.split('\n').map(u=>u.trim()).filter(Boolean);
+    if(!urls.length) return setUIState('error');
+    runMulti(urls, currentMode);
+  }
+});
+
+els.stop.addEventListener('click', () => {
+  if (activeController) activeController.abort();
+  setUIState('ready');
+  uiLog('Operation cancelled by user', 'warn');
+});
+
+els.copy.addEventListener('click', () => {
+  navigator.clipboard.writeText(lastText).then(() => {
+    els.copy.textContent = 'Copied!';
+    setTimeout(() => els.copy.textContent = 'Copy Content', 2000);
+  });
+});
+
+els.raw.addEventListener('click', () => {
+  showingRaw = !showingRaw;
+  els.out.className = showingRaw ? 'plain' : 'article';
+  if(showingRaw) els.out.textContent = lastHtml;
+  else els.out.innerHTML = lastHtml;
+});
+
+els.dl.addEventListener('click', () => {
+  const blob = new Blob([lastText], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `webfetch-${Date.now()}.txt`;
+  a.click();
+});
+</script>
+</body>
+</html>
