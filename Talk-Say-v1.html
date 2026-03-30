@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- Test Version for Joy · Build 2026-03-17T13:00:00Z -->
+<!-- Test Build · Talk + Say v3.4 · 2026-03-30T07:58:36Z -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Talk + Say · v3.3</title>
+<title>Talk + Say · v3.4</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Lora:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -159,7 +159,7 @@ textarea.field-input{resize:none;}
 .msg-status-dot.off{opacity:.35;color:var(--ink-dim);}
 .msg-status-dot.on-delivered{color:var(--teal);}
 .msg-status-dot.on-read{color:var(--green);}
-.status-popup{position:fixed;top:72px;right:14px;z-index:240;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;min-width:210px;}
+.status-popup{position:fixed;z-index:240;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;min-width:210px;}
 .status-popup[hidden]{display:none!important;}
 .status-popup-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;color:var(--ink);}
 .status-popup-close{border:none;background:none;color:var(--ink-dim);font-size:14px;cursor:pointer;line-height:1;}
@@ -338,6 +338,14 @@ textarea.field-input{resize:none;}
 /* ════ OVERLAYS ════ */
 .overlay{position:fixed;inset:0;background:rgba(26,23,20,.46);display:flex;align-items:flex-end;justify-content:center;z-index:200;animation:fadeIn .15s;}
 .overlay[hidden]{display:none!important;}
+/* Onboarding gate modal (non-blocking replacement for prompt onboarding) */
+.onboarding-modal{position:fixed;inset:0;background:rgba(26,23,20,.52);display:flex;align-items:center;justify-content:center;z-index:260;padding:20px;}
+.onboarding-modal[hidden]{display:none!important;}
+.onboarding-card{width:min(100%,360px);background:var(--cream);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:18px 16px;display:flex;flex-direction:column;gap:10px;}
+.onboarding-flag{font-size:28px;line-height:1;animation:onboard-wave .66s ease-in-out 0s 3;}
+@keyframes onboard-wave{0%,100%{transform:rotate(0deg)}25%{transform:rotate(14deg)}75%{transform:rotate(-10deg)}}
+.onboarding-title{font-size:16px;font-weight:700;line-height:1.35;color:var(--ink);}
+.onboarding-error{font-size:12px;color:var(--red);min-height:16px;}
 @keyframes fadeIn{from{opacity:0;}}
 .sheet{background:var(--cream);border-radius:22px 22px 0 0;width:100%;max-width:480px;max-height:92dvh;overflow-y:auto;animation:slideUp .22s ease-out;}
 @keyframes slideUp{from{transform:translateY(36px);opacity:.7;}}
@@ -570,6 +578,16 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
 
 <input id="settings-import-file" type="file" accept=".json,.csv,application/json,text/csv" style="display:none" onchange="handleImportFile(event)">
 
+<div class="onboarding-modal" id="onboarding-modal" hidden>
+  <div class="onboarding-card">
+    <div class="onboarding-flag" aria-hidden="true">🏳️</div>
+    <div class="onboarding-title">Hi, let’s get ready to chat! What’s your name?</div>
+    <input class="field-input" id="onboarding-name" placeholder="Your name" maxlength="40">
+    <button class="sheet-btn primary" id="onboarding-continue-btn" onclick="submitOnboardingName()">Continue</button>
+    <div class="onboarding-error" id="onboarding-error"></div>
+  </div>
+</div>
+
 <!-- ══ OVERLAYS ══ -->
 
 <div class="overlay" id="new-card-overlay" hidden onclick="if(event.target===this)this.hidden=true">
@@ -684,11 +702,19 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
 
 <div class="overlay" id="share-overlay" hidden onclick="if(event.target===this)this.hidden=true">
   <div class="sheet"><div class="sheet-handle"></div><div class="sheet-body">
-    <div class="sheet-title">Invite link</div>
+    <div class="sheet-title">Share links</div>
+    <div style="font-size:12px;color:var(--ink-dim);font-weight:700;margin-bottom:6px;">Partner invite QR/link</div>
+    <div id="share-partner-qr" style="width:220px;height:220px;background:#fff;border:1px solid var(--border);border-radius:8px;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>
     <div style="background:var(--paper);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;word-break:break-all;">
       <a style="color:var(--teal);font-size:14px;font-weight:600;" id="share-link-text" href="#" target="_blank">—</a>
     </div>
-    <p style="font-size:12px;color:var(--ink-dim);margin:10px 0 0;">Share this link with your partner. Session activates when they join.</p>
+    <p style="font-size:12px;color:var(--ink-dim);margin:10px 0 12px;">Use this to invite your chat partner.</p>
+    <div style="font-size:12px;color:var(--ink-dim);font-weight:700;margin-bottom:6px;">Owner handoff QR/link (same owner, new device)</div>
+    <div id="share-owner-qr" style="width:220px;height:220px;background:#fff;border:1px solid var(--border);border-radius:8px;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>
+    <div style="background:var(--paper);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;word-break:break-all;">
+      <a style="color:var(--teal);font-size:14px;font-weight:600;" id="share-handoff-link-text" href="#" target="_blank">—</a>
+    </div>
+    <p style="font-size:12px;color:var(--ink-dim);margin:10px 0 0;">Use this only when you are switching your own device.</p>
     <div class="sheet-btn-row">
       <button class="sheet-btn secondary" onclick="this.closest('.overlay').hidden=true">Close</button>
       <button class="sheet-btn primary" onclick="copyShareLink()">Copy link</button>
@@ -891,9 +917,12 @@ var state={
   pbExportBusy:false,
   ncBacktranslate:null
 };
+var pendingOnboardingFlow=null;
 var tagPickerSelectedTags=[];
 var tEngine='cloud',ttsActive=null;
-var typingTimer=null,lastTypingTs=0;
+var typingTimer=null;
+var typingStopTimer=null;
+var localTypingActive=false;
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var recognition=null,sttActive=false;
 
@@ -916,9 +945,16 @@ function normalizeSession(sess){
     peerName:partnerHandle,
     createdAt:createdAt,
     lastActivity:lastActivity,
-    myLang:hasOwn(raw,'myLang')?(normalizeLangSetting(raw.myLang)||''):((normalizeLangSetting(p.myLang)!==undefined)?normalizeLangSetting(p.myLang):''),
-    partnerLang:hasOwn(raw,'partnerLang')?(normalizeLangSetting(raw.partnerLang)||''):((normalizeLangSetting(p.partnerLang)!==undefined)?normalizeLangSetting(p.partnerLang):((normalizeLangSetting(raw.myLang)!==undefined)?normalizeLangSetting(raw.myLang):((normalizeLangSetting(p.myLang)!==undefined)?normalizeLangSetting(p.myLang):'en'))),
-    autoReplyTargetLang:normalizeAutoReplyTargetLang(hasOwn(raw,'autoReplyTargetLang')?raw.autoReplyTargetLang:''),
+    ownerIdentityId:String(raw.ownerIdentityId||raw.myIdentityId||PART_ID||DEVICE_ID||uid()),
+    partnerIdentityId:String(raw.partnerIdentityId||''),
+    ownerLangMode:(raw.ownerLangMode==='fixed'||raw.ownerLangMode==='auto')?raw.ownerLangMode:((normalizeLangSetting(p.myLang)||'')?'fixed':'auto'),
+    ownerFixedLang:normalizeLangSetting(raw.ownerFixedLang!==undefined?raw.ownerFixedLang:p.myLang)||'',
+    ownerLastSentLang:normalizeLangSetting(raw.ownerLastSentLang)||'',
+    ownerEffectiveReplyLang:normalizeLangSetting(raw.ownerEffectiveReplyLang)||'',
+    partnerLangMode:(raw.partnerLangMode==='fixed'||raw.partnerLangMode==='auto')?raw.partnerLangMode:'auto',
+    partnerFixedLang:normalizeLangSetting(raw.partnerFixedLang)||'',
+    partnerLastSentLang:normalizeLangSetting(raw.partnerLastSentLang)||'',
+    partnerEffectiveReplyLang:normalizeLangSetting(raw.partnerEffectiveReplyLang)||'',
     peerLastSeenAt:Number(raw.peerLastSeenAt)||0
   };
   if(Number(raw.lastViewedAt))out.lastViewedAt=Number(raw.lastViewedAt);
@@ -1023,7 +1059,9 @@ function getMsgs(cid){
   var changed=false;
   var norm=(raw||[]).map(function(msg){
     var before=JSON.stringify(msg||{});
-    var next=normalizeMsgSchema(msg,{sourceLang:(msg&&msg.from==='me')?(sess.myLang||'en'):(msg&&msg.lang)||sess.partnerLang||'en',targetLang:(msg&&msg.from==='me')?(sess.partnerLang||'en'):(sess.myLang||'en')});
+    var ownerEff=resolveEffectiveLang(sess,'owner');
+    var partnerEff=resolveEffectiveLang(sess,'partner');
+    var next=normalizeMsgSchema(msg,{sourceLang:(msg&&msg.from==='me')?(ownerEff||'en'):(msg&&msg.lang)||partnerEff||'en',targetLang:(msg&&msg.from==='me')?(partnerEff||'en'):(ownerEff||'en')});
     if(before!==JSON.stringify(next))changed=true;
     return next;
   });
@@ -1164,22 +1202,34 @@ function normalizeAutoReplyTargetLang(v){
   var t=normalizeLangSetting(v);
   return t===undefined?'':t;
 }
-function resolveIncomingTargetLang(sess,sourceLang,currentMsgLang){
+function getEffectiveReplyLang(sess,side,fallbackLang){
   var s=sess?normalizeSession(sess):normalizeSession({});
-  var pref=normalizeLangSetting(s.myLang);
-  if(pref)return pref; // explicit override wins
-  var live=normalizeLangSetting(currentMsgLang);
-  if(live)return live; // Recompute per message so stale cached auto language cannot override current input.
-  var auto=normalizeAutoReplyTargetLang(s.autoReplyTargetLang);
-  if(auto)return auto; // auto follows latest typed language
-  return normalizeLangSetting(sourceLang)||detectBrowserLang()||'en';
+  var key=side==='partner'?'partnerEffectiveReplyLang':'ownerEffectiveReplyLang';
+  var saved=normalizeLangSetting(s[key])||'';
+  if(saved)return saved;
+  return resolveEffectiveLang(s,side,fallbackLang);
 }
-function resolveTargetLang(opts){
-  opts=opts||{};
-  var sourceLang=normalizeLangSetting(opts.myLang||opts.detectedSource)||'en';
-  var partnerLang=normalizeLangSetting(opts.partnerLang||opts.listenerDefault)||'en';
-  if(sourceLang===partnerLang)return normalizeLangSetting(opts.myDefaultLang||opts.oppositeDefault)||partnerLang;
-  return partnerLang;
+function setEffectiveReplyLang(sess,side,lang){
+  if(!sess)return;
+  var key=side==='partner'?'partnerEffectiveReplyLang':'ownerEffectiveReplyLang';
+  sess[key]=normalizeLangSetting(lang)||'';
+}
+function resolveEffectiveLang(sess,side,fallbackLang){
+  var s=sess?normalizeSession(sess):normalizeSession({});
+  var modeKey=side==='partner'?'partnerLangMode':'ownerLangMode';
+  var fixedKey=side==='partner'?'partnerFixedLang':'ownerFixedLang';
+  var lastKey=side==='partner'?'partnerLastSentLang':'ownerLastSentLang';
+  var mode=s[modeKey]==='fixed'?'fixed':'auto';
+  var fixed=normalizeLangSetting(s[fixedKey])||'';
+  var last=normalizeLangSetting(s[lastKey])||'';
+  if(mode==='fixed'&&fixed)return fixed;
+  return last||normalizeLangSetting(fallbackLang)||detectBrowserLang()||'en';
+}
+function resolveIncomingTargetLang(sess){
+  return getEffectiveReplyLang(sess,'owner','en');
+}
+function resolveTargetLang(sess){
+  return getEffectiveReplyLang(sess,'partner','en');
 }
 function shouldSkipSameLanguage(sourceLang,targetLang){return !!(sourceLang&&targetLang&&sourceLang===targetLang);}
 
@@ -1189,8 +1239,8 @@ function shouldSkipSameLanguage(sourceLang,targetLang){return !!(sourceLang&&tar
 function isPlaceholderName(name){var v=(name||'').trim().toLowerCase();return !v||v==='new chat'||v==='partner'||v==='yournamehere';}
 function firstRealName(){for(var i=0;i<arguments.length;i++){var v=(arguments[i]||'').trim();if(v&&!isPlaceholderName(v))return v;}return '';}
 function getPreferredOwnerName(){var p=getPrefs();return firstRealName(p.globalName,p.userName)||'yournamehere';}
-function effectiveLangFromSession(sess){var p=getPrefs();return (sess&&sess.myLang)||p.myLang||detectBrowserLang()||'en';}
-function getEffectiveTargetLang(sess,sourceLang){return resolveIncomingTargetLang(sess,sourceLang||'');}
+function effectiveLangFromSession(sess){return getEffectiveReplyLang(sess,'owner','en');}
+function getEffectiveTargetLang(sess){return resolveTargetLang(sess);}
 
 function stampMsgNames(msg,sess){
   var s=sess?normalizeSession(sess):normalizeSession({});
@@ -1222,7 +1272,7 @@ function addSystemNote(convId,text,timestamp){
   msgs=sortMessagesChronologically(msgs);
   if(convId===state.activeConvId){
     state.messages=msgs;
-    addSysMsg(m.text||'');
+    renderAllMessages();
   }
   var sess=getSession(convId);if(sess){sess.lastActivity=m.timestamp;putSession(sess);}
   saveMsgs(convId,msgs);
@@ -1238,22 +1288,36 @@ function renderMd(s){if(!s)return'';return escHtml(s).replace(/\*\*(.+?)\*\*/g,'
 function timeAgo(t){if(!t)return'';var d=Date.now()-t;if(d<60000)return'now';if(d<3600000)return Math.floor(d/60000)+'m';if(d<86400000)return Math.floor(d/3600000)+'h';return Math.floor(d/86400000)+'d';}
 function fmtTime(t){return new Date(t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 function fmtDateTime(t){if(!t)return'';return new Date(t).toLocaleString([],{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});}
-function closeStatusPopup(){var pop=document.getElementById('status-popup');if(pop)pop.hidden=true;}
-function openStatusPopup(msgId){
+var statusPopupState={msgId:null,anchorKey:''};
+function closeStatusPopup(){var pop=document.getElementById('status-popup');if(pop)pop.hidden=true;statusPopupState.msgId=null;statusPopupState.anchorKey='';}
+function openStatusPopup(msgId,anchorEl){
   var msg=findMsg(msgId);
   var deliveredEl=document.getElementById('status-popup-delivered');
   var readEl=document.getElementById('status-popup-read');
   var pop=document.getElementById('status-popup');
-  if(!msg||!deliveredEl||!readEl||!pop)return;
+  if(!msg||!deliveredEl||!readEl||!pop||!anchorEl)return;
+  var anchorKey=(anchorEl&&anchorEl.closest&&anchorEl.closest('.msg-row')&&anchorEl.closest('.msg-row').id)||String(msgId||'');
+  if(!pop.hidden&&statusPopupState.msgId===msgId&&statusPopupState.anchorKey===anchorKey){closeStatusPopup();return;}
   deliveredEl.textContent='Delivered: '+(msg.deliveredAt?fmtDateTime(msg.deliveredAt):'Not delivered');
   readEl.textContent='Read: '+(msg.readAt?fmtDateTime(msg.readAt):'Not read');
   pop.hidden=false;
+  statusPopupState.msgId=msgId;
+  statusPopupState.anchorKey=anchorKey;
+  var r=anchorEl.getBoundingClientRect();
+  var pr=pop.getBoundingClientRect();
+  var left=r.left+(r.width/2)-(pr.width/2);
+  var top=r.bottom+8;
+  var maxLeft=window.innerWidth-pr.width-8;
+  var maxTop=window.innerHeight-pr.height-8;
+  pop.style.left=Math.max(8,Math.min(left,maxLeft))+'px';
+  pop.style.top=Math.max(8,Math.min(top,maxTop))+'px';
 }
 document.addEventListener('click',function(e){
   var pop=document.getElementById('status-popup');
   if(!pop||pop.hidden)return;
-  if(e.target.closest('#status-popup')||e.target.closest('.msg-status-dot'))return;
-  pop.hidden=true;
+  if(e.target.closest('#status-popup'))return;
+  if(e.target.closest('.msg-status-dot'))return;
+  closeStatusPopup();
 });
 function langLabel(c){return LANG_MAP[c]||c||'?';}
 function langFlag(c){var l=LANGS.find(function(x){return x.code===c;});return l?l.flag:'';}
@@ -1269,8 +1333,9 @@ function applyMsgTarget(msg,targetLang,targetText){
   var next=getMsgTranslatedText(msg,targetLang,targetText||'');
   if((msg.targetText||'')!==next){msg.targetText=next;changed=true;}
   if(targetLang===msg.sourceLang&&msg.sourceText&&!(msg.translations||{})[targetLang]){setMsgTranslation(msg,targetLang,msg.sourceText);}
-  if(msg.from==='them'&&targetLang===((getSession(state.activeConvId)||{}).myLang||'en'))msg.text=msg.targetText||msg.sourceText;
-  if(msg.from==='me'&&targetLang===((getSession(state.activeConvId)||{}).partnerLang||'en'))msg.translated=msg.targetText||'';
+  var activeSess=getSession(state.activeConvId)||{};
+  if(msg.from==='them'&&targetLang===resolveEffectiveLang(activeSess,'owner'))msg.text=msg.targetText||msg.sourceText;
+  if(msg.from==='me'&&targetLang===resolveEffectiveLang(activeSess,'partner'))msg.translated=msg.targetText||'';
   // Invalidate back-translate if target text changed
   if(changed&&msg.backtranslate){
     var newHash=btContentHash(msg.sourceText,msg.targetText);
@@ -1447,25 +1512,19 @@ function getRoomRuntime(convId) {
   if (!roomRuntimeByConv[convId]) roomRuntimeByConv[convId] = {
     selfPresent:false,peerPresent:false,peerEverSeen:false,
     peerLastSeenAt:0,localJoinNoted:false,peerJoinNoted:false,
-    peerLeftNoted:false,connectedOnce:false,lastHistorySyncSentAt:0
+    peerLeftNoted:false,connectedOnce:false,lastHistorySyncSentAt:0,joinEventKeys:{}
   };
   return roomRuntimeByConv[convId];
 }
-function noteRuntimeJoin(convId,key,text,ts){
+function noteRuntimeJoin(convId,key,text,ts,dedupeKey){
   var rt=getRoomRuntime(convId);if(!rt||!text)return;
   if(key==='localJoin'){if(rt.localJoinNoted)return;rt.localJoinNoted=true;}
   else if(key==='peerJoin'){if(rt.peerJoinNoted)return;rt.peerJoinNoted=true;rt.peerLeftNoted=false;}
   else if(key==='peerLeft'){if(rt.peerLeftNoted)return;rt.peerLeftNoted=true;}
   var now=ts||Date.now();
-  // Suppress duplicate local join notes for the full session history.
-  if(key==='localJoin'){
-    var allMsgs=(convId===state.activeConvId)?state.messages:(getMsgs(convId)||[]);
-    if(allMsgs.some(function(m){return m.from==='system'&&m.text===text;}))return;
-  }
-  // Suppress duplicate presence notes within 2 minutes to prevent reconnect spam.
-  var cutoff=now-120000;
-  var msgs=(convId===state.activeConvId)?state.messages:(getMsgs(convId)||[]);
-  if(msgs.some(function(m){return m.from==='system'&&m.text===text&&m.timestamp>cutoff;}))return;
+  var stableKey=String(dedupeKey||key||'join');
+  if(rt.joinEventKeys&&rt.joinEventKeys[stableKey])return;
+  rt.joinEventKeys[stableKey]=now;
   addSystemNote(convId,text,now);
 }
 function markPeerSeen(convId,ts,opts){
@@ -1480,13 +1539,15 @@ function markPeerSeen(convId,ts,opts){
   }
   if(!wasPresent&&!opts.suppressJoinNote){
     var partnerName=firstRealName(sess&&sess.partnerHandle,sess&&sess.peerName);
-    if(partnerName)noteRuntimeJoin(convId,'peerJoin',partnerName+' joined',stamp);
+    if(partnerName)noteRuntimeJoin(convId,'peerJoin',partnerName+' has joined · '+fmtDateTime(stamp),stamp,'peerJoin:'+String(sess&&sess.partnerIdentityId||partnerName));
   }
   updateDot();
 }
 function markPeerLeft(convId,ts){
   var rt=getRoomRuntime(convId);if(!rt||!rt.peerPresent)return;
   rt.peerPresent=false;
+  rt.peerJoinNoted=false;
+  Object.keys(rt.joinEventKeys||{}).forEach(function(k){if(k.indexOf('peerJoin:')===0)delete rt.joinEventKeys[k];});
   noteRuntimeJoin(convId,'peerLeft','Partner left',ts||Date.now());
   updateDot();
 }
@@ -1496,7 +1557,12 @@ function peerIsFresh(){
 }
 function resetActivePresence(convId){
   var rt=getRoomRuntime(convId);
-  if(rt){if(!rt.selfPresent&&convId)noteRuntimeJoin(convId,'localJoin','You joined',Date.now());rt.selfPresent=!!convId;}
+  if(rt&&convId){
+    var sess=getSession(convId);
+    var initiator=firstRealName(sess&&sess.myHandle,sess&&sess.myName,getPreferredOwnerName())||'yournamehere';
+    if(!rt.selfPresent)noteRuntimeJoin(convId,'localJoin',initiator+' has joined · '+fmtDateTime(Date.now()),Date.now(),'localJoin:'+String(sess&&sess.ownerIdentityId||initiator));
+    rt.selfPresent=true;
+  }else if(rt){rt.selfPresent=false;}
   updateDot();
 }
 function fmtPresenceTime(ts){return ts?fmtDateTime(ts):'Not seen yet';}
@@ -1540,7 +1606,7 @@ function setSocketState(s){
 function shouldDrop(d){
   if(!d||!d.id)return false;
   if(['msg','tr','clarify-note'].indexOf(d.type)<0)return false;
-  var now=Date.now();var key=d.type+'::'+d.id;
+  var now=Date.now();var key=d.type+'::'+d.id+'::'+String(d.from||'')+'::'+String(d.identityId||d.participant||'');
   if(inboundSeen[key]&&inboundSeen[key]>now)return true;
   inboundSeen[key]=now+DEDUP_TTL_MS;
   if(Math.random()<0.05){Object.keys(inboundSeen).forEach(function(k){if(inboundSeen[k]<=now)delete inboundSeen[k];});}
@@ -1638,7 +1704,7 @@ function transportConnect(convId,opts){
     var hello={type:'hello',transient:true,session:connectedConvId,from:DEVICE_ID,participant:PART_ID,
       name:firstRealName(sess&&sess.myHandle,sess&&sess.myName,getPreferredOwnerName())||'yournamehere',
       myHandle:firstRealName(sess&&sess.myHandle,sess&&sess.myName,getPreferredOwnerName())||'yournamehere',
-      lang:effectiveLangFromSession(sess),effectiveTargetLang:getEffectiveTargetLang(sess,effectiveLangFromSession(sess)),ts:Date.now(),seq:++msgSeq};
+      lang:effectiveLangFromSession(sess),effectiveTargetLang:getEffectiveTargetLang(sess),side:'owner',identityId:sess&&sess.ownerIdentityId,ts:Date.now(),seq:++msgSeq};
     addDiagLog('TX hello name='+hello.name+' lang='+hello.lang);
     try{ws.send(JSON.stringify(hello));}catch(_){}
     fetchBackfill();
@@ -1697,14 +1763,16 @@ function transportDisconnect(opts){
 function transportSend(ev){
   if(!connectedConvId)return false;
   var isEphemeral=['ping','pong','typing','reattach','hello','ack'].indexOf(ev.type)>=0||ev.transient===true;
-  var m=Object.assign({},ev,{session:connectedConvId,from:DEVICE_ID,participant:PART_ID,ts:Date.now(),seq:++msgSeq});
+  var sess=getSession(connectedConvId)||{};
+  var m=Object.assign({},ev,{session:connectedConvId,from:DEVICE_ID,participant:PART_ID,side:(ev&&ev.side)||'owner',identityId:(ev&&ev.identityId)||sess.ownerIdentityId||PART_ID,ts:Date.now(),seq:++msgSeq});
   if(ws&&ws.readyState===1){try{ws.send(JSON.stringify(m));return true;}catch(_){}}
   if(!isEphemeral)queueOutMsg(m);
   return false;
 }
 
 function sendReliable(ev){
-  var m=Object.assign({},ev,{session:connectedConvId,from:DEVICE_ID,participant:PART_ID,ts:Date.now(),seq:++msgSeq});
+  var sess=getSession(connectedConvId)||{};
+  var m=Object.assign({},ev,{session:connectedConvId,from:DEVICE_ID,participant:PART_ID,side:(ev&&ev.side)||'owner',identityId:(ev&&ev.identityId)||sess.ownerIdentityId||PART_ID,ts:Date.now(),seq:++msgSeq});
   if(ws&&ws.readyState===1){try{ws.send(JSON.stringify(m));if(m.id)pendingAcks[m.id]=m;return true;}catch(_){}}
   queueOutMsg(m);return false;
 }
@@ -1790,8 +1858,8 @@ function saveLocalName(el){
   // Resend hello if connected so partner sees the new name immediately
   if(connectedConvId&&ws&&ws.readyState===1){
     var sess=getSession(connectedConvId);
-    var helloMsg={type:'hello',transient:true,session:connectedConvId,from:DEVICE_ID,participant:PART_ID,
-      name:v,myHandle:v,lang:effectiveLangFromSession(sess),effectiveTargetLang:getEffectiveTargetLang(sess,effectiveLangFromSession(sess)),ts:Date.now(),seq:++msgSeq};
+    var helloMsg={type:'hello',transient:true,session:connectedConvId,from:DEVICE_ID,participant:PART_ID,side:'owner',identityId:sess&&sess.ownerIdentityId,
+      name:v,myHandle:v,lang:effectiveLangFromSession(sess),effectiveTargetLang:getEffectiveTargetLang(sess),ts:Date.now(),seq:++msgSeq};
     try{ws.send(JSON.stringify(helloMsg));}catch(_){}
   }
   toast('Name saved');
@@ -1837,10 +1905,11 @@ function setMyLang(code){
   var actor=getPreferredOwnerName()||'User';
   var all=getAllSessions();
   all.forEach(function(s){
-    var prev=s.myLang||'';
+    var prev=resolveEffectiveLang(s,'owner');
     if(prev!==code){
-      s.myLang=code;
-      if(!code&&s.autoReplyTargetLang)s.autoReplyTargetLang=s.autoReplyTargetLang;
+      s.ownerLangMode=code?'fixed':'auto';
+      s.ownerFixedLang=code||'';
+      if(code)setEffectiveReplyLang(s,'owner',code);
       putSession(s);
       addSystemNote(s.convId,actor+' switched from '+getLangLabel(prev)+' to '+getLangLabel(code),Date.now());
     }
@@ -1854,27 +1923,47 @@ function setMyLang(code){
     var hello={type:'hello',transient:true,session:connectedConvId,from:DEVICE_ID,participant:PART_ID,
       name:firstRealName(sess&&sess.myHandle,sess&&sess.myName,getPreferredOwnerName())||'yournamehere',
       myHandle:firstRealName(sess&&sess.myHandle,sess&&sess.myName,getPreferredOwnerName())||'yournamehere',
-      lang:effectiveLang,effectiveTargetLang:getEffectiveTargetLang(sess,effectiveLang),ts:Date.now(),seq:++msgSeq};
+      lang:effectiveLang,effectiveTargetLang:getEffectiveTargetLang(sess),side:'owner',identityId:sess&&sess.ownerIdentityId,ts:Date.now(),seq:++msgSeq};
     try{ws.send(JSON.stringify(hello));}catch(_){}
   }
   if(!code){toast('🌐 Language set to Auto-detect');}
   else{toast(getLangEntry(code).flag+' Language set to '+getLangEntry(code).label);}
 }
 
+function openOnboardingModal(onDone){
+  pendingOnboardingFlow=onDone||null;
+  var p=getPrefs();
+  var modal=document.getElementById('onboarding-modal');
+  var input=document.getElementById('onboarding-name');
+  var err=document.getElementById('onboarding-error');
+  if(err)err.textContent='';
+  if(input)input.value=firstRealName(p.globalName,p.userName)||'';
+  if(modal)modal.hidden=false;
+  setTimeout(function(){if(input)input.focus();},30);
+}
+function submitOnboardingName(){
+  var input=document.getElementById('onboarding-name');
+  var err=document.getElementById('onboarding-error');
+  var name=(input&&input.value||'').trim();
+  if(!name){if(err)err.textContent='Please enter your name to continue.';return;}
+  var p=getPrefs();p.globalName=name;p.userName=name;savePrefs(p);
+  var modal=document.getElementById('onboarding-modal');
+  if(modal)modal.hidden=true;
+  if(err)err.textContent='';
+  var resume=pendingOnboardingFlow;pendingOnboardingFlow=null;
+  if(typeof resume==='function')resume(name);
+}
 function ensureUserName(callback){
   var p=getPrefs();
   var existing=firstRealName(p.globalName,p.userName);
-  if(existing){callback(existing);return;}
-  var name=prompt('Enter your name:');
-  if(!name||!name.trim()){toast('Name required');return;}
-  name=name.trim();
-  p.globalName=name;p.userName=name;savePrefs(p);
-  callback(name);
+  if(existing){if(callback)callback(existing);return true;}
+  openOnboardingModal(function(name){if(callback)callback(name);});
+  return false;
 }
 function createNewSession(silent){
   ensureUserName(function(name){
     var cid=uid();var p=getPrefs();var now=Date.now();
-    var sess=normalizeSession({convId:cid,myHandle:name,myName:name,partnerHandle:'',peerName:'',myLang:p.myLang||'',partnerLang:p.myLang||'en',createdAt:now,lastActivity:now,lastViewedAt:now});
+    var sess=normalizeSession({convId:cid,myHandle:name,myName:name,partnerHandle:'',peerName:'',ownerLangMode:(p.myLang?'fixed':'auto'),ownerFixedLang:p.myLang||'',createdAt:now,lastActivity:now,lastViewedAt:now});
     putSession(sess);
     var order=getSessionOrder();order.unshift(cid);saveSessionOrder(normalizeSessionOrder(order));
     closeLeftPanel();
@@ -1914,7 +2003,7 @@ function addInviteMessage(cid){
   var exists=state.messages.some(function(m){return m.from==='invite'&&m.convId===cid;});
   if(exists)return;
   var sess=getSession(cid)||{};
-  var url=buildInviteUrl(sess,getPrefs());
+  var url=buildInviteUrl(sess,getPrefs(),'partner-invite');
   var msg={id:'inv-'+cid,from:'invite',convId:cid,inviteUrl:url,text:'Session created',timestamp:Date.now()};
   state.messages.push(msg);
   saveMsgs(cid,state.messages);
@@ -1935,7 +2024,7 @@ function closeInviteScreen(){
 }
 // copyInviteLink / nativeShareInvite removed (invite card uses DOM event listeners)
 function resendInvite(){
-  if(state.pendingInviteId&&connectedConvId){var sess=getSession(state.pendingInviteId);if(sess)transportSend({type:'hello',transient:true,name:firstRealName(sess.myHandle,sess.myName,getPreferredOwnerName())||'yournamehere',myHandle:firstRealName(sess.myHandle,sess.myName,getPreferredOwnerName())||'yournamehere',lang:effectiveLangFromSession(sess),effectiveTargetLang:getEffectiveTargetLang(sess,effectiveLangFromSession(sess))});}
+  if(state.pendingInviteId&&connectedConvId){var sess=getSession(state.pendingInviteId);if(sess)transportSend({type:'hello',transient:true,name:firstRealName(sess.myHandle,sess.myName,getPreferredOwnerName())||'yournamehere',myHandle:firstRealName(sess.myHandle,sess.myName,getPreferredOwnerName())||'yournamehere',lang:effectiveLangFromSession(sess),effectiveTargetLang:getEffectiveTargetLang(sess),side:'owner',identityId:sess.ownerIdentityId});}
   toast('Invite resent');
 }
 
@@ -2014,7 +2103,7 @@ function saveOwnerName(el){
   updatePartnerHeader(sess);
   renderSessionList();
   addSystemNote(sess.convId,'You are now '+v,Date.now());
-  transportSend({type:'hello',transient:true,name:v,myHandle:v,lang:effectiveLangFromSession(sess),effectiveTargetLang:getEffectiveTargetLang(sess,effectiveLangFromSession(sess)),timestamp:Date.now()});
+  transportSend({type:'hello',transient:true,name:v,myHandle:v,lang:effectiveLangFromSession(sess),effectiveTargetLang:getEffectiveTargetLang(sess),side:'owner',identityId:sess.ownerIdentityId,timestamp:Date.now()});
 }
 
 var HISTORY_SYNC_MAX=1500;
@@ -2124,43 +2213,92 @@ var INVITE_SCHEMA_VERSION=1;
 function encodeInvitePayload(payload){try{return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));}catch(_){return '';}}
 function decodeInvitePayload(encoded){if(!encoded)return null;try{return JSON.parse(decodeURIComponent(escape(atob(encoded))));}catch(_){return null;}}
 function parseInviteFromSearch(searchParams){
-  // Short ?j= format
-  var shortJ=searchParams.get('j');
-  if(shortJ)return {sessionId:shortJ,initiatorDeviceId:'legacy',initiatorGlobalName:'',initiatorLang:'',createdAt:Date.now(),schemaVersion:INVITE_SCHEMA_VERSION,_legacyJoin:true};
+  if(searchParams.get('j'))return {rejected:true,reason:'legacy-raw-url'};
   var rawInvite=searchParams.get('invite');
-  return validateInvitePayload(decodeInvitePayload(rawInvite));
+  if(!rawInvite)return null;
+  var payload=validateInvitePayload(decodeInvitePayload(rawInvite));
+  if(!payload)return {rejected:true,reason:'invalid-payload'};
+  if(searchParams.get('join')!=='share')return {rejected:true,reason:'missing-share-origin'};
+  if(payload.joinOrigin!=='share-partner'&&payload.joinOrigin!=='share-owner-handoff')return {rejected:true,reason:'missing-share-origin'};
+  return payload;
 }
 function validateInvitePayload(payload){
   if(!payload||typeof payload!=='object')return null;
   if(payload.schemaVersion!==INVITE_SCHEMA_VERSION)return null;
   if(typeof payload.sessionId!=='string'||!payload.sessionId.trim())return null;
   if(typeof payload.initiatorDeviceId!=='string')return null;
+  if(payload.joinOrigin!=='share-partner'&&payload.joinOrigin!=='share-owner-handoff')return null;
+  if(payload.joinOrigin==='share-owner-handoff'&&payload.side!=='owner')return null;
+  if(payload.joinOrigin==='share-partner'&&payload.side!=='partner')return null;
   return payload;
 }
-function buildInvitePayload(sess,prefs){
-  return {sessionId:sess.convId,initiatorDeviceId:PART_ID,initiatorGlobalName:sess.myName||prefs.userName||'yournamehere',initiatorLang:sess.myLang||prefs.myLang||'en',initiatorAnnouncedAt:Date.now(),createdAt:Date.now(),schemaVersion:INVITE_SCHEMA_VERSION};
+function pruneInvitePayload(payload){
+  var out={};
+  Object.keys(payload||{}).forEach(function(k){
+    var v=payload[k];
+    if(v!==undefined&&v!==null&&v!=='')out[k]=v;
+  });
+  return out;
 }
-function buildInviteUrl(sess,prefs){
-  var payload=buildInvitePayload(sess,prefs);
+
+function buildInvitePayload(sess,prefs,intent){
+  sess=normalizeSession(sess||{});
+  var mode=(intent==='owner-handoff')?'owner-handoff':'partner-invite'; // Keep partner-invite and owner-handoff payloads distinct.
+  var base={
+    sessionId:sess.convId,initiatorDeviceId:PART_ID,initiatorGlobalName:sess.myName||prefs.userName||'yournamehere',
+    initiatorLang:getEffectiveReplyLang(sess,'owner','en'),initiatorAnnouncedAt:Date.now(),createdAt:Date.now(),
+    schemaVersion:INVITE_SCHEMA_VERSION,joinOrigin:(mode==='owner-handoff'?'share-owner-handoff':'share-partner'),
+    side:(mode==='owner-handoff'?'owner':'partner'),
+    partnerLangMode:sess.partnerLangMode,partnerFixedLang:sess.partnerFixedLang,partnerLastSentLang:sess.partnerLastSentLang,partnerEffectiveReplyLang:sess.partnerEffectiveReplyLang
+  };
+  if(mode==='owner-handoff'){
+    // Preserve full owner/partner language-routing invariants during handoff hydration.
+    base.ownerIdentityId=sess.ownerIdentityId;base.ownerLangMode=sess.ownerLangMode;base.ownerFixedLang=sess.ownerFixedLang;base.ownerLastSentLang=sess.ownerLastSentLang;base.ownerEffectiveReplyLang=sess.ownerEffectiveReplyLang;
+  }
+  return pruneInvitePayload(base);
+}
+function buildInviteUrl(sess,prefs,intent){
+  var payload=buildInvitePayload(sess,prefs,intent);
   var encoded=encodeInvitePayload(payload);
-  if(encoded)return location.href.split('?')[0]+'?invite='+encodeURIComponent(encoded);
-  return location.href.split('?')[0]+'?j='+encodeURIComponent(sess.convId);
+  if(encoded)return location.href.split('?')[0]+'?join=share&invite='+encodeURIComponent(encoded);
+  return '';
 }
 
 function hydrateSessionFromInvite(sess,invite){
   if(!sess||!invite)return sess;
   var inviteName=firstRealName(invite.initiatorGlobalName);
   if(inviteName){sess.partnerHandle=inviteName;sess.peerName=inviteName;}
-  if(!sess.partnerLang&&invite.initiatorLang)sess.partnerLang=invite.initiatorLang;
+  if(invite.side==='owner'){
+    // Preserve owner language-routing state across owner handoff device switches.
+    if(invite.ownerIdentityId)sess.ownerIdentityId=invite.ownerIdentityId;
+    if(invite.ownerLangMode==='fixed'||invite.ownerLangMode==='auto')sess.ownerLangMode=invite.ownerLangMode;
+    if(invite.ownerFixedLang!==undefined)sess.ownerFixedLang=normalizeLangSetting(invite.ownerFixedLang)||'';
+    if(invite.ownerLastSentLang!==undefined)sess.ownerLastSentLang=normalizeLangSetting(invite.ownerLastSentLang)||'';
+    if(invite.ownerEffectiveReplyLang!==undefined)sess.ownerEffectiveReplyLang=normalizeLangSetting(invite.ownerEffectiveReplyLang)||'';
+  }
+  if(invite.partnerLangMode==='fixed'||invite.partnerLangMode==='auto')sess.partnerLangMode=invite.partnerLangMode;
+  if(invite.partnerFixedLang!==undefined)sess.partnerFixedLang=normalizeLangSetting(invite.partnerFixedLang)||'';
+  if(invite.partnerLastSentLang!==undefined)sess.partnerLastSentLang=normalizeLangSetting(invite.partnerLastSentLang)||'';
+  if(invite.partnerEffectiveReplyLang!==undefined)sess.partnerEffectiveReplyLang=normalizeLangSetting(invite.partnerEffectiveReplyLang)||'';
   sess.inviterDeviceId=sess.inviterDeviceId||invite.initiatorDeviceId;
   sess.inviteCreatedAt=sess.inviteCreatedAt||invite.createdAt;
+  addDiagLog('handoff apply side='+(invite.side||'?')+' ownerIdentityId='+(sess.ownerIdentityId||'?')+' eff='+resolveEffectiveLang(sess,'owner'));
   return normalizeSession(sess);
 }
 function shareSession(cid){
   var sess=getSession(cid);if(!sess){toast('Not found');return;}
   var p=getPrefs();
-  var url=buildInviteUrl(sess,p);
+  var url=buildInviteUrl(sess,p,'partner-invite');
+  var handoffUrl=buildInviteUrl(sess,p,'owner-handoff');
+  if(!url||!handoffUrl){toast('Unable to generate share link');return;}
+  addDiagLog('share link generated side=owner mode='+sess.ownerLangMode+' conv='+String(cid||'').slice(0,8));
   var el=document.getElementById('share-link-text');if(el){el.href=url;el.textContent=url;}
+  var h=document.getElementById('share-handoff-link-text');if(h){h.href=handoffUrl;h.textContent=handoffUrl;}
+  ['share-partner-qr','share-owner-qr'].forEach(function(id){var node=document.getElementById(id);if(node)node.innerHTML='';});
+  if(window.QRCode){
+    try{new QRCode(document.getElementById('share-partner-qr'),{text:url,width:220,height:220,colorDark:'#1A1714',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.H});}catch(_){}
+    try{new QRCode(document.getElementById('share-owner-qr'),{text:handoffUrl,width:220,height:220,colorDark:'#1A1714',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.H});}catch(_){}
+  }
   document.getElementById('share-overlay').hidden=false;
   if(navigator.share){navigator.share({url:url}).catch(function(){});}
 }
@@ -2315,7 +2453,7 @@ function toggleSTT(){
   if(sttActive){if(recognition)recognition.stop();return;}
   var sess=getSession(state.activeConvId);
   recognition=new SpeechRec();
-  recognition.lang=TTS_LOCALE[(sess&&sess.myLang)||getPrefs().myLang||'en']||'en';
+  recognition.lang=TTS_LOCALE[resolveEffectiveLang(sess,'owner')||getPrefs().myLang||'en']||'en';
   recognition.interimResults=true;recognition.continuous=false;
   var btn=document.getElementById('stt-btn');
   recognition.onstart=function(){sttActive=true;if(btn)btn.classList.add('active');};
@@ -2330,34 +2468,26 @@ function toggleSTT(){
 // ════════════════════════════════════════════════════════
 function upsertPartnerFromEnvelope(sess,d,opts){
   if(!sess||!d)return;
-  opts=opts||{};
   var prevName=firstRealName(sess.partnerHandle,sess.peerName);
   var partnerName=firstRealName(d.name,sess.partnerHandle,sess.peerName);
   if(partnerName){sess.partnerHandle=partnerName;sess.peerName=partnerName;}
-  // Only announcements (hello) should change partner preferred output language.
-  if(opts.allowLangUpdate&&d.lang){
-    var nextLang=normalizeLangSetting(d.lang)||'';
-    var prevLang=normalizeLangSetting(sess.partnerLang)||'';
-    var partnerId=(sess.inviterDeviceId||d.from||'partner');
-    var dominantLang=normalizeLangSetting(getDominantLang(partnerId,prevLang||nextLang))||'';
-    // Ignore contradictory hello language if actual message history already
-    // established a dominant language for this participant.
-    if(!prevLang||!dominantLang||dominantLang===nextLang||dominantLang===prevLang){
-      sess.partnerLang=nextLang||sess.partnerLang;
-    }else{
-      addDiagLog('HELLO lang ignored: '+nextLang+' (dominant='+dominantLang+', current='+prevLang+')');
-    }
-    if(nextLang&&nextLang!==prevLang){
-      var who=firstRealName(d.name,sess.partnerHandle,sess.peerName)||'Partner';
-      addSystemNote(sess.convId,who+' switched from '+getLangLabel(prevLang)+' to '+getLangLabel(nextLang),Date.now());
-    }
-  }
-  if(!sess.partnerLang)sess.partnerLang=getPrefs().partnerLang||'en';
+  if(d.identityId)sess.partnerIdentityId=d.identityId;
   putSession(sess);
   if(state.activeConvId===sess.convId)updatePartnerHeader(sess);
   return {prevName:prevName,nextName:partnerName};
 }
 
+
+function applyPeerRoutingHints(sess,d){
+  if(!sess||!d)return false;
+  var changed=false;
+  if(d.lang){var l=normalizeLangSetting(d.lang)||'';if(l&&sess.partnerLastSentLang!==l){sess.partnerLastSentLang=l;changed=true;}}
+  if(d.partnerLangMode==='fixed'||d.partnerLangMode==='auto'){if(sess.partnerLangMode!==d.partnerLangMode){sess.partnerLangMode=d.partnerLangMode;changed=true;}}
+  if(d.partnerFixedLang!==undefined){var pf=normalizeLangSetting(d.partnerFixedLang)||'';if(sess.partnerFixedLang!==pf){sess.partnerFixedLang=pf;changed=true;}}
+  if(d.effectiveTargetLang){var et=normalizeLangSetting(d.effectiveTargetLang)||'';if(et&&sess.partnerEffectiveReplyLang!==et){sess.partnerEffectiveReplyLang=et;changed=true;}}
+  if(d.partnerEffectiveReplyLang!==undefined){var pe=normalizeLangSetting(d.partnerEffectiveReplyLang)||'';if(sess.partnerEffectiveReplyLang!==pe){sess.partnerEffectiveReplyLang=pe;changed=true;}}
+  return changed;
+}
 function handleRelayEvent(d){
   if(!d||!d.type)return;
   addDiagLog('RX type='+d.type+(d.id?' id='+String(d.id||'').slice(0,8):'')+(d.from?' from='+String(d.from||'').slice(0,8):'')+(d.name?' name='+d.name:''));
@@ -2374,21 +2504,18 @@ function handleRelayEvent(d){
 
   if(d.type==='hello'){
     var rt=getRoomRuntime(sess.convId);
+    applyPeerRoutingHints(sess,d);
     var wasEverSeen=rt&&rt.peerEverSeen;
     var lastSeen=rt&&rt.peerLastSeenAt||0;
-    var nameUpdate=upsertPartnerFromEnvelope(sess,d,{allowLangUpdate:true});
+    var nameUpdate=upsertPartnerFromEnvelope(sess,d,{});
     markPeerSeen(sess.convId,d.timestamp||d.ts||Date.now(),{fromBackfill:!!d._fromBackfill});
-    addDiagLog('HELLO from '+(d.name||'?')+' lang='+(d.lang||'?'));
+    addDiagLog('HELLO from '+(d.name||'?')+' side='+(d.side||'?')+' identity='+(d.identityId||'?'));
     updatePartnerHeader(sess);
     renderSessionList();
     if(!d._fromBackfill){
       resendUnacked();
       sendHistorySync(sess.convId);
       renderAllMessages();scrollBottom();
-      var resolvedName=firstRealName(sess.partnerHandle,sess.peerName,d.name);
-      if(resolvedName&&(!wasEverSeen||(Date.now()-lastSeen)>300000)){
-        toast(resolvedName+' joined!');
-      }
       if(nameUpdate&&nameUpdate.prevName&&nameUpdate.nextName&&nameUpdate.prevName!==nameUpdate.nextName){
         addSystemNote(sess.convId,nameUpdate.prevName+' is now '+nameUpdate.nextName,Date.now());
       }
@@ -2401,28 +2528,33 @@ function handleRelayEvent(d){
     markPeerSeen(sess.convId,d.timestamp||d.ts||Date.now(),{fromBackfill:!!d._fromBackfill,suppressJoinNote:true});
     return;
   }
+  if(d.type==='presence'){
+    markPeerSeen(sess.convId,d.timestamp||d.ts||Date.now(),{fromBackfill:!!d._fromBackfill,suppressJoinNote:true});
+    if(applyPeerRoutingHints(sess,d))putSession(sess);
+    return;
+  }
 
   if(d.type==='msg'){
     markPeerSeen(sess.convId,d.timestamp||d.ts||Date.now(),{fromBackfill:!!d._fromBackfill});
+    applyPeerRoutingHints(sess,d);
     var srcTxt=d.sourceText||d.orig||d.text||'';
-    var srcLang=d.sourceLang||d.lang||detectLang(srcTxt,sess.partnerLang||'en')||sess.partnerLang||'en';
-    // Receiver always wants translation in their own language
-    var myLang=resolveIncomingTargetLang(sess,srcLang);
+    var srcLang=d.sourceLang||d.lang||detectLang(srcTxt,resolveEffectiveLang(sess,'partner'))||resolveEffectiveLang(sess,'partner');
+    var partnerMode=sess.partnerLangMode==='fixed'?'fixed':'auto';
+    var partnerFixed=normalizeLangSetting(sess.partnerFixedLang)||'';
+    var partnerOutLang=(partnerMode==='fixed'&&partnerFixed)?partnerFixed:srcLang;
+    sess.partnerLastSentLang=partnerOutLang;
+    setEffectiveReplyLang(sess,'partner',partnerOutLang);
+    // Receiver always wants translation in local effective reply language.
+    var myLang=getEffectiveReplyLang(sess,'owner','en');
     var incomingTargetLang=normalizeLangSetting(d.targetLang||'');
     var incomingForcedText=(incomingTargetLang===myLang)?(d.targetText||d.text||''):'';
     // Record partner's detected language in tally (partner messages only)
-    var partnerId=(sess.inviterDeviceId||d.from||'partner');
+    var partnerId=(d.identityId||sess.partnerIdentityId||sess.inviterDeviceId||d.from||'partner');
     recordLangTally(partnerId,srcLang);
-    // partnerLang is authoritative from invite/hello handshake.
-    // Only initialise from message content as a last resort (no invite, no hello yet).
-    // Tally is kept for diagnostics but never overrides an already-declared partnerLang.
     var ps=ensureParticipantState(partnerId);
-    if(!sess.partnerLang){
-      sess.partnerLang=srcLang;putSession(sess);
-      addDiagLog('partnerLang init from first msg: '+srcLang);
-    }else{
-      addDiagLog('partnerLang tally: '+(ps?getLangTallySummary(partnerId):'n/a'));
-    }
+    sess.partnerIdentityId=sess.partnerIdentityId||partnerId;
+    putSession(sess);
+    addDiagLog('partnerLang tally: '+(ps?getLangTallySummary(partnerId):'n/a'));
     addDiagLog('RX msg id='+String(d.id||'').slice(0,8)+' srcLang='+srcLang+' myLang='+myLang+' text='+(srcTxt||'').slice(0,30));
 
     if(d.id&&findMsg(d.id)){
@@ -2432,6 +2564,8 @@ function handleRelayEvent(d){
       if(srcTxt&&existing.sourceText!==srcTxt){existing.sourceText=srcTxt;existing.orig=srcTxt;changed=true;}
       if(srcLang&&existing.sourceLang!==srcLang){existing.sourceLang=srcLang;existing.lang=srcLang;changed=true;}
       if(incomingForcedText)changed=applyMsgTarget(existing,myLang,incomingForcedText)||changed;
+      if(!existing.deliveredAt){existing.deliveredAt=d.timestamp||d.ts||Date.now();changed=true;}
+      if(!existing.readAt){existing.readAt=Date.now();changed=true;}
       if(changed){updateTransDOM(existing);saveMsgs(state.activeConvId,state.messages);}
       return;
     }
@@ -2441,7 +2575,8 @@ function handleRelayEvent(d){
     if(state.pendingInviteId===sess.convId){
       state.pendingInviteId=null;
     }
-    var msg=normalizeMsgSchema({id:d.id,from:'them',sourceText:srcTxt,sourceLang:srcLang,targetLang:myLang,targetText:incomingForcedText,orig:srcTxt,text:null,lang:srcLang,status:'received',timestamp:d.timestamp||Date.now(),clarify:{status:'none',text:'',thread:[]},translations:{}},{sourceLang:srcLang,targetLang:myLang});
+    var rxTs=d.timestamp||d.ts||Date.now();
+    var msg=normalizeMsgSchema({id:d.id,from:'them',sourceText:srcTxt,sourceLang:srcLang,targetLang:myLang,targetText:incomingForcedText,orig:srcTxt,text:null,lang:srcLang,status:'received',deliveredAt:rxTs,readAt:Date.now(),timestamp:rxTs,clarify:{status:'none',text:'',thread:[]},translations:{}},{sourceLang:srcLang,targetLang:myLang});
     // Use wire name for display, not stale session name
     msg.displayFromName=firstRealName(d.name,sess.partnerHandle,sess.peerName)||'Partner';
     mergeMsgTranslations(msg,d.translations||{});
@@ -2472,11 +2607,7 @@ function handleRelayEvent(d){
     markPeerSeen(sess.convId,d.timestamp||d.ts||Date.now(),{fromBackfill:!!d._fromBackfill,suppressJoinNote:true});
     var m2=findMsg(d.id);
     if(m2){
-      if(m2.from==='me'&&d.targetLang&&sess.partnerLang!==d.targetLang){
-        sess.partnerLang=d.targetLang;
-        putSession(sess);
-      }
-      normalizeMsgSchema(m2,{sourceLang:m2.sourceLang||'en',targetLang:d.targetLang||(m2.from==='me'?(sess.partnerLang||'en'):(sess.myLang||'en'))});
+      normalizeMsgSchema(m2,{sourceLang:m2.sourceLang||'en',targetLang:d.targetLang||(m2.from==='me'?resolveEffectiveLang(sess,'partner'):resolveEffectiveLang(sess,'owner'))});
       applyMsgTarget(m2,d.targetLang||m2.targetLang,d.targetText||d.text||'');
       markMessageDeliveryState(state.activeConvId,m2.id,'translated',Date.now());
       updateTransDOM(m2);saveMsgs(state.activeConvId,state.messages);
@@ -2494,7 +2625,7 @@ function handleRelayEvent(d){
     return;
   }
 
-  if(d.type==='typing'){markPeerSeen(sess.convId,d.timestamp||d.ts||Date.now(),{fromBackfill:!!d._fromBackfill,suppressJoinNote:true});showTyping(d.name||sess.partnerHandle||sess.peerName);return;}
+  if(d.type==='typing'){markPeerSeen(sess.convId,d.timestamp||d.ts||Date.now(),{fromBackfill:!!d._fromBackfill,suppressJoinNote:true});var hintChanged=applyPeerRoutingHints(sess,d);showTyping(d.name||sess.partnerHandle||sess.peerName,d.typing);if(hintChanged)putSession(sess);return;}
 
   if(d.type==='clarify-note'){
     markPeerSeen(sess.convId,d.timestamp||d.ts||Date.now(),{fromBackfill:!!d._fromBackfill,suppressJoinNote:true});
@@ -2558,9 +2689,9 @@ function buildBubbleCard(cfg){
   if(ctx==='chat'){
     var deliveredOn=!!cfg.deliveredAt||cfg.status==='delivered'||cfg.status==='translated';
     var readOn=!!cfg.readAt||cfg.status==='translated';
+    var dotClass=readOn?'on-read':(deliveredOn?'on-delivered':'off');
     statusDot='<span class="msg-status-dots">'
-      +'<button class="msg-status-dot '+(deliveredOn?'on-delivered':'off')+'" type="button" onclick="openStatusPopup(\''+id+'\')">\u25CF</button>'
-      +'<button class="msg-status-dot '+(readOn?'on-read':'off')+'" type="button" onclick="openStatusPopup(\''+id+'\')">\u25CF</button>'
+      +'<button class="msg-status-dot '+dotClass+'" type="button" onclick="openStatusPopup(\''+id+'\',this)">\u25CF</button>'
       +'</span>';
   }
   var header='<div class="bbl-hdr">'
@@ -2635,8 +2766,8 @@ function buildBubbleCard(cfg){
 // ════════════════════════════════════════════════════════
 function getSides(msg){
   var sess=getSession(state.activeConvId)||{};
-  var myLang=sess.myLang||getPrefs().myLang||'en';
-  var partnerLang=sess.partnerLang||getPrefs().partnerLang||'en';
+  var myLang=getEffectiveReplyLang(sess,'owner','en');
+  var partnerLang=getEffectiveReplyLang(sess,'partner','en');
 
   if(msg.from==='me'){
     // Left: what I typed (my lang). Right: translation into partner's lang.
@@ -2662,8 +2793,8 @@ function getSides(msg){
 // For 'theirs': source is what partner typed (tgtLang after swap), translate translation back to that lang
 function getBacktranslateContextFromMsg(msg){
   var sess=getSession(state.activeConvId)||{};
-  var myLang=sess.myLang||getPrefs().myLang||'en';
-  var partnerLang=sess.partnerLang||getPrefs().partnerLang||'en';
+  var myLang=getEffectiveReplyLang(sess,'owner','en');
+  var partnerLang=getEffectiveReplyLang(sess,'partner','en');
   if(msg.from==='me'){
     // Back-translate: take partner-lang translation, translate back to my lang
     var tgtTxt=getMsgTranslatedText(msg,partnerLang,msg.targetText||'');
@@ -2716,12 +2847,11 @@ function updateMessageStatusUI(msg){
   if(!msg||!msg.id)return;
   var row=document.getElementById('row-'+msg.id);
   if(!row)return;
-  var dots=row.querySelectorAll('.msg-status-dot');
-  if(!dots||dots.length<2)return;
+  var dot=row.querySelector('.msg-status-dot');
+  if(!dot)return;
   var deliveredOn=!!msg.deliveredAt||msg.status==='delivered'||msg.status==='translated';
   var readOn=!!msg.readAt||msg.status==='translated';
-  dots[0].className='msg-status-dot '+(deliveredOn?'on-delivered':'off');
-  dots[1].className='msg-status-dot '+(readOn?'on-read':'off');
+  dot.className='msg-status-dot '+(readOn?'on-read':(deliveredOn?'on-delivered':'off'));
 }
 
 function renderAllMessages(){
@@ -2995,8 +3125,8 @@ function sendClarifyNote(id,ctx){
 function bblSave(id){
   var msg=findMsg(id);if(!msg)return;
   var sess=getSession(state.activeConvId)||{};
-  var myLang=sess.myLang||getPrefs().myLang||'en';
-  var partnerLang=sess.partnerLang||getPrefs().partnerLang||'en';
+  var myLang=getEffectiveReplyLang(sess,'owner','en');
+  var partnerLang=getEffectiveReplyLang(sess,'partner','en');
 
   // Card always stores: source = what was originally typed, target = translation
   var sourceText, sourceLang, targetText, targetLang;
@@ -3133,8 +3263,12 @@ function renderInviteCard(msg){
   card.appendChild(ts);
   // QR code
   var qrWrap=document.createElement('div');
-  qrWrap.style.cssText='width:140px;height:140px;background:#fff;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;';
+  qrWrap.style.cssText='width:180px;height:180px;background:#fff;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;';
   card.appendChild(qrWrap);
+  var qrLabel=document.createElement('div');
+  qrLabel.style.cssText='font-size:11px;color:var(--ink-dim);font-weight:600;';
+  qrLabel.textContent='Partner invite QR/link';
+  card.appendChild(qrLabel);
   // Link
   var linkDiv=document.createElement('div');
   linkDiv.style.cssText='width:100%;background:var(--paper);border:1px solid var(--border);border-radius:8px;padding:6px 8px;word-break:break-all;font-size:10px;color:var(--teal);font-weight:600;';
@@ -3164,7 +3298,7 @@ function renderInviteCard(msg){
   c.appendChild(card);
   // Draw QR
   if(url&&window.QRCode){
-    try{new QRCode(qrWrap,{text:url,width:130,height:130,colorDark:'#1A1714',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}catch(e){}
+    try{new QRCode(qrWrap,{text:url,width:180,height:180,colorDark:'#1A1714',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H});}catch(e){}
   }
   refreshInviteStatus(msg.convId);
 }
@@ -3174,44 +3308,54 @@ function autoResize(){var el=document.getElementById('msg-input');if(!el)return;
 function updateSendBtn(){var el=document.getElementById('msg-input');var sb=document.getElementById('send-btn');if(sb)sb.disabled=!(el&&el.value.trim());}
 function composerInput(){
   autoResize();updateSendBtn();
-  var now=Date.now();if(now-lastTypingTs>2000){sendTyping();lastTypingTs=now;}
+  if(!localTypingActive){localTypingActive=true;sendTyping('start');}
+  if(typingStopTimer)clearTimeout(typingStopTimer);
+  typingStopTimer=setTimeout(function(){if(localTypingActive){localTypingActive=false;sendTyping('stop');}},1800);
 }
 function composerKeydown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}}
-function sendTyping(){
+function sendTyping(kind){
   var sess=getSession(state.activeConvId);var n=normalizeSession(sess||{});
-  var sourceLang=detectBrowserLang()||'en';
-  transportSend({type:'typing',name:firstRealName(n.myHandle,n.myName,getPreferredOwnerName())||'yournamehere',myHandle:firstRealName(n.myHandle,n.myName,getPreferredOwnerName())||'yournamehere',effectiveTargetLang:getEffectiveTargetLang(n,sourceLang),lang:effectiveLangFromSession(n),timestamp:Date.now()});
+  transportSend({type:'typing',typing:kind||'start',name:firstRealName(n.myHandle,n.myName,getPreferredOwnerName())||'yournamehere',myHandle:firstRealName(n.myHandle,n.myName,getPreferredOwnerName())||'yournamehere',effectiveTargetLang:getEffectiveTargetLang(n),lang:effectiveLangFromSession(n),side:'owner',identityId:n.ownerIdentityId,timestamp:Date.now()});
 }
-function showTyping(n){var el=document.getElementById('typing-bar');var sess=getSession(state.activeConvId);if(el)el.textContent=(firstRealName(n,sess&&sess.partnerHandle,sess&&sess.peerName)||'Partner')+' is typing…';clearTimeout(typingTimer);typingTimer=setTimeout(function(){if(el)el.textContent='';},3000);}
+function showTyping(n,kind){
+  var el=document.getElementById('typing-bar');var sess=getSession(state.activeConvId);
+  if(!el)return;
+  if(kind==='stop'){el.textContent='';if(typingTimer)clearTimeout(typingTimer);return;}
+  el.textContent=(firstRealName(n,sess&&sess.partnerHandle,sess&&sess.peerName)||'Partner')+' is typing…';
+  clearTimeout(typingTimer);typingTimer=setTimeout(function(){if(el)el.textContent='';},3200);
+}
 
 async function sendMessage(){
   var ta=document.getElementById('msg-input');var text=ta.value.trim();if(!text)return;
+  if(localTypingActive){localTypingActive=false;sendTyping('stop');}
+  if(typingStopTimer){clearTimeout(typingStopTimer);typingStopTimer=null;}
   var sess=getSession(state.activeConvId);if(!sess)return;
   var p=getPrefs();
 
-  var explicitLang=normalizeLangSetting(sess.myLang);
+  var ownerEffective=getEffectiveReplyLang(sess,'owner','en');
+  var explicitLang=(sess.ownerLangMode==='fixed')?normalizeLangSetting(sess.ownerFixedLang||''):'';
   var detectedLang=detectLang(text,detectBrowserLang()||'en');
-  var outLang=explicitLang||detectedLang;
+  // Case A/B language rules:
+  // A) auto => semantic source and expected replies follow detected typed language.
+  // B) fixed => semantic source normalizes to fixed language and expected replies stay fixed.
+  var outLang=explicitLang||(detectedLang||ownerEffective||'en');
   var outboundText=text;
   if(explicitLang&&detectedLang&&detectedLang!==explicitLang){
     try{
       outboundText=(await translate(text,detectedLang,explicitLang))||text;
     }catch(_){outboundText=text;}
   }
-  var partnerLang=normalizeLangSetting(sess.partnerLang)||normalizeLangSetting(p.partnerLang)||'en';
-  var myReplyTarget=resolveIncomingTargetLang(sess,outLang,detectedLang);
-  var partnerTargetLang=resolveTargetLang({myLang:outLang,partnerLang:partnerLang,myDefaultLang:myReplyTarget,oppositeDefault:myReplyTarget});
-  if(!explicitLang){
-    sess.autoReplyTargetLang=outLang;
-    putSession(sess);
-  }
+  var partnerTargetLang=getEffectiveReplyLang(sess,'partner','en');
+  sess.ownerLastSentLang=outLang;
+  setEffectiveReplyLang(sess,'owner',outLang);
+  putSession(sess);
 
   var msg=normalizeMsgSchema({id:uid(),from:'me',ownerRole:'owner',sourceText:outboundText,sourceLang:outLang,targetLang:partnerTargetLang,targetText:'',text:outboundText,lang:outLang,translated:null,status:'sent',timestamp:Date.now(),clarify:{status:'none',text:'',thread:[]},translations:{}},{sourceLang:outLang,targetLang:partnerTargetLang});
   stampMsgNames(msg,sess);
   state.messages.push(msg);renderMsg(msg);ta.value='';autoResize();updateSendBtn();scrollBottom();
   sess.lastActivity=msg.timestamp;putSession(sess);
 
-  var payload={type:'msg',id:msg.id,sourceText:msg.sourceText,sourceLang:msg.sourceLang,targetText:'',targetLang:partnerTargetLang,effectiveTargetLang:getEffectiveTargetLang(sess,outLang),translations:msg.translations,orig:msg.sourceText,lang:msg.sourceLang,timestamp:msg.timestamp,name:firstRealName(sess.myHandle,sess.myName,p.globalName,p.userName)||'yournamehere',myHandle:firstRealName(sess.myHandle,sess.myName,p.globalName,p.userName)||'yournamehere'};
+  var payload={type:'msg',id:msg.id,sourceText:msg.sourceText,sourceLang:msg.sourceLang,targetText:'',targetLang:partnerTargetLang,effectiveTargetLang:getEffectiveTargetLang(sess),translations:msg.translations,orig:msg.sourceText,lang:msg.sourceLang,timestamp:msg.timestamp,name:firstRealName(sess.myHandle,sess.myName,p.globalName,p.userName)||'yournamehere',myHandle:firstRealName(sess.myHandle,sess.myName,p.globalName,p.userName)||'yournamehere',side:'owner',identityId:sess.ownerIdentityId};
   var ok=sendReliable(payload);
   if(!ok){msg.status='queued';addDiagLog('TX msg QUEUED id='+msg.id.slice(0,8),'warn');}
   else{msg.status='sent';addDiagLog('TX msg SENT id='+msg.id.slice(0,8)+' src='+outLang+' tgt='+msg.targetLang);}
@@ -3220,12 +3364,12 @@ async function sendMessage(){
 
   // Translate locally so sender sees target column filled in their own bubble
   if(outLang===msg.targetLang){
-    applyMsgTarget(msg,msg.targetLang,text);
+    applyMsgTarget(msg,msg.targetLang,outboundText);
     updateTransDOM(msg);
     saveMsgs(sess.convId,state.messages);
   }else{
-    translate(text,outLang,msg.targetLang).then(function(tr){
-      applyMsgTarget(msg,msg.targetLang,tr||text);
+    translate(outboundText,outLang,msg.targetLang).then(function(tr){
+      applyMsgTarget(msg,msg.targetLang,tr||outboundText);
       updateTransDOM(msg);
       saveMsgs(sess.convId,state.messages);
     });
@@ -3391,10 +3535,12 @@ function toggleSettingsDrawer(){
 function openSettings(){
   var p=getPrefs();
   updateLangPill();
-  var srcBg=document.getElementById('set-src-bg');if(srcBg)srcBg.value=p.srcBgColor||'#2E8B8B';
-  var tgtBg=document.getElementById('set-tgt-bg');if(tgtBg)tgtBg.value=p.tgtBgColor||'#F5F1EC';
-  var srcFont=document.getElementById('set-src-font');if(srcFont)srcFont.value=p.srcFontColor||'#ffffff';
-  var tgtFont=document.getElementById('set-tgt-font');if(tgtFont)tgtFont.value=p.tgtFontColor||'#1A1714';
+  var mineBg=p.srcBgColor||'#2E8B8B';
+  var theirsBg=p.tgtBgColor||'#F5F1EC';
+  var srcBg=document.getElementById('set-src-bg');if(srcBg)srcBg.value=mineBg;
+  var tgtBg=document.getElementById('set-tgt-bg');if(tgtBg)tgtBg.value=theirsBg;
+  var srcFont=document.getElementById('set-src-font');if(srcFont)srcFont.value=effectiveBubbleTextColor(mineBg,p.srcFontColor);
+  var tgtFont=document.getElementById('set-tgt-font');if(tgtFont)tgtFont.value=effectiveBubbleTextColor(theirsBg,p.tgtFontColor);
   var preset=document.getElementById('set-bbl-preset');if(preset)preset.value=p.bubblePreset||'medium';
   var bblSz=document.getElementById('set-bbl-size');if(bblSz)bblSz.value=String(p.bubbleFontSize||15);
   var tgtSz=document.getElementById('set-target-size');if(tgtSz)tgtSz.value=String(p.targetBubbleFontSize||15);
@@ -3486,6 +3632,10 @@ function applyTheme(kind,id){var t=THEMES.find(function(x){return x.id===id;});i
 }else{p.sourceTheme=id;p.accentColor=t.mine;document.documentElement.style.setProperty('--teal',t.mine);document.documentElement.style.setProperty('--teal-mid',t.hdr);}p.themeLibrary=THEMES;savePrefs(p);renderThemeGrid('source');renderThemeGrid('target');applyBubbleTheme();}
 // Global luminance helper for accent auto-suggest
 function hexLumGlobal(h){h=(h||'#888').replace('#','');var r=parseInt(h.slice(0,2),16)/255,g=parseInt(h.slice(2,4),16)/255,b=parseInt(h.slice(4,6),16)/255;return 0.2126*r+0.7152*g+0.0722*b;}
+function effectiveBubbleTextColor(bgColor,fontColor){
+  if(fontColor)return fontColor;
+  return hexLumGlobal(bgColor)>0.45?'#1A1714':'#ffffff';
+}
 function applyBubbleTheme(){
   var s=document.getElementById('bubble-theme-tag');if(!s){s=document.createElement('style');s.id='bubble-theme-tag';document.head.appendChild(s);}
   var p=getPrefs();
@@ -3494,11 +3644,10 @@ function applyBubbleTheme(){
   var theirsWidth=p.tgtBubbleWidth||mineWidth;
   var mineSize=p.bubbleFontSize||BUBBLE_DEFAULTS.bubbleFontSize;
   var theirsSize=p.targetBubbleFontSize||BUBBLE_DEFAULTS.targetBubbleFontSize;
-  function hexLum(h){h=(h||'#888').replace('#','');var r=parseInt(h.slice(0,2),16)/255,g=parseInt(h.slice(2,4),16)/255,b=parseInt(h.slice(4,6),16)/255;return 0.2126*r+0.7152*g+0.0722*b;}
   // Source (mine) bubble — text auto-computed; font color overridable
   var mineBg=p.srcBgColor||'#2E8B8B';
-  var mineLum=hexLum(mineBg);
-  var mineText=p.srcFontColor||( mineLum>0.45?'#1A1714':'#ffffff');
+  var mineLum=hexLumGlobal(mineBg);
+  var mineText=effectiveBubbleTextColor(mineBg,p.srcFontColor);
   var mineTextDim=mineLum>0.45?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)';
   var mineTextFaint=mineLum>0.45?'rgba(0,0,0,.4)':'rgba(255,255,255,.5)';
   var mineBorder=mineLum>0.45?'rgba(0,0,0,.12)':'rgba(255,255,255,.2)';
@@ -3506,8 +3655,8 @@ function applyBubbleTheme(){
   var mineUseBg=mineLum>0.45?'rgba(0,0,0,.1)':'rgba(255,255,255,.22)';
   // Target (theirs) bubble — text auto-computed; font color overridable
   var theirsBg=p.tgtBgColor||'#F5F1EC';
-  var theirsLum=hexLum(theirsBg);
-  var theirsText=p.tgtFontColor||(theirsLum>0.45?'#1A1714':'#ffffff');
+  var theirsLum=hexLumGlobal(theirsBg);
+  var theirsText=effectiveBubbleTextColor(theirsBg,p.tgtFontColor);
   var theirsTextDim=theirsLum>0.45?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)';
   var theirsTextFaint=theirsLum>0.45?'rgba(0,0,0,.4)':'rgba(255,255,255,.5)';
   var theirsBorder=theirsLum>0.45?'rgba(0,0,0,.10)':'rgba(255,255,255,.18)';
@@ -3585,7 +3734,7 @@ function applyTargetSize(v){var p=getPrefs();p.targetBubbleFontSize=parseInt(v);
 function applyTgtWidth(v){var p=getPrefs();p.tgtBubbleWidth=parseInt(v);savePrefs(p);applyBubbleTheme();}
 function applySrcFontColor(v){var p=getPrefs();p.srcFontColor=v;savePrefs(p);applyBubbleTheme();}
 function applyTgtFontColor(v){var p=getPrefs();p.tgtFontColor=v;savePrefs(p);applyBubbleTheme();}
-function clearAppSettings(){if(!confirm('Clear all app settings (appearance, language, preferences)?'))return;var PREFS_KEY='joyPrefs';localStorage.removeItem(PREFS_KEY);toast('App settings cleared');openSettings();applyBubbleTheme();}
+function clearAppSettings(){if(!confirm('Clear all app settings (appearance, language, preferences)?'))return;var keys=[SK.prefs,'ts3_prefs','joyPrefs','ts3_appearance','ts3_theme','ts3_themeLibrary'];keys.forEach(function(k){if(k)localStorage.removeItem(k);});toast('App settings cleared');openSettings();applyBubbleTheme();}
 function resetAllSettings(){var p=getPrefs();p.srcBgColor='#2E8B8B';p.srcTextColor='#ffffff';p.accentColor='#2E8B8B';p.tgtBgColor='#F5F1EC';p.targetAccentColor='#1A1714';p.bubbleWidth=75;p.tgtBubbleWidth=75;p.bubbleFontSize=15;p.targetBubbleFontSize=15;p.srcFontColor='';p.tgtFontColor='';p.myLang='';p.bubblePreset='medium';p.bubblePresetMeChoice='pacific-blue';p.bubblePresetPartnerChoice='almond-cream';savePrefs(p);document.documentElement.style.setProperty('--teal','#2E8B8B');openSettings();applyBubbleTheme();toast('All settings reset');}
 function applyTargetAccent(v){var p=getPrefs();p.targetAccentColor=v;savePrefs(p);applyBubbleTheme();}
 function toggleNoOpOnSameLanguage(on){var p=getPrefs();p.noOpOnSameLanguage=!!on;savePrefs(p);}
@@ -3597,7 +3746,7 @@ function resetSourceBubbleDefaults(){var p=getPrefs();p.sourceTheme=BUBBLE_DEFAU
 function resetTargetBubbleDefaults(){var p=getPrefs();p.targetTheme=BUBBLE_DEFAULTS.targetTheme;p.targetBubbleFontSize=BUBBLE_DEFAULTS.targetBubbleFontSize;p.targetAccentColor=BUBBLE_DEFAULTS.targetAccentColor;savePrefs(p);openSettings();applyBubbleTheme();toast('Target bubble reset');}
 function applyPhrasebookAccent(v){var p=getPrefs();p.phrasebookAccentColor=v;savePrefs(p);}
 
-function openInfoModal(kind){var title=document.getElementById('info-title');var body=document.getElementById('info-body');if(kind==='privacy'){title.textContent='Privacy';body.innerHTML='<strong>Local-first storage.</strong><br>All session and phrasebook data stays in localStorage unless you export it yourself.';}else{title.textContent='About';body.innerHTML='<strong>Talk + Say · v3.3</strong><br>Shell-first bilingual chat &amp; phrasebook with unified bubble renderer, back-translation, and clarify workflows.';}document.getElementById('info-overlay').hidden=false;}
+function openInfoModal(kind){var title=document.getElementById('info-title');var body=document.getElementById('info-body');if(kind==='privacy'){title.textContent='Privacy';body.innerHTML='<strong>Local-first storage.</strong><br>All session and phrasebook data stays in localStorage unless you export it yourself.';}else{title.textContent='About';body.innerHTML='<strong>Talk + Say · v3.4</strong><br>Shell-first bilingual chat &amp; phrasebook with unified bubble renderer, back-translation, and clarify workflows.';}document.getElementById('info-overlay').hidden=false;}
 function openPrintPhrasebookModal(){document.getElementById('print-overlay').hidden=false;}
 function printPhrasebookSelection(){document.getElementById('print-overlay').hidden=true;renderCatalogCards();setTimeout(function(){window.print();},60);}
 
@@ -3873,7 +4022,7 @@ function closeSessionNote(){document.getElementById('session-note-overlay').hidd
 function saveSessionNote(){if(!state.noteSessionId)return;var notes=getSessionNotes();notes[state.noteSessionId]=(document.getElementById('session-note-text').value||'').trim();saveSessionNotes(notes);closeSessionNote();toast('Note saved');}
 
 // Import/Export
-function downloadBlob(content,type,fileName){var blob=new Blob([content],{type:type});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fileName;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},0);}
+function downloadBlob(content,type,fileName,withBom){if(withBom)content='\uFEFF'+content;var blob=new Blob([content],{type:type});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fileName;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},0);}
 function formatExportMessageBlock(msg,sess){
   var ts=fmtDateTime(msg.timestamp||Date.now());
   if(msg.from==='system')return '['+ts+'] System\n'+String(msg.text||'').trim();
@@ -3894,11 +4043,11 @@ function exportSessionChat(cid){
   if(msgs.length){blocks.push('','Conversation');msgs.forEach(function(msg){blocks.push('',formatExportMessageBlock(msg,sess));});}
   else{blocks.push('','Conversation','','(No messages)');}
   blocks.push('','Diagnostics','',diagLog.length?diagLog.join('\n'):'(No diagnostic entries)');
-  downloadBlob(blocks.join('\n'),'text/plain;charset=utf-8','chat-export-'+safeTitle+'-'+Date.now()+'.txt');
+  downloadBlob(blocks.join('\n'),'text/plain;charset=utf-8','chat-export-'+safeTitle+'-'+Date.now()+'.txt',true);
   toast('Chat exported');
 }
 function downloadJSON(payload,filePrefix){downloadBlob(JSON.stringify(payload,null,2),'application/json',filePrefix+'-'+Date.now()+'.json');}
-function downloadCSV(rows,filePrefix){if(!rows.length){toast('Nothing to export');return;}var headers=Object.keys(rows[0]);var csv=[headers.map(csvEscape).join(',')].concat(rows.map(function(row){return headers.map(function(h){return csvEscape(row[h]);}).join(',');})).join('\n');downloadBlob(csv,'text/csv;charset=utf-8',filePrefix+'-'+Date.now()+'.csv');}
+function downloadCSV(rows,filePrefix){if(!rows.length){toast('Nothing to export');return;}var headers=Object.keys(rows[0]);var csv=[headers.map(csvEscape).join(',')].concat(rows.map(function(row){return headers.map(function(h){return csvEscape(row[h]);}).join(',');})).join('\n');downloadBlob(csv,'text/csv;charset=utf-8',filePrefix+'-'+Date.now()+'.csv',true);}
 function csvEscape(value){var str=value==null?'':String(value);return /[",\n]/.test(str)?'"'+str.replace(/"/g,'""')+'"':str;}
 function parseCsv(text){var rows=[];var row=[];var cell='';var inQuotes=false;for(var i=0;i<text.length;i++){var ch=text[i];var next=text[i+1];if(inQuotes){if(ch==='"'&&next==='"'){cell+='"';i++;}else if(ch==='"'){inQuotes=false;}else{cell+=ch;}}else if(ch==='"'){inQuotes=true;}else if(ch===','){row.push(cell);cell='';}else if(ch==='\n'){row.push(cell);rows.push(row);row=[];cell='';}else if(ch==='\r'){}else{cell+=ch;}}row.push(cell);if(row.length>1||row[0])rows.push(row);if(!rows.length)return[];var headers=rows.shift();return rows.filter(function(cols){return cols.some(function(v){return String(v||'').trim();});}).map(function(cols){var out={};headers.forEach(function(h,idx){out[h]=cols[idx]||'';});return out;});}
 function parseJSONField(value,fallback){if(!value)return fallback;try{return JSON.parse(value);}catch(_){return fallback;}}
@@ -4043,44 +4192,51 @@ document.addEventListener('DOMContentLoaded',function(){
   initTagPickerInput();
   updateDot();
 
-  // Deep link — short ?j= format (responder joining)
-  var up=new URLSearchParams(location.search);
-  var invite=parseInviteFromSearch(up);
-  if(invite){
-    history.replaceState({},'',location.pathname);
-    // Prompt for name if not set
-    if(isPlaceholderName(firstRealName(p.globalName,p.userName))){
-      var rname=prompt('Enter your name:');
-      if(rname&&rname.trim()){p.globalName=rname.trim();p.userName=rname.trim();savePrefs(p);}
+  function continueStartup(){
+    // Deep link — share-origin invite only
+    var up=new URLSearchParams(location.search);
+    var invite=parseInviteFromSearch(up);
+    if(invite){
+      history.replaceState({},'',location.pathname);
+      if(invite.rejected){
+        addDiagLog('join rejected reason='+invite.reason,'warn');
+        toast('Please join using a Talk + Say share link. Copying the page URL directly is not supported.');
+      }else{
+        addDiagLog('join accepted reason=share-origin session='+String(invite.sessionId||'').slice(0,8));
+        var sess=getSession(invite.sessionId);
+        if(!sess){
+          var now=Date.now();
+          var ownerName=firstRealName(getPrefs().globalName,getPrefs().userName)||'yournamehere';
+          sess=normalizeSession({convId:invite.sessionId,myHandle:ownerName,myName:ownerName,partnerHandle:'',peerName:'',ownerLangMode:(p.myLang?'fixed':'auto'),ownerFixedLang:p.myLang||'',createdAt:now,lastActivity:now,lastViewedAt:now});
+          putSession(sess);
+          var order=getSessionOrder();order.unshift(invite.sessionId);saveSessionOrder(normalizeSessionOrder(order));
+        }else{
+          putSession(sess);
+        }
+        sess=hydrateSessionFromInvite(sess,invite);
+        state.activeConvId=invite.sessionId;
+        state.messages=getMsgs(invite.sessionId);
+        addInviteMessage(invite.sessionId);
+        putSession(sess);
+        openSession(invite.sessionId);
+        return;
+      }
     }
-    var sess=getSession(invite.sessionId);
-    if(!sess){
-      var now=Date.now();
-      sess=normalizeSession({convId:invite.sessionId,myHandle:firstRealName(p.globalName,p.userName)||'yournamehere',myName:firstRealName(p.globalName,p.userName)||'yournamehere',partnerHandle:'',peerName:'',myLang:p.myLang||'',partnerLang:p.myLang||'en',createdAt:now,lastActivity:now,lastViewedAt:now});
-      putSession(sess);
-      var order=getSessionOrder();order.unshift(invite.sessionId);saveSessionOrder(normalizeSessionOrder(order));
-    }else{
-      putSession(sess);
-    }
-    sess=hydrateSessionFromInvite(sess,invite);
-    state.activeConvId=invite.sessionId;
-    state.messages=getMsgs(invite.sessionId);
-    addInviteMessage(invite.sessionId);
-    putSession(sess);
-    openSession(invite.sessionId);
-    return;
-  }
 
-  var aid=getActiveConvId();
-  if(aid&&getSession(aid)){
-    var savedSess=getSession(aid);
-    if(savedSess){openSession(aid);}
-    else{showEmptyShell();}
-  }else{
-    var allSessions=getAllSessions();
-    if(allSessions.length){openSession(allSessions[0].convId);}
-    else{showEmptyShell();}
+    var aid=getActiveConvId();
+    if(aid&&getSession(aid)){
+      var savedSess=getSession(aid);
+      if(savedSess){openSession(aid);}
+      else{showEmptyShell();}
+    }else{
+      var allSessions=getAllSessions();
+      if(allSessions.length){openSession(allSessions[0].convId);}
+      else{showEmptyShell();}
+    }
   }
+  ensureUserName(function(){continueStartup();});
+  var onboardInput=document.getElementById('onboarding-name');
+  if(onboardInput)onboardInput.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();submitOnboardingName();}});
 
   // Sheet drag-dismiss
   document.querySelectorAll('.overlay .sheet-handle').forEach(function(h){
@@ -4093,5 +4249,5 @@ document.addEventListener('DOMContentLoaded',function(){
   // online/offline handlers registered in transport block
 });
 </script>
-<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">Test Version for Pam Los Angeles</div></body>
+<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">Talk + Say v3.4 · Build 2026-03-30 00:58:36 PDT</div></body>
 </html>
