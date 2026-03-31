@@ -342,9 +342,9 @@ textarea.field-input{resize:none;}
 .onboarding-modal{position:fixed;inset:0;background:rgba(26,23,20,.52);display:flex;align-items:center;justify-content:center;z-index:260;padding:20px;}
 .onboarding-modal[hidden]{display:none!important;}
 .onboarding-card{width:min(100%,360px);background:var(--cream);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:18px 16px;display:flex;flex-direction:column;gap:10px;}
-.onboarding-flag{font-size:28px;line-height:1;animation:onboard-wave .66s ease-in-out 0s 3;}
-@keyframes onboard-wave{0%,100%{transform:rotate(0deg)}25%{transform:rotate(14deg)}75%{transform:rotate(-10deg)}}
-.onboarding-title{font-size:16px;font-weight:700;line-height:1.35;color:var(--ink);}
+.onboarding-title-wrap{position:relative;border-radius:12px;overflow:hidden;min-height:108px;display:flex;align-items:center;}
+.onboarding-title-wrap::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(253,250,247,.58),rgba(253,250,247,.58)),url('https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/Flags_of_the_World_%28gallery%29.png/640px-Flags_of_the_World_%28gallery%29.png');background-size:cover;background-position:center;opacity:.58;}
+.onboarding-title{position:relative;font-size:16px;font-weight:700;line-height:1.35;color:var(--ink);padding:14px;}
 .onboarding-error{font-size:12px;color:var(--red);min-height:16px;}
 @keyframes fadeIn{from{opacity:0;}}
 .sheet{background:var(--cream);border-radius:22px 22px 0 0;width:100%;max-width:480px;max-height:92dvh;overflow-y:auto;animation:slideUp .22s ease-out;}
@@ -580,8 +580,9 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
 
 <div class="onboarding-modal" id="onboarding-modal" hidden>
   <div class="onboarding-card">
-    <div class="onboarding-flag" aria-hidden="true">🏳️</div>
-    <div class="onboarding-title">Hi, let’s get ready to chat! What’s your name?</div>
+    <div class="onboarding-title-wrap">
+      <div class="onboarding-title">Hi, let’s get ready to chat! What’s your name?</div>
+    </div>
     <input class="field-input" id="onboarding-name" placeholder="Your name" maxlength="40">
     <button class="sheet-btn primary" id="onboarding-continue-btn" onclick="submitOnboardingName()">Continue</button>
     <div class="onboarding-error" id="onboarding-error"></div>
@@ -1071,7 +1072,13 @@ function getMsgs(cid){
   return norm;
 }
 function saveMsgs(cid,m){lsW('ts3_m_'+cid,JSON.stringify(sortMessagesChronologically(m).slice(-MAX_MSGS_PER_SESSION)));}
-function getMsgTranslatedText(msg,targetLang,fallback){var map=ensureMsgTranslations(msg);if(targetLang&&typeof map[targetLang]==='string'&&map[targetLang].trim())return map[targetLang];return fallback||'';}
+function getMsgTranslatedText(msg,targetLang,fallback){
+  var map=ensureMsgTranslations(msg);
+  if(targetLang&&typeof map[targetLang]==='string'&&map[targetLang].trim()){
+    return {text:map[targetLang],langUsed:targetLang};
+  }
+  return {text:fallback||'',langUsed:targetLang||msg&&msg.targetLang||''};
+}
 function deleteSessData(cid){lsDel('ts3_m_'+cid);}
 function markViewed(cid){var ss=getAllSessions();var s=ss.find(function(x){return x.convId===cid;});if(s){s.lastViewedAt=Date.now();saveSessions(ss);}}
 
@@ -1330,7 +1337,8 @@ function applyMsgTarget(msg,targetLang,targetText){
   var changed=false;
   if(setMsgTranslation(msg,targetLang,targetText||''))changed=true;
   if(msg.targetLang!==targetLang){msg.targetLang=targetLang;changed=true;}
-  var next=getMsgTranslatedText(msg,targetLang,targetText||'');
+  var nextInfo=getMsgTranslatedText(msg,targetLang,targetText||'');
+  var next=nextInfo.text;
   if((msg.targetText||'')!==next){msg.targetText=next;changed=true;}
   if(targetLang===msg.sourceLang&&msg.sourceText&&!(msg.translations||{})[targetLang]){setMsgTranslation(msg,targetLang,msg.sourceText);}
   var activeSess=getSession(state.activeConvId)||{};
@@ -1999,11 +2007,16 @@ function openInviteScreen(cid){
 }
 
 function addInviteMessage(cid){
-  // Only add once per session
-  var exists=state.messages.some(function(m){return m.from==='invite'&&m.convId===cid;});
-  if(exists)return;
   var sess=getSession(cid)||{};
   var url=buildInviteUrl(sess,getPrefs(),'partner-invite');
+  var existing=state.messages.find(function(m){return m.from==='invite'&&m.convId===cid;});
+  if(existing){
+    if(existing.inviteUrl!==url){
+      existing.inviteUrl=url;
+      saveMsgs(cid,state.messages);
+    }
+    return;
+  }
   var msg={id:'inv-'+cid,from:'invite',convId:cid,inviteUrl:url,text:'Session created',timestamp:Date.now()};
   state.messages.push(msg);
   saveMsgs(cid,state.messages);
@@ -2209,10 +2222,41 @@ function renderRecycleBin(){var bin=document.getElementById('recycle-bin');if(!b
 
 // Share / invite
 function shareCurrentSession(){if(!state.activeConvId){toast('No active session');return;}shareSession(state.activeConvId);}
-var INVITE_SCHEMA_VERSION=1;
-function encodeInvitePayload(payload){try{return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));}catch(_){return '';}}
-function decodeInvitePayload(encoded){if(!encoded)return null;try{return JSON.parse(decodeURIComponent(escape(atob(encoded))));}catch(_){return null;}}
-function parseInviteFromSearch(searchParams){
+var INVITE_SCHEMA_VERSION=2;
+function encodeInvitePayload(payload){
+  try{
+    return btoa(unescape(encodeURIComponent(JSON.stringify(payload))))
+      .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }catch(_){return '';}
+}
+function decodeInvitePayload(encoded){
+  if(!encoded)return null;
+  try{
+    var safe=String(encoded).replace(/-/g,'+').replace(/_/g,'/');
+    while(safe.length%4)safe+='=';
+    return JSON.parse(decodeURIComponent(escape(atob(safe))));
+  }catch(_){return null;}
+}
+function isLegacyInviteUrl(url){
+  if(!url)return true;
+  try{
+    var parsed=new URL(url,location.href);
+    var s=parsed.searchParams;
+    var h=new URLSearchParams((parsed.hash||'').replace(/^#/,''));
+    if(h.get('i'))return false;
+    if(s.get('j'))return true;
+    if(s.get('invite'))return true;
+    if(s.get('join'))return true;
+    return false;
+  }catch(_){return true;}
+}
+function parseInviteFromSearch(searchParams,hashParams){
+  var hashInvite=hashParams&&hashParams.get('i');
+  if(hashInvite){
+    var hashPayload=validateInvitePayload(decodeInvitePayload(hashInvite));
+    if(!hashPayload)return {rejected:true,reason:'invalid-payload'};
+    return hashPayload;
+  }
   if(searchParams.get('j'))return {rejected:true,reason:'legacy-raw-url'};
   var rawInvite=searchParams.get('invite');
   if(!rawInvite)return null;
@@ -2224,13 +2268,43 @@ function parseInviteFromSearch(searchParams){
 }
 function validateInvitePayload(payload){
   if(!payload||typeof payload!=='object')return null;
-  if(payload.schemaVersion!==INVITE_SCHEMA_VERSION)return null;
-  if(typeof payload.sessionId!=='string'||!payload.sessionId.trim())return null;
-  if(typeof payload.initiatorDeviceId!=='string')return null;
-  if(payload.joinOrigin!=='share-partner'&&payload.joinOrigin!=='share-owner-handoff')return null;
-  if(payload.joinOrigin==='share-owner-handoff'&&payload.side!=='owner')return null;
-  if(payload.joinOrigin==='share-partner'&&payload.side!=='partner')return null;
-  return payload;
+  if(payload.schemaVersion===INVITE_SCHEMA_VERSION){
+    if(typeof payload.s!=='string'||!payload.s.trim())return null;
+    if(typeof payload.d!=='string')return null;
+    if(payload.o!=='p'&&payload.o!=='o')return null;
+    var mapped={
+      schemaVersion:INVITE_SCHEMA_VERSION,
+      sessionId:payload.s,
+      initiatorDeviceId:payload.d,
+      initiatorGlobalName:payload.n||'',
+      initiatorLang:payload.l||'',
+      initiatorAnnouncedAt:payload.a,
+      createdAt:payload.c,
+      joinOrigin:payload.o==='o'?'share-owner-handoff':'share-partner',
+      side:payload.o==='o'?'owner':'partner'
+    };
+    if(payload.pm!==undefined)mapped.partnerLangMode=payload.pm;
+    if(payload.pf!==undefined)mapped.partnerFixedLang=payload.pf;
+    if(payload.pl!==undefined)mapped.partnerLastSentLang=payload.pl;
+    if(payload.pe!==undefined)mapped.partnerEffectiveReplyLang=payload.pe;
+    if(payload.o==='o'){
+      if(payload.oi!==undefined)mapped.ownerIdentityId=payload.oi;
+      if(payload.om!==undefined)mapped.ownerLangMode=payload.om;
+      if(payload.of!==undefined)mapped.ownerFixedLang=payload.of;
+      if(payload.ol!==undefined)mapped.ownerLastSentLang=payload.ol;
+      if(payload.oe!==undefined)mapped.ownerEffectiveReplyLang=payload.oe;
+    }
+    return mapped;
+  }
+  if(payload.schemaVersion===1){
+    if(typeof payload.sessionId!=='string'||!payload.sessionId.trim())return null;
+    if(typeof payload.initiatorDeviceId!=='string')return null;
+    if(payload.joinOrigin!=='share-partner'&&payload.joinOrigin!=='share-owner-handoff')return null;
+    if(payload.joinOrigin==='share-owner-handoff'&&payload.side!=='owner')return null;
+    if(payload.joinOrigin==='share-partner'&&payload.side!=='partner')return null;
+    return payload;
+  }
+  return null;
 }
 function pruneInvitePayload(payload){
   var out={};
@@ -2244,23 +2318,22 @@ function pruneInvitePayload(payload){
 function buildInvitePayload(sess,prefs,intent){
   sess=normalizeSession(sess||{});
   var mode=(intent==='owner-handoff')?'owner-handoff':'partner-invite'; // Keep partner-invite and owner-handoff payloads distinct.
-  var base={
-    sessionId:sess.convId,initiatorDeviceId:PART_ID,initiatorGlobalName:sess.myName||prefs.userName||'yournamehere',
-    initiatorLang:getEffectiveReplyLang(sess,'owner','en'),initiatorAnnouncedAt:Date.now(),createdAt:Date.now(),
-    schemaVersion:INVITE_SCHEMA_VERSION,joinOrigin:(mode==='owner-handoff'?'share-owner-handoff':'share-partner'),
-    side:(mode==='owner-handoff'?'owner':'partner'),
-    partnerLangMode:sess.partnerLangMode,partnerFixedLang:sess.partnerFixedLang,partnerLastSentLang:sess.partnerLastSentLang,partnerEffectiveReplyLang:sess.partnerEffectiveReplyLang
-  };
+  var base={schemaVersion:INVITE_SCHEMA_VERSION,s:sess.convId,d:PART_ID,n:sess.myName||prefs.userName||'yournamehere',
+    l:getEffectiveReplyLang(sess,'owner','en'),a:Date.now(),c:Date.now(),o:(mode==='owner-handoff'?'o':'p')};
+  if(mode==='partner-invite'){
+    base.pm=sess.partnerLangMode;base.pf=sess.partnerFixedLang;base.pl=sess.partnerLastSentLang;base.pe=sess.partnerEffectiveReplyLang;
+  }
   if(mode==='owner-handoff'){
     // Preserve full owner/partner language-routing invariants during handoff hydration.
-    base.ownerIdentityId=sess.ownerIdentityId;base.ownerLangMode=sess.ownerLangMode;base.ownerFixedLang=sess.ownerFixedLang;base.ownerLastSentLang=sess.ownerLastSentLang;base.ownerEffectiveReplyLang=sess.ownerEffectiveReplyLang;
+    base.oi=sess.ownerIdentityId;base.om=sess.ownerLangMode;base.of=sess.ownerFixedLang;base.ol=sess.ownerLastSentLang;base.oe=sess.ownerEffectiveReplyLang;
+    base.pm=sess.partnerLangMode;base.pf=sess.partnerFixedLang;base.pl=sess.partnerLastSentLang;base.pe=sess.partnerEffectiveReplyLang;
   }
   return pruneInvitePayload(base);
 }
 function buildInviteUrl(sess,prefs,intent){
   var payload=buildInvitePayload(sess,prefs,intent);
   var encoded=encodeInvitePayload(payload);
-  if(encoded)return location.href.split('?')[0]+'?join=share&invite='+encodeURIComponent(encoded);
+  if(encoded)return location.href.split('?')[0].split('#')[0]+'#i='+encoded;
   return '';
 }
 
@@ -2414,8 +2487,16 @@ function speak(text,lang,btn){
   ensureVoices(function(voices){
     var utt=new SpeechSynthesisUtterance(text);
     var locale=TTS_LOCALE[lang]||lang;
-    var voice=voices.find(function(v){return v.lang===locale;})||voices.find(function(v){return v.lang&&v.lang.indexOf(lang+'-')===0;});
-    if(voice)utt.voice=voice;else utt.lang=locale;
+    var base=(locale||lang||'').split('-')[0].toLowerCase();
+    var voice=
+      voices.find(function(v){return (v.lang||'').toLowerCase()===(locale||'').toLowerCase();}) ||
+      voices.find(function(v){return (v.lang||'').toLowerCase().indexOf(base+'-')===0;}) ||
+      voices.find(function(v){return ((v.lang||'').split('-')[0]||'').toLowerCase()===base;}) ||
+      voices.find(function(v){return !!v.default;}) ||
+      null;
+    utt.lang=locale||lang||'en';
+    if(voice)utt.voice=voice;
+    console.log('[TTS] attempt len=%d lang=%s voice=%s',String(text||'').length,utt.lang,(voice&&voice.name)||'browser-default');
     setTTSBtn(btn,true);ttsActive=btn;
     utt.onend=function(){setTTSBtn(btn,false);if(ttsActive===btn)ttsActive=null;clearInterval(utt._keepAlive);};
     utt.onerror=function(){setTTSBtn(btn,false);if(ttsActive===btn)ttsActive=null;clearInterval(utt._keepAlive);};
@@ -2675,12 +2756,14 @@ function handleRelayEvent(d){
 //   theme: 'mine' | 'theirs' | 'pb'
 // ════════════════════════════════════════════════════════
 function buildBubbleCard(cfg){
-  // cfg: {id, srcTxt, srcLang, tgtTxt, tgtLang, headerLeft, time, prov, footerMode, isMine, ctx}
+  // cfg: {id, srcTxt, srcLang, tgtTxt, tgtLang, srcTtsLang, tgtTtsLang, headerLeft, time, prov, footerMode, isMine, ctx}
   var id=cfg.id;
   var srcTxt=cfg.srcTxt||'';
   var tgtTxt=cfg.tgtTxt||'';
   var srcLang=cfg.srcLang||'en';
   var tgtLang=cfg.tgtLang||'en';
+  var srcTtsLang=cfg.srcTtsLang||srcLang;
+  var tgtTtsLang=cfg.tgtTtsLang||tgtLang;
   var isMine=!!cfg.isMine;
   var ctx=cfg.ctx||'chat';
 
@@ -2702,8 +2785,8 @@ function buildBubbleCard(cfg){
     +'</div></div>';
 
   // Body row 1+2: two equal columns with Use + TTS per side
-  var aS=attrSafe(srcTxt);var aSL=attrSafe(srcLang);
-  var aT=attrSafe(tgtTxt);var aTL=attrSafe(tgtLang);
+  var aS=attrSafe(srcTxt);var aSL=attrSafe(srcTtsLang);
+  var aT=attrSafe(tgtTxt);var aTL=attrSafe(tgtTtsLang);
   var srcClass='bbl-txt'+(srcTxt?'':' loading');
   var tgtClass='bbl-txt'+(tgtTxt?'':' loading');
 
@@ -2773,18 +2856,22 @@ function getSides(msg){
     // Left: what I typed (my lang). Right: translation into partner's lang.
     var srcTxt=msg.sourceText||'';
     var srcLang=msg.sourceLang||myLang;
-    var tgtTxt=getMsgTranslatedText(msg,partnerLang,msg.targetText||'');
-    var tgtLang=partnerLang;
-    return {srcLang:srcLang,srcTxt:srcTxt,tgtLang:tgtLang,tgtTxt:tgtTxt};
+    var targetKey=msg.targetLang||partnerLang;
+    var tgtInfo=getMsgTranslatedText(msg,targetKey,msg.targetText||'');
+    var tgtTxt=tgtInfo.text;
+    var tgtLang=targetKey;
+    return {srcLang:srcLang,srcTxt:srcTxt,srcTtsLang:srcLang,tgtLang:tgtLang,tgtTxt:tgtTxt,tgtTtsLang:tgtInfo.langUsed||tgtLang};
   }else{
     // Received message: left=translation (my lang), right=original (partner's lang).
     // This way the reader sees the meaning first, source second.
     var origTxt=msg.sourceText||'';
     var origLang=msg.sourceLang||partnerLang;
-    var transTxt=getMsgTranslatedText(msg,myLang,msg.targetText||'');
-    var transLang=myLang;
+    var targetKey=msg.targetLang||myLang;
+    var transInfo=getMsgTranslatedText(msg,targetKey,msg.targetText||'');
+    var transTxt=transInfo.text;
+    var transLang=targetKey;
     // srcTxt/srcLang = LEFT column, tgtTxt/tgtLang = RIGHT column
-    return {srcLang:transLang,srcTxt:transTxt,tgtLang:origLang,tgtTxt:origTxt};
+    return {srcLang:transLang,srcTxt:transTxt,srcTtsLang:transInfo.langUsed||transLang,tgtLang:origLang,tgtTxt:origTxt,tgtTtsLang:msg.sourceLang||origLang};
   }
 }
 
@@ -2797,11 +2884,11 @@ function getBacktranslateContextFromMsg(msg){
   var partnerLang=getEffectiveReplyLang(sess,'partner','en');
   if(msg.from==='me'){
     // Back-translate: take partner-lang translation, translate back to my lang
-    var tgtTxt=getMsgTranslatedText(msg,partnerLang,msg.targetText||'');
+    var tgtTxt=getMsgTranslatedText(msg,msg.targetLang||partnerLang,msg.targetText||'').text;
     return {inputText:tgtTxt,fromLang:partnerLang,toLang:msg.sourceLang||myLang};
   }else{
     // Back-translate: take my-lang translation, translate back to partner's lang (= source)
-    var transTxt=getMsgTranslatedText(msg,myLang,msg.targetText||'');
+    var transTxt=getMsgTranslatedText(msg,msg.targetLang||myLang,msg.targetText||'').text;
     return {inputText:transTxt,fromLang:myLang,toLang:msg.sourceLang||partnerLang};
   }
 }
@@ -2818,8 +2905,8 @@ function renderMsg(msg){
 
   var inner=buildBubbleCard({
     id:msg.id,
-    srcTxt:sides.srcTxt,srcLang:sides.srcLang,
-    tgtTxt:sides.tgtTxt,tgtLang:sides.tgtLang,
+    srcTxt:sides.srcTxt,srcLang:sides.srcLang,srcTtsLang:sides.srcTtsLang,
+    tgtTxt:sides.tgtTxt,tgtLang:sides.tgtLang,tgtTtsLang:sides.tgtTtsLang,
     headerLeft:name,
     time:fmtTime(msg.timestamp||Date.now()),
     status:msg.status||'sent',
@@ -3132,10 +3219,12 @@ function bblSave(id){
   var sourceText, sourceLang, targetText, targetLang;
   if(msg.from==='me'){
     sourceText=msg.sourceText||'';sourceLang=msg.sourceLang||myLang;
-    targetText=getMsgTranslatedText(msg,partnerLang,msg.targetText||'');targetLang=partnerLang;
+    targetLang=msg.targetLang||partnerLang;
+    targetText=getMsgTranslatedText(msg,targetLang,msg.targetText||'').text;
   }else{
     sourceText=msg.sourceText||'';sourceLang=msg.sourceLang||partnerLang;
-    targetText=getMsgTranslatedText(msg,myLang,msg.targetText||'');targetLang=myLang;
+    targetLang=msg.targetLang||myLang;
+    targetText=getMsgTranslatedText(msg,targetLang,msg.targetText||'').text;
   }
   if(!sourceText){toast('Nothing to save');return;}
   if(!targetText){toast('Wait for translation before saving');return;}
@@ -3252,7 +3341,15 @@ function addSysMsg(t){var c=document.getElementById('messages');if(!c)return;var
 
 function renderInviteCard(msg){
   var c=document.getElementById('messages');if(!c)return;
-  var url=msg.inviteUrl||'';
+  var cid=msg.convId||state.activeConvId;
+  var sess=cid?getSession(cid):null;
+  var currentUrl=sess?buildInviteUrl(sess,getPrefs(),'partner-invite'):'';
+  var needsMigration=!msg.inviteUrl||isLegacyInviteUrl(msg.inviteUrl)||!decodeInvitePayload(new URLSearchParams(String(msg.inviteUrl).split('#')[1]||'').get('i'));
+  if(currentUrl&&needsMigration&&msg.inviteUrl!==currentUrl){
+    msg.inviteUrl=currentUrl;
+    if(cid&&state.messages&&state.messages.indexOf(msg)>=0)saveMsgs(cid,state.messages);
+  }
+  var url=msg.inviteUrl||currentUrl||'';
   var card=document.createElement('div');
   card.id='invite-card-'+msg.id;
   card.style.cssText='background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:16px;margin:8px 0;display:flex;flex-direction:column;align-items:center;gap:10px;';
@@ -4195,7 +4292,8 @@ document.addEventListener('DOMContentLoaded',function(){
   function continueStartup(){
     // Deep link — share-origin invite only
     var up=new URLSearchParams(location.search);
-    var invite=parseInviteFromSearch(up);
+    var hp=new URLSearchParams((location.hash||'').replace(/^#/,''));
+    var invite=parseInviteFromSearch(up,hp);
     if(invite){
       history.replaceState({},'',location.pathname);
       if(invite.rejected){
