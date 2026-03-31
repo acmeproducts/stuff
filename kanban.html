@@ -101,12 +101,16 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 }
 .card.search-hit{border-color:var(--search)}
 .card-line{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;width:100%;min-width:0;justify-content:flex-start}
+.card-line{padding-right:26px}
 .card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;max-width:100%;border:none;background:transparent;padding:0;text-align:left;cursor:pointer;color:#1f6feb}
 .card-platform{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:0 0 auto}
 .card-links{display:inline-flex;align-items:center;gap:8px;position:relative;z-index:1;flex:0 0 auto}
-.card-archive-btn{border:none;background:transparent;padding:2px;display:inline-flex;align-items:center;justify-content:center;color:#6b7280;cursor:pointer;flex:0 0 auto}
+.card-status-btn{border:1px solid var(--border);background:#fff;padding:0;display:inline-flex;align-items:center;justify-content:center;color:#6b7280;cursor:pointer;flex:0 0 auto;border-radius:999px;width:14px;height:14px}
+.card-status-btn:hover{border-color:var(--accent)}
+.card-status-dot{width:8px;height:8px;border-radius:999px;display:block;background:#9ca3af}
+.card-archive-btn{position:absolute;top:8px;right:8px;border:none;background:transparent;padding:2px;display:inline-flex;align-items:center;justify-content:center;color:#1f6feb;cursor:pointer;flex:0 0 auto}
 .card-archive-btn svg{width:14px;height:14px;fill:currentColor}
-.card-archive-btn:hover{color:var(--danger)}
+.card-archive-btn:hover{color:#1d4ed8}
 .card-links a,.card-links span{font-size:12px;text-decoration:none;color:#1f6feb}
 .card-links .empty{color:#9ca3af}
 .card-links a,.attachment-item .attachment-link,.live-notes-preview{
@@ -360,10 +364,6 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
         <option value="vertical">Vertical</option>
       </select>
     </div>
-    <div class="field">
-      <label>Copy & paste these status emojis</label>
-      <div id="emojiBox" style="border:1px dashed var(--border);border-radius:10px;padding:8px 10px;user-select:all">🟢 🟡 🔴 ⭐ 😡 🤬 🙃 😃</div>
-    </div>
     <div class="row">
       <button class="btn primary" value="save">Apply</button>
       <button class="btn" value="cancel">Cancel</button>
@@ -519,6 +519,21 @@ function fmtBytes(bytes){
   let value=n/1024, i=0;
   while(value>=1024 && i<units.length-1){ value/=1024; i++; }
   return `${value.toFixed(value>=10?0:1)} ${units[i]}`;
+}
+const STATUS_COLORS = Object.freeze(["gray","red","yellow","green","blue","orange","white","black"]);
+const STATUS_COLOR_MAP = Object.freeze({
+  gray:"#9ca3af",
+  red:"#ef4444",
+  yellow:"#eab308",
+  green:"#22c55e",
+  blue:"#3b82f6",
+  orange:"#f97316",
+  white:"#ffffff",
+  black:"#111827"
+});
+function normalizeStatusColor(color){
+  const value=String(color||"").trim().toLowerCase();
+  return STATUS_COLORS.includes(value) ? value : "gray";
 }
 
 /* ===== Ordering ===== */
@@ -883,7 +898,33 @@ function renderCard(card){
   live.textContent="Live";
   if(liveUrl){ live.href=liveUrl; live.target="_blank"; live.rel="noopener"; live.draggable=false; live.onclick=(e)=> e.stopPropagation(); live.addEventListener("pointerdown",e=>e.stopPropagation()); live.addEventListener("pointerup",e=>e.stopPropagation()); }
   else live.className="empty";
-  links.append(dev,live);
+  const statusBtn=document.createElement("button");
+  statusBtn.type="button";
+  statusBtn.className="card-status-btn";
+  statusBtn.title="Status";
+  statusBtn.setAttribute("aria-label","Change status color");
+  const statusDot=document.createElement("span");
+  statusDot.className="card-status-dot";
+  const applyStatusDot=(colorName)=>{
+    const normalized=normalizeStatusColor(colorName);
+    statusDot.style.background=STATUS_COLOR_MAP[normalized];
+    statusDot.style.border=normalized==="white" ? "1px solid #cbd5e1" : "none";
+    statusBtn.title=`Status: ${normalized}`;
+  };
+  applyStatusDot(card.statusColor);
+  statusBtn.append(statusDot);
+  statusBtn.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    const current=normalizeStatusColor(card.statusColor);
+    const choice=prompt(`Status color (${STATUS_COLORS.join(", ")})`, current);
+    if(choice===null) return;
+    const next=normalizeStatusColor(choice);
+    if(next===current) return;
+    updateCard(card.id,{ statusColor:next });
+  });
+  statusBtn.addEventListener("pointerdown", e=>e.stopPropagation());
+  statusBtn.addEventListener("pointerup", e=>e.stopPropagation());
+  links.append(dev,live,statusBtn);
   const archiveBtn=document.createElement("button");
   archiveBtn.type="button";
   archiveBtn.className="card-archive-btn";
@@ -893,7 +934,7 @@ function renderCard(card){
   archiveBtn.addEventListener("click", (e)=>{ e.stopPropagation(); archiveCard(card.id); });
   archiveBtn.addEventListener("pointerdown", e=>e.stopPropagation());
   archiveBtn.addEventListener("pointerup", e=>e.stopPropagation());
-  line.append(title,links,archiveBtn); el.append(line);
+  line.append(title,links); el.append(line,archiveBtn);
 
   const tagsRow=document.createElement("div"); tagsRow.className="card-tags";
   const p=document.createElement("span"); p.className="chip card-platform"; p.textContent=card.platform;
@@ -902,6 +943,7 @@ function renderCard(card){
   el.append(tagsRow);
 
   const detail=document.createElement("div"); detail.className="card-detail";
+  ["pointerdown","pointerup","mousedown","mouseup","dragstart"].forEach(ev=>detail.addEventListener(ev, e=>e.stopPropagation()));
   if(isCollapsed) detail.classList.add("collapsed");
 
   const inlineState={
@@ -910,6 +952,7 @@ function renderCard(card){
     stage: card.stage,
     dev: card.dev||"",
     live: card.live||"",
+    statusColor: normalizeStatusColor(card.statusColor),
     tagArr: (card.tags||[]).slice(),   // NEW: array, not comma string
     notes: card.notes||"",
     files: Array.isArray(card.files) ? card.files.slice() : []
@@ -969,6 +1012,7 @@ function renderCard(card){
       stage:inlineState.stage,
       dev:inlineState.dev.trim(),
       live:inlineState.live.trim(),
+      statusColor:inlineState.statusColor,
       notes:inlineState.notes.trim(),
       tags: inlineState.tagArr.slice(),   // NEW: pull from tagArr
       files:inlineState.files.slice()
@@ -979,6 +1023,7 @@ function renderCard(card){
       patch.stage===card.stage &&
       patch.dev===card.dev &&
       patch.live===card.live &&
+      patch.statusColor===normalizeStatusColor(card.statusColor) &&
       patch.notes===card.notes &&
       JSON.stringify(patch.tags)===JSON.stringify(card.tags||[]) &&
       JSON.stringify(patch.files)===JSON.stringify(card.files||[])
@@ -1103,13 +1148,14 @@ function renderCard(card){
 /* ===== Card Ops ===== */
 function createCard(data){
   const now=Date.now(); const stage=data.stage||state.stages[0]||"Next";
-  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:normalizeUrl(data.dev), live:normalizeUrl(data.live), tags:normalizeTags(data.tags), notes:preprocessNotes(data.notes), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
+  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:normalizeUrl(data.dev), live:normalizeUrl(data.live), statusColor:normalizeStatusColor(data.statusColor), tags:normalizeTags(data.tags), notes:preprocessNotes(data.notes), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
   state.cards.push(c); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id); return c.id;
 }
 function updateCard(id, patch){
   const c=state.cards.find(x=>x.id===id); if(!c) return;
   if(Object.prototype.hasOwnProperty.call(patch,"dev")) patch.dev=normalizeUrl(patch.dev);
   if(Object.prototype.hasOwnProperty.call(patch,"live")) patch.live=normalizeUrl(patch.live);
+  if(Object.prototype.hasOwnProperty.call(patch,"statusColor")) patch.statusColor=normalizeStatusColor(patch.statusColor);
   if(Object.prototype.hasOwnProperty.call(patch,"notes")) patch.notes=preprocessNotes(patch.notes);
   Object.assign(c, patch); c.tags=normalizeTags(c.tags); c.updatedAt=Date.now(); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id);
 }
@@ -1425,6 +1471,7 @@ function applyImportedBoard(obj, sourceLabel="import", options={}){
   state.archive = Array.isArray(state.archive)? state.archive : [];
   state.cardCollapsed = state.cardCollapsed || {};
   state.lastModified = Number(state.lastModified||Date.now());
+  state.cards.forEach(c=>{ c.statusColor=normalizeStatusColor(c.statusColor); });
   state.stages.forEach(st=>{ const list=state.cards.filter(c=>c.stage===st); list.sort((a,b)=>(a.pos??0)-(b.pos??0)||(a.createdAt-b.createdAt)); list.forEach((c,i)=>{ if(typeof c.pos!=="number") c.pos=(i+1)*1000; }); });
   clearTimeout(saveTimer);
   dirty=true;
@@ -1549,7 +1596,7 @@ function applySearch(q){
   $("#searchCount").textContent=(includes.length||excludes.length)? `${currentMatches.length} match(es)`:"";
 }
 function parseSearch(q){ const parts=q.trim().toLowerCase().split(/\s+/).filter(Boolean); const includes=[], excludes=[]; for(const p of parts){ if(p.startsWith("-")&&p.length>1) excludes.push(p.slice(1)); else includes.push(p); } return {includes,excludes}; }
-function haystack(c){ const files = (c.files||[]).map(f=>f.name).join(" "); return [c.title,c.platform,c.stage,c.notes,c.dev,c.live,files,...(c.tags||[])].join(" ").toLowerCase(); }
+function haystack(c){ const files = (c.files||[]).map(f=>f.name).join(" "); return [c.title,c.platform,c.stage,c.notes,c.dev,c.live,normalizeStatusColor(c.statusColor),files,...(c.tags||[])].join(" ").toLowerCase(); }
 function filterCards(cards, inc, exc){ return cards.filter(c=>{ const hay=haystack(c); for(const e of exc){ if(hay.includes(e)) return false; } for(const i of inc){ if(!hay.includes(i)) return false; } return true; }); }
 function highlightMatches(idset, active){ $$(".card").forEach(el=>{ el.classList.toggle("search-hit", active && idset.has(el.dataset.id)); el.style.opacity = active && !idset.has(el.dataset.id) ? 0.35 : 1; }); }
 function renderResultsPreview(cards){ const cont=$("#resultsContainer"); cont.innerHTML=""; const active=$("#search").value.trim().length>0; if(!active||!cards.length) return; const box=document.createElement("div"); box.className="results"; cards.forEach(c=>{ const item=document.createElement("div"); item.className="result-item"; item.innerHTML=`<strong>${escapeHtml(c.title)}</strong><div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`; item.onclick=()=>{ openEditor(c.id); }; box.appendChild(item); }); cont.appendChild(box); }
