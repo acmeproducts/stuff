@@ -1,31 +1,31 @@
-<!-- WebFetch OSS-v3.1-2026-03-29 02:06 AM -->
+<!-- WebFetch OSS-v6.0-2026-03-30 09:05 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>WebFetch OSS - Advanced Crawler</title>
+<title>WebFetch OSS - Recursive Crawler Architecture</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@mozilla/readability@0.5.0/Readability.min.js"></script>
 <style>
 :root {
-  --bg: #f8fafc; /* Slate 50 */
-  --surface: #ffffff; /* White */
-  --surface-hover: #f1f5f9; /* Slate 100 */
-  --border: #e2e8f0; /* Slate 200 */
-  --border2: #cbd5e1; /* Slate 300 */
-  --accent: #0d9488; /* Teal 600 */
-  --accent-hover: #0f766e; /* Teal 700 */
-  --accent2: #ef4444; /* Red 500 */
-  --accent3: #f59e0b; /* Amber 500 */
-  --text: #0f172a; /* Slate 900 */
-  --muted: #64748b; /* Slate 500 */
+  --bg: #09090b;
+  --surface: #18181b;
+  --surface-hover: #27272a;
+  --border: #27272a;
+  --border2: #3f3f46;
+  --accent: #14b8a6;
+  --accent-hover: #0d9488;
+  --accent2: #ef4444;
+  --accent3: #f59e0b;
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
   --mono: 'JetBrains Mono', monospace;
   --sans: 'Inter', sans-serif;
   --touch-target: 44px;
-  --radius: 12px;
-  --radius-sm: 8px;
+  --header-height: 60px;
+  --footer-height: 40px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -35,601 +35,816 @@ body {
   color: var(--text);
   font-family: var(--sans);
   font-size: 14px;
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 header {
+  height: var(--header-height);
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 16px 24px;
-  background: var(--bg);
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.hamburger {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 24px;
+  cursor: pointer;
+  margin-right: 16px;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
 }
 
 .logo {
   font-family: var(--sans);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.5px;
+  margin-right: 32px;
 }
-
 .logo span { color: var(--accent); }
 
-.badge {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: #b45309; /* Darker amber for contrast */
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  border-radius: 9999px;
-  padding: 4px 10px;
+.tab-nav {
+  display: flex;
+  gap: 8px;
+  height: 100%;
+  align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-nav::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0 16px;
+  height: 100%;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
-.status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--muted);
-  margin-left: auto;
-  transition: all 0.3s ease;
-}
-.status-dot.ready { background: var(--accent); box-shadow: 0 0 12px rgba(13, 148, 136, 0.4); }
-.status-dot.busy { background: var(--accent3); box-shadow: 0 0 12px rgba(245, 158, 11, 0.4); animation: pulse 1s infinite; }
-.status-dot.error { background: var(--accent2); box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); }
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(1.2); }
+.app-container {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
 }
 
-.container {
+.view-section {
+  display: none;
+  width: 100%;
+  height: 100%;
+}
+.view-section.active { display: flex; }
+
+.sidebar {
+  width: 280px;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s ease, width 0.3s ease;
+  flex-shrink: 0;
+}
+.sidebar.collapsed { width: 0; transform: translateX(-100%); border-right: none; }
+
+.sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.main-pane {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 0 24px 24px;
-  gap: 16px;
   overflow: hidden;
+  background: var(--bg);
 }
 
-.control-panel {
+.split-top {
+  flex: 1;
+  border-bottom: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 16px;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px;
-  flex-shrink: 0;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+.split-bottom {
+  height: 40%;
+  min-height: 250px;
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--bg);
 }
 
-.mode-selector {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  scrollbar-width: none;
-}
-.mode-selector::-webkit-scrollbar { display: none; }
-
-.mode-btn {
-  min-height: 36px;
-  padding: 0 16px;
-  background: transparent;
+.btn {
+  background: var(--surface-hover);
   border: 1px solid var(--border2);
-  border-radius: 9999px;
-  color: var(--muted);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0 16px;
+  min-height: 36px;
   font-family: var(--sans);
   font-size: 13px;
-  font-weight: 500;
   cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s ease;
-}
-
-.mode-btn:hover { color: var(--text); border-color: var(--muted); }
-.mode-btn.active { background: var(--text); color: var(--surface); border-color: var(--text); }
-
-.url-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-
-#urlInput, #vbInput {
-  flex: 1;
-  min-width: 250px;
-  background: var(--surface);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 14px;
-  padding: 0 16px;
-  min-height: var(--touch-target);
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-#urlInput:focus, #vbInput:focus { 
-  border-color: var(--accent); 
-  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.2); 
-}
-#urlInput::placeholder, #vbInput::placeholder { color: var(--muted); }
-
-#vbInput {
-  width: 100%;
-  padding: 12px 16px;
-  resize: vertical;
-  display: none;
-  min-height: 100px;
-}
-#vbInput.show { display: block; margin-bottom: 16px; }
-
-.btn-primary, .btn-danger {
-  min-height: var(--touch-target);
-  border: none;
-  border-radius: var(--radius-sm);
-  font-family: var(--sans);
-  font-size: 14px;
-  font-weight: 600;
-  padding: 0 24px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
 }
-.btn-primary { background: var(--accent); color: #ffffff; }
-.btn-primary:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); }
-.btn-danger { background: var(--accent2); color: #ffffff; display: none; }
-.btn-danger:hover { background: #dc2626; }
-.btn-primary:active, .btn-danger:active { transform: translateY(0); }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-primary { background: var(--accent); color: #000; border: none; font-weight: 600; }
+.btn-primary:active { opacity: 0.8; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-danger { color: var(--accent2); border-color: var(--accent2); background: transparent; }
 
-.opts-row {
-  display: flex;
-  gap: 20px;
-  margin-top: 20px;
-  flex-wrap: wrap;
-  align-items: center;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-}
-
-.opt-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: color 0.2s;
-}
-.opt-label:hover { color: var(--text); }
-.opt-label input[type="radio"], .opt-label input[type="checkbox"] { 
-  width: 16px; 
-  height: 16px; 
-  accent-color: var(--accent); 
-  cursor: pointer;
-}
-
-.control-input {
-  width: 60px;
+.input-group { margin-bottom: 16px; }
+.input-group label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.input-control {
+  width: 100%;
   background: var(--surface);
   border: 1px solid var(--border2);
   color: var(--text);
   border-radius: 6px;
-  padding: 6px 8px;
+  padding: 10px 12px;
   font-family: var(--mono);
   font-size: 13px;
-  text-align: center;
   outline: none;
 }
-.control-input:focus { border-color: var(--accent); }
+.input-control:focus { border-color: var(--accent); }
 
-.main-area {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+/* Remove default datalist arrow in some browsers for cleaner look */
+input::-webkit-calendar-picker-indicator { opacity: 0.6; cursor: pointer; filter: invert(1); }
+
+.list-item {
+  padding: 12px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
 }
+.list-item:hover { border-color: var(--border2); }
+.list-item.selected { border-color: var(--accent); background: rgba(20, 184, 166, 0.1); }
 
-.pane-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(8px);
-  flex-wrap: wrap;
-}
-
-.pane-btn {
-  background: var(--surface);
+.step-card {
+  background: var(--bg);
   border: 1px solid var(--border2);
   border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-left: 3px solid var(--accent);
+}
+.step-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
   color: var(--text);
-  font-family: var(--sans);
-  font-size: 12px;
-  font-weight: 500;
-  padding: 8px 16px;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-height: 32px;
+  font-weight: 600;
 }
-.pane-btn:hover { background: var(--surface-hover); border-color: var(--muted); }
 
-#output {
-  flex: 1;
-  overflow-y: auto;
-  padding: 32px;
-  line-height: 1.7;
-}
-#output::-webkit-scrollbar { width: 8px; height: 8px; }
-#output::-webkit-scrollbar-track { background: transparent; }
-#output::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
-#output::-webkit-scrollbar-thumb:hover { background: var(--muted); }
-
-#tabletLog {
-  background: var(--surface-hover);
-  border-top: 1px solid var(--border);
-  color: #475569;
-  font-size: 12px;
+.tablet-console {
+  background: #000;
+  color: #a1a1aa;
   font-family: var(--mono);
-  height: 150px;
+  font-size: 12px;
+  padding: 12px;
+  height: 100%;
   overflow-y: auto;
-  padding: 12px 16px;
-  display: none;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  line-height: 1.5;
 }
-#tabletLog.show { display: block; }
-.log-entry { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-.log-entry:last-child { border-bottom: none; }
-.log-entry.error { color: var(--accent2); }
-.log-entry.warn { color: var(--accent3); }
+.log-info { color: #a1a1aa; }
+.log-success { color: var(--accent); }
+.log-warn { color: var(--accent3); }
+.log-error { color: var(--accent2); }
 
 .master-footer {
-  text-align: center;
-  padding: 16px;
-  background: var(--bg);
+  height: var(--footer-height);
+  background: var(--surface);
   border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-family: var(--mono);
   flex-shrink: 0;
 }
 
-.progress-bar { height: 3px; background: transparent; width: 100%; position: relative; overflow: hidden; }
-.progress-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--accent); width: 0%; transition: width 0.3s ease; }
-
-/* Article Formatting overrides */
-#output.article { font-family: Georgia, serif; font-size: 17px; max-width: 720px; margin: 0 auto; color: #334155; }
-#output.article h1 { font-family: var(--sans); color: var(--text); font-size: 32px; font-weight: 700; margin-bottom: 0.75em; line-height: 1.2; }
-#output.article h2 { font-family: var(--sans); color: var(--text); font-size: 24px; margin: 1.5em 0 0.75em; }
-#output.article p { margin-bottom: 1.25em; }
-#output.article a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(13, 148, 136, 0.3); transition: border-color 0.2s; }
-#output.article a:hover { border-color: var(--accent); }
-#output.article img { max-width: 100%; height: auto; border-radius: var(--radius-sm); margin: 2em 0; }
-#output.article pre, #output.article code { background: var(--surface-hover); font-family: var(--mono); font-size: 14px; border-radius: 6px; padding: 0.2em 0.4em; border: 1px solid var(--border); }
-#output.article pre { padding: 16px; overflow-x: auto; margin-bottom: 1.5em; }
-#output.plain { white-space: pre-wrap; word-break: break-word; font-size: 13px; font-family: var(--mono); color: var(--text); }
-
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--muted);
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+}
 </style>
 </head>
 <body>
 
+<!-- Central Datalist for CSS Suggestions -->
+<datalist id="selectorPresets">
+  <option value="a.container__link">CNN/News Article Links</option>
+  <option value="article a">Standard Article Links</option>
+  <option value="main a">Main Body Links</option>
+  <option value=".nav a">Navigation Bar Links</option>
+  <option value="a[href*='/article/']">URLs containing '/article/'</option>
+  <option value="a[href^='https']">All Absolute Links</option>
+</datalist>
+
 <header>
-  <div class="logo">Web<span>Fetch</span></div>
-  <div class="badge">Advanced</div>
-  <div id="statusDot" class="status-dot ready"></div>
+  <button class="hamburger" id="navToggle">☰</button>
+  <div class="logo">Web<span>Fetch</span> v6</div>
+  <div class="tab-nav">
+    <button class="tab-btn active" data-target="view-config">Config</button>
+    <button class="tab-btn" data-target="view-ops">Ops (Run)</button>
+    <button class="tab-btn" data-target="view-results">Results</button>
+    <button class="tab-btn" data-target="view-settings">Settings</button>
+  </div>
 </header>
 
-<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+<div class="app-container">
 
-<div class="container">
-  <div class="control-panel">
-    <div class="mode-selector">
-      <button class="mode-btn active" data-mode="single">Single Page</button>
-      <button class="mode-btn" data-mode="crawl-v1">OSS-v1 (Crawl)</button>
-      <button class="mode-btn" data-mode="crawl-v2">OSS-v2 (vBulletin)</button>
+  <!-- CONFIG TAB -->
+  <div id="view-config" class="view-section active">
+    <div class="sidebar" id="config-sidebar">
+      <div class="sidebar-header">
+        <span style="font-weight:600;">Saved Configs</span>
+        <button class="btn" id="btnNewConfig">+</button>
+      </div>
+      <div class="sidebar-content" id="configList"></div>
     </div>
     
-    <textarea id="vbInput" placeholder="Enter URLs (one per line)"></textarea>
-    
-    <div class="url-row">
-      <input id="urlInput" type="url" placeholder="https://example.com" autocomplete="off" spellcheck="false">
-      <button id="fetchBtn" class="btn-primary">Fetch Data</button>
-      <button id="stopBtn" class="btn-danger">Stop Process</button>
-    </div>
-    
-    <div class="opts-row">
-      <label class="opt-label"><input type="radio" name="fmt" value="article" checked> Article View</label>
-      <label class="opt-label"><input type="radio" name="fmt" value="text"> Plain Text</label>
-      <label class="opt-label"><input type="radio" name="fmt" value="raw"> Raw HTML</label>
-      <div style="width: 1px; height: 16px; background: var(--border2); margin: 0 8px;"></div>
-      <label class="opt-label"><input type="checkbox" id="chkImages" checked> Keep Images</label>
-      <label class="opt-label" id="depthControl" style="display:none;">
-        Max Pages: <input type="number" id="numPages" class="control-input" value="3" min="1" max="50">
-      </label>
-      <label class="opt-label"><input type="checkbox" id="chkLog"> Show Console</label>
-    </div>
-  </div>
-
-  <div class="main-area">
-    <div class="pane-header">
-      <span style="color:var(--muted); font-size:13px; font-weight:500; margin-right:auto;" id="statsBar">System Ready</span>
-      <button id="rawBtn" class="pane-btn" style="display:none">Toggle View</button>
-      <button id="copyBtn" class="pane-btn" style="display:none">Copy Content</button>
-      <button id="downloadBtn" class="pane-btn" style="display:none">Export File</button>
-    </div>
-    <div id="output">
-      <div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--muted); font-family:var(--mono); opacity:0.8;">
-        Waiting for input...
+    <div class="main-pane">
+      <div class="split-top">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+          <h3 style="font-size: 14px; color: var(--text);">Page Processing Rules</h3>
+          <button class="btn" id="btnAddStep" style="display:none; border-color:var(--accent); color:var(--accent);">+ Add Rule</button>
+        </div>
+        <p style="font-size:12px; color:var(--muted); margin-bottom:16px;">These rules execute on every page the crawler visits. Extract Links will push new URLs to the queue. Scrape Content saves the data.</p>
+        
+        <div id="stepsContainer">
+          <div class="empty-state">Select or create a config to build rules.</div>
+        </div>
+      </div>
+      <div class="split-bottom">
+        <h3 style="margin-bottom: 16px; font-size: 14px; color: var(--text);">Search Parameters</h3>
+        <div id="configParams" style="display:none;">
+          <div class="input-group">
+            <label>Configuration Name</label>
+            <input type="text" class="input-control" id="cfgName" placeholder="e.g., CNN Recursive Crawler">
+          </div>
+          <div class="input-group">
+            <label>Starting Base URL</label>
+            <input type="url" class="input-control" id="cfgUrl" placeholder="https://edition.cnn.com">
+          </div>
+          <div style="display:flex; gap:16px;">
+            <div class="input-group" style="flex:1;">
+              <label>Max Recursion Depth (0 = Flat page only)</label>
+              <input type="number" class="input-control" id="cfgDepth" value="1" min="0" max="5">
+            </div>
+            <div class="input-group" style="flex:1;">
+              <label>Max Pages to Scrape (Safety Limit)</label>
+              <input type="number" class="input-control" id="cfgPages" value="20" min="1" max="500">
+            </div>
+          </div>
+          <button class="btn btn-primary" id="btnSaveConfig" style="width:100%; margin-top:8px;">Save Configuration</button>
+        </div>
       </div>
     </div>
-    <div id="tabletLog"></div>
   </div>
+
+  <!-- OPS (RUN) TAB -->
+  <div id="view-ops" class="view-section">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <span style="font-weight:600;">Select Setup</span>
+      </div>
+      <div class="sidebar-content" id="opsConfigList"></div>
+    </div>
+    
+    <div class="main-pane" style="padding:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h2 id="opsTitle">No Config Selected</h2>
+        <button class="btn btn-primary" id="btnRun" disabled>Execute Run</button>
+      </div>
+      
+      <div style="flex:1; display:flex; flex-direction:column; gap:16px;">
+        <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted); font-family:var(--mono);">
+          <span id="progText">Queue: 0 | Scraped: 0</span>
+        </div>
+        <div style="height: 4px; background: var(--border); border-radius: 2px; overflow:hidden;">
+          <div id="runProgress" style="height: 100%; width: 0%; background: var(--accent); transition: width 0.3s;"></div>
+        </div>
+        
+        <div class="tablet-console" id="runConsole">
+          <div class="log-info">[System] Ready to initiate operational run. Select a config from the left pane.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTS TAB -->
+  <div id="view-results" class="view-section">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <span style="font-weight:600;">Historical Runs</span>
+      </div>
+      <div class="sidebar-content" id="resultsList"></div>
+    </div>
+    <div class="main-pane" style="padding:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h2 id="resTitle">Run Details</h2>
+        <div style="display:flex; gap:8px;">
+          <button class="btn" id="btnExportRes" disabled>Export JSON</button>
+          <button class="btn btn-danger" id="btnDelRes" disabled>Delete</button>
+        </div>
+      </div>
+      <div class="tablet-console" id="resViewer" style="background:var(--surface); color:var(--text);">
+        <div class="empty-state">Select a run from the left panel to view extracted JSON payload.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div id="view-settings" class="view-section">
+    <div class="main-pane" style="padding:24px; max-width:600px; margin:0 auto;">
+      <h2 style="margin-bottom:24px;">Global Settings</h2>
+      <div class="input-group">
+        <label>Primary Proxy Gateway</label>
+        <select class="input-control" id="setProxy">
+          <option value="codetabs">CodeTabs API (Best for HTML)</option>
+          <option value="corsproxy">CorsProxy.io</option>
+          <option value="allorigins">AllOrigins API</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label>Global Request Timeout (ms)</label>
+        <input type="number" class="input-control" id="setTimeout" value="30000">
+      </div>
+      <button class="btn btn-primary" id="btnSaveSettings">Apply Settings</button>
+    </div>
+  </div>
+
 </div>
 
 <footer class="master-footer">
-  WebFetch OSS-v3.1 - 2026-03-29 02:06 AM
+  WebFetch OSS-v6.0 - 2026-03-30 09:05 PM
 </footer>
 
 <script>
-const $ = id => document.getElementById(id);
-let currentMode = 'single';
-let activeController = null;
-let lastHtml = '';
-let lastText = '';
-let showingRaw = false;
-
-// UI Elements
-const els = {
-  url: $('urlInput'), vb: $('vbInput'), fetch: $('fetchBtn'), stop: $('stopBtn'),
-  out: $('output'), stats: $('statsBar'), prog: $('progressFill'), dot: $('statusDot'),
-  depth: $('depthControl'), maxPages: $('numPages'), log: $('tabletLog'),
-  copy: $('copyBtn'), raw: $('rawBtn'), dl: $('downloadBtn')
+const AppState = {
+  configs: JSON.parse(localStorage.getItem('wf_configs') || '[]'),
+  results: JSON.parse(localStorage.getItem('wf_results') || '[]'),
+  settings: JSON.parse(localStorage.getItem('wf_settings') || '{"proxy":"codetabs", "timeout":30000}'),
+  activeConfigId: null,
+  activeResultId: null,
+  tempSteps: []
 };
 
-// --- Storage Persistence Logic ---
-function loadSettings() {
-  const savedUrl = localStorage.getItem('webfetch_url');
-  if (savedUrl) els.url.value = savedUrl;
-  
-  const savedVb = localStorage.getItem('webfetch_vb');
-  if (savedVb) els.vb.value = savedVb;
+function saveState() {
+  localStorage.setItem('wf_configs', JSON.stringify(AppState.configs));
+  localStorage.setItem('wf_results', JSON.stringify(AppState.results));
+  localStorage.setItem('wf_settings', JSON.stringify(AppState.settings));
 }
 
-els.url.addEventListener('input', e => localStorage.setItem('webfetch_url', e.target.value));
-els.vb.addEventListener('input', e => localStorage.setItem('webfetch_vb', e.target.value));
+function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
 
-// Init settings
-loadSettings();
-// ---------------------------------
+// --- UI Navigation ---
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+    e.target.classList.add('active');
+    document.getElementById(e.target.dataset.target).classList.add('active');
+    renderUI();
+  });
+});
 
-// Tablet Logging System
-function uiLog(msg, type = 'info') {
+document.getElementById('navToggle').addEventListener('click', () => {
+  document.querySelectorAll('.sidebar').forEach(sb => sb.classList.toggle('collapsed'));
+});
+
+// --- Config Step Builder ---
+const configList = document.getElementById('configList');
+const configParams = document.getElementById('configParams');
+const stepsContainer = document.getElementById('stepsContainer');
+const btnAddStep = document.getElementById('btnAddStep');
+
+document.getElementById('btnNewConfig').addEventListener('click', () => {
+  AppState.activeConfigId = null;
+  document.getElementById('cfgName').value = '';
+  document.getElementById('cfgUrl').value = '';
+  document.getElementById('cfgDepth').value = '1';
+  document.getElementById('cfgPages').value = '20';
+  
+  // Default ruleset template
+  AppState.tempSteps = [
+    { id: generateId(), type: 'extract_links', value: 'a.container__link' },
+    { id: generateId(), type: 'scrape_content', value: '' }
+  ];
+  renderConfigBuilder();
+});
+
+btnAddStep.addEventListener('click', () => {
+  AppState.tempSteps.push({ id: generateId(), type: 'extract_links', value: 'a' });
+  renderSteps();
+});
+
+function renderConfigBuilder() {
+  configParams.style.display = 'block';
+  btnAddStep.style.display = 'block';
+  renderSteps();
+  renderConfigList();
+}
+
+function renderSteps() {
+  stepsContainer.innerHTML = AppState.tempSteps.map((step, index) => `
+    <div class="step-card" data-step-id="${step.id}">
+      <div class="step-header">
+        <span>Rule ${index + 1}</span>
+        <button class="btn" onclick="removeStep('${step.id}')" style="min-height:24px; padding:0 8px; color:var(--accent2); background:transparent; border:none;">✕</button>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <select class="input-control step-type" style="width:180px;" onchange="updateStep('${step.id}', 'type', this.value)">
+          <option value="extract_links" ${step.type === 'extract_links' ? 'selected' : ''}>Extract Links to Queue</option>
+          <option value="scrape_content" ${step.type === 'scrape_content' ? 'selected' : ''}>Scrape Article Content</option>
+        </select>
+        <input type="text" class="input-control step-value" 
+               list="selectorPresets"
+               value="${step.value || ''}" 
+               placeholder="${step.type === 'extract_links' ? 'Enter CSS Selector (e.g., a.article)' : 'N/A'}" 
+               ${step.type === 'scrape_content' ? 'disabled' : ''}
+               onchange="updateStep('${step.id}', 'value', this.value)">
+      </div>
+    </div>
+  `).join('');
+}
+
+window.removeStep = (id) => {
+  AppState.tempSteps = AppState.tempSteps.filter(s => s.id !== id);
+  renderSteps();
+};
+
+window.updateStep = (id, key, val) => {
+  const step = AppState.tempSteps.find(s => s.id === id);
+  if (step) {
+    step[key] = val;
+    if(key === 'type') renderSteps(); // Re-render for disabled states
+  }
+};
+
+document.getElementById('btnSaveConfig').addEventListener('click', () => {
+  const name = document.getElementById('cfgName').value.trim() || 'Untitled Config';
+  const cfgData = {
+    id: AppState.activeConfigId || generateId(),
+    name: name,
+    url: document.getElementById('cfgUrl').value.trim(),
+    depth: parseInt(document.getElementById('cfgDepth').value) || 0,
+    pages: parseInt(document.getElementById('cfgPages').value) || 20,
+    steps: JSON.parse(JSON.stringify(AppState.tempSteps))
+  };
+
+  if (!cfgData.url) { alert("Base URL is required."); return; }
+
+  if (AppState.activeConfigId) {
+    const idx = AppState.configs.findIndex(c => c.id === AppState.activeConfigId);
+    if(idx > -1) AppState.configs[idx] = cfgData;
+  } else {
+    AppState.configs.push(cfgData);
+    AppState.activeConfigId = cfgData.id;
+  }
+  
+  saveState();
+  renderConfigList();
+  alert('Configuration Saved.');
+});
+
+function renderConfigList() {
+  configList.innerHTML = AppState.configs.map(c => `
+    <div class="list-item ${c.id === AppState.activeConfigId ? 'selected' : ''}" data-id="${c.id}">
+      <div style="font-weight:500">${c.name}</div>
+      <div style="font-size:11px; color:var(--muted); text-overflow:ellipsis; overflow:hidden;">${c.url}</div>
+      <div style="font-size:10px; color:var(--accent); margin-top:4px;">Depth: ${c.depth} | Limit: ${c.pages}</div>
+    </div>
+  `).join('');
+
+  configList.querySelectorAll('.list-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      const id = e.currentTarget.dataset.id;
+      AppState.activeConfigId = id;
+      const cfg = AppState.configs.find(c => c.id === id);
+      document.getElementById('cfgName').value = cfg.name;
+      document.getElementById('cfgUrl').value = cfg.url;
+      document.getElementById('cfgDepth').value = cfg.depth;
+      document.getElementById('cfgPages').value = cfg.pages;
+      AppState.tempSteps = JSON.parse(JSON.stringify(cfg.steps));
+      renderConfigBuilder();
+    });
+  });
+}
+
+// --- BFS Execution Engine ---
+const opsConfigList = document.getElementById('opsConfigList');
+const runConsole = document.getElementById('runConsole');
+const btnRun = document.getElementById('btnRun');
+const progBar = document.getElementById('runProgress');
+const progText = document.getElementById('progText');
+let activeOpsConfig = null;
+let abortController = null;
+
+const PROXIES = {
+  codetabs: u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+  allorigins: u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+  corsproxy: u => `https://corsproxy.io/?${encodeURIComponent(u)}`
+};
+
+function opsLog(msg, type='info') {
   const d = new Date().toLocaleTimeString([], { hour12: false });
-  const div = document.createElement('div');
-  div.className = `log-entry ${type}`;
-  div.textContent = `[${d}] ${msg}`;
-  els.log.prepend(div);
-  if (els.log.children.length > 50) els.log.lastChild.remove();
+  runConsole.innerHTML += `<div class="log-${type}">[${d}] ${msg}</div>`;
+  runConsole.scrollTop = runConsole.scrollHeight;
 }
 
-$('chkLog').addEventListener('change', e => {
-  els.log.classList.toggle('show', e.target.checked);
-});
+function renderOpsList() {
+  opsConfigList.innerHTML = AppState.configs.map(c => `
+    <div class="list-item ${activeOpsConfig && c.id === activeOpsConfig.id ? 'selected' : ''}" data-id="${c.id}">
+      <div style="font-weight:500">${c.name}</div>
+    </div>
+  `).join('');
 
-// Mode Switching
-document.querySelectorAll('.mode-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentMode = btn.dataset.mode;
-    
-    const isMulti = currentMode !== 'single';
-    els.vb.classList.toggle('show', currentMode === 'crawl-v2');
-    els.url.style.display = currentMode === 'crawl-v2' ? 'none' : 'block';
-    els.depth.style.display = isMulti ? 'flex' : 'none';
+  opsConfigList.querySelectorAll('.list-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      const id = e.currentTarget.dataset.id;
+      activeOpsConfig = AppState.configs.find(c => c.id === id);
+      document.getElementById('opsTitle').textContent = `Ready: ${activeOpsConfig.name}`;
+      btnRun.disabled = false;
+      renderOpsList();
+    });
   });
-});
-
-// Proxy List
-const PROXIES = [
-  { name: 'codetabs', url: u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`, extract: r => r.text() },
-  { name: 'allorigins', url: u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, extract: async r => (await r.json()).contents },
-  { name: 'corsproxy', url: u => `https://corsproxy.io/?${encodeURIComponent(u)}`, extract: r => r.text() }
-];
-
-async function fetchWithProxy(url, signal) {
-  let lastErr;
-  for (const p of PROXIES) {
-    if (signal.aborted) throw new Error('Aborted by user');
-    try {
-      uiLog(`Trying proxy: ${p.name} for ${url.substring(0,40)}...`);
-      const res = await fetch(p.url(url), { signal });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const html = await p.extract(res);
-      if (!html || html.length < 100) throw new Error('Empty response');
-      return html;
-    } catch (e) {
-      if (e.name === 'AbortError' || signal.aborted) throw new Error('Aborted by user');
-      lastErr = e.message;
-      uiLog(`Proxy ${p.name} failed: ${lastErr}`, 'warn');
-    }
-  }
-  throw new Error(`All proxies failed. Last err: ${lastErr}`);
 }
 
-function parseHTML(html, url) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  let base = doc.querySelector('base') || doc.createElement('base');
-  if(!base.parentNode) doc.head.prepend(base);
-  base.href = url;
-  return new Readability(doc).parse();
-}
-
-function rawExtract(html, keepImages) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  doc.querySelectorAll('script,style,nav,footer,aside,header,iframe').forEach(el => el.remove());
-  if (!keepImages) doc.querySelectorAll('img').forEach(el => el.remove());
-  return doc.body ? doc.body.textContent.replace(/\n{3,}/g, '\n\n').trim() : '';
-}
-
-function getFormat() { return document.querySelector('input[name="fmt"]:checked').value; }
-
-function setUIState(state) {
-  if (state === 'busy') {
-    els.fetch.style.display = 'none';
-    els.stop.style.display = 'flex';
-    els.dot.className = 'status-dot busy';
-    els.prog.style.width = '0%';
-    els.copy.style.display = 'none';
-    els.dl.style.display = 'none';
-    els.raw.style.display = 'none';
-    els.stats.textContent = 'Processing...';
-  } else {
-    els.fetch.style.display = 'flex';
-    els.stop.style.display = 'none';
-    els.dot.className = state === 'error' ? 'status-dot error' : 'status-dot ready';
-    els.prog.style.width = '100%';
-  }
-}
-
-// Single Fetch Execution
-async function runSingle(url) {
-  try {
-    const html = await fetchWithProxy(url, activeController.signal);
-    const article = parseHTML(html, url);
-    const fmt = getFormat();
-    const keepImg = $('chkImages').checked;
-    
-    if (fmt === 'raw') {
-      lastText = html;
-      els.out.className = 'plain';
-      els.out.textContent = html;
-    } else {
-      if (article && fmt === 'article') {
-        let c = article.content;
-        if(!keepImg) c = c.replace(/<img[^>]*>/gi, '');
-        lastHtml = c;
-        lastText = article.textContent;
-        els.out.className = 'article';
-        els.out.innerHTML = `<h1>${article.title || 'Untitled'}</h1>${c}`;
-        els.raw.style.display = 'block';
-      } else {
-        lastText = rawExtract(html, keepImg);
-        els.out.className = 'plain';
-        els.out.textContent = lastText;
-      }
-    }
-    
-    els.stats.textContent = `Words: ${lastText.split(/\s+/).length.toLocaleString()}`;
-    els.copy.style.display = 'block';
-    setUIState('ready');
-  } catch (e) {
-    uiLog(e.message, 'error');
-    els.out.innerHTML = `<div style="color:var(--accent2); font-family:var(--mono);">[Error] ${e.message}</div>`;
-    els.stats.textContent = 'Failed';
-    setUIState('error');
-  }
-}
-
-// Basic Multipage scaffolding
-async function runMulti(urls, mode) {
-  const max = parseInt(els.maxPages.value) || 3;
-  let results = [];
-  let processed = 0;
+async function fetchHTML(url) {
+  const proxyUrl = PROXIES[AppState.settings.proxy](url);
+  const timeoutId = setTimeout(() => abortController.abort(), AppState.settings.timeout);
   
-  els.out.innerHTML = '';
-  els.out.className = 'plain';
-
   try {
-    for (const u of urls) {
-      for(let p = 1; p <= max; p++) {
-        if (activeController.signal.aborted) throw new Error('Aborted');
-        
-        let targetUrl = u;
-        if (mode === 'crawl-v2' && p > 1) {
-          targetUrl = `${u}${u.includes('?') ? '&' : '?'}page=${p}`;
-        } else if (mode === 'crawl-v1' && p > 1) {
-           break; 
-        }
-
-        uiLog(`Fetching: ${targetUrl}`);
-        const html = await fetchWithProxy(targetUrl, activeController.signal);
-        const text = rawExtract(html, $('chkImages').checked);
-        
-        results.push(`--- URL: ${targetUrl} ---\n${text}\n\n`);
-        processed++;
-        els.prog.style.width = `${(processed / (urls.length * max)) * 100}%`;
-      }
-    }
+    const res = await fetch(proxyUrl, { signal: abortController.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     
-    lastText = results.join('\n');
-    els.out.textContent = lastText;
-    els.stats.textContent = `Processed: ${processed} pages | Words: ${lastText.split(/\s+/).length.toLocaleString()}`;
-    els.copy.style.display = 'block';
-    els.dl.style.display = 'block';
-    setUIState('ready');
+    if (AppState.settings.proxy === 'allorigins') {
+      const json = await res.json();
+      return json.contents;
+    }
+    return await res.text();
   } catch(e) {
-    uiLog(e.message, 'error');
-    els.out.textContent += `\n\n[Halted: ${e.message}]`;
-    els.stats.textContent = `Stopped. Processed: ${processed}`;
-    setUIState('error');
+    if(e.name === 'AbortError') throw new Error("Request Timed Out");
+    throw new Error(`Fetch failed: ${e.message}`);
   }
 }
 
-// Event Listeners
-els.fetch.addEventListener('click', () => {
-  activeController = new AbortController();
-  setUIState('busy');
-  els.out.innerHTML = '<div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--accent); font-family:var(--mono);">Fetching data...</div>';
+function updateProgress(queueSize, scraped, maxPages) {
+  progText.textContent = `Queue: ${queueSize} | Scraped: ${scraped} / ${maxPages}`;
+  progBar.style.width = `${Math.min((scraped / maxPages) * 100, 100)}%`;
+}
+
+btnRun.addEventListener('click', async () => {
+  if(!activeOpsConfig || !activeOpsConfig.url) return;
   
-  if (currentMode === 'single') {
-    if(!els.url.value) return setUIState('error');
-    runSingle(els.url.value);
-  } else {
-    const lines = currentMode === 'crawl-v2' ? els.vb.value : els.url.value;
-    const urls = lines.split('\n').map(u=>u.trim()).filter(Boolean);
-    if(!urls.length) return setUIState('error');
-    runMulti(urls, currentMode);
+  if (btnRun.textContent === 'Stop') {
+    if(abortController) abortController.abort();
+    opsLog('Process aborted by user.', 'warn');
+    btnRun.textContent = 'Execute Run';
+    btnRun.classList.remove('btn-danger');
+    btnRun.classList.add('btn-primary');
+    return;
+  }
+
+  btnRun.textContent = 'Stop';
+  btnRun.classList.remove('btn-primary');
+  btnRun.classList.add('btn-danger');
+  abortController = new AbortController();
+  
+  runConsole.innerHTML = '';
+  progBar.style.width = '0%';
+  progBar.style.background = 'var(--accent)';
+  
+  opsLog(`Starting BFS Crawler for: ${activeOpsConfig.name}`, 'info');
+  opsLog(`Target: ${activeOpsConfig.url} | Max Depth: ${activeOpsConfig.depth} | Limit: ${activeOpsConfig.pages} pages`);
+  
+  let queue = [{ url: activeOpsConfig.url, depth: 0 }];
+  let visited = new Set();
+  let extractedData = [];
+  
+  updateProgress(queue.length, extractedData.length, activeOpsConfig.pages);
+
+  try {
+    while (queue.length > 0 && extractedData.length < activeOpsConfig.pages) {
+      if (abortController.signal.aborted) break;
+      
+      const current = queue.shift();
+      
+      // Normalize URL to prevent dupes with/without trailing slashes
+      const cleanUrl = current.url.replace(/\/$/, "");
+      if (visited.has(cleanUrl)) continue;
+      visited.add(cleanUrl);
+
+      opsLog(`[D:${current.depth}] Fetching: ${current.url}`);
+      
+      try {
+        const html = await fetchHTML(current.url);
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        
+        // Establish base URI for relative links
+        let base = doc.createElement('base');
+        base.href = current.url;
+        doc.head.prepend(base);
+
+        let pageScraped = false;
+
+        // Apply rules sequentially to the current DOM
+        for (const rule of activeOpsConfig.steps) {
+          
+          if (rule.type === 'extract_links' && current.depth < activeOpsConfig.depth) {
+            if(!rule.value) continue;
+            const links = doc.querySelectorAll(rule.value);
+            let added = 0;
+            links.forEach(l => {
+              if (l.href && !l.href.startsWith('javascript:') && !l.href.startsWith('mailto:')) {
+                queue.push({ url: l.href, depth: current.depth + 1 });
+                added++;
+              }
+            });
+            opsLog(`Rule (Extract): Found ${added} matching links.`, 'info');
+          }
+          
+          if (rule.type === 'scrape_content' && !pageScraped) {
+            const reader = new Readability(doc.cloneNode(true));
+            const article = reader.parse();
+            if (article && article.textContent.length > 100) {
+              extractedData.push({
+                url: current.url,
+                depth: current.depth,
+                title: article.title,
+                content: article.textContent
+              });
+              opsLog(`Rule (Scrape): Success. Length: ${article.textContent.length} chars.`, 'success');
+              pageScraped = true; // Prevent double scraping same page if multiple rules exist
+            } else {
+               opsLog(`Rule (Scrape): Failed or content too short.`, 'warn');
+            }
+          }
+        }
+        
+      } catch (err) {
+        opsLog(`Error processing ${current.url}: ${err.message}`, 'error');
+      }
+
+      updateProgress(queue.length, extractedData.length, activeOpsConfig.pages);
+      
+      // Tiny delay to prevent locking the UI thread entirely
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    if(extractedData.length > 0) {
+      const resId = generateId();
+      AppState.results.push({
+        id: resId,
+        configId: activeOpsConfig.id,
+        configName: activeOpsConfig.name,
+        date: new Date().toLocaleString(),
+        payload: extractedData
+      });
+      saveState();
+      progBar.style.width = '100%';
+      opsLog(`Run Complete. Stored ${extractedData.length} pages to Results tab.`, 'success');
+    } else {
+      progBar.style.background = 'var(--accent3)';
+      opsLog(`Run Complete, but no data was successfully scraped.`, 'warn');
+    }
+
+  } catch (err) {
+    if(err.name !== 'AbortError') opsLog(`Fatal Engine Error: ${err.message}`, 'error');
+    progBar.style.background = 'var(--accent2)';
+  } finally {
+    btnRun.textContent = 'Execute Run';
+    btnRun.classList.remove('btn-danger');
+    btnRun.classList.add('btn-primary');
+    renderResultsList();
   }
 });
 
-els.stop.addEventListener('click', () => {
-  if (activeController) activeController.abort();
-  setUIState('ready');
-  uiLog('Operation cancelled by user', 'warn');
-});
+// --- Results UI ---
+const resultsList = document.getElementById('resultsList');
+const resViewer = document.getElementById('resViewer');
+const btnExportRes = document.getElementById('btnExportRes');
+const btnDelRes = document.getElementById('btnDelRes');
 
-els.copy.addEventListener('click', () => {
-  navigator.clipboard.writeText(lastText).then(() => {
-    els.copy.textContent = 'Copied!';
-    setTimeout(() => els.copy.textContent = 'Copy Content', 2000);
+function renderResultsList() {
+  resultsList.innerHTML = AppState.results.map(r => `
+    <div class="list-item ${r.id === AppState.activeResultId ? 'selected' : ''}" data-id="${r.id}">
+      <div style="font-weight:500">${r.configName}</div>
+      <div style="font-size:11px; color:var(--muted);">${r.date} | ${r.payload.length} pages</div>
+    </div>
+  `).join('');
+
+  resultsList.querySelectorAll('.list-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      const id = e.currentTarget.dataset.id;
+      AppState.activeResultId = id;
+      
+      const res = AppState.results.find(r => r.id === id);
+      document.getElementById('resTitle').textContent = `Run: ${res.date}`;
+      resViewer.innerHTML = `<pre style="white-space:pre-wrap; font-family:var(--mono);">${JSON.stringify(res.payload, null, 2)}</pre>`;
+      
+      btnExportRes.disabled = false;
+      btnDelRes.disabled = false;
+      renderResultsList();
+    });
   });
-});
+}
 
-els.raw.addEventListener('click', () => {
-  showingRaw = !showingRaw;
-  els.out.className = showingRaw ? 'plain' : 'article';
-  if(showingRaw) els.out.textContent = lastHtml;
-  else els.out.innerHTML = lastHtml;
-});
-
-els.dl.addEventListener('click', () => {
-  const blob = new Blob([lastText], { type: 'text/plain' });
+btnExportRes.addEventListener('click', () => {
+  const res = AppState.results.find(r => r.id === AppState.activeResultId);
+  if(!res) return;
+  const blob = new Blob([JSON.stringify(res.payload, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `webfetch-${Date.now()}.txt`;
+  a.download = `wf_result_${res.id}.json`;
   a.click();
 });
+
+btnDelRes.addEventListener('click', () => {
+  AppState.results = AppState.results.filter(r => r.id !== AppState.activeResultId);
+  AppState.activeResultId = null;
+  saveState();
+  resViewer.innerHTML = '<div class="empty-state">Select a run from the left panel.</div>';
+  document.getElementById('resTitle').textContent = 'Run Details';
+  btnExportRes.disabled = true;
+  btnDelRes.disabled = true;
+  renderResultsList();
+});
+
+// --- Settings ---
+document.getElementById('btnSaveSettings').addEventListener('click', () => {
+  AppState.settings = {
+    proxy: document.getElementById('setProxy').value,
+    timeout: parseInt(document.getElementById('setTimeout').value) || 30000
+  };
+  saveState();
+  alert('Settings Applied');
+});
+
+function renderUI() {
+  renderConfigList();
+  renderOpsList();
+  renderResultsList();
+  document.getElementById('setProxy').value = AppState.settings.proxy;
+  document.getElementById('setTimeout').value = AppState.settings.timeout;
+}
+
+// Init
+renderUI();
+if (AppState.configs.length > 0) {
+  AppState.activeConfigId = AppState.configs[0].id;
+  const cfg = AppState.configs[0];
+  document.getElementById('cfgName').value = cfg.name;
+  document.getElementById('cfgUrl').value = cfg.url;
+  document.getElementById('cfgDepth').value = cfg.depth;
+  document.getElementById('cfgPages').value = cfg.pages;
+  AppState.tempSteps = JSON.parse(JSON.stringify(cfg.steps));
+  renderConfigBuilder();
+}
 </script>
 </body>
 </html>
