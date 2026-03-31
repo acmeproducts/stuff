@@ -21,10 +21,10 @@
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;font-family:system-ui,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:linear-gradient(180deg,#f4f7fb 0%, #e9eef5 100%);color:var(--text)}
-header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--border);}
-.toolbar{padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:nowrap;white-space:nowrap;overflow:auto}
+header{position:relative;z-index:20;background:var(--panel);border-bottom:1px solid var(--border);}
+.toolbar{position:sticky;top:0;z-index:22;padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:nowrap;white-space:nowrap;overflow:auto;background:var(--panel)}
 .toolbar .btn{flex:0 0 auto}
-.searchbar{padding:10px 16px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}
+.searchbar{position:sticky;top:60px;z-index:21;padding:10px 16px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;background:var(--panel)}
 #search{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:15px}
 #btnClearSearch{padding:8px 10px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer}
 .btn{padding:10px 14px;border:1px solid var(--border);background:var(--panel);border-radius:10px;cursor:pointer;font-weight:600}
@@ -118,11 +118,17 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .card-edit-field label{font-size:11px;color:var(--muted);font-weight:600}
 .card-edit-field input,.card-edit-field select,.card-edit-field textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;background:#fff;color:inherit}
 .card-edit-field textarea{resize:vertical;min-height:72px}
+.card-edit-field input,.card-edit-field textarea,.card-edit-field select,
+.field input,.field textarea,.field select,
+#search,#tagInput,#bKeyInput,#bRepoUrl{
+  user-select:text;
+  -webkit-user-select:text;
+}
 .card-inline-notes{display:flex;flex-direction:column;gap:0}
 .card-inline-notes .live-notes-preview{min-height:72px;max-height:none}
 .card-inline-notes .live-notes-preview.hidden{display:none}
 .card-tags{display:flex;gap:6px;flex-wrap:wrap}
-.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px;max-width:100%;overflow-wrap:anywhere}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
 .chip button:hover{color:#000}
 .attachment-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
@@ -174,7 +180,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
 /* Search preview */
-.results{position:sticky;top:96px;margin:0 16px 8px 16px;background:var(--panel);border:1px solid var(--border);border-radius:10px;max-height:260px;overflow:auto}
+.results{position:sticky;top:118px;margin:0 16px 8px 16px;background:var(--panel);border:1px solid var(--border);border-radius:10px;max-height:260px;overflow:auto}
 .result-item{padding:10px 12px;border-top:1px solid var(--border);cursor:pointer}
 .result-item:first-child{border-top:none}
 .result-item:hover{background:#f1f5ff}
@@ -199,6 +205,15 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 /* Responsive tightening */
 @media (max-width:900px){
   main#board[data-layout="horizontal"], main#board[data-layout="auto"]{grid-template-columns:1fr}
+  .searchbar{top:56px}
+  .results{top:112px}
+}
+@media (max-width:700px){
+  .toolbar{flex-wrap:wrap;white-space:normal;overflow:visible}
+  .searchbar{top:104px}
+  .results{top:160px}
+  .card-line{flex-wrap:wrap}
+  .card-title{white-space:normal}
 }
 </style>
 </head>
@@ -419,6 +434,7 @@ function updateKeyLabel(){ document.getElementById("boardKeyLabel").textContent 
 const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
 const GITHUB_PAT_KEY = "github_pat";
+const LEGACY_GITHUB_PAT_KEYS = ["kanban_github_pat","ai_jobs_kanban_github_pat"];
 const DEFAULT_GITHUB_SYNC_CONFIG = Object.freeze({
   owner:"acmeproducts",
   repo:"stuff",
@@ -433,6 +449,18 @@ let autoSyncTimer = null;
 let autoSyncInFlight = null;
 let syncBootstrapComplete = false;
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
+function loadPersistedGithubToken(){
+  const keys=[GITHUB_PAT_KEY,...LEGACY_GITHUB_PAT_KEYS];
+  for(const key of keys){
+    const token=localStorage.getItem(key);
+    if(token?.trim()){
+      const clean=token.trim();
+      trySave(GITHUB_PAT_KEY, clean);
+      return clean;
+    }
+  }
+  return "";
+}
 function persistNow(options={}){
   const { touchTimestamp=true, syncToGitHub=true } = options || {};
   if(touchTimestamp) state.lastModified=Date.now();
@@ -528,19 +556,40 @@ function render(){
     };
     const count=document.createElement("span"); count.className="muted"; count.textContent=state.cards.filter(c=>c.stage===stage).length;
     const laneCards=stageCards(stage);
+    const laneIsCollapsed=state.collapsed?.[stage]===true;
     const hasExpandedCards=laneCards.some(c=>state.cardCollapsed?.[c.id]!==true);
+    const hasCollapsedCards=laneCards.some(c=>state.cardCollapsed?.[c.id]===true);
     const collapseLaneBtn=document.createElement("button");
     collapseLaneBtn.type="button";
     collapseLaneBtn.className="lane-chevron";
-    collapseLaneBtn.textContent=hasExpandedCards?"▾":"▸";
-    collapseLaneBtn.title=hasExpandedCards?"Collapse all cards in lane":"All cards are collapsed";
-    collapseLaneBtn.disabled=!hasExpandedCards;
+    if(laneIsCollapsed){
+      collapseLaneBtn.textContent="▸";
+      collapseLaneBtn.title="Expand lane";
+    }else if(hasExpandedCards){
+      collapseLaneBtn.textContent="▾";
+      collapseLaneBtn.title="Collapse all cards in lane";
+    }else if(hasCollapsedCards){
+      collapseLaneBtn.textContent="▸";
+      collapseLaneBtn.title="Expand all cards in lane";
+    }else{
+      collapseLaneBtn.textContent="▾";
+      collapseLaneBtn.title="No cards in lane";
+    }
+    collapseLaneBtn.disabled=!laneIsCollapsed && !hasExpandedCards && !hasCollapsedCards;
     collapseLaneBtn.setAttribute("aria-label", collapseLaneBtn.title);
     collapseLaneBtn.onclick=(e)=>{
       e.stopPropagation();
-      if(!hasExpandedCards) return;
+      if(laneIsCollapsed){
+        state.collapsed=state.collapsed||{};
+        state.collapsed[stage]=false;
+        scheduleSave();
+        render();
+        return;
+      }
+      if(!hasExpandedCards && !hasCollapsedCards) return;
       state.cardCollapsed=state.cardCollapsed||{};
-      laneCards.forEach(c=>{ state.cardCollapsed[c.id]=true; });
+      if(hasExpandedCards) laneCards.forEach(c=>{ state.cardCollapsed[c.id]=true; });
+      else laneCards.forEach(c=>{ delete state.cardCollapsed[c.id]; });
       scheduleSave();
       render();
     };
@@ -1564,18 +1613,14 @@ function requestTokenInApp(message=""){
   });
 }
 async function ensureGithubToken(){
+  if(!githubToken) githubToken=loadPersistedGithubToken();
   if(githubToken) return githubToken;
-  const storedToken=localStorage.getItem(GITHUB_PAT_KEY);
-  if(storedToken?.trim()){
-    githubToken=storedToken.trim();
-    return githubToken;
-  }
   let message="";
   while(!githubToken){
     const input=await requestTokenInApp(message);
     if(await validateToken(input)){
       githubToken=input.trim();
-      localStorage.setItem(GITHUB_PAT_KEY, githubToken);
+      trySave(GITHUB_PAT_KEY, githubToken);
       return githubToken;
     }
     message="That token is invalid. Please try again.";
