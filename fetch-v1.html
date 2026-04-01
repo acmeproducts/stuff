@@ -1,4 +1,4 @@
-<!-- WebFetch OSS-v8.0-2026-04-01 01:07 AM -->
+<!-- WebFetch OSS-v8.1-2026-04-01 02:06 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -79,7 +79,6 @@ header { height: var(--header-height); display: flex; align-items: center; paddi
 .log-warn { color: var(--accent3); }
 .log-error { color: var(--accent2); }
 
-/* Results Sub-Tabs */
 .res-tab-btn { background: transparent; border: none; color: var(--muted); font-size: 14px; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; padding: 4px 0; transition: all 0.2s; }
 .res-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 .res-pane { display: none; height: 100%; flex-direction: column; }
@@ -87,9 +86,15 @@ header { height: var(--header-height); display: flex; align-items: center; paddi
 
 .master-footer { height: var(--footer-height); background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 11px; font-family: var(--mono); }
 .empty-state { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); font-style: italic; text-align: center; padding: 20px; }
+
+.toast { position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: #000; padding: 12px 24px; border-radius: 6px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+.toast.show { opacity: 1; pointer-events: auto; }
+.toast.error { background: var(--accent2); color: #fff; }
 </style>
 </head>
 <body>
+
+<div id="toastMsg" class="toast"></div>
 
 <datalist id="selectorPresets">
   <option value="a.container__link">CNN Article Links</option>
@@ -217,8 +222,7 @@ header { height: var(--header-height); display: flex; align-items: center; paddi
           <button class="btn btn-primary" id="btnCopyText" disabled>COPY TEXT</button>
           <button class="btn" id="btnExportText" disabled style="margin-left:8px;">EXPORT TEXT</button>
         </div>
-        <div class="tablet-console" id="resTextViewer" style="background:var(--surface); color:var(--text); flex:1; white-space:pre-wrap;">
-        </div>
+        <div class="tablet-console" id="resTextViewer" style="background:var(--surface); color:var(--text); flex:1; white-space:pre-wrap;"></div>
       </div>
 
       <!-- Reader Pane -->
@@ -234,10 +238,8 @@ header { height: var(--header-height); display: flex; align-items: center; paddi
             <button class="btn" id="btnExportHtml" disabled>EXPORT HTML</button>
           </div>
         </div>
-        <div id="resHtmlViewer" style="flex:1; background:#fff; color:#000; overflow-y:auto; padding:24px; border-radius:6px; font-family:Georgia,serif; border:1px solid var(--border);">
-        </div>
+        <div id="resHtmlViewer" style="flex:1; background:#fff; color:#000; overflow-y:auto; padding:24px; border-radius:6px; font-family:Georgia,serif; border:1px solid var(--border);"></div>
       </div>
-
     </div>
   </div>
 
@@ -259,14 +261,27 @@ header { height: var(--header-height); display: flex; align-items: center; paddi
         <span style="font-size:11px; color:var(--muted); margin-top:4px; display:block;">Delay between processing pages to keep UI responsive.</span>
       </div>
       <button class="btn btn-primary" id="btnSaveSettings">Apply Settings</button>
+
+      <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border2);">
+        <h3 style="color: var(--accent2); margin-bottom: 12px;">Danger Zone</h3>
+        <p style="font-size: 12px; color: var(--muted); margin-bottom: 16px;">Wipes all custom profiles and results from your browser, resetting the application to the default seed configurations.</p>
+        <button class="btn btn-danger" id="btnFactoryReset">Reset All Data to Defaults</button>
+      </div>
     </div>
   </div>
 
 </div>
 
-<footer class="master-footer">WebFetch Studio v8.0 - 2026-04-01 01:07 AM</footer>
+<footer class="master-footer">WebFetch Studio v8.1 - 2026-04-01 02:06 AM</footer>
 
 <script>
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toastMsg');
+  t.textContent = msg;
+  t.className = `toast show ${isError ? 'error' : ''}`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
 const icons = { close: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>` };
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
@@ -274,20 +289,20 @@ const defaultConfigs = [
   {
     id: generateId() + '1', name: "Y-Combinator News (Seed)", url: "https://news.ycombinator.com/", depth: 0, pages: 1, trashConfig: false, trashOps: false,
     steps: [
-      { id: generateId() + '1a', type: 'schema', value: '{\n  "Posts": ".titleline > a",\n  "Scores": ".score"\n}' }
+      { id: generateId() + '1a', type: 'extract_data', value: '{\n  "Posts": ".titleline > a",\n  "Scores": ".score"\n}' }
     ]
   },
   {
     id: generateId() + '2', name: "AlterSlash Frontpage (Seed)", url: "http://www.alterslash.org/", depth: 1, pages: 15, trashConfig: false, trashOps: false,
     steps: [
-      { id: generateId() + '2a', type: 'links', value: 'a' },
+      { id: generateId() + '2a', type: 'extract_links', value: 'a' },
       { id: generateId() + '2b', type: 'scrape_content', value: '' }
     ]
   },
   {
     id: generateId() + '3', name: "NPR Top Stories (Seed)", url: "https://www.npr.org/", depth: 1, pages: 15, trashConfig: false, trashOps: false,
     steps: [
-      { id: generateId() + '3a', type: 'links', value: 'article a, h3 a' },
+      { id: generateId() + '3a', type: 'extract_links', value: 'article a, h3 a' },
       { id: generateId() + '3b', type: 'scrape_content', value: '' }
     ]
   }
@@ -295,7 +310,7 @@ const defaultConfigs = [
 
 const savedConfigsStr = localStorage.getItem('wf_configs');
 const AppState = {
-  configs: savedConfigsStr ? JSON.parse(savedConfigsStr) : defaultConfigs,
+  configs: savedConfigsStr ? JSON.parse(savedConfigsStr) : JSON.parse(JSON.stringify(defaultConfigs)),
   results: JSON.parse(localStorage.getItem('wf_results') || '[]'),
   settings: JSON.parse(localStorage.getItem('wf_settings') || '{"proxy":"codetabs", "delay":250}'),
   activeConfigId: null, activeResultId: null, tempSteps: []
@@ -370,8 +385,8 @@ document.getElementById('btnNewConfig').addEventListener('click', () => {
   document.getElementById('cfgPages').value = '20';
   document.getElementById('probeUrl').value = '';
   AppState.tempSteps = [
-    { id: generateId(), type: 'links', value: '.item a' },
-    { id: generateId(), type: 'schema', value: '{\n  "Label": "CSS_Selector"\n}' }
+    { id: generateId(), type: 'extract_links', value: '.item a' },
+    { id: generateId(), type: 'extract_data', value: '{\n  "Label": "CSS_Selector"\n}' }
   ];
   configParams.style.display = 'block';
   document.getElementById('btnAddRule').style.display = 'block';
@@ -382,24 +397,31 @@ function renderSteps() {
   stepsContainer.innerHTML = AppState.tempSteps.map((s, i) => `
     <div class="step-card">
       <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:11px; color:var(--accent);">
-        <span>Rule ${i+1}: ${s.type.toUpperCase()}</span>
+        <span>Rule ${i+1}: ${s.type.replace('_', ' ').toUpperCase()}</span>
         <button onclick="removeStep('${s.id}')" style="background:none; border:none; color:var(--accent2); cursor:pointer;">✕</button>
       </div>
-      ${s.type === 'links' ? 
-        `<input type="text" class="input-control" value="${s.value}" onchange="updateStep('${s.id}', this.value)" placeholder="CSS Selector for drill-down links">` :
-        (s.type === 'schema' ? `<textarea class="schema-editor" onchange="updateStep('${s.id}', this.value)">${s.value}</textarea>` : `<input type="text" class="input-control" disabled value="Full HTML Article Extractor">`)
-      }
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <select class="input-control step-type" onchange="updateStep('${s.id}', 'type', this.value)">
+          <option value="extract_links" ${s.type === 'extract_links' ? 'selected' : ''}>Target: Drill Down Links</option>
+          <option value="extract_data" ${s.type === 'extract_data' ? 'selected' : ''}>Target: Structured Schema (JSON)</option>
+          <option value="scrape_content" ${s.type === 'scrape_content' ? 'selected' : ''}>Target: Readability Article Text</option>
+        </select>
+        ${s.type === 'extract_links' ? 
+          `<input type="text" class="input-control" list="selectorPresets" value="${s.value}" onchange="updateStep('${s.id}', 'value', this.value)" placeholder="CSS Selector for drill-down links">` :
+          (s.type === 'extract_data' ? `<textarea class="schema-editor" onchange="updateStep('${s.id}', 'value', this.value)">${s.value}</textarea>` : `<input type="text" class="input-control" disabled value="Full HTML Article Extractor">`)
+        }
+      </div>
     </div>
   `).join('');
 }
 
-window.updateStep = (id, val) => { AppState.tempSteps.find(s => s.id === id).value = val; };
+window.updateStep = (id, key, val) => { const step = AppState.tempSteps.find(s => s.id === id); if (step) { step[key] = val; if(key === 'type') renderSteps(); } };
 window.removeStep = (id) => { AppState.tempSteps = AppState.tempSteps.filter(s => s.id !== id); renderSteps(); };
-document.getElementById('btnAddRule').addEventListener('click', () => { AppState.tempSteps.push({id: generateId(), type: 'links', value: ''}); renderSteps(); });
+document.getElementById('btnAddRule').addEventListener('click', () => { AppState.tempSteps.push({id: generateId(), type: 'extract_links', value: ''}); renderSteps(); });
 
 document.getElementById('btnProbe').addEventListener('click', async () => {
   const url = document.getElementById('probeUrl').value.trim();
-  if(!url) return alert("Enter an Inspector URL to probe.");
+  if(!url) return showToast("Enter an Inspector URL to probe.", true);
   
   probeContainer.innerHTML = '<div class="empty-state">Probing page structure...</div>';
   try {
@@ -415,7 +437,7 @@ document.getElementById('btnProbe').addEventListener('click', async () => {
 
     probeContainer.innerHTML = `
       <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">Click a selector below to copy to clipboard. Use <b>@attr</b> (e.g. img@src) for attributes.</div>
-      <div class="probe-results">${Array.from(classes).map(c => `<div class="probe-tag" onclick="navigator.clipboard.writeText('${c}')"><span>TAG</span>${c}</div>`).join('')}</div>
+      <div class="probe-results">${Array.from(classes).map(c => `<div class="probe-tag" onclick="navigator.clipboard.writeText('${c}'); showToast('Copied ${c}')"><span>TAG</span>${c}</div>`).join('')}</div>
     `;
   } catch(e) { probeContainer.innerHTML = `<div class="log-error">Probe failed: ${e.message}</div>`; }
 });
@@ -430,18 +452,18 @@ document.getElementById('btnSaveConfig').addEventListener('click', () => {
     steps: JSON.parse(JSON.stringify(AppState.tempSteps)),
     trashConfig: false, trashOps: false
   };
-  if (!cfgData.url) return alert("Base URL is required.");
+  if (!cfgData.url) return showToast("Base URL is required.", true);
   
   for(let step of cfgData.steps) {
-    if(step.type === 'schema') {
-      try { JSON.parse(step.value); } catch(e) { return alert(`Invalid JSON Schema in Rule: ${e.message}`); }
+    if(step.type === 'extract_data') {
+      try { JSON.parse(step.value); } catch(e) { return showToast(`Invalid JSON Schema in Rule: ${e.message}`, true); }
     }
   }
 
   const idx = AppState.configs.findIndex(c => c.id === cfgData.id);
   if(idx > -1) AppState.configs[idx] = Object.assign(AppState.configs[idx], cfgData);
   else { AppState.configs.push(cfgData); AppState.activeConfigId = cfgData.id; }
-  saveState(); renderUI(); alert('Profile Saved.');
+  saveState(); renderUI(); showToast('Profile Saved.');
 });
 
 // --- Execution Engine ---
@@ -482,10 +504,10 @@ async function executeRun() {
       let foundData = false;
 
       for(let rule of activeOps.steps) {
-        if(rule.type === 'links' && current.depth < activeOps.depth && rule.value) {
+        if(rule.type === 'extract_links' && current.depth < activeOps.depth && rule.value) {
           doc.querySelectorAll(rule.value).forEach(a => { if(a.href && !a.href.startsWith('javascript:')) queue.push({url: a.href, depth: current.depth+1}); });
         }
-        if(rule.type === 'schema' && rule.value) {
+        if(rule.type === 'extract_data' && rule.value) {
           const schema = JSON.parse(rule.value);
           for(let key in schema) {
             const [selector, attr] = schema[key].split('@');
@@ -506,7 +528,7 @@ async function executeRun() {
            if(article && article.textContent.length > 100) {
              data.Title = article.title; 
              data.Content = article.textContent; 
-             data.html = article.content; // Save for Reader View
+             data.html = article.content; 
              foundData = true;
            }
         }
@@ -589,7 +611,7 @@ document.getElementById('resHtmlViewer').addEventListener('click', e => {
       viewIndex++;
       renderViewPage(matchIdx);
     } else {
-      alert("This link was not scraped in the current run.");
+      showToast("This link was not scraped in the current run.", true);
     }
   }
 });
@@ -624,14 +646,11 @@ function renderUI() {
       AppState.activeResultId = id; const r = AppState.results.find(x => x.id === id);
       activeResPayload = r.payload || r.data || [];
       
-      // Setup JSON View
       document.getElementById('resJsonViewer').innerHTML = `<pre style="white-space:pre-wrap; font-family:var(--mono); margin:0;">${JSON.stringify(activeResPayload, null, 2)}</pre>`;
       
-      // Setup Text View
       const textOut = activeResPayload.map(p => `--- ${p.url} ---\n${p.Title || p.title || 'Untitled'}\n\n${p.Content || p.text || JSON.stringify(p)}\n\n`).join('');
       document.getElementById('resTextViewer').textContent = textOut;
 
-      // Setup HTML View
       viewHistory = [0]; viewIndex = 0;
       renderViewPage(0);
 
@@ -650,18 +669,17 @@ function renderUI() {
   document.getElementById('setDelay').value = AppState.settings.delay;
 }
 
-// Copy & Export Handlers
-document.getElementById('btnCopyJson').addEventListener('click', () => { navigator.clipboard.writeText(JSON.stringify(activeResPayload, null, 2)).then(() => alert('JSON Copied.')); });
+document.getElementById('btnCopyJson').addEventListener('click', () => { navigator.clipboard.writeText(JSON.stringify(activeResPayload, null, 2)).then(() => showToast('JSON Copied.')); });
 document.getElementById('btnExportJson').addEventListener('click', () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(activeResPayload, null, 2)], { type: 'application/json' })); a.download = `wf_data_${AppState.activeResultId}.json`; a.click(); });
 
-document.getElementById('btnCopyText').addEventListener('click', () => { navigator.clipboard.writeText(document.getElementById('resTextViewer').textContent).then(() => alert('Text Copied.')); });
+document.getElementById('btnCopyText').addEventListener('click', () => { navigator.clipboard.writeText(document.getElementById('resTextViewer').textContent).then(() => showToast('Text Copied.')); });
 document.getElementById('btnExportText').addEventListener('click', () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([document.getElementById('resTextViewer').textContent], { type: 'text/plain' })); a.download = `wf_data_${AppState.activeResultId}.txt`; a.click(); });
 
 document.getElementById('btnCopyHtml').addEventListener('click', () => {
   if(viewIndex < 0) return;
   const page = activeResPayload[viewHistory[viewIndex]];
   const html = `<!-- ${page.url} -->\n<h1>${page.Title || page.title || 'Untitled'}</h1>\n${page.html || page.Content || page.text || ''}`;
-  navigator.clipboard.writeText(html).then(() => alert('HTML Copied.')); 
+  navigator.clipboard.writeText(html).then(() => showToast('HTML Copied.')); 
 });
 document.getElementById('btnExportHtml').addEventListener('click', () => {
   if(viewIndex < 0) return;
@@ -672,7 +690,19 @@ document.getElementById('btnExportHtml').addEventListener('click', () => {
 
 document.getElementById('btnSaveSettings').addEventListener('click', () => {
   AppState.settings = { proxy: document.getElementById('setProxy').value, delay: parseInt(document.getElementById('setDelay').value) || 250 };
-  saveState(); alert('Settings Applied');
+  saveState(); showToast('Settings Applied');
+});
+
+document.getElementById('btnFactoryReset').addEventListener('click', () => {
+  localStorage.removeItem('wf_configs');
+  localStorage.removeItem('wf_results');
+  localStorage.removeItem('wf_settings');
+  AppState.configs = JSON.parse(JSON.stringify(defaultConfigs));
+  AppState.results = [];
+  AppState.settings = { proxy: 'codetabs', delay: 250 };
+  saveState();
+  showToast('All Data Reset to Defaults');
+  renderUI();
 });
 
 renderUI();
