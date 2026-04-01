@@ -1,0 +1,567 @@
+<!-- WebFetch OSS-v7.3-2026-04-01 12:46 AM -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>WebFetch Studio - Extraction Training</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@mozilla/readability@0.5.0/Readability.min.js"></script>
+<style>
+:root {
+  --bg: #09090b; --surface: #18181b; --surface-hover: #27272a;
+  --border: #27272a; --border2: #3f3f46;
+  --accent: #14b8a6; --accent-hover: #0d9488;
+  --accent2: #ef4444; --accent3: #f59e0b;
+  --text: #f4f4f5; --muted: #a1a1aa;
+  --mono: 'JetBrains Mono', monospace; --sans: 'Inter', sans-serif;
+  --touch-target: 44px; --header-height: 60px; --footer-height: 40px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+header { height: var(--header-height); display: flex; align-items: center; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.logo { font-family: var(--sans); font-size: 18px; font-weight: 700; margin-right: 32px; }
+.logo span { color: var(--accent); }
+.tab-nav { display: flex; gap: 8px; height: 100%; align-items: center; }
+.tab-btn { background: transparent; border: none; color: var(--muted); font-size: 14px; font-weight: 500; padding: 0 16px; height: 100%; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.app-container { flex: 1; display: flex; overflow: hidden; position: relative; }
+.view-section { display: none; width: 100%; height: 100%; }
+.view-section.active { display: flex; }
+
+.sidebar { width: 300px; background: var(--bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+.sidebar-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.sidebar-content { flex: 1; overflow-y: auto; padding: 16px; }
+
+.main-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.split-top { flex: 1; border-bottom: 1px solid var(--border); overflow-y: auto; padding: 16px; background: var(--surface); }
+.split-bottom { height: 45%; min-height: 300px; overflow-y: auto; padding: 16px; background: var(--bg); border-top: 1px solid var(--border); }
+
+.btn { background: var(--surface-hover); border: 1px solid var(--border2); color: var(--text); border-radius: 6px; padding: 0 12px; min-height: 32px; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.btn-primary { background: var(--accent); color: #000; border: none; font-weight: 600; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-accent { color: var(--accent3); border-color: var(--accent3); background: transparent; }
+.btn-danger { color: var(--accent2); border-color: var(--accent2); background: transparent; }
+
+.input-group { margin-bottom: 12px; }
+.input-group label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.input-control { width: 100%; background: var(--surface); border: 1px solid var(--border2); color: var(--text); border-radius: 6px; padding: 8px 12px; font-family: var(--mono); font-size: 13px; outline: none; }
+.input-control:focus { border-color: var(--accent); }
+
+.list-item { padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start; }
+.list-item:hover { border-color: var(--border2); }
+.list-item.selected { border-color: var(--accent); background: rgba(20, 184, 166, 0.1); }
+.icon-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+.icon-btn:hover { background: var(--border); color: var(--text); }
+
+.deleted-chevron { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 8px; }
+.deleted-chevron summary { color: var(--muted); font-size: 12px; cursor: pointer; user-select: none; padding: 8px 0; outline: none; }
+.deleted-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; background: var(--bg); border: 1px dashed var(--border2); border-radius: 4px; margin-bottom: 4px; font-size: 12px; color: var(--muted); }
+.trash-actions button { background: none; border: none; font-size: 11px; cursor: pointer; margin-left: 8px; }
+.trash-restore { color: var(--accent); }
+.trash-perm { color: var(--accent2); }
+
+.step-card { background: var(--bg); border: 1px solid var(--border2); border-radius: 6px; padding: 12px; margin-bottom: 12px; border-left: 3px solid var(--accent); }
+.schema-editor { background: #000; color: var(--accent); font-family: var(--mono); font-size: 12px; border: 1px solid var(--border2); border-radius: 6px; padding: 10px; width: 100%; height: 120px; resize: vertical; outline: none; }
+
+.probe-results { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.probe-tag { background: #111; padding: 6px; border-radius: 4px; font-size: 11px; font-family: var(--mono); cursor: pointer; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.probe-tag:hover { border-color: var(--accent); color: var(--text); }
+.probe-tag span { color: var(--accent3); font-weight: 700; margin-right: 4px; }
+
+.tablet-console { background: #000; color: #a1a1aa; font-family: var(--mono); font-size: 12px; padding: 12px; height: 100%; overflow-y: auto; border-radius: 6px; line-height: 1.5; border: 1px solid var(--border); }
+.log-info { color: #a1a1aa; }
+.log-success { color: var(--accent); }
+.log-warn { color: var(--accent3); }
+.log-error { color: var(--accent2); }
+
+.master-footer { height: var(--footer-height); background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 11px; font-family: var(--mono); }
+.empty-state { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); font-style: italic; text-align: center; padding: 20px; }
+</style>
+</head>
+<body>
+
+<datalist id="selectorPresets">
+  <option value="a.container__link">CNN Article Links</option>
+  <option value="article a">Standard Article Links</option>
+  <option value="table tr td a">Table Links</option>
+</datalist>
+
+<header>
+  <div class="logo">Web<span>Fetch</span> Studio</div>
+  <div class="tab-nav">
+    <button class="tab-btn active" data-target="view-studio">Studio (Train)</button>
+    <button class="tab-btn" data-target="view-ops">Ops (Run)</button>
+    <button class="tab-btn" data-target="view-results">Library</button>
+    <button class="tab-btn" data-target="view-settings">Settings</button>
+  </div>
+</header>
+
+<div class="app-container">
+
+  <!-- STUDIO / TRAINER TAB -->
+  <div id="view-studio" class="view-section active">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <span style="font-weight:600;">Profiles</span>
+        <button class="btn" id="btnNewConfig">+</button>
+      </div>
+      <div class="sidebar-content" id="configList"></div>
+    </div>
+    
+    <div class="main-pane">
+      <div class="split-top">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+          <h3 style="font-size: 14px;">Extraction Rules</h3>
+          <button class="btn" id="btnAddRule" style="display:none;">+ Add Rule</button>
+        </div>
+        <div id="stepsContainer"><div class="empty-state">Select or create a profile.</div></div>
+      </div>
+
+      <div class="split-bottom">
+        <div style="display:flex; gap:24px; height: 100%;">
+          <!-- Left: Parameters -->
+          <div style="flex: 1; border-right: 1px solid var(--border); padding-right: 24px;">
+            <h3 style="margin-bottom: 12px; font-size: 14px;">Profile Config</h3>
+            <div id="configParams" style="display:none;">
+              <div class="input-group">
+                <label>Profile Name</label>
+                <input type="text" class="input-control" id="cfgName">
+              </div>
+              <div class="input-group">
+                <label>Starting Base URL</label>
+                <input type="url" class="input-control" id="cfgUrl" placeholder="https://...">
+              </div>
+              <div style="display:flex; gap:12px;">
+                <div class="input-group" style="flex:1;"><label>Depth</label><input type="number" class="input-control" id="cfgDepth" value="1"></div>
+                <div class="input-group" style="flex:1;"><label>Limit</label><input type="number" class="input-control" id="cfgPages" value="20"></div>
+              </div>
+              <button class="btn btn-primary" id="btnSaveConfig" style="width:100%;">SAVE PROFILE</button>
+            </div>
+          </div>
+
+          <!-- Right: Inspector -->
+          <div style="flex: 1.5; display: flex; flex-direction: column;">
+            <h3 style="margin-bottom: 12px; font-size: 14px;">Probe Inspector</h3>
+            <div style="display:flex; gap:8px; margin-bottom:12px;">
+              <input type="url" class="input-control" id="probeUrl" placeholder="Enter deep page URL to inspect...">
+              <button class="btn btn-accent" id="btnProbe">PROBE</button>
+            </div>
+            <div id="probeContainer" style="flex:1; overflow-y:auto;">
+              <div class="empty-state">Enter a target URL above and click 'Probe' to map available CSS selectors.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPS / RUN TAB -->
+  <div id="view-ops" class="view-section">
+    <div class="sidebar">
+      <div class="sidebar-header"><span style="font-weight:600;">Select Profile</span></div>
+      <div class="sidebar-content" id="opsConfigList"></div>
+    </div>
+    <div class="main-pane" style="padding:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h2 id="opsTitle">System Ready</h2>
+        <button class="btn btn-primary" id="btnRun" disabled>EXECUTE CRAWL</button>
+      </div>
+      <div style="flex:1; display:flex; flex-direction:column; gap:16px;">
+        <div id="progText" style="font-size:12px; color:var(--muted); font-family:var(--mono);">Queue: 0 | Scraped: 0</div>
+        <div style="height: 4px; background: var(--border); border-radius: 2px; overflow:hidden;">
+          <div id="runProgress" style="height: 100%; width: 0%; background: var(--accent); transition: width 0.3s;"></div>
+        </div>
+        <div class="tablet-console" id="runConsole"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIBRARY / RESULTS TAB -->
+  <div id="view-results" class="view-section">
+    <div class="sidebar"><div class="sidebar-content" id="resultsList" style="padding-top:0;"></div></div>
+    <div class="main-pane" style="padding:16px; display:flex; flex-direction:column;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h2 id="resTitle" style="font-size: 16px;">Library Records</h2>
+        <div style="display:flex; gap:8px;">
+          <button class="btn" id="btnResCopy" disabled>COPY JSON</button>
+          <button class="btn" id="btnResExport" disabled>EXPORT JSON</button>
+        </div>
+      </div>
+      <div class="tablet-console" id="resDataViewer" style="background:var(--surface); color:var(--text); flex:1;">
+        <div class="empty-state">Select a run from the left panel to view extracted JSON structure.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div id="view-settings" class="view-section">
+    <div class="main-pane" style="padding:24px; max-width:600px; margin:0 auto;">
+      <h2 style="margin-bottom:24px;">Global Settings</h2>
+      <div class="input-group">
+        <label>Primary Proxy Gateway</label>
+        <select class="input-control" id="setProxy">
+          <option value="codetabs">CodeTabs API</option>
+          <option value="corsproxy">CorsProxy.io</option>
+          <option value="allorigins">AllOrigins API</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label>Time-Slice Delay (ms)</label>
+        <input type="number" class="input-control" id="setDelay" value="250">
+        <span style="font-size:11px; color:var(--muted); margin-top:4px; display:block;">Delay between processing pages to keep UI responsive.</span>
+      </div>
+      <button class="btn btn-primary" id="btnSaveSettings">Apply Settings</button>
+    </div>
+  </div>
+
+</div>
+
+<footer class="master-footer">WebFetch Studio v7.3 - 2026-04-01 12:46 AM</footer>
+
+<script>
+const icons = { close: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>` };
+const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
+
+const defaultConfigs = [
+  {
+    id: generateId() + '1', name: "Y-Combinator News (Seed)", url: "https://news.ycombinator.com/", depth: 0, pages: 1, trashConfig: false, trashOps: false,
+    steps: [
+      { id: generateId() + '1a', type: 'schema', value: '{\n  "Posts": ".titleline > a",\n  "Scores": ".score"\n}' }
+    ]
+  },
+  {
+    id: generateId() + '2', name: "AlterSlash Frontpage (Seed)", url: "http://www.alterslash.org/", depth: 1, pages: 15, trashConfig: false, trashOps: false,
+    steps: [
+      { id: generateId() + '2a', type: 'links', value: 'a' },
+      { id: generateId() + '2b', type: 'scrape_content', value: '' }
+    ]
+  },
+  {
+    id: generateId() + '3', name: "NPR Top Stories (Seed)", url: "https://www.npr.org/", depth: 1, pages: 15, trashConfig: false, trashOps: false,
+    steps: [
+      { id: generateId() + '3a', type: 'links', value: 'article a, h3 a' },
+      { id: generateId() + '3b', type: 'scrape_content', value: '' }
+    ]
+  }
+];
+
+const savedConfigsStr = localStorage.getItem('wf_configs');
+const AppState = {
+  configs: savedConfigsStr ? JSON.parse(savedConfigsStr) : defaultConfigs,
+  results: JSON.parse(localStorage.getItem('wf_results') || '[]'),
+  settings: JSON.parse(localStorage.getItem('wf_settings') || '{"proxy":"codetabs", "delay":250}'),
+  activeConfigId: null, activeResultId: null, tempSteps: []
+};
+
+if (!Array.isArray(AppState.configs)) AppState.configs = [];
+if (!Array.isArray(AppState.results)) AppState.results = [];
+AppState.configs.forEach(c => { c.trashConfig = c.trashConfig || false; c.trashOps = c.trashOps || false; });
+AppState.results.forEach(r => { r.trashResult = r.trashResult || false; });
+
+function saveState() {
+  localStorage.setItem('wf_configs', JSON.stringify(AppState.configs));
+  localStorage.setItem('wf_results', JSON.stringify(AppState.results));
+  localStorage.setItem('wf_settings', JSON.stringify(AppState.settings));
+}
+if (!savedConfigsStr) saveState();
+
+const PROXIES = {
+  codetabs: u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+  allorigins: u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+  corsproxy: u => `https://corsproxy.io/?${encodeURIComponent(u)}`
+};
+
+// --- UI Nav ---
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+    e.target.classList.add('active');
+    document.getElementById(e.target.dataset.target).classList.add('active');
+    renderUI();
+  });
+});
+
+// --- Sidebar Core ---
+function renderSidebarList(containerId, items, activeId, trashKey, onSelectCb, onTrashCb, onRestoreCb, onPermDeleteCb, renderHtmlCb) {
+  const container = document.getElementById(containerId);
+  const activeItems = items.filter(i => !i[trashKey]);
+  const trashItems = items.filter(i => i[trashKey]);
+
+  let html = activeItems.map(i => `
+    <div class="list-item ${i.id === activeId ? 'selected' : ''}" data-id="${i.id}">
+      <div class="list-item-content">${renderHtmlCb(i)}</div>
+      <div class="list-item-actions"><button class="icon-btn btn-trash" data-id="${i.id}">${icons.close}</button></div>
+    </div>
+  `).join('');
+
+  if (trashItems.length > 0) {
+    html += `<details class="deleted-chevron"><summary>Deleted Items (${trashItems.length})</summary>
+      ${trashItems.map(i => `<div class="deleted-item"><span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${i.name || i.configName}</span>
+      <div class="trash-actions"><button class="trash-restore" data-id="${i.id}">Restore</button><button class="trash-perm" data-id="${i.id}">Del</button></div></div>`).join('')}
+    </details>`;
+  }
+  container.innerHTML = html;
+
+  container.querySelectorAll('.list-item').forEach(el => { el.addEventListener('click', (e) => { if(e.target.closest('.btn-trash')) return; onSelectCb(el.dataset.id); }); });
+  container.querySelectorAll('.btn-trash').forEach(btn => { btn.addEventListener('click', (e) => { e.stopPropagation(); onTrashCb(btn.dataset.id); }); });
+  container.querySelectorAll('.trash-restore').forEach(btn => { btn.addEventListener('click', () => onRestoreCb(btn.dataset.id)); });
+  container.querySelectorAll('.trash-perm').forEach(btn => { btn.addEventListener('click', () => onPermDeleteCb(btn.dataset.id)); });
+}
+
+// --- Studio Engine ---
+const configParams = document.getElementById('configParams');
+const stepsContainer = document.getElementById('stepsContainer');
+const probeContainer = document.getElementById('probeContainer');
+
+document.getElementById('btnNewConfig').addEventListener('click', () => {
+  AppState.activeConfigId = null;
+  document.getElementById('cfgName').value = 'New Profile';
+  document.getElementById('cfgUrl').value = '';
+  document.getElementById('cfgDepth').value = '1';
+  document.getElementById('cfgPages').value = '20';
+  document.getElementById('probeUrl').value = '';
+  AppState.tempSteps = [
+    { id: generateId(), type: 'links', value: '.item a' },
+    { id: generateId(), type: 'schema', value: '{\n  "Label": "CSS_Selector"\n}' }
+  ];
+  configParams.style.display = 'block';
+  document.getElementById('btnAddRule').style.display = 'block';
+  renderSteps();
+});
+
+function renderSteps() {
+  stepsContainer.innerHTML = AppState.tempSteps.map((s, i) => `
+    <div class="step-card">
+      <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:11px; color:var(--accent);">
+        <span>Rule ${i+1}: ${s.type.toUpperCase()}</span>
+        <button onclick="removeStep('${s.id}')" style="background:none; border:none; color:var(--accent2); cursor:pointer;">✕</button>
+      </div>
+      ${s.type === 'links' ? 
+        `<input type="text" class="input-control" value="${s.value}" onchange="updateStep('${s.id}', this.value)" placeholder="CSS Selector for drill-down links">` :
+        (s.type === 'schema' ? `<textarea class="schema-editor" onchange="updateStep('${s.id}', this.value)">${s.value}</textarea>` : `<input type="text" class="input-control" disabled value="Full HTML Article Extractor">`)
+      }
+    </div>
+  `).join('');
+}
+
+window.updateStep = (id, val) => { AppState.tempSteps.find(s => s.id === id).value = val; };
+window.removeStep = (id) => { AppState.tempSteps = AppState.tempSteps.filter(s => s.id !== id); renderSteps(); };
+document.getElementById('btnAddRule').addEventListener('click', () => { AppState.tempSteps.push({id: generateId(), type: 'links', value: ''}); renderSteps(); });
+
+document.getElementById('btnProbe').addEventListener('click', async () => {
+  const url = document.getElementById('probeUrl').value.trim();
+  if(!url) return alert("Enter an Inspector URL to probe.");
+  
+  probeContainer.innerHTML = '<div class="empty-state">Probing page structure...</div>';
+  try {
+    const res = await fetch(PROXIES[AppState.settings.proxy](url));
+    const html = AppState.settings.proxy === 'allorigins' ? (await res.json()).contents : await res.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    
+    const classes = new Set();
+    doc.querySelectorAll('*').forEach(el => {
+      if(el.id) classes.add('#' + el.id);
+      el.classList.forEach(c => classes.add('.' + c));
+    });
+
+    probeContainer.innerHTML = `
+      <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">Click a selector below to copy to clipboard. Use <b>@attr</b> (e.g. img@src) for attributes.</div>
+      <div class="probe-results">${Array.from(classes).map(c => `<div class="probe-tag" onclick="navigator.clipboard.writeText('${c}')"><span>TAG</span>${c}</div>`).join('')}</div>
+    `;
+  } catch(e) { probeContainer.innerHTML = `<div class="log-error">Probe failed: ${e.message}</div>`; }
+});
+
+document.getElementById('btnSaveConfig').addEventListener('click', () => {
+  const cfgData = {
+    id: AppState.activeConfigId || generateId(),
+    name: document.getElementById('cfgName').value.trim() || 'Untitled Profile',
+    url: document.getElementById('cfgUrl').value.trim(),
+    depth: parseInt(document.getElementById('cfgDepth').value) || 0,
+    pages: parseInt(document.getElementById('cfgPages').value) || 20,
+    steps: JSON.parse(JSON.stringify(AppState.tempSteps)),
+    trashConfig: false, trashOps: false
+  };
+  if (!cfgData.url) return alert("Base URL is required.");
+  
+  for(let step of cfgData.steps) {
+    if(step.type === 'schema') {
+      try { JSON.parse(step.value); } catch(e) { return alert(`Invalid JSON Schema in Rule: ${e.message}`); }
+    }
+  }
+
+  const idx = AppState.configs.findIndex(c => c.id === cfgData.id);
+  if(idx > -1) AppState.configs[idx] = Object.assign(AppState.configs[idx], cfgData);
+  else { AppState.configs.push(cfgData); AppState.activeConfigId = cfgData.id; }
+  saveState(); renderUI(); alert('Profile Saved.');
+});
+
+// --- Execution Engine ---
+const runConsole = document.getElementById('runConsole');
+const btnRun = document.getElementById('btnRun');
+let activeOps = null;
+let abort = null;
+
+async function executeRun() {
+  btnRun.textContent = 'STOP'; btnRun.classList.remove('btn-primary'); btnRun.classList.add('btn-danger');
+  abort = new AbortController();
+  runConsole.innerHTML = '';
+  
+  let queue = [{ url: activeOps.url, depth: 0 }];
+  let visited = new Set();
+  let results = [];
+  const delay = AppState.settings.delay || 250;
+
+  async function processNext() {
+    if(abort.signal.aborted) return finalizeRun("Aborted");
+    if(queue.length === 0 || results.length >= activeOps.pages) return finalizeRun("Complete");
+
+    const current = queue.shift();
+    const cleanUrl = current.url.replace(/\/$/, "");
+    if(visited.has(cleanUrl)) { setTimeout(processNext, 10); return; }
+    visited.add(cleanUrl);
+
+    runConsole.innerHTML += `<div class="log-info">[D:${current.depth}] Fetching: ${current.url}</div>`;
+    runConsole.scrollTop = runConsole.scrollHeight;
+
+    try {
+      const res = await fetch(PROXIES[AppState.settings.proxy](current.url), { signal: abort.signal });
+      const html = AppState.settings.proxy === 'allorigins' ? (await res.json()).contents : await res.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      let base = doc.createElement('base'); base.href = current.url; doc.head.prepend(base);
+
+      let data = { url: current.url };
+      let foundData = false;
+
+      for(let rule of activeOps.steps) {
+        if(rule.type === 'links' && current.depth < activeOps.depth && rule.value) {
+          doc.querySelectorAll(rule.value).forEach(a => { if(a.href && !a.href.startsWith('javascript:')) queue.push({url: a.href, depth: current.depth+1}); });
+        }
+        if(rule.type === 'schema' && rule.value) {
+          const schema = JSON.parse(rule.value);
+          for(let key in schema) {
+            const [selector, attr] = schema[key].split('@');
+            const elements = doc.querySelectorAll(selector);
+            if(elements.length === 1) {
+               data[key] = attr ? elements[0].getAttribute(attr) : elements[0].innerText.trim().replace(/\s+/g, ' ');
+            } else if(elements.length > 1) {
+               data[key] = Array.from(elements).map(e => attr ? e.getAttribute(attr) : e.innerText.trim().replace(/\s+/g, ' '));
+            } else {
+               data[key] = null;
+            }
+            foundData = true;
+          }
+        }
+        if (rule.type === 'scrape_content') {
+           const reader = new Readability(doc.cloneNode(true));
+           const article = reader.parse();
+           if(article && article.textContent.length > 100) {
+             data.Title = article.title; data.Content = article.textContent; foundData = true;
+           }
+        }
+      }
+      
+      if(foundData) {
+        results.push(data);
+        runConsole.innerHTML += `<div class="log-success">Data extracted successfully.</div>`;
+      }
+      document.getElementById('progText').textContent = `Queue: ${queue.length} | Scraped: ${results.length} / ${activeOps.pages}`;
+      document.getElementById('runProgress').style.width = `${(results.length / activeOps.pages)*100}%`;
+    } catch(e) { 
+      if(e.name !== 'AbortError') runConsole.innerHTML += `<div class="log-error">Error: ${e.message}</div>`; 
+    }
+    
+    setTimeout(processNext, delay);
+  }
+
+  function finalizeRun(status) {
+    if(results.length > 0) {
+      AppState.results.push({ id: generateId(), configId: activeOps.id, configName: activeOps.name, date: new Date().toLocaleString(), trashResult: false, payload: results });
+      saveState();
+      document.getElementById('runProgress').style.width = '100%';
+      runConsole.innerHTML += `<div class="log-success">Run ${status}. Stored ${results.length} records.</div>`;
+    } else {
+      document.getElementById('runProgress').style.background = 'var(--accent3)';
+      runConsole.innerHTML += `<div class="log-warn">Run ${status}. No data scraped.</div>`;
+    }
+    btnRun.textContent = 'EXECUTE CRAWL'; btnRun.classList.remove('btn-danger'); btnRun.classList.add('btn-primary');
+    renderUI();
+  }
+
+  processNext();
+}
+
+document.getElementById('btnRun').addEventListener('click', () => {
+  if(!activeOps) return;
+  if(btnRun.textContent === 'STOP') { abort.abort(); return; }
+  executeRun();
+});
+
+// --- UI Synchronizer ---
+function renderUI() {
+  renderSidebarList('configList', AppState.configs, AppState.activeConfigId, 'trashConfig',
+    (id) => {
+      AppState.activeConfigId = id; const c = AppState.configs.find(x => x.id === id);
+      document.getElementById('cfgName').value = c.name; document.getElementById('cfgUrl').value = c.url;
+      document.getElementById('cfgDepth').value = c.depth; document.getElementById('cfgPages').value = c.pages;
+      AppState.tempSteps = JSON.parse(JSON.stringify(c.steps));
+      configParams.style.display = 'block'; document.getElementById('btnAddRule').style.display = 'block';
+      renderSteps(); renderUI();
+    },
+    (id) => { AppState.configs.find(c => c.id === id).trashConfig = true; if(AppState.activeConfigId===id) AppState.activeConfigId=null; saveState(); renderUI(); },
+    (id) => { AppState.configs.find(c => c.id === id).trashConfig = false; saveState(); renderUI(); },
+    (id) => { AppState.configs = AppState.configs.filter(c => c.id !== id); saveState(); renderUI(); },
+    (c) => `<div style="font-weight:500">${c.name}</div><div style="font-size:11px; color:var(--muted); text-overflow:ellipsis; overflow:hidden;">${c.url}</div>`
+  );
+
+  renderSidebarList('opsConfigList', AppState.configs, activeOps?.id, 'trashOps',
+    (id) => { activeOps = AppState.configs.find(x => x.id === id); document.getElementById('opsTitle').textContent = `Profile: ${activeOps.name}`; btnRun.disabled = false; renderUI(); },
+    (id) => { AppState.configs.find(c => c.id === id).trashOps = true; if(activeOps?.id===id){activeOps=null; btnRun.disabled=true;} saveState(); renderUI(); },
+    (id) => { AppState.configs.find(c => c.id === id).trashOps = false; saveState(); renderUI(); },
+    (id) => { AppState.configs = AppState.configs.filter(c => c.id !== id); saveState(); renderUI(); },
+    (c) => `<div style="font-weight:500">${c.name}</div>`
+  );
+
+  renderSidebarList('resultsList', AppState.results, AppState.activeResultId, 'trashResult',
+    (id) => {
+      AppState.activeResultId = id; const r = AppState.results.find(x => x.id === id);
+      document.getElementById('resTitle').textContent = `Run: ${r.date}`;
+      document.getElementById('resDataViewer').innerHTML = `<pre style="white-space:pre-wrap; font-family:var(--mono);">${JSON.stringify(r.payload, null, 2)}</pre>`;
+      document.getElementById('btnResCopy').disabled = false; document.getElementById('btnResExport').disabled = false;
+      renderUI();
+    },
+    (id) => { AppState.results.find(r => r.id === id).trashResult = true; if(AppState.activeResultId===id){AppState.activeResultId=null;} saveState(); renderUI(); },
+    (id) => { AppState.results.find(r => r.id === id).trashResult = false; saveState(); renderUI(); },
+    (id) => { AppState.results = AppState.results.filter(r => r.id !== id); saveState(); renderUI(); },
+    (r) => `<div style="font-weight:500">${r.configName}</div><div style="font-size:11px; color:var(--muted);">${r.date} | ${r.payload.length} records</div>`
+  );
+
+  document.getElementById('setProxy').value = AppState.settings.proxy;
+  document.getElementById('setDelay').value = AppState.settings.delay;
+}
+
+document.getElementById('btnResCopy').addEventListener('click', () => {
+  const r = AppState.results.find(x => x.id === AppState.activeResultId);
+  if(r) navigator.clipboard.writeText(JSON.stringify(r.payload, null, 2)).then(() => alert('Copied to clipboard.'));
+});
+
+document.getElementById('btnResExport').addEventListener('click', () => {
+  const r = AppState.results.find(x => x.id === AppState.activeResultId);
+  if(!r) return;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(r.payload, null, 2)], { type: 'application/json' }));
+  a.download = `wf_data_${r.id}.json`; a.click();
+});
+
+document.getElementById('btnSaveSettings').addEventListener('click', () => {
+  AppState.settings = { proxy: document.getElementById('setProxy').value, delay: parseInt(document.getElementById('setDelay').value) || 250 };
+  saveState(); alert('Settings Applied');
+});
+
+renderUI();
+</script>
+</body>
+</html>
