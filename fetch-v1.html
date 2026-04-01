@@ -1,4 +1,4 @@
-<!-- WebFetch OSS-v8.1-2026-04-01 02:06 AM -->
+<!-- WebFetch OSS-v9.0-2026-04-01 02:23 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -40,12 +40,13 @@ header { height: var(--header-height); display: flex; align-items: center; paddi
 .split-top { flex: 1; border-bottom: 1px solid var(--border); overflow-y: auto; padding: 16px; background: var(--surface); }
 .split-bottom { height: 45%; min-height: 300px; overflow-y: auto; padding: 16px; background: var(--bg); border-top: 1px solid var(--border); }
 
-.btn { background: var(--surface-hover); border: 1px solid var(--border2); color: var(--text); border-radius: 6px; padding: 0 12px; min-height: 32px; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.btn { background: var(--surface-hover); border: 1px solid var(--border2); color: var(--text); border-radius: 6px; padding: 0 12px; min-height: 32px; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background 0.2s; }
+.btn:hover { background: var(--border); }
 .btn-primary { background: var(--accent); color: #000; border: none; font-weight: 600; }
+.btn-primary:hover { background: var(--accent-hover); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-accent { color: var(--accent3); border-color: var(--accent3); background: transparent; }
 .btn-danger { color: var(--accent2); border-color: var(--accent2); background: transparent; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .input-group { margin-bottom: 12px; }
 .input-group label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
@@ -90,15 +91,67 @@ header { height: var(--header-height); display: flex; align-items: center; paddi
 .toast { position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: #000; padding: 12px 24px; border-radius: 6px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
 .toast.show { opacity: 1; pointer-events: auto; }
 .toast.error { background: var(--accent2); color: #fff; }
+
+/* Wizard Overlay */
+.wizard-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 2000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+.wizard-overlay.active { display: flex; }
+.wizard-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: 90%; max-width: 500px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: flex; flex-direction: column; gap: 16px; }
+.wizard-title { font-size: 18px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+.wizard-step { display: none; }
+.wizard-step.active { display: block; }
 </style>
 </head>
 <body>
 
 <div id="toastMsg" class="toast"></div>
 
+<!-- Magic Wizard Modal -->
+<div class="wizard-overlay" id="wizardOverlay">
+  <div class="wizard-card">
+    <div class="wizard-title">✨ Magic Auto-Trainer</div>
+    
+    <!-- Step 1: Input -->
+    <div class="wizard-step active" id="wiz-step-1">
+      <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">Enter a starting URL. The engine will scan the DOM structure and automatically prescribe an extraction profile.</p>
+      <div class="input-group">
+        <label>Target URL</label>
+        <input type="url" class="input-control" id="wizUrl" placeholder="https://news.ycombinator.com">
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:24px;">
+        <button class="btn" onclick="closeWizard()">Cancel</button>
+        <button class="btn btn-primary" id="btnWizAnalyze">Analyze DOM</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Analyzing -->
+    <div class="wizard-step" id="wiz-step-2">
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px 0;">
+        <div style="font-family:var(--mono); color:var(--accent); margin-bottom:16px;" id="wizStatus">Fetching via proxy...</div>
+        <div style="width:100%; height:4px; background:var(--border); border-radius:2px; overflow:hidden;">
+          <div id="wizProgress" style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Proposal -->
+    <div class="wizard-step" id="wiz-step-3">
+      <p style="color:var(--text); font-weight:500; margin-bottom:8px;">Analysis Complete.</p>
+      <div style="background:var(--bg); border:1px solid var(--border2); padding:12px; border-radius:6px; font-family:var(--mono); font-size:12px; color:var(--muted); margin-bottom:16px;" id="wizProposal">
+        <!-- Injected via JS -->
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+        <button class="btn btn-danger" onclick="closeWizard()">No, Cancel</button>
+        <button class="btn btn-primary" id="btnWizAccept">Yes, Save & Go</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <datalist id="selectorPresets">
   <option value="a.container__link">CNN Article Links</option>
   <option value="article a">Standard Article Links</option>
+  <option value=".titleline > a">HackerNews Links</option>
   <option value="table tr td a">Table Links</option>
 </datalist>
 
@@ -128,9 +181,12 @@ header { height: var(--header-height); display: flex; align-items: center; paddi
       <div class="split-top">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
           <h3 style="font-size: 14px;">Extraction Rules</h3>
-          <button class="btn" id="btnAddRule" style="display:none;">+ Add Rule</button>
+          <div style="display:flex; gap:8px;">
+            <button class="btn" id="btnLaunchWizard" style="border-color:var(--accent3); color:var(--accent3);">✨ Magic Auto-Trainer</button>
+            <button class="btn" id="btnAddRule" style="display:none; border-color:var(--accent); color:var(--accent);">+ Add Rule</button>
+          </div>
         </div>
-        <div id="stepsContainer"><div class="empty-state">Select or create a profile.</div></div>
+        <div id="stepsContainer"><div class="empty-state">Select or create a profile, or run the Magic Auto-Trainer.</div></div>
       </div>
 
       <div class="split-bottom">
@@ -272,7 +328,7 @@ header { height: var(--header-height); display: flex; align-items: center; paddi
 
 </div>
 
-<footer class="master-footer">WebFetch Studio v8.1 - 2026-04-01 02:06 AM</footer>
+<footer class="master-footer">WebFetch Studio v9.0 - 2026-04-01 02:23 AM</footer>
 
 <script>
 function showToast(msg, isError = false) {
@@ -285,22 +341,24 @@ function showToast(msg, isError = false) {
 const icons = { close: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>` };
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
+// Updated Seeds to reflect Deep Scraping
 const defaultConfigs = [
   {
-    id: generateId() + '1', name: "Y-Combinator News (Seed)", url: "https://news.ycombinator.com/", depth: 0, pages: 1, trashConfig: false, trashOps: false,
+    id: generateId() + '1', name: "Y-Combinator Deep (Seed)", url: "https://news.ycombinator.com/", depth: 1, pages: 30, trashConfig: false, trashOps: false,
     steps: [
-      { id: generateId() + '1a', type: 'extract_data', value: '{\n  "Posts": ".titleline > a",\n  "Scores": ".score"\n}' }
+      { id: generateId() + '1a', type: 'extract_links', value: '.titleline > a' },
+      { id: generateId() + '1b', type: 'scrape_content', value: '' }
     ]
   },
   {
-    id: generateId() + '2', name: "AlterSlash Frontpage (Seed)", url: "http://www.alterslash.org/", depth: 1, pages: 15, trashConfig: false, trashOps: false,
+    id: generateId() + '2', name: "AlterSlash Deep (Seed)", url: "http://www.alterslash.org/", depth: 1, pages: 15, trashConfig: false, trashOps: false,
     steps: [
       { id: generateId() + '2a', type: 'extract_links', value: 'a' },
       { id: generateId() + '2b', type: 'scrape_content', value: '' }
     ]
   },
   {
-    id: generateId() + '3', name: "NPR Top Stories (Seed)", url: "https://www.npr.org/", depth: 1, pages: 15, trashConfig: false, trashOps: false,
+    id: generateId() + '3', name: "NPR Deep (Seed)", url: "https://www.npr.org/", depth: 1, pages: 15, trashConfig: false, trashOps: false,
     steps: [
       { id: generateId() + '3a', type: 'extract_links', value: 'article a, h3 a' },
       { id: generateId() + '3b', type: 'scrape_content', value: '' }
@@ -309,8 +367,15 @@ const defaultConfigs = [
 ];
 
 const savedConfigsStr = localStorage.getItem('wf_configs');
+// Migration check to inject new YC seed if necessary
+let initialConfigs = savedConfigsStr ? JSON.parse(savedConfigsStr) : JSON.parse(JSON.stringify(defaultConfigs));
+if(!localStorage.getItem('wf_v9_migrated')) {
+  initialConfigs = JSON.parse(JSON.stringify(defaultConfigs));
+  localStorage.setItem('wf_v9_migrated', 'true');
+}
+
 const AppState = {
-  configs: savedConfigsStr ? JSON.parse(savedConfigsStr) : JSON.parse(JSON.stringify(defaultConfigs)),
+  configs: initialConfigs,
   results: JSON.parse(localStorage.getItem('wf_results') || '[]'),
   settings: JSON.parse(localStorage.getItem('wf_settings') || '{"proxy":"codetabs", "delay":250}'),
   activeConfigId: null, activeResultId: null, tempSteps: []
@@ -326,13 +391,106 @@ function saveState() {
   localStorage.setItem('wf_results', JSON.stringify(AppState.results));
   localStorage.setItem('wf_settings', JSON.stringify(AppState.settings));
 }
-if (!savedConfigsStr) saveState();
+saveState();
 
 const PROXIES = {
   codetabs: u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
   allorigins: u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
   corsproxy: u => `https://corsproxy.io/?${encodeURIComponent(u)}`
 };
+
+// --- Wizard Logic ---
+let wizProposedConfig = null;
+
+document.getElementById('btnLaunchWizard').addEventListener('click', () => {
+  document.getElementById('wizardOverlay').classList.add('active');
+  showWizStep(1);
+});
+
+function closeWizard() { document.getElementById('wizardOverlay').classList.remove('active'); }
+
+function showWizStep(n) {
+  document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
+  document.getElementById(`wiz-step-${n}`).classList.add('active');
+}
+
+document.getElementById('btnWizAnalyze').addEventListener('click', async () => {
+  const url = document.getElementById('wizUrl').value.trim();
+  if(!url) return showToast('Please enter a URL', true);
+  
+  showWizStep(2);
+  document.getElementById('wizStatus').textContent = 'Fetching via proxy...';
+  document.getElementById('wizProgress').style.width = '30%';
+
+  try {
+    const res = await fetch(PROXIES[AppState.settings.proxy](url));
+    const html = AppState.settings.proxy === 'allorigins' ? (await res.json()).contents : await res.text();
+    
+    document.getElementById('wizProgress').style.width = '70%';
+    document.getElementById('wizStatus').textContent = 'Analyzing DOM Structure...';
+    
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    
+    // Heuristics
+    let prescribedSelector = 'a';
+    let proposalText = '';
+    
+    const articles = doc.querySelectorAll('article a');
+    const newsCards = doc.querySelectorAll('.titleline > a, .story a, .card a');
+    
+    if (articles.length > 5) {
+      prescribedSelector = 'article a';
+      proposalText = `Detected Standard News/Blog Layout. Found ${articles.length} article links. Prescribing standard deep scraper.`;
+    } else if (newsCards.length > 5) {
+      prescribedSelector = '.titleline > a, .story a, .card a';
+      proposalText = `Detected Feed/Aggregator Layout. Found ${newsCards.length} card links. Prescribing standard deep scraper.`;
+    } else {
+      proposalText = `Generic layout detected. Falling back to extracting all anchor tags and relying on content parsing.`;
+    }
+
+    wizProposedConfig = {
+      name: `Auto-Trained: ${new URL(url).hostname}`,
+      url: url,
+      depth: 1, pages: 30,
+      steps: [
+        { id: generateId(), type: 'extract_links', value: prescribedSelector },
+        { id: generateId(), type: 'scrape_content', value: '' }
+      ]
+    };
+
+    document.getElementById('wizProgress').style.width = '100%';
+    
+    setTimeout(() => {
+      document.getElementById('wizProposal').innerHTML = `
+        <div style="margin-bottom:8px; color:var(--text);">${proposalText}</div>
+        <div style="color:var(--accent);">Rule 1: Extract Links (${prescribedSelector})</div>
+        <div style="color:var(--accent);">Rule 2: Scrape Article Content</div>
+        <div style="color:var(--accent);">Depth: 1 | Limit: 30</div>
+      `;
+      showWizStep(3);
+    }, 500);
+
+  } catch(e) {
+    showToast(`Wizard Error: ${e.message}`, true);
+    closeWizard();
+  }
+});
+
+document.getElementById('btnWizAccept').addEventListener('click', () => {
+  wizProposedConfig.id = generateId();
+  wizProposedConfig.trashConfig = false;
+  wizProposedConfig.trashOps = false;
+  
+  AppState.configs.push(wizProposedConfig);
+  AppState.activeConfigId = wizProposedConfig.id;
+  saveState();
+  closeWizard();
+  showToast('Profile Generated & Saved.');
+  
+  // Automatically switch to Ops tab to run it
+  document.querySelector('[data-target="view-ops"]').click();
+});
+
 
 // --- UI Nav ---
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -646,11 +804,14 @@ function renderUI() {
       AppState.activeResultId = id; const r = AppState.results.find(x => x.id === id);
       activeResPayload = r.payload || r.data || [];
       
+      // Setup JSON View
       document.getElementById('resJsonViewer').innerHTML = `<pre style="white-space:pre-wrap; font-family:var(--mono); margin:0;">${JSON.stringify(activeResPayload, null, 2)}</pre>`;
       
+      // Setup Text View
       const textOut = activeResPayload.map(p => `--- ${p.url} ---\n${p.Title || p.title || 'Untitled'}\n\n${p.Content || p.text || JSON.stringify(p)}\n\n`).join('');
       document.getElementById('resTextViewer').textContent = textOut;
 
+      // Setup HTML View
       viewHistory = [0]; viewIndex = 0;
       renderViewPage(0);
 
@@ -697,6 +858,7 @@ document.getElementById('btnFactoryReset').addEventListener('click', () => {
   localStorage.removeItem('wf_configs');
   localStorage.removeItem('wf_results');
   localStorage.removeItem('wf_settings');
+  localStorage.removeItem('wf_v9_migrated');
   AppState.configs = JSON.parse(JSON.stringify(defaultConfigs));
   AppState.results = [];
   AppState.settings = { proxy: 'codetabs', delay: 250 };
