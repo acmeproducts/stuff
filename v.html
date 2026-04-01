@@ -758,6 +758,22 @@
       }
     }
 
+    function persistToken({ quiet = false } = {}) {
+      const token = tokenInput.value.trim();
+      if (!token) {
+        if (!quiet) {
+          setStatus(tokenStatus, 'Enter a personal access token.', { tone: 'error' });
+        }
+        return false;
+      }
+      storage.setItem(TOKEN_KEY, token);
+      state.token = token;
+      if (!quiet) {
+        setStatus(tokenStatus, 'Token saved locally for this browser.', { tone: 'success' });
+      }
+      return true;
+    }
+
     function persistSettings() {
       const payload = {
         owner: ownerInput.value.trim(),
@@ -880,6 +896,9 @@
     }
 
     async function apiFetch(path, options = {}) {
+      if (!state.token && tokenInput.value.trim()) {
+        persistToken({ quiet: true });
+      }
       if (!state.token) {
         throw new Error('Set a GitHub token first.');
       }
@@ -1357,14 +1376,11 @@
     }
 
     saveTokenBtn.addEventListener('click', () => {
-      const token = tokenInput.value.trim();
-      if (!token) {
-        setStatus(tokenStatus, 'Enter a personal access token.', { tone: 'error' });
-        return;
-      }
-      storage.setItem(TOKEN_KEY, token);
-      state.token = token;
-      setStatus(tokenStatus, 'Token saved locally for this browser.', { tone: 'success' });
+      persistToken();
+    });
+
+    tokenInput.addEventListener('change', () => {
+      persistToken({ quiet: true });
     });
 
     clearTokenBtn.addEventListener('click', () => {
