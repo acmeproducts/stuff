@@ -756,17 +756,30 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
 
 <div class="overlay" id="share-overlay" hidden onclick="if(event.target===this)this.hidden=true">
   <div class="sheet"><div class="sheet-handle"></div><div class="sheet-body">
+    <div class="share-qr-card partner">
+      <div class="share-qr-title">Partner invite</div>
+      <div class="share-qr-frame round">
+        <div id="share-partner-qr" class="share-qr-canvas"></div>
+        <div id="share-partner-label" class="share-qr-label">Join as
+Partner</div>
+      </div>
+      <div style="text-align:center;margin-top:-4px;display:flex;justify-content:center;">
+        <button class="share-copy-chip" onclick="copyShareLink('partner')">Copy Partner Link</button>
+      </div>
+      <div id="share-partner-qr-state" class="share-qr-note" style="text-align:center;">Partner QR: loading</div>
+    </div>
     <div class="share-qr-card owner">
+      <div class="share-qr-title">Owner handoff</div>
       <div class="share-qr-frame square">
         <div id="share-owner-qr" class="share-qr-canvas"></div>
         <div id="share-owner-label" class="share-qr-label">Join as
 Owner</div>
       </div>
+      <div style="text-align:center;margin-top:-4px;display:flex;justify-content:center;">
+        <button class="share-copy-chip" onclick="copyShareLink('owner')">Copy Owner Link</button>
+      </div>
+      <div id="share-owner-qr-state" class="share-qr-note" style="text-align:center;">Owner QR: loading</div>
     </div>
-    <div style="text-align:center;margin-top:-4px;display:flex;justify-content:center;">
-      <button class="share-copy-chip" onclick="copyShareLink()">Copy Link</button>
-    </div>
-    <div id="share-qr-state" class="share-qr-note" style="text-align:center;">QR: loading</div>
   </div></div>
 </div>
 
@@ -1672,6 +1685,7 @@ var _hiddenAt       = 0;
 
 var outQ            = [];
 var pendingAcks     = {};
+var helloReplyAtByConv = {};
 var lastRelaySeq    = 0;
 var msgSeq          = 0;
 var inboundSeen     = {};
@@ -2605,36 +2619,54 @@ function hydrateSessionFromInvite(sess,invite){
 function shareSession(cid){
   var sess=getSession(cid);if(!sess){toast('Not found');return;}
   var p=getPrefs();
+  var partnerUrl=buildInviteUrl(sess,p,'partner-invite');
   var handoffUrl=buildInviteUrl(sess,p,'owner-handoff');
-  if(!handoffUrl){toast('Unable to generate share link');return;}
+  if(!partnerUrl||!handoffUrl){toast('Unable to generate share link');return;}
   var SHARE_URL_WARN_LEN=520;
+  addDiagLog('share url length partner-invite='+partnerUrl.length);
   addDiagLog('share url length owner-handoff='+handoffUrl.length);
-  if(handoffUrl.length>SHARE_URL_WARN_LEN)toast('Share link is long; QR scan may be less reliable on older cameras.');
+  if(partnerUrl.length>SHARE_URL_WARN_LEN||handoffUrl.length>SHARE_URL_WARN_LEN)toast('Share link is long; QR scan may be less reliable on older cameras.');
+  addDiagLog('share link generated side=partner mode='+sess.partnerLangMode+' conv='+String(cid||'').slice(0,8));
   addDiagLog('share link generated side=owner mode='+sess.ownerLangMode+' conv='+String(cid||'').slice(0,8));
-  var h=document.getElementById('share-overlay');if(h)h.dataset.url=handoffUrl;
+  var h=document.getElementById('share-overlay');
+  if(h){
+    h.dataset.partnerUrl=partnerUrl;
+    h.dataset.ownerUrl=handoffUrl;
+    h.dataset.url=partnerUrl;
+  }
+  var partnerLabel=document.getElementById('share-partner-label');
+  if(partnerLabel)partnerLabel.textContent='Join as\n'+(firstRealName(sess.partnerHandle,sess.peerName)||'Partner');
   var ownerLabel=document.getElementById('share-owner-label');
   if(ownerLabel)ownerLabel.textContent='Join as\n'+(firstRealName(sess.myHandle,sess.myName,getPreferredOwnerName())||'Owner');
-  var qrState=document.getElementById('share-qr-state');
-  if(qrState)qrState.textContent='QR: loading';
+  var partnerQrState=document.getElementById('share-partner-qr-state');
+  if(partnerQrState)partnerQrState.textContent='Partner QR: loading';
+  var ownerQrState=document.getElementById('share-owner-qr-state');
+  if(ownerQrState)ownerQrState.textContent='Owner QR: loading';
+  var partnerQrNode=document.getElementById('share-partner-qr');if(partnerQrNode)partnerQrNode.innerHTML='';
   var qrNode=document.getElementById('share-owner-qr');if(qrNode)qrNode.innerHTML='';
-  showShareQr();
+  showShareQr('partner');
+  showShareQr('owner');
   document.getElementById('share-overlay').hidden=false;
 }
-function getShareLink(){
+function getShareLink(kind){
   var overlay=document.getElementById('share-overlay');
-  return (overlay&&overlay.dataset&&overlay.dataset.url)||'';
+  if(!overlay||!overlay.dataset)return '';
+  if(kind==='owner')return overlay.dataset.ownerUrl||'';
+  if(kind==='partner')return overlay.dataset.partnerUrl||'';
+  return overlay.dataset.url||overlay.dataset.partnerUrl||overlay.dataset.ownerUrl||'';
 }
-function copyShareLink(){
-  var url=getShareLink();
+function copyShareLink(kind){
+  var url=getShareLink(kind);
   if(!url){toast('No share link available');return;}
   copyTextToClipboard(url,'clipboard updated... send link to your other device',4000);
 }
-function showShareQr(){
-  var url=getShareLink();
-  var qrState=document.getElementById('share-qr-state');
-  var qrNode=document.getElementById('share-owner-qr');
+function showShareQr(kind){
+  var which=(kind==='owner')?'owner':'partner';
+  var url=getShareLink(which);
+  var qrState=document.getElementById('share-'+which+'-qr-state');
+  var qrNode=document.getElementById('share-'+which+'-qr');
   if(!url||!qrNode){if(qrState)qrState.textContent='QR: error';return;}
-  if(qrState)qrState.textContent='QR: loading';
+  if(qrState)qrState.textContent=(which==='owner')?'Owner QR: loading':'Partner QR: loading';
   qrNode.innerHTML='';
   if(!window.QRCode){
     addDiagLog('QR render failed reason=missing-qrcode-lib','err');
@@ -2642,8 +2674,9 @@ function showShareQr(){
     return;
   }
   try{
-    new QRCode(qrNode,{text:url,width:170,height:170,colorDark:'#1D4ED8',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M});
-    if(qrState)qrState.textContent='QR: ready';
+    var darkColor=(which==='owner')?'#1D4ED8':'#111';
+    new QRCode(qrNode,{text:url,width:170,height:170,colorDark:darkColor,colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M});
+    if(qrState)qrState.textContent=(which==='owner')?'Owner QR: ready':'Partner QR: ready';
   }catch(e){
     addDiagLog('QR render failed reason='+String(e),'err');
     if(qrState)qrState.textContent='QR: error (tap Copy Link)';
@@ -2905,9 +2938,21 @@ function handleRelayEvent(d){
     addDiagLog('HELLO from '+(d.name||'?')+' side='+(d.side||'?')+' identity='+(d.identityId||'?'));
     updatePartnerHeader(sess);
     renderSessionList();
+    if(state.pendingInviteId===sess.convId){
+      state.pendingInviteId=null;
+    }
     if(!d._fromBackfill){
       resendUnacked();
       sendHistorySync(sess.convId);
+      var now=Date.now();
+      var lastHelloReplyAt=Number(helloReplyAtByConv[sess.convId]||0);
+      if((now-lastHelloReplyAt)>5000){
+        helloReplyAtByConv[sess.convId]=now;
+        var helloSess=getSession(sess.convId)||sess;
+        var helloMeta=buildLocalEnvelope(helloSess,{});
+        transportSend({type:'hello',transient:true,name:firstRealName(helloSess.myHandle,helloSess.myName,getPreferredOwnerName())||'yournamehere',myHandle:firstRealName(helloSess.myHandle,helloSess.myName,getPreferredOwnerName())||'yournamehere',lang:effectiveLangFromSession(helloSess),effectiveTargetLang:getEffectiveTargetLang(helloSess),side:helloMeta.side,identityId:helloMeta.identityId,timestamp:now});
+        addDiagLog('TX hello-reply conv='+String(sess.convId||'').slice(0,8)+' side='+(helloMeta.side||'?'));
+      }
       renderAllMessages();scrollBottom();
       if(nameUpdate&&nameUpdate.prevName&&nameUpdate.nextName&&nameUpdate.prevName!==nameUpdate.nextName){
         appendCanonicalEvent(sess.convId,'name_change',{prevName:nameUpdate.prevName,nextName:nameUpdate.nextName},buildLocalEnvelope(sess,{side:'partner',identityId:String(sess.partnerIdentityId||'')}));
