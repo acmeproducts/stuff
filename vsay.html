@@ -275,16 +275,38 @@ textarea.field-input{resize:none;}
 .send-btn:disabled{opacity:.3;}
 
 /* vSay floating media window */
-.vsay-float{position:absolute;right:12px;bottom:86px;width:min(44vw,200px);background:#111;border-radius:14px;border:1px solid rgba(255,255,255,.2);box-shadow:var(--shadow);overflow:hidden;z-index:25;display:none;}
+.vsay-float{position:absolute;right:12px;bottom:86px;width:min(46vw,230px);min-width:210px;min-height:170px;background:#111;border-radius:14px;border:1px solid rgba(255,255,255,.2);box-shadow:var(--shadow);overflow:hidden;z-index:25;display:none;resize:both;}
 .vsay-float.show{display:block;}
-.vsay-float-header{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:7px 9px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:700;}
+.vsay-float-header{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:7px 9px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:700;cursor:move;touch-action:none;}
+.vsay-float-head-left,.vsay-float-head-right{display:flex;align-items:center;gap:4px;}
+.vsay-float-title{display:inline-block;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .vsay-float-body{position:relative;background:#000;aspect-ratio:16/10;display:flex;align-items:center;justify-content:center;}
+.vsay-float.collapsed{min-height:0;resize:none;}
+.vsay-float.collapsed .vsay-float-body,.vsay-float.collapsed .vsay-float-actions{display:none;}
 #vsay-local-video,#vsay-remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
 .vsay-audio-chip{font-size:12px;color:#fff;opacity:.9;background:rgba(0,0,0,.45);padding:4px 8px;border-radius:999px;z-index:2;}
-.vsay-float-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:7px;background:#171717;}
+.vsay-float-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:7px;background:#171717;}
 .vsay-float-btn{border:1px solid rgba(255,255,255,.18);background:#202020;color:#fff;border-radius:8px;padding:6px 8px;font-size:11px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;}
 .vsay-float-btn.active{background:#14532d;border-color:#166534;}
-.vsay-float-btn.stop{background:#7f1d1d;border-color:#991b1b;}
+.vsay-float-btn.master{background:#7f1d1d;border-color:#991b1b;}
+.vsay-ctrl-btn{border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.3);color:#fff;border-radius:7px;cursor:pointer;padding:2px 6px;font-size:11px;line-height:1;}
+.vsay-ctrl-btn.onair{display:inline-flex;align-items:center;gap:5px;}
+.vsay-ctrl-btn.onair::before{content:'';width:7px;height:7px;border-radius:50%;background:#f87171;box-shadow:0 0 0 1px rgba(0,0,0,.2);}
+.vsay-ctrl-btn.onair.active::before{background:#22c55e;}
+.vsay-ctrl-btn.snap{min-width:22px;padding:2px 4px;}
+.vsay-icon-wrap{display:inline-flex;align-items:center;justify-content:center;}
+.vsay-icon-wrap.off{color:#fca5a5;}
+.vsay-icon-wrap svg{display:block;}
+.vsay-transcript{position:absolute;left:12px;bottom:86px;width:min(70vw,420px);min-width:260px;min-height:170px;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);z-index:24;display:none;resize:both;overflow:hidden;}
+.vsay-transcript.show{display:block;}
+.vsay-transcript-header{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:7px 9px;background:var(--paper);font-size:11px;font-weight:700;color:var(--ink);cursor:move;touch-action:none;}
+.vsay-transcript.collapsed{min-height:0;resize:none;}
+.vsay-transcript.collapsed .vsay-transcript-body{display:none;}
+.vsay-transcript-body{height:220px;overflow:auto;padding:8px;display:grid;gap:6px;background:#fff;}
+.vsay-transcript-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;border:1px solid var(--border);border-radius:10px;padding:7px;background:#fff;}
+.vsay-transcript-row.mine{background:var(--teal-light);}
+.vsay-transcript-col{font-size:12px;line-height:1.35;color:var(--ink);}
+.vsay-transcript-col b{display:block;font-size:10px;text-transform:uppercase;color:var(--ink-dim);letter-spacing:.04em;margin-bottom:2px;}
 
 /* ════ CATALOG SCREEN (phrasebook) ════ */
 .scr-header{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--cream);}
@@ -554,8 +576,18 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
 
   <div class="vsay-float" id="vsay-float-window" aria-live="polite">
     <div class="vsay-float-header">
-      <span id="vsay-float-title">Media share</span>
-      <button class="vsay-float-btn" style="padding:2px 7px;" onclick="toggleMediaFloat(false)">Hide</button>
+      <div class="vsay-float-head-left">
+        <button class="vsay-ctrl-btn" id="vsay-float-collapse-btn" onclick="toggleMediaCollapse()" title="Collapse">◀</button>
+        <span class="vsay-float-title" id="vsay-float-title">Media share</span>
+      </div>
+      <div class="vsay-float-head-right">
+        <button class="vsay-ctrl-btn onair" id="vsay-onair-btn" onclick="toggleMediaMaster()" title="On Air">On Air</button>
+        <button class="vsay-ctrl-btn" id="vsay-cc-btn" onclick="toggleCCMode()" title="Closed captions">CC</button>
+        <button class="vsay-ctrl-btn snap" onclick="snapMediaFloat('left')" title="Snap top left">↖</button>
+        <button class="vsay-ctrl-btn snap" onclick="snapMediaFloat('center')" title="Snap top center">↑</button>
+        <button class="vsay-ctrl-btn snap" onclick="snapMediaFloat('right')" title="Snap top right">↗</button>
+        <button class="vsay-ctrl-btn" onclick="toggleMediaFloat(false)" title="Close">✕</button>
+      </div>
     </div>
     <div class="vsay-float-body">
       <video id="vsay-remote-video" autoplay playsinline hidden></video>
@@ -563,10 +595,20 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
       <div class="vsay-audio-chip" id="vsay-audio-chip" hidden>Audio sharing</div>
     </div>
     <div class="vsay-float-actions">
-      <button class="vsay-float-btn" id="vsay-share-video-btn" onclick="toggleSessionMediaShare('video')">Share video</button>
-      <button class="vsay-float-btn" id="vsay-share-audio-btn" onclick="toggleSessionMediaShare('audio')">Share audio</button>
-      <button class="vsay-float-btn stop" style="grid-column:1 / -1;" onclick="stopSessionMediaShare()">Unshare</button>
+      <button class="vsay-float-btn" id="vsay-share-video-btn" onclick="toggleSessionMediaShare('video')"><span class="vsay-icon-wrap" id="vsay-video-icon"></span></button>
+      <button class="vsay-float-btn" id="vsay-share-audio-btn" onclick="toggleSessionMediaShare('audio')"><span class="vsay-icon-wrap" id="vsay-mic-icon"></span></button>
+      <button class="vsay-float-btn master" id="vsay-master-btn" onclick="toggleMediaMaster()">Kill</button>
     </div>
+  </div>
+  <div class="vsay-transcript" id="vsay-transcript-window">
+    <div class="vsay-transcript-header">
+      <div class="vsay-float-head-left">
+        <button class="vsay-ctrl-btn" id="vsay-transcript-collapse-btn" onclick="toggleTranscriptCollapse()" title="Collapse">◀</button>
+        <span>CC Transcript</span>
+      </div>
+      <button class="vsay-ctrl-btn" onclick="closeTranscriptWindow()" title="Close">✕</button>
+    </div>
+    <div class="vsay-transcript-body" id="vsay-transcript-body"></div>
   </div>
 
 </div>
@@ -904,7 +946,7 @@ var ICON_BACK='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" strok
 var ICON_DELETE='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 
 // Storage keys
-var SK={sessions:'ts3_sessions',activeConv:'ts3_active',prefs:'ts3_prefs',devId:'ts3_dev',partId:'ts3_part',order:'ts3_order',recycled:'ts3_recycled',notes:'ts3_notes',media:'ts3_media_share'};
+var SK={sessions:'ts3_sessions',activeConv:'ts3_active',prefs:'ts3_prefs',devId:'ts3_dev',partId:'ts3_part',order:'ts3_order',recycled:'ts3_recycled',notes:'ts3_notes',media:'ts3_media_share',mediaUi:'ts3_media_ui',ccUi:'ts3_cc_ui'};
 var SAY={catalogs:'say_catalogs',cards:'say_cards',tags:'say_tags'};
 
 function ls(k){try{return localStorage.getItem(k);}catch(e){return null;}}
@@ -949,7 +991,8 @@ var state={
   pbExportBusy:false,
   ncBacktranslate:null,
   mediaShareBySession:{},
-  mediaRuntime:{stream:null,kind:'',activeSessionId:'',remoteActive:false,floatVisible:true}
+  mediaRuntime:{stream:null,kind:'',activeSessionId:'',remoteActive:false,floatVisible:true,videoEnabled:false,micEnabled:false,collapsed:false,onAir:false,ccEnabled:false,ccTts:false},
+  ccTranscript:{entries:[],visible:true,collapsed:false}
 };
 var pendingOnboardingFlow=null;
 var tagPickerSelectedTags=[];
@@ -965,6 +1008,10 @@ var recognition=null,sttActive=false;
 function getSessionMediaMap(){return lsJSON(SK.media,{});}
 function saveSessionMediaMap(map){lsW(SK.media,JSON.stringify(map||{}));}
 function hydrateSessionMediaMap(){state.mediaShareBySession=getSessionMediaMap();}
+function getMediaUiState(){return lsJSON(SK.mediaUi,{x:null,y:null,w:null,h:null,collapsed:false,floatVisible:true});}
+function saveMediaUiState(next){lsW(SK.mediaUi,JSON.stringify(next||{}));}
+function getCcUiState(){return lsJSON(SK.ccUi,{x:null,y:null,w:null,h:null,collapsed:false,visible:true});}
+function saveCcUiState(next){lsW(SK.ccUi,JSON.stringify(next||{}));}
 function getActiveSessionMediaState(){var cid=state.activeConvId||'';if(!cid)return null;return state.mediaShareBySession[cid]||null;}
 function setSessionMediaState(cid,payload){if(!cid)return;var map=getSessionMediaMap();if(payload&&payload.active){map[cid]={active:true,kind:payload.kind==='audio'?'audio':'video',updatedAt:Date.now(),from:payload.from||DEVICE_ID};}
   else delete map[cid];
@@ -973,6 +1020,41 @@ function setSessionMediaState(cid,payload){if(!cid)return;var map=getSessionMedi
 function getMediaShareLabel(sess){if(!sess)return 'Media share';var mine=firstRealName(sess.myHandle,sess.myName,'You')||'You';var peer=firstRealName(sess.partnerHandle,sess.peerName,'Partner')||'Partner';return mine+' ↔ '+peer;}
 function toggleMediaFloat(show){if(typeof show==='boolean')state.mediaRuntime.floatVisible=show;else state.mediaRuntime.floatVisible=!state.mediaRuntime.floatVisible;var win=document.getElementById('vsay-float-window');if(!win)return;
   if(state.mediaRuntime.floatVisible&&state.activeConvId)win.classList.add('show');else win.classList.remove('show');
+  var ui=getMediaUiState();ui.floatVisible=state.mediaRuntime.floatVisible;saveMediaUiState(ui);
+}
+function toggleMediaCollapse(){
+  state.mediaRuntime.collapsed=!state.mediaRuntime.collapsed;
+  renderMediaShareUI();
+  var ui=getMediaUiState();ui.collapsed=state.mediaRuntime.collapsed;saveMediaUiState(ui);
+}
+function snapMediaFloat(pos){
+  var win=document.getElementById('vsay-float-window');if(!win)return;
+  win.style.bottom='';win.style.top='12px';
+  if(pos==='left'){win.style.left='12px';win.style.right='';}
+  else if(pos==='center'){win.style.left='50%';win.style.right='';win.style.transform='translateX(-50%)';}
+  else{win.style.right='12px';win.style.left='';}
+  persistFloatingRect(win,'media');
+}
+function iconVideo(on){
+  return on?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke=\"currentColor\" stroke-width=\"2\"><polygon points=\"23 7 16 12 23 17 23 7\"></polygon><rect x=\"1\" y=\"5\" width=\"15\" height=\"14\" rx=\"2\" ry=\"2\"></rect></svg>'
+           :'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke=\"currentColor\" stroke-width=\"2\"><polygon points=\"23 7 16 12 23 17 23 7\"></polygon><rect x=\"1\" y=\"5\" width=\"15\" height=\"14\" rx=\"2\" ry=\"2\"></rect><line x1=\"2\" y1=\"22\" x2=\"22\" y2=\"2\"/></svg>';
+}
+function iconMic(on){
+  return on?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z\"></path><path d=\"M19 10v2a7 7 0 0 1-14 0v-2\"></path><line x1=\"12\" y1=\"19\" x2=\"12\" y2=\"23\"></line><line x1=\"8\" y1=\"23\" x2=\"16\" y2=\"23\"></line></svg>'
+           :'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z\"></path><path d=\"M19 10v2a7 7 0 0 1-14 0v-2\"></path><line x1=\"12\" y1=\"19\" x2=\"12\" y2=\"23\"></line><line x1=\"8\" y1=\"23\" x2=\"16\" y2=\"23\"></line><line x1=\"2\" y1=\"22\" x2=\"22\" y2=\"2\"/></svg>';
+}
+function mediaKind(){return state.mediaRuntime.videoEnabled?'video':(state.mediaRuntime.micEnabled?'audio':'');}
+function syncMediaTracks(){if(!state.mediaRuntime.stream)return;state.mediaRuntime.stream.getVideoTracks().forEach(function(t){t.enabled=!!state.mediaRuntime.videoEnabled;});state.mediaRuntime.stream.getAudioTracks().forEach(function(t){t.enabled=!!state.mediaRuntime.micEnabled;});}
+async function ensureMediaStream(){
+  if(state.mediaRuntime.stream)return state.mediaRuntime.stream;
+  var stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+  state.mediaRuntime.stream=stream;state.mediaRuntime.activeSessionId=state.activeConvId;
+  return stream;
+}
+function toggleMediaMaster(){
+  var turnOn=!(state.mediaRuntime.videoEnabled&&state.mediaRuntime.micEnabled);
+  if(turnOn){toggleSessionMediaShare('all');return;}
+  state.mediaRuntime.videoEnabled=false;state.mediaRuntime.micEnabled=false;stopSessionMediaShare({silent:true,keepFlags:true});renderMediaShareUI();
 }
 function renderMediaShareUI(){
   var win=document.getElementById('vsay-float-window');if(!win)return;
@@ -984,37 +1066,53 @@ function renderMediaShareUI(){
   var audioChip=document.getElementById('vsay-audio-chip');
   var sess=getSession(state.activeConvId||'');
   if(title)title.textContent=getMediaShareLabel(sess);
-  var localActive=!!state.mediaRuntime.stream;
+  var localActive=!!state.mediaRuntime.stream&&(state.mediaRuntime.videoEnabled||state.mediaRuntime.micEnabled);
   var current=getActiveSessionMediaState();
   var remoteActive=!!(current&&current.active&&!localActive);
   state.mediaRuntime.remoteActive=remoteActive;
-  if(vBtn){vBtn.classList.toggle('active',localActive&&state.mediaRuntime.kind==='video');vBtn.textContent=(localActive&&state.mediaRuntime.kind==='video')?'Sharing video':'Share video';}
-  if(aBtn){aBtn.classList.toggle('active',localActive&&state.mediaRuntime.kind==='audio');aBtn.textContent=(localActive&&state.mediaRuntime.kind==='audio')?'Sharing audio':'Share audio';}
-  if(localVideo){if(localActive&&state.mediaRuntime.kind==='video'){localVideo.hidden=false;localVideo.srcObject=state.mediaRuntime.stream;}else{localVideo.hidden=true;localVideo.srcObject=null;}}
+  var videoOn=!!state.mediaRuntime.videoEnabled;
+  var micOn=!!state.mediaRuntime.micEnabled;
+  var onAirBtn=document.getElementById('vsay-onair-btn');
+  var masterBtn=document.getElementById('vsay-master-btn');
+  var ccBtn=document.getElementById('vsay-cc-btn');
+  var collapseBtn=document.getElementById('vsay-float-collapse-btn');
+  if(vBtn){vBtn.classList.toggle('active',videoOn);vBtn.title=videoOn?'Video ON':'Video OFF';}
+  if(aBtn){aBtn.classList.toggle('active',micOn);aBtn.title=micOn?'Mic ON':'Mic OFF';}
+  if(vBtn)vBtn.innerHTML='<span class="vsay-icon-wrap'+(videoOn?'':' off')+'">'+iconVideo(videoOn)+'</span> '+(videoOn?'Video ON':'Video OFF');
+  if(aBtn)aBtn.innerHTML='<span class="vsay-icon-wrap'+(micOn?'':' off')+'">'+iconMic(micOn)+'</span> '+(micOn?'Mic ON':'Mic OFF');
+  if(onAirBtn){var onAir=videoOn&&micOn;onAirBtn.classList.toggle('active',onAir);}
+  if(masterBtn)masterBtn.textContent=(videoOn||micOn)?'Kill':'Enable';
+  if(ccBtn)ccBtn.classList.toggle('active',!!state.mediaRuntime.ccEnabled);
+  win.classList.toggle('collapsed',!!state.mediaRuntime.collapsed);
+  if(collapseBtn)collapseBtn.textContent=state.mediaRuntime.collapsed?'▶':'◀';
+  if(localVideo){if(localActive&&videoOn){localVideo.hidden=false;localVideo.srcObject=state.mediaRuntime.stream;}else{localVideo.hidden=true;localVideo.srcObject=null;}}
   if(remoteVideo){remoteVideo.hidden=!remoteActive||!(current&&current.kind==='video');remoteVideo.srcObject=null;}
-  if(audioChip)audioChip.hidden=!((localActive&&state.mediaRuntime.kind==='audio')||(remoteActive&&current&&current.kind==='audio'));
+  if(audioChip)audioChip.hidden=!((localActive&&micOn)||(remoteActive&&current&&current.kind==='audio'));
   if(state.activeConvId&&state.mediaRuntime.floatVisible)win.classList.add('show');else win.classList.remove('show');
+  renderTranscriptUI();
 }
 async function toggleSessionMediaShare(kind){
   if(!state.activeConvId){toast('No active session');return;}
-  var targetKind=(kind==='audio')?'audio':'video';
-  if(state.mediaRuntime.stream&&state.mediaRuntime.kind===targetKind){stopSessionMediaShare();return;}
-  stopSessionMediaShare({silent:true});
+  if(kind==='video')state.mediaRuntime.videoEnabled=!state.mediaRuntime.videoEnabled;
+  else if(kind==='audio')state.mediaRuntime.micEnabled=!state.mediaRuntime.micEnabled;
+  else{state.mediaRuntime.videoEnabled=true;state.mediaRuntime.micEnabled=true;}
+  if(!(state.mediaRuntime.videoEnabled||state.mediaRuntime.micEnabled)){stopSessionMediaShare({silent:true,keepFlags:true});renderMediaShareUI();return;}
   try{
-    var constraints=(targetKind==='video')?{video:true,audio:true}:{video:false,audio:true};
-    var stream=await navigator.mediaDevices.getUserMedia(constraints);
-    state.mediaRuntime.stream=stream;state.mediaRuntime.kind=targetKind;state.mediaRuntime.activeSessionId=state.activeConvId;
-    setSessionMediaState(state.activeConvId,{active:true,kind:targetKind,from:DEVICE_ID});
-    transportSend({type:'media-share',transient:true,mediaAction:'share',kind:targetKind});
+    await ensureMediaStream();
+    syncMediaTracks();
+    state.mediaRuntime.kind=mediaKind();
+    setSessionMediaState(state.activeConvId,{active:true,kind:state.mediaRuntime.kind||'audio',from:DEVICE_ID});
+    transportSend({type:'media-share',transient:true,mediaAction:'share',kind:state.mediaRuntime.kind||'audio'});
     renderMediaShareUI();
   }catch(_){toast('Media permission blocked');}
 }
 function stopSessionMediaShare(opts){
-  var silent=opts&&opts.silent;
+  var silent=opts&&opts.silent;var keepFlags=opts&&opts.keepFlags;
   if(state.mediaRuntime.stream){state.mediaRuntime.stream.getTracks().forEach(function(t){try{t.stop();}catch(_){}});}
   var hadStream=!!state.mediaRuntime.stream;
   var sessionId=state.mediaRuntime.activeSessionId||state.activeConvId;
   state.mediaRuntime.stream=null;state.mediaRuntime.kind='';state.mediaRuntime.activeSessionId='';
+  if(!keepFlags){state.mediaRuntime.videoEnabled=false;state.mediaRuntime.micEnabled=false;}
   if(sessionId)setSessionMediaState(sessionId,null);
   if(hadStream&&connectedConvId===sessionId)transportSend({type:'media-share',transient:true,mediaAction:'unshare'});
   renderMediaShareUI();
@@ -1025,6 +1123,107 @@ function applyRemoteMediaShareState(d,sess){
   if(d.mediaAction==='unshare')setSessionMediaState(sess.convId,null);
   else if(d.mediaAction==='share')setSessionMediaState(sess.convId,{active:true,kind:d.kind||'video',from:d.from||''});
   if(state.activeConvId===sess.convId)renderMediaShareUI();
+}
+function renderTranscriptUI(){
+  var win=document.getElementById('vsay-transcript-window');if(!win)return;
+  var body=document.getElementById('vsay-transcript-body');if(!body)return;
+  var collapseBtn=document.getElementById('vsay-transcript-collapse-btn');
+  var activeId=state.activeConvId||'';
+  var entries=(state.ccTranscript.entries||[]).filter(function(e){return !e.convId||e.convId===activeId;});
+  var shouldShow=!!state.mediaRuntime.ccEnabled||entries.length>0;
+  if(shouldShow&&state.ccTranscript.visible!==false)win.classList.add('show');else win.classList.remove('show');
+  win.classList.toggle('collapsed',!!state.ccTranscript.collapsed);
+  if(collapseBtn)collapseBtn.textContent=state.ccTranscript.collapsed?'▶':'◀';
+  body.innerHTML=entries.map(function(e){
+    return '<div class="vsay-transcript-row '+(e.dir==='local'?'mine':'theirs')+'"><div class="vsay-transcript-col"><b>Original</b>'+escapeHtml(e.sourceText||'')+'</div><div class="vsay-transcript-col"><b>Translated</b>'+escapeHtml(e.targetText||'')+'</div></div>';
+  }).join('');
+  body.scrollTop=body.scrollHeight;
+}
+function toggleTranscriptCollapse(){state.ccTranscript.collapsed=!state.ccTranscript.collapsed;renderTranscriptUI();var ui=getCcUiState();ui.collapsed=state.ccTranscript.collapsed;saveCcUiState(ui);}
+function closeTranscriptWindow(){state.ccTranscript.visible=false;renderTranscriptUI();var ui=getCcUiState();ui.visible=false;saveCcUiState(ui);}
+function addCcTranscriptEntry(payload){
+  state.ccTranscript.entries.push({ts:payload.ts||Date.now(),convId:payload.convId||(state.activeConvId||''),dir:payload.dir||'local',sourceText:payload.sourceText||'',targetText:payload.targetText||''});
+  state.ccTranscript.entries.sort(function(a,b){return (a.ts||0)-(b.ts||0);});
+  if(state.ccTranscript.entries.length>120)state.ccTranscript.entries=state.ccTranscript.entries.slice(-120);
+  if(state.ccTranscript.visible===false&&(state.mediaRuntime.ccEnabled||state.ccTranscript.entries.length))state.ccTranscript.visible=true;
+  renderTranscriptUI();
+}
+var ccRecognition=null,ccActive=false,ccDraft='';
+function toggleCCMode(){
+  state.mediaRuntime.ccEnabled=!state.mediaRuntime.ccEnabled;
+  if(state.mediaRuntime.ccEnabled){startCCCapture();state.ccTranscript.visible=true;}
+  else stopCCCapture();
+  renderMediaShareUI();
+}
+function startCCCapture(){
+  if(!SpeechRec){toast('Voice not available');state.mediaRuntime.ccEnabled=false;return;}
+  var sess=getSession(state.activeConvId||'');
+  ccRecognition=new SpeechRec();
+  ccRecognition.lang=TTS_LOCALE[resolveEffectiveLang(sess,'owner')||getPrefs().myLang||'en']||'en';
+  ccRecognition.interimResults=true;ccRecognition.continuous=true;
+  ccRecognition.onstart=function(){ccActive=true;};
+  ccRecognition.onresult=function(e){
+    var finalText='';var interim='';
+    for(var i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)finalText+=e.results[i][0].transcript;else interim+=e.results[i][0].transcript;}
+    ccDraft=interim||ccDraft;
+    if(finalText.trim())emitCcTranscript(finalText.trim());
+  };
+  ccRecognition.onend=function(){ccActive=false;if(state.mediaRuntime.ccEnabled)try{ccRecognition.start();}catch(_){}};ccRecognition.onerror=function(){};
+  try{ccRecognition.start();}catch(_){}
+}
+function stopCCCapture(){state.mediaRuntime.ccEnabled=false;if(ccRecognition){try{ccRecognition.stop();}catch(_){} }ccRecognition=null;ccActive=false;}
+function emitCcTranscript(text){
+  var sess=getSession(state.activeConvId||'');if(!sess||!text)return;
+  var sourceLang=detectLang(text,resolveEffectiveLang(sess,'owner')||'en');
+  var targetLang=resolveEffectiveLang(sess,'partner','en');
+  var stamp=Date.now();
+  var sendPayload={type:'cc-transcript',transient:true,sourceText:text,sourceLang:sourceLang,targetLang:targetLang,timestamp:stamp};
+  transportSend(sendPayload);
+  translate(text,sourceLang,targetLang).then(function(out){
+    addCcTranscriptEntry({ts:stamp,convId:sess.convId,dir:'local',sourceText:text,targetText:(out||text)});
+  }).catch(function(){addCcTranscriptEntry({ts:stamp,convId:sess.convId,dir:'local',sourceText:text,targetText:text});});
+}
+function handleRemoteCcTranscript(d,sess){
+  var src=(d.sourceText||'').trim();if(!src)return;
+  var srcLang=normalizeLangSetting(d.sourceLang)||detectLang(src,resolveEffectiveLang(sess,'partner','en'));
+  var tgtLang=resolveEffectiveLang(sess,'owner','en');
+  var stamp=Number(d.timestamp)||Date.now();
+  translate(src,srcLang,tgtLang).then(function(out){
+    var text=(out||src);
+    addCcTranscriptEntry({ts:stamp,convId:sess.convId,dir:'remote',sourceText:src,targetText:text});
+    if(state.mediaRuntime.ccTts||state.autoSpeakIncoming)speak(text,tgtLang,null);
+  }).catch(function(){addCcTranscriptEntry({ts:stamp,convId:sess.convId,dir:'remote',sourceText:src,targetText:src});});
+}
+function persistFloatingRect(win,kind){
+  if(!win)return;
+  var r=win.getBoundingClientRect();
+  if(kind==='media'){var ui=getMediaUiState();ui.x=Math.round(r.left);ui.y=Math.round(r.top);ui.w=Math.round(r.width);ui.h=Math.round(r.height);saveMediaUiState(ui);}
+  else{var c=getCcUiState();c.x=Math.round(r.left);c.y=Math.round(r.top);c.w=Math.round(r.width);c.h=Math.round(r.height);saveCcUiState(c);}
+}
+function enableFloatingWindow(winId,headerClass,kind){
+  var win=document.getElementById(winId);if(!win)return;
+  var head=win.querySelector(headerClass);if(!head)return;
+  var start={x:0,y:0,l:0,t:0};
+  head.addEventListener('pointerdown',function(e){
+    if(e.target.closest('button'))return;
+    var rect=win.getBoundingClientRect();start={x:e.clientX,y:e.clientY,l:rect.left,t:rect.top};head.setPointerCapture(e.pointerId);
+  });
+  head.addEventListener('pointermove',function(e){
+    if(!head.hasPointerCapture(e.pointerId))return;
+    var nx=start.l+(e.clientX-start.x);var ny=start.t+(e.clientY-start.y);
+    win.style.left=Math.max(4,nx)+'px';win.style.top=Math.max(4,ny)+'px';win.style.right='';win.style.bottom='';win.style.transform='';
+  });
+  head.addEventListener('pointerup',function(e){if(head.hasPointerCapture(e.pointerId))try{head.releasePointerCapture(e.pointerId);}catch(_){}
+    persistFloatingRect(win,kind);
+  });
+  var ro=new ResizeObserver(function(){persistFloatingRect(win,kind);});
+  ro.observe(win);
+}
+function hydrateFloatingWindows(){
+  var m=getMediaUiState();var win=document.getElementById('vsay-float-window');
+  if(win){if(m.w)win.style.width=m.w+'px';if(m.h)win.style.height=m.h+'px';if(m.x!==null&&m.y!==null){win.style.left=m.x+'px';win.style.top=m.y+'px';win.style.right='';win.style.bottom='';}state.mediaRuntime.collapsed=!!m.collapsed;state.mediaRuntime.floatVisible=(m.floatVisible!==false);}
+  var c=getCcUiState();var tw=document.getElementById('vsay-transcript-window');
+  if(tw){if(c.w)tw.style.width=c.w+'px';if(c.h)tw.style.height=c.h+'px';if(c.x!==null&&c.y!==null){tw.style.left=c.x+'px';tw.style.top=c.y+'px';tw.style.right='';tw.style.bottom='';}state.ccTranscript.collapsed=!!c.collapsed;state.ccTranscript.visible=(c.visible!==false);}
 }
 
 // ════════════════════════════════════════════════════════
@@ -2722,6 +2921,11 @@ function handleRelayEvent(d){
     applyRemoteMediaShareState(d,sess);
     return;
   }
+  if(d.type==='cc-transcript'){
+    markPeerSeen(sess.convId,d.timestamp||d.ts||Date.now(),{fromBackfill:!!d._fromBackfill,suppressJoinNote:true});
+    handleRemoteCcTranscript(d,sess);
+    return;
+  }
 
   if(d.type==='msg'){
     markPeerSeen(sess.convId,d.timestamp||d.ts||Date.now(),{fromBackfill:!!d._fromBackfill});
@@ -4396,6 +4600,9 @@ document.addEventListener('DOMContentLoaded',function(){
   ncatLangChanged();
   initTagPickerInput();
   hydrateSessionMediaMap();
+  hydrateFloatingWindows();
+  enableFloatingWindow('vsay-float-window','.vsay-float-header','media');
+  enableFloatingWindow('vsay-transcript-window','.vsay-transcript-header','cc');
   updateDot();
   renderMediaShareUI();
 
