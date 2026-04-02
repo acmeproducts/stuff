@@ -3535,7 +3535,30 @@ function parsePhrasebookCsv(text){var rows=parseCsv(text||'');var catalogsById={
 function applySessionsImport(payload){if(!payload||typeof payload!=='object'){toast('Invalid sessions file');return;}saveSessions(Array.isArray(payload.sessions)?payload.sessions:[]);saveSessionOrder(normalizeSessionOrder(Array.isArray(payload.order)?payload.order:[]));saveRecycled(Array.isArray(payload.recycled)?payload.recycled:[]);saveSessionNotes(payload.notes&&typeof payload.notes==='object'?payload.notes:{});state.activeConvId='';state.messages=[];setActiveConvId('');var sessions=getAllSessions();if(sessions.length)openSession(sessions[0].convId);else{transportDisconnect({preserveQueue:true});showEmptyShell();}renderSessionList();toast('Sessions imported');}
 function applyPhrasebookImport(payload){if(!payload||typeof payload!=='object'){toast('Invalid phrasebook file');return;}var imported=Array.isArray(payload.cards)?payload.cards:[];var map=new Map();imported.forEach(function(c){var n=normalizeCard(c||{});map.set(cardPairKey(n.source,n.sourceLang,n.target,n.targetLang),n);});saveCards(Array.from(map.values()));saveCatalogs(Array.isArray(payload.catalogs)?payload.catalogs:[]);saveTags(Array.isArray(payload.tags)?payload.tags:[]);renderCatalogCards();toast('Phrasebook imported');}
 function applySettingsImport(payload){if(!payload||typeof payload!=='object'){toast('Invalid settings file');return;}if(payload.prefs&&typeof payload.prefs==='object')savePrefs(payload.prefs);if(Array.isArray(payload.themes)&&payload.themes.length){THEMES=payload.themes;var p=getPrefs();p.themeLibrary=THEMES;savePrefs(p);}applyBubbleTheme();renderThemeGrid('source');renderThemeGrid('target');toast('Settings imported');}
-function clearDataOnly(){if(!confirm('Clear local sessions only?'))return;var keys=[];for(var i=0;i<localStorage.length;i++)keys.push(localStorage.key(i));keys.forEach(function(k){if(k&&k.indexOf('ts3_')===0)localStorage.removeItem(k);});location.reload();}
+function clearDataOnly(){
+  if(!confirm('Clear local sessions only?'))return;
+  try{transportDisconnect({preserveQueue:false});}catch(_){}
+  state.activeConvId=null;
+  state.messages=[];
+  state.pendingInviteId=null;
+  var keys=[];
+  for(var i=0;i<localStorage.length;i++)keys.push(localStorage.key(i));
+  keys.forEach(function(k){
+    if(!k)return;
+    if(k.indexOf('ts3_')===0)localStorage.removeItem(k);
+  });
+  try{
+    if(window.sessionStorage){
+      var skeys=[];
+      for(var j=0;j<sessionStorage.length;j++)skeys.push(sessionStorage.key(j));
+      skeys.forEach(function(k){
+        if(!k)return;
+        if(k.indexOf('ts3_')===0)sessionStorage.removeItem(k);
+      });
+    }
+  }catch(_){}
+  location.replace(location.pathname);
+}
 function exportThenClear(){exportSessionsData();setTimeout(clearDataOnly,120);}
 
 // Seed
