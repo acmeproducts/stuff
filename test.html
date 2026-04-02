@@ -783,6 +783,8 @@ var ICON_DELETE='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" str
 // Storage keys
 var SK={sessions:'ts3_sessions',activeConv:'ts3_active',prefs:'ts3_prefs',devId:'ts3_dev',partId:'ts3_part',order:'ts3_order',recycled:'ts3_recycled',notes:'ts3_notes'};
 var SAY={catalogs:'say_catalogs',cards:'say_cards',tags:'say_tags'};
+var TAB_ID_KEY='ts3_tab_id';
+var CLEAR_EVENT_KEY='ts3_clear_evt';
 
 function ls(k){try{return localStorage.getItem(k);}catch(e){return null;}}
 function lsW(k,v){try{localStorage.setItem(k,v);}catch(e){toast('Storage full');}}
@@ -792,8 +794,22 @@ function lsJSON(k,def){try{var v=ls(k);return v?JSON.parse(v):def;}catch(e){retu
 // Stable IDs
 function getDeviceId(){var id=ls(SK.devId);if(!id){id=(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2,14));lsW(SK.devId,id);}return id;}
 function getPartId(){var id=ls(SK.partId);if(!id){id=(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2,14));lsW(SK.partId,id);}return id;}
+function getTabId(){
+  var id=null;
+  try{
+    if(window.sessionStorage){
+      id=sessionStorage.getItem(TAB_ID_KEY);
+      if(!id){
+        id=(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2,14));
+        sessionStorage.setItem(TAB_ID_KEY,id);
+      }
+    }
+  }catch(_){}
+  return id||('tab-'+Math.random().toString(36).slice(2,10));
+}
 var DEVICE_ID=getDeviceId();
 var PART_ID=getPartId();
+var TAB_ID=getTabId();
 
 // ════════════════════════════════════════════════════════
 // STATE
@@ -1475,6 +1491,7 @@ function fetchBackfill(){
 function transportConnect(convId,opts){
   opts=opts||{};
   if(connectedConvId===convId&&ws&&ws.readyState<=1)return;
+  addDiagLog('transportConnect active='+(state.activeConvId?state.activeConvId.slice(0,8):'none')+' target='+(convId?convId.slice(0,8):'none')+' tab='+TAB_ID.slice(0,8));
   if(ws){intentionalClose=true;try{ws.close();}catch(_){}ws=null;}
   if(rcTimer){clearTimeout(rcTimer);rcTimer=null;}
   stopHeartbeatLoop();
@@ -1485,7 +1502,7 @@ function transportConnect(convId,opts){
     +'&session='+encodeURIComponent(convId)
     +'&client='+encodeURIComponent(DEVICE_ID);
   setSocketState('connecting');
-  addDiagLog('CONNECTED session='+convId.slice(0,8));
+  addDiagLog('CONNECTED session='+convId.slice(0,8)+' active='+(state.activeConvId?state.activeConvId.slice(0,8):'none')+' tab='+TAB_ID.slice(0,8));
   try{ws=new WebSocket(url);}catch(e){scheduleReconnect();return;}
   var ref=ws;
   var ct=setTimeout(function(){if(ws===ref&&ws.readyState===0)ws.close(4001,'connect-timeout');},8000);
@@ -1522,7 +1539,7 @@ function transportConnect(convId,opts){
   };
   ws.onclose=function(ev){
     if(ws!==ref)return;ws=null;stopHeartbeatLoop();clearTimeout(ct);
-    addDiagLog('DISCONNECTED code='+ev.code+(intentionalClose?' (intentional)':''));
+    addDiagLog('DISCONNECTED code='+ev.code+(intentionalClose?' (intentional)':'')+' active='+(connectedConvId?connectedConvId.slice(0,8):'none')+' tab='+TAB_ID.slice(0,8));
     if(intentionalClose){setSocketState('closed');return;}
     var rt=getRoomRuntime(connectedConvId);if(rt)rt.selfPresent=false;
     setSocketState('reconnecting');scheduleReconnect();
@@ -1546,6 +1563,7 @@ function scheduleReconnect(){
 
 function transportDisconnect(opts){
   opts=opts||{};intentionalClose=true;
+  addDiagLog('transportDisconnect active='+(state.activeConvId?state.activeConvId.slice(0,8):'none')+' connected='+(connectedConvId?connectedConvId.slice(0,8):'none')+' tab='+TAB_ID.slice(0,8));
   if(ws){try{ws.close();}catch(_){}ws=null;}
   if(rcTimer){clearTimeout(rcTimer);rcTimer=null;}
   stopHeartbeatLoop();
@@ -1724,8 +1742,9 @@ function resendInvite(){
 function openSession(cid){
   var sess=getSession(cid);if(!sess){toast('Not found');return;}
   sess=putSession(sess);
+  addDiagLog('openSession switch from='+(state.activeConvId?state.activeConvId.slice(0,8):'none')+' to='+(cid?cid.slice(0,8):'none')+' tab='+TAB_ID.slice(0,8));
   if(connectedConvId&&connectedConvId!==cid){
-    addDiagLog('openSession: disconnecting from '+connectedConvId.slice(0,8)+' to switch to '+cid.slice(0,8));
+    addDiagLog('openSession: disconnecting from '+connectedConvId.slice(0,8)+' to switch to '+cid.slice(0,8)+' tab='+TAB_ID.slice(0,8));
     transportDisconnect({preserveQueue:false});
   }
   if(state.pendingInviteId&&state.pendingInviteId!==cid){
@@ -1886,7 +1905,7 @@ var MAX_DIAG=400;
 function addDiagLog(msg,level){
   var ts=new Date().toISOString().slice(11,23);
   var prefix=level==='err'?'ERR':level==='warn'?'WRN':'---';
-  var entry=ts+' '+prefix+' '+String(msg||'');
+  var entry=ts+' '+prefix+' [tab='+TAB_ID.slice(0,8)+'] '+String(msg||'');
   diagLog.push(entry);
   if(diagLog.length>MAX_DIAG)diagLog=diagLog.slice(-MAX_DIAG);
   // Live update if modal open
@@ -3537,6 +3556,10 @@ function applyPhrasebookImport(payload){if(!payload||typeof payload!=='object'){
 function applySettingsImport(payload){if(!payload||typeof payload!=='object'){toast('Invalid settings file');return;}if(payload.prefs&&typeof payload.prefs==='object')savePrefs(payload.prefs);if(Array.isArray(payload.themes)&&payload.themes.length){THEMES=payload.themes;var p=getPrefs();p.themeLibrary=THEMES;savePrefs(p);}applyBubbleTheme();renderThemeGrid('source');renderThemeGrid('target');toast('Settings imported');}
 function clearDataOnly(){
   if(!confirm('Clear local sessions only?'))return;
+  try{
+    localStorage.setItem(CLEAR_EVENT_KEY,JSON.stringify({ts:Date.now(),tabId:TAB_ID,activeConvId:state.activeConvId||''}));
+    setTimeout(function(){try{localStorage.removeItem(CLEAR_EVENT_KEY);}catch(_){}},3000);
+  }catch(_){}
   try{transportDisconnect({preserveQueue:false});}catch(_){}
   state.activeConvId='';
   state.messages=[];
@@ -3560,6 +3583,23 @@ function clearDataOnly(){
   location.replace(location.pathname);
 }
 function exportThenClear(){exportSessionsData();setTimeout(clearDataOnly,120);}
+
+window.addEventListener('storage',function(ev){
+  if(!ev||ev.key!==CLEAR_EVENT_KEY||!ev.newValue)return;
+  try{
+    var data=JSON.parse(ev.newValue||'{}');
+    if(!data||data.tabId===TAB_ID)return;
+    if(Math.abs(Date.now()-Number(data.ts||0))>10000)return;
+    addDiagLog('clear-event received from tab='+String(data.tabId||'').slice(0,8)+' active='+(data.activeConvId?String(data.activeConvId).slice(0,8):'none'),'warn');
+    transportDisconnect({preserveQueue:false});
+    state.activeConvId='';
+    state.messages=[];
+    state.pendingInviteId=null;
+    setActiveConvId('');
+    showEmptyShell();
+    renderSessionList();
+  }catch(_){}
+});
 
 // Seed
 function seedStarterData(){
