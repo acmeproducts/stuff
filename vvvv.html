@@ -335,7 +335,9 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
 #toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(26,23,20,.88);color:#fff;font-size:13px;font-weight:600;padding:9px 18px;border-radius:22px;z-index:1000;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
-/* CC speaker toggle */
+/* CC speaker toggle + header buttons */
+.vsay-cc-hdr-btn{background:none;border:none;cursor:pointer;color:var(--ink-mid);padding:4px 6px;border-radius:6px;line-height:0;transition:background .12s,color .12s;}
+.vsay-cc-hdr-btn:hover{background:var(--border);color:var(--ink);}
 .vsay-cc-speaker{background:none;border:none;cursor:pointer;color:var(--ink-mid);padding:3px 6px;border-radius:6px;line-height:0;transition:background .12s,color .12s;}
 .vsay-cc-speaker:hover{background:var(--border);}
 .vsay-cc-speaker.active{color:var(--teal);background:var(--teal-light);}
@@ -454,13 +456,21 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
   <div class="vsay-transcript" id="vsay-transcript-window">
     <div class="vsay-transcript-header">
       <div class="vsay-float-head-left">
-        <button class="vsay-ctrl-btn" id="vsay-transcript-collapse-btn" onclick="toggleTranscriptCollapse()" title="Collapse"><span class="vsay-chevron" id="vsay-cc-chevron">▶</span></button>
-        <span>CC Transcript</span>
+        <button class="vsay-cc-hdr-btn" id="vsay-transcript-collapse-btn" onclick="toggleTranscriptCollapse()" title="Collapse/expand"><span class="vsay-chevron" id="vsay-cc-chevron">▶</span></button>
+        <span style="font-weight:700;">CC</span>
         <button class="vsay-cc-speaker" id="vsay-cc-speaker-btn" onclick="toggleCCSpeaker()" title="Read-aloud on/off">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
         </button>
       </div>
-      <button class="vsay-ctrl-btn" onclick="closeTranscriptWindow()" title="Close">✕</button>
+      <div class="vsay-float-head-right">
+        <button class="vsay-cc-hdr-btn" onclick="copyCCTranscript()" title="Copy transcript">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+        <button class="vsay-cc-hdr-btn" onclick="exportCCTranscript()" title="Export transcript">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <button class="vsay-cc-hdr-btn" onclick="closeTranscriptWindow()" title="Close" style="font-size:13px;font-weight:700;">✕</button>
+      </div>
     </div>
     <div class="vsay-transcript-body" id="vsay-transcript-body"></div>
   </div>
@@ -1189,13 +1199,42 @@ function renderTranscriptUI(){
   win.classList.toggle('collapsed',!!state.ccTranscript.collapsed);
   if(chevron)chevron.className='vsay-chevron'+(state.ccTranscript.collapsed?'':' expanded');
   body.innerHTML=entries.map(function(e){
-    return '<div class="vsay-transcript-row '+(e.dir==='local'?'mine':'theirs')+'"><div class="vsay-transcript-col"><b>'+((e.dir==='local')?'Original':'Partner original')+'</b>'+escHtml(e.sourceText||'')+'</div><div class="vsay-transcript-col"><b>'+((e.dir==='local')?'Translated':'Translated')+'</b>'+escHtml(e.targetText||'')+'</div></div>'
+    return '<div class="vsay-transcript-row '+(e.dir==='local'?'mine':'theirs')+'"><div class="vsay-transcript-col"><b>'+((e.dir==='local')?'You':'Partner')+' <small style="opacity:.6">'+(e.sourceLang||'').toUpperCase()+'</small></b>'+escHtml(e.sourceText||'')+'</div><div class="vsay-transcript-col"><b>→ <small style="opacity:.6">'+(e.targetLang||'').toUpperCase()+'</small></b>'+escHtml(e.targetText||'')+'</div></div>'
   }).join('');body.scrollTop=body.scrollHeight
 }
 function toggleTranscriptCollapse(){state.ccTranscript.collapsed=!state.ccTranscript.collapsed;renderTranscriptUI();var ui=getCcUiState();ui.collapsed=state.ccTranscript.collapsed;saveCcUiState(ui)}
 function closeTranscriptWindow(){state.ccTranscript.visible=false;renderTranscriptUI()}
+function copyCCTranscript(){
+  var entries=state.ccTranscript.entries.filter(function(e){return!e.convId||e.convId===(state.activeConvId||'')});
+  if(!entries.length){toast('No transcript to copy');return}
+  var text=entries.map(function(e){
+    var who=e.dir==='local'?'Me':'Partner';
+    var ts=new Date(e.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    return '['+ts+'] '+who+': '+e.sourceText+(e.targetText&&e.targetText!==e.sourceText?' → '+e.targetText:'')
+  }).join('\n');
+  if(navigator.clipboard)navigator.clipboard.writeText(text).then(function(){toast('Transcript copied')});else fallbackCopy(text)
+}
+function exportCCTranscript(){
+  var entries=state.ccTranscript.entries.filter(function(e){return!e.convId||e.convId===(state.activeConvId||'')});
+  if(!entries.length){toast('No transcript to export');return}
+  var sess=getSession(state.activeConvId)||{};
+  var header='CC Transcript — '+getSessionLabel(sess)+'\nExported: '+new Date().toLocaleString()+'\n\n';
+  var text=header+entries.map(function(e){
+    var who=e.dir==='local'?'Me':'Partner';
+    var ts=new Date(e.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    return '['+ts+'] '+who+' ('+((e.sourceLang||'?').toUpperCase())+'): '+e.sourceText+'\n'
+      +'         → ('+((e.targetLang||'?').toUpperCase())+'): '+(e.targetText||e.sourceText)
+  }).join('\n\n');
+  var blob=new Blob([text],{type:'text/plain'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='cc-transcript-'+new Date().toISOString().slice(0,10)+'.txt';
+  a.click();URL.revokeObjectURL(a.href);toast('Transcript exported')
+}
 function addCcTranscriptEntry(p){
-  state.ccTranscript.entries.push({ts:p.ts||Date.now(),convId:p.convId||state.activeConvId||'',dir:p.dir||'local',sourceText:p.sourceText||'',targetText:p.targetText||'',sourceLang:p.sourceLang||'',targetLang:p.targetLang||'',origin:'video_surface'});
+  // Dedup: skip if same dir+sourceText within 3s
+  var src=(p.sourceText||'').trim(),dir=p.dir||'local',ts=p.ts||Date.now();
+  if(src){var recent=state.ccTranscript.entries;for(var i=recent.length-1;i>=Math.max(0,recent.length-6);i--){var e=recent[i];if(e.dir===dir&&e.sourceText===src&&Math.abs(ts-e.ts)<3000)return}}
+  state.ccTranscript.entries.push({ts:ts,convId:p.convId||state.activeConvId||'',dir:dir,sourceText:src,targetText:p.targetText||'',sourceLang:p.sourceLang||'',targetLang:p.targetLang||'',origin:'video_surface'});
   if(state.ccTranscript.entries.length>120)state.ccTranscript.entries=state.ccTranscript.entries.slice(-120);
   if(state.ccTranscript.visible===false)state.ccTranscript.visible=true;renderTranscriptUI()
 }
@@ -1669,6 +1708,6 @@ document.addEventListener('DOMContentLoaded',function(){
   document.addEventListener('keydown',function(e){var modal=document.getElementById('new-chat-modal');if(!modal||modal.hidden)return;if(e.key==='Enter'){e.preventDefault();submitNewChatModal()}else if(e.key==='Escape'){e.preventDefault();closeNewChatModal()}})
 });
 </script>
-<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">Talk + Say 2vid · v3.6 · April 4, 2026</div>
+<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">Talk + Say 2vid · v3.6.1 · April 4, 2026</div>
 </body>
 </html>
