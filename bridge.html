@@ -27,6 +27,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .lobby-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:-8px;}
 .lobby-select{width:100%;background:var(--surface);color:var(--text);border:1.5px solid var(--surface2);border-radius:10px;padding:12px 14px;font-size:15px;font-family:"DM Sans",sans-serif;outline:none;-webkit-appearance:none;appearance:none;cursor:pointer;}
 .lobby-select:focus{border-color:var(--teal);}
+.lobby-select:invalid{color:var(--text-muted);}
 .lobby-btn{width:100%;background:var(--teal);color:#fff;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;transition:opacity .15s;margin-top:4px;}
 .lobby-btn:hover{opacity:.85;}
 .lobby-btn:disabled{opacity:.4;cursor:default;}
@@ -39,6 +40,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .lobby-link-row{display:flex;gap:8px;}
 .lobby-link-btn{flex:1;background:var(--surface2);color:var(--text);border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;transition:background .12s;}
 .lobby-link-btn:hover{background:var(--teal);color:#fff;}
+.recent-rooms{margin-top:14px;display:flex;flex-direction:column;gap:8px;}
+.recent-title{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;}
+.recent-item{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--surface2);border-radius:10px;padding:8px 10px;}
+.recent-open{flex:1;min-width:0;background:none;border:none;color:var(--text);text-align:left;cursor:pointer;font:inherit;}
+.recent-open small{display:block;color:var(--text-dim);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.recent-del{width:24px;height:24px;border:none;border-radius:50%;background:rgba(231,76,60,.18);color:var(--red);font-weight:700;cursor:pointer;line-height:1;}
 .lobby-preview{width:min(100%,320px);aspect-ratio:16/9;border-radius:var(--radius);overflow:hidden;background:var(--surface);margin:0 auto 8px;position:relative;}
 .lobby-preview video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);}
 
@@ -83,9 +90,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
 /* Transcript export overlay */
-.transcript-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;display:none;align-items:flex-end;justify-content:center;padding:20px;}
+.transcript-overlay{position:absolute;left:12px;right:12px;bottom:84px;top:auto;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);z-index:4;display:none;align-items:stretch;justify-content:center;border-radius:16px;overflow:hidden;}
 .transcript-overlay.show{display:flex;}
-.transcript-sheet{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:480px;max-height:70vh;display:flex;flex-direction:column;overflow:hidden;animation:sheetUp .25s ease-out;}
+.transcript-sheet{background:transparent;border-radius:0;width:100%;max-height:46vh;display:flex;flex-direction:column;overflow:hidden;animation:sheetUp .2s ease-out;}
 @keyframes sheetUp{from{transform:translateY(40px);opacity:.7;}}
 .transcript-sheet-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--surface2);}
 .transcript-sheet-title{font-family:"Lora",serif;font-size:17px;font-weight:600;}
@@ -98,6 +105,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .transcript-entry-who.mine{color:var(--teal);}
 .transcript-entry-text{color:var(--text-dim);}
 .transcript-entry-translation{color:var(--text);margin-top:2px;}
+.joiner-preflight{position:fixed;inset:0;z-index:12;background:var(--bg);display:none;align-items:center;justify-content:center;padding:24px;}
+.joiner-preflight.show{display:flex;}
+.joiner-card{width:min(100%,420px);background:var(--surface);border:1px solid var(--surface2);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:12px;}
+.joiner-title{font-family:"Lora",serif;font-size:22px;color:var(--teal-bright);}
+.joiner-note{font-size:13px;color:var(--text-dim);line-height:1.45;}
 </style>
 </head>
 <body>
@@ -118,7 +130,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
           <div class="lobby-label">They speak</div>
           <select class="lobby-select" id="their-lang"></select>
         </div>
-        <button class="lobby-btn" id="create-btn" onclick="createRoom()">Start a room</button>
+        <button class="lobby-btn" id="create-btn" onclick="createRoom()" disabled>Start a room</button>
+      </div>
+      <div class="recent-rooms" id="recent-rooms" style="display:none;">
+        <div class="recent-title">Recent rooms</div>
+        <div id="recent-rooms-list"></div>
       </div>
     </div>
 
@@ -175,13 +191,23 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       <span class="transcript-sheet-title">Transcript</span>
       <div class="transcript-sheet-actions">
         <button class="transcript-sheet-btn" onclick="copyTranscript()">Copy</button>
-        <button class="transcript-sheet-btn" onclick="exportTranscript()">Export</button>
-        <button class="transcript-sheet-btn" onclick="toggleTranscript()">Close</button>
+        <button class="transcript-sheet-btn" onclick="exportTranscriptTxt()">Export TXT</button>
+        <button class="transcript-sheet-btn" onclick="exportTranscriptJson()">Export JSON</button>
+        <button class="transcript-sheet-btn" onclick="toggleTranscript()">Collapse</button>
       </div>
     </div>
     <div class="transcript-sheet-body" id="transcript-body">
       <div style="color:var(--text-muted);font-size:13px;font-style:italic;">Transcript will appear here during the call.</div>
     </div>
+  </div>
+</div>
+
+
+<div class="joiner-preflight" id="joiner-preflight">
+  <div class="joiner-card">
+    <div class="joiner-title" id="jp-title">TalkBridge</div>
+    <div class="joiner-note" id="jp-body"></div>
+    <button class="lobby-btn" id="jp-continue">Continue</button>
   </div>
 </div>
 
@@ -211,11 +237,20 @@ var LANGS=[
   {code:'tr',label:'Turkish',flag:'🇹🇷'}
 ];
 var TTS_LOCALE={en:'en-US',th:'th-TH',ja:'ja-JP',ko:'ko-KR',zh:'zh-CN',ar:'ar-SA',hi:'hi-IN',ru:'ru-RU',fr:'fr-FR',de:'de-DE',es:'es-ES',it:'it-IT',pt:'pt-BR',vi:'vi-VN',id:'id-ID',ms:'ms-MY',fil:'fil-PH',nl:'nl-NL',sv:'sv-SE',pl:'pl-PL',tr:'tr-TR'};
+var UI_TEXT={
+  en:{perm:'This call needs one-time camera and microphone permission. Tap Continue and allow the browser prompt to join.'},
+  es:{perm:'Esta llamada necesita un permiso único para cámara y micrófono. Toca Continuar y permite el aviso del navegador para unirte.'},
+  fr:{perm:'Cet appel nécessite une autorisation unique pour la caméra et le micro. Appuyez sur Continuer et acceptez la fenêtre du navigateur.'},
+  de:{perm:'Dieser Anruf benötigt eine einmalige Kamera- und Mikrofonfreigabe. Tippe auf Weiter und erlaube das Browser-Popup.'},
+  pt:{perm:'Esta chamada precisa de permissão única para câmera e microfone. Toque em Continuar e permita o pop-up do navegador.'},
+  zh:{perm:'此通话需要一次性授予摄像头和麦克风权限。点击继续并允许浏览器弹窗即可加入。'}
+};
+
 
 // ═══════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════
-var room={id:null,myLang:'en',theirLang:'en',role:null};
+var room={id:null,myLang:'',theirLang:'',role:null};
 var deviceId=localStorage.getItem('tb_dev')||(function(){var id=crypto.randomUUID();localStorage.setItem('tb_dev',id);return id})();
 var ws=null,pc=null,localStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false,ignoreOffer=false;
@@ -227,6 +262,10 @@ var hbTimer=null,seq=0,subtitleId=0;
 var HEARTBEAT_MS=30000;
 var SUBTITLE_LINGER_MS=6000;
 var MAX_VISIBLE_SUBS=3;
+var LOBBY_STATE={setup:'setup',waiting:'waiting',call:'call'};
+var lobbyState=LOBBY_STATE.setup;
+var RECENT_KEY='tb_recent_rooms';
+var RECENT_LIMIT=12;
 
 // ═══════════════════════════════════════════
 // UTILITIES
@@ -269,19 +308,72 @@ function buildInviteUrl(){
 // ═══════════════════════════════════════════
 // LOBBY
 // ═══════════════════════════════════════════
+
+function setLobbyState(next,push){
+  lobbyState=next;
+  document.getElementById('lobby-setup').style.display=next===LOBBY_STATE.setup?'':'none';
+  document.getElementById('lobby-waiting').style.display=next===LOBBY_STATE.waiting?'block':'none';
+  if(push)history.pushState({tbLobby:next},'',location.href);
+}
+
+function getRecentRooms(){
+  try{return JSON.parse(localStorage.getItem(RECENT_KEY)||'[]')}catch(_){return []}
+}
+function setRecentRooms(rows){localStorage.setItem(RECENT_KEY,JSON.stringify(rows.slice(0,RECENT_LIMIT)))}
+function saveRecentRoom(url){
+  var rooms=getRecentRooms().filter(function(r){return r.id!==room.id});
+  rooms.unshift({id:room.id,name:'Room '+room.id.slice(-5),myLang:room.myLang,theirLang:room.theirLang,url:url,ts:Date.now()});
+  setRecentRooms(rooms);
+  renderRecentRooms();
+}
+function deleteRecentRoom(id){setRecentRooms(getRecentRooms().filter(function(r){return r.id!==id}));renderRecentRooms()}
+async function reuseRecentRoom(id){
+  var rec=getRecentRooms().find(function(r){return r.id===id});
+  if(!rec)return;
+  room.id=rec.id;room.myLang=rec.myLang;room.theirLang=rec.theirLang;room.role='creator';
+  document.getElementById('my-lang').value=rec.myLang;
+  document.getElementById('their-lang').value=rec.theirLang;
+  syncCreateButton();
+  try{
+    localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+    document.getElementById('preview-video').srcObject=localStream;
+  }catch(_){toast('Camera/mic permission needed');return}
+  document.getElementById('lobby-link').textContent=rec.url;
+  setLobbyState(LOBBY_STATE.waiting,true);
+  connectRelay();
+}
+function renderRecentRooms(){
+  var wrap=document.getElementById('recent-rooms');
+  var list=document.getElementById('recent-rooms-list');
+  var rows=getRecentRooms();
+  wrap.style.display=rows.length?'':'none';
+  list.innerHTML=rows.map(function(r){
+    var t=new Date(r.ts).toLocaleString();
+    return '<div class="recent-item"><button class="recent-open" onclick="reuseRecentRoom(&quot;'+escHtml(r.id)+'&quot;)">'+escHtml(r.name)+'<small>'+escHtml(r.url)+' · '+escHtml(t)+'</small></button><button class="recent-del" onclick="deleteRecentRoom(&quot;'+escHtml(r.id)+'&quot;)" aria-label="Delete">✕</button></div>';
+  }).join('');
+}
+
 function populateLangs(){
   ['my-lang','their-lang'].forEach(function(id){
     var sel=document.getElementById(id);
-    sel.innerHTML=LANGS.map(function(l){return '<option value="'+l.code+'">'+l.flag+' '+l.label+'</option>'}).join('');
+    var ph='<option value="" disabled selected>Select language…</option>' ;
+    sel.innerHTML=ph+LANGS.map(function(l){return '<option value="'+l.code+'">'+l.flag+' '+l.label+'</option>'}).join('');
   });
-  document.getElementById('my-lang').value='en';
-  document.getElementById('their-lang').value='es';
+  ['my-lang','their-lang'].forEach(function(id){document.getElementById(id).addEventListener('change',syncCreateButton)});
+  syncCreateButton();
+}
+
+function syncCreateButton(){
+  var my=document.getElementById('my-lang').value;
+  var their=document.getElementById('their-lang').value;
+  document.getElementById('create-btn').disabled=!(my&&their);
 }
 
 async function createRoom(){
-  room.id=uid();
   room.myLang=document.getElementById('my-lang').value;
   room.theirLang=document.getElementById('their-lang').value;
+  if(!room.myLang||!room.theirLang){toast('Select both languages first');syncCreateButton();return}
+  room.id=uid();
   room.role='creator';
 
   // Start camera preview
@@ -295,6 +387,8 @@ async function createRoom(){
   document.getElementById('lobby-waiting').style.display='block';
   var url=buildInviteUrl();
   document.getElementById('lobby-link').textContent=url;
+  saveRecentRoom(url);
+  setLobbyState(LOBBY_STATE.waiting,true);
 
   // Connect to relay and wait
   connectRelay();
@@ -410,6 +504,7 @@ async function enterCall(){
   // Switch UI
   document.getElementById('lobby').classList.add('hidden');
   document.getElementById('call-screen').classList.add('active');
+  lobbyState=LOBBY_STATE.call;
   document.getElementById('local-video').srcObject=localStream;
 
   // Connect relay if not connected
@@ -626,7 +721,7 @@ function copyTranscript(){
   if(navigator.clipboard)navigator.clipboard.writeText(text).then(function(){toast('Copied')});
 }
 
-function exportTranscript(){
+function exportTranscriptTxt(){
   if(!transcript.length){toast('No transcript');return}
   var text='TalkBridge Transcript\n'+new Date().toLocaleString()+'\n\n'+transcript.map(function(e){
     var ts=new Date(e.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -636,7 +731,18 @@ function exportTranscript(){
   var blob=new Blob([text],{type:'text/plain'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='talkbridge-'+new Date().toISOString().slice(0,10)+'.txt';a.click();
-  toast('Exported');
+  toast('Exported txt');
+}
+
+function exportTranscriptJson(){
+  if(!transcript.length){toast('No transcript');return}
+  var payload={app:'TalkBridge',version:1,generatedAt:new Date().toISOString(),entries:transcript.map(function(e){
+    return {speaker:e.who==='me'?'me':'partner',sourceText:e.sourceText,translatedText:e.translatedText,sourceLang:e.srcLang,targetLang:e.tgtLang,timestamp:e.ts};
+  })};
+  var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='talkbridge-'+new Date().toISOString().slice(0,10)+'.json';a.click();
+  toast('Exported json');
 }
 
 // ═══════════════════════════════════════════
@@ -698,8 +804,7 @@ function cleanUp(){
   // Reset UI
   document.getElementById('call-screen').classList.remove('active');
   document.getElementById('lobby').classList.remove('hidden');
-  document.getElementById('lobby-setup').style.display='';
-  document.getElementById('lobby-waiting').style.display='none';
+  setLobbyState(LOBBY_STATE.setup,false);
   document.getElementById('subtitle-area').innerHTML='';
   document.getElementById('no-video-msg').style.display='';
   remoteStream=null;
@@ -709,6 +814,7 @@ function cleanUp(){
 // INIT
 // ═══════════════════════════════════════════
 populateLangs();
+renderRecentRooms();
 
 // Check for invite link
 var hp=new URLSearchParams((location.hash||'').replace(/^#/,''));
@@ -716,18 +822,34 @@ var inv=hp.get('j');
 if(inv){
   var payload=decodeInvite(inv);
   if(payload&&payload.r){
-    // Auto-join: request media then enter
-    (async function(){
-      try{
-        localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-        joinFromInvite(payload);
-      }catch(_){
-        toast('Camera/mic permission needed');
-        history.replaceState({},'',location.pathname);
-      }
-    })();
+    showJoinerPreflight(payload);
   }
 }
+
+function showJoinerPreflight(payload){
+  var lang=(payload&&payload.tl)||'en';
+  var strings=UI_TEXT[lang]||UI_TEXT.en;
+  var panel=document.getElementById('joiner-preflight');
+  document.getElementById('jp-body').textContent=strings.perm;
+  document.getElementById('jp-continue').onclick=async function(){
+    try{
+      localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+      panel.classList.remove('show');
+      joinFromInvite(payload);
+    }catch(_){
+      toast(strings.perm);
+      history.replaceState({},'',location.pathname);
+      panel.classList.remove('show');
+    }
+  };
+  panel.classList.add('show');
+}
+
+window.addEventListener('popstate',function(){
+  if(lobbyState===LOBBY_STATE.waiting&&room.role==='creator'){
+    setLobbyState(LOBBY_STATE.setup,false);
+  }
+});
 </script>
 </body>
 </html>
