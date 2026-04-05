@@ -84,7 +84,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .conn-badge{position:absolute;top:12px;left:12px;z-index:4;background:rgba(0,0,0,.6);color:var(--text-dim);font-size:11px;font-weight:600;padding:5px 12px;border-radius:20px;display:flex;align-items:center;gap:6px;}
 .lang-badge{position:absolute;z-index:4;background:rgba(0,0,0,.58);border:1px solid rgba(255,255,255,.14);color:#fff;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;letter-spacing:.02em;backdrop-filter:blur(4px);}
 .remote-lang-badge{top:12px;right:12px;}
-.local-lang-badge{top:18px;right:18px;z-index:5;}
+.local-lang-badge{top:auto;right:14px;bottom:14px;z-index:5;max-width:min(28%,160px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .conn-dot{width:7px;height:7px;border-radius:50%;background:var(--text-muted);}
 .conn-dot.connected{background:var(--green);}
 .conn-dot.connecting{background:#f39c12;animation:pulse 1s infinite;}
@@ -97,7 +97,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 /* Transcript export overlay */
 .transcript-overlay{position:absolute;left:12px;right:12px;bottom:84px;top:auto;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);z-index:4;display:none;align-items:stretch;justify-content:center;border-radius:16px;overflow:hidden;}
 .transcript-overlay.show{display:flex;}
+.transcript-overlay.expanded{top:12px;bottom:84px;}
 .transcript-sheet{background:transparent;border-radius:0;width:100%;max-height:46vh;display:flex;flex-direction:column;overflow:hidden;animation:sheetUp .2s ease-out;}
+.transcript-overlay.expanded .transcript-sheet{max-height:none;}
 @keyframes sheetUp{from{transform:translateY(40px);opacity:.7;}}
 .transcript-sheet-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--surface2);}
 .transcript-sheet-title{font-family:"Lora",serif;font-size:17px;font-weight:600;}
@@ -197,6 +199,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <div class="transcript-sheet-header">
       <span class="transcript-sheet-title">Transcript</span>
       <div class="transcript-sheet-actions">
+        <button class="transcript-sheet-btn" id="transcript-expand-btn" onclick="toggleTranscriptExpanded()">Expand</button>
         <button class="transcript-sheet-btn" onclick="copyTranscript()">Copy</button>
         <button class="transcript-sheet-btn" onclick="exportTranscriptTxt()">Export TXT</button>
         <button class="transcript-sheet-btn" onclick="exportTranscriptJson()">Export JSON</button>
@@ -365,10 +368,15 @@ function getRecentRooms(){
 }
 function setRecentRooms(rows){localStorage.setItem(RECENT_KEY,JSON.stringify(rows.slice(0,RECENT_LIMIT)))}
 function saveRecentRoom(url){
+  if(!room.id)return;
   var rooms=getRecentRooms().filter(function(r){return r.id!==room.id});
   rooms.unshift({id:room.id,name:'Room '+room.id.slice(-5),myLang:room.myLang,theirLang:room.theirLang,url:url,ts:Date.now()});
   setRecentRooms(rooms);
   renderRecentRooms();
+}
+function saveCurrentRoomToRecent(){
+  if(!room.id||!room.myLang||!room.theirLang)return;
+  saveRecentRoom(buildInviteUrl());
 }
 function deleteRecentRoom(id){setRecentRooms(getRecentRooms().filter(function(r){return r.id!==id}));renderRecentRooms()}
 async function reuseRecentRoom(id){
@@ -431,7 +439,7 @@ async function createRoom(){
   document.getElementById('lobby-waiting').style.display='block';
   var url=buildInviteUrl();
   document.getElementById('lobby-link').textContent=url;
-  saveRecentRoom(url);
+  saveCurrentRoomToRecent();
   setLobbyState(LOBBY_STATE.waiting,true);
 
   // Connect to relay and wait
@@ -443,6 +451,7 @@ function joinFromInvite(payload){
   room.myLang=payload.tl; // their lang is my lang (I'm the partner)
   room.theirLang=payload.ml;
   room.role='joiner';
+  saveCurrentRoomToRecent();
   updateLanguageBadges();
   history.replaceState({},'',location.pathname);
   enterCall();
@@ -753,12 +762,20 @@ function showSubtitle(text,cls){
 // ═══════════════════════════════════════════
 function addTranscriptEntry(who,sourceText,translatedText,srcLang,tgtLang){
   transcript.push({who:who,sourceText:sourceText,translatedText:translatedText,srcLang:srcLang,tgtLang:tgtLang,ts:Date.now()});
+  if(document.getElementById('transcript-overlay').classList.contains('show'))renderTranscript();
 }
 
 function toggleTranscript(){
   var overlay=document.getElementById('transcript-overlay');
   var showing=overlay.classList.toggle('show');
   if(showing)renderTranscript();
+}
+function toggleTranscriptExpanded(forceValue){
+  var overlay=document.getElementById('transcript-overlay');
+  var next=typeof forceValue==='boolean'?forceValue:!overlay.classList.contains('expanded');
+  overlay.classList.toggle('expanded',next);
+  var btn=document.getElementById('transcript-expand-btn');
+  if(btn)btn.textContent=next?'Compact':'Expand';
 }
 
 function renderTranscript(){
@@ -854,10 +871,6 @@ function toggleMic(){
   micOn=!micOn;
   localStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
   syncMicUi();
-
-  // Stop/restart subtitle recognition with mic
-  if(!micOn&&recognizer&&recognizing){try{recognizer.stop()}catch(_){}}
-  if(micOn&&!recognizing)startSubtitles();
 }
 
 function toggleCam(){
@@ -905,9 +918,12 @@ function cleanUp(){
   document.getElementById('call-screen').classList.remove('active');
   document.getElementById('lobby').classList.remove('hidden');
   setLobbyState(LOBBY_STATE.setup,false);
+  document.getElementById('transcript-overlay').classList.remove('show');
+  toggleTranscriptExpanded(false);
   document.getElementById('subtitle-area').innerHTML='';
   document.getElementById('no-video-msg').style.display='';
   remoteStream=null;
+  renderRecentRooms();
 }
 
 function safeReleaseForBackground(){
