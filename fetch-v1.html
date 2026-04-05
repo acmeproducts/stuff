@@ -1,177 +1,374 @@
-<!-- WebFetch OSS-v9.0-2026-04-01 02:23 AM -->
+<!-- WebFetch OSS-v10.0-2026-04-05 04:00 AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>WebFetch Studio - Extraction Training</title>
+<title>WebFetch OSS - Recursive Crawler Architecture</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@mozilla/readability@0.5.0/Readability.min.js"></script>
 <style>
 :root {
-  --bg: #09090b; --surface: #18181b; --surface-hover: #27272a;
-  --border: #27272a; --border2: #3f3f46;
-  --accent: #14b8a6; --accent-hover: #0d9488;
-  --accent2: #ef4444; --accent3: #f59e0b;
-  --text: #f4f4f5; --muted: #a1a1aa;
-  --mono: 'JetBrains Mono', monospace; --sans: 'Inter', sans-serif;
-  --touch-target: 44px; --header-height: 60px; --footer-height: 40px;
+  --bg: #09090b;
+  --surface: #18181b;
+  --surface-hover: #27272a;
+  --border: #27272a;
+  --border2: #3f3f46;
+  --accent: #14b8a6;
+  --accent-hover: #0d9488;
+  --accent2: #ef4444;
+  --accent3: #f59e0b;
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', sans-serif;
+  --touch-target: 44px;
+  --header-height: 60px;
+  --footer-height: 40px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-header { height: var(--header-height); display: flex; align-items: center; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.logo { font-family: var(--sans); font-size: 18px; font-weight: 700; margin-right: 32px; }
-.logo span { color: var(--accent); }
-.tab-nav { display: flex; gap: 8px; height: 100%; align-items: center; }
-.tab-btn { background: transparent; border: none; color: var(--muted); font-size: 14px; font-weight: 500; padding: 0 16px; height: 100%; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
-.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-.app-container { flex: 1; display: flex; overflow: hidden; position: relative; }
-.view-section { display: none; width: 100%; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+header {
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.hamburger {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 24px;
+  cursor: pointer;
+  margin-right: 16px;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+}
+
+.logo {
+  font-family: var(--sans);
+  font-size: 18px;
+  font-weight: 700;
+  margin-right: 32px;
+}
+.logo span { color: var(--accent); }
+
+.tab-nav {
+  display: flex;
+  gap: 8px;
+  height: 100%;
+  align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-nav::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0 16px;
+  height: 100%;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.app-container {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.view-section {
+  display: none;
+  width: 100%;
+  height: 100%;
+}
 .view-section.active { display: flex; }
 
-.sidebar { width: 300px; background: var(--bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
-.sidebar-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-.sidebar-content { flex: 1; overflow-y: auto; padding: 16px; }
+.sidebar {
+  width: 280px;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s ease, width 0.3s ease;
+  flex-shrink: 0;
+}
+.sidebar.collapsed { width: 0; transform: translateX(-100%); border-right: none; }
 
-.main-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.split-top { flex: 1; border-bottom: 1px solid var(--border); overflow-y: auto; padding: 16px; background: var(--surface); }
-.split-bottom { height: 45%; min-height: 300px; overflow-y: auto; padding: 16px; background: var(--bg); border-top: 1px solid var(--border); }
+.sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
 
-.btn { background: var(--surface-hover); border: 1px solid var(--border2); color: var(--text); border-radius: 6px; padding: 0 12px; min-height: 32px; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background 0.2s; }
-.btn:hover { background: var(--border); }
+.main-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.split-top {
+  flex: 1;
+  border-bottom: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--surface);
+}
+.split-bottom {
+  height: 40%;
+  min-height: 250px;
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--bg);
+}
+
+.btn {
+  background: var(--surface-hover);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0 16px;
+  min-height: 36px;
+  font-family: var(--sans);
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .btn-primary { background: var(--accent); color: #000; border: none; font-weight: 600; }
-.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:active { opacity: 0.8; }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-accent { color: var(--accent3); border-color: var(--accent3); background: transparent; }
 .btn-danger { color: var(--accent2); border-color: var(--accent2); background: transparent; }
 
-.input-group { margin-bottom: 12px; }
-.input-group label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-.input-control { width: 100%; background: var(--surface); border: 1px solid var(--border2); color: var(--text); border-radius: 6px; padding: 8px 12px; font-family: var(--mono); font-size: 13px; outline: none; }
+.input-group { margin-bottom: 16px; }
+.input-group label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.input-control {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 13px;
+  outline: none;
+}
 .input-control:focus { border-color: var(--accent); }
 
-.list-item { padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start; }
+.list-item {
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
 .list-item:hover { border-color: var(--border2); }
 .list-item.selected { border-color: var(--accent); background: rgba(20, 184, 166, 0.1); }
-.icon-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+.list-item-content { flex: 1; overflow: hidden; }
+.list-item-actions { margin-left: 8px; display: flex; align-items: center; }
+
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
 .icon-btn:hover { background: var(--border); color: var(--text); }
 
-.deleted-chevron { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 8px; }
-.deleted-chevron summary { color: var(--muted); font-size: 12px; cursor: pointer; user-select: none; padding: 8px 0; outline: none; }
-.deleted-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; background: var(--bg); border: 1px dashed var(--border2); border-radius: 4px; margin-bottom: 4px; font-size: 12px; color: var(--muted); }
-.trash-actions button { background: none; border: none; font-size: 11px; cursor: pointer; margin-left: 8px; }
+.deleted-chevron {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.deleted-chevron summary {
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  padding: 8px 0;
+  outline: none;
+}
+.deleted-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px dashed var(--border2);
+  border-radius: 4px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.trash-actions button {
+  background: none;
+  border: none;
+  font-size: 11px;
+  cursor: pointer;
+  margin-left: 8px;
+}
 .trash-restore { color: var(--accent); }
 .trash-perm { color: var(--accent2); }
 
-.step-card { background: var(--bg); border: 1px solid var(--border2); border-radius: 6px; padding: 12px; margin-bottom: 12px; border-left: 3px solid var(--accent); }
-.schema-editor { background: #000; color: var(--accent); font-family: var(--mono); font-size: 12px; border: 1px solid var(--border2); border-radius: 6px; padding: 10px; width: 100%; height: 120px; resize: vertical; outline: none; }
+.step-card {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border-left: 3px solid var(--accent);
+}
 
-.probe-results { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
-.probe-tag { background: #111; padding: 6px; border-radius: 4px; font-size: 11px; font-family: var(--mono); cursor: pointer; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.probe-tag:hover { border-color: var(--accent); color: var(--text); }
-.probe-tag span { color: var(--accent3); font-weight: 700; margin-right: 4px; }
+.tablet-console {
+  background: #000;
+  color: #a1a1aa;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 12px;
+  height: 100%;
+  overflow-y: auto;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  line-height: 1.5;
+}
 
-.tablet-console { background: #000; color: #a1a1aa; font-family: var(--mono); font-size: 12px; padding: 12px; height: 100%; overflow-y: auto; border-radius: 6px; line-height: 1.5; border: 1px solid var(--border); }
-.log-info { color: #a1a1aa; }
-.log-success { color: var(--accent); }
-.log-warn { color: var(--accent3); }
-.log-error { color: var(--accent2); }
-
-.res-tab-btn { background: transparent; border: none; color: var(--muted); font-size: 14px; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; padding: 4px 0; transition: all 0.2s; }
+/* Results Custom Tabs */
+.res-tab-nav {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.res-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
 .res-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-.res-pane { display: none; height: 100%; flex-direction: column; }
-.res-pane.active { display: flex; }
+.res-pane-content { display: none; height: 100%; flex-direction: column; }
+.res-pane-content.active { display: flex; }
 
-.master-footer { height: var(--footer-height); background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 11px; font-family: var(--mono); }
-.empty-state { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); font-style: italic; text-align: center; padding: 20px; }
+.view-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+  background: var(--surface);
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.view-html-container {
+  flex: 1;
+  background: #fff;
+  color: #000;
+  overflow-y: auto;
+  padding: 24px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-family: Georgia, serif;
+}
+.view-html-container a { color: blue; text-decoration: underline; cursor: pointer; }
+.view-html-container img { max-width: 100%; height: auto; }
 
-.toast { position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: #000; padding: 12px 24px; border-radius: 6px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-.toast.show { opacity: 1; pointer-events: auto; }
-.toast.error { background: var(--accent2); color: #fff; }
+.master-footer {
+  height: var(--footer-height);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: var(--mono);
+  flex-shrink: 0;
+}
 
-/* Wizard Overlay */
-.wizard-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 2000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-.wizard-overlay.active { display: flex; }
-.wizard-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: 90%; max-width: 500px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: flex; flex-direction: column; gap: 16px; }
-.wizard-title { font-size: 18px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 8px; }
-.wizard-step { display: none; }
-.wizard-step.active { display: block; }
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--muted);
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+}
 </style>
 </head>
 <body>
 
-<div id="toastMsg" class="toast"></div>
-
-<!-- Magic Wizard Modal -->
-<div class="wizard-overlay" id="wizardOverlay">
-  <div class="wizard-card">
-    <div class="wizard-title">✨ Magic Auto-Trainer</div>
-    
-    <!-- Step 1: Input -->
-    <div class="wizard-step active" id="wiz-step-1">
-      <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">Enter a starting URL. The engine will scan the DOM structure and automatically prescribe an extraction profile.</p>
-      <div class="input-group">
-        <label>Target URL</label>
-        <input type="url" class="input-control" id="wizUrl" placeholder="https://news.ycombinator.com">
-      </div>
-      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:24px;">
-        <button class="btn" onclick="closeWizard()">Cancel</button>
-        <button class="btn btn-primary" id="btnWizAnalyze">Analyze DOM</button>
-      </div>
-    </div>
-
-    <!-- Step 2: Analyzing -->
-    <div class="wizard-step" id="wiz-step-2">
-      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px 0;">
-        <div style="font-family:var(--mono); color:var(--accent); margin-bottom:16px;" id="wizStatus">Fetching via proxy...</div>
-        <div style="width:100%; height:4px; background:var(--border); border-radius:2px; overflow:hidden;">
-          <div id="wizProgress" style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Step 3: Proposal -->
-    <div class="wizard-step" id="wiz-step-3">
-      <p style="color:var(--text); font-weight:500; margin-bottom:8px;">Analysis Complete.</p>
-      <div style="background:var(--bg); border:1px solid var(--border2); padding:12px; border-radius:6px; font-family:var(--mono); font-size:12px; color:var(--muted); margin-bottom:16px;" id="wizProposal">
-        <!-- Injected via JS -->
-      </div>
-      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
-        <button class="btn btn-danger" onclick="closeWizard()">No, Cancel</button>
-        <button class="btn btn-primary" id="btnWizAccept">Yes, Save & Go</button>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<datalist id="selectorPresets">
-  <option value="a.container__link">CNN Article Links</option>
-  <option value="article a">Standard Article Links</option>
-  <option value=".titleline > a">HackerNews Links</option>
-  <option value="table tr td a">Table Links</option>
-</datalist>
-
 <header>
+  <button class="hamburger" id="navToggle">☰</button>
   <div class="logo">Web<span>Fetch</span> Studio</div>
   <div class="tab-nav">
-    <button class="tab-btn active" data-target="view-studio">Studio (Train)</button>
+    <button class="tab-btn active" data-target="view-config">Config</button>
     <button class="tab-btn" data-target="view-ops">Ops (Run)</button>
-    <button class="tab-btn" data-target="view-results">Library</button>
+    <button class="tab-btn" data-target="view-results">Results</button>
     <button class="tab-btn" data-target="view-settings">Settings</button>
   </div>
 </header>
 
 <div class="app-container">
 
-  <!-- STUDIO / TRAINER TAB -->
-  <div id="view-studio" class="view-section active">
-    <div class="sidebar">
+  <!-- CONFIG TAB -->
+  <div id="view-config" class="view-section active">
+    <div class="sidebar" id="config-sidebar">
       <div class="sidebar-header">
-        <span style="font-weight:600;">Profiles</span>
+        <span style="font-weight:600;">Saved Configs</span>
         <button class="btn" id="btnNewConfig">+</button>
       </div>
       <div class="sidebar-content" id="configList"></div>
@@ -179,122 +376,117 @@ header { height: var(--header-height); display: flex; align-items: center; paddi
     
     <div class="main-pane">
       <div class="split-top">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
-          <h3 style="font-size: 14px;">Extraction Rules</h3>
-          <div style="display:flex; gap:8px;">
-            <button class="btn" id="btnLaunchWizard" style="border-color:var(--accent3); color:var(--accent3);">✨ Magic Auto-Trainer</button>
-            <button class="btn" id="btnAddRule" style="display:none; border-color:var(--accent); color:var(--accent);">+ Add Rule</button>
-          </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+          <h3 style="font-size: 14px; color: var(--text);">Wide -> Deep Protocol</h3>
         </div>
-        <div id="stepsContainer"><div class="empty-state">Select or create a profile, or run the Magic Auto-Trainer.</div></div>
+        <p style="font-size:12px; color:var(--muted); margin-bottom:16px;">The engine will automatically discover all valid links from your Base URL, add them to the queue, and scrape their articles using fallback error correction.</p>
+        
+        <div class="step-card">
+          <div style="color:var(--text); font-weight:600; margin-bottom:4px;">Phase 1: Wide Scan</div>
+          <div style="color:var(--muted); font-size:12px;">Auto-extract all standard anchor links dynamically. Invalid elements discarded automatically.</div>
+        </div>
+        <div class="step-card">
+          <div style="color:var(--text); font-weight:600; margin-bottom:4px;">Phase 2: Deep Scrape</div>
+          <div style="color:var(--muted); font-size:12px;">Navigate each extracted link and parse DOM. Will fallback to raw text extraction if strict parsing fails.</div>
+        </div>
+
       </div>
-
       <div class="split-bottom">
-        <div style="display:flex; gap:24px; height: 100%;">
-          <!-- Left: Parameters -->
-          <div style="flex: 1; border-right: 1px solid var(--border); padding-right: 24px;">
-            <h3 style="margin-bottom: 12px; font-size: 14px;">Profile Config</h3>
-            <div id="configParams" style="display:none;">
-              <div class="input-group">
-                <label>Profile Name</label>
-                <input type="text" class="input-control" id="cfgName">
-              </div>
-              <div class="input-group">
-                <label>Starting Base URL</label>
-                <input type="url" class="input-control" id="cfgUrl" placeholder="https://...">
-              </div>
-              <div style="display:flex; gap:12px;">
-                <div class="input-group" style="flex:1;"><label>Depth</label><input type="number" class="input-control" id="cfgDepth" value="1"></div>
-                <div class="input-group" style="flex:1;"><label>Limit</label><input type="number" class="input-control" id="cfgPages" value="20"></div>
-              </div>
-              <button class="btn btn-primary" id="btnSaveConfig" style="width:100%;">SAVE PROFILE</button>
+        <h3 style="margin-bottom: 16px; font-size: 14px; color: var(--text);">Search Parameters</h3>
+        <div id="configParams" style="display:none;">
+          <div class="input-group">
+            <label>Configuration Name</label>
+            <input type="text" class="input-control" id="cfgName" placeholder="e.g., CNN Auto-Scrape">
+          </div>
+          <div class="input-group">
+            <label>Starting Base URL</label>
+            <input type="url" class="input-control" id="cfgUrl" placeholder="https://edition.cnn.com">
+          </div>
+          <div style="display:flex; gap:16px;">
+            <div class="input-group" style="flex:1;">
+              <label>Max Recursion Depth</label>
+              <input type="number" class="input-control" id="cfgDepth" value="1" min="0" max="5">
+            </div>
+            <div class="input-group" style="flex:1;">
+              <label>Max Pages to Scrape</label>
+              <input type="number" class="input-control" id="cfgPages" value="50" min="1" max="1000">
             </div>
           </div>
-
-          <!-- Right: Inspector -->
-          <div style="flex: 1.5; display: flex; flex-direction: column;">
-            <h3 style="margin-bottom: 12px; font-size: 14px;">Probe Inspector</h3>
-            <div style="display:flex; gap:8px; margin-bottom:12px;">
-              <input type="url" class="input-control" id="probeUrl" placeholder="Enter deep page URL to inspect...">
-              <button class="btn btn-accent" id="btnProbe">PROBE</button>
-            </div>
-            <div id="probeContainer" style="flex:1; overflow-y:auto;">
-              <div class="empty-state">Enter a target URL above and click 'Probe' to map available CSS selectors.</div>
-            </div>
-          </div>
+          <button class="btn btn-primary" id="btnSaveConfig" style="width:100%; margin-top:8px;">Save Configuration</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- OPS / RUN TAB -->
+  <!-- OPS (RUN) TAB -->
   <div id="view-ops" class="view-section">
     <div class="sidebar">
-      <div class="sidebar-header"><span style="font-weight:600;">Select Profile</span></div>
+      <div class="sidebar-header">
+        <span style="font-weight:600;">Select Setup</span>
+      </div>
       <div class="sidebar-content" id="opsConfigList"></div>
     </div>
+    
     <div class="main-pane" style="padding:16px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-        <h2 id="opsTitle">System Ready</h2>
-        <button class="btn btn-primary" id="btnRun" disabled>EXECUTE CRAWL</button>
+        <h2 id="opsTitle">No Config Selected</h2>
+        <button class="btn btn-primary" id="btnRun" disabled>Execute Run</button>
       </div>
+      
       <div style="flex:1; display:flex; flex-direction:column; gap:16px;">
-        <div id="progText" style="font-size:12px; color:var(--muted); font-family:var(--mono);">Queue: 0 | Scraped: 0</div>
+        <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted); font-family:var(--mono);">
+          <span id="progText">Queue: 0 | Scraped: 0</span>
+        </div>
         <div style="height: 4px; background: var(--border); border-radius: 2px; overflow:hidden;">
           <div id="runProgress" style="height: 100%; width: 0%; background: var(--accent); transition: width 0.3s;"></div>
         </div>
-        <div class="tablet-console" id="runConsole"></div>
+        <div class="tablet-console" id="runConsole">
+          <div class="log-info">[System] Ready to initiate operational run. Select a config from the left pane.</div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- LIBRARY / RESULTS TAB -->
+  <!-- RESULTS TAB -->
   <div id="view-results" class="view-section">
-    <div class="sidebar"><div class="sidebar-content" id="resultsList" style="padding-top:16px;"></div></div>
+    <div class="sidebar">
+      <div class="sidebar-content" id="resultsList" style="padding-top:0;"></div>
+    </div>
     
-    <div class="main-pane" style="padding:16px; display:flex; flex-direction:column;">
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:12px;">
-        <div class="res-tab-nav" style="display:flex; gap:24px;">
-          <button class="res-tab-btn active" data-res-target="pane-json">JSON</button>
-          <button class="res-tab-btn" data-res-target="pane-text">Text</button>
-          <button class="res-tab-btn" data-res-target="pane-reader">Reader (HTML)</button>
-        </div>
+    <div class="main-pane" style="padding:16px;">
+      <h2 id="resTitle" style="margin-bottom: 12px; font-size: 16px;">Run Details</h2>
+      
+      <div class="res-tab-nav">
+        <button class="res-tab-btn active" data-res-tab="res-view-pane">View</button>
+        <button class="res-tab-btn" data-res-tab="res-get-pane">Get</button>
       </div>
 
-      <!-- JSON Pane -->
-      <div id="pane-json" class="res-pane active">
-        <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
-          <button class="btn btn-primary" id="btnCopyJson" disabled>COPY JSON</button>
-          <button class="btn" id="btnExportJson" disabled style="margin-left:8px;">EXPORT JSON</button>
+      <!-- View Sub-Tab -->
+      <div id="res-view-pane" class="res-pane-content active">
+        <div class="view-controls">
+          <button class="btn" id="btnViewBack" disabled>⬅ Back</button>
+          <button class="btn" id="btnViewFwd" disabled>Fwd ➡</button>
+          <span id="viewUrlDisplay" style="margin-left:8px; font-size:12px; color:var(--muted); font-family:var(--mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
         </div>
-        <div class="tablet-console" id="resJsonViewer" style="background:var(--surface); color:var(--text); flex:1;">
+        <div class="view-html-container" id="resHtmlView">
           <div class="empty-state">Select a run from the left panel.</div>
         </div>
       </div>
 
-      <!-- Text Pane -->
-      <div id="pane-text" class="res-pane">
-        <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
-          <button class="btn btn-primary" id="btnCopyText" disabled>COPY TEXT</button>
-          <button class="btn" id="btnExportText" disabled style="margin-left:8px;">EXPORT TEXT</button>
+      <!-- Get Sub-Tab -->
+      <div id="res-get-pane" class="res-pane-content">
+        <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center;">
+          <select class="input-control" id="getFormatSelector" style="width:150px; margin:0;">
+            <option value="text">Text</option>
+            <option value="json">JSON</option>
+            <option value="html">HTML</option>
+          </select>
+          <button class="btn" id="btnResCopy" disabled>Copy</button>
+          <button class="btn" id="btnResExport" disabled>Export</button>
         </div>
-        <div class="tablet-console" id="resTextViewer" style="background:var(--surface); color:var(--text); flex:1; white-space:pre-wrap;"></div>
-      </div>
-
-      <!-- Reader Pane -->
-      <div id="pane-reader" class="res-pane">
-        <div style="display:flex; justify-content:space-between; margin-bottom:8px; align-items:center; background:var(--surface); padding:8px; border-radius:6px; border:1px solid var(--border);">
-          <div style="display:flex; gap:8px; align-items:center;">
-            <button class="btn" id="btnViewBack" disabled>⬅ Back</button>
-            <button class="btn" id="btnViewFwd" disabled>Fwd ➡</button>
-            <span id="viewUrlDisplay" style="font-size:12px; color:var(--muted); font-family:var(--mono);"></span>
-          </div>
-          <div style="display:flex; gap:8px;">
-            <button class="btn btn-primary" id="btnCopyHtml" disabled>COPY HTML</button>
-            <button class="btn" id="btnExportHtml" disabled>EXPORT HTML</button>
-          </div>
+        <div class="tablet-console" id="resDataViewer" style="background:var(--surface); color:var(--text); flex:1;">
+          <div class="empty-state">Select a run from the left panel.</div>
         </div>
-        <div id="resHtmlViewer" style="flex:1; background:#fff; color:#000; overflow-y:auto; padding:24px; border-radius:6px; font-family:Georgia,serif; border:1px solid var(--border);"></div>
       </div>
     </div>
   </div>
@@ -304,81 +496,61 @@ header { height: var(--header-height); display: flex; align-items: center; paddi
     <div class="main-pane" style="padding:24px; max-width:600px; margin:0 auto;">
       <h2 style="margin-bottom:24px;">Global Settings</h2>
       <div class="input-group">
-        <label>Primary Proxy Gateway</label>
-        <select class="input-control" id="setProxy">
-          <option value="codetabs">CodeTabs API</option>
-          <option value="corsproxy">CorsProxy.io</option>
-          <option value="allorigins">AllOrigins API</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label>Time-Slice Delay (ms)</label>
-        <input type="number" class="input-control" id="setDelay" value="250">
-        <span style="font-size:11px; color:var(--muted); margin-top:4px; display:block;">Delay between processing pages to keep UI responsive.</span>
+        <label>Global Request Timeout (ms)</label>
+        <input type="number" class="input-control" id="setTimeout" value="15000">
       </div>
       <button class="btn btn-primary" id="btnSaveSettings">Apply Settings</button>
-
-      <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border2);">
-        <h3 style="color: var(--accent2); margin-bottom: 12px;">Danger Zone</h3>
-        <p style="font-size: 12px; color: var(--muted); margin-bottom: 16px;">Wipes all custom profiles and results from your browser, resetting the application to the default seed configurations.</p>
-        <button class="btn btn-danger" id="btnFactoryReset">Reset All Data to Defaults</button>
-      </div>
     </div>
   </div>
 
 </div>
 
-<footer class="master-footer">WebFetch Studio v9.0 - 2026-04-01 02:23 AM</footer>
+<footer class="master-footer">
+  WebFetch Studio v10.0 - 2026-04-05 04:00 AM
+</footer>
 
 <script>
-function showToast(msg, isError = false) {
-  const t = document.getElementById('toastMsg');
-  t.textContent = msg;
-  t.className = `toast show ${isError ? 'error' : ''}`;
-  setTimeout(() => t.classList.remove('show'), 3000);
+const icons = {
+  close: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`
+};
+
+function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
+
+// Sanitization Guardrail
+function sanitizeAndResolveUrl(href, base) {
+  if (!href) return null;
+  try {
+    const parsed = new URL(href.trim(), base);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    return parsed.href;
+  } catch (e) {
+    return null;
+  }
 }
 
-const icons = { close: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>` };
-const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
-
-// Updated Seeds to reflect Deep Scraping
 const defaultConfigs = [
   {
-    id: generateId() + '1', name: "Y-Combinator Deep (Seed)", url: "https://news.ycombinator.com/", depth: 1, pages: 30, trashConfig: false, trashOps: false,
-    steps: [
-      { id: generateId() + '1a', type: 'extract_links', value: '.titleline > a' },
-      { id: generateId() + '1b', type: 'scrape_content', value: '' }
-    ]
+    id: generateId() + '1', name: "Auto: AlterSlash Frontpage", url: "http://www.alterslash.org/", depth: 1, pages: 50,
+    trashConfig: false, trashOps: false
   },
   {
-    id: generateId() + '2', name: "AlterSlash Deep (Seed)", url: "http://www.alterslash.org/", depth: 1, pages: 15, trashConfig: false, trashOps: false,
-    steps: [
-      { id: generateId() + '2a', type: 'extract_links', value: 'a' },
-      { id: generateId() + '2b', type: 'scrape_content', value: '' }
-    ]
+    id: generateId() + '2', name: "Auto: NPR Top Stories", url: "https://www.npr.org/", depth: 1, pages: 50,
+    trashConfig: false, trashOps: false
   },
   {
-    id: generateId() + '3', name: "NPR Deep (Seed)", url: "https://www.npr.org/", depth: 1, pages: 15, trashConfig: false, trashOps: false,
-    steps: [
-      { id: generateId() + '3a', type: 'extract_links', value: 'article a, h3 a' },
-      { id: generateId() + '3b', type: 'scrape_content', value: '' }
-    ]
+    id: generateId() + '3', name: "Auto: Y-Combinator News", url: "https://news.ycombinator.com/", depth: 1, pages: 50,
+    trashConfig: false, trashOps: false
   }
 ];
 
 const savedConfigsStr = localStorage.getItem('wf_configs');
-// Migration check to inject new YC seed if necessary
-let initialConfigs = savedConfigsStr ? JSON.parse(savedConfigsStr) : JSON.parse(JSON.stringify(defaultConfigs));
-if(!localStorage.getItem('wf_v9_migrated')) {
-  initialConfigs = JSON.parse(JSON.stringify(defaultConfigs));
-  localStorage.setItem('wf_v9_migrated', 'true');
-}
 
 const AppState = {
-  configs: initialConfigs,
+  configs: savedConfigsStr ? JSON.parse(savedConfigsStr) : defaultConfigs,
   results: JSON.parse(localStorage.getItem('wf_results') || '[]'),
-  settings: JSON.parse(localStorage.getItem('wf_settings') || '{"proxy":"codetabs", "delay":250}'),
-  activeConfigId: null, activeResultId: null, tempSteps: []
+  settings: JSON.parse(localStorage.getItem('wf_settings') || '{"timeout":15000}'),
+  activeConfigId: null,
+  activeResultId: null
 };
 
 if (!Array.isArray(AppState.configs)) AppState.configs = [];
@@ -391,108 +563,10 @@ function saveState() {
   localStorage.setItem('wf_results', JSON.stringify(AppState.results));
   localStorage.setItem('wf_settings', JSON.stringify(AppState.settings));
 }
-saveState();
 
-const PROXIES = {
-  codetabs: u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-  allorigins: u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
-  corsproxy: u => `https://corsproxy.io/?${encodeURIComponent(u)}`
-};
+if (!savedConfigsStr) saveState();
 
-// --- Wizard Logic ---
-let wizProposedConfig = null;
-
-document.getElementById('btnLaunchWizard').addEventListener('click', () => {
-  document.getElementById('wizardOverlay').classList.add('active');
-  showWizStep(1);
-});
-
-function closeWizard() { document.getElementById('wizardOverlay').classList.remove('active'); }
-
-function showWizStep(n) {
-  document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
-  document.getElementById(`wiz-step-${n}`).classList.add('active');
-}
-
-document.getElementById('btnWizAnalyze').addEventListener('click', async () => {
-  const url = document.getElementById('wizUrl').value.trim();
-  if(!url) return showToast('Please enter a URL', true);
-  
-  showWizStep(2);
-  document.getElementById('wizStatus').textContent = 'Fetching via proxy...';
-  document.getElementById('wizProgress').style.width = '30%';
-
-  try {
-    const res = await fetch(PROXIES[AppState.settings.proxy](url));
-    const html = AppState.settings.proxy === 'allorigins' ? (await res.json()).contents : await res.text();
-    
-    document.getElementById('wizProgress').style.width = '70%';
-    document.getElementById('wizStatus').textContent = 'Analyzing DOM Structure...';
-    
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    
-    // Heuristics
-    let prescribedSelector = 'a';
-    let proposalText = '';
-    
-    const articles = doc.querySelectorAll('article a');
-    const newsCards = doc.querySelectorAll('.titleline > a, .story a, .card a');
-    
-    if (articles.length > 5) {
-      prescribedSelector = 'article a';
-      proposalText = `Detected Standard News/Blog Layout. Found ${articles.length} article links. Prescribing standard deep scraper.`;
-    } else if (newsCards.length > 5) {
-      prescribedSelector = '.titleline > a, .story a, .card a';
-      proposalText = `Detected Feed/Aggregator Layout. Found ${newsCards.length} card links. Prescribing standard deep scraper.`;
-    } else {
-      proposalText = `Generic layout detected. Falling back to extracting all anchor tags and relying on content parsing.`;
-    }
-
-    wizProposedConfig = {
-      name: `Auto-Trained: ${new URL(url).hostname}`,
-      url: url,
-      depth: 1, pages: 30,
-      steps: [
-        { id: generateId(), type: 'extract_links', value: prescribedSelector },
-        { id: generateId(), type: 'scrape_content', value: '' }
-      ]
-    };
-
-    document.getElementById('wizProgress').style.width = '100%';
-    
-    setTimeout(() => {
-      document.getElementById('wizProposal').innerHTML = `
-        <div style="margin-bottom:8px; color:var(--text);">${proposalText}</div>
-        <div style="color:var(--accent);">Rule 1: Extract Links (${prescribedSelector})</div>
-        <div style="color:var(--accent);">Rule 2: Scrape Article Content</div>
-        <div style="color:var(--accent);">Depth: 1 | Limit: 30</div>
-      `;
-      showWizStep(3);
-    }, 500);
-
-  } catch(e) {
-    showToast(`Wizard Error: ${e.message}`, true);
-    closeWizard();
-  }
-});
-
-document.getElementById('btnWizAccept').addEventListener('click', () => {
-  wizProposedConfig.id = generateId();
-  wizProposedConfig.trashConfig = false;
-  wizProposedConfig.trashOps = false;
-  
-  AppState.configs.push(wizProposedConfig);
-  AppState.activeConfigId = wizProposedConfig.id;
-  saveState();
-  closeWizard();
-  showToast('Profile Generated & Saved.');
-  
-  // Automatically switch to Ops tab to run it
-  document.querySelector('[data-target="view-ops"]').click();
-});
-
-
-// --- UI Nav ---
+// --- Main UI Navigation ---
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', (e) => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -503,7 +577,11 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-// --- Sidebar Core ---
+document.getElementById('navToggle').addEventListener('click', () => {
+  document.querySelectorAll('.sidebar').forEach(sb => sb.classList.toggle('collapsed'));
+});
+
+// --- Generic Sidebar Renderer ---
 function renderSidebarList(containerId, items, activeId, trashKey, onSelectCb, onTrashCb, onRestoreCb, onPermDeleteCb, renderHtmlCb) {
   const container = document.getElementById(containerId);
   const activeItems = items.filter(i => !i[trashKey]);
@@ -512,244 +590,301 @@ function renderSidebarList(containerId, items, activeId, trashKey, onSelectCb, o
   let html = activeItems.map(i => `
     <div class="list-item ${i.id === activeId ? 'selected' : ''}" data-id="${i.id}">
       <div class="list-item-content">${renderHtmlCb(i)}</div>
-      <div class="list-item-actions"><button class="icon-btn btn-trash" data-id="${i.id}">${icons.close}</button></div>
+      <div class="list-item-actions">
+        <button class="icon-btn btn-trash" data-id="${i.id}" title="Move to trash">${icons.close}</button>
+      </div>
     </div>
   `).join('');
 
   if (trashItems.length > 0) {
-    html += `<details class="deleted-chevron"><summary>Deleted Items (${trashItems.length})</summary>
-      ${trashItems.map(i => `<div class="deleted-item"><span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${i.name || i.configName}</span>
-      <div class="trash-actions"><button class="trash-restore" data-id="${i.id}">Restore</button><button class="trash-perm" data-id="${i.id}">Del</button></div></div>`).join('')}
-    </details>`;
+    html += `
+      <details class="deleted-chevron">
+        <summary>Deleted Items (${trashItems.length})</summary>
+        ${trashItems.map(i => `
+          <div class="deleted-item">
+            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${i.name || i.configName}</span>
+            <div class="trash-actions">
+              <button class="trash-restore" data-id="${i.id}">Restore</button>
+              <button class="trash-perm" data-id="${i.id}">Del</button>
+            </div>
+          </div>
+        `).join('')}
+      </details>
+    `;
   }
   container.innerHTML = html;
 
-  container.querySelectorAll('.list-item').forEach(el => { el.addEventListener('click', (e) => { if(e.target.closest('.btn-trash')) return; onSelectCb(el.dataset.id); }); });
-  container.querySelectorAll('.btn-trash').forEach(btn => { btn.addEventListener('click', (e) => { e.stopPropagation(); onTrashCb(btn.dataset.id); }); });
-  container.querySelectorAll('.trash-restore').forEach(btn => { btn.addEventListener('click', () => onRestoreCb(btn.dataset.id)); });
-  container.querySelectorAll('.trash-perm').forEach(btn => { btn.addEventListener('click', () => onPermDeleteCb(btn.dataset.id)); });
+  container.querySelectorAll('.list-item').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if(e.target.closest('.btn-trash')) return;
+      onSelectCb(el.dataset.id);
+    });
+  });
+
+  container.querySelectorAll('.btn-trash').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); onTrashCb(btn.dataset.id); });
+  });
+  container.querySelectorAll('.trash-restore').forEach(btn => {
+    btn.addEventListener('click', () => onRestoreCb(btn.dataset.id));
+  });
+  container.querySelectorAll('.trash-perm').forEach(btn => {
+    btn.addEventListener('click', () => onPermDeleteCb(btn.dataset.id));
+  });
 }
 
-// --- Studio Engine ---
+// --- Config Step Builder ---
 const configParams = document.getElementById('configParams');
-const stepsContainer = document.getElementById('stepsContainer');
-const probeContainer = document.getElementById('probeContainer');
 
 document.getElementById('btnNewConfig').addEventListener('click', () => {
   AppState.activeConfigId = null;
-  document.getElementById('cfgName').value = 'New Profile';
+  document.getElementById('cfgName').value = '';
   document.getElementById('cfgUrl').value = '';
   document.getElementById('cfgDepth').value = '1';
-  document.getElementById('cfgPages').value = '20';
-  document.getElementById('probeUrl').value = '';
-  AppState.tempSteps = [
-    { id: generateId(), type: 'extract_links', value: '.item a' },
-    { id: generateId(), type: 'extract_data', value: '{\n  "Label": "CSS_Selector"\n}' }
-  ];
+  document.getElementById('cfgPages').value = '50';
   configParams.style.display = 'block';
-  document.getElementById('btnAddRule').style.display = 'block';
-  renderSteps();
-});
-
-function renderSteps() {
-  stepsContainer.innerHTML = AppState.tempSteps.map((s, i) => `
-    <div class="step-card">
-      <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:11px; color:var(--accent);">
-        <span>Rule ${i+1}: ${s.type.replace('_', ' ').toUpperCase()}</span>
-        <button onclick="removeStep('${s.id}')" style="background:none; border:none; color:var(--accent2); cursor:pointer;">✕</button>
-      </div>
-      <div style="display:flex; flex-direction:column; gap:8px;">
-        <select class="input-control step-type" onchange="updateStep('${s.id}', 'type', this.value)">
-          <option value="extract_links" ${s.type === 'extract_links' ? 'selected' : ''}>Target: Drill Down Links</option>
-          <option value="extract_data" ${s.type === 'extract_data' ? 'selected' : ''}>Target: Structured Schema (JSON)</option>
-          <option value="scrape_content" ${s.type === 'scrape_content' ? 'selected' : ''}>Target: Readability Article Text</option>
-        </select>
-        ${s.type === 'extract_links' ? 
-          `<input type="text" class="input-control" list="selectorPresets" value="${s.value}" onchange="updateStep('${s.id}', 'value', this.value)" placeholder="CSS Selector for drill-down links">` :
-          (s.type === 'extract_data' ? `<textarea class="schema-editor" onchange="updateStep('${s.id}', 'value', this.value)">${s.value}</textarea>` : `<input type="text" class="input-control" disabled value="Full HTML Article Extractor">`)
-        }
-      </div>
-    </div>
-  `).join('');
-}
-
-window.updateStep = (id, key, val) => { const step = AppState.tempSteps.find(s => s.id === id); if (step) { step[key] = val; if(key === 'type') renderSteps(); } };
-window.removeStep = (id) => { AppState.tempSteps = AppState.tempSteps.filter(s => s.id !== id); renderSteps(); };
-document.getElementById('btnAddRule').addEventListener('click', () => { AppState.tempSteps.push({id: generateId(), type: 'extract_links', value: ''}); renderSteps(); });
-
-document.getElementById('btnProbe').addEventListener('click', async () => {
-  const url = document.getElementById('probeUrl').value.trim();
-  if(!url) return showToast("Enter an Inspector URL to probe.", true);
-  
-  probeContainer.innerHTML = '<div class="empty-state">Probing page structure...</div>';
-  try {
-    const res = await fetch(PROXIES[AppState.settings.proxy](url));
-    const html = AppState.settings.proxy === 'allorigins' ? (await res.json()).contents : await res.text();
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    
-    const classes = new Set();
-    doc.querySelectorAll('*').forEach(el => {
-      if(el.id) classes.add('#' + el.id);
-      el.classList.forEach(c => classes.add('.' + c));
-    });
-
-    probeContainer.innerHTML = `
-      <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">Click a selector below to copy to clipboard. Use <b>@attr</b> (e.g. img@src) for attributes.</div>
-      <div class="probe-results">${Array.from(classes).map(c => `<div class="probe-tag" onclick="navigator.clipboard.writeText('${c}'); showToast('Copied ${c}')"><span>TAG</span>${c}</div>`).join('')}</div>
-    `;
-  } catch(e) { probeContainer.innerHTML = `<div class="log-error">Probe failed: ${e.message}</div>`; }
+  renderConfigList();
 });
 
 document.getElementById('btnSaveConfig').addEventListener('click', () => {
+  const name = document.getElementById('cfgName').value.trim() || 'Untitled Config';
+  const url = document.getElementById('cfgUrl').value.trim();
+  if (!url) { alert("Base URL is required."); return; }
+
   const cfgData = {
     id: AppState.activeConfigId || generateId(),
-    name: document.getElementById('cfgName').value.trim() || 'Untitled Profile',
-    url: document.getElementById('cfgUrl').value.trim(),
-    depth: parseInt(document.getElementById('cfgDepth').value) || 0,
-    pages: parseInt(document.getElementById('cfgPages').value) || 20,
-    steps: JSON.parse(JSON.stringify(AppState.tempSteps)),
+    name: name,
+    url: url,
+    depth: parseInt(document.getElementById('cfgDepth').value) || 1,
+    pages: parseInt(document.getElementById('cfgPages').value) || 50,
     trashConfig: false, trashOps: false
   };
-  if (!cfgData.url) return showToast("Base URL is required.", true);
-  
-  for(let step of cfgData.steps) {
-    if(step.type === 'extract_data') {
-      try { JSON.parse(step.value); } catch(e) { return showToast(`Invalid JSON Schema in Rule: ${e.message}`, true); }
-    }
-  }
 
   const idx = AppState.configs.findIndex(c => c.id === cfgData.id);
   if(idx > -1) AppState.configs[idx] = Object.assign(AppState.configs[idx], cfgData);
   else { AppState.configs.push(cfgData); AppState.activeConfigId = cfgData.id; }
-  saveState(); renderUI(); showToast('Profile Saved.');
+  
+  saveState();
+  renderConfigList();
 });
+
+function renderConfigList() {
+  renderSidebarList('configList', AppState.configs, AppState.activeConfigId, 'trashConfig',
+    (id) => {
+      AppState.activeConfigId = id;
+      const cfg = AppState.configs.find(c => c.id === id);
+      document.getElementById('cfgName').value = cfg.name;
+      document.getElementById('cfgUrl').value = cfg.url;
+      document.getElementById('cfgDepth').value = cfg.depth;
+      document.getElementById('cfgPages').value = cfg.pages;
+      configParams.style.display = 'block';
+      renderConfigList();
+    },
+    (id) => { AppState.configs.find(c => c.id === id).trashConfig = true; if(AppState.activeConfigId===id) AppState.activeConfigId=null; saveState(); renderConfigList(); },
+    (id) => { AppState.configs.find(c => c.id === id).trashConfig = false; saveState(); renderConfigList(); },
+    (id) => { AppState.configs = AppState.configs.filter(c => c.id !== id); saveState(); renderConfigList(); },
+    (c) => `<div style="font-weight:500">${c.name}</div><div style="font-size:11px; color:var(--muted); text-overflow:ellipsis; overflow:hidden;">${c.url}</div>`
+  );
+}
 
 // --- Execution Engine ---
 const runConsole = document.getElementById('runConsole');
 const btnRun = document.getElementById('btnRun');
-let activeOps = null;
-let abort = null;
+const progBar = document.getElementById('runProgress');
+const progText = document.getElementById('progText');
+let activeOpsConfig = null;
+let abortController = null;
 
-async function executeRun() {
-  btnRun.textContent = 'STOP'; btnRun.classList.remove('btn-primary'); btnRun.classList.add('btn-danger');
-  abort = new AbortController();
-  runConsole.innerHTML = '';
-  
-  let queue = [{ url: activeOps.url, depth: 0 }];
-  let visited = new Set();
-  let results = [];
-  const delay = AppState.settings.delay || 250;
+const PROXY_LIST = ['codetabs', 'corsproxy', 'allorigins'];
+const PROXIES = {
+  codetabs: u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+  corsproxy: u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  allorigins: u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`
+};
 
-  async function processNext() {
-    if(abort.signal.aborted) return finalizeRun("Aborted");
-    if(queue.length === 0 || results.length >= activeOps.pages) return finalizeRun("Complete");
-
-    const current = queue.shift();
-    const cleanUrl = current.url.replace(/\/$/, "");
-    if(visited.has(cleanUrl)) { setTimeout(processNext, 10); return; }
-    visited.add(cleanUrl);
-
-    runConsole.innerHTML += `<div class="log-info">[D:${current.depth}] Fetching: ${current.url}</div>`;
-    runConsole.scrollTop = runConsole.scrollHeight;
-
-    try {
-      const res = await fetch(PROXIES[AppState.settings.proxy](current.url), { signal: abort.signal });
-      const html = AppState.settings.proxy === 'allorigins' ? (await res.json()).contents : await res.text();
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      let base = doc.createElement('base'); base.href = current.url; doc.head.prepend(base);
-
-      let data = { url: current.url };
-      let foundData = false;
-
-      for(let rule of activeOps.steps) {
-        if(rule.type === 'extract_links' && current.depth < activeOps.depth && rule.value) {
-          doc.querySelectorAll(rule.value).forEach(a => { if(a.href && !a.href.startsWith('javascript:')) queue.push({url: a.href, depth: current.depth+1}); });
-        }
-        if(rule.type === 'extract_data' && rule.value) {
-          const schema = JSON.parse(rule.value);
-          for(let key in schema) {
-            const [selector, attr] = schema[key].split('@');
-            const elements = doc.querySelectorAll(selector);
-            if(elements.length === 1) {
-               data[key] = attr ? elements[0].getAttribute(attr) : elements[0].innerText.trim().replace(/\s+/g, ' ');
-            } else if(elements.length > 1) {
-               data[key] = Array.from(elements).map(e => attr ? e.getAttribute(attr) : e.innerText.trim().replace(/\s+/g, ' '));
-            } else {
-               data[key] = null;
-            }
-            foundData = true;
-          }
-        }
-        if (rule.type === 'scrape_content') {
-           const reader = new Readability(doc.cloneNode(true));
-           const article = reader.parse();
-           if(article && article.textContent.length > 100) {
-             data.Title = article.title; 
-             data.Content = article.textContent; 
-             data.html = article.content; 
-             foundData = true;
-           }
-        }
-      }
-      
-      if(foundData) {
-        results.push(data);
-        runConsole.innerHTML += `<div class="log-success">Data extracted successfully.</div>`;
-      }
-      document.getElementById('progText').textContent = `Queue: ${queue.length} | Scraped: ${results.length} / ${activeOps.pages}`;
-      document.getElementById('runProgress').style.width = `${(results.length / activeOps.pages)*100}%`;
-    } catch(e) { 
-      if(e.name !== 'AbortError') runConsole.innerHTML += `<div class="log-error">Error: ${e.message}</div>`; 
-    }
-    
-    setTimeout(processNext, delay);
-  }
-
-  function finalizeRun(status) {
-    if(results.length > 0) {
-      AppState.results.push({ id: generateId(), configId: activeOps.id, configName: activeOps.name, date: new Date().toLocaleString(), trashResult: false, payload: results });
-      saveState();
-      document.getElementById('runProgress').style.width = '100%';
-      runConsole.innerHTML += `<div class="log-success">Run ${status}. Stored ${results.length} records.</div>`;
-    } else {
-      document.getElementById('runProgress').style.background = 'var(--accent3)';
-      runConsole.innerHTML += `<div class="log-warn">Run ${status}. No data scraped.</div>`;
-    }
-    btnRun.textContent = 'EXECUTE CRAWL'; btnRun.classList.remove('btn-danger'); btnRun.classList.add('btn-primary');
-    renderUI();
-  }
-
-  processNext();
+function opsLog(msg, type='info') {
+  const d = new Date().toLocaleTimeString([], { hour12: false });
+  runConsole.innerHTML += `<div class="log-${type}">[${d}] ${msg}</div>`;
+  runConsole.scrollTop = runConsole.scrollHeight;
 }
 
-document.getElementById('btnRun').addEventListener('click', () => {
-  if(!activeOps) return;
-  if(btnRun.textContent === 'STOP') { abort.abort(); return; }
-  executeRun();
+function renderOpsList() {
+  renderSidebarList('opsConfigList', AppState.configs, activeOpsConfig?.id, 'trashOps',
+    (id) => {
+      activeOpsConfig = AppState.configs.find(c => c.id === id);
+      document.getElementById('opsTitle').textContent = `Ready: ${activeOpsConfig.name}`;
+      btnRun.disabled = false;
+      renderOpsList();
+    },
+    (id) => { AppState.configs.find(c => c.id === id).trashOps = true; if(activeOpsConfig?.id===id){activeOpsConfig=null; btnRun.disabled=true;} saveState(); renderOpsList(); },
+    (id) => { AppState.configs.find(c => c.id === id).trashOps = false; saveState(); renderOpsList(); },
+    (id) => { AppState.configs = AppState.configs.filter(c => c.id !== id); saveState(); renderOpsList(); },
+    (c) => `<div style="font-weight:500">${c.name}</div>`
+  );
+}
+
+async function fetchHTMLWithFailover(url, signal, timeout) {
+  let lastError;
+  for (let proxyName of PROXY_LIST) {
+    if (signal.aborted) throw new Error("Aborted by user.");
+    const proxyUrl = PROXIES[proxyName](url);
+    
+    const fetchController = new AbortController();
+    const abortHandler = () => fetchController.abort();
+    signal.addEventListener('abort', abortHandler);
+    const timeoutId = setTimeout(() => fetchController.abort(), timeout);
+
+    try {
+      const res = await fetch(proxyUrl, { signal: fetchController.signal });
+      clearTimeout(timeoutId);
+      signal.removeEventListener('abort', abortHandler);
+      
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return proxyName === 'allorigins' ? (await res.json()).contents : await res.text();
+    } catch (e) {
+      clearTimeout(timeoutId);
+      signal.removeEventListener('abort', abortHandler);
+      lastError = e.name === 'AbortError' ? new Error("Timeout") : e;
+      if (signal.aborted) throw lastError;
+      opsLog(`Proxy [${proxyName}] failed, retrying...`, 'warn');
+    }
+  }
+  throw new Error(`All proxies exhausted. Final error: ${lastError.message}`);
+}
+
+function updateProgress(queueSize, scraped, maxPages) {
+  progText.textContent = `Queue: ${queueSize} | Scraped: ${scraped} / ${maxPages}`;
+  progBar.style.width = `${Math.min((scraped / maxPages) * 100, 100)}%`;
+}
+
+btnRun.addEventListener('click', async () => {
+  if(!activeOpsConfig || !activeOpsConfig.url) return;
+  
+  if (btnRun.textContent === 'Stop') {
+    if(abortController) abortController.abort();
+    opsLog('Process aborted by user.', 'warn');
+    btnRun.textContent = 'Execute Run';
+    btnRun.classList.remove('btn-danger'); btnRun.classList.add('btn-primary');
+    return;
+  }
+
+  btnRun.textContent = 'Stop';
+  btnRun.classList.remove('btn-primary'); btnRun.classList.add('btn-danger');
+  abortController = new AbortController();
+  
+  runConsole.innerHTML = ''; progBar.style.width = '0%'; progBar.style.background = 'var(--accent)';
+  opsLog(`Initiating Wide -> Deep Protocol for: ${activeOpsConfig.name}`, 'info');
+  
+  let queue = [{ url: sanitizeAndResolveUrl(activeOpsConfig.url, window.location.href) || activeOpsConfig.url, depth: 0 }];
+  let visited = new Set();
+  let extractedData = [];
+  
+  updateProgress(queue.length, extractedData.length, activeOpsConfig.pages);
+
+  try {
+    while (queue.length > 0 && extractedData.length < activeOpsConfig.pages) {
+      if (abortController.signal.aborted) break;
+      const current = queue.shift();
+      const cleanUrl = current.url.replace(/\/$/, "");
+      if (visited.has(cleanUrl)) continue;
+      visited.add(cleanUrl);
+
+      opsLog(`[D:${current.depth}] Processing: ${current.url}`);
+      
+      try {
+        const html = await fetchHTMLWithFailover(current.url, abortController.signal, AppState.settings.timeout);
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        let base = doc.createElement('base'); base.href = current.url; doc.head.prepend(base);
+
+        // Phase 1: Wide Scan (Extract Links)
+        if (current.depth < activeOpsConfig.depth) {
+          const rawLinks = doc.querySelectorAll('a[href]');
+          let added = 0;
+          rawLinks.forEach(a => {
+            const resolvedUrl = sanitizeAndResolveUrl(a.getAttribute('href'), current.url);
+            if (resolvedUrl && !resolvedUrl.startsWith('javascript:') && !resolvedUrl.startsWith('mailto:')) {
+              queue.push({ url: resolvedUrl, depth: current.depth + 1 });
+              added++;
+            }
+          });
+          opsLog(`Wide Scan: Found and queued ${added} valid links.`, 'info');
+        }
+        
+        // Phase 2: Deep Scrape (Content Parsing + Error Correction Fallback)
+        let article = new Readability(doc.cloneNode(true)).parse();
+        
+        // Retry/Fallback Logic: If Readability yields empty or tiny results, try raw extraction.
+        if (!article || !article.textContent || article.textContent.length < 100) {
+          opsLog(`Readability parse failed, retrying with raw DOM extraction...`, 'warn');
+          const mainNode = doc.querySelector('main, article, .content, #content') || doc.body;
+          if (mainNode && mainNode.innerText.length > 100) {
+            article = { title: doc.title || 'Untitled', textContent: mainNode.innerText, content: mainNode.innerHTML };
+            opsLog(`Fallback extraction successful.`, 'success');
+          }
+        }
+
+        if (article && article.textContent && article.textContent.length >= 100) {
+          extractedData.push({
+            url: current.url, depth: current.depth, title: article.title,
+            text: article.textContent, html: article.content
+          });
+          opsLog(`Scraped Payload: Length ${article.textContent.length} chars.`, 'success');
+        } else {
+          opsLog(`Discarded: Content below threshold or not found.`, 'warn');
+        }
+
+      } catch (err) { opsLog(`Failed on ${current.url}: ${err.message}`, 'error'); }
+
+      updateProgress(queue.length, extractedData.length, activeOpsConfig.pages);
+      await new Promise(r => setTimeout(r, 100)); // time slice yielding
+    }
+
+    if(extractedData.length > 0) {
+      AppState.results.push({
+        id: generateId(), configId: activeOpsConfig.id, configName: activeOpsConfig.name,
+        date: new Date().toLocaleString(), trashResult: false, payload: extractedData
+      });
+      saveState();
+      progBar.style.width = '100%';
+      opsLog(`Run Complete. Stored ${extractedData.length} entries to Results.`, 'success');
+    } else {
+      progBar.style.background = 'var(--accent3)';
+      opsLog(`Run Complete, but no data was successfully scraped.`, 'warn');
+    }
+
+  } catch (err) {
+    if(err.name !== 'AbortError') opsLog(`Fatal Engine Error: ${err.message}`, 'error');
+    progBar.style.background = 'var(--accent2)';
+  } finally {
+    btnRun.textContent = 'Execute Run'; btnRun.classList.remove('btn-danger'); btnRun.classList.add('btn-primary');
+    renderResultsList();
+  }
 });
 
-// --- Results (Library) Sub-Tabs Logic ---
-document.querySelectorAll('.res-tab-btn').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    document.querySelectorAll('.res-tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.res-pane').forEach(v => v.classList.remove('active'));
-    e.target.classList.add('active');
-    document.getElementById(e.target.dataset.resTarget).classList.add('active');
-  });
-});
+// --- Results Custom Tabs & View Logic ---
+const resHtmlView = document.getElementById('resHtmlView');
+const resDataViewer = document.getElementById('resDataViewer');
+const getFormatSelector = document.getElementById('getFormatSelector');
+const btnResCopy = document.getElementById('btnResCopy');
+const btnResExport = document.getElementById('btnResExport');
 
 let activeResPayload = null;
 let viewHistory = [];
 let viewIndex = -1;
 
+document.querySelectorAll('.res-tab-btn').forEach(btn => {
+  btn.addEventListener('click', e => {
+    document.querySelectorAll('.res-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.res-pane-content').forEach(p => p.classList.remove('active'));
+    e.target.classList.add('active');
+    document.getElementById(e.target.dataset.resTab).classList.add('active');
+  });
+});
+
 function renderViewPage(idx) {
   if(!activeResPayload || !activeResPayload[idx]) return;
   const page = activeResPayload[idx];
-  document.getElementById('viewUrlDisplay').textContent = page.url || '';
-  
-  let htmlContent = page.html || page.Content || page.text || `<div class="empty-state">No structured HTML content found. Re-run with "Scrape Article Content" rule.</div><pre style="margin-top:20px; font-family:var(--mono); color:#333;">${JSON.stringify(page, null, 2)}</pre>`;
-  
-  document.getElementById('resHtmlViewer').innerHTML = `<h1>${page.Title || page.title || 'Untitled'}</h1><hr style="margin:10px 0;">${htmlContent}`;
+  document.getElementById('viewUrlDisplay').textContent = page.url;
+  resHtmlView.innerHTML = `<h1>${page.title}</h1><hr style="margin:10px 0;">${page.html || page.text || 'No HTML recorded.'}`;
   document.getElementById('btnViewBack').disabled = viewIndex <= 0;
   document.getElementById('btnViewFwd').disabled = viewIndex >= viewHistory.length - 1;
 }
@@ -757,116 +892,84 @@ function renderViewPage(idx) {
 document.getElementById('btnViewBack').addEventListener('click', () => { if(viewIndex > 0) { viewIndex--; renderViewPage(viewHistory[viewIndex]); }});
 document.getElementById('btnViewFwd').addEventListener('click', () => { if(viewIndex < viewHistory.length - 1) { viewIndex++; renderViewPage(viewHistory[viewIndex]); }});
 
-document.getElementById('resHtmlViewer').addEventListener('click', e => {
+resHtmlView.addEventListener('click', e => {
   const a = e.target.closest('a');
   if (a && activeResPayload) {
     e.preventDefault();
-    const cleanTarget = a.href.replace(/\/$/, "");
-    const matchIdx = activeResPayload.findIndex(p => (p.url || '').replace(/\/$/, "") === cleanTarget);
+    const cleanTarget = sanitizeAndResolveUrl(a.getAttribute('href'), activeResPayload[viewHistory[viewIndex]].url);
+    if (!cleanTarget) return;
+    
+    const matchIdx = activeResPayload.findIndex(p => p.url.replace(/\/$/, "") === cleanTarget.replace(/\/$/, ""));
     if (matchIdx > -1) {
       viewHistory = viewHistory.slice(0, viewIndex + 1);
       viewHistory.push(matchIdx);
       viewIndex++;
       renderViewPage(matchIdx);
     } else {
-      showToast("This link was not scraped in the current run.", true);
+      alert("This link was not scraped in the current run.");
     }
   }
 });
 
-// --- UI Synchronizer ---
-function renderUI() {
-  renderSidebarList('configList', AppState.configs, AppState.activeConfigId, 'trashConfig',
-    (id) => {
-      AppState.activeConfigId = id; const c = AppState.configs.find(x => x.id === id);
-      document.getElementById('cfgName').value = c.name; document.getElementById('cfgUrl').value = c.url;
-      document.getElementById('cfgDepth').value = c.depth; document.getElementById('cfgPages').value = c.pages;
-      AppState.tempSteps = JSON.parse(JSON.stringify(c.steps));
-      configParams.style.display = 'block'; document.getElementById('btnAddRule').style.display = 'block';
-      renderSteps(); renderUI();
-    },
-    (id) => { AppState.configs.find(c => c.id === id).trashConfig = true; if(AppState.activeConfigId===id) AppState.activeConfigId=null; saveState(); renderUI(); },
-    (id) => { AppState.configs.find(c => c.id === id).trashConfig = false; saveState(); renderUI(); },
-    (id) => { AppState.configs = AppState.configs.filter(c => c.id !== id); saveState(); renderUI(); },
-    (c) => `<div style="font-weight:500">${c.name}</div><div style="font-size:11px; color:var(--muted); text-overflow:ellipsis; overflow:hidden;">${c.url}</div>`
-  );
+function updateGetTab() {
+  if(!activeResPayload) return;
+  const fmt = getFormatSelector.value;
+  let out = '';
+  if (fmt === 'json') out = JSON.stringify(activeResPayload, null, 2);
+  else if (fmt === 'text') out = activeResPayload.map(p => `--- ${p.url} ---\n${p.title}\n\n${p.text}\n\n`).join('');
+  else if (fmt === 'html') out = activeResPayload.map(p => `<!-- ${p.url} -->\n<h1>${p.title}</h1>\n${p.html}`).join('<hr>\n');
+  resDataViewer.innerHTML = `<pre style="white-space:pre-wrap; font-family:var(--mono);">${out.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`;
+}
+getFormatSelector.addEventListener('change', updateGetTab);
 
-  renderSidebarList('opsConfigList', AppState.configs, activeOps?.id, 'trashOps',
-    (id) => { activeOps = AppState.configs.find(x => x.id === id); document.getElementById('opsTitle').textContent = `Profile: ${activeOps.name}`; btnRun.disabled = false; renderUI(); },
-    (id) => { AppState.configs.find(c => c.id === id).trashOps = true; if(activeOps?.id===id){activeOps=null; btnRun.disabled=true;} saveState(); renderUI(); },
-    (id) => { AppState.configs.find(c => c.id === id).trashOps = false; saveState(); renderUI(); },
-    (id) => { AppState.configs = AppState.configs.filter(c => c.id !== id); saveState(); renderUI(); },
-    (c) => `<div style="font-weight:500">${c.name}</div>`
-  );
-
+function renderResultsList() {
   renderSidebarList('resultsList', AppState.results, AppState.activeResultId, 'trashResult',
     (id) => {
-      AppState.activeResultId = id; const r = AppState.results.find(x => x.id === id);
-      activeResPayload = r.payload || r.data || [];
-      
-      // Setup JSON View
-      document.getElementById('resJsonViewer').innerHTML = `<pre style="white-space:pre-wrap; font-family:var(--mono); margin:0;">${JSON.stringify(activeResPayload, null, 2)}</pre>`;
-      
-      // Setup Text View
-      const textOut = activeResPayload.map(p => `--- ${p.url} ---\n${p.Title || p.title || 'Untitled'}\n\n${p.Content || p.text || JSON.stringify(p)}\n\n`).join('');
-      document.getElementById('resTextViewer').textContent = textOut;
-
-      // Setup HTML View
+      AppState.activeResultId = id;
+      const res = AppState.results.find(r => r.id === id);
+      document.getElementById('resTitle').textContent = `Run: ${res.date}`;
+      activeResPayload = res.payload;
       viewHistory = [0]; viewIndex = 0;
       renderViewPage(0);
-
-      document.getElementById('btnCopyJson').disabled = false; document.getElementById('btnExportJson').disabled = false;
-      document.getElementById('btnCopyText').disabled = false; document.getElementById('btnExportText').disabled = false;
-      document.getElementById('btnCopyHtml').disabled = false; document.getElementById('btnExportHtml').disabled = false;
-      renderUI();
+      updateGetTab();
+      btnResCopy.disabled = false; btnResExport.disabled = false;
+      renderResultsList();
     },
-    (id) => { AppState.results.find(r => r.id === id).trashResult = true; if(AppState.activeResultId===id){AppState.activeResultId=null;} saveState(); renderUI(); },
-    (id) => { AppState.results.find(r => r.id === id).trashResult = false; saveState(); renderUI(); },
-    (id) => { AppState.results = AppState.results.filter(r => r.id !== id); saveState(); renderUI(); },
-    (r) => `<div style="font-weight:500">${r.configName}</div><div style="font-size:11px; color:var(--muted);">${r.date} | ${r.payload ? r.payload.length : 0} records</div>`
+    (id) => { AppState.results.find(r => r.id === id).trashResult = true; if(AppState.activeResultId===id){AppState.activeResultId=null;} saveState(); renderResultsList(); },
+    (id) => { AppState.results.find(r => r.id === id).trashResult = false; saveState(); renderResultsList(); },
+    (id) => { AppState.results = AppState.results.filter(r => r.id !== id); saveState(); renderResultsList(); },
+    (r) => `<div style="font-weight:500">${r.configName}</div><div style="font-size:11px; color:var(--muted);">${r.date} | ${r.payload.length} pgs</div>`
   );
-
-  document.getElementById('setProxy').value = AppState.settings.proxy;
-  document.getElementById('setDelay').value = AppState.settings.delay;
 }
 
-document.getElementById('btnCopyJson').addEventListener('click', () => { navigator.clipboard.writeText(JSON.stringify(activeResPayload, null, 2)).then(() => showToast('JSON Copied.')); });
-document.getElementById('btnExportJson').addEventListener('click', () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(activeResPayload, null, 2)], { type: 'application/json' })); a.download = `wf_data_${AppState.activeResultId}.json`; a.click(); });
-
-document.getElementById('btnCopyText').addEventListener('click', () => { navigator.clipboard.writeText(document.getElementById('resTextViewer').textContent).then(() => showToast('Text Copied.')); });
-document.getElementById('btnExportText').addEventListener('click', () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([document.getElementById('resTextViewer').textContent], { type: 'text/plain' })); a.download = `wf_data_${AppState.activeResultId}.txt`; a.click(); });
-
-document.getElementById('btnCopyHtml').addEventListener('click', () => {
-  if(viewIndex < 0) return;
-  const page = activeResPayload[viewHistory[viewIndex]];
-  const html = `<!-- ${page.url} -->\n<h1>${page.Title || page.title || 'Untitled'}</h1>\n${page.html || page.Content || page.text || ''}`;
-  navigator.clipboard.writeText(html).then(() => showToast('HTML Copied.')); 
-});
-document.getElementById('btnExportHtml').addEventListener('click', () => {
-  if(viewIndex < 0) return;
-  const page = activeResPayload[viewHistory[viewIndex]];
-  const html = `<!-- ${page.url} -->\n<h1>${page.Title || page.title || 'Untitled'}</h1>\n${page.html || page.Content || page.text || ''}`;
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' })); a.download = `wf_data_${AppState.activeResultId}.html`; a.click(); 
+btnResCopy.addEventListener('click', () => {
+  if(!activeResPayload) return;
+  const pre = resDataViewer.querySelector('pre');
+  if(pre) navigator.clipboard.writeText(pre.textContent).then(() => alert('Copied to clipboard.'));
 });
 
+btnResExport.addEventListener('click', () => {
+  if(!activeResPayload) return;
+  const fmt = getFormatSelector.value;
+  const mime = fmt === 'json' ? 'application/json' : (fmt === 'html' ? 'text/html' : 'text/plain');
+  const pre = resDataViewer.querySelector('pre');
+  const blob = new Blob([pre ? pre.textContent : ''], { type: mime });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `wf_export_${AppState.activeResultId}.${fmt}`; a.click();
+});
+
+// --- Settings ---
 document.getElementById('btnSaveSettings').addEventListener('click', () => {
-  AppState.settings = { proxy: document.getElementById('setProxy').value, delay: parseInt(document.getElementById('setDelay').value) || 250 };
-  saveState(); showToast('Settings Applied');
+  AppState.settings = { timeout: parseInt(document.getElementById('setTimeout').value) || 30000 };
+  saveState(); alert('Settings Applied');
 });
 
-document.getElementById('btnFactoryReset').addEventListener('click', () => {
-  localStorage.removeItem('wf_configs');
-  localStorage.removeItem('wf_results');
-  localStorage.removeItem('wf_settings');
-  localStorage.removeItem('wf_v9_migrated');
-  AppState.configs = JSON.parse(JSON.stringify(defaultConfigs));
-  AppState.results = [];
-  AppState.settings = { proxy: 'codetabs', delay: 250 };
-  saveState();
-  showToast('All Data Reset to Defaults');
-  renderUI();
-});
+function renderUI() {
+  renderConfigList(); renderOpsList(); renderResultsList();
+  document.getElementById('setTimeout').value = AppState.settings.timeout;
+}
 
+// Init
 renderUI();
 </script>
 </body>
