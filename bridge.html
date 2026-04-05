@@ -193,6 +193,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <button class="transcript-sheet-btn" onclick="copyTranscript()">Copy</button>
         <button class="transcript-sheet-btn" onclick="exportTranscriptTxt()">Export TXT</button>
         <button class="transcript-sheet-btn" onclick="exportTranscriptJson()">Export JSON</button>
+        <button class="transcript-sheet-btn" onclick="copyFeedbackLog()">Copy Debug</button>
         <button class="transcript-sheet-btn" onclick="toggleTranscript()">Collapse</button>
       </div>
     </div>
@@ -259,6 +260,9 @@ var recognizer=null,recognizing=false;
 var transcript=[];
 var trCache=new Map();
 var hbTimer=null,seq=0,subtitleId=0;
+var isSettingRemoteAnswerPending=false;
+var debugLog=[];
+var DEBUG_LOG_LIMIT=300;
 var HEARTBEAT_MS=30000;
 var SUBTITLE_LINGER_MS=6000;
 var MAX_VISIBLE_SUBS=3;
@@ -272,6 +276,12 @@ var RECENT_LIMIT=12;
 // ═══════════════════════════════════════════
 function toast(m){var el=document.getElementById('toast');el.textContent=m;el.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(function(){el.classList.remove('show')},2500)}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+function logDebug(event,detail){
+  var row={ts:new Date().toISOString(),event:event,detail:detail||{}};
+  debugLog.push(row);
+  if(debugLog.length>DEBUG_LOG_LIMIT)debugLog.shift();
+  try{console.debug('[TalkBridge]',event,row.detail)}catch(_){}
+}
 
 function detectLang(text,fb){
   var t=(text||'').trim();if(!t)return fb||'en';
@@ -419,8 +429,10 @@ function shareLink(){
 // ═══════════════════════════════════════════
 function connectRelay(){
   if(ws)try{ws.close()}catch(_){}
+  logDebug('relay_connect_start',{room:room.id,role:room.role});
   ws=new WebSocket(RELAY_WS+'?app='+encodeURIComponent(RELAY_APP)+'&session='+encodeURIComponent(room.id)+'&client='+encodeURIComponent(deviceId));
   ws.onopen=function(){
+    logDebug('relay_open',{});
     updateConn('connected');
     relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
     startHeartbeat();
@@ -429,6 +441,7 @@ function connectRelay(){
     try{handleRelay(JSON.parse(e.data))}catch(_){}
   };
   ws.onclose=function(){
+    logDebug('relay_close',{});
     updateConn('disconnected');
     stopHeartbeat();
     // Reconnect if still in call
@@ -506,6 +519,7 @@ async function enterCall(){
   document.getElementById('call-screen').classList.add('active');
   lobbyState=LOBBY_STATE.call;
   document.getElementById('local-video').srcObject=localStream;
+  logDebug('call_enter',{hasLocalStream:!!localStream,audioTracks:localStream?localStream.getAudioTracks().length:0,videoTracks:localStream?localStream.getVideoTracks().length:0});
 
   // Connect relay if not connected
   if(!ws||ws.readyState!==1)connectRelay();
@@ -526,10 +540,11 @@ async function enterCall(){
 function setupPeerConnection(){
   if(pc)return;
   pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  logDebug('pc_create',{});
 
   // Add local tracks
   if(localStream){
-    localStream.getTracks().forEach(function(t){pc.addTrack(t,localStream)});
+    localStream.getTracks().forEach(function(t){pc.addTrack(t,localStream);logDebug('pc_add_track',{kind:t.kind,enabled:t.enabled,readyState:t.readyState})});
   }
 
   pc.onicecandidate=function(e){
@@ -543,18 +558,21 @@ function setupPeerConnection(){
     var rv=document.getElementById('remote-video');
     rv.srcObject=remoteStream;
     document.getElementById('no-video-msg').style.display='none';
+    logDebug('pc_ontrack',{kind:e.track&&e.track.kind,streams:e.streams?e.streams.length:0});
   };
 
   pc.onnegotiationneeded=async function(){
     try{
       makingOffer=true;
       await pc.setLocalDescription(await pc.createOffer());
+      logDebug('pc_local_offer',{type:pc.localDescription&&pc.localDescription.type});
       relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}});
     }catch(_){}
     finally{makingOffer=false}
   };
 
   pc.onconnectionstatechange=function(){
+    logDebug('pc_state',{connectionState:pc.connectionState,signalingState:pc.signalingState,iceConnectionState:pc.iceConnectionState});
     if(pc.connectionState==='connected')updateConn('connected');
     if(pc.connectionState==='failed'||pc.connectionState==='disconnected')updateConn('disconnected');
   };
@@ -568,20 +586,28 @@ async function handleSignal(d){
     if(d.signal.description){
       var desc=d.signal.description;
       var polite=deviceId>d.from;
-      var ready=!makingOffer&&(pc.signalingState==='stable'||ignoreOffer);
+      var ready=!makingOffer&&(pc.signalingState==='stable'||isSettingRemoteAnswerPending);
       var collision=desc.type==='offer'&&!ready;
       ignoreOffer=!polite&&collision;
+      logDebug('signal_description',{type:desc.type,polite:polite,collision:collision,signalingState:pc.signalingState});
       if(ignoreOffer)return;
 
+      isSettingRemoteAnswerPending=desc.type==='answer';
       await pc.setRemoteDescription(desc);
+      isSettingRemoteAnswerPending=false;
       if(desc.type==='offer'){
         await pc.setLocalDescription(await pc.createAnswer());
+        logDebug('pc_local_answer',{type:pc.localDescription&&pc.localDescription.type});
         relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}});
       }
     }else if(d.signal.candidate){
+      logDebug('signal_candidate',{});
       try{await pc.addIceCandidate(d.signal.candidate)}catch(err){if(!ignoreOffer)throw err}
     }
-  }catch(_){}
+  }catch(err){
+    isSettingRemoteAnswerPending=false;
+    logDebug('signal_error',{message:err&&err.message?err.message:String(err)});
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -745,6 +771,39 @@ function exportTranscriptJson(){
   toast('Exported json');
 }
 
+function buildFeedbackLogText(){
+  var safeRoom=room&&room.id?room.id:'(none)';
+  var lines=[
+    'TalkBridge Debug Feedback',
+    'Generated: '+new Date().toISOString(),
+    'Room: '+safeRoom,
+    'Role: '+(room&&room.role?room.role:'(none)'),
+    'Conn: '+(pc&&pc.connectionState?pc.connectionState:'(no-pc)'),
+    '',
+    'Events:'
+  ];
+  debugLog.forEach(function(row){
+    lines.push('['+row.ts+'] '+row.event+' '+JSON.stringify(row.detail||{}));
+  });
+  if(transcript.length){
+    lines.push('');
+    lines.push('Recent Transcript:');
+    transcript.slice(-20).forEach(function(e){
+      lines.push('['+new Date(e.ts).toISOString()+'] '+(e.who==='me'?'me':'partner')+': '+e.sourceText+' => '+e.translatedText);
+    });
+  }
+  return lines.join('\n');
+}
+
+function copyFeedbackLog(){
+  var text=buildFeedbackLogText();
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){toast('Debug log copied for feedback')}).catch(function(){toast('Clipboard unavailable')});
+    return;
+  }
+  toast('Clipboard unavailable');
+}
+
 // ═══════════════════════════════════════════
 // CONTROLS
 // ═══════════════════════════════════════════
@@ -787,6 +846,7 @@ function hangUp(){
 }
 
 function cleanUp(){
+  logDebug('cleanup_start',{});
   // Stop recognition
   if(recognizer){try{recognizer.stop()}catch(_){}}recognizer=null;recognizing=false;
 
@@ -808,6 +868,13 @@ function cleanUp(){
   document.getElementById('subtitle-area').innerHTML='';
   document.getElementById('no-video-msg').style.display='';
   remoteStream=null;
+}
+
+function safeReleaseForBackground(){
+  if(!room.id)return;
+  logDebug('background_release',{});
+  relaySend({type:'hangup',reason:'backgrounded'});
+  cleanUp();
 }
 
 // ═══════════════════════════════════════════
@@ -849,6 +916,10 @@ window.addEventListener('popstate',function(){
   if(lobbyState===LOBBY_STATE.waiting&&room.role==='creator'){
     setLobbyState(LOBBY_STATE.setup,false);
   }
+});
+window.addEventListener('pagehide',safeReleaseForBackground);
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='hidden')safeReleaseForBackground();
 });
 </script>
 </body>
