@@ -62,6 +62,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .subtitle-line{max-width:92%;padding:6px 16px;border-radius:8px;font-size:16px;line-height:1.45;text-align:center;animation:subIn .25s ease-out;word-break:break-word;}
 .subtitle-line.partner{background:rgba(0,0,0,.65);color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);}
 .subtitle-line.mine{background:rgba(46,139,139,.25);color:rgba(255,255,255,.7);font-size:13px;}
+.subtitle-line.mine-translation{background:rgba(63,193,193,.25);color:#fff;font-size:14px;}
+.subtitle-line.partner-source{background:rgba(255,255,255,.08);color:rgba(255,255,255,.72);font-size:13px;}
 .subtitle-line.interim{opacity:.5;font-style:italic;}
 @keyframes subIn{from{transform:translateY(8px);opacity:0;}}
 .subtitle-line.fading{animation:subOut .5s ease-in forwards;}
@@ -80,6 +82,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 
 /* Connection status */
 .conn-badge{position:absolute;top:12px;left:12px;z-index:4;background:rgba(0,0,0,.6);color:var(--text-dim);font-size:11px;font-weight:600;padding:5px 12px;border-radius:20px;display:flex;align-items:center;gap:6px;}
+.lang-badge{position:absolute;z-index:4;background:rgba(0,0,0,.58);border:1px solid rgba(255,255,255,.14);color:#fff;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;letter-spacing:.02em;backdrop-filter:blur(4px);}
+.remote-lang-badge{top:12px;right:12px;}
+.local-lang-badge{top:18px;right:18px;z-index:5;}
 .conn-dot{width:7px;height:7px;border-radius:50%;background:var(--text-muted);}
 .conn-dot.connected{background:var(--green);}
 .conn-dot.connecting{background:#f39c12;animation:pulse 1s infinite;}
@@ -161,6 +166,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       <span class="conn-dot" id="conn-dot"></span>
       <span id="conn-text">Connecting</span>
     </div>
+    <div class="lang-badge remote-lang-badge" id="remote-lang-badge">Partner: —</div>
+    <div class="lang-badge local-lang-badge" id="local-lang-badge">You: —</div>
     <div class="subtitle-area" id="subtitle-area"></div>
   </div>
   <div class="call-controls">
@@ -254,7 +261,7 @@ var UI_TEXT={
 var room={id:null,myLang:'',theirLang:'',role:null};
 var deviceId=localStorage.getItem('tb_dev')||(function(){var id=crypto.randomUUID();localStorage.setItem('tb_dev',id);return id})();
 var ws=null,pc=null,localStream=null,remoteStream=null;
-var micOn=true,camOn=true,makingOffer=false,ignoreOffer=false;
+var micOn=false,camOn=true,makingOffer=false,ignoreOffer=false;
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var recognizer=null,recognizing=false;
 var transcript=[];
@@ -289,6 +296,33 @@ function detectLang(text,fb){
   if(/[一-鿿]/.test(t))return'zh';if(/[가-힯]/.test(t))return'ko';
   if(/[؀-ۿ]/.test(t))return'ar';if(/[Ā-žḀ-ỿ]/.test(t)&&/[àáâãäåèéêëìíîïòóôõöùúûü]/i.test(t))return fb||'en';
   return fb||'en'
+}
+
+function getLangMeta(code){
+  var c=(code||'').toLowerCase();
+  for(var i=0;i<LANGS.length;i++){if(LANGS[i].code===c)return LANGS[i]}
+  return {code:c||'?',label:(c||'?').toUpperCase(),flag:'🌐'}
+}
+
+function formatLangTag(code){
+  var meta=getLangMeta(code);
+  return meta.flag+' '+meta.label;
+}
+
+function updateLanguageBadges(){
+  var local=document.getElementById('local-lang-badge');
+  var remote=document.getElementById('remote-lang-badge');
+  if(local)local.textContent='You: '+formatLangTag(room.myLang);
+  if(remote)remote.textContent='Partner: '+formatLangTag(room.theirLang);
+}
+
+function syncMicUi(){
+  var btn=document.getElementById('mic-btn');
+  var on=document.getElementById('mic-icon-on');
+  var off=document.getElementById('mic-icon-off');
+  if(btn)btn.classList.toggle('off',!micOn);
+  if(on)on.style.display=micOn?'':'none';
+  if(off)off.style.display=micOn?'none':'';
 }
 
 function translate(text,from,to){
@@ -409,6 +443,7 @@ function joinFromInvite(payload){
   room.myLang=payload.tl; // their lang is my lang (I'm the partner)
   room.theirLang=payload.ml;
   room.role='joiner';
+  updateLanguageBadges();
   history.replaceState({},'',location.pathname);
   enterCall();
 }
@@ -482,7 +517,10 @@ function handleRelay(d){
   if(d.type==='webrtc-signal'){handleSignal(d);return}
 
   if(d.type==='subtitle'){
-    // Partner's speech, already translated for me
+    // Partner speech and translation for this client.
+    if(d.sourceText&&d.sourceText!==d.text){
+      showSubtitle(d.sourceText,'partner-source');
+    }
     showSubtitle(d.text,'partner');
     addTranscriptEntry('partner',d.sourceText,d.text,d.sourceLang,d.targetLang);
     return;
@@ -519,6 +557,9 @@ async function enterCall(){
   document.getElementById('call-screen').classList.add('active');
   lobbyState=LOBBY_STATE.call;
   document.getElementById('local-video').srcObject=localStream;
+  localStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
+  syncMicUi();
+  updateLanguageBadges();
   logDebug('call_enter',{hasLocalStream:!!localStream,audioTracks:localStream?localStream.getAudioTracks().length:0,videoTracks:localStream?localStream.getVideoTracks().length:0});
 
   // Connect relay if not connected
@@ -658,6 +699,7 @@ function startSubtitles(){
       // Translate and send to partner
       translate(finalText,srcLang,tgtLang).then(function(translated){
         relaySend({type:'subtitle',text:translated,sourceText:finalText,sourceLang:srcLang,targetLang:tgtLang});
+        if(translated&&translated!==finalText)showSubtitle(translated,'mine-translation');
         addTranscriptEntry('me',finalText,translated,srcLang,tgtLang);
       });
     }
@@ -811,9 +853,7 @@ function toggleMic(){
   if(!localStream)return;
   micOn=!micOn;
   localStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
-  document.getElementById('mic-btn').classList.toggle('off',!micOn);
-  document.getElementById('mic-icon-on').style.display=micOn?'':'none';
-  document.getElementById('mic-icon-off').style.display=micOn?'none':'';
+  syncMicUi();
 
   // Stop/restart subtitle recognition with mic
   if(!micOn&&recognizer&&recognizing){try{recognizer.stop()}catch(_){}}
@@ -882,6 +922,7 @@ function safeReleaseForBackground(){
 // ═══════════════════════════════════════════
 populateLangs();
 renderRecentRooms();
+syncMicUi();
 
 // Check for invite link
 var hp=new URLSearchParams((location.hash||'').replace(/^#/,''));
