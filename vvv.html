@@ -591,6 +591,8 @@ var HEARTBEAT_MS=30000,PING_TIMEOUT_MS=120000,RECONNECT_BASE_MS=1200,RECONNECT_M
 var DEDUP_TTL_MS=12000,MSG_TTL_MS=120000,MAX_QUEUE=40,MAX_RETRY=8;
 var MAX_SESSIONS_STORED=50,MAX_MSGS_PER_SESSION=300;
 var tEngine='cloud',ttsActive=null,typingTimer=null,typingStopTimer=null,localTypingActive=false;
+var ttsQueue=[],ttsCurrentNorm='',ttsLastStartAt=0,ttsQueueRunning=false,ttsQueueDucking=false;
+var MIN_TTS_GAP_MS=1600,TTS_SIMILARITY_THRESHOLD=0.9,TTS_SIMILAR_WINDOW_MS=5000;
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var pendingOnboardingFlow=null;
 var synth=window.speechSynthesis,canSpeak='speechSynthesis' in window;
@@ -814,14 +816,65 @@ function unduckRemoteAudio(){
   var btn=document.getElementById('vsay-cc-speaker-btn');if(btn)btn.classList.remove('ducking');
 }
 
-function speak(text,lang,btn){
-  if(!canSpeak||!text)return;if(ttsActive){synth.cancel();ttsActive=null;unduckRemoteAudio()}
+function normalizeTtsText(text){return(text||'').toLowerCase().replace(/\s+/g,' ').trim()}
+function ttsSimilarity(a,b){
+  if(!a||!b)return 0;
+  if(a===b)return 1;
+  var ta=a.split(' '),tb=b.split(' ');
+  if(!ta.length||!tb.length)return 0;
+  var sa={},sb={},inter=0,union=0;
+  ta.forEach(function(t){sa[t]=1});tb.forEach(function(t){sb[t]=1});
+  Object.keys(sa).forEach(function(k){if(sb[k])inter++});
+  union=Object.keys(Object.assign({},sa,sb)).length||1;
+  var jaccard=inter/union;
+  var prefix=(a.indexOf(b)===0||b.indexOf(a)===0)?0.2:0;
+  return Math.min(1,jaccard+prefix);
+}
+function resetTtsQueue(opts){
+  opts=opts||{};
+  ttsQueue=[];ttsQueueRunning=false;ttsCurrentNorm='';ttsLastStartAt=0;
+  if(opts.cancelSynth&&canSpeak)synth.cancel();
+  if(ttsActive&&ttsActive.classList)ttsActive.classList.remove('playing');
+  ttsActive=null;
+  if(ttsQueueDucking){unduckRemoteAudio();ttsQueueDucking=false}
+}
+function runTtsQueue(){
+  if(ttsQueueRunning||!ttsQueue.length)return;
+  ttsQueueRunning=true;
+  if(state.mediaRuntime.callState==='active'&&!ttsQueueDucking){duckRemoteAudio();ttsQueueDucking=true}
+  var item=ttsQueue.shift();
+  ttsCurrentNorm=item.norm;ttsLastStartAt=Date.now();
+  speak(item.text,item.lang,null,{cancelFirst:false,manageDucking:false,onDone:function(){
+    ttsQueueRunning=false;
+    if(ttsQueue.length){runTtsQueue();return}
+    if(ttsQueueDucking){unduckRemoteAudio();ttsQueueDucking=false}
+  }})
+}
+function enqueueTts(text,lang){
+  var raw=(text||'').trim();if(!raw)return false;
+  var norm=normalizeTtsText(raw);if(!norm)return false;
+  var now=Date.now();
+  if(ttsCurrentNorm&&(now-ttsLastStartAt)<TTS_SIMILAR_WINDOW_MS&&ttsSimilarity(norm,ttsCurrentNorm)>=TTS_SIMILARITY_THRESHOLD)return false;
+  var last=ttsQueue.length?ttsQueue[ttsQueue.length-1]:null;
+  if(last&&ttsSimilarity(norm,last.norm)>=TTS_SIMILARITY_THRESHOLD)return false;
+  if(ttsCurrentNorm&&((now-ttsLastStartAt)<MIN_TTS_GAP_MS)&&ttsSimilarity(norm,ttsCurrentNorm)>=TTS_SIMILARITY_THRESHOLD)return false;
+  ttsQueue.push({text:raw,lang:lang,norm:norm});
+  runTtsQueue();
+  return true
+}
+
+function speak(text,lang,btn,opts){
+  opts=opts||{};
+  var cancelFirst=(opts.cancelFirst!==false),manageDucking=(opts.manageDucking!==false);
+  if(!canSpeak||!text)return;
+  if(cancelFirst&&ttsActive){synth.cancel();if(ttsActive.classList)ttsActive.classList.remove('playing');ttsActive=null;if(manageDucking)unduckRemoteAudio()}
   var utt=new SpeechSynthesisUtterance(text);utt.lang=TTS_LOCALE[lang]||lang||'en';
-  var isDucking=state.mediaRuntime.callState==='active';
+  var isDucking=manageDucking&&state.mediaRuntime.callState==='active';
   if(isDucking)duckRemoteAudio();
   if(btn){btn.classList.add('playing');ttsActive=btn}else{ttsActive={_synthetic:true}}
-  utt.onend=utt.onerror=function(){if(btn)btn.classList.remove('playing');ttsActive=null;if(isDucking)unduckRemoteAudio()};
-  synth.cancel();synth.speak(utt)
+  utt.onend=utt.onerror=function(){if(btn)btn.classList.remove('playing');ttsActive=null;if(isDucking)unduckRemoteAudio();if(opts.onDone)opts.onDone()};
+  if(cancelFirst)synth.cancel();
+  synth.speak(utt)
 }
 
 // ════════════════════════════════════════════════════════
@@ -829,6 +882,7 @@ function speak(text,lang,btn){
 // ════════════════════════════════════════════════════════
 function toggleCCSpeaker(){
   state.autoSpeakIncoming=!state.autoSpeakIncoming;
+  if(!state.autoSpeakIncoming)resetTtsQueue({cancelSynth:true});
   var sess=getSession(state.activeConvId);
   if(sess){setSessionAutoRead(sess,state.autoSpeakIncoming);putSession(sess)}
   renderCCSpeakerBtn();
@@ -1325,9 +1379,9 @@ function handleRemoteCcTranscript(d,sess){
   var tgtLang=resolveEffectiveLang(sess,'owner','en');var stamp=Number(d.timestamp)||Date.now();
   ccDbg('emit.remote.inbound',{text:src,sourceLang:srcLang,targetLang:tgtLang});
   translate(src,srcLang,tgtLang).then(function(out){
-    var echoText=(out||src||'').trim();ccLastRemoteEcho={norm:normalizeCcText(echoText),ts:Date.now()};
+    var echoText=(out||src||'').trim();var echoNorm=normalizeCcText(echoText);ccLastRemoteEcho={norm:echoNorm,ts:Date.now()};
     addCcTranscriptEntry({ts:stamp,convId:sess.convId,dir:'remote',sourceText:src,targetText:out||src,sourceLang:srcLang,targetLang:tgtLang});
-    if(state.autoSpeakIncoming)speak(out||src,tgtLang,null)
+    if(state.autoSpeakIncoming&&echoNorm)enqueueTts(out||src,tgtLang)
   })
 }
 
@@ -1558,7 +1612,7 @@ function renderSessionList(){
   }).join('')
 }
 function softDelete(cid){var r=getRecycled();var sess=getSession(cid);if(!sess)return;r.push({convId:cid,title:getSessionLabel(sess),deletedAt:Date.now()});saveRecycled(r);if(state.activeConvId===cid){transportDisconnect();showEmptyShell()}renderSessionList();toast('Deleted')}
-function showEmptyShell(){state.activeConvId=null;document.getElementById('shell-empty').style.display='flex';document.getElementById('messages').style.display='none';document.getElementById('composer').style.display='none';updatePartnerHeader(null);updateDot()}
+function showEmptyShell(){resetTtsQueue({cancelSynth:true});state.activeConvId=null;document.getElementById('shell-empty').style.display='flex';document.getElementById('messages').style.display='none';document.getElementById('composer').style.display='none';updatePartnerHeader(null);updateDot()}
 function saveOwnerName(el){
   if(!state.activeConvId)return;var sess=getSession(state.activeConvId);if(!sess)return;
   var v=(el.textContent||'').trim();if(!v)return;
@@ -1568,6 +1622,7 @@ function saveOwnerName(el){
 
 function openSession(cid){
   var sess=getSession(cid);if(!sess){toast('Not found');return}
+  if(state.activeConvId&&state.activeConvId!==cid)resetTtsQueue({cancelSynth:true});
   if(state.mediaRuntime.stream&&state.mediaRuntime.activeSessionId&&state.mediaRuntime.activeSessionId!==cid)stopSessionMediaShare();
   sess=putSession(sess);if(connectedConvId&&connectedConvId!==cid)transportDisconnect({preserveQueue:false});
   state.activeConvId=cid;state.messages=getMsgs(cid);setActiveConvId(cid);markViewed(cid);
