@@ -352,7 +352,7 @@ var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var recognizer=null,recognizing=false;
 var transcript=[];
 var trCache=new Map();
-var hbTimer=null,seq=0;
+var hbTimer=null,seq=0,wsReconnectTimer=null;
 var isSettingRemoteAnswerPending=false;
 var debugLog=[];
 var HEARTBEAT_MS=30000;
@@ -678,11 +678,14 @@ function connectRelay(){
     startHeartbeat();
   };
   ws.onmessage=function(e){try{handleRelay(JSON.parse(e.data))}catch(_){}};
+  var _ws=ws;
   ws.onclose=function(e){
+    if(ws!==_ws)return; // stale socket, ignore
     logDebug('relay_close',{code:e.code,reason:e.reason},'warn');
     updateConn('disconnected');
     stopHeartbeat();
-    if(room.id)setTimeout(function(){if(room.id)connectRelay()},2000);
+    clearTimeout(wsReconnectTimer);
+    if(room.id)wsReconnectTimer=setTimeout(function(){if(room.id)connectRelay();},2000);
   };
   ws.onerror=function(e){logDebug('relay_error',{msg:String(e)},'error');};
 }
@@ -824,15 +827,19 @@ async function handleSignal(d){
 }
 
 // ═══ SUBTITLES ═══
+// Android Chrome: continuous=true silently fails when WebRTC also holds the mic.
+// Use continuous=false + immediate onend restart — reliable on mobile Chrome.
 function startSubtitles(){
   if(!SpeechRec){logDebug('speech_unavail',{},'error');return}
   if(recognizing){logDebug('speech_already_running',{});return}
   if(!micOn){logDebug('speech_skipped_muted',{});return}
-  logDebug('speech_start',{lang:room.myLang,locale:TTS_LOCALE[room.myLang]||room.myLang});
+  var locale=TTS_LOCALE[room.myLang]||room.myLang;
+  logDebug('speech_start',{lang:room.myLang,locale:locale});
   recognizer=new SpeechRec();
-  recognizer.lang=TTS_LOCALE[room.myLang]||room.myLang;
+  recognizer.lang=locale;
   recognizer.interimResults=true;
-  recognizer.continuous=true;
+  recognizer.continuous=false;  // false = reliable on Android + WebRTC
+  recognizer.maxAlternatives=1;
   var currentInterimEl=null;
 
   recognizer.onstart=function(){
@@ -847,12 +854,13 @@ function startSubtitles(){
       if(e.results[i].isFinal)finalText+=e.results[i][0].transcript;
       else interimText+=e.results[i][0].transcript;
     }
+    logDebug('speech_result',{interim:interimText.slice(0,40),final:finalText.slice(0,40)});
     if(interimText&&!finalText){
       if(!currentInterimEl)currentInterimEl=showSubtitle(interimText,'mine interim');
       else currentInterimEl.textContent=interimText;
     }
     if(finalText){
-      logDebug('speech_final',{text:finalText.slice(0,60)});
+      logDebug('speech_final',{text:finalText.slice(0,60)},'ok');
       if(currentInterimEl){currentInterimEl.remove();currentInterimEl=null}
       var srcLang=detectLang(finalText,room.myLang);
       var tgtLang=room.theirLang;
@@ -865,12 +873,15 @@ function startSubtitles(){
     }
   };
 
+  recognizer.onnomatch=function(){logDebug('speech_nomatch',{},'warn');};
+
   recognizer.onend=function(){
     recognizing=false;currentInterimEl=null;
     var d=document.getElementById('listening-dot');if(d)d.style.display='none';
     logDebug('speech_end',{micOn:micOn});
     if(micOn&&room.id&&document.getElementById('call-screen').classList.contains('active')){
-      setTimeout(function(){if(micOn&&room.id&&!recognizing){logDebug('speech_restart',{});startSubtitles();}},400);
+      logDebug('speech_restart',{});
+      startSubtitles();
     }
   };
 
@@ -878,7 +889,12 @@ function startSubtitles(){
     recognizing=false;currentInterimEl=null;
     var d=document.getElementById('listening-dot');if(d)d.style.display='none';
     logDebug('speech_error',{error:e.error},'error');
-    if(e.error==='not-allowed')toast('Microphone permission needed');
+    if(e.error==='not-allowed')toast('Mic permission needed');
+    else if(e.error==='network')toast('Speech: network error');
+    else if(e.error==='audio-capture')toast('Speech: mic capture failed');
+    if(e.error!=='not-allowed'&&micOn&&room.id){
+      setTimeout(function(){if(micOn&&room.id&&!recognizing)startSubtitles();},800);
+    }
   };
 
   try{recognizer.start();}catch(e){logDebug('speech_start_err',{msg:String(e)},'error');}
