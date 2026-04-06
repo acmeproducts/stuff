@@ -351,6 +351,7 @@ var micOn=true,camOn=true,makingOffer=false,ignoreOffer=false;
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var recognizer=null,recognizing=false;
 var speechFirstFinalTimer=null,speechSawFinal=false,speechAudioCaptureFailCount=0;
+var speechTimeoutToastAt=0;
 var transcript=[];
 var trCache=new Map();
 var hbTimer=null,seq=0,wsReconnectTimer=null;
@@ -787,6 +788,13 @@ function clearSpeechFirstFinalTimer(){
   }
 }
 
+function maybeToastSpeechTimeout(){
+  var now=Date.now();
+  if(now-speechTimeoutToastAt<15000)return;
+  speechTimeoutToastAt=now;
+  toast('No transcript detected yet. Try speaking clearly or check mic access.');
+}
+
 // ═══ ENTER CALL ═══
 async function enterCall(){
   // Acquire video-only stream if not already held
@@ -924,14 +932,8 @@ function startSubtitles(){
       speechFirstFinalTimer=null;
       if(!speechSawFinal&&recognizing&&micOn&&room.id&&document.getElementById('call-screen').classList.contains('active')){
         logDebug('speech_first_final_timeout',{timeoutSec:4},'warn');
-        toast('No transcript detected yet. Try speaking clearly or check mic access.');
-        ensureAudioStream('speech_health_timeout',{silentToast:true}).then(function(acquired){
-          if(acquired&&recognizing&&recognizer){
-            try{recognizer.stop()}catch(_){}
-          }else if(acquired&&!recognizing&&micOn&&room.id){
-            startSubtitles();
-          }
-        });
+        maybeToastSpeechTimeout();
+        ensureAudioStream('speech_health_timeout',{silentToast:true});
       }
     },4000);
     logDebug('speech_recognizing',{},'ok');
@@ -951,6 +953,7 @@ function startSubtitles(){
     }
     if(finalText){
       speechSawFinal=true;
+      speechTimeoutToastAt=0;
       clearSpeechFirstFinalTimer();
       speechAudioCaptureFailCount=0;
       logDebug('speech_final',{text:finalText.slice(0,60)},'ok');
@@ -1173,6 +1176,7 @@ function cleanUp(){
   if(pc){pc.close();pc=null}
   var rid=room.id;room.id=null;room.solo=false;
   stopHeartbeat();
+  speechTimeoutToastAt=0;
   if(ws){try{ws.close()}catch(_){}}ws=null;
   document.getElementById('call-screen').classList.remove('active');
   document.getElementById('lobby').classList.remove('hidden');
