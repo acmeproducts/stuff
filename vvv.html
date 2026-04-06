@@ -1201,9 +1201,25 @@ function addCcTranscriptEntry(p){
 }
 
 // CC capture — single SpeechRecognition, only active during calls
-var ccRecognition=null,ccActive=false;
+var ccRecognition=null,ccActive=false,ccRecognitionGen=0;
 var CC_DEDUPE_TTL_MS=4500,CC_MIN_REPEAT_CHARS=7,CC_MIN_REPEAT_WORDS=2,CC_MIN_CONFIDENCE=0.55,CC_ECHO_SIMILARITY=0.9;
 var ccRecentOutboundByNorm=Object.create(null),ccRecentUiByNorm=Object.create(null),ccLastRemoteEcho={norm:'',ts:0},ccLastOutbound={norm:'',ts:0};
+var CC_DEBUG_ENABLED=(function(){
+  try{
+    if((window.location&&window.location.search||'').indexOf('ccdebug=1')!==-1)return true;
+    return localStorage.getItem('vvv_cc_debug')==='1'
+  }catch(_){return false}
+})();
+function ccDbg(tag,payload){
+  if(!CC_DEBUG_ENABLED)return;
+  var stamp=new Date().toISOString();
+  var prefix='[CCDBG '+stamp+'] '+tag;
+  if(payload&&typeof payload==='object'){
+    try{console.log(prefix,JSON.parse(JSON.stringify(payload)))}catch(_){console.log(prefix,payload)}
+    return
+  }
+  if(payload!==undefined)console.log(prefix,payload);else console.log(prefix)
+}
 function normalizeCcText(text){return(text||'').trim().toLowerCase().replace(/\s+/g,' ')}
 function pruneCcRecent(map,now){for(var k in map){if(now-map[k]>CC_DEDUPE_TTL_MS)delete map[k]}}
 function hasRecentCc(map,norm,now){return!!(norm&&map[norm]&&now-map[norm]<=CC_DEDUPE_TTL_MS)}
@@ -1221,40 +1237,72 @@ function ccTextSimilarity(a,b){
 }
 function shouldDropOutgoingCc(norm,confidence,now){
   pruneCcRecent(ccRecentOutboundByNorm,now);
-  if(hasRecentCc(ccRecentOutboundByNorm,norm,now))return true;
+  if(hasRecentCc(ccRecentOutboundByNorm,norm,now)){ccDbg('drop.outbound.recent',{norm:norm,confidence:confidence});return true}
   var words=norm?norm.split(' ').filter(Boolean):[];
   var isShort=norm.length<CC_MIN_REPEAT_CHARS||words.length<CC_MIN_REPEAT_WORDS;
-  if(isShort&&typeof confidence==='number'&&confidence<CC_MIN_CONFIDENCE&&ccLastOutbound.norm&&(now-ccLastOutbound.ts)<=CC_DEDUPE_TTL_MS&&ccTextSimilarity(norm,ccLastOutbound.norm)>=0.7)return true;
-  if(ccLastRemoteEcho.norm&&(now-ccLastRemoteEcho.ts)<=CC_DEDUPE_TTL_MS&&ccTextSimilarity(norm,ccLastRemoteEcho.norm)>=CC_ECHO_SIMILARITY)return true;
+  if(isShort&&typeof confidence==='number'&&confidence<CC_MIN_CONFIDENCE&&ccLastOutbound.norm&&(now-ccLastOutbound.ts)<=CC_DEDUPE_TTL_MS&&ccTextSimilarity(norm,ccLastOutbound.norm)>=0.7){ccDbg('drop.outbound.short-lowconf',{norm:norm,confidence:confidence,last:ccLastOutbound.norm});return true}
+  if(ccLastRemoteEcho.norm&&(now-ccLastRemoteEcho.ts)<=CC_DEDUPE_TTL_MS&&ccTextSimilarity(norm,ccLastRemoteEcho.norm)>=CC_ECHO_SIMILARITY){ccDbg('drop.outbound.remote-echo',{norm:norm,remoteEcho:ccLastRemoteEcho.norm});return true}
   return false
 }
-function shouldDropLocalUiCc(norm,now){pruneCcRecent(ccRecentUiByNorm,now);return hasRecentCc(ccRecentUiByNorm,norm,now)}
+function shouldDropLocalUiCc(norm,now){pruneCcRecent(ccRecentUiByNorm,now);var d=hasRecentCc(ccRecentUiByNorm,norm,now);if(d)ccDbg('drop.ui.recent',{norm:norm});return d}
 function startCCCapture(){
-  if(state.mediaRuntime.ccOpInFlight||ccActive)return;
+  if(state.mediaRuntime.ccOpInFlight||ccActive){ccDbg('capture.start.skip',{opInFlight:state.mediaRuntime.ccOpInFlight,ccActive:ccActive});return}
   state.mediaRuntime.ccOpInFlight=true;
   if(ccRestartTimer){clearTimeout(ccRestartTimer);ccRestartTimer=null}
-  if(!SpeechRec){toast('Voice recognition not available');state.mediaRuntime.ccEnabled=false;state.mediaRuntime.ccOpInFlight=false;return}
-  var sess=getSession(state.activeConvId||'');ccRecognition=new SpeechRec();
+  if(!SpeechRec){toast('Voice recognition not available');state.mediaRuntime.ccEnabled=false;state.mediaRuntime.ccOpInFlight=false;ccDbg('capture.start.no-speechrec');return}
+  if(ccRecognition){try{ccRecognition.onresult=ccRecognition.onend=ccRecognition.onstart=ccRecognition.onerror=null;ccRecognition.stop()}catch(_){}ccRecognition=null}
+  var sess=getSession(state.activeConvId||'');ccRecognition=new SpeechRec();ccRecognitionGen++;var runId=ccRecognitionGen;
   ccRecognition.lang=TTS_LOCALE[resolveEffectiveLang(sess,'owner')||'en']||'en';ccRecognition.interimResults=true;ccRecognition.continuous=true;
-  ccRecognition.onstart=function(){ccActive=true;state.mediaRuntime.ccOpInFlight=false};
+  ccDbg('capture.start',{runId:runId,lang:ccRecognition.lang,convId:state.activeConvId||''});
+  ccRecognition.onstart=function(){
+    if(runId!==ccRecognitionGen)return;
+    ccActive=true;state.mediaRuntime.ccOpInFlight=false;
+    ccDbg('capture.onstart',{runId:runId})
+  };
+  ccRecognition.onerror=function(err){
+    if(runId!==ccRecognitionGen)return;
+    ccDbg('capture.onerror',{runId:runId,error:(err&&err.error)||'unknown',message:(err&&err.message)||''});
+  };
   ccRecognition.onresult=function(e){
-    var finalText='',conf=null;
+    if(runId!==ccRecognitionGen){ccDbg('capture.result.stale',{runId:runId,activeRun:ccRecognitionGen});return}
+    var finals=[],conf=null;
     for(var i=e.resultIndex;i<e.results.length;i++){
       if(e.results[i].isFinal){
         var alt=e.results[i][0]||{};
-        finalText+=alt.transcript||'';
+        var piece=(alt.transcript||'').trim();
+        if(piece)finals.push(piece);
         if(typeof alt.confidence==='number')conf=Math.max(conf===null?0:conf,alt.confidence)
       }
     }
-    var finalTrim=finalText.trim();if(!finalTrim)return;
-    var norm=normalizeCcText(finalTrim),now=Date.now();
-    if(shouldDropOutgoingCc(norm,conf,now))return;
-    emitCcTranscript(finalTrim,{normalized:norm,confidence:conf,now:now})
+    if(!finals.length)return;
+    finals.forEach(function(finalTrim,idx){
+      var norm=normalizeCcText(finalTrim),now=Date.now();
+      if(!norm)return;
+      ccDbg('capture.final',{runId:runId,index:idx,text:finalTrim,confidence:conf});
+      if(shouldDropOutgoingCc(norm,conf,now))return;
+      emitCcTranscript(finalTrim,{normalized:norm,confidence:conf,now:now})
+    })
   };
-  ccRecognition.onend=function(){ccActive=false;if(state.mediaRuntime.ccEnabled){if(ccRestartTimer)clearTimeout(ccRestartTimer);ccRestartTimer=setTimeout(function(){if(state.mediaRuntime.ccEnabled)startCCCapture()},450)}};
-  try{ccRecognition.start()}catch(_){state.mediaRuntime.ccOpInFlight=false}
+  ccRecognition.onend=function(){
+    if(runId!==ccRecognitionGen){ccDbg('capture.onend.stale',{runId:runId,activeRun:ccRecognitionGen});return}
+    ccActive=false;ccDbg('capture.onend',{runId:runId,ccEnabled:state.mediaRuntime.ccEnabled});
+    if(state.mediaRuntime.ccEnabled){
+      if(ccRestartTimer)clearTimeout(ccRestartTimer);
+      ccRestartTimer=setTimeout(function(){if(state.mediaRuntime.ccEnabled){ccDbg('capture.restart',{fromRunId:runId});startCCCapture()}},450)
+    }
+  };
+  try{ccRecognition.start()}catch(err){state.mediaRuntime.ccOpInFlight=false;ccDbg('capture.start.error',{runId:runId,error:(err&&err.message)||String(err)})}
 }
-function stopCCCapture(){if(state.mediaRuntime.ccOpInFlight)return;state.mediaRuntime.ccOpInFlight=true;state.mediaRuntime.ccEnabled=false;if(ccRestartTimer){clearTimeout(ccRestartTimer);ccRestartTimer=null}if(ccRecognition){try{ccRecognition.stop()}catch(_){}}ccRecognition=null;ccActive=false;state.mediaRuntime.ccOpInFlight=false}
+function stopCCCapture(){
+  if(state.mediaRuntime.ccOpInFlight){ccDbg('capture.stop.skip',{reason:'op_in_flight'});return}
+  state.mediaRuntime.ccOpInFlight=true;state.mediaRuntime.ccEnabled=false;
+  if(ccRestartTimer){clearTimeout(ccRestartTimer);ccRestartTimer=null}
+  if(ccRecognition){
+    try{ccRecognition.onresult=ccRecognition.onend=ccRecognition.onstart=ccRecognition.onerror=null;ccRecognition.stop()}catch(_){}
+  }
+  ccRecognition=null;ccRecognitionGen++;ccActive=false;state.mediaRuntime.ccOpInFlight=false;
+  ccDbg('capture.stop',{nextRunId:ccRecognitionGen})
+}
 function emitCcTranscript(text,meta){
   var sess=getSession(state.activeConvId||'');if(!sess||!text)return;
   var now=(meta&&meta.now)||Date.now(),norm=(meta&&meta.normalized)||normalizeCcText(text),conf=meta&&meta.confidence;
@@ -1263,6 +1311,7 @@ function emitCcTranscript(text,meta){
   ccLastOutbound={norm:norm,ts:now};
   var srcLang=detectLang(text,resolveEffectiveLang(sess,'owner')||'en');
   var tgtLang=resolveEffectiveLang(sess,'partner','en');var stamp=Date.now();
+  ccDbg('emit.outbound',{text:text,sourceLang:srcLang,targetLang:tgtLang,confidence:conf});
   transportSend({type:'cc-transcript',transient:true,sourceText:text,sourceLang:srcLang,targetLang:tgtLang,timestamp:stamp});
   translate(text,srcLang,tgtLang).then(function(out){
     var uiNow=Date.now();if(shouldDropLocalUiCc(norm,uiNow))return;
@@ -1274,6 +1323,7 @@ function handleRemoteCcTranscript(d,sess){
   var src=(d.sourceText||'').trim();if(!src)return;
   var srcLang=normalizeLangSetting(d.sourceLang)||detectLang(src,'en');
   var tgtLang=resolveEffectiveLang(sess,'owner','en');var stamp=Number(d.timestamp)||Date.now();
+  ccDbg('emit.remote.inbound',{text:src,sourceLang:srcLang,targetLang:tgtLang});
   translate(src,srcLang,tgtLang).then(function(out){
     var echoText=(out||src||'').trim();ccLastRemoteEcho={norm:normalizeCcText(echoText),ts:Date.now()};
     addCcTranscriptEntry({ts:stamp,convId:sess.convId,dir:'remote',sourceText:src,targetText:out||src,sourceLang:srcLang,targetLang:tgtLang});
