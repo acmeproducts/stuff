@@ -350,6 +350,7 @@ var ws=null,pc=null,videoStream=null,audioStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false,ignoreOffer=false;
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var recognizer=null,recognizing=false;
+var speechFirstFinalTimer=null,speechSawFinal=false,speechAudioCaptureFailCount=0;
 var transcript=[];
 var trCache=new Map();
 var hbTimer=null,seq=0,wsReconnectTimer=null;
@@ -750,6 +751,40 @@ function updateConn(state){
   text.textContent=state==='connected'?'Connected':(state==='connecting'?'Connecting…':'Disconnected');
 }
 
+async function ensureAudioStream(reason,opts){
+  opts=opts||{};
+  if(audioStream&&audioStream.getAudioTracks().length){
+    return true;
+  }
+  try{
+    audioStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    audioStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
+    logDebug('audio_acquired',{audio:audioStream.getAudioTracks().length,reason:reason||'unknown'},'ok');
+    attachAudioTrackToPeer();
+    return true;
+  }catch(e){
+    logDebug('audio_fail',{msg:String(e),reason:reason||'unknown'},'error');
+    if(!opts.silentToast)toast('Microphone unavailable for call audio');
+    return false;
+  }
+}
+
+function attachAudioTrackToPeer(){
+  if(!pc||!audioStream)return;
+  var senders=pc.getSenders?pc.getSenders():[];
+  var hasAudioSender=senders.some(function(s){return s&&s.track&&s.track.kind==='audio'});
+  if(hasAudioSender)return;
+  audioStream.getAudioTracks().forEach(function(t){pc.addTrack(t,audioStream)});
+  logDebug('pc_audio_track_added',{tracks:audioStream.getAudioTracks().length},'ok');
+}
+
+function clearSpeechFirstFinalTimer(){
+  if(speechFirstFinalTimer){
+    clearTimeout(speechFirstFinalTimer);
+    speechFirstFinalTimer=null;
+  }
+}
+
 // ═══ ENTER CALL ═══
 async function enterCall(){
   // Acquire video-only stream if not already held
@@ -758,13 +793,6 @@ async function enterCall(){
       videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
       logDebug('video_acquired',{video:videoStream.getVideoTracks().length},'ok');
     }catch(e){logDebug('video_fail',{msg:String(e)},'error');toast('Camera permission needed');return}
-  }
-  // Acquire audio separately — keeps mic free for SpeechRecognition on Android
-  if(!audioStream){
-    try{
-      audioStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-      logDebug('audio_acquired',{audio:audioStream.getAudioTracks().length},'ok');
-    }catch(e){logDebug('audio_fail',{msg:String(e)},'error');toast('Microphone permission needed');return}
   }
   // Load any prior transcript for this room
   var saved=loadTranscriptFromStorage();
@@ -775,7 +803,6 @@ async function enterCall(){
   document.getElementById('call-screen').classList.add('active');
   lobbyState=LOBBY_STATE.call;
   document.getElementById('local-video').srcObject=videoStream;
-  audioStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
   syncMicUi();
   syncCamUi();
   updateLanguageBadges();
@@ -802,7 +829,8 @@ function setupPeerConnection(){
   pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
   logDebug('pc_created',{});
   if(videoStream)videoStream.getVideoTracks().forEach(function(t){pc.addTrack(t,videoStream)});
-  if(audioStream)audioStream.getAudioTracks().forEach(function(t){pc.addTrack(t,audioStream)});
+  attachAudioTrackToPeer();
+  ensureAudioStream('webrtc_publish',{silentToast:true});
   pc.onicecandidate=function(e){
     if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}});
   };
@@ -866,7 +894,11 @@ async function handleSignal(d){
 // Android Chrome: continuous=true silently fails when WebRTC also holds the mic.
 // Use continuous=false + immediate onend restart — reliable on mobile Chrome.
 function startSubtitles(){
-  if(!SpeechRec){logDebug('speech_unavail',{},'error');return}
+  if(!SpeechRec){
+    logDebug('speech_unavail',{},'error');
+    toast('Live transcript is unavailable on this browser');
+    return;
+  }
   if(recognizing){logDebug('speech_already_running',{});return}
   if(!micOn){logDebug('speech_skipped_muted',{});return}
   var locale=TTS_LOCALE[room.myLang]||room.myLang;
@@ -880,6 +912,22 @@ function startSubtitles(){
 
   recognizer.onstart=function(){
     recognizing=true;
+    speechSawFinal=false;
+    clearSpeechFirstFinalTimer();
+    speechFirstFinalTimer=setTimeout(function(){
+      speechFirstFinalTimer=null;
+      if(!speechSawFinal&&recognizing&&micOn&&room.id&&document.getElementById('call-screen').classList.contains('active')){
+        logDebug('speech_first_final_timeout',{timeoutSec:8},'warn');
+        toast('No transcript detected yet. Try speaking clearly or check mic access.');
+        ensureAudioStream('speech_health_timeout',{silentToast:true}).then(function(acquired){
+          if(acquired&&recognizing&&recognizer){
+            try{recognizer.stop()}catch(_){}
+          }else if(acquired&&!recognizing&&micOn&&room.id){
+            startSubtitles();
+          }
+        });
+      }
+    },8000);
     logDebug('speech_recognizing',{},'ok');
     var d=document.getElementById('listening-dot');if(d)d.style.display='';
   };
@@ -896,11 +944,15 @@ function startSubtitles(){
       else currentInterimEl.textContent=interimText;
     }
     if(finalText){
+      speechSawFinal=true;
+      clearSpeechFirstFinalTimer();
+      speechAudioCaptureFailCount=0;
       logDebug('speech_final',{text:finalText.slice(0,60)},'ok');
       if(currentInterimEl){currentInterimEl.remove();currentInterimEl=null}
       var srcLang=detectLang(finalText,room.myLang);
       var tgtLang=room.theirLang;
       showSubtitle(finalText,'mine');
+      ensureAudioStream('post_speech_success',{silentToast:true});
       translate(finalText,srcLang,tgtLang).then(function(translated){
         relaySend({type:'subtitle',text:translated,sourceText:finalText,sourceLang:srcLang,targetLang:tgtLang});
         if(translated&&translated!==finalText)showSubtitle(translated,'mine-translation');
@@ -913,6 +965,7 @@ function startSubtitles(){
 
   recognizer.onend=function(){
     recognizing=false;currentInterimEl=null;
+    clearSpeechFirstFinalTimer();
     var d=document.getElementById('listening-dot');if(d)d.style.display='none';
     logDebug('speech_end',{micOn:micOn});
     if(micOn&&room.id&&document.getElementById('call-screen').classList.contains('active')){
@@ -923,22 +976,36 @@ function startSubtitles(){
 
   recognizer.onerror=function(e){
     recognizing=false;currentInterimEl=null;
+    clearSpeechFirstFinalTimer();
     var d=document.getElementById('listening-dot');if(d)d.style.display='none';
     logDebug('speech_error',{error:e.error},'error');
     if(e.error==='not-allowed')toast('Mic permission needed');
     else if(e.error==='network')toast('Speech: network error');
-    else if(e.error==='audio-capture')toast('Speech: mic capture failed');
+    else if(e.error==='audio-capture'){
+      speechAudioCaptureFailCount++;
+      if(speechAudioCaptureFailCount>=2){
+        toast('Transcript cannot start: microphone capture is busy or unavailable.');
+      }else{
+        toast('Speech: mic capture failed');
+      }
+      ensureAudioStream('speech_audio_capture_error',{silentToast:true});
+    }
     if(e.error!=='not-allowed'&&micOn&&room.id){
       setTimeout(function(){if(micOn&&room.id&&!recognizing)startSubtitles();},800);
     }
   };
 
-  try{recognizer.start();}catch(e){logDebug('speech_start_err',{msg:String(e)},'error');}
+  try{recognizer.start();}
+  catch(e){
+    logDebug('speech_start_err',{msg:String(e)},'error');
+    toast('Transcript cannot start on this device right now.');
+  }
 }
 
 function stopSubtitles(){
   if(recognizer){try{recognizer.stop()}catch(_){}}
   recognizer=null;recognizing=false;
+  clearSpeechFirstFinalTimer();
   var d=document.getElementById('listening-dot');if(d)d.style.display='none';
   logDebug('speech_stopped',{});
 }
@@ -1058,10 +1125,9 @@ function exportPhrasebook(){
 
 // ═══ CONTROLS ═══
 function toggleMic(){
-  if(!audioStream)return;
   micOn=!micOn;
-  audioStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
-  logDebug('mic_toggle',{micOn:micOn});
+  if(audioStream)audioStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
+  logDebug('mic_toggle',{micOn:micOn,hasAudioStream:!!audioStream});
   if(micOn)startSubtitles();
   else stopSubtitles();
   syncMicUi();
