@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · video call with live subtitles · 2026-04-04 -->
+<!-- talkbridge · video call with live subtitles · 2026-04-05 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -15,6 +15,7 @@
   --text:#e8e4df;--text-dim:#888;--text-muted:#555;
   --red:#e74c3c;--green:#2ecc71;
   --radius:14px;
+  --controls-h:76px;
 }
 html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans",sans-serif;color:var(--text);}
 
@@ -49,15 +50,22 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .lobby-preview{width:min(100%,320px);aspect-ratio:16/9;border-radius:var(--radius);overflow:hidden;background:var(--surface);margin:0 auto 8px;position:relative;}
 .lobby-preview video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);}
 
+/* Joining overlay (full-screen spinner, replaces modal preflight) */
+.joining-screen{position:fixed;inset:0;background:var(--bg);z-index:20;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
+.joining-screen.show{display:flex;}
+.joining-spinner{width:40px;height:40px;border:3px solid var(--surface2);border-top-color:var(--teal-bright);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.joining-label{font-size:14px;color:var(--text-dim);}
+
 /* ═══ CALL SCREEN ═══ */
 .call{position:fixed;inset:0;background:#000;z-index:5;display:none;flex-direction:column;}
 .call.active{display:flex;}
 .call-videos{flex:1;position:relative;background:#000;overflow:hidden;}
 #remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;}
-#local-video{position:absolute;top:12px;right:12px;width:min(28%,160px);aspect-ratio:16/9;border-radius:10px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 4px 20px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
+#local-video{position:absolute;top:12px;right:12px;width:min(26%,140px);aspect-ratio:16/9;border-radius:10px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 4px 20px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
 .no-video-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--text-muted);z-index:1;}
 
-/* Subtitles — cinema style */
+/* Subtitles */
 .subtitle-area{position:absolute;bottom:0;left:0;right:0;z-index:4;padding:16px 20px max(16px,env(safe-area-inset-bottom));pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:6px;background:linear-gradient(transparent,rgba(0,0,0,.7) 40%);}
 .subtitle-line{max-width:92%;padding:6px 16px;border-radius:8px;font-size:16px;line-height:1.45;text-align:center;animation:subIn .25s ease-out;word-break:break-word;}
 .subtitle-line.partner{background:rgba(0,0,0,.65);color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);}
@@ -82,9 +90,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 
 /* Connection status */
 .conn-badge{position:absolute;top:12px;left:12px;z-index:4;background:rgba(0,0,0,.6);color:var(--text-dim);font-size:11px;font-weight:600;padding:5px 12px;border-radius:20px;display:flex;align-items:center;gap:6px;}
+/* Language badges — remote centered top, local bottom-right capped to PiP width */
 .lang-badge{position:absolute;z-index:4;background:rgba(0,0,0,.58);border:1px solid rgba(255,255,255,.14);color:#fff;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;letter-spacing:.02em;backdrop-filter:blur(4px);}
-.remote-lang-badge{top:12px;right:12px;}
-.local-lang-badge{top:auto;right:14px;bottom:14px;z-index:5;max-width:min(28%,160px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.remote-lang-badge{top:12px;left:50%;transform:translateX(-50%);}
+.local-lang-badge{bottom:14px;right:12px;max-width:min(26%,140px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:5;}
 .conn-dot{width:7px;height:7px;border-radius:50%;background:var(--text-muted);}
 .conn-dot.connected{background:var(--green);}
 .conn-dot.connecting{background:#f39c12;animation:pulse 1s infinite;}
@@ -94,29 +103,71 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 #toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(255,255,255,.15);backdrop-filter:blur(12px);color:#fff;font-size:13px;font-weight:600;padding:10px 20px;border-radius:22px;z-index:100;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
-/* Transcript export overlay */
-.transcript-overlay{position:absolute;left:12px;right:12px;bottom:84px;top:auto;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);z-index:4;display:none;align-items:stretch;justify-content:center;border-radius:16px;overflow:hidden;}
+/* ═══ TRANSCRIPT OVERLAY — inside .call, position:absolute ═══ */
+.transcript-overlay{
+  position:absolute;
+  left:0;right:0;
+  bottom:var(--controls-h);
+  top:auto;
+  background:rgba(0,0,0,.55);
+  border-top:1px solid rgba(255,255,255,.08);
+  backdrop-filter:blur(10px);
+  z-index:6;
+  display:none;
+  flex-direction:column;
+  max-height:50%;
+}
 .transcript-overlay.show{display:flex;}
-.transcript-overlay.expanded{top:12px;bottom:84px;}
-.transcript-sheet{background:transparent;border-radius:0;width:100%;max-height:46vh;display:flex;flex-direction:column;overflow:hidden;animation:sheetUp .2s ease-out;}
-.transcript-overlay.expanded .transcript-sheet{max-height:none;}
-@keyframes sheetUp{from{transform:translateY(40px);opacity:.7;}}
-.transcript-sheet-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--surface2);}
-.transcript-sheet-title{font-family:"Lora",serif;font-size:17px;font-weight:600;}
-.transcript-sheet-actions{display:flex;gap:8px;}
-.transcript-sheet-btn{background:var(--surface2);color:var(--text);border:none;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;}
+.transcript-overlay.expanded{top:0;max-height:none;}
+.transcript-sheet{width:100%;display:flex;flex-direction:column;overflow:hidden;}
+.transcript-sheet-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0;}
+.transcript-sheet-title{font-family:"Lora",serif;font-size:16px;font-weight:600;}
+.transcript-sheet-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
+.transcript-sheet-btn{background:rgba(255,255,255,.1);color:var(--text);border:none;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;white-space:nowrap;}
 .transcript-sheet-btn:hover{background:var(--teal);color:#fff;}
-.transcript-sheet-body{flex:1;overflow-y:auto;padding:12px 20px 20px;}
-.transcript-entry{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px;line-height:1.5;}
+.transcript-sheet-body{flex:1;overflow-y:auto;padding:10px 16px 16px;}
+.transcript-entry{padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px;line-height:1.5;}
 .transcript-entry-who{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;}
 .transcript-entry-who.mine{color:var(--teal);}
 .transcript-entry-text{color:var(--text-dim);}
 .transcript-entry-translation{color:var(--text);margin-top:2px;}
-.joiner-preflight{position:fixed;inset:0;z-index:12;background:var(--bg);display:none;align-items:center;justify-content:center;padding:24px;}
-.joiner-preflight.show{display:flex;}
-.joiner-card{width:min(100%,420px);background:var(--surface);border:1px solid var(--surface2);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:12px;}
-.joiner-title{font-family:"Lora",serif;font-size:22px;color:var(--teal-bright);}
-.joiner-note{font-size:13px;color:var(--text-dim);line-height:1.45;}
+
+/* ═══ RESPONSIVE ═══ */
+
+/* Desktop / laptop */
+@media(min-width:768px){
+  .lobby-card{width:400px;}
+  #local-video{width:min(20%,200px);}
+  .local-lang-badge{max-width:min(20%,200px);}
+  .call-controls{gap:20px;padding:14px 24px;}
+  .ctrl-btn{width:56px;height:56px;}
+  .ctrl-btn.end-call{width:68px;height:56px;}
+  .subtitle-line{font-size:18px;max-width:80%;}
+  :root{--controls-h:84px;}
+}
+
+/* Landscape mobile */
+@media(max-height:500px) and (orientation:landscape){
+  #local-video{width:min(18%,110px);top:8px;right:8px;}
+  .local-lang-badge{max-width:min(18%,110px);bottom:8px;right:8px;}
+  .remote-lang-badge{top:8px;}
+  .conn-badge{top:8px;left:8px;}
+  .call-controls{gap:10px;padding:8px 12px;}
+  .ctrl-btn{width:44px;height:44px;}
+  .ctrl-btn.small{width:34px;height:34px;}
+  .ctrl-btn.end-call{width:52px;height:44px;}
+  .subtitle-line{font-size:13px;padding:4px 12px;}
+  :root{--controls-h:60px;}
+  .transcript-overlay{max-height:60%;}
+}
+
+/* Portrait mobile — tighten controls */
+@media(max-width:400px){
+  .call-controls{gap:10px;}
+  .ctrl-btn{width:46px;height:46px;}
+  .ctrl-btn.end-call{width:54px;height:46px;}
+  .subtitle-line{font-size:14px;}
+}
 </style>
 </head>
 <body>
@@ -158,6 +209,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   </div>
 </div>
 
+<!-- Joining screen — replaces preflight modal -->
+<div class="joining-screen" id="joining-screen">
+  <div class="joining-spinner"></div>
+  <div class="joining-label">Joining call…</div>
+</div>
+
 <!-- ═══ CALL ═══ -->
 <div class="call" id="call-screen">
   <div class="call-videos">
@@ -172,6 +229,26 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <div class="lang-badge local-lang-badge" id="local-lang-badge">You: —</div>
     <div class="subtitle-area" id="subtitle-area"></div>
   </div>
+
+  <!-- Transcript overlay INSIDE .call so position:absolute works correctly -->
+  <div class="transcript-overlay" id="transcript-overlay">
+    <div class="transcript-sheet">
+      <div class="transcript-sheet-header">
+        <span class="transcript-sheet-title">Transcript</span>
+        <div class="transcript-sheet-actions">
+          <button class="transcript-sheet-btn" id="transcript-expand-btn" onclick="toggleTranscriptExpanded()">Expand</button>
+          <button class="transcript-sheet-btn" onclick="copyTranscript()">Copy</button>
+          <button class="transcript-sheet-btn" onclick="exportTranscriptTxt()">TXT</button>
+          <button class="transcript-sheet-btn" onclick="exportPhrasebook()">Phrasebook ↓</button>
+          <button class="transcript-sheet-btn" onclick="toggleTranscript()">✕</button>
+        </div>
+      </div>
+      <div class="transcript-sheet-body" id="transcript-body">
+        <div style="color:var(--text-muted);font-size:13px;font-style:italic;">Transcript will appear here during the call.</div>
+      </div>
+    </div>
+  </div>
+
   <div class="call-controls">
     <button class="ctrl-btn small" id="transcript-btn" onclick="toggleTranscript()" title="Transcript">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -190,35 +267,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <button class="ctrl-btn small" id="pip-btn" onclick="togglePiP()" title="Picture-in-Picture">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><rect x="11" y="9" width="9" height="7" rx="1"/></svg>
     </button>
-  </div>
-</div>
-
-<!-- Transcript sheet -->
-<div class="transcript-overlay" id="transcript-overlay" onclick="if(event.target===this)toggleTranscript()">
-  <div class="transcript-sheet">
-    <div class="transcript-sheet-header">
-      <span class="transcript-sheet-title">Transcript</span>
-      <div class="transcript-sheet-actions">
-        <button class="transcript-sheet-btn" id="transcript-expand-btn" onclick="toggleTranscriptExpanded()">Expand</button>
-        <button class="transcript-sheet-btn" onclick="copyTranscript()">Copy</button>
-        <button class="transcript-sheet-btn" onclick="exportTranscriptTxt()">Export TXT</button>
-        <button class="transcript-sheet-btn" onclick="exportTranscriptJson()">Export JSON</button>
-        <button class="transcript-sheet-btn" onclick="copyFeedbackLog()">Copy Debug</button>
-        <button class="transcript-sheet-btn" onclick="toggleTranscript()">Collapse</button>
-      </div>
-    </div>
-    <div class="transcript-sheet-body" id="transcript-body">
-      <div style="color:var(--text-muted);font-size:13px;font-style:italic;">Transcript will appear here during the call.</div>
-    </div>
-  </div>
-</div>
-
-
-<div class="joiner-preflight" id="joiner-preflight">
-  <div class="joiner-card">
-    <div class="joiner-title" id="jp-title">TalkBridge</div>
-    <div class="joiner-note" id="jp-body"></div>
-    <button class="lobby-btn" id="jp-continue">Continue</button>
   </div>
 </div>
 
@@ -248,15 +296,6 @@ var LANGS=[
   {code:'tr',label:'Turkish',flag:'🇹🇷'}
 ];
 var TTS_LOCALE={en:'en-US',th:'th-TH',ja:'ja-JP',ko:'ko-KR',zh:'zh-CN',ar:'ar-SA',hi:'hi-IN',ru:'ru-RU',fr:'fr-FR',de:'de-DE',es:'es-ES',it:'it-IT',pt:'pt-BR',vi:'vi-VN',id:'id-ID',ms:'ms-MY',fil:'fil-PH',nl:'nl-NL',sv:'sv-SE',pl:'pl-PL',tr:'tr-TR'};
-var UI_TEXT={
-  en:{perm:'This call needs one-time camera and microphone permission. Tap Continue and allow the browser prompt to join.'},
-  es:{perm:'Esta llamada necesita un permiso único para cámara y micrófono. Toca Continuar y permite el aviso del navegador para unirte.'},
-  fr:{perm:'Cet appel nécessite une autorisation unique pour la caméra et le micro. Appuyez sur Continuer et acceptez la fenêtre du navigateur.'},
-  de:{perm:'Dieser Anruf benötigt eine einmalige Kamera- und Mikrofonfreigabe. Tippe auf Weiter und erlaube das Browser-Popup.'},
-  pt:{perm:'Esta chamada precisa de permissão única para câmera e microfone. Toque em Continuar e permita o pop-up do navegador.'},
-  zh:{perm:'此通话需要一次性授予摄像头和麦克风权限。点击继续并允许浏览器弹窗即可加入。'}
-};
-
 
 // ═══════════════════════════════════════════
 // STATE
@@ -264,12 +303,12 @@ var UI_TEXT={
 var room={id:null,myLang:'',theirLang:'',role:null};
 var deviceId=localStorage.getItem('tb_dev')||(function(){var id=crypto.randomUUID();localStorage.setItem('tb_dev',id);return id})();
 var ws=null,pc=null,localStream=null,remoteStream=null;
-var micOn=false,camOn=true,makingOffer=false,ignoreOffer=false;
+var micOn=true,camOn=true,makingOffer=false,ignoreOffer=false;  // mic starts ON
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var recognizer=null,recognizing=false;
 var transcript=[];
 var trCache=new Map();
-var hbTimer=null,seq=0,subtitleId=0;
+var hbTimer=null,seq=0;
 var isSettingRemoteAnswerPending=false;
 var debugLog=[];
 var DEBUG_LOG_LIMIT=300;
@@ -290,14 +329,13 @@ function logDebug(event,detail){
   var row={ts:new Date().toISOString(),event:event,detail:detail||{}};
   debugLog.push(row);
   if(debugLog.length>DEBUG_LOG_LIMIT)debugLog.shift();
-  try{console.debug('[TalkBridge]',event,row.detail)}catch(_){}
 }
 
 function detectLang(text,fb){
   var t=(text||'').trim();if(!t)return fb||'en';
   if(/[฀-๿]/.test(t))return'th';if(/[぀-ヿ]/.test(t))return'ja';
   if(/[一-鿿]/.test(t))return'zh';if(/[가-힯]/.test(t))return'ko';
-  if(/[؀-ۿ]/.test(t))return'ar';if(/[Ā-žḀ-ỿ]/.test(t)&&/[àáâãäåèéêëìíîïòóôõöùúûü]/i.test(t))return fb||'en';
+  if(/[؀-ۿ]/.test(t))return'ar';
   return fb||'en'
 }
 
@@ -355,7 +393,6 @@ function buildInviteUrl(){
 // ═══════════════════════════════════════════
 // LOBBY
 // ═══════════════════════════════════════════
-
 function setLobbyState(next,push){
   lobbyState=next;
   document.getElementById('lobby-setup').style.display=next===LOBBY_STATE.setup?'':'none';
@@ -367,18 +404,25 @@ function getRecentRooms(){
   try{return JSON.parse(localStorage.getItem(RECENT_KEY)||'[]')}catch(_){return []}
 }
 function setRecentRooms(rows){localStorage.setItem(RECENT_KEY,JSON.stringify(rows.slice(0,RECENT_LIMIT)))}
-function saveRecentRoom(url){
-  if(!room.id)return;
+
+function saveCurrentRoomToRecent(){
+  if(!room.id||!room.myLang||!room.theirLang)return;
+  var url=buildInviteUrl();
   var rooms=getRecentRooms().filter(function(r){return r.id!==room.id});
-  rooms.unshift({id:room.id,name:'Room '+room.id.slice(-5),myLang:room.myLang,theirLang:room.theirLang,url:url,ts:Date.now()});
+  var myMeta=getLangMeta(room.myLang);
+  var theirMeta=getLangMeta(room.theirLang);
+  rooms.unshift({
+    id:room.id,
+    name:myMeta.flag+' '+myMeta.label+' ↔ '+theirMeta.flag+' '+theirMeta.label,
+    myLang:room.myLang,theirLang:room.theirLang,
+    url:url,ts:Date.now()
+  });
   setRecentRooms(rooms);
   renderRecentRooms();
 }
-function saveCurrentRoomToRecent(){
-  if(!room.id||!room.myLang||!room.theirLang)return;
-  saveRecentRoom(buildInviteUrl());
-}
+
 function deleteRecentRoom(id){setRecentRooms(getRecentRooms().filter(function(r){return r.id!==id}));renderRecentRooms()}
+
 async function reuseRecentRoom(id){
   var rec=getRecentRooms().find(function(r){return r.id===id});
   if(!rec)return;
@@ -390,10 +434,13 @@ async function reuseRecentRoom(id){
     localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
     document.getElementById('preview-video').srcObject=localStream;
   }catch(_){toast('Camera/mic permission needed');return}
-  document.getElementById('lobby-link').textContent=rec.url;
+  var url=buildInviteUrl();
+  document.getElementById('lobby-link').textContent=url;
+  saveCurrentRoomToRecent();
   setLobbyState(LOBBY_STATE.waiting,true);
   connectRelay();
 }
+
 function renderRecentRooms(){
   var wrap=document.getElementById('recent-rooms');
   var list=document.getElementById('recent-rooms-list');
@@ -401,15 +448,15 @@ function renderRecentRooms(){
   wrap.style.display=rows.length?'':'none';
   list.innerHTML=rows.map(function(r){
     var t=new Date(r.ts).toLocaleString();
-    return '<div class="recent-item"><button class="recent-open" onclick="reuseRecentRoom(&quot;'+escHtml(r.id)+'&quot;)">'+escHtml(r.name)+'<small>'+escHtml(r.url)+' · '+escHtml(t)+'</small></button><button class="recent-del" onclick="deleteRecentRoom(&quot;'+escHtml(r.id)+'&quot;)" aria-label="Delete">✕</button></div>';
+    return '<div class="recent-item"><button class="recent-open" onclick="reuseRecentRoom(\''+escHtml(r.id)+'\')">'+escHtml(r.name)+'<small>'+escHtml(t)+'</small></button><button class="recent-del" onclick="deleteRecentRoom(\''+escHtml(r.id)+'\')" aria-label="Delete">✕</button></div>';
   }).join('');
 }
 
 function populateLangs(){
   ['my-lang','their-lang'].forEach(function(id){
     var sel=document.getElementById(id);
-    var ph='<option value="" disabled selected>Select language…</option>' ;
-    sel.innerHTML=ph+LANGS.map(function(l){return '<option value="'+l.code+'">'+l.flag+' '+l.label+'</option>'}).join('');
+    sel.innerHTML='<option value="" disabled selected>Select language…</option>'+
+      LANGS.map(function(l){return '<option value="'+l.code+'">'+l.flag+' '+l.label+'</option>'}).join('');
   });
   ['my-lang','their-lang'].forEach(function(id){document.getElementById(id).addEventListener('change',syncCreateButton)});
   syncCreateButton();
@@ -424,46 +471,56 @@ function syncCreateButton(){
 async function createRoom(){
   room.myLang=document.getElementById('my-lang').value;
   room.theirLang=document.getElementById('their-lang').value;
-  if(!room.myLang||!room.theirLang){toast('Select both languages first');syncCreateButton();return}
+  if(!room.myLang||!room.theirLang){toast('Select both languages first');return}
   room.id=uid();
   room.role='creator';
-
-  // Start camera preview
   try{
     localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
     document.getElementById('preview-video').srcObject=localStream;
   }catch(_){toast('Camera/mic permission needed');return}
-
-  // Show waiting state
-  document.getElementById('lobby-setup').style.display='none';
-  document.getElementById('lobby-waiting').style.display='block';
   var url=buildInviteUrl();
   document.getElementById('lobby-link').textContent=url;
   saveCurrentRoomToRecent();
   setLobbyState(LOBBY_STATE.waiting,true);
-
-  // Connect to relay and wait
   connectRelay();
+}
+
+// ═══ JOINER — silent direct entry, no preflight modal ═══
+function handleInviteHash(payload){
+  if(!payload||!payload.r)return;
+  // Show spinner while acquiring media
+  document.getElementById('joining-screen').classList.add('show');
+  navigator.mediaDevices.getUserMedia({video:true,audio:true})
+    .then(function(stream){
+      localStream=stream;
+      document.getElementById('joining-screen').classList.remove('show');
+      joinFromInvite(payload);
+    })
+    .catch(function(){
+      document.getElementById('joining-screen').classList.remove('show');
+      toast('Camera and microphone access are required to join');
+      history.replaceState({},'',location.pathname);
+    });
+  history.replaceState({},'',location.pathname);
 }
 
 function joinFromInvite(payload){
   room.id=payload.r;
-  room.myLang=payload.tl; // their lang is my lang (I'm the partner)
-  room.theirLang=payload.ml;
+  room.myLang=payload.tl;   // creator's target = joiner's source language
+  room.theirLang=payload.ml; // creator's source = joiner's target language
   room.role='joiner';
   saveCurrentRoomToRecent();
   updateLanguageBadges();
-  history.replaceState({},'',location.pathname);
   enterCall();
 }
 
 function copyLink(){
-  var url=buildInviteUrl();
+  var url=document.getElementById('lobby-link').textContent||buildInviteUrl();
   if(navigator.clipboard)navigator.clipboard.writeText(url).then(function(){toast('Link copied')});
   else toast('Long-press to copy')
 }
 function shareLink(){
-  var url=buildInviteUrl();
+  var url=document.getElementById('lobby-link').textContent||buildInviteUrl();
   if(navigator.share)navigator.share({title:'TalkBridge',text:'Join my video call',url:url}).catch(function(){});
   else copyLink()
 }
@@ -476,7 +533,6 @@ function connectRelay(){
   logDebug('relay_connect_start',{room:room.id,role:room.role});
   ws=new WebSocket(RELAY_WS+'?app='+encodeURIComponent(RELAY_APP)+'&session='+encodeURIComponent(room.id)+'&client='+encodeURIComponent(deviceId));
   ws.onopen=function(){
-    logDebug('relay_open',{});
     updateConn('connected');
     relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
     startHeartbeat();
@@ -485,10 +541,8 @@ function connectRelay(){
     try{handleRelay(JSON.parse(e.data))}catch(_){}
   };
   ws.onclose=function(){
-    logDebug('relay_close',{});
     updateConn('disconnected');
     stopHeartbeat();
-    // Reconnect if still in call
     if(room.id)setTimeout(function(){if(room.id)connectRelay()},2000);
   };
   ws.onerror=function(){};
@@ -500,41 +554,24 @@ function relaySend(msg){
   try{ws.send(JSON.stringify(msg))}catch(_){}
 }
 
-function startHeartbeat(){
-  stopHeartbeat();
-  hbTimer=setInterval(function(){relaySend({type:'ping',transient:true})},HEARTBEAT_MS);
-}
+function startHeartbeat(){stopHeartbeat();hbTimer=setInterval(function(){relaySend({type:'ping',transient:true})},HEARTBEAT_MS)}
 function stopHeartbeat(){if(hbTimer){clearInterval(hbTimer);hbTimer=null}}
 
 function handleRelay(d){
   if(!d||d.from===deviceId)return;
-
   if(d.type==='hello'){
-    // Partner joined — if we're in lobby, enter call
-    if(document.getElementById('lobby')&&!document.getElementById('lobby').classList.contains('hidden')){
-      enterCall();
-    }
+    if(lobbyState===LOBBY_STATE.waiting)enterCall();
     return;
   }
-  if(d.type==='ping'){
-    relaySend({type:'pong',transient:true});
-    updateConn('connected');
-    return;
-  }
+  if(d.type==='ping'){relaySend({type:'pong',transient:true});updateConn('connected');return}
   if(d.type==='pong'){updateConn('connected');return}
-
   if(d.type==='webrtc-signal'){handleSignal(d);return}
-
   if(d.type==='subtitle'){
-    // Partner speech and translation for this client.
-    if(d.sourceText&&d.sourceText!==d.text){
-      showSubtitle(d.sourceText,'partner-source');
-    }
+    if(d.sourceText&&d.sourceText!==d.text)showSubtitle(d.sourceText,'partner-source');
     showSubtitle(d.text,'partner');
     addTranscriptEntry('partner',d.sourceText,d.text,d.sourceLang,d.targetLang);
     return;
   }
-
   if(d.type==='hangup'){
     toast('Partner left the call');
     cleanUp();
@@ -554,33 +591,22 @@ function updateConn(state){
 // ENTER CALL
 // ═══════════════════════════════════════════
 async function enterCall(){
-  // Get media if not already
   if(!localStream){
-    try{
-      localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-    }catch(_){toast('Camera/mic permission needed');return}
+    try{localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true})}
+    catch(_){toast('Camera/mic permission needed');return}
   }
-
-  // Switch UI
   document.getElementById('lobby').classList.add('hidden');
   document.getElementById('call-screen').classList.add('active');
   lobbyState=LOBBY_STATE.call;
   document.getElementById('local-video').srcObject=localStream;
+  // Mic starts ON — sync audio track to micOn state
   localStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
   syncMicUi();
   updateLanguageBadges();
-  logDebug('call_enter',{hasLocalStream:!!localStream,audioTracks:localStream?localStream.getAudioTracks().length:0,videoTracks:localStream?localStream.getVideoTracks().length:0});
-
-  // Connect relay if not connected
+  logDebug('call_enter',{});
   if(!ws||ws.readyState!==1)connectRelay();
-
-  // Set up WebRTC
   setupPeerConnection();
-
-  // Start speech recognition for subtitles
-  startSubtitles();
-
-  // Announce
+  if(micOn)startSubtitles();
   relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
 }
 
@@ -590,39 +616,26 @@ async function enterCall(){
 function setupPeerConnection(){
   if(pc)return;
   pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-  logDebug('pc_create',{});
-
-  // Add local tracks
-  if(localStream){
-    localStream.getTracks().forEach(function(t){pc.addTrack(t,localStream);logDebug('pc_add_track',{kind:t.kind,enabled:t.enabled,readyState:t.readyState})});
-  }
-
+  if(localStream)localStream.getTracks().forEach(function(t){pc.addTrack(t,localStream)});
   pc.onicecandidate=function(e){
     if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}});
   };
-
   pc.ontrack=function(e){
     remoteStream=e.streams[0]||new MediaStream();
-    if(e.streams[0])remoteStream=e.streams[0];
-    else remoteStream.addTrack(e.track);
+    if(!e.streams[0])remoteStream.addTrack(e.track);
     var rv=document.getElementById('remote-video');
     rv.srcObject=remoteStream;
     document.getElementById('no-video-msg').style.display='none';
-    logDebug('pc_ontrack',{kind:e.track&&e.track.kind,streams:e.streams?e.streams.length:0});
   };
-
   pc.onnegotiationneeded=async function(){
     try{
       makingOffer=true;
       await pc.setLocalDescription(await pc.createOffer());
-      logDebug('pc_local_offer',{type:pc.localDescription&&pc.localDescription.type});
       relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}});
     }catch(_){}
     finally{makingOffer=false}
   };
-
   pc.onconnectionstatechange=function(){
-    logDebug('pc_state',{connectionState:pc.connectionState,signalingState:pc.signalingState,iceConnectionState:pc.iceConnectionState});
     if(pc.connectionState==='connected')updateConn('connected');
     if(pc.connectionState==='failed'||pc.connectionState==='disconnected')updateConn('disconnected');
   };
@@ -631,7 +644,6 @@ function setupPeerConnection(){
 async function handleSignal(d){
   if(!d.signal)return;
   if(!pc)setupPeerConnection();
-
   try{
     if(d.signal.description){
       var desc=d.signal.description;
@@ -639,19 +651,15 @@ async function handleSignal(d){
       var ready=!makingOffer&&(pc.signalingState==='stable'||isSettingRemoteAnswerPending);
       var collision=desc.type==='offer'&&!ready;
       ignoreOffer=!polite&&collision;
-      logDebug('signal_description',{type:desc.type,polite:polite,collision:collision,signalingState:pc.signalingState});
       if(ignoreOffer)return;
-
       isSettingRemoteAnswerPending=desc.type==='answer';
       await pc.setRemoteDescription(desc);
       isSettingRemoteAnswerPending=false;
       if(desc.type==='offer'){
         await pc.setLocalDescription(await pc.createAnswer());
-        logDebug('pc_local_answer',{type:pc.localDescription&&pc.localDescription.type});
         relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}});
       }
     }else if(d.signal.candidate){
-      logDebug('signal_candidate',{});
       try{await pc.addIceCandidate(d.signal.candidate)}catch(err){if(!ignoreOffer)throw err}
     }
   }catch(err){
@@ -661,16 +669,14 @@ async function handleSignal(d){
 }
 
 // ═══════════════════════════════════════════
-// SUBTITLES (SpeechRecognition → translate → send)
+// SUBTITLES — tied to micOn state
 // ═══════════════════════════════════════════
 function startSubtitles(){
-  if(!SpeechRec||recognizing)return;
-
+  if(!SpeechRec||recognizing||!micOn)return;
   recognizer=new SpeechRec();
   recognizer.lang=TTS_LOCALE[room.myLang]||room.myLang;
   recognizer.interimResults=true;
   recognizer.continuous=true;
-
   var currentInterimEl=null;
 
   recognizer.onstart=function(){recognizing=true};
@@ -678,34 +684,18 @@ function startSubtitles(){
   recognizer.onresult=function(e){
     var finalText='',interimText='';
     for(var i=e.resultIndex;i<e.results.length;i++){
-      if(e.results[i].isFinal){
-        finalText+=e.results[i][0].transcript;
-      }else{
-        interimText+=e.results[i][0].transcript;
-      }
+      if(e.results[i].isFinal)finalText+=e.results[i][0].transcript;
+      else interimText+=e.results[i][0].transcript;
     }
-
-    // Show interim as fading indicator (not permanent)
     if(interimText&&!finalText){
-      if(!currentInterimEl){
-        currentInterimEl=showSubtitle(interimText,'mine interim');
-      }else{
-        currentInterimEl.textContent=interimText;
-      }
+      if(!currentInterimEl)currentInterimEl=showSubtitle(interimText,'mine interim');
+      else currentInterimEl.textContent=interimText;
     }
-
-    // Final result → translate → send to partner → show as subtitle
     if(finalText){
-      // Remove interim
       if(currentInterimEl){currentInterimEl.remove();currentInterimEl=null}
-
       var srcLang=detectLang(finalText,room.myLang);
       var tgtLang=room.theirLang;
-
-      // Show my speech locally (small, dimmed)
       showSubtitle(finalText,'mine');
-
-      // Translate and send to partner
       translate(finalText,srcLang,tgtLang).then(function(translated){
         relaySend({type:'subtitle',text:translated,sourceText:finalText,sourceLang:srcLang,targetLang:tgtLang});
         if(translated&&translated!==finalText)showSubtitle(translated,'mine-translation');
@@ -717,9 +707,9 @@ function startSubtitles(){
   recognizer.onend=function(){
     recognizing=false;
     currentInterimEl=null;
-    // Auto-restart if still in call
-    if(room.id&&document.getElementById('call-screen').classList.contains('active')){
-      setTimeout(function(){if(room.id&&!recognizing)startSubtitles()},300);
+    // Only restart if mic is still on and call is active
+    if(micOn&&room.id&&document.getElementById('call-screen').classList.contains('active')){
+      setTimeout(function(){if(micOn&&room.id&&!recognizing)startSubtitles()},300);
     }
   };
 
@@ -732,28 +722,26 @@ function startSubtitles(){
   try{recognizer.start()}catch(_){}
 }
 
+function stopSubtitles(){
+  if(recognizer){try{recognizer.stop()}catch(_){}}
+  recognizer=null;
+  recognizing=false;
+}
+
 function showSubtitle(text,cls){
   var area=document.getElementById('subtitle-area');
   var el=document.createElement('div');
   el.className='subtitle-line '+cls;
   el.textContent=text;
   area.appendChild(el);
-
-  // Limit visible lines
   var lines=area.querySelectorAll('.subtitle-line:not(.interim):not(.fading)');
-  while(lines.length>MAX_VISIBLE_SUBS){
-    lines[0].remove();
-    lines=area.querySelectorAll('.subtitle-line:not(.interim):not(.fading)');
-  }
-
-  // Auto-fade after linger time (not for interim)
+  while(lines.length>MAX_VISIBLE_SUBS){lines[0].remove();lines=area.querySelectorAll('.subtitle-line:not(.interim):not(.fading)')}
   if(cls.indexOf('interim')<0){
     setTimeout(function(){
       el.classList.add('fading');
       setTimeout(function(){el.remove()},500);
     },SUBTITLE_LINGER_MS);
   }
-
   return el;
 }
 
@@ -770,9 +758,10 @@ function toggleTranscript(){
   var showing=overlay.classList.toggle('show');
   if(showing)renderTranscript();
 }
-function toggleTranscriptExpanded(forceValue){
+
+function toggleTranscriptExpanded(){
   var overlay=document.getElementById('transcript-overlay');
-  var next=typeof forceValue==='boolean'?forceValue:!overlay.classList.contains('expanded');
+  var next=!overlay.classList.contains('expanded');
   overlay.classList.toggle('expanded',next);
   var btn=document.getElementById('transcript-expand-btn');
   if(btn)btn.textContent=next?'Compact':'Expand';
@@ -800,8 +789,7 @@ function copyTranscript(){
   if(!transcript.length){toast('No transcript');return}
   var text=transcript.map(function(e){
     var ts=new Date(e.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    var who=e.who==='me'?'You':'Partner';
-    return '['+ts+'] '+who+': '+e.sourceText+(e.translatedText!==e.sourceText?' → '+e.translatedText:'');
+    return '['+ts+'] '+(e.who==='me'?'You':'Partner')+': '+e.sourceText+(e.translatedText!==e.sourceText?' → '+e.translatedText:'');
   }).join('\n');
   if(navigator.clipboard)navigator.clipboard.writeText(text).then(function(){toast('Copied')});
 }
@@ -810,8 +798,7 @@ function exportTranscriptTxt(){
   if(!transcript.length){toast('No transcript');return}
   var text='TalkBridge Transcript\n'+new Date().toLocaleString()+'\n\n'+transcript.map(function(e){
     var ts=new Date(e.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    var who=e.who==='me'?'You':'Partner';
-    return '['+ts+'] '+who+' ('+((e.srcLang||'?').toUpperCase())+'): '+e.sourceText+'\n → ('+((e.tgtLang||'?').toUpperCase())+'): '+e.translatedText;
+    return '['+ts+'] '+(e.who==='me'?'You':'Partner')+' ('+((e.srcLang||'?').toUpperCase())+'): '+e.sourceText+'\n → ('+((e.tgtLang||'?').toUpperCase())+'): '+e.translatedText;
   }).join('\n\n');
   var blob=new Blob([text],{type:'text/plain'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);
@@ -819,48 +806,50 @@ function exportTranscriptTxt(){
   toast('Exported txt');
 }
 
-function exportTranscriptJson(){
+function exportPhrasebook(){
   if(!transcript.length){toast('No transcript');return}
-  var payload={app:'TalkBridge',version:1,generatedAt:new Date().toISOString(),entries:transcript.map(function(e){
-    return {speaker:e.who==='me'?'me':'partner',sourceText:e.sourceText,translatedText:e.translatedText,sourceLang:e.srcLang,targetLang:e.tgtLang,timestamp:e.ts};
-  })};
+  var now=Date.now();
+  var dateStr=new Date(now).toLocaleDateString();
+  var catId='tb-'+(room.id||'session').slice(-8);
+  var cards=transcript
+    .filter(function(e){return e.sourceText&&e.translatedText&&e.sourceText!==e.translatedText})
+    .map(function(e){
+      return {
+        id:uid(),
+        catalogIds:[catId],
+        sourceLang:e.srcLang||room.myLang,
+        targetLang:e.tgtLang||room.theirLang,
+        source:e.sourceText,
+        target:e.translatedText,
+        notes:'',
+        tags:['talkbridge'],
+        backtranslate:{
+          sourceLang:e.tgtLang||room.theirLang,
+          targetLang:e.srcLang||room.myLang,
+          inputText:e.translatedText,
+          resultText:'',
+          verdict:'',
+          contentHash:e.sourceText+'||'+e.translatedText,
+          updatedAt:e.ts
+        },
+        clarifyChain:[],
+        savedBy:e.who==='me'?'Me (TalkBridge)':'Partner (TalkBridge)',
+        createdAt:e.ts,
+        updatedAt:e.ts
+      }
+    });
+  if(!cards.length){toast('No translated phrases to export');return}
+  var payload={
+    type:'phrasebook',
+    cards:cards,
+    catalogs:[{id:catId,name:'TalkBridge '+dateStr,emoji:'🎙️',desc:'Imported from TalkBridge call',createdAt:now}],
+    tags:['talkbridge'],
+    exportedAt:now
+  };
   var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='talkbridge-'+new Date().toISOString().slice(0,10)+'.json';a.click();
-  toast('Exported json');
-}
-
-function buildFeedbackLogText(){
-  var safeRoom=room&&room.id?room.id:'(none)';
-  var lines=[
-    'TalkBridge Debug Feedback',
-    'Generated: '+new Date().toISOString(),
-    'Room: '+safeRoom,
-    'Role: '+(room&&room.role?room.role:'(none)'),
-    'Conn: '+(pc&&pc.connectionState?pc.connectionState:'(no-pc)'),
-    '',
-    'Events:'
-  ];
-  debugLog.forEach(function(row){
-    lines.push('['+row.ts+'] '+row.event+' '+JSON.stringify(row.detail||{}));
-  });
-  if(transcript.length){
-    lines.push('');
-    lines.push('Recent Transcript:');
-    transcript.slice(-20).forEach(function(e){
-      lines.push('['+new Date(e.ts).toISOString()+'] '+(e.who==='me'?'me':'partner')+': '+e.sourceText+' => '+e.translatedText);
-    });
-  }
-  return lines.join('\n');
-}
-
-function copyFeedbackLog(){
-  var text=buildFeedbackLogText();
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(function(){toast('Debug log copied for feedback')}).catch(function(){toast('Clipboard unavailable')});
-    return;
-  }
-  toast('Clipboard unavailable');
+  a.download='talkbridge-phrasebook-'+new Date(now).toISOString().slice(0,10)+'.json';a.click();
+  toast('Exported to phrasebook format');
 }
 
 // ═══════════════════════════════════════════
@@ -870,6 +859,12 @@ function toggleMic(){
   if(!localStream)return;
   micOn=!micOn;
   localStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
+  // Mic and recognition are one unified switch
+  if(micOn){
+    startSubtitles();
+  }else{
+    stopSubtitles();
+  }
   syncMicUi();
 }
 
@@ -899,38 +894,24 @@ function hangUp(){
 }
 
 function cleanUp(){
-  logDebug('cleanup_start',{});
-  // Stop recognition
-  if(recognizer){try{recognizer.stop()}catch(_){}}recognizer=null;recognizing=false;
-
-  // Stop media
+  stopSubtitles();
   if(localStream){localStream.getTracks().forEach(function(t){t.stop()});localStream=null}
-
-  // Close peer connection
   if(pc){pc.close();pc=null}
-
-  // Close websocket
-  var r=room.id;room.id=null;
+  var rid=room.id;room.id=null;
   stopHeartbeat();
   if(ws){try{ws.close()}catch(_){}}ws=null;
-
-  // Reset UI
   document.getElementById('call-screen').classList.remove('active');
   document.getElementById('lobby').classList.remove('hidden');
   setLobbyState(LOBBY_STATE.setup,false);
-  document.getElementById('transcript-overlay').classList.remove('show');
-  toggleTranscriptExpanded(false);
+  document.getElementById('transcript-overlay').classList.remove('show','expanded');
+  document.getElementById('transcript-expand-btn').textContent='Expand';
   document.getElementById('subtitle-area').innerHTML='';
   document.getElementById('no-video-msg').style.display='';
   remoteStream=null;
+  transcript=[];
+  micOn=true;syncMicUi();
   renderRecentRooms();
-}
-
-function safeReleaseForBackground(){
-  if(!room.id)return;
-  logDebug('background_release',{});
-  relaySend({type:'hangup',reason:'backgrounded'});
-  cleanUp();
+  logDebug('cleanup_done',{room:rid});
 }
 
 // ═══════════════════════════════════════════
@@ -940,33 +921,12 @@ populateLangs();
 renderRecentRooms();
 syncMicUi();
 
-// Check for invite link
+// Handle invite link hash — direct silent entry, no modal
 var hp=new URLSearchParams((location.hash||'').replace(/^#/,''));
 var inv=hp.get('j');
 if(inv){
   var payload=decodeInvite(inv);
-  if(payload&&payload.r){
-    showJoinerPreflight(payload);
-  }
-}
-
-function showJoinerPreflight(payload){
-  var lang=(payload&&payload.tl)||'en';
-  var strings=UI_TEXT[lang]||UI_TEXT.en;
-  var panel=document.getElementById('joiner-preflight');
-  document.getElementById('jp-body').textContent=strings.perm;
-  document.getElementById('jp-continue').onclick=async function(){
-    try{
-      localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-      panel.classList.remove('show');
-      joinFromInvite(payload);
-    }catch(_){
-      toast(strings.perm);
-      history.replaceState({},'',location.pathname);
-      panel.classList.remove('show');
-    }
-  };
-  panel.classList.add('show');
+  if(payload&&payload.r)handleInviteHash(payload);
 }
 
 window.addEventListener('popstate',function(){
@@ -974,9 +934,15 @@ window.addEventListener('popstate',function(){
     setLobbyState(LOBBY_STATE.setup,false);
   }
 });
-window.addEventListener('pagehide',safeReleaseForBackground);
+
+// pagehide fires on actual navigation/close — safe to release there
+window.addEventListener('pagehide',function(){
+  if(room.id){relaySend({type:'hangup',reason:'pagehide'});cleanUp()}
+});
+
+// visibilitychange: do NOT hang up — user may just be switching tabs
 document.addEventListener('visibilitychange',function(){
-  if(document.visibilityState==='hidden')safeReleaseForBackground();
+  logDebug('visibility',{state:document.visibilityState});
 });
 </script>
 </body>
