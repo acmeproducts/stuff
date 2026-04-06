@@ -343,6 +343,24 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
 .vsay-cc-speaker.active{color:var(--teal);background:var(--teal-light);}
 .vsay-cc-speaker.ducking{animation:duckPulse .6s ease-in-out;}
 @keyframes duckPulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+
+/* Session log modal */
+.session-log-modal{position:fixed;inset:0;background:rgba(26,23,20,.52);display:flex;align-items:center;justify-content:center;z-index:280;padding:20px;}
+.session-log-modal[hidden]{display:none!important;}
+.session-log-card{width:min(96vw,920px);max-height:92vh;overflow:hidden;background:var(--cream);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;}
+.session-log-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:14px 16px 10px;border-bottom:1px solid var(--border);}
+.session-log-title{font-family:"Lora",serif;font-size:20px;font-weight:600;line-height:1.2;}
+.session-log-meta{font-size:12px;color:var(--ink-dim);margin-top:2px;}
+.session-log-close{border:none;background:none;color:var(--ink-mid);cursor:pointer;font-size:20px;line-height:1;padding:2px 4px;}
+.session-log-tabs{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);}
+.session-log-tab{border:1px solid var(--border);background:#fff;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;color:var(--ink-mid);}
+.session-log-tab.active{background:var(--teal-light);color:var(--teal);border-color:var(--teal);}
+.session-log-body{padding:12px 16px;overflow:auto;display:grid;gap:10px;}
+.session-log-section{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;}
+.session-log-section h4{font-size:12px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px;}
+.session-log-raw{font-size:12px;line-height:1.35;white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;}
+.session-log-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px 16px 16px;border-top:1px solid var(--border);}
+.session-log-actions .sheet-btn{padding:10px 8px;font-size:12px;}
 </style>
 </head>
 <body>
@@ -505,6 +523,30 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
   </div>
 </div>
 
+<div class="session-log-modal" id="session-log-modal" hidden onclick="if(event.target===this)closeSessionLog()">
+  <div class="session-log-card">
+    <div class="session-log-head">
+      <div>
+        <div class="session-log-title" id="session-log-title">Session Log</div>
+        <div class="session-log-meta" id="session-log-meta">—</div>
+      </div>
+      <button class="session-log-close" onclick="closeSessionLog()" title="Close">✕</button>
+    </div>
+    <div class="session-log-tabs">
+      <button class="session-log-tab active" id="session-log-tab-summary" onclick="setSessionLogTab('summary')">Summary</button>
+      <button class="session-log-tab" id="session-log-tab-timeline" onclick="setSessionLogTab('timeline')">Timeline</button>
+      <button class="session-log-tab" id="session-log-tab-raw" onclick="setSessionLogTab('raw')">Raw JSON</button>
+    </div>
+    <div class="session-log-body" id="session-log-body"></div>
+    <div class="session-log-actions">
+      <button class="sheet-btn secondary" onclick="copySessionLogJson()">Copy JSON</button>
+      <button class="sheet-btn secondary" onclick="copySessionLogMarkdown()">Copy Markdown Summary</button>
+      <button class="sheet-btn primary" onclick="downloadSessionLogJson()">Download .json</button>
+      <button class="sheet-btn primary" onclick="downloadSessionLogTxt()">Download .txt</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="language-overlay" hidden onclick="if(event.target===this)this.hidden=true">
   <div class="sheet"><div class="sheet-handle"></div><div class="sheet-body">
     <div class="sheet-title">Your Language</div>
@@ -592,7 +634,8 @@ var uid=function(){return Date.now().toString(36)+Math.random().toString(36).sli
 // ════════════════════════════════════════════════════════
 var state={activeConvId:null,messages:[],connected:false,autoSpeakIncoming:false,participants:{},
   mediaRuntime:{stream:null,kind:'',activeSessionId:'',floatVisible:false,videoEnabled:false,micEnabled:false,collapsed:false,ccEnabled:false,pc:null,remoteStream:null,remoteVideoEnabled:false,remoteMicEnabled:false,remotePeerId:'',makingOffer:false,ignoreOffer:false,callState:'idle',callAccepted:false,pendingKind:'',incomingKind:'',callOpInFlight:false,mediaOpInFlight:false,ccOpInFlight:false,lastSignalHash:'',lastRemoteMediaHash:''},
-  ccTranscript:{entries:[],visible:true,collapsed:false}};
+  ccTranscript:{entries:[],visible:true,collapsed:false},
+  sessionLog:{convId:'',tab:'summary',payload:null}};
 var ws=null,connectedConvId=null,socketState='closed',intentionalClose=false;
 var rcTimer=null,rcAttempts=0,hbTimer=null,lastPongAt=0,lastRxAt=0,_hiddenAt=0;
 var outQ=[],pendingAcks={},lastRelaySeq=0,msgSeq=0,inboundSeen={};
@@ -600,6 +643,7 @@ var roomRuntimeByConv={},transportHandlers=[];
 var HEARTBEAT_MS=30000,PING_TIMEOUT_MS=120000,RECONNECT_BASE_MS=1200,RECONNECT_MAX_MS=180000;
 var DEDUP_TTL_MS=12000,MSG_TTL_MS=120000,MAX_QUEUE=40,MAX_RETRY=8;
 var MAX_SESSIONS_STORED=50,MAX_MSGS_PER_SESSION=300;
+var MAX_SESSION_LOG_ENTRIES=500;
 var tEngine='cloud',ttsActive=null,typingTimer=null,typingStopTimer=null,localTypingActive=false;
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var pendingOnboardingFlow=null;
@@ -629,6 +673,106 @@ function firstRealName(){for(var i=0;i<arguments.length;i++){var v=(arguments[i]
 function hasOwn(obj,key){return !!(obj&&Object.prototype.hasOwnProperty.call(obj,key))}
 function normalizeLangSetting(v){if(v===undefined||v===null)return undefined;return String(v).trim().toLowerCase()}
 function fallbackCopy(t){var ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;left:-9999px';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('Copied')}catch(e){}document.body.removeChild(ta)}
+function copyTextWithFallback(t,msg){
+  var done=function(){toast(msg||'Copied')};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(String(t||'')).then(done).catch(function(){fallbackCopy(String(t||''))})}
+  else fallbackCopy(String(t||''))
+}
+function downloadBlobFile(filename,text,mime){
+  var blob=new Blob([String(text||'')],{type:mime||'text/plain'});
+  var url=URL.createObjectURL(blob);var a=document.createElement('a');
+  a.href=url;a.download=filename||'download.txt';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(url)},250)
+}
+function redactedId(v){var s=String(v||'');if(!s)return'';if(s.length<=8)return'[redacted]';return s.slice(0,4)+'…'+s.slice(-4)}
+function redactSensitiveObject(obj){
+  if(obj===null||obj===undefined)return obj;
+  if(Array.isArray(obj))return obj.map(redactSensitiveObject);
+  if(typeof obj!=='object')return obj;
+  var out={};Object.keys(obj).forEach(function(k){
+    var lower=k.toLowerCase(),v=obj[k];
+    if(lower.indexOf('token')>=0||lower.indexOf('secret')>=0||lower.indexOf('password')>=0||lower==='authorization'||lower==='cookie'||lower==='apikey'||lower==='api_key')out[k]='[redacted]';
+    else out[k]=redactSensitiveObject(v)
+  });return out
+}
+function buildSessionLogPayload(convId){
+  var sess=getSession(convId);if(!sess)return null;
+  var normalized=normalizeSession(sess);
+  var rawMsgs=getMsgs(convId)||[];
+  var msgs=rawMsgs.slice(-MAX_SESSION_LOG_ENTRIES).map(function(m){
+    return{id:m.id||'',timestamp:Number(m.timestamp)||0,direction:m.from==='them'?'incoming':'outgoing',sourceText:m.sourceText||m.orig||m.text||'',targetText:m.targetText||'',sourceLang:normalizeLangSetting(m.sourceLang||m.lang)||'',targetLang:normalizeLangSetting(m.targetLang)||'',status:m.status||''}
+  });
+  var rawCc=(state.ccTranscript.entries||[]).filter(function(e){return String(e.convId||'')===String(convId||'')});
+  var ccEntries=rawCc.slice(-MAX_SESSION_LOG_ENTRIES).map(function(e){
+    return{timestamp:Number(e.ts)||0,direction:e.dir==='remote'?'incoming':'outgoing',sourceText:e.sourceText||'',targetText:e.targetText||'',sourceLang:normalizeLangSetting(e.sourceLang)||'',targetLang:normalizeLangSetting(e.targetLang)||'',origin:e.origin||'cc'}
+  });
+  var timeline=msgs.map(function(m){return{kind:'message',timestamp:m.timestamp,direction:m.direction,sourceText:m.sourceText,targetText:m.targetText,sourceLang:m.sourceLang,targetLang:m.targetLang}})
+    .concat(ccEntries.map(function(e){return{kind:'cc-transcript',timestamp:e.timestamp,direction:e.direction,sourceText:e.sourceText,targetText:e.targetText,sourceLang:e.sourceLang,targetLang:e.targetLang,origin:e.origin}}))
+    .sort(function(a,b){return(a.timestamp||0)-(b.timestamp||0)});
+  var mediaSnapshot=null;
+  if(convId===state.activeConvId||convId===state.mediaRuntime.activeSessionId){
+    mediaSnapshot={capturedAt:Date.now(),activeConvId:state.activeConvId||'',activeSessionId:state.mediaRuntime.activeSessionId||'',callState:state.mediaRuntime.callState||'idle',callAccepted:!!state.mediaRuntime.callAccepted,pendingKind:state.mediaRuntime.pendingKind||'',incomingKind:state.mediaRuntime.incomingKind||'',videoEnabled:!!state.mediaRuntime.videoEnabled,micEnabled:!!state.mediaRuntime.micEnabled,remoteVideoEnabled:!!state.mediaRuntime.remoteVideoEnabled,remoteMicEnabled:!!state.mediaRuntime.remoteMicEnabled,ccEnabled:!!state.mediaRuntime.ccEnabled,floatVisible:!!state.mediaRuntime.floatVisible}
+  }
+  var runtimeInfo=redactSensitiveObject({deviceId:redactedId(DEVICE_ID),participantId:redactedId(PART_ID),connectedConvId:connectedConvId===convId?redactedId(connectedConvId):'',socketState:socketState,relay:{base:RELAY_BASE,app:RELAY_APP,ws:RELAY_WS_URL,http:RELAY_HTTP_URL},sessionStorageIdentityKeys:Object.keys(runtimeRoleIdentityCache||{}).filter(function(k){return k.indexOf(String(convId)+'|')===0}).map(function(k){return redactedId(runtimeRoleIdentityCache[k])})});
+  return{schemaVersion:1,generatedAt:Date.now(),session:normalized,summary:{label:getSessionLabel(normalized),createdAt:normalized.createdAt,lastActivity:normalized.lastActivity,messageCount:rawMsgs.length,ccCount:rawCc.length,totalTimeline:timeline.length,truncated:{maxEntries:MAX_SESSION_LOG_ENTRIES,messagesDropped:Math.max(0,rawMsgs.length-msgs.length),ccDropped:Math.max(0,rawCc.length-ccEntries.length)}},messages:msgs,ccTranscript:ccEntries,timeline:timeline.slice(-MAX_SESSION_LOG_ENTRIES),mediaSnapshot:mediaSnapshot,runtime:runtimeInfo}
+}
+function buildSessionLogMarkdown(payload){
+  if(!payload)return'';
+  var lines=['# Session Log Summary','', '- Label: '+(payload.summary&&payload.summary.label||''),'- Session ID: '+(payload.session&&payload.session.convId||''),'- Created: '+fmtDateTime(payload.summary&&payload.summary.createdAt),'- Last activity: '+fmtDateTime(payload.summary&&payload.summary.lastActivity),'- Messages: '+(payload.summary&&payload.summary.messageCount||0),'- CC entries: '+(payload.summary&&payload.summary.ccCount||0)];
+  var t=payload.summary&&payload.summary.truncated;
+  if(t&&(t.messagesDropped||t.ccDropped))lines.push('- Truncation: latest '+t.maxEntries+' retained (dropped '+t.messagesDropped+' messages, '+t.ccDropped+' CC entries).');
+  lines.push('','## Recent Timeline');
+  (payload.timeline||[]).slice(-20).forEach(function(e){
+    var ts=fmtDateTime(e.timestamp),arrow=e.targetText&&e.targetText!==e.sourceText?(' → '+e.targetText):'';
+    lines.push('- ['+ts+'] '+e.kind+' '+(e.direction||'')+' ('+((e.sourceLang||'?').toUpperCase())+'): '+(e.sourceText||'')+arrow)
+  });
+  return lines.join('\n')
+}
+function setSessionLogTab(tab){state.sessionLog.tab=tab||'summary';renderSessionLogModal()}
+function closeSessionLog(){var m=document.getElementById('session-log-modal');if(m)m.hidden=true}
+function renderSessionLogModal(){
+  var payload=state.sessionLog.payload;if(!payload)return;
+  var body=document.getElementById('session-log-body'),title=document.getElementById('session-log-title'),meta=document.getElementById('session-log-meta');
+  if(!body||!title||!meta)return;
+  ['summary','timeline','raw'].forEach(function(tab){var el=document.getElementById('session-log-tab-'+tab);if(el)el.classList.toggle('active',state.sessionLog.tab===tab)});
+  title.textContent='Session Log — '+(payload.summary&&payload.summary.label||'Session');
+  meta.textContent='Created '+fmtDateTime(payload.summary&&payload.summary.createdAt)+' • Last activity '+fmtDateTime(payload.summary&&payload.summary.lastActivity);
+  if(state.sessionLog.tab==='timeline'){
+    var t=payload.summary&&payload.summary.truncated;
+    var note=(t&&(t.messagesDropped||t.ccDropped))?'<div class="session-log-section"><h4>Truncation notice</h4><div>Showing latest '+t.maxEntries+' entries; older items were dropped from messages/CC export.</div></div>':'';
+    body.innerHTML=note+(payload.timeline||[]).map(function(e){
+      var arrow=e.targetText&&e.targetText!==e.sourceText?(' → '+escHtml(e.targetText)):'';
+      return '<div class="session-log-section"><div style="font-size:11px;color:var(--ink-dim);">'+escHtml(fmtDateTime(e.timestamp))+' • '+escHtml(e.kind)+' • '+escHtml(e.direction||'')+'</div><div style="font-size:13px;">'+escHtml((e.sourceLang||'?').toUpperCase())+': '+escHtml(e.sourceText||'')+arrow+'</div></div>'
+    }).join('')||'<div class="session-log-section">No timeline entries.</div>';
+    return
+  }
+  if(state.sessionLog.tab==='raw'){body.innerHTML='<pre class="session-log-raw">'+escHtml(JSON.stringify(payload,null,2))+'</pre>';return}
+  var trunc=payload.summary&&payload.summary.truncated;
+  body.innerHTML='<div class="session-log-section"><h4>Session</h4><div><b>ID:</b> '+escHtml(payload.session&&payload.session.convId||'')+'</div><div><b>Created:</b> '+escHtml(fmtDateTime(payload.summary&&payload.summary.createdAt))+'</div><div><b>Last activity:</b> '+escHtml(fmtDateTime(payload.summary&&payload.summary.lastActivity))+'</div></div>'
+    +'<div class="session-log-section"><h4>Counts</h4><div><b>Messages:</b> '+(payload.summary&&payload.summary.messageCount||0)+'</div><div><b>CC transcript entries:</b> '+(payload.summary&&payload.summary.ccCount||0)+'</div><div><b>Timeline entries:</b> '+(payload.summary&&payload.summary.totalTimeline||0)+'</div></div>'
+    +'<div class="session-log-section"><h4>Runtime</h4><div><b>Device:</b> '+escHtml(payload.runtime&&payload.runtime.deviceId||'')+'</div><div><b>Participant:</b> '+escHtml(payload.runtime&&payload.runtime.participantId||'')+'</div><div><b>Socket:</b> '+escHtml(payload.runtime&&payload.runtime.socketState||'')+'</div></div>'
+    +(trunc&&(trunc.messagesDropped||trunc.ccDropped)?'<div class="session-log-section"><h4>Truncation notice</h4><div>Latest '+trunc.maxEntries+' retained. Dropped '+trunc.messagesDropped+' messages and '+trunc.ccDropped+' CC entries.</div></div>':'')
+}
+function openSessionLog(convId){
+  var payload=buildSessionLogPayload(convId);if(!payload){toast('Session not found');return}
+  state.sessionLog.convId=convId;state.sessionLog.payload=payload;state.sessionLog.tab='summary';
+  var m=document.getElementById('session-log-modal');if(m)m.hidden=false;
+  renderSessionLogModal()
+}
+function copySessionLogJson(){if(!state.sessionLog.payload)return;copyTextWithFallback(JSON.stringify(state.sessionLog.payload,null,2),'Session JSON copied')}
+function copySessionLogMarkdown(){if(!state.sessionLog.payload)return;copyTextWithFallback(buildSessionLogMarkdown(state.sessionLog.payload),'Session summary copied')}
+function downloadSessionLogJson(){
+  if(!state.sessionLog.payload)return;
+  var cid=(state.sessionLog.payload.session&&state.sessionLog.payload.session.convId)||'session';
+  downloadBlobFile('session-log-'+cid+'-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(state.sessionLog.payload,null,2),'application/json');
+  toast('Downloaded .json')
+}
+function downloadSessionLogTxt(){
+  if(!state.sessionLog.payload)return;
+  var cid=(state.sessionLog.payload.session&&state.sessionLog.payload.session.convId)||'session';
+  var text=buildSessionLogMarkdown(state.sessionLog.payload)+'\n\n---\n\n'+JSON.stringify(state.sessionLog.payload,null,2);
+  downloadBlobFile('session-log-'+cid+'-'+new Date().toISOString().slice(0,10)+'.txt',text,'text/plain');
+  toast('Downloaded .txt')
+}
 
 // ════════════════════════════════════════════════════════
 // PREFS + SESSION
@@ -1491,7 +1635,7 @@ function renderSessionList(){
   ss.sort(function(a,b){var ai=order.indexOf(a.convId);var bi=order.indexOf(b.convId);if(ai>=0&&bi>=0)return ai-bi;return(b.lastActivity||0)-(a.lastActivity||0)});
   if(!ss.length){c.innerHTML='<div style="text-align:center;padding:20px;font-size:13px;color:var(--ink-dim);">No conversations yet.</div>';return}
   c.innerHTML=ss.map(function(s){var isActive=state.activeConvId===s.convId;var unread=getUnreadCount(s.convId);var badge=unread>0?'<div style="font-size:10px;font-weight:700;background:var(--teal);color:#fff;padding:2px 7px;border-radius:10px;flex-shrink:0;">'+unread+'</div>':'';
-    return '<div class="sess-card'+(isActive?' active':'')+'" onclick="closeLeftPanel();openSession(\''+s.convId+'\')"><div class="sess-card-info"><div class="sess-card-title">'+escHtml(getSessionLabel(s))+'</div><div class="sess-card-sub">'+timeAgo(s.lastActivity)+'</div></div>'+badge+'<div style="display:flex;gap:2px;"><button class="sess-card-act" onclick="event.stopPropagation();shareSession(\''+s.convId+'\')" title="Share">'+ICON_SHARE+'</button><button class="sess-card-act del" onclick="event.stopPropagation();softDelete(\''+s.convId+'\')" title="Delete">'+ICON_DELETE+'</button></div></div>'
+    return '<div class="sess-card'+(isActive?' active':'')+'" onclick="closeLeftPanel();openSession(\''+s.convId+'\')"><div class="sess-card-info"><div class="sess-card-title">'+escHtml(getSessionLabel(s))+'</div><div class="sess-card-sub">'+timeAgo(s.lastActivity)+'</div></div>'+badge+'<div style="display:flex;gap:2px;"><button class="sess-card-act" onclick="event.stopPropagation();shareSession(\''+s.convId+'\')" title="Share">'+ICON_SHARE+'</button><button class="sess-card-act" onclick="event.stopPropagation();openSessionLog(\''+s.convId+'\')" title="Session log">🧾</button><button class="sess-card-act del" onclick="event.stopPropagation();softDelete(\''+s.convId+'\')" title="Delete">'+ICON_DELETE+'</button></div></div>'
   }).join('')
 }
 function softDelete(cid){var r=getRecycled();var sess=getSession(cid);if(!sess)return;r.push({convId:cid,title:getSessionLabel(sess),deletedAt:Date.now()});saveRecycled(r);if(state.activeConvId===cid){transportDisconnect();showEmptyShell()}renderSessionList();toast('Deleted')}
