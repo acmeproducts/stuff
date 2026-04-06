@@ -234,7 +234,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   <div class="transcript-overlay" id="transcript-overlay">
     <div class="transcript-sheet">
       <div class="transcript-sheet-header">
-        <span class="transcript-sheet-title">Transcript</span>
+        <span class="transcript-sheet-title">Transcript <span id="listening-dot" style="display:none;font-size:10px;color:var(--teal-bright);animation:pulse 1s infinite;">● listening</span></span>
         <div class="transcript-sheet-actions">
           <button class="transcript-sheet-btn" id="transcript-expand-btn" onclick="toggleTranscriptExpanded()">Expand</button>
           <button class="transcript-sheet-btn" onclick="copyTranscript()">Copy</button>
@@ -608,6 +608,10 @@ async function enterCall(){
   setupPeerConnection();
   if(micOn)startSubtitles();
   relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
+  // Auto-open transcript so both parties can see it immediately
+  var ov=document.getElementById('transcript-overlay');
+  if(!ov.classList.contains('show'))ov.classList.add('show');
+  renderTranscript();
 }
 
 // ═══════════════════════════════════════════
@@ -679,7 +683,11 @@ function startSubtitles(){
   recognizer.continuous=true;
   var currentInterimEl=null;
 
-  recognizer.onstart=function(){recognizing=true};
+  recognizer.onstart=function(){
+    recognizing=true;
+    var d=document.getElementById('listening-dot');
+    if(d)d.style.display='';
+  };
 
   recognizer.onresult=function(e){
     var finalText='',interimText='';
@@ -707,7 +715,7 @@ function startSubtitles(){
   recognizer.onend=function(){
     recognizing=false;
     currentInterimEl=null;
-    // Only restart if mic is still on and call is active
+    var ld=document.getElementById("listening-dot");if(ld)ld.style.display="none";
     if(micOn&&room.id&&document.getElementById('call-screen').classList.contains('active')){
       setTimeout(function(){if(micOn&&room.id&&!recognizing)startSubtitles()},300);
     }
@@ -750,7 +758,7 @@ function showSubtitle(text,cls){
 // ═══════════════════════════════════════════
 function addTranscriptEntry(who,sourceText,translatedText,srcLang,tgtLang){
   transcript.push({who:who,sourceText:sourceText,translatedText:translatedText,srcLang:srcLang,tgtLang:tgtLang,ts:Date.now()});
-  if(document.getElementById('transcript-overlay').classList.contains('show'))renderTranscript();
+  renderTranscript();
 }
 
 function toggleTranscript(){
