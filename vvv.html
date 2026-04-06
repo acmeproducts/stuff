@@ -1202,6 +1202,33 @@ function addCcTranscriptEntry(p){
 
 // CC capture — single SpeechRecognition, only active during calls
 var ccRecognition=null,ccActive=false;
+var CC_DEDUPE_TTL_MS=4500,CC_MIN_REPEAT_CHARS=7,CC_MIN_REPEAT_WORDS=2,CC_MIN_CONFIDENCE=0.55,CC_ECHO_SIMILARITY=0.9;
+var ccRecentOutboundByNorm=Object.create(null),ccRecentUiByNorm=Object.create(null),ccLastRemoteEcho={norm:'',ts:0},ccLastOutbound={norm:'',ts:0};
+function normalizeCcText(text){return(text||'').trim().toLowerCase().replace(/\s+/g,' ')}
+function pruneCcRecent(map,now){for(var k in map){if(now-map[k]>CC_DEDUPE_TTL_MS)delete map[k]}}
+function hasRecentCc(map,norm,now){return!!(norm&&map[norm]&&now-map[norm]<=CC_DEDUPE_TTL_MS)}
+function rememberRecentCc(map,norm,now){if(norm)map[norm]=now}
+function ccWordOverlap(a,b){
+  var aa=a.split(' ').filter(Boolean),bb=b.split(' ').filter(Boolean);if(!aa.length||!bb.length)return 0;
+  var seen=Object.create(null),hits=0;for(var i=0;i<aa.length;i++)seen[aa[i]]=1;
+  for(var j=0;j<bb.length;j++)if(seen[bb[j]])hits++;
+  return hits/Math.max(aa.length,bb.length)
+}
+function ccTextSimilarity(a,b){
+  if(!a||!b)return 0;if(a===b)return 1;
+  if((a.indexOf(b)!==-1||b.indexOf(a)!==-1)&&Math.min(a.length,b.length)>=CC_MIN_REPEAT_CHARS)return 0.95;
+  return ccWordOverlap(a,b)
+}
+function shouldDropOutgoingCc(norm,confidence,now){
+  pruneCcRecent(ccRecentOutboundByNorm,now);
+  if(hasRecentCc(ccRecentOutboundByNorm,norm,now))return true;
+  var words=norm?norm.split(' ').filter(Boolean):[];
+  var isShort=norm.length<CC_MIN_REPEAT_CHARS||words.length<CC_MIN_REPEAT_WORDS;
+  if(isShort&&typeof confidence==='number'&&confidence<CC_MIN_CONFIDENCE&&ccLastOutbound.norm&&(now-ccLastOutbound.ts)<=CC_DEDUPE_TTL_MS&&ccTextSimilarity(norm,ccLastOutbound.norm)>=0.7)return true;
+  if(ccLastRemoteEcho.norm&&(now-ccLastRemoteEcho.ts)<=CC_DEDUPE_TTL_MS&&ccTextSimilarity(norm,ccLastRemoteEcho.norm)>=CC_ECHO_SIMILARITY)return true;
+  return false
+}
+function shouldDropLocalUiCc(norm,now){pruneCcRecent(ccRecentUiByNorm,now);return hasRecentCc(ccRecentUiByNorm,norm,now)}
 function startCCCapture(){
   if(state.mediaRuntime.ccOpInFlight||ccActive)return;
   state.mediaRuntime.ccOpInFlight=true;
@@ -1210,23 +1237,48 @@ function startCCCapture(){
   var sess=getSession(state.activeConvId||'');ccRecognition=new SpeechRec();
   ccRecognition.lang=TTS_LOCALE[resolveEffectiveLang(sess,'owner')||'en']||'en';ccRecognition.interimResults=true;ccRecognition.continuous=true;
   ccRecognition.onstart=function(){ccActive=true;state.mediaRuntime.ccOpInFlight=false};
-  ccRecognition.onresult=function(e){var finalText='';for(var i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)finalText+=e.results[i][0].transcript}if(finalText.trim())emitCcTranscript(finalText.trim())};
+  ccRecognition.onresult=function(e){
+    var finalText='',conf=null;
+    for(var i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal){
+        var alt=e.results[i][0]||{};
+        finalText+=alt.transcript||'';
+        if(typeof alt.confidence==='number')conf=Math.max(conf===null?0:conf,alt.confidence)
+      }
+    }
+    var finalTrim=finalText.trim();if(!finalTrim)return;
+    var norm=normalizeCcText(finalTrim),now=Date.now();
+    if(shouldDropOutgoingCc(norm,conf,now))return;
+    emitCcTranscript(finalTrim,{normalized:norm,confidence:conf,now:now})
+  };
   ccRecognition.onend=function(){ccActive=false;if(state.mediaRuntime.ccEnabled){if(ccRestartTimer)clearTimeout(ccRestartTimer);ccRestartTimer=setTimeout(function(){if(state.mediaRuntime.ccEnabled)startCCCapture()},450)}};
   try{ccRecognition.start()}catch(_){state.mediaRuntime.ccOpInFlight=false}
 }
 function stopCCCapture(){if(state.mediaRuntime.ccOpInFlight)return;state.mediaRuntime.ccOpInFlight=true;state.mediaRuntime.ccEnabled=false;if(ccRestartTimer){clearTimeout(ccRestartTimer);ccRestartTimer=null}if(ccRecognition){try{ccRecognition.stop()}catch(_){}}ccRecognition=null;ccActive=false;state.mediaRuntime.ccOpInFlight=false}
-function emitCcTranscript(text){
+function emitCcTranscript(text,meta){
   var sess=getSession(state.activeConvId||'');if(!sess||!text)return;
+  var now=(meta&&meta.now)||Date.now(),norm=(meta&&meta.normalized)||normalizeCcText(text),conf=meta&&meta.confidence;
+  if(shouldDropOutgoingCc(norm,conf,now))return;
+  rememberRecentCc(ccRecentOutboundByNorm,norm,now);
+  ccLastOutbound={norm:norm,ts:now};
   var srcLang=detectLang(text,resolveEffectiveLang(sess,'owner')||'en');
   var tgtLang=resolveEffectiveLang(sess,'partner','en');var stamp=Date.now();
   transportSend({type:'cc-transcript',transient:true,sourceText:text,sourceLang:srcLang,targetLang:tgtLang,timestamp:stamp});
-  translate(text,srcLang,tgtLang).then(function(out){addCcTranscriptEntry({ts:stamp,convId:sess.convId,dir:'local',sourceText:text,targetText:out||text,sourceLang:srcLang,targetLang:tgtLang})})
+  translate(text,srcLang,tgtLang).then(function(out){
+    var uiNow=Date.now();if(shouldDropLocalUiCc(norm,uiNow))return;
+    rememberRecentCc(ccRecentUiByNorm,norm,uiNow);
+    addCcTranscriptEntry({ts:stamp,convId:sess.convId,dir:'local',sourceText:text,targetText:out||text,sourceLang:srcLang,targetLang:tgtLang})
+  })
 }
 function handleRemoteCcTranscript(d,sess){
   var src=(d.sourceText||'').trim();if(!src)return;
   var srcLang=normalizeLangSetting(d.sourceLang)||detectLang(src,'en');
   var tgtLang=resolveEffectiveLang(sess,'owner','en');var stamp=Number(d.timestamp)||Date.now();
-  translate(src,srcLang,tgtLang).then(function(out){addCcTranscriptEntry({ts:stamp,convId:sess.convId,dir:'remote',sourceText:src,targetText:out||src,sourceLang:srcLang,targetLang:tgtLang});if(state.autoSpeakIncoming)speak(out||src,tgtLang,null)})
+  translate(src,srcLang,tgtLang).then(function(out){
+    var echoText=(out||src||'').trim();ccLastRemoteEcho={norm:normalizeCcText(echoText),ts:Date.now()};
+    addCcTranscriptEntry({ts:stamp,convId:sess.convId,dir:'remote',sourceText:src,targetText:out||src,sourceLang:srcLang,targetLang:tgtLang});
+    if(state.autoSpeakIncoming)speak(out||src,tgtLang,null)
+  })
 }
 
 // ════════════════════════════════════════════════════════
