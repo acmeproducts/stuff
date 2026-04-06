@@ -346,7 +346,7 @@ var TTS_LOCALE={en:'en-US',th:'th-TH',ja:'ja-JP',ko:'ko-KR',zh:'zh-CN',ar:'ar-SA
 // ═══ STATE ═══
 var room={id:null,myLang:'',theirLang:'',role:null,name:'',solo:false};
 var deviceId=localStorage.getItem('tb_dev')||(function(){var id=crypto.randomUUID();localStorage.setItem('tb_dev',id);return id})();
-var ws=null,pc=null,localStream=null,remoteStream=null;
+var ws=null,pc=null,videoStream=null,audioStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false,ignoreOffer=false;
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var recognizer=null,recognizing=false;
@@ -473,7 +473,8 @@ function setLobbyState(next){
   document.getElementById('lobby-waiting').style.display=next===LOBBY_STATE.waiting?'block':'none';
 }
 function backToSetup(){
-  if(localStream){localStream.getTracks().forEach(function(t){t.stop()});localStream=null;}
+  if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null;}
+  if(audioStream){audioStream.getTracks().forEach(function(t){t.stop()});audioStream=null;}
   setLobbyState(LOBBY_STATE.setup);
 }
 
@@ -511,9 +512,9 @@ async function reuseRecentRoom(id){
   document.getElementById('room-name').value=rec.name||'';
   syncCreateButton();
   try{
-    localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-    document.getElementById('preview-video').srcObject=localStream;
-  }catch(_){toast('Camera/mic permission needed');return}
+    videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+    document.getElementById('preview-video').srcObject=videoStream;
+  }catch(_){toast('Camera permission needed');return}
   var url=buildInviteUrl();
   document.getElementById('lobby-link').textContent=url;
   var nd=document.getElementById('room-name-display');
@@ -601,10 +602,10 @@ async function createRoom(){
   room.id=uid();room.role='creator';
   logDebug('room_created',{id:room.id,myLang:room.myLang,theirLang:room.theirLang,name:room.name});
   try{
-    localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-    logDebug('media_ok',{audio:localStream.getAudioTracks().length,video:localStream.getVideoTracks().length},'ok');
-    document.getElementById('preview-video').srcObject=localStream;
-  }catch(e){logDebug('media_error',{msg:String(e)},'error');toast('Camera/mic permission needed');return}
+    videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+    logDebug('media_ok',{video:videoStream.getVideoTracks().length},'ok');
+    document.getElementById('preview-video').srcObject=videoStream;
+  }catch(e){logDebug('media_error',{msg:String(e)},'error');toast('Camera permission needed');return}
   var url=buildInviteUrl();
   document.getElementById('lobby-link').textContent=url;
   var nd=document.getElementById('room-name-display');
@@ -626,17 +627,17 @@ function handleInviteHash(payload){
   document.getElementById('joining-screen').classList.add('show');
   document.getElementById('joining-label').textContent='Joining call…';
   logDebug('invite_detected',{room:payload.r,ml:payload.ml,tl:payload.tl});
-  navigator.mediaDevices.getUserMedia({video:true,audio:true})
+  navigator.mediaDevices.getUserMedia({video:true,audio:false})
     .then(function(stream){
-      localStream=stream;
-      logDebug('joiner_media_ok',{audio:stream.getAudioTracks().length,video:stream.getVideoTracks().length},'ok');
+      videoStream=stream;
+      logDebug('joiner_media_ok',{video:stream.getVideoTracks().length},'ok');
       document.getElementById('joining-screen').classList.remove('show');
       joinFromInvite(payload);
     })
     .catch(function(e){
       logDebug('joiner_media_fail',{msg:String(e)},'error');
       document.getElementById('joining-screen').classList.remove('show');
-      toast('Camera and microphone access required to join');
+      toast('Camera access required to join');
       history.replaceState({},'',location.pathname);
     });
   history.replaceState({},'',location.pathname);
@@ -726,11 +727,19 @@ function updateConn(state){
 
 // ═══ ENTER CALL ═══
 async function enterCall(){
-  if(!localStream){
+  // Acquire video-only stream if not already held
+  if(!videoStream){
     try{
-      localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-      logDebug('media_acquired',{audio:localStream.getAudioTracks().length,video:localStream.getVideoTracks().length},'ok');
-    }catch(e){logDebug('media_fail',{msg:String(e)},'error');toast('Camera/mic permission needed');return}
+      videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+      logDebug('video_acquired',{video:videoStream.getVideoTracks().length},'ok');
+    }catch(e){logDebug('video_fail',{msg:String(e)},'error');toast('Camera permission needed');return}
+  }
+  // Acquire audio separately — keeps mic free for SpeechRecognition on Android
+  if(!audioStream){
+    try{
+      audioStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+      logDebug('audio_acquired',{audio:audioStream.getAudioTracks().length},'ok');
+    }catch(e){logDebug('audio_fail',{msg:String(e)},'error');toast('Microphone permission needed');return}
   }
   // Load any prior transcript for this room
   var saved=loadTranscriptFromStorage();
@@ -740,8 +749,8 @@ async function enterCall(){
   document.getElementById('lobby').classList.add('hidden');
   document.getElementById('call-screen').classList.add('active');
   lobbyState=LOBBY_STATE.call;
-  document.getElementById('local-video').srcObject=localStream;
-  localStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
+  document.getElementById('local-video').srcObject=videoStream;
+  audioStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
   syncMicUi();
   updateLanguageBadges();
 
@@ -766,7 +775,8 @@ function setupPeerConnection(){
   if(pc)return;
   pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
   logDebug('pc_created',{});
-  if(localStream)localStream.getTracks().forEach(function(t){pc.addTrack(t,localStream)});
+  var _combined=new MediaStream([...(videoStream?videoStream.getTracks():[]),...(audioStream?audioStream.getTracks():[])]);
+  _combined.getTracks().forEach(function(t){pc.addTrack(t,_combined)});
   pc.onicecandidate=function(e){
     if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}});
   };
@@ -1018,18 +1028,18 @@ function exportPhrasebook(){
 
 // ═══ CONTROLS ═══
 function toggleMic(){
-  if(!localStream)return;
+  if(!audioStream)return;
   micOn=!micOn;
-  localStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
+  audioStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
   logDebug('mic_toggle',{micOn:micOn});
   if(micOn)startSubtitles();
   else stopSubtitles();
   syncMicUi();
 }
 function toggleCam(){
-  if(!localStream)return;
+  if(!videoStream)return;
   camOn=!camOn;
-  localStream.getVideoTracks().forEach(function(t){t.enabled=camOn});
+  videoStream.getVideoTracks().forEach(function(t){t.enabled=camOn});
   document.getElementById('cam-btn').classList.toggle('off',!camOn);
   document.getElementById('cam-icon-on').style.display=camOn?'':'none';
   document.getElementById('cam-icon-off').style.display=camOn?'none':'';
@@ -1051,7 +1061,8 @@ function cleanUp(){
   logDebug('cleanup_start',{room:room.id});
   saveTranscriptToStorage();
   stopSubtitles();
-  if(localStream){localStream.getTracks().forEach(function(t){t.stop()});localStream=null}
+  if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}
+  if(audioStream){audioStream.getTracks().forEach(function(t){t.stop()});audioStream=null}
   if(pc){pc.close();pc=null}
   var rid=room.id;room.id=null;room.solo=false;
   stopHeartbeat();
