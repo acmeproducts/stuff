@@ -412,6 +412,16 @@ function syncMicUi(){
   if(on)on.style.display=micOn?'':'none';
   if(off)off.style.display=micOn?'none':'';
 }
+function syncCamUi(){
+  var btn=document.getElementById('cam-btn');
+  var on=document.getElementById('cam-icon-on');
+  var off=document.getElementById('cam-icon-off');
+  var local=document.getElementById('local-video');
+  if(btn)btn.classList.toggle('off',!camOn);
+  if(on)on.style.display=camOn?'':'none';
+  if(off)off.style.display=camOn?'none':'';
+  if(local)local.style.display=camOn?'':'none';
+}
 
 function translate(text,from,to){
   if(!text||!from||!to||from===to)return Promise.resolve(text);
@@ -569,14 +579,23 @@ function renderRecentRooms(){
     var t=new Date(r.ts).toLocaleString();
     var hasTranscript=!!loadTranscriptFromStorage(r.id).length;
     return '<div class="recent-item">'
-      +'<div class="recent-item-top"><button class="recent-open" onclick="reuseRecentRoom(\''+r.id+'\')">'+escHtml(r.name)+'<small>'+escHtml(t)+'</small></button></div>'
+      +'<div class="recent-item-top"><button class="recent-open js-reuse-room" data-room-id="'+escHtml(r.id)+'">'+escHtml(r.name)+'<small>'+escHtml(t)+'</small></button></div>'
       +'<div class="recent-actions">'
-      +'<button class="recent-act" onclick="reuseRecentRoom(\''+r.id+'\')">▶ Reopen</button>'
-      +(hasTranscript?'<button class="recent-act" onclick="viewRoomTranscript(\''+r.id+'\')">📄 Transcript</button>':'')
-      +'<button class="recent-act danger" onclick="deleteRecentRoom(\''+r.id+'\')">✕ Delete</button>'
+      +'<button class="recent-act js-reuse-room" data-room-id="'+escHtml(r.id)+'">▶ Reopen</button>'
+      +(hasTranscript?'<button class="recent-act js-view-transcript" data-room-id="'+escHtml(r.id)+'">📄 Transcript</button>':'')
+      +'<button class="recent-act danger js-delete-room" data-room-id="'+escHtml(r.id)+'">✕ Delete</button>'
       +'</div>'
       +'</div>';
   }).join('');
+  list.querySelectorAll('.js-reuse-room').forEach(function(btn){
+    btn.addEventListener('click',function(){reuseRecentRoom(btn.dataset.roomId)});
+  });
+  list.querySelectorAll('.js-view-transcript').forEach(function(btn){
+    btn.addEventListener('click',function(){viewRoomTranscript(btn.dataset.roomId)});
+  });
+  list.querySelectorAll('.js-delete-room').forEach(function(btn){
+    btn.addEventListener('click',function(){deleteRecentRoom(btn.dataset.roomId)});
+  });
 }
 
 function populateLangs(){
@@ -685,8 +704,14 @@ function connectRelay(){
     logDebug('relay_close',{code:e.code,reason:e.reason},'warn');
     updateConn('disconnected');
     stopHeartbeat();
-    clearTimeout(wsReconnectTimer);
-    if(room.id)wsReconnectTimer=setTimeout(function(){if(room.id)connectRelay();},2000);
+    clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
+    var canReconnect=!!room.id&&(lobbyState===LOBBY_STATE.waiting||lobbyState===LOBBY_STATE.call);
+    if(canReconnect){
+      wsReconnectTimer=setTimeout(function(){
+        wsReconnectTimer=null;
+        if(room.id&&(lobbyState===LOBBY_STATE.waiting||lobbyState===LOBBY_STATE.call))connectRelay();
+      },2000);
+    }
   };
   ws.onerror=function(e){logDebug('relay_error',{msg:String(e)},'error');};
 }
@@ -752,6 +777,7 @@ async function enterCall(){
   document.getElementById('local-video').srcObject=videoStream;
   audioStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
   syncMicUi();
+  syncCamUi();
   updateLanguageBadges();
 
   // Solo mode banner
@@ -775,8 +801,8 @@ function setupPeerConnection(){
   if(pc)return;
   pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
   logDebug('pc_created',{});
-  var _combined=new MediaStream([...(videoStream?videoStream.getTracks():[]),...(audioStream?audioStream.getTracks():[])]);
-  _combined.getTracks().forEach(function(t){pc.addTrack(t,_combined)});
+  if(videoStream)videoStream.getVideoTracks().forEach(function(t){pc.addTrack(t,videoStream)});
+  if(audioStream)audioStream.getAudioTracks().forEach(function(t){pc.addTrack(t,audioStream)});
   pc.onicecandidate=function(e){
     if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}});
   };
@@ -989,8 +1015,10 @@ function exportTranscriptTxt(){
         (e.translatedText&&e.translatedText!==e.sourceText?'\n → ('+((e.tgtLang||'?').toUpperCase())+'): '+e.translatedText:'');
     }).join('\n\n');
   var blob=new Blob([text],{type:'text/plain'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=url;
   a.download='talkbridge-'+new Date().toISOString().slice(0,10)+'.txt';a.click();
+  setTimeout(function(){URL.revokeObjectURL(url)},0);
   toast('TXT exported');
 }
 
@@ -1021,8 +1049,10 @@ function exportPhrasebook(){
     tags:['talkbridge'],exportedAt:now
   };
   var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=url;
   a.download='talkbridge-phrasebook-'+new Date(now).toISOString().slice(0,10)+'.json';a.click();
+  setTimeout(function(){URL.revokeObjectURL(url)},0);
   toast('Phrasebook exported');
 }
 
@@ -1040,10 +1070,7 @@ function toggleCam(){
   if(!videoStream)return;
   camOn=!camOn;
   videoStream.getVideoTracks().forEach(function(t){t.enabled=camOn});
-  document.getElementById('cam-btn').classList.toggle('off',!camOn);
-  document.getElementById('cam-icon-on').style.display=camOn?'':'none';
-  document.getElementById('cam-icon-off').style.display=camOn?'none':'';
-  document.getElementById('local-video').style.display=camOn?'':'none';
+  syncCamUi();
 }
 async function togglePiP(){
   var target=document.getElementById('remote-video');
@@ -1059,6 +1086,7 @@ function hangUp(){relaySend({type:'hangup'});cleanUp();}
 
 function cleanUp(){
   logDebug('cleanup_start',{room:room.id});
+  clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
   saveTranscriptToStorage();
   stopSubtitles();
   if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}
@@ -1076,7 +1104,7 @@ function cleanUp(){
   document.getElementById('subtitle-area').innerHTML='';
   document.getElementById('no-video-msg').style.display='';
   remoteStream=null;transcript=[];
-  micOn=true;syncMicUi();
+  micOn=true;camOn=true;syncMicUi();syncCamUi();
   renderRecentRooms();
   logDebug('cleanup_done',{room:rid},'ok');
 }
@@ -1085,6 +1113,7 @@ function cleanUp(){
 populateLangs();
 renderRecentRooms();
 syncMicUi();
+syncCamUi();
 logDebug('app_init',{deviceId:deviceId,ua:navigator.userAgent,speechRec:!!SpeechRec,tls:location.protocol==='https:'||location.hostname==='localhost'},'ok');
 
 var hp=new URLSearchParams((location.hash||'').replace(/^#/,''));
