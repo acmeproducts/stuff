@@ -1154,7 +1154,17 @@ function timeAgo(t){if(!t)return'';const d=Date.now()-t;if(d<60000)return'now';i
 function fmtTime(t){return new Date(t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 function langLabel(c){return LANG_MAP[c]||c||'?';}
 function updateAutoSpeakBtn(){const btn=document.getElementById('auto-tts-btn');if(!btn)return;const on=!!state.autoSpeakIncoming;btn.classList.toggle('on',on);btn.setAttribute('aria-pressed',on?'true':'false');btn.textContent=(on?'🔊':'🔇')+' Auto-read';}
-function toggleAutoSpeakIncoming(){state.autoSpeakIncoming=!state.autoSpeakIncoming;const p=getPrefs();p.autoSpeakIncoming=state.autoSpeakIncoming;savePrefs(p);updateAutoSpeakBtn();toast('Auto-read '+(state.autoSpeakIncoming?'enabled':'disabled'));}
+function toggleAutoSpeakIncoming(){
+  state.autoSpeakIncoming=!state.autoSpeakIncoming;
+  if(state.session){
+    state.session.autoSpeakIncoming=state.autoSpeakIncoming;
+    saveSession();
+  }else{
+    const p=getPrefs();p.autoSpeakIncoming=state.autoSpeakIncoming;savePrefs(p);
+  }
+  updateAutoSpeakBtn();
+  toast('Auto-read '+(state.autoSpeakIncoming?'enabled':'disabled'));
+}
 function findMsg(id){return state.messages.find(m=>m.id===id);}
 function normalizeTag(s){return s.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'').slice(0,24);}
 function normName(n){return(n||'').trim().toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'').replace(/^-+|-+$/g,'').slice(0,24);}
@@ -1269,8 +1279,9 @@ function quickStart(){
   const partnerLang=p.partnerLang||'th';
   // Use 6-digit random code as session ID
   const sessionId=makeSessionCode();
-  const sess={sessionId,isInitiator:true,myName,partnerName,myLang,partnerLang,pin:'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false,languageTimeline:[],translationMode:p.translationMode||'Hybrid',highQuality:p.highQuality===true};
+  const sess={sessionId,isInitiator:true,myName,partnerName,myLang,partnerLang,pin:'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false,languageTimeline:[],translationMode:p.translationMode||'Hybrid',highQuality:p.highQuality===true,autoSpeakIncoming:!!p.autoSpeakIncoming};
   state.session=sess;state.messages=[];msgQueue=[];
+  state.autoSpeakIncoming=!!sess.autoSpeakIncoming;
   saveSession();renderAllMessages();updateChatHeader();setConnected(false);
   showScreen('chat-screen');addSysMsg('Waiting for '+partnerName+'…');
   initPeerAsHost();
@@ -1327,8 +1338,9 @@ function doJoinWithPrefs(code,myName,myLang,partnerLang){
   const sessionId=code;
   const existing=getAllSessions().find(s=>s.sessionId===sessionId);
   const prefs=getPrefs();
-  const sess={sessionId,isInitiator:false,myName,partnerName:existing?.partnerName||'Host',myLang,partnerLang:existing?.partnerLang||partnerLang,pin:'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false,languageTimeline:existing?.languageTimeline||[],translationMode:existing?.translationMode||prefs.translationMode||'Hybrid',highQuality:(existing?.highQuality??prefs.highQuality)===true};
+  const sess={sessionId,isInitiator:false,myName,partnerName:existing?.partnerName||'Host',myLang:existing?.myLang||myLang,partnerLang:existing?.partnerLang||partnerLang,pin:'',createdAt:Date.now(),lastActivity:Date.now(),lastViewedAt:Date.now(),_sentHelloBack:false,languageTimeline:existing?.languageTimeline||[],translationMode:existing?.translationMode||prefs.translationMode||'Hybrid',highQuality:(existing?.highQuality??prefs.highQuality)===true,autoSpeakIncoming:(existing?.autoSpeakIncoming??prefs.autoSpeakIncoming)===true};
   state.session=sess;state.messages=existing?getMsgs(sessionId):[];msgQueue=[];
+  state.autoSpeakIncoming=!!sess.autoSpeakIncoming;
   saveSession();renderAllMessages();updateChatHeader();setConnected(false);
   showScreen('chat-screen');addSysMsg('Connecting…');
   initPeerAsJoiner();
@@ -1340,6 +1352,7 @@ function loadSession(sid){
   const s=getAllSessions().find(x=>x.sessionId===sid);
   if(!s){toast('Session not found');return;}
   state.session=s;state.messages=getMsgs(sid);msgQueue=[];
+  state.autoSpeakIncoming=(state.session.autoSpeakIncoming??getPrefs().autoSpeakIncoming)===true;
   if(!Array.isArray(state.session.languageTimeline))state.session.languageTimeline=[];
   if(!state.session.translationMode)state.session.translationMode=getPrefs().translationMode||'Hybrid';
   setActiveId(sid);renderAllMessages();updateChatHeader();
