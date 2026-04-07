@@ -540,8 +540,9 @@ function isCallActive(){return !!(room.id&&$('call-screen').classList.contains('
 function clearSpeechRestart(){if(restartTimer){clearTimeout(restartTimer);restartTimer=null}restartScheduled=false}
 function resetSpeechState(){clearSpeechRestart();restartBackoff=250;endBurst=[]}
 function canAutoStartSpeech(){return !!(SpeechRec&&wantSpeech&&micOn&&isCallActive()&&!document.hidden&&Date.now()>=speechBlockedUntil)}
+function canScheduleSpeechRestart(){return !restartScheduled&&Date.now()>=speechBlockedUntil}
 function scheduleSpeechRestart(reason,minDelay){
-  if(!canAutoStartSpeech()||restartScheduled)return;
+  if(!canScheduleSpeechRestart()||!canAutoStartSpeech())return;
   var now=Date.now();
   restartBackoff=(now-lastRestartTs<2500)?Math.min(6000,Math.max(restartBackoff*1.7,300)):Math.max(250,restartBackoff*0.85);
   lastRestartTs=now;
@@ -587,7 +588,7 @@ function startSpeech(){
       log('speech_end_burst',{count:endBurst.length},'warn');
       return;
     }
-    scheduleSpeechRestart('onend',1200);
+    scheduleSpeechRestart('onend',2200);
   };
   recognizer.onerror=function(e){
     if(gen!==speechGen)return;
@@ -597,8 +598,8 @@ function startSpeech(){
       return;
     }
     if(e.error==='audio-capture')toast('Microphone unavailable');
-    if(e.error==='aborted'||e.error==='network')scheduleSpeechRestart('onerror:'+e.error,1400);
-    else scheduleSpeechRestart('onerror:'+e.error,900);
+    if(e.error==='aborted'||e.error==='network')scheduleSpeechRestart('onerror:'+e.error,2600);
+    else scheduleSpeechRestart('onerror:'+e.error,1200);
   };
   try{recognizer.start()}catch(_){recognizerActive=false;scheduleSpeechRestart('start-throw',800)}
 }
