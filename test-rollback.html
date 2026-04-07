@@ -869,6 +869,7 @@ function normalizeSession(sess){
   if(Number(raw.lastViewedAt))out.lastViewedAt=Number(raw.lastViewedAt);
   if(raw.inviterDeviceId)out.inviterDeviceId=raw.inviterDeviceId;
   if(Number(raw.inviteCreatedAt))out.inviteCreatedAt=Number(raw.inviteCreatedAt);
+  if(typeof raw.autoSpeakIncoming==='boolean')out.autoSpeakIncoming=raw.autoSpeakIncoming;
   return out;
 }
 function getAllSessions(){return lsJSON(SK.sessions,[]).map(normalizeSession).filter(function(s){return !!s.convId;});}
@@ -1674,7 +1675,7 @@ function ensureUserName(callback){
 function createNewSession(silent){
   ensureUserName(function(name){
     var cid=uid();var p=getPrefs();var now=Date.now();
-    var sess=normalizeSession({convId:cid,myName:name,peerName:'',myLang:p.myLang||'en',partnerLang:p.myLang||'en',createdAt:now,lastActivity:now,lastViewedAt:now});
+    var sess=normalizeSession({convId:cid,myName:name,peerName:'',myLang:p.myLang||'en',partnerLang:p.myLang||'en',autoSpeakIncoming:(p.autoSpeakIncoming===true),createdAt:now,lastActivity:now,lastViewedAt:now});
     putSession(sess);
     var order=getSessionOrder();order.unshift(cid);saveSessionOrder(normalizeSessionOrder(order));
     closeLeftPanel();
@@ -1691,6 +1692,7 @@ function openInviteScreen(cid){
   }
   state.activeConvId=cid;
   state.messages=getMsgs(cid);
+  syncAutoReadForSession(sess);
   setActiveConvId(cid);markViewed(cid);
   // Add invite system message if not already present
   addInviteMessage(cid);
@@ -1739,6 +1741,10 @@ function resendInvite(){
   toast('Invite resent');
 }
 
+function syncAutoReadForSession(sess){
+  state.autoSpeakIncoming=((sess&&sess.autoSpeakIncoming)!=null?sess.autoSpeakIncoming:getPrefs().autoSpeakIncoming)===true;
+}
+
 function openSession(cid){
   var sess=getSession(cid);if(!sess){toast('Not found');return;}
   sess=putSession(sess);
@@ -1753,6 +1759,7 @@ function openSession(cid){
     state.pendingInviteId=null;
   }
   state.activeConvId=cid;state.messages=getMsgs(cid);
+  syncAutoReadForSession(sess);
   if(stampExistingMessageNames(state.messages,sess))saveMsgs(cid,state.messages);
   setActiveConvId(cid);markViewed(cid);
   document.getElementById('shell-empty').style.display='none';
@@ -2062,7 +2069,7 @@ function speak(text,lang,btn){
   });
 }
 function setTTSBtn(btn,on){if(!btn)return;btn.classList.toggle('playing',on);}
-function toggleAutoRead(){state.autoSpeakIncoming=!state.autoSpeakIncoming;var p=getPrefs();p.autoSpeakIncoming=state.autoSpeakIncoming;savePrefs(p);updateAutoReadBtn();if(state.autoSpeakIncoming&&!canSpeak)toast('Auto-read enabled but speech unavailable');else toast('Auto-read '+(state.autoSpeakIncoming?'on':'off'));}
+function toggleAutoRead(){state.autoSpeakIncoming=!state.autoSpeakIncoming;var p=getPrefs();p.autoSpeakIncoming=state.autoSpeakIncoming;savePrefs(p);var sess=state.activeConvId&&getSession(state.activeConvId);if(sess){sess.autoSpeakIncoming=state.autoSpeakIncoming;putSession(sess);}updateAutoReadBtn();if(state.autoSpeakIncoming&&!canSpeak)toast('Auto-read enabled but speech unavailable');else toast('Auto-read '+(state.autoSpeakIncoming?'on':'off'));}
 function updateAutoReadBtn(){var btn=document.getElementById('autoread-btn');if(btn)btn.style.color=state.autoSpeakIncoming?'var(--teal)':'var(--ink-mid)';}
 
 // ════════════════════════════════════════════════════════
