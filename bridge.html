@@ -1068,7 +1068,11 @@ function addTranscriptEntry(who,sourceText,translatedText,srcLang,tgtLang,subtit
     prev.translatedText=prev.sourceText;
     if(srcLang)prev.srcLang=srcLang;
     if(tgtLang)prev.tgtLang=tgtLang;
-    if(subtitleSeq)prev.subtitleSeq=subtitleSeq;
+    if(subtitleSeq&&prev.subtitleSeq!==subtitleSeq){
+      if(!Array.isArray(prev.mergedSubtitleSeqs))prev.mergedSubtitleSeqs=[];
+      if(prev.subtitleSeq!=null&&prev.mergedSubtitleSeqs.indexOf(prev.subtitleSeq)<0)prev.mergedSubtitleSeqs.push(prev.subtitleSeq);
+      if(prev.mergedSubtitleSeqs.indexOf(subtitleSeq)<0)prev.mergedSubtitleSeqs.push(subtitleSeq);
+    }
     prev.ts=now;
     saveTranscriptToStorage();
     var ovMerge=document.getElementById('transcript-overlay');
@@ -1087,12 +1091,17 @@ function addTranscriptEntry(who,sourceText,translatedText,srcLang,tgtLang,subtit
   else appendTranscriptEntry(entry);
 }
 
+function transcriptEntryMatchesSeq(entry,subtitleSeq){
+  if(entry.subtitleSeq===subtitleSeq)return true;
+  return Array.isArray(entry.mergedSubtitleSeqs)&&entry.mergedSubtitleSeqs.indexOf(subtitleSeq)>=0;
+}
+
 function patchTranscriptEntry(who,subtitleSeq,newTranslatedText,srcLang,tgtLang){
   newTranslatedText=normalizeTranscriptText(newTranslatedText);
   if(!newTranslatedText)return;
   for(var i=transcript.length-1;i>=0;i--){
     var entry=transcript[i];
-    if(entry.who===who&&entry.subtitleSeq===subtitleSeq){
+    if(entry.who===who&&transcriptEntryMatchesSeq(entry,subtitleSeq)){
       if(entry.translatedText===newTranslatedText)return;
       entry.translatedText=newTranslatedText;
       if(srcLang)entry.srcLang=srcLang;
