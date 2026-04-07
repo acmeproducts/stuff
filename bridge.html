@@ -186,7 +186,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <button class="lobby-link-btn" onclick="copyLink()">Copy link</button>
         <button class="lobby-link-btn" onclick="shareLink()">Share</button>
       </div>
-      <button class="lobby-btn" style="margin-top:12px;" onclick="enterSolo()">Enter room now (solo / test)</button>
       <button class="lobby-btn secondary" style="margin-top:8px;" onclick="backToSetup()">← Back</button>
       <div style="margin-top:12px;font-size:12px;color:var(--text-muted);text-align:center;">Or wait for partner to join via link…</div>
     </div>
@@ -249,6 +248,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       <span class="call-transcript-title" id="transcript-ribbon-title">Transcript</span>
       <div class="call-transcript-actions">
         <button class="call-transcript-btn transcript-chevron" id="transcript-toggle-btn" onclick="toggleTranscript()" title="Expand/collapse transcript">⌃</button>
+        <button class="call-transcript-btn" onclick="copyLink()">Copy invite</button>
+        <button class="call-transcript-btn" onclick="shareLink()">Share invite</button>
         <button class="call-transcript-btn" onclick="copyTr()">Copy</button>
         <button class="call-transcript-btn" onclick="exportTxt()">TXT ↓</button>
       </div>
@@ -363,7 +364,7 @@ async function reuseRoom(id){
   $('my-lang').value=rec.myLang;$('their-lang').value=rec.theirLang;$('room-name').value=rec.name||'';syncBtn();
   try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});$('preview-video').srcObject=videoStream}catch(_){toast('Camera needed');return}
   $('lobby-link').textContent=invUrl();var nd=$('room-name-display');if(nd)nd.textContent=rec.name?'📋 '+rec.name:'';
-  saveRecent();setLS(LS.waiting);connectRelay();
+  saveRecent();enterCall();
 }
 function viewRoomTr(id){
   var rec=getRecent().find(function(r){return r.id===id});var entries=loadTr(id);viewingRoomId=id;
@@ -394,9 +395,8 @@ async function createRoom(){
   room.id=uid();room.role='creator';
   try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});$('preview-video').srcObject=videoStream}catch(_){toast('Camera needed');return}
   $('lobby-link').textContent=invUrl();var nd=$('room-name-display');if(nd)nd.textContent=room.name?'📋 '+room.name:'';
-  saveRecent();setLS(LS.waiting);connectRelay();
+  saveRecent();enterCall();
 }
-function enterSolo(){room.solo=true;enterCall()}
 
 function handleHash(p){
   if(!p||!p.r)return;$('joining-screen').classList.add('show');
@@ -407,8 +407,8 @@ function handleHash(p){
   }).catch(function(){$('joining-screen').classList.remove('show');toast('Camera access required');history.replaceState({},'',location.pathname)});
   history.replaceState({},'',location.pathname);
 }
-function copyLink(){var u=$('lobby-link').textContent||invUrl();if(navigator.clipboard)navigator.clipboard.writeText(u).then(function(){toast('Link copied')})}
-function shareLink(){var u=$('lobby-link').textContent||invUrl();if(navigator.share)navigator.share({title:'TalkBridge',url:u}).catch(function(){});else copyLink()}
+function copyLink(){var u=room.id?invUrl():($('lobby-link').textContent||invUrl());if(navigator.clipboard)navigator.clipboard.writeText(u).then(function(){toast('Link copied')})}
+function shareLink(){var u=room.id?invUrl():($('lobby-link').textContent||invUrl());if(navigator.share)navigator.share({title:'TalkBridge',url:u}).catch(function(){});else copyLink()}
 
 function connectRelay(){
   if(ws)try{ws.close()}catch(_){}
@@ -445,6 +445,7 @@ function handleRelay(d){
 async function enterCall(){
   recentFinals=[];
   if(!videoStream){try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false})}catch(_){toast('Camera needed');return}}
+  $('lobby-link').textContent=invUrl();
   transcript=loadTr()||[];
   $('lobby').classList.add('hidden');
   if(!callHistoryPushed){history.pushState({tbView:'call'},'',location.href);callHistoryPushed=true}
