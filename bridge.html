@@ -931,6 +931,45 @@ function startSubtitles(){
   recognizer.continuous=false;  // false = reliable on Android + WebRTC
   recognizer.maxAlternatives=1;
   var currentInterimEl=null;
+  var latestInterimText='';
+
+  function commitFinalTranscript(finalText){
+    finalText=normalizeTranscriptText(finalText);
+    if(!finalText)return;
+    var finalNow=Date.now();
+    if(finalText===speechLastFinalText&&finalNow-speechLastFinalAt<2500){
+      logDebug('speech_final_dedup',{text:finalText.slice(0,60)},'warn');
+      return;
+    }
+    speechLastFinalText=finalText;
+    speechLastFinalAt=finalNow;
+    speechLastInterimText='';
+    latestInterimText='';
+    speechSawFinal=true;
+    speechTimeoutToastAt=0;
+    speechFirstFinalWarned=false;
+    clearSpeechFirstFinalTimer();
+    if(!speechFinalStable){
+      speechFinalStable=true;
+      resetSpeechRetryState('first_final');
+    }
+    logDebug('speech_final',{text:finalText.slice(0,60)},'ok');
+    if(currentInterimEl){currentInterimEl.remove();currentInterimEl=null}
+    var srcLang=detectLang(finalText,room.myLang);
+    var tgtLang=room.theirLang;
+    var subtitleSeq=++localSubtitleSeq;
+    showSubtitle(finalText,'mine');
+    relaySend({type:'subtitle',subtitleSeq:subtitleSeq,text:finalText,sourceText:finalText,sourceLang:srcLang,targetLang:tgtLang,provisional:true});
+    addTranscriptEntry('me',finalText,finalText,srcLang,tgtLang,subtitleSeq);
+    translate(finalText,srcLang,tgtLang).then(function(translated){
+      translated=normalizeTranscriptText(translated)||finalText;
+      if(translated!==finalText){
+        relaySend({type:'subtitle-update',subtitleSeq:subtitleSeq,text:translated,sourceText:finalText,sourceLang:srcLang,targetLang:tgtLang});
+        showSubtitle(translated,'mine-translation');
+        patchTranscriptEntry('me',subtitleSeq,translated,srcLang,tgtLang);
+      }
+    });
+  }
 
   recognizer.onstart=function(){
     if(gen!==speechSessionGen)return;
@@ -965,43 +1004,15 @@ function startSubtitles(){
       if(interimText!==speechLastInterimText&&now-speechLastInterimAt>80){
         speechLastInterimText=interimText;
         speechLastInterimAt=now;
+        latestInterimText=interimText;
         if(!currentInterimEl)currentInterimEl=showSubtitle(interimText,'mine interim');
         else currentInterimEl.textContent=interimText;
       }
     }
     if(finalText){
-      var finalNow=Date.now();
-      if(finalText===speechLastFinalText&&finalNow-speechLastFinalAt<2500){
-        logDebug('speech_final_dedup',{text:finalText.slice(0,60)},'warn');
-        return;
-      }
-      speechLastFinalText=finalText;
-      speechLastFinalAt=finalNow;
-      speechLastInterimText='';
-      speechSawFinal=true;
-      speechTimeoutToastAt=0;
-      speechFirstFinalWarned=false;
-      clearSpeechFirstFinalTimer();
-      if(!speechFinalStable){
-        speechFinalStable=true;
-        resetSpeechRetryState('first_final');
-      }
-      logDebug('speech_final',{text:finalText.slice(0,60)},'ok');
-      if(currentInterimEl){currentInterimEl.remove();currentInterimEl=null}
-      var srcLang=detectLang(finalText,room.myLang);
-      var tgtLang=room.theirLang;
-      var subtitleSeq=++localSubtitleSeq;
-      showSubtitle(finalText,'mine');
-      relaySend({type:'subtitle',subtitleSeq:subtitleSeq,text:finalText,sourceText:finalText,sourceLang:srcLang,targetLang:tgtLang,provisional:true});
-      addTranscriptEntry('me',finalText,finalText,srcLang,tgtLang,subtitleSeq);
-      translate(finalText,srcLang,tgtLang).then(function(translated){
-        translated=normalizeTranscriptText(translated)||finalText;
-        if(translated!==finalText){
-          relaySend({type:'subtitle-update',subtitleSeq:subtitleSeq,text:translated,sourceText:finalText,sourceLang:srcLang,targetLang:tgtLang});
-          showSubtitle(translated,'mine-translation');
-          patchTranscriptEntry('me',subtitleSeq,translated,srcLang,tgtLang);
-        }
-      });
+      commitFinalTranscript(finalText);
+    }else if(interimText){
+      latestInterimText=interimText;
     }
   };
 
@@ -1009,6 +1020,10 @@ function startSubtitles(){
 
   recognizer.onend=function(){
     if(gen!==speechSessionGen)return;
+    if(!speechSawFinal&&latestInterimText){
+      logDebug('speech_promote_interim_on_end',{text:latestInterimText.slice(0,60)},'warn');
+      commitFinalTranscript(latestInterimText);
+    }
     recognizing=false;currentInterimEl=null;
     clearSpeechFirstFinalTimer();
     var d=document.getElementById('listening-dot');if(d)d.style.display='none';
