@@ -1886,6 +1886,41 @@ function hydrateSessionFromInvite(sess,invite){
   sess.inviteCreatedAt=sess.inviteCreatedAt||invite.createdAt;
   return normalizeSession(sess);
 }
+function prepareJoinSession(sessionId,prefs,invite){
+  var sess=getSession(sessionId);
+  if(!sess){
+    var now=Date.now();
+    sess=normalizeSession({convId:sessionId,myName:prefs.userName||'yournamehere',peerName:'',myLang:prefs.myLang||'en',partnerLang:prefs.myLang||'en',createdAt:now,lastActivity:now,lastViewedAt:now});
+    putSession(sess);
+    var order=getSessionOrder();order.unshift(sessionId);saveSessionOrder(normalizeSessionOrder(order));
+  }else{
+    putSession(sess);
+  }
+  if(invite)sess=hydrateSessionFromInvite(sess,invite);
+  putSession(sess);
+  return sess;
+}
+function processJoinFromUrl(){
+  var up=new URLSearchParams(location.search);
+  var joinId=(up.get('join')||'').trim();
+  var invite=parseInviteFromSearch(up);
+  var targetId=joinId||(invite&&invite.sessionId)||'';
+  if(!targetId)return false;
+  var p=getPrefs();
+  if(invite&&isPlaceholderName(p.userName)){
+    var rname=prompt('Enter your name:');
+    if(rname&&rname.trim()){p.userName=rname.trim();savePrefs(p);var nameEl=document.getElementById('left-local-name');if(nameEl)nameEl.textContent=p.userName;}
+  }
+  if(state.activeConvId&&state.activeConvId!==targetId){
+    transportDisconnect({preserveQueue:false});
+  }
+  prepareJoinSession(targetId,p,invite);
+  if(location.search){
+    history.replaceState(history.state||{},'',location.pathname);
+  }
+  openSession(targetId);
+  return true;
+}
 function shareSession(cid){
   var sess=getSession(cid);if(!sess){toast('Not found');return;}
   var p=getPrefs();
@@ -3649,33 +3684,7 @@ document.addEventListener('DOMContentLoaded',function(){
   initTagPickerInput();
   updateDot();
 
-  // Deep link — short ?j= format (responder joining)
-  var up=new URLSearchParams(location.search);
-  var invite=parseInviteFromSearch(up);
-  if(invite){
-    history.replaceState({},'',location.pathname);
-    // Prompt for name if not set
-    if(isPlaceholderName(p.userName)){
-      var rname=prompt('Enter your name:');
-      if(rname&&rname.trim()){p.userName=rname.trim();savePrefs(p);var nameEl=document.getElementById('left-local-name');if(nameEl)nameEl.textContent=p.userName;}
-    }
-    var sess=getSession(invite.sessionId);
-    if(!sess){
-      var now=Date.now();
-      sess=normalizeSession({convId:invite.sessionId,myName:p.userName||'yournamehere',peerName:'',myLang:p.myLang||'en',partnerLang:p.myLang||'en',createdAt:now,lastActivity:now,lastViewedAt:now});
-      putSession(sess);
-      var order=getSessionOrder();order.unshift(invite.sessionId);saveSessionOrder(normalizeSessionOrder(order));
-    }else{
-      putSession(sess);
-    }
-    sess=hydrateSessionFromInvite(sess,invite);
-    state.activeConvId=invite.sessionId;
-    state.messages=getMsgs(invite.sessionId);
-    addInviteMessage(invite.sessionId);
-    putSession(sess);
-    openSession(invite.sessionId);
-    return;
-  }
+  if(processJoinFromUrl())return;
 
   var aid=getActiveConvId();
   if(aid&&getSession(aid)){
@@ -3698,6 +3707,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
   // online/offline handlers registered in transport block
 });
+window.addEventListener('popstate',function(){processJoinFromUrl();});
 </script>
 <div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">Test Version for Pam</div></body>
 </html>
