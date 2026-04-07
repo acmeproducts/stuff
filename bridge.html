@@ -346,11 +346,11 @@ var TTS_LOCALE={en:'en-US',th:'th-TH',ja:'ja-JP',ko:'ko-KR',zh:'zh-CN',ar:'ar-SA
 // ═══ STATE ═══
 var room={id:null,myLang:'',theirLang:'',role:null,name:'',solo:false};
 var deviceId=localStorage.getItem('tb_dev')||(function(){var id=crypto.randomUUID();localStorage.setItem('tb_dev',id);return id})();
-var ws=null,pc=null,videoStream=null,audioStream=null,remoteStream=null;
+var ws=null,pc=null,videoStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false,ignoreOffer=false;
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var recognizer=null,recognizing=false;
-var speechFirstFinalTimer=null,speechSawFinal=false,speechAudioCaptureFailCount=0;
+var speechFirstFinalTimer=null,speechSawFinal=false;
 var speechTimeoutToastAt=0;
 var transcript=[];
 var trCache=new Map();
@@ -488,7 +488,6 @@ function setLobbyState(next){
 }
 function backToSetup(){
   if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null;}
-  if(audioStream){audioStream.getTracks().forEach(function(t){t.stop()});audioStream=null;}
   setLobbyState(LOBBY_STATE.setup);
 }
 
@@ -754,33 +753,6 @@ function updateConn(state){
   text.textContent=state==='connected'?'Connected':(state==='connecting'?'Connecting…':'Disconnected');
 }
 
-async function ensureAudioStream(reason,opts){
-  opts=opts||{};
-  if(audioStream&&audioStream.getAudioTracks().length){
-    return true;
-  }
-  try{
-    audioStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-    audioStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
-    logDebug('audio_acquired',{audio:audioStream.getAudioTracks().length,reason:reason||'unknown'},'ok');
-    attachAudioTrackToPeer();
-    return true;
-  }catch(e){
-    logDebug('audio_fail',{msg:String(e),reason:reason||'unknown'},'error');
-    if(!opts.silentToast)toast('Microphone unavailable for call audio');
-    return false;
-  }
-}
-
-function attachAudioTrackToPeer(){
-  if(!pc||!audioStream)return;
-  var senders=pc.getSenders?pc.getSenders():[];
-  var hasAudioSender=senders.some(function(s){return s&&s.track&&s.track.kind==='audio'});
-  if(hasAudioSender)return;
-  audioStream.getAudioTracks().forEach(function(t){pc.addTrack(t,audioStream)});
-  logDebug('pc_audio_track_added',{tracks:audioStream.getAudioTracks().length},'ok');
-}
-
 function clearSpeechFirstFinalTimer(){
   if(speechFirstFinalTimer){
     clearTimeout(speechFirstFinalTimer);
@@ -843,8 +815,6 @@ function setupPeerConnection(){
   pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
   logDebug('pc_created',{});
   if(videoStream)videoStream.getVideoTracks().forEach(function(t){pc.addTrack(t,videoStream)});
-  attachAudioTrackToPeer();
-  ensureAudioStream('webrtc_publish',{silentToast:true});
   pc.onicecandidate=function(e){
     if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}});
   };
@@ -933,7 +903,6 @@ function startSubtitles(){
       if(!speechSawFinal&&recognizing&&micOn&&room.id&&document.getElementById('call-screen').classList.contains('active')){
         logDebug('speech_first_final_timeout',{timeoutSec:4},'warn');
         maybeToastSpeechTimeout();
-        ensureAudioStream('speech_health_timeout',{silentToast:true});
       }
     },4000);
     logDebug('speech_recognizing',{},'ok');
@@ -955,24 +924,16 @@ function startSubtitles(){
       speechSawFinal=true;
       speechTimeoutToastAt=0;
       clearSpeechFirstFinalTimer();
-      speechAudioCaptureFailCount=0;
       logDebug('speech_final',{text:finalText.slice(0,60)},'ok');
       if(currentInterimEl){currentInterimEl.remove();currentInterimEl=null}
       var srcLang=detectLang(finalText,room.myLang);
       var tgtLang=room.theirLang;
       showSubtitle(finalText,'mine');
-      if(!room.solo)ensureAudioStream('post_speech_success',{silentToast:true});
       translate(finalText,srcLang,tgtLang).then(function(translated){
         relaySend({type:'subtitle',text:translated,sourceText:finalText,sourceLang:srcLang,targetLang:tgtLang});
         if(translated&&translated!==finalText)showSubtitle(translated,'mine-translation');
         addTranscriptEntry('me',finalText,translated,srcLang,tgtLang);
       });
-      // Force short recognition cycles so continuous=false mode never gets stuck after one utterance.
-      setTimeout(function(){
-        if(recognizer&&recognizing&&micOn&&room.id){
-          try{recognizer.stop();logDebug('speech_cycle_stop',{});}catch(_){ }
-        }
-      },50);
     }
   };
 
@@ -996,15 +957,7 @@ function startSubtitles(){
     logDebug('speech_error',{error:e.error},'error');
     if(e.error==='not-allowed')toast('Mic permission needed');
     else if(e.error==='network')toast('Speech: network error');
-    else if(e.error==='audio-capture'){
-      speechAudioCaptureFailCount++;
-      if(speechAudioCaptureFailCount>=2){
-        toast('Transcript cannot start: microphone capture is busy or unavailable.');
-      }else{
-        toast('Speech: mic capture failed');
-      }
-      ensureAudioStream('speech_audio_capture_error',{silentToast:true});
-    }
+    else if(e.error==='audio-capture')toast('Transcript cannot start: microphone capture is unavailable.');
     if(e.error!=='not-allowed'&&micOn&&room.id){
       setTimeout(function(){if(micOn&&room.id&&!recognizing)startSubtitles();},800);
     }
@@ -1142,8 +1095,7 @@ function exportPhrasebook(){
 // ═══ CONTROLS ═══
 function toggleMic(){
   micOn=!micOn;
-  if(audioStream)audioStream.getAudioTracks().forEach(function(t){t.enabled=micOn});
-  logDebug('mic_toggle',{micOn:micOn,hasAudioStream:!!audioStream});
+  logDebug('mic_toggle',{micOn:micOn});
   if(micOn)startSubtitles();
   else stopSubtitles();
   syncMicUi();
@@ -1172,7 +1124,6 @@ function cleanUp(){
   saveTranscriptToStorage();
   stopSubtitles();
   if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}
-  if(audioStream){audioStream.getTracks().forEach(function(t){t.stop()});audioStream=null}
   if(pc){pc.close();pc=null}
   var rid=room.id;room.id=null;room.solo=false;
   stopHeartbeat();
