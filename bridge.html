@@ -88,7 +88,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 /* ═══ CALL SCREEN ═══ */
 .call{position:fixed;inset:0;background:#000;z-index:5;display:none;flex-direction:column;}
 .call.active{display:flex;}
-.call-videos{flex:1;position:relative;background:#000;overflow:hidden;}
+.call-videos{flex:1;position:relative;background:#000;overflow:hidden;min-height:0;transition:flex-basis .26s ease;}
 #remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;}
 #local-video{position:absolute;top:12px;right:12px;width:min(26%,140px);aspect-ratio:16/9;border-radius:10px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 4px 20px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
 .no-video-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--text-muted);z-index:1;}
@@ -119,23 +119,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .ctrl-btn.small svg{width:18px;height:18px;}
 
 /* Badges */
-.conn-badge{position:absolute;top:12px;left:12px;z-index:4;background:rgba(0,0,0,.6);color:var(--text-dim);font-size:11px;font-weight:600;padding:5px 12px;border-radius:20px;display:flex;align-items:center;gap:6px;}
 .lang-badge{position:absolute;z-index:4;background:rgba(0,0,0,.58);border:1px solid rgba(255,255,255,.14);color:#fff;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;letter-spacing:.02em;backdrop-filter:blur(4px);}
 .remote-lang-badge{top:12px;left:50%;transform:translateX(-50%);}
 .local-lang-badge{bottom:14px;right:12px;max-width:min(26%,140px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:5;}
-.conn-dot{width:7px;height:7px;border-radius:50%;background:var(--text-muted);}
-.conn-dot.connected{background:var(--green);}
-.conn-dot.connecting{background:#f39c12;animation:pulse 1s infinite;}
 @keyframes pulse{50%{opacity:.4;}}
 
 /* Toast */
 #toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(255,255,255,.15);backdrop-filter:blur(12px);color:#fff;font-size:13px;font-weight:600;padding:10px 20px;border-radius:22px;z-index:100;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
-/* Transcript overlay — inside .call */
-.transcript-overlay{position:absolute;left:0;right:0;bottom:var(--controls-h);top:auto;background:rgba(0,0,0,.6);border-top:1px solid rgba(255,255,255,.08);backdrop-filter:blur(10px);z-index:6;display:none;flex-direction:column;max-height:50%;}
-.transcript-overlay.show{display:flex;}
-.transcript-overlay.expanded{top:0;max-height:none;}
+/* Transcript drawer — inside .call */
+.transcript-overlay{position:relative;left:auto;right:auto;bottom:auto;top:auto;background:rgba(0,0,0,.6);border-top:0 solid rgba(255,255,255,.08);backdrop-filter:blur(10px);z-index:6;display:flex;flex-direction:column;height:0;overflow:hidden;transition:height .26s ease,border-top-width .2s ease;}
+.call.transcript-open .transcript-overlay{height:25vh;border-top-width:1px;}
 .transcript-sheet{width:100%;display:flex;flex-direction:column;overflow:hidden;max-height:inherit;}
 .transcript-sheet-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0;gap:8px;flex-wrap:wrap;}
 .transcript-sheet-title{font-family:"Lora",serif;font-size:15px;font-weight:600;white-space:nowrap;}
@@ -164,14 +159,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   #local-video{width:min(18%,110px);top:8px;right:8px;}
   .local-lang-badge{max-width:min(18%,110px);bottom:8px;right:8px;}
   .remote-lang-badge{top:8px;}
-  .conn-badge{top:8px;left:8px;}
   .call-controls{gap:10px;padding:8px 12px;}
   .ctrl-btn{width:44px;height:44px;}
   .ctrl-btn.small{width:34px;height:34px;}
   .ctrl-btn.end-call{width:52px;height:44px;}
   .subtitle-line{font-size:13px;padding:4px 12px;}
   :root{--controls-h:60px;}
-  .transcript-overlay{max-height:60%;}
+  .call.transcript-open .transcript-overlay{height:38vh;}
 }
 @media(max-width:400px){
   .call-controls{gap:10px;}
@@ -269,10 +263,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <div class="solo-banner" id="solo-banner" style="display:none;">
       <div class="solo-banner-text">Solo / test mode — waiting for partner</div>
     </div>
-    <div class="conn-badge" id="conn-badge">
-      <span class="conn-dot" id="conn-dot"></span>
-      <span id="conn-text">Connecting</span>
-    </div>
     <div class="lang-badge remote-lang-badge" id="remote-lang-badge">Partner: —</div>
     <div class="lang-badge local-lang-badge" id="local-lang-badge">You: —</div>
     <div class="subtitle-area" id="subtitle-area"></div>
@@ -281,11 +271,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   <div class="transcript-overlay" id="transcript-overlay">
     <div class="transcript-sheet">
       <div class="transcript-sheet-header">
-        <span class="transcript-sheet-title">Transcript
-          <span id="listening-dot" style="display:none;font-size:10px;color:var(--teal-bright);animation:pulse 1s infinite;"> ● listening</span>
-        </span>
+        <span class="transcript-sheet-title">Transcript</span>
         <div class="transcript-sheet-actions">
-          <button class="transcript-sheet-btn" id="transcript-expand-btn" onclick="toggleTranscriptExpanded()">Expand</button>
           <button class="transcript-sheet-btn" onclick="copyTranscript()">Copy</button>
           <button class="transcript-sheet-btn" onclick="exportTranscriptTxt()">TXT</button>
           <button class="transcript-sheet-btn" onclick="exportPhrasebook()">Phrasebook↓</button>
@@ -312,9 +299,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <button class="ctrl-btn" id="cam-btn" onclick="toggleCam()" title="Camera">
       <svg id="cam-icon-on" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
       <svg id="cam-icon-off" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/><line x1="2" y1="22" x2="22" y2="2" stroke="#e74c3c" stroke-width="2.5"/></svg>
-    </button>
-    <button class="ctrl-btn small" onclick="togglePiP()" title="PiP">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><rect x="11" y="9" width="9" height="7" rx="1"/></svg>
     </button>
   </div>
 </div>
@@ -757,11 +741,7 @@ function handleRelay(d){
 }
 
 function updateConn(state){
-  var dot=document.getElementById('conn-dot');
-  var text=document.getElementById('conn-text');
-  if(!dot||!text)return;
-  dot.className='conn-dot'+(state==='connected'?' connected':(state==='connecting'?' connecting':''));
-  text.textContent=state==='connected'?'Connected':(state==='connecting'?'Connecting…':'Disconnected');
+  logDebug('conn_state',{state:state});
 }
 
 function clearSpeechFirstFinalTimer(){
@@ -787,9 +767,7 @@ function resetSpeechRetryState(reason){
 function scheduleSpeechRestart(gen,why){
   if(speechRetryTimer){clearTimeout(speechRetryTimer);speechRetryTimer=null}
   if(!micOn||!room.id||!document.getElementById('call-screen').classList.contains('active'))return;
-  var exp=Math.min(2000,Math.round(250*Math.pow(1.8,Math.min(speechRetryCount,6))));
-  var jitter=Math.floor(Math.random()*160);
-  var delay=Math.min(2000,exp+jitter);
+  var delay=120;
   speechRetryCount++;
   logDebug('speech_restart_scheduled',{why:why,delay:delay,retryCount:speechRetryCount},'warn');
   speechRetryTimer=setTimeout(function(){
@@ -830,9 +808,8 @@ async function enterCall(){
   var sb=document.getElementById('solo-banner');
   if(sb)sb.style.display=room.solo?'':'none';
 
-  // Open transcript by default
-  document.getElementById('transcript-overlay').classList.add('show');
-  renderTranscript();
+  document.getElementById('transcript-overlay').classList.remove('show');
+  document.getElementById('call-screen').classList.remove('transcript-open');
 
   logDebug('call_entered',{solo:room.solo,myLang:room.myLang,theirLang:room.theirLang,speechRecAvail:!!SpeechRec});
 
@@ -908,8 +885,7 @@ async function handleSignal(d){
 }
 
 // ═══ SUBTITLES ═══
-// Android Chrome: continuous=true silently fails when WebRTC also holds the mic.
-// Use continuous=false + immediate onend restart — reliable on mobile Chrome.
+// Keep recognition as continuous to reduce pauses splitting speech unexpectedly.
 function startSubtitles(){
   if(!SpeechRec){
     logDebug('speech_unavail',{},'error');
@@ -924,7 +900,7 @@ function startSubtitles(){
   recognizer=new SpeechRec();
   recognizer.lang=locale;
   recognizer.interimResults=true;
-  recognizer.continuous=false;  // false = reliable on Android + WebRTC
+  recognizer.continuous=true;
   recognizer.maxAlternatives=1;
   var currentInterimEl=null;
   var latestInterimText='';
@@ -980,7 +956,6 @@ function startSubtitles(){
       }
     },4000);
     logDebug('speech_recognizing',{},'ok');
-    var d=document.getElementById('listening-dot');if(d)d.style.display='';
   };
 
   recognizer.onresult=function(e){
@@ -1021,7 +996,6 @@ function startSubtitles(){
     }
     recognizing=false;currentInterimEl=null;
     clearSpeechFirstFinalTimer();
-    var d=document.getElementById('listening-dot');if(d)d.style.display='none';
     logDebug('speech_end',{micOn:micOn});
     if(micOn&&room.id&&document.getElementById('call-screen').classList.contains('active')){
       scheduleSpeechRestart(gen,'onend');
@@ -1032,7 +1006,6 @@ function startSubtitles(){
     if(gen!==speechSessionGen)return;
     recognizing=false;currentInterimEl=null;
     clearSpeechFirstFinalTimer();
-    var d=document.getElementById('listening-dot');if(d)d.style.display='none';
     logDebug('speech_error',{error:e.error},'error');
     if(e.error==='not-allowed')toast('Mic permission needed');
     else if(e.error==='network')toast('Speech: network error');
@@ -1058,7 +1031,6 @@ function stopSubtitles(){
   speechStableStartedAt=0;
   speechFinalStable=false;
   clearSpeechFirstFinalTimer();
-  var d=document.getElementById('listening-dot');if(d)d.style.display='none';
   logDebug('speech_stopped',{});
 }
 
@@ -1084,6 +1056,19 @@ function addTranscriptEntry(who,sourceText,translatedText,srcLang,tgtLang,subtit
   if(!translatedText)translatedText=sourceText;
   var prev=transcript.length?transcript[transcript.length-1]:null;
   var now=Date.now();
+  var shouldMerge=prev&&prev.who===who&&now-prev.ts<2200&&sourceText&&sourceText!==prev.sourceText&&!/[.!?]\s*$/.test(prev.sourceText||'');
+  if(shouldMerge){
+    prev.sourceText=normalizeTranscriptText((prev.sourceText||'')+' '+sourceText);
+    prev.translatedText=prev.sourceText;
+    if(srcLang)prev.srcLang=srcLang;
+    if(tgtLang)prev.tgtLang=tgtLang;
+    if(subtitleSeq)prev.subtitleSeq=subtitleSeq;
+    prev.ts=now;
+    saveTranscriptToStorage();
+    var ovMerge=document.getElementById('transcript-overlay');
+    if(ovMerge&&ovMerge.classList.contains('show'))renderTranscript();
+    return;
+  }
   if(prev&&prev.who===who&&prev.sourceText===sourceText&&prev.translatedText===translatedText&&now-prev.ts<5000)return;
   var entry={who:who,sourceText:sourceText,translatedText:translatedText,srcLang:srcLang,tgtLang:tgtLang,subtitleSeq:subtitleSeq||null,ts:Date.now()};
   transcript.push(entry);
@@ -1118,16 +1103,10 @@ function patchTranscriptEntry(who,subtitleSeq,newTranslatedText,srcLang,tgtLang)
 
 function toggleTranscript(){
   var ov=document.getElementById('transcript-overlay');
+  var call=document.getElementById('call-screen');
   var showing=ov.classList.toggle('show');
+  call.classList.toggle('transcript-open',showing);
   if(showing)renderTranscript();
-}
-function toggleTranscriptExpanded(){
-  var ov=document.getElementById('transcript-overlay');
-  var next=!ov.classList.contains('expanded');
-  ov.classList.toggle('expanded',next);
-  var btn=document.getElementById('transcript-expand-btn');
-  if(btn)btn.textContent=next?'Compact':'Expand';
-  if(ov.classList.contains('show'))renderTranscript();
 }
 
 function renderTranscriptEntryHtml(e){
@@ -1240,16 +1219,6 @@ function toggleCam(){
   videoStream.getVideoTracks().forEach(function(t){t.enabled=camOn});
   syncCamUi();
 }
-async function togglePiP(){
-  var target=document.getElementById('remote-video');
-  if(!target||!target.srcObject){toast('No remote video');return}
-  if(!document.pictureInPictureEnabled){toast('PiP not supported');return}
-  try{
-    if(document.pictureInPictureElement)await document.exitPictureInPicture();
-    else await target.requestPictureInPicture();
-  }catch(_){toast('PiP unavailable')}
-}
-
 function hangUp(){relaySend({type:'hangup'});cleanUp();}
 
 function cleanUp(){
@@ -1265,11 +1234,10 @@ function cleanUp(){
   speechFirstFinalWarned=false;
   if(ws){try{ws.close()}catch(_){}}ws=null;
   document.getElementById('call-screen').classList.remove('active');
+  document.getElementById('call-screen').classList.remove('transcript-open');
   document.getElementById('lobby').classList.remove('hidden');
   setLobbyState(LOBBY_STATE.setup);
   document.getElementById('transcript-overlay').classList.remove('show');
-  document.getElementById('transcript-overlay').classList.remove('expanded');
-  document.getElementById('transcript-expand-btn').textContent='Expand';
   document.getElementById('subtitle-area').innerHTML='';
   document.getElementById('no-video-msg').style.display='';
   remoteStream=null;transcript=[];
