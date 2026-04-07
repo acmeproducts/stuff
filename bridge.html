@@ -92,16 +92,27 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .subtitle-line.mine{background:rgba(46,139,139,.2);color:rgba(255,255,255,.65);font-size:12px;}
 .subtitle-line.translation{background:rgba(63,193,193,.2);color:#fff;font-size:13px;}
 .subtitle-line.partner-source{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6);font-size:11px;}
+.partner-speaking-indicator{position:absolute;right:12px;bottom:56px;z-index:5;min-width:34px;height:24px;border-radius:999px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.2);color:#fff;display:none;align-items:center;justify-content:center;font-size:18px;font-weight:700;line-height:1;backdrop-filter:blur(4px);}
+.partner-speaking-indicator.show{display:flex;animation:pulseSpeak .9s ease-in-out infinite alternate;}
+@keyframes pulseSpeak{from{opacity:.55;transform:scale(.98)}to{opacity:1;transform:scale(1.03)}}
 .lang-badge{position:absolute;z-index:4;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.1);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;backdrop-filter:blur(4px);}
 .remote-lang-badge{top:8px;left:50%;transform:translateX(-50%);}
 .local-lang-badge{bottom:10px;right:8px;z-index:5;}
 
-.call-transcript{flex:1;min-height:0;overflow-y:auto;background:var(--bg);border-top:1px solid var(--surface2);padding:0 12px;}
+.call-transcript{position:relative;flex:1;min-height:0;overflow-y:auto;background:var(--bg);border-top:1px solid var(--surface2);padding:0 12px;}
 .call-transcript-header{display:flex;align-items:center;justify-content:space-between;padding:6px 0;position:sticky;top:0;background:var(--bg);z-index:1;}
 .call-transcript-title{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;}
 .call-transcript-actions{display:flex;gap:4px;}
 .call-transcript-btn{background:var(--surface2);color:var(--text-dim);border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;}
 .call-transcript-btn:hover{background:var(--teal);color:#fff;}
+.transcript-chevron{font-size:12px;padding:4px 7px;}
+.transcript-more-indicator{position:absolute;right:6px;top:50%;transform:translateY(-50%);z-index:3;width:22px;height:22px;border-radius:999px;background:rgba(46,139,139,.2);color:var(--teal-bright);border:1px solid rgba(63,193,193,.35);display:none;align-items:center;justify-content:center;font-size:14px;font-weight:700;pointer-events:none;}
+.transcript-more-indicator.show{display:flex;}
+.call.transcript-collapsed .call-transcript{flex:0 0 32px;overflow:hidden;}
+.call.transcript-collapsed #transcript-body{display:none;}
+.call.transcript-collapsed .transcript-chevron{transform:rotate(180deg);}
+.call-videos.swapped #remote-video{top:8px;right:8px;left:auto;bottom:auto;width:min(24%,120px);height:auto;aspect-ratio:16/9;border-radius:8px;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;}
+.call-videos.swapped #local-video{inset:0;width:100%;height:100%;border-radius:0;border:none;box-shadow:none;z-index:1;}
 .tr-entry{padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);}
 .tr-who{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text-muted);}
 .tr-who.mine{color:var(--teal);}
@@ -219,17 +230,20 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <div class="solo-banner" id="solo-banner" style="display:none;"><div class="solo-banner-text">Solo / test mode — waiting for partner</div></div>
     <div class="lang-badge remote-lang-badge" id="remote-lang-badge">Partner: —</div>
     <div class="lang-badge local-lang-badge" id="local-lang-badge">You: —</div>
+    <div class="partner-speaking-indicator" id="partner-speaking-indicator" aria-hidden="true">…</div>
     <div class="subtitle-area" id="subtitle-area"></div>
   </div>
   <div class="call-transcript" id="call-transcript">
     <div class="call-transcript-header">
       <span class="call-transcript-title">Transcript</span>
       <div class="call-transcript-actions">
+        <button class="call-transcript-btn transcript-chevron" id="transcript-toggle-btn" onclick="toggleTranscript()" title="Expand/collapse transcript">⌃</button>
         <button class="call-transcript-btn" onclick="copyTr()">Copy</button>
         <button class="call-transcript-btn" onclick="exportTxt()">TXT ↓</button>
       </div>
     </div>
     <div id="transcript-body"><div class="tr-empty">Speak to see transcript here.</div></div>
+    <div class="transcript-more-indicator" id="transcript-more-indicator" aria-hidden="true">↓</div>
   </div>
   <div class="call-controls">
     <button class="ctrl-btn" id="mic-btn" onclick="toggleMic()" title="Mute/unmute">
@@ -279,6 +293,7 @@ var debugLog=[],HEARTBEAT_MS=30000,SUB_LINGER=5000,MAX_TR=300;
 var RK='tb_recent_rooms',TP='tb_transcript_',RL=12;
 var viewingRoomId=null,callHistoryPushed=false;
 var recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=5;
+var transcriptCollapsed=false,showTranscriptMore=false,partnerSpeakTimer=null;
 
 function $(id){return document.getElementById(id)}
 function toast(m){var e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(function(){e.classList.remove('show')},2500)}
@@ -301,6 +316,11 @@ function fL(c){var m=gL(c);return m.flag+' '+m.label}
 function updateBadges(){$('local-lang-badge').textContent='You: '+fL(room.myLang);$('remote-lang-badge').textContent='Partner: '+fL(room.theirLang)}
 function syncMic(){$('mic-btn').classList.toggle('off',!micOn);$('mic-on').style.display=micOn?'':'none';$('mic-off').style.display=micOn?'none':''}
 function syncCam(){$('cam-btn').classList.toggle('off',!camOn);$('cam-on').style.display=camOn?'':'none';$('cam-off').style.display=camOn?'none':'';$('local-video').style.display=camOn?'':'none'}
+function markPartnerTalking(){var i=$('partner-speaking-indicator');if(!i)return;i.classList.add('show');clearTimeout(partnerSpeakTimer);partnerSpeakTimer=setTimeout(function(){i.classList.remove('show')},1200)}
+function setTranscriptMore(v){showTranscriptMore=!!v;$('transcript-more-indicator').classList.toggle('show',showTranscriptMore)}
+function transcriptNearBottom(){var w=$('call-transcript');if(!w)return true;return (w.scrollHeight-w.scrollTop-w.clientHeight)<50}
+function toggleTranscript(){transcriptCollapsed=!transcriptCollapsed;$('call-screen').classList.toggle('transcript-collapsed',transcriptCollapsed)}
+function swapVideos(){document.querySelector('.call-videos').classList.toggle('swapped')}
 
 function translate(text,from,to){
   if(!text||!from||!to||from===to)return Promise.resolve(text);
@@ -409,11 +429,13 @@ function handleRelay(d){
   if(d.type==='pong')return;
   if(d.type==='webrtc-signal'){handleSig(d);return}
   if(d.type==='subtitle'){
-    if(d.sourceText&&d.sourceText!==d.text)showSub(d.sourceText,'partner-source');
-    showSub(d.text,'partner');addTr('partner',d.sourceText,d.text,d.sourceLang,d.targetLang,d.subtitleSeq);return;
+    markPartnerTalking();
+    if(d.text&&d.targetLang===room.myLang)showSub(d.text,'partner');
+    addTr('partner',d.sourceText,d.text,d.sourceLang,d.targetLang,d.subtitleSeq);return;
   }
   if(d.type==='subtitle-update'){
-    if(d.text&&d.sourceText&&d.text!==d.sourceText)showSub(d.text,'partner');
+    markPartnerTalking();
+    if(d.text&&d.targetLang===room.myLang)showSub(d.text,'partner');
     patchTr('partner',d.subtitleSeq,d.text,d.sourceLang,d.targetLang);return;
   }
   if(d.type==='hangup'){toast('Partner left');cleanUp();return}
@@ -477,7 +499,7 @@ function startSpeech(){
     showSub(text,'mine');
     relaySend({type:'subtitle',subtitleSeq:ss,text:text,sourceText:text,sourceLang:src,targetLang:tgt,provisional:true});
     addTr('me',text,text,src,tgt,ss);
-    translate(text,src,tgt).then(function(tr){tr=norm(tr)||text;if(tr!==text){relaySend({type:'subtitle-update',subtitleSeq:ss,text:tr,sourceText:text,sourceLang:src,targetLang:tgt});showSub(tr,'translation');patchTr('me',ss,tr,src,tgt)}});
+    translate(text,src,tgt).then(function(tr){tr=norm(tr)||text;if(tr!==text){relaySend({type:'subtitle-update',subtitleSeq:ss,text:tr,sourceText:text,sourceLang:src,targetLang:tgt});patchTr('me',ss,tr,src,tgt)}});
   };
   recognizer.onend=function(){if(gen!==speechGen)return;recognizing=false;if(micOn&&room.id&&$('call-screen').classList.contains('active'))setTimeout(function(){if(gen===speechGen&&micOn&&!recognizing)startSpeech()},200)};
   recognizer.onerror=function(e){if(gen!==speechGen)return;recognizing=false;if(e.error==='not-allowed')toast('Mic permission needed');else if(e.error==='audio-capture')toast('Microphone unavailable');if(e.error!=='not-allowed'&&micOn&&room.id)setTimeout(function(){if(gen===speechGen&&micOn&&!recognizing)startSpeech()},300)};
@@ -513,15 +535,17 @@ function trHtml(e){
 function appendTrDom(entry){
   var b=$('transcript-body'),w=$('call-transcript');if(!b)return;
   var em=b.querySelector('.tr-empty');if(em)em.remove();
-  var near=(w.scrollHeight-w.scrollTop-w.clientHeight)<50;
+  var near=transcriptNearBottom();
   b.insertAdjacentHTML('beforeend',trHtml(entry));
-  if(near)w.scrollTop=w.scrollHeight;
+  if(near){w.scrollTop=w.scrollHeight;setTranscriptMore(false)}
+  else setTranscriptMore(true);
 }
 function renderTr(){
   var b=$('transcript-body');if(!b)return;
-  if(!transcript.length){b.innerHTML='<div class="tr-empty">Speak to see transcript here.</div>';return}
+  if(!transcript.length){b.innerHTML='<div class="tr-empty">Speak to see transcript here.</div>';setTranscriptMore(false);return}
   b.innerHTML=transcript.slice(-120).map(trHtml).join('');
   $('call-transcript').scrollTop=$('call-transcript').scrollHeight;
+  setTranscriptMore(false);
 }
 function copyTr(){
   if(!transcript.length){toast('No transcript');return}
@@ -543,10 +567,16 @@ function cleanUp(){
   if(pc){pc.close();pc=null}room.id=null;room.solo=false;stopHB();if(ws)try{ws.close()}catch(_){}ws=null;
   $('call-screen').classList.remove('active');$('lobby').classList.remove('hidden');setLS(LS.setup);
   $('subtitle-area').innerHTML='';$('no-video-msg').style.display='';
+  $('partner-speaking-indicator').classList.remove('show');clearTimeout(partnerSpeakTimer);
+  $('call-screen').classList.remove('transcript-collapsed');transcriptCollapsed=false;setTranscriptMore(false);
+  document.querySelector('.call-videos').classList.remove('swapped');
   remoteStream=null;transcript=[];micOn=true;camOn=true;syncMic();syncCam();callHistoryPushed=false;renderRecent();
 }
 
 populateLangs();renderRecent();syncMic();syncCam();
+$('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
+$('local-video').addEventListener('click',swapVideos);
+$('remote-video').addEventListener('click',swapVideos);
 var hp=new URLSearchParams((location.hash||'').replace(/^#/,''));var inv=hp.get('j');if(inv){var p=decInv(inv);if(p&&p.r)handleHash(p)}
 window.addEventListener('popstate',function(){if(lobbyState===LS.call&&room.id){hangUp();history.pushState({},'',location.href);return}if(lobbyState===LS.waiting)setLS(LS.setup)});
 window.addEventListener('pagehide',function(){if(room.id){saveTr();relaySend({type:'hangup',reason:'pagehide'})}});
