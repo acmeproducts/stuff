@@ -111,11 +111,21 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .call.transcript-collapsed #transcript-body{display:none;}
 .call-videos.swapped #remote-video{top:8px;right:8px;left:auto;bottom:auto;width:min(24%,120px);height:auto;aspect-ratio:16/9;border-radius:8px;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;}
 .call-videos.swapped #local-video{inset:0;width:100%;height:100%;border-radius:0;border:none;box-shadow:none;z-index:1;}
-.tr-entry{padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);}
-.tr-who{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text-muted);}
-.tr-who.mine{color:var(--teal);}
-.tr-source{color:var(--text-dim);font-size:13px;line-height:1.4;margin-top:1px;}
-.tr-translated{color:var(--text);font-size:13px;line-height:1.4;margin-top:1px;}
+.tr-entry{padding:6px 0;}
+.tr-bubble{border:1px solid rgba(255,255,255,.14);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.02);}
+.tr-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,.08);font-size:11px;}
+.tr-who{font-weight:700;color:var(--text-dim);}
+.tr-who.mine{color:var(--teal-bright);}
+.tr-time{font-size:10px;color:var(--text-muted);font-variant-numeric:tabular-nums;}
+.tr-body{display:grid;grid-template-columns:1fr 1px 1fr;}
+.tr-col{padding:8px 10px;display:flex;flex-direction:column;gap:6px;min-width:0;}
+.tr-divider{background:rgba(255,255,255,.08);}
+.tr-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text-muted);}
+.tr-text{font-size:13px;line-height:1.4;color:var(--text);word-break:break-word;}
+.tr-col.source .tr-text{color:var(--text-dim);}
+.tr-tts{border:none;background:transparent;color:#8f959d;cursor:pointer;padding:0;display:flex;align-items:center;gap:4px;font-size:10px;line-height:1;}
+.tr-tts:hover{color:#c4ccd4;}
+.tr-tts svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 .tr-empty{color:var(--text-muted);font-size:12px;font-style:italic;padding:12px 0;}
 
 .call-controls{display:flex;align-items:center;justify-content:center;gap:14px;padding:8px 16px max(8px,env(safe-area-inset-bottom));background:var(--surface);flex-shrink:0;}
@@ -248,6 +258,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
           <svg class="chevron-down" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
           <svg class="chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
         </button>
+        <button class="call-transcript-btn" id="transcript-tts-toggle" onclick="toggleTranscriptTts()" title="Transcript TTS off" aria-label="Transcript TTS off" aria-pressed="false">
+          <svg class="tts-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18 7a7 7 0 0 1 0 10"/></svg>
+          <svg class="tts-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h4l5-4v12l-5-4H4z"/><line x1="3" y1="21" x2="21" y2="3" stroke="#e74c3c" stroke-width="2.5"/></svg>
+        </button>
         <button class="call-transcript-btn" onclick="shareLink()" title="Share invite" aria-label="Share invite">
           <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.8 10.8l6.4-3.6M8.8 13.2l6.4 3.6"/></svg>
         </button>
@@ -298,7 +312,7 @@ var debugLog=[],HEARTBEAT_MS=30000,SUB_LINGER=5000,MAX_TR=300;
 var RK='tb_recent_rooms',TP='tb_transcript_',RL=12;
 var viewingRoomId=null,callHistoryPushed=false;
 var recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=5;
-var transcriptCollapsed=false,showTranscriptMore=false,partnerSpeakTimer=null;
+var transcriptCollapsed=false,showTranscriptMore=false,partnerSpeakTimer=null,transcriptTtsOn=false;
 
 function $(id){return document.getElementById(id)}
 function toast(m){var e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(function(){e.classList.remove('show')},2500)}
@@ -326,6 +340,9 @@ function markPartnerTalking(){var i=$('partner-speaking-indicator');if(!i)return
 function setTranscriptMore(v){showTranscriptMore=!!v;$('transcript-more-indicator').classList.toggle('show',showTranscriptMore)}
 function transcriptNearBottom(){var w=$('call-transcript');if(!w)return true;return (w.scrollHeight-w.scrollTop-w.clientHeight)<50}
 function syncTranscriptToggleButton(){var b=$('transcript-toggle-btn');if(!b)return;var e=!transcriptCollapsed;b.title=e?'Collapse transcript':'Expand transcript';b.setAttribute('aria-label',b.title);b.setAttribute('aria-expanded',e?'true':'false')}
+function syncTranscriptTtsButton(){var b=$('transcript-tts-toggle');if(!b)return;b.classList.toggle('off',!transcriptTtsOn);b.style.color=transcriptTtsOn?'#b6bcc3':'#8f959d';b.title=transcriptTtsOn?'Transcript TTS on':'Transcript TTS off';b.setAttribute('aria-label',b.title);b.setAttribute('aria-pressed',transcriptTtsOn?'true':'false');var onIcon=b.querySelector('.tts-on'),offIcon=b.querySelector('.tts-off');if(onIcon)onIcon.style.display=transcriptTtsOn?'':'none';if(offIcon)offIcon.style.display=transcriptTtsOn?'none':''}
+function toggleTranscriptTts(){transcriptTtsOn=!transcriptTtsOn;syncTranscriptTtsButton();if(!transcriptTtsOn&&window.speechSynthesis)window.speechSynthesis.cancel()}
+function speakText(text,lang){text=norm(text);if(!text||!window.speechSynthesis)return;window.speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(text);u.lang=TTS_LOCALE[lang]||lang||TTS_LOCALE[room.myLang]||'en-US';window.speechSynthesis.speak(u)}
 function toggleTranscript(){transcriptCollapsed=!transcriptCollapsed;$('call-screen').classList.toggle('transcript-collapsed',transcriptCollapsed);syncTranscriptToggleButton()}
 function swapVideos(){document.querySelector('.call-videos').classList.toggle('swapped')}
 
@@ -626,6 +643,7 @@ function addTr(who,src,tr,sL,tL,ss){
   var entry={who:who,sourceText:src,translatedText:tr,srcLang:sL,tgtLang:tL,subtitleSeq:ss||null,ts:Date.now()};
   transcript.push(entry);if(transcript.length>MAX_TR)transcript.splice(0,transcript.length-MAX_TR);
   saveTr();appendTrDom(entry);
+  if(transcriptTtsOn&&src)speakText(src,sL||room.myLang);
 }
 function patchTr(who,ss,newTr,sL,tL){
   newTr=norm(newTr);if(!newTr)return;
@@ -633,9 +651,15 @@ function patchTr(who,ss,newTr,sL,tL){
   addTr(who,newTr,newTr,sL,tL,ss);
 }
 function trHtml(e){
-  var ts=new Date(e.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  var w=e.who==='me'?'You':'Partner';var s=(!e.translatedText)||(e.sourceText===e.translatedText);
-  return '<div class="tr-entry"><div class="tr-who '+(e.who==='me'?'mine':'')+'">'+w+' · '+(e.srcLang||'').toUpperCase()+' · '+ts+'</div><div class="tr-source">'+esc(e.sourceText)+'</div>'+(s?'':'<div class="tr-translated">→ '+esc(e.translatedText)+'</div>')+'</div>';
+  var lang=e.srcLang||room.myLang||'en';
+  var locale=TTS_LOCALE[lang]||lang||'en-US';
+  var ts=new Date(e.ts).toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  var speaker=e.who==='me'?'You':'Partner';
+  var label=speaker+' · '+gL(lang).label;
+  var targetLabel=gL(e.tgtLang||room.theirLang||lang).label;
+  var sourceText=e.sourceText||'';
+  var targetText=e.translatedText||e.sourceText||'';
+  return '<div class="tr-entry"><div class="tr-bubble"><div class="tr-head"><div class="tr-who '+(e.who==='me'?'mine':'')+'">'+esc(label)+'</div><div class="tr-time">'+esc(ts)+'</div></div><div class="tr-body"><div class="tr-col source"><div class="tr-label">'+esc(gL(lang).label)+'</div><div class="tr-text">'+esc(sourceText)+'</div><button class="tr-tts" type="button" title="Play source" aria-label="Play source" onclick="speakText('+JSON.stringify(sourceText)+','+JSON.stringify(lang)+')"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div><div class="tr-divider"></div><div class="tr-col"><div class="tr-label">'+esc(targetLabel)+'</div><div class="tr-text">'+esc(targetText)+'</div><button class="tr-tts" type="button" title="Play target" aria-label="Play target" onclick="speakText('+JSON.stringify(targetText)+','+JSON.stringify(e.tgtLang||room.theirLang||lang)+')"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div></div></div></div>';
 }
 function appendTrDom(entry){
   var b=$('transcript-body'),w=$('call-transcript');if(!b)return;
@@ -680,12 +704,13 @@ function cleanUp(){
   $('subtitle-area').innerHTML='';$('no-video-msg').style.display='';
   $('partner-speaking-indicator').classList.remove('show');clearTimeout(partnerSpeakTimer);
   $('call-screen').classList.remove('transcript-collapsed');transcriptCollapsed=false;setTranscriptMore(false);syncTranscriptToggleButton();
+  transcriptTtsOn=false;syncTranscriptTtsButton();if(window.speechSynthesis)window.speechSynthesis.cancel();
   document.querySelector('.call-videos').classList.remove('swapped');
   resetRemoteMediaState();
   transcript=[];micOn=true;wantSpeech=true;camOn=true;syncMic();syncCam();callHistoryPushed=false;renderRecent();
 }
 
-populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();
+populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
 $('local-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('click',swapVideos);
