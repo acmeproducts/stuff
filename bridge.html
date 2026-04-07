@@ -100,15 +100,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .call-transcript-header{display:flex;align-items:center;justify-content:space-between;padding:8px 0;position:sticky;top:0;background:var(--bg);z-index:1;gap:8px;}
 .call-transcript-title{font-size:12px;font-weight:700;color:var(--text-dim);letter-spacing:.3px;}
 .call-transcript-actions{display:flex;gap:6px;}
-.call-transcript-btn{width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:var(--surface2);color:var(--text-dim);border:none;border-radius:8px;cursor:pointer;font-family:"DM Sans",sans-serif;}
-.call-transcript-btn:hover{background:var(--teal);color:#fff;}
-.call-transcript-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
-.transcript-chevron{font-size:14px;font-weight:700;line-height:1;}
+.call-transcript-btn{width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:transparent;color:#8f959d;border:1px solid rgba(255,255,255,.18);border-radius:7px;cursor:pointer;padding:0;}
+.call-transcript-btn:hover{background:rgba(255,255,255,.06);color:#b6bcc3;border-color:rgba(255,255,255,.26);}
+.call-transcript-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.call.transcript-collapsed .chevron-down{display:none;}
+.call:not(.transcript-collapsed) .chevron-right{display:none;}
 .transcript-more-indicator{position:absolute;right:6px;top:50%;transform:translateY(-50%);z-index:3;width:22px;height:22px;border-radius:999px;background:rgba(46,139,139,.2);color:var(--teal-bright);border:1px solid rgba(63,193,193,.35);display:none;align-items:center;justify-content:center;font-size:14px;font-weight:700;pointer-events:none;}
 .transcript-more-indicator.show{display:flex;}
 .call.transcript-collapsed .call-transcript{flex:0 0 32px;max-height:32px;overflow:hidden;}
 .call.transcript-collapsed #transcript-body{display:none;}
-.call.transcript-collapsed .transcript-chevron{transform:rotate(180deg);}
 .call-videos.swapped #remote-video{top:8px;right:8px;left:auto;bottom:auto;width:min(24%,120px);height:auto;aspect-ratio:16/9;border-radius:8px;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;}
 .call-videos.swapped #local-video{inset:0;width:100%;height:100%;border-radius:0;border:none;box-shadow:none;z-index:1;}
 .tr-entry{padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);}
@@ -245,7 +245,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <div class="call-transcript-header">
       <span class="call-transcript-title" id="transcript-ribbon-title">Transcript</span>
       <div class="call-transcript-actions">
-        <button class="call-transcript-btn transcript-chevron" id="transcript-toggle-btn" onclick="toggleTranscript()" title="Collapse/expand transcript">⌃</button>
+        <button class="call-transcript-btn" id="transcript-toggle-btn" onclick="toggleTranscript()" title="Collapse transcript" aria-label="Collapse transcript" aria-expanded="true">
+          <svg class="chevron-down" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          <svg class="chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
         <button class="call-transcript-btn" onclick="shareLink()" title="Share invite" aria-label="Share invite">
           <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.8 10.8l6.4-3.6M8.8 13.2l6.4 3.6"/></svg>
         </button>
@@ -323,7 +326,8 @@ function syncCam(){$('cam-btn').classList.toggle('off',!camOn);$('cam-on').style
 function markPartnerTalking(){var i=$('partner-speaking-indicator');if(!i)return;i.classList.add('show');clearTimeout(partnerSpeakTimer);partnerSpeakTimer=setTimeout(function(){i.classList.remove('show')},1200)}
 function setTranscriptMore(v){showTranscriptMore=!!v;$('transcript-more-indicator').classList.toggle('show',showTranscriptMore)}
 function transcriptNearBottom(){var w=$('call-transcript');if(!w)return true;return (w.scrollHeight-w.scrollTop-w.clientHeight)<50}
-function toggleTranscript(){transcriptCollapsed=!transcriptCollapsed;$('call-screen').classList.toggle('transcript-collapsed',transcriptCollapsed)}
+function syncTranscriptToggleButton(){var b=$('transcript-toggle-btn');if(!b)return;var e=!transcriptCollapsed;b.title=e?'Collapse transcript':'Expand transcript';b.setAttribute('aria-label',b.title);b.setAttribute('aria-expanded',e?'true':'false')}
+function toggleTranscript(){transcriptCollapsed=!transcriptCollapsed;$('call-screen').classList.toggle('transcript-collapsed',transcriptCollapsed);syncTranscriptToggleButton()}
 function swapVideos(){document.querySelector('.call-videos').classList.toggle('swapped')}
 
 function translate(text,from,to){
@@ -672,13 +676,13 @@ function cleanUp(){
   $('call-screen').classList.remove('active');$('lobby').classList.remove('hidden');setLS(LS.setup);
   $('subtitle-area').innerHTML='';$('no-video-msg').style.display='';
   $('partner-speaking-indicator').classList.remove('show');clearTimeout(partnerSpeakTimer);
-  $('call-screen').classList.remove('transcript-collapsed');transcriptCollapsed=false;setTranscriptMore(false);
+  $('call-screen').classList.remove('transcript-collapsed');transcriptCollapsed=false;setTranscriptMore(false);syncTranscriptToggleButton();
   document.querySelector('.call-videos').classList.remove('swapped');
   resetRemoteMediaState();
   transcript=[];micOn=true;wantSpeech=true;camOn=true;syncMic();syncCam();callHistoryPushed=false;renderRecent();
 }
 
-populateLangs();renderRecent();syncMic();syncCam();
+populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
 $('local-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('click',swapVideos);
