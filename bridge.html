@@ -285,7 +285,7 @@ var deviceId=localStorage.getItem('tb_dev')||(function(){var id=crypto.randomUUI
 var ws=null,pc=null,videoStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false,ignoreOffer=false;
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
-var recognizer=null,recognizing=false,speechGen=0;
+var recognizer=null,recognizing=false,speechGen=0,wantSpeech=true,recognizerActive=false,restartScheduled=false,restartTimer=null,restartBackoff=250,lastRestartTs=0,speechBlockedUntil=0,endBurst=[],endBurstWarned=false;
 var localSubSeq=0,transcript=[],trCache=new Map();
 var hbTimer=null,seq=0,wsReconnectTimer=null,isSettingRemoteAnswerPending=false;
 var debugLog=[],HEARTBEAT_MS=30000,SUB_LINGER=5000,MAX_TR=300;
@@ -455,7 +455,8 @@ async function enterCall(){
   renderTr();
   if(!ws||ws.readyState!==1)connectRelay();
   if(!room.solo)setupPC();
-  if(micOn)startSpeech();
+  wantSpeech=micOn;
+  if(wantSpeech)startSpeech();
   relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
 }
 
@@ -482,15 +483,35 @@ function isDupe(text){
   return false;
 }
 function recFinal(t){recentFinals.push({s:t.toLowerCase(),t:Date.now()});if(recentFinals.length>DEDUP_MAX)recentFinals.shift()}
+function isCallActive(){return !!(room.id&&$('call-screen').classList.contains('active'))}
+function clearSpeechRestart(){if(restartTimer){clearTimeout(restartTimer);restartTimer=null}restartScheduled=false}
+function resetSpeechState(){clearSpeechRestart();restartBackoff=250;endBurst=[]}
+function canAutoStartSpeech(){return !!(SpeechRec&&wantSpeech&&micOn&&isCallActive()&&!document.hidden&&Date.now()>=speechBlockedUntil)}
+function scheduleSpeechRestart(reason,minDelay){
+  if(!canAutoStartSpeech()||restartScheduled)return;
+  var now=Date.now();
+  restartBackoff=(now-lastRestartTs<2500)?Math.min(6000,Math.max(restartBackoff*1.7,300)):Math.max(250,restartBackoff*0.85);
+  lastRestartTs=now;
+  var delay=Math.max(minDelay||0,Math.round(restartBackoff));
+  restartScheduled=true;
+  restartTimer=setTimeout(function(){
+    restartScheduled=false;restartTimer=null;
+    if(!canAutoStartSpeech()||recognizerActive)return;
+    log('speech_restart',{reason:reason,delay:delay},'warn');
+    startSpeech();
+  },delay);
+}
 
 function startSpeech(){
   if(!SpeechRec){toast('Live transcript unavailable');return}
-  if(recognizing||!micOn)return;
+  if(recognizerActive||recognizing||!canAutoStartSpeech())return;
+  clearSpeechRestart();
   var gen=++speechGen;var locale=TTS_LOCALE[room.myLang]||room.myLang;
+  recognizerActive=true;
   recognizer=new SpeechRec();recognizer.lang=locale;
   recognizer.interimResults=false;
   recognizer.continuous=true;recognizer.maxAlternatives=1;
-  recognizer.onstart=function(){if(gen===speechGen)recognizing=true};
+  recognizer.onstart=function(){if(gen===speechGen){recognizing=true;recognizerActive=true;restartBackoff=250;endBurst=[];endBurstWarned=false}};
   recognizer.onresult=function(e){
     if(gen!==speechGen)return;
     var text='';for(var i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)text+=e.results[i][0].transcript;
@@ -503,11 +524,32 @@ function startSpeech(){
     addTr('me',text,text,src,tgt,ss);
     translate(text,src,tgt).then(function(tr){tr=norm(tr)||text;if(tr!==text){relaySend({type:'subtitle-update',subtitleSeq:ss,text:tr,sourceText:text,sourceLang:src,targetLang:tgt});patchTr('me',ss,tr,src,tgt)}});
   };
-  recognizer.onend=function(){if(gen!==speechGen)return;recognizing=false;if(micOn&&room.id&&$('call-screen').classList.contains('active'))setTimeout(function(){if(gen===speechGen&&micOn&&!recognizing)startSpeech()},200)};
-  recognizer.onerror=function(e){if(gen!==speechGen)return;recognizing=false;if(e.error==='not-allowed')toast('Mic permission needed');else if(e.error==='audio-capture')toast('Microphone unavailable');if(e.error!=='not-allowed'&&micOn&&room.id)setTimeout(function(){if(gen===speechGen&&micOn&&!recognizing)startSpeech()},300)};
-  try{recognizer.start()}catch(_){}
+  recognizer.onend=function(){
+    if(gen!==speechGen)return;
+    recognizing=false;recognizerActive=false;recognizer=null;
+    var now=Date.now();endBurst=endBurst.filter(function(t){return now-t<8000});endBurst.push(now);
+    if(endBurst.length>=4){
+      speechBlockedUntil=now+20000;
+      if(!endBurstWarned){toast('Live transcript is unstable on this browser right now');endBurstWarned=true}
+      log('speech_end_burst',{count:endBurst.length},'warn');
+      return;
+    }
+    scheduleSpeechRestart('onend',300);
+  };
+  recognizer.onerror=function(e){
+    if(gen!==speechGen)return;
+    recognizing=false;recognizerActive=false;
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){
+      speechBlockedUntil=Date.now()+15000;clearSpeechRestart();toast('Mic permission needed');
+      return;
+    }
+    if(e.error==='audio-capture')toast('Microphone unavailable');
+    if(e.error==='aborted'||e.error==='network')scheduleSpeechRestart('onerror:'+e.error,700);
+    else scheduleSpeechRestart('onerror:'+e.error,450);
+  };
+  try{recognizer.start()}catch(_){recognizerActive=false;scheduleSpeechRestart('start-throw',800)}
 }
-function stopSpeech(){speechGen++;if(recognizer)try{recognizer.stop()}catch(_){}recognizer=null;recognizing=false}
+function stopSpeech(keepWant){speechGen++;clearSpeechRestart();if(!keepWant)wantSpeech=false;if(recognizer)try{recognizer.stop()}catch(_){}recognizer=null;recognizing=false;recognizerActive=false}
 
 function showSub(text,cls){
   var a=$('subtitle-area'),el=document.createElement('div');
@@ -560,11 +602,17 @@ function exportTxt(){
   var blob=new Blob([t],{type:'text/plain'});var u=URL.createObjectURL(blob);var a=document.createElement('a');a.href=u;a.download='talkbridge-'+new Date().toISOString().slice(0,10)+'.txt';a.click();setTimeout(function(){URL.revokeObjectURL(u)},0);toast('Exported');
 }
 
-function toggleMic(){micOn=!micOn;if(micOn){recentFinals=[];startSpeech()}else stopSpeech();syncMic()}
+function toggleMic(){
+  micOn=!micOn;wantSpeech=micOn;
+  if(micOn){
+    recentFinals=[];if(isCallActive())startSpeech();
+  }else stopSpeech(true);
+  syncMic();
+}
 function toggleCam(){if(!videoStream)return;camOn=!camOn;videoStream.getVideoTracks().forEach(function(t){t.enabled=camOn});syncCam()}
 function hangUp(){relaySend({type:'hangup'});cleanUp()}
 function cleanUp(){
-  saveTr();stopSpeech();recentFinals=[];clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
+  saveTr();stopSpeech();resetSpeechState();speechBlockedUntil=0;recentFinals=[];clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
   if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}
   if(pc){pc.close();pc=null}room.id=null;room.solo=false;stopHB();if(ws)try{ws.close()}catch(_){}ws=null;
   $('call-screen').classList.remove('active');$('lobby').classList.remove('hidden');setLS(LS.setup);
@@ -572,7 +620,7 @@ function cleanUp(){
   $('partner-speaking-indicator').classList.remove('show');clearTimeout(partnerSpeakTimer);
   $('call-screen').classList.remove('transcript-collapsed');transcriptCollapsed=false;setTranscriptMore(false);
   document.querySelector('.call-videos').classList.remove('swapped');
-  remoteStream=null;transcript=[];micOn=true;camOn=true;syncMic();syncCam();callHistoryPushed=false;renderRecent();
+  remoteStream=null;transcript=[];micOn=true;wantSpeech=true;camOn=true;syncMic();syncCam();callHistoryPushed=false;renderRecent();
 }
 
 populateLangs();renderRecent();syncMic();syncCam();
@@ -581,7 +629,11 @@ $('local-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('click',swapVideos);
 var hp=new URLSearchParams((location.hash||'').replace(/^#/,''));var inv=hp.get('j');if(inv){var p=decInv(inv);if(p&&p.r)handleHash(p)}
 window.addEventListener('popstate',function(){if(lobbyState===LS.call&&room.id){hangUp();history.pushState({},'',location.href);return}if(lobbyState===LS.waiting)setLS(LS.setup)});
-window.addEventListener('pagehide',function(){if(room.id){saveTr();relaySend({type:'hangup',reason:'pagehide'})}});
+window.addEventListener('visibilitychange',function(){
+  if(document.hidden){stopSpeech(true);return}
+  if(wantSpeech&&isCallActive())scheduleSpeechRestart('visible',600);
+});
+window.addEventListener('pagehide',function(){stopSpeech();resetSpeechState();if(room.id){saveTr();relaySend({type:'hangup',reason:'pagehide'})}});
 </script>
 </body>
 </html>
