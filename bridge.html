@@ -352,6 +352,8 @@ var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var recognizer=null,recognizing=false;
 var speechFirstFinalTimer=null,speechSawFinal=false;
 var speechTimeoutToastAt=0;
+var speechFirstFinalWarned=false;
+var speechLastFinalText='',speechLastFinalAt=0,speechLastInterimText='',speechLastInterimAt=0;
 var transcript=[];
 var trCache=new Map();
 var hbTimer=null,seq=0,wsReconnectTimer=null;
@@ -361,6 +363,8 @@ var HEARTBEAT_MS=30000;
 var SUBTITLE_LINGER_MS=6000;
 var TRANSLATED_SUBTITLE_LINGER_MS=18000;
 var MAX_VISIBLE_SUBS=3;
+var MAX_TRANSCRIPT_ENTRIES=300;
+var MAX_TRANSCRIPT_RENDER=120;
 var LOBBY_STATE={setup:'setup',waiting:'waiting',call:'call'};
 var lobbyState=LOBBY_STATE.setup;
 var RECENT_KEY='tb_recent_rooms';
@@ -402,6 +406,7 @@ function getLangMeta(code){
   return{code:c||'?',label:(c||'?').toUpperCase(),flag:'🌐'};
 }
 function formatLangTag(code){var m=getLangMeta(code);return m.flag+' '+m.label;}
+function normalizeTranscriptText(text){return (text||'').replace(/\s+/g,' ').trim();}
 function updateLanguageBadges(){
   var l=document.getElementById('local-lang-badge');
   var r=document.getElementById('remote-lang-badge');
@@ -761,9 +766,11 @@ function clearSpeechFirstFinalTimer(){
 }
 
 function maybeToastSpeechTimeout(){
+  if(speechFirstFinalWarned)return;
   var now=Date.now();
   if(now-speechTimeoutToastAt<15000)return;
   speechTimeoutToastAt=now;
+  speechFirstFinalWarned=true;
   toast('No transcript detected yet. Try speaking clearly or check mic access.');
 }
 
@@ -915,14 +922,31 @@ function startSubtitles(){
       if(e.results[i].isFinal)finalText+=e.results[i][0].transcript;
       else interimText+=e.results[i][0].transcript;
     }
+    finalText=normalizeTranscriptText(finalText);
+    interimText=normalizeTranscriptText(interimText);
+    if(!finalText&&!interimText)return;
     logDebug('speech_result',{interim:interimText.slice(0,40),final:finalText.slice(0,40)});
     if(interimText&&!finalText){
-      if(!currentInterimEl)currentInterimEl=showSubtitle(interimText,'mine interim');
-      else currentInterimEl.textContent=interimText;
+      var now=Date.now();
+      if(interimText!==speechLastInterimText&&now-speechLastInterimAt>80){
+        speechLastInterimText=interimText;
+        speechLastInterimAt=now;
+        if(!currentInterimEl)currentInterimEl=showSubtitle(interimText,'mine interim');
+        else currentInterimEl.textContent=interimText;
+      }
     }
     if(finalText){
+      var finalNow=Date.now();
+      if(finalText===speechLastFinalText&&finalNow-speechLastFinalAt<2500){
+        logDebug('speech_final_dedup',{text:finalText.slice(0,60)},'warn');
+        return;
+      }
+      speechLastFinalText=finalText;
+      speechLastFinalAt=finalNow;
+      speechLastInterimText='';
       speechSawFinal=true;
       speechTimeoutToastAt=0;
+      speechFirstFinalWarned=false;
       clearSpeechFirstFinalTimer();
       logDebug('speech_final',{text:finalText.slice(0,60)},'ok');
       if(currentInterimEl){currentInterimEl.remove();currentInterimEl=null}
@@ -973,6 +997,7 @@ function startSubtitles(){
 function stopSubtitles(){
   if(recognizer){try{recognizer.stop()}catch(_){}}
   recognizer=null;recognizing=false;
+  speechLastInterimText='';
   clearSpeechFirstFinalTimer();
   var d=document.getElementById('listening-dot');if(d)d.style.display='none';
   logDebug('speech_stopped',{});
@@ -994,8 +1019,16 @@ function showSubtitle(text,cls){
 
 // ═══ TRANSCRIPT ═══
 function addTranscriptEntry(who,sourceText,translatedText,srcLang,tgtLang){
+  sourceText=normalizeTranscriptText(sourceText);
+  translatedText=normalizeTranscriptText(translatedText);
+  if(!sourceText&&!translatedText)return;
+  if(!translatedText)translatedText=sourceText;
+  var prev=transcript.length?transcript[transcript.length-1]:null;
+  var now=Date.now();
+  if(prev&&prev.who===who&&prev.sourceText===sourceText&&prev.translatedText===translatedText&&now-prev.ts<5000)return;
   var entry={who:who,sourceText:sourceText,translatedText:translatedText,srcLang:srcLang,tgtLang:tgtLang,ts:Date.now()};
   transcript.push(entry);
+  if(transcript.length>MAX_TRANSCRIPT_ENTRIES)transcript.splice(0,transcript.length-MAX_TRANSCRIPT_ENTRIES);
   saveTranscriptToStorage();
   renderTranscript();
 }
@@ -1020,7 +1053,8 @@ function renderTranscript(){
     body.innerHTML='<div style="color:var(--text-muted);font-size:13px;font-style:italic;">No transcript yet. Speak to see entries appear.</div>';
     return;
   }
-  body.innerHTML=transcript.map(function(e){
+  var visible=transcript.slice(-MAX_TRANSCRIPT_RENDER);
+  body.innerHTML=visible.map(function(e){
     var ts=new Date(e.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
     var who=e.who==='me'?'You':'Partner';
     var sameLang=(!e.translatedText)||(e.sourceText===e.translatedText);
@@ -1097,7 +1131,10 @@ function toggleMic(){
   micOn=!micOn;
   logDebug('mic_toggle',{micOn:micOn});
   if(micOn)startSubtitles();
-  else stopSubtitles();
+  else{
+    speechFirstFinalWarned=false;
+    stopSubtitles();
+  }
   syncMicUi();
 }
 function toggleCam(){
@@ -1128,6 +1165,7 @@ function cleanUp(){
   var rid=room.id;room.id=null;room.solo=false;
   stopHeartbeat();
   speechTimeoutToastAt=0;
+  speechFirstFinalWarned=false;
   if(ws){try{ws.close()}catch(_){}}ws=null;
   document.getElementById('call-screen').classList.remove('active');
   document.getElementById('lobby').classList.remove('hidden');
