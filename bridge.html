@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · 2026-04-08 · lobby UI + audio + CC fix -->
+<!-- talkbridge · 2026-04-07 · fixed layout + speech -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -45,11 +45,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .recent-title{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;}
 .recent-item{background:var(--surface);border:1px solid var(--surface2);border-radius:10px;padding:10px 12px;}
 .recent-item-top{display:flex;align-items:center;gap:8px;}
-.recent-flags{font-size:15px;line-height:1;opacity:.95;white-space:nowrap;}
 .recent-open{flex:1;min-width:0;background:none;border:none;color:var(--text);text-align:left;cursor:pointer;font:inherit;font-size:14px;font-weight:500;}
 .recent-open small{display:block;color:var(--text-dim);font-size:11px;}
-.recent-name-edit{width:100%;background:rgba(255,255,255,.03);color:var(--text);border:1px solid var(--surface2);border-radius:8px;padding:7px 9px;font-size:13px;font-family:"DM Sans",sans-serif;outline:none;}
-.recent-name-edit:focus{border-color:var(--teal);}
 .recent-actions{display:flex;gap:6px;margin-top:8px;}
 .recent-act{flex:1;background:rgba(255,255,255,.06);color:var(--text-dim);border:none;border-radius:8px;padding:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;}
 .recent-act:hover{background:var(--teal);color:#fff;}
@@ -97,7 +94,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .subtitle-line.partner-source{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6);font-size:11px;}
 .partner-speaking-indicator{position:absolute;right:12px;bottom:56px;z-index:5;min-width:34px;height:24px;border-radius:999px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.2);color:#fff;display:none;align-items:center;justify-content:center;font-size:18px;font-weight:700;line-height:1;backdrop-filter:blur(4px);}
 .partner-speaking-indicator.show{display:flex;animation:pulseSpeak .9s ease-in-out infinite alternate;}
-.room-name-chip{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:5;max-width:78%;background:rgba(0,0,0,.68);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:6px 14px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;backdrop-filter:blur(4px);display:none;}
 @keyframes pulseSpeak{from{opacity:.55;transform:scale(.98)}to{opacity:1;transform:scale(1.03)}}
 
 .call-transcript{position:relative;flex:0 0 30%;min-height:0;max-height:45%;overflow-y:auto;background:var(--bg);border-top:1px solid var(--surface2);padding:0 12px;transition:flex-basis .2s ease;}
@@ -238,7 +234,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <video id="remote-video" autoplay playsinline></video>
     <video id="local-video" autoplay muted playsinline></video>
     <div class="no-video-placeholder" id="no-video-msg">👤</div>
-    <div class="room-name-chip" id="room-name-chip"></div>
     <div class="solo-banner" id="solo-banner" style="display:none;"><div class="solo-banner-text">Solo / test mode — waiting for partner</div></div>
     <div class="partner-speaking-indicator" id="partner-speaking-indicator" aria-hidden="true">…</div>
     <div class="subtitle-area" id="subtitle-area"></div>
@@ -307,7 +302,7 @@ var TTS_LOCALE={en:'en-US',th:'th-TH',ja:'ja-JP',ko:'ko-KR',zh:'zh-CN',ar:'ar-SA
 
 var room={id:null,myLang:'',theirLang:'',role:null,name:'',solo:false};
 var deviceId=localStorage.getItem('tb_dev')||(function(){var id=crypto.randomUUID();localStorage.setItem('tb_dev',id);return id})();
-var ws=null,pc=null,videoStream=null,remoteStream=null,audioStream=null;
+var ws=null,pc=null,videoStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false,ignoreOffer=false;
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var recognizer=null,recognizing=false,speechGen=0,wantSpeech=true,recognizerActive=false,restartScheduled=false,restartTimer=null,restartBackoff=250,lastRestartTs=0,speechBlockedUntil=0,endBurst=[],endBurstWarned=false;
@@ -339,13 +334,7 @@ function gL(c){c=(c||'').toLowerCase();for(var i=0;i<LANGS.length;i++)if(LANGS[i
 function updateBadges(){
   $('transcript-ribbon-title').textContent='Transcript';
 }
-function updateRoomChip(){
-  var chip=$('room-name-chip');if(!chip)return;
-  var name=(room.name||'').trim();
-  chip.textContent=name;
-  chip.style.display=name?'block':'none';
-}
-function syncMic(){$('mic-btn').classList.toggle('off',!micOn);$('mic-on').style.display=micOn?'':'none';$('mic-off').style.display=micOn?'none':'';if(audioStream)audioStream.getAudioTracks().forEach(function(t){t.enabled=micOn;})}
+function syncMic(){$('mic-btn').classList.toggle('off',!micOn);$('mic-on').style.display=micOn?'':'none';$('mic-off').style.display=micOn?'none':''}
 function syncCam(){$('cam-btn').classList.toggle('off',!camOn);$('cam-on').style.display=camOn?'':'none';$('cam-off').style.display=camOn?'none':'';$('local-video').style.display=camOn?'':'none'}
 function markPartnerTalking(){var i=$('partner-speaking-indicator');if(!i)return;i.classList.add('show');clearTimeout(partnerSpeakTimer);partnerSpeakTimer=setTimeout(function(){i.classList.remove('show')},1200)}
 function setTranscriptMore(v){showTranscriptMore=!!v;$('transcript-more-indicator').classList.toggle('show',showTranscriptMore)}
@@ -389,18 +378,6 @@ function saveRecent(){
   rows.unshift({id:room.id,name:room.name||(gL(room.myLang).flag+' ↔ '+gL(room.theirLang).flag),myLang:room.myLang,theirLang:room.theirLang,ts:Date.now()});
   setRecent(rows);renderRecent();
 }
-function renameRecent(id,name){
-  var rows=getRecent(),next=norm(name);
-  for(var i=0;i<rows.length;i++){
-    if(rows[i].id===id){
-      rows[i].name=next|| (gL(rows[i].myLang).flag+' ↔ '+gL(rows[i].theirLang).flag);
-      rows[i].ts=Date.now();
-      break;
-    }
-  }
-  setRecent(rows);renderRecent();
-  if(room.id===id){room.name=next;updateRoomChip();}
-}
 function delRecent(id){setRecent(getRecent().filter(function(r){return r.id!==id}));clearTrS(id);renderRecent()}
 
 async function reuseRoom(id){
@@ -425,13 +402,8 @@ function copyRoomTr(){var entries=loadTr(viewingRoomId);if(!entries.length){toas
 function renderRecent(){
   var w=$('recent-rooms'),l=$('recent-rooms-list'),rows=getRecent();
   w.style.display=rows.length?'':'none';
-  l.innerHTML=rows.map(function(r){var t=new Date(r.ts).toLocaleString();var h=!!loadTr(r.id).length;var fallback=gL(r.myLang).flag+' ↔ '+gL(r.theirLang).flag;var n=r.name||fallback;return '<div class="recent-item"><div class="recent-item-top"><span class="recent-flags">'+gL(r.myLang).flag+'↔'+gL(r.theirLang).flag+'</span><button class="recent-open jr" data-id="'+esc(r.id)+'">'+esc(n)+'<small>'+esc(t)+'</small></button></div><input class="recent-name-edit jn" data-id="'+esc(r.id)+'" value="'+esc(n)+'" maxlength="60" aria-label="Edit room name"><div class="recent-actions"><button class="recent-act jr" data-id="'+esc(r.id)+'">▶ Reopen</button>'+(h?'<button class="recent-act jv" data-id="'+esc(r.id)+'">📄 Transcript</button>':'')+'<button class="recent-act danger jd" data-id="'+esc(r.id)+'">✕ Delete</button></div></div>'}).join('');
+  l.innerHTML=rows.map(function(r){var t=new Date(r.ts).toLocaleString();var h=!!loadTr(r.id).length;return '<div class="recent-item"><div class="recent-item-top"><button class="recent-open jr" data-id="'+esc(r.id)+'">'+esc(r.name)+'<small>'+esc(t)+'</small></button></div><div class="recent-actions"><button class="recent-act jr" data-id="'+esc(r.id)+'">▶ Reopen</button>'+(h?'<button class="recent-act jv" data-id="'+esc(r.id)+'">📄 Transcript</button>':'')+'<button class="recent-act danger jd" data-id="'+esc(r.id)+'">✕ Delete</button></div></div>'}).join('');
   l.querySelectorAll('.jr').forEach(function(b){b.onclick=function(){reuseRoom(b.dataset.id)}});
-  l.querySelectorAll('.jn').forEach(function(inp){
-    inp.onchange=function(){renameRecent(inp.dataset.id,inp.value)};
-    inp.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();inp.blur()}};
-    inp.onblur=function(){renameRecent(inp.dataset.id,inp.value)};
-  });
   l.querySelectorAll('.jv').forEach(function(b){b.onclick=function(){viewRoomTr(b.dataset.id)}});
   l.querySelectorAll('.jd').forEach(function(b){b.onclick=function(){delRecent(b.dataset.id)}});
 }
@@ -501,13 +473,12 @@ async function enterCall(){
   if(!callHistoryPushed){history.pushState({tbView:'call'},'',location.href);callHistoryPushed=true}
   $('call-screen').classList.add('active');lobbyState=LS.call;
   $('local-video').srcObject=videoStream;syncMic();syncCam();updateBadges();
-  updateRoomChip();
   $('solo-banner').style.display=room.solo?'':'none';
   renderTr();
   if(!ws||ws.readyState!==1)connectRelay();
   if(!room.solo)setupPC();
-  wantSpeech=true;
-  startSpeech();
+  wantSpeech=micOn;
+  if(wantSpeech)startSpeech();
   relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
 }
 
@@ -517,11 +488,10 @@ function refreshRemoteVideo(){
   var hasVideoTrack=tracks.some(function(t){return t.kind==='video'&&t.readyState==='live';});
   var hasRemoteTrack=tracks.some(function(t){return t.readyState==='live';});
   if(hasRemoteTrack&&rv.srcObject!==remoteStream)rv.srcObject=remoteStream;
-  rv.playsInline=true;rv.autoplay=true;if(!rv._audioUnlocked)rv.muted=true;
+  rv.playsInline=true;rv.autoplay=true;rv.muted=true;
   if(hasRemoteTrack){
     var tryPlay=rv.play&&rv.play();
-    if(tryPlay&&tryPlay.then){tryPlay.then(function(){if(!rv._audioUnlocked){rv.muted=false;rv._audioUnlocked=true;}}).catch(function(){});}
-    else if(!rv._audioUnlocked){rv.muted=false;rv._audioUnlocked=true;}
+    if(tryPlay&&tryPlay.catch)tryPlay.catch(function(){});
     $('solo-banner').style.display='none';
   }
   if(hasVideoTrack){
@@ -546,7 +516,6 @@ function resetRemoteMediaState(){
   });
   remoteStream=null;
   rv.srcObject=null;
-  rv.muted=true;rv._audioUnlocked=false;
   $('no-video-msg').style.display='';
   $('solo-banner').style.display=room.solo?'':'none';
 }
@@ -559,7 +528,6 @@ function setupPC(){
   localVideoTracks.forEach(function(t){pc.addTrack(t,videoStream)});
   if(localVideoTracks.length&&pc.signalingState==='stable'&&!makingOffer)emitOffer();
   pc.onicecandidate=function(e){if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}})};
-  pc.onconnectionstatechange=function(){refreshRemoteVideo()};
   pc.ontrack=function(e){
     if(!remoteStream)remoteStream=new MediaStream();
     if(e.streams&&e.streams[0]){
@@ -575,12 +543,6 @@ function setupPC(){
     }
     refreshRemoteVideo();
   };
-  // Acquire audio separately — keeps SpeechRecognition mic access uncontested
-  navigator.mediaDevices.getUserMedia({audio:true,video:false}).then(function(aStream){
-    audioStream=aStream;
-    aStream.getAudioTracks().forEach(function(t){t.enabled=micOn;if(pc)pc.addTrack(t,aStream);});
-    // onnegotiationneeded will fire automatically to renegotiate with audio
-  }).catch(function(e){log('audio_fail',{e:e.message},'warn');});
 }
 async function handleSig(d){
   if(!d.signal)return;if(!pc)setupPC();
@@ -601,7 +563,7 @@ function recFinal(t){recentFinals.push({s:t.toLowerCase(),t:Date.now()});if(rece
 function isCallActive(){return !!(room.id&&$('call-screen').classList.contains('active'))}
 function clearSpeechRestart(){if(restartTimer){clearTimeout(restartTimer);restartTimer=null}restartScheduled=false}
 function resetSpeechState(){clearSpeechRestart();restartBackoff=250;endBurst=[]}
-function canAutoStartSpeech(){return !!(SpeechRec&&wantSpeech&&isCallActive()&&!document.hidden&&Date.now()>=speechBlockedUntil)}
+function canAutoStartSpeech(){return !!(SpeechRec&&wantSpeech&&micOn&&isCallActive()&&!document.hidden&&Date.now()>=speechBlockedUntil)}
 function canScheduleSpeechRestart(){return !restartScheduled&&Date.now()>=speechBlockedUntil}
 function scheduleSpeechRestart(reason,minDelay){
   if(!canScheduleSpeechRestart()||!canAutoStartSpeech())return;
@@ -725,12 +687,18 @@ function exportTxt(){
   var blob=new Blob([t],{type:'text/plain'});var u=URL.createObjectURL(blob);var a=document.createElement('a');a.href=u;a.download='talkbridge-'+new Date().toISOString().slice(0,10)+'.txt';a.click();setTimeout(function(){URL.revokeObjectURL(u)},0);toast('Exported');
 }
 
-function toggleMic(){micOn=!micOn;if(audioStream)audioStream.getAudioTracks().forEach(function(t){t.enabled=micOn});syncMic();}
+function toggleMic(){
+  micOn=!micOn;wantSpeech=micOn;
+  if(micOn){
+    recentFinals=[];if(isCallActive())startSpeech();
+  }else stopSpeech(true);
+  syncMic();
+}
 function toggleCam(){if(!videoStream)return;camOn=!camOn;videoStream.getVideoTracks().forEach(function(t){t.enabled=camOn});syncCam()}
 function hangUp(){relaySend({type:'hangup'});cleanUp()}
 function cleanUp(){
   saveTr();stopSpeech();resetSpeechState();speechBlockedUntil=0;recentFinals=[];clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
-  if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}  if(audioStream){audioStream.getTracks().forEach(function(t){t.stop()});audioStream=null}
+  if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}
   if(pc){pc.close();pc=null}room.id=null;room.solo=false;stopHB();if(ws)try{ws.close()}catch(_){}ws=null;
   $('call-screen').classList.remove('active');$('lobby').classList.remove('hidden');setLS(LS.setup);
   $('subtitle-area').innerHTML='';$('no-video-msg').style.display='';
@@ -738,7 +706,7 @@ function cleanUp(){
   $('call-screen').classList.remove('transcript-collapsed');transcriptCollapsed=false;setTranscriptMore(false);syncTranscriptToggleButton();
   transcriptTtsOn=false;syncTranscriptTtsButton();if(window.speechSynthesis)window.speechSynthesis.cancel();
   document.querySelector('.call-videos').classList.remove('swapped');
-  resetRemoteMediaState();$('remote-video')._audioUnlocked=false;
+  resetRemoteMediaState();
   transcript=[];micOn=true;wantSpeech=true;camOn=true;syncMic();syncCam();callHistoryPushed=false;renderRecent();
 }
 
