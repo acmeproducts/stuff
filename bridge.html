@@ -250,6 +250,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   <div class="log-body" id="room-tr-body" style="font-family:'DM Sans',sans-serif;font-size:13px;"></div>
 </div>
 
+<div class="log-overlay" id="room-log-overlay">
+  <div class="log-header">
+    <span class="log-title" id="room-log-title">Room log</span>
+    <div class="log-actions">
+      <button class="log-btn" onclick="copyRoomLog()">Copy</button>
+      <button class="log-btn" onclick="clearRoomLogView()">Clear</button>
+      <button class="log-btn" onclick="closeRoomLog()">✕ Close</button>
+    </div>
+  </div>
+  <div class="log-body" id="room-log-body"></div>
+</div>
+
 <div class="call" id="call-screen">
   <div class="call-videos">
     <video id="remote-video" autoplay playsinline></video>
@@ -331,8 +343,8 @@ var recognizer=null,recognizing=false,speechGen=0,wantSpeech=true,recognizerActi
 var localSubSeq=0,transcript=[],trCache=new Map();
 var hbTimer=null,seq=0,wsReconnectTimer=null,isSettingRemoteAnswerPending=false;
 var debugLog=[],HEARTBEAT_MS=30000,SUB_LINGER=5000,MAX_TR=300;
-var RK='tb_recent_rooms',TP='tb_transcript_',RL=12;
-var viewingRoomId=null,callHistoryPushed=false;
+var RK='tb_recent_rooms',TP='tb_transcript_',LP='tb_room_log_',RL=12;
+var viewingRoomId=null,viewingRoomLogId=null,callHistoryPushed=false;
 var recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=5;
 var transcriptCollapsed=false,showTranscriptMore=false,partnerSpeakTimer=null,transcriptTtsOn=false;
 
@@ -343,11 +355,23 @@ function esc(s){var d=document.createElement('div');d.textContent=s||'';return d
 function norm(s){return(s||'').replace(/\s+/g,' ').trim()}
 
 function log(ev,d,l){
-  var r={ts:new Date().toISOString(),ev:ev,d:d||{},l:l||'info'};
+  var detail=d||{};
+  var r={ts:new Date().toISOString(),ev:ev,d:detail,l:l||'info'};
   debugLog.push(r);if(debugLog.length>400)debugLog.shift();
+  appendRoomLog({
+    ts:r.ts,ev:r.ev,l:r.l,d:detail,
+    ctx:{
+      lobbyState:lobbyState,
+      wsReady:ws?ws.readyState:null,
+      pcState:pc?pc.signalingState:null,
+      roomId:room.id||null,
+      micOn:micOn,camOn:camOn,ccOn:ccOn,
+      recognizing:recognizing
+    }
+  });
   var b=$('log-body');if(!b)return;
   var div=document.createElement('div');div.className='log-row '+(l||'info');
-  div.innerHTML='<span class="ts">'+r.ts.slice(11,23)+'</span> <span class="ev">'+esc(ev)+'</span> '+esc(JSON.stringify(d||{}));
+  div.innerHTML='<span class="ts">'+r.ts.slice(11,23)+'</span> <span class="ev">'+esc(ev)+'</span> '+esc(JSON.stringify(detail));
   b.appendChild(div);b.scrollTop=b.scrollHeight;
 }
 
@@ -385,6 +409,18 @@ function trKey(id){return TP+(id||room.id)}
 function saveTr(){if(room.id)try{localStorage.setItem(trKey(),JSON.stringify(transcript))}catch(_){}}
 function loadTr(id){try{var r=localStorage.getItem(trKey(id||room.id));return r?JSON.parse(r):[]}catch(_){return[]}}
 function clearTrS(id){try{localStorage.removeItem(trKey(id))}catch(_){}}
+function logKey(id){return LP+(id||room.id)}
+function loadRoomLog(id){try{var r=localStorage.getItem(logKey(id));return r?JSON.parse(r):[]}catch(_){return[]}}
+function clearRoomLog(id){try{localStorage.removeItem(logKey(id))}catch(_){}}
+function appendRoomLog(row){
+  if(!room.id)return;
+  try{
+    var rows=loadRoomLog(room.id);
+    rows.push(row);
+    if(rows.length>1200)rows.splice(0,rows.length-1200);
+    localStorage.setItem(logKey(room.id),JSON.stringify(rows));
+  }catch(_){}
+}
 
 function encInv(p){try{return btoa(unescape(encodeURIComponent(JSON.stringify(p)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(_){return''}}
 function decInv(s){if(!s)return null;try{var b=s.replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';return JSON.parse(decodeURIComponent(escape(atob(b))))}catch(_){return null}}
@@ -401,7 +437,7 @@ function saveRecent(){
   rows.unshift({id:room.id,name:room.name||(gL(room.myLang).flag+' ↔ '+gL(room.theirLang).flag),myLang:room.myLang,theirLang:room.theirLang,ts:Date.now()});
   setRecent(rows);renderRecent();
 }
-function delRecent(id){setRecent(getRecent().filter(function(r){return r.id!==id}));clearTrS(id);renderRecent()}
+function delRecent(id){setRecent(getRecent().filter(function(r){return r.id!==id}));clearTrS(id);clearRoomLog(id);renderRecent()}
 
 async function reuseRoom(id){
   var rec=getRecent().find(function(r){return r.id===id});if(!rec)return;
@@ -421,13 +457,26 @@ function viewRoomTr(id){
 }
 function closeRoomTr(){$('room-tr-overlay').classList.remove('show')}
 function copyRoomTr(){var entries=loadTr(viewingRoomId);if(!entries.length){toast('No transcript');return}var t=entries.map(function(e){var ts=new Date(e.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});return '['+ts+'] '+(e.who==='me'?'You':'Partner')+': '+e.sourceText+(e.translatedText!==e.sourceText?' → '+e.translatedText:'')}).join('\n');if(navigator.clipboard)navigator.clipboard.writeText(t).then(function(){toast('Copied')})}
+function roomLogText(entries){return entries.map(function(r){return '['+(r.ts||'')+'] '+((r.l||'info').toUpperCase())+' '+(r.ev||'event')+' '+JSON.stringify(r.d||{})+' ctx='+JSON.stringify(r.ctx||{})}).join('\n')}
+function viewRoomLog(id){
+  var rec=getRecent().find(function(r){return r.id===id});var entries=loadRoomLog(id);viewingRoomLogId=id;
+  $('room-log-title').textContent=(rec&&rec.name?rec.name:'Room')+' — Log';
+  var b=$('room-log-body');
+  if(!entries.length){b.innerHTML='<div style="color:var(--text-muted);padding:16px;font-style:italic;">No log saved.</div>'}
+  else{b.innerHTML=entries.map(function(r){return '<div class="log-row '+esc(r.l||'info')+'"><span class="ts">'+esc((r.ts||'').slice(11,23))+'</span> <span class="ev">'+esc(r.ev||'event')+'</span> '+esc(JSON.stringify(r.d||{}))+' <span style="color:#666">ctx='+esc(JSON.stringify(r.ctx||{}))+'</span></div>'}).join('')}
+  $('room-log-overlay').classList.add('show');
+}
+function closeRoomLog(){$('room-log-overlay').classList.remove('show')}
+function copyRoomLog(){var entries=loadRoomLog(viewingRoomLogId);if(!entries.length){toast('No log');return}if(navigator.clipboard)navigator.clipboard.writeText(roomLogText(entries)).then(function(){toast('Copied')})}
+function clearRoomLogView(){if(!viewingRoomLogId){toast('No room log');return}clearRoomLog(viewingRoomLogId);viewRoomLog(viewingRoomLogId);toast('Log cleared')}
 
 function renderRecent(){
   var w=$('recent-rooms'),l=$('recent-rooms-list'),rows=getRecent();
   w.style.display=rows.length?'':'none';
-  l.innerHTML=rows.map(function(r){var t=new Date(r.ts).toLocaleString();var h=!!loadTr(r.id).length;return '<div class="recent-item"><div class="recent-item-top"><button class="recent-open jr" data-id="'+esc(r.id)+'">'+esc(r.name)+'<small>'+esc(t)+'</small></button></div><div class="recent-actions"><button class="recent-act jr" data-id="'+esc(r.id)+'">▶ Reopen</button>'+(h?'<button class="recent-act jv" data-id="'+esc(r.id)+'">📄 Transcript</button>':'')+'<button class="recent-act danger jd" data-id="'+esc(r.id)+'">✕ Delete</button></div></div>'}).join('');
+  l.innerHTML=rows.map(function(r){var t=new Date(r.ts).toLocaleString();var h=!!loadTr(r.id).length;return '<div class="recent-item"><div class="recent-item-top"><button class="recent-open jr" data-id="'+esc(r.id)+'">'+esc(r.name)+'<small>'+esc(t)+'</small></button></div><div class="recent-actions"><button class="recent-act jr" data-id="'+esc(r.id)+'">▶ Reopen</button>'+(h?'<button class="recent-act jv" data-id="'+esc(r.id)+'">📄 Transcript</button>':'')+'<button class="recent-act jl" data-id="'+esc(r.id)+'">🪲 Log</button><button class="recent-act danger jd" data-id="'+esc(r.id)+'">✕ Delete</button></div></div>'}).join('');
   l.querySelectorAll('.jr').forEach(function(b){b.onclick=function(){reuseRoom(b.dataset.id)}});
   l.querySelectorAll('.jv').forEach(function(b){b.onclick=function(){viewRoomTr(b.dataset.id)}});
+  l.querySelectorAll('.jl').forEach(function(b){b.onclick=function(){viewRoomLog(b.dataset.id)}});
   l.querySelectorAll('.jd').forEach(function(b){b.onclick=function(){delRecent(b.dataset.id)}});
 }
 
@@ -498,6 +547,7 @@ function handleRelay(d){
 }
 
 async function enterCall(){
+  log('enter_call',{role:room.role,roomId:room.id,solo:room.solo});
   recentFinals=[];
   if(!videoStream){try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true})}catch(_){toast('Camera needed');return}}
   $('lobby-link').textContent=invUrl();
@@ -555,6 +605,7 @@ function resetRemoteMediaState(){
 }
 
 function setupPC(){
+  log('pc_setup_attempt',{hasPc:!!pc,hasRemote:!!(remoteStream&&remoteStream.getTracks().length)});
   var emitOffer=async function(){try{makingOffer=true;await pc.setLocalDescription(await pc.createOffer());relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}})}catch(_){}finally{makingOffer=false}};
   if(pc){
     var hasRemoteTrack=!!(remoteStream&&remoteStream.getTracks().length);
@@ -741,6 +792,7 @@ function exportTxt(){
 
 function toggleMic(){
   micOn=!micOn;
+  log('mic_toggle',{micOn:micOn});
   if(pc)pc.getSenders().forEach(function(sender){
     if(sender&&sender.track&&sender.track.kind==='audio')sender.track.enabled=micOn;
   });
@@ -748,6 +800,7 @@ function toggleMic(){
 }
 function toggleCc(){
   ccOn=!ccOn;
+  log('cc_toggle',{ccOn:ccOn});
   wantSpeech=ccOn;
   if(!ccOn){
     stopSpeech(true);
