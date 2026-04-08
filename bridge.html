@@ -570,7 +570,12 @@ function connectRelay(){
   if(ws)try{ws.close()}catch(_){}
   ws=new WebSocket(RELAY_WS+'?app='+encodeURIComponent(RELAY_APP)+'&session='+encodeURIComponent(room.id)+'&client='+encodeURIComponent(deviceId));
   var _ws=ws;
-  ws.onopen=function(){log('relay_open',{},'ok');relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});startHB()};
+  ws.onopen=function(){
+    log('relay_open',{},'ok');
+    relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
+    if(lobbyState===LS.call)setupPC();
+    startHB();
+  };
   ws.onmessage=function(e){try{handleRelay(JSON.parse(e.data))}catch(_){}};
   ws.onclose=function(ev){if(ws!==_ws)return;log('relay_close',{code:ev.code},'warn');stopHB();clearTimeout(wsReconnectTimer);if(room.id&&(lobbyState===LS.waiting||lobbyState===LS.call))wsReconnectTimer=setTimeout(function(){wsReconnectTimer=null;if(room.id)connectRelay()},2000)};
   ws.onerror=function(){log('relay_err',{},'error')};
@@ -582,7 +587,15 @@ function stopHB(){if(hbTimer){clearInterval(hbTimer);hbTimer=null}}
 function handleRelay(d){
   if(!d||d.from===deviceId)return;
   if(d.type==='hello'){
-    if(lobbyState===LS.waiting){room.solo=false;enterCall();return}
+    if(lobbyState===LS.waiting){
+      room.solo=false;
+      enterCall().then(function(){
+        if(lobbyState!==LS.call)return;
+        setupPC();
+        relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role,reply:true});
+      });
+      return;
+    }
     if(lobbyState===LS.call){
       room.solo=false;
       setupPC();
