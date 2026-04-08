@@ -363,6 +363,7 @@ var CAPTION_WS='wss://'+RELAY_BASE+'/stt';
 var captionEngine=null,recognizing=false,speechGen=0,wantSpeech=true,restartScheduled=false,restartTimer=null,restartBackoff=250,lastRestartTs=0,speechBlockedUntil=0,endBurst=[],endBurstWarned=false;
 var providerRestartAttempts={},providerDegraded={},captionDegradedState=null;
 var PROVIDER_RESTART_LIMITS={streaming_stt:6,web_speech:4,default:5};
+var captionProviderState='inactive';
 var localSubSeq=0,transcript=[],trCache=new Map();
 var hbTimer=null,seq=0,wsReconnectTimer=null,isSettingRemoteAnswerPending=false;
 var debugLog=[],HEARTBEAT_MS=30000,SUB_LINGER=5000,MAX_TR=300;
@@ -404,6 +405,13 @@ function captionStatusMessage(){
   if(!captionDegradedState||!captionDegradedState.active)return'';
   return 'CC degraded: '+(captionDegradedState.message||'Live transcript unavailable');
 }
+function setCaptionProviderState(next,meta){
+  var n=next||'inactive';
+  if(captionProviderState===n)return;
+  var prev=captionProviderState;
+  captionProviderState=n;
+  log('caption_provider_state',{from:prev,to:n,provider:meta&&meta.provider||null,reason:meta&&meta.reason||null,ccOn:ccOn,callActive:isCallActive()},n==='degraded'?'warn':'info');
+}
 function syncCaptionStatus(){
   var el=$('caption-status');if(!el)return;
   var msg=captionStatusMessage();
@@ -414,6 +422,7 @@ function syncCaptionStatus(){
 function markCaptionDegraded(provider,reason,message){
   if(provider)providerDegraded[provider]=true;
   captionDegradedState={active:true,provider:provider||null,reason:reason||'unknown',message:message||'Live transcript unavailable'};
+  setCaptionProviderState('degraded',{provider:provider||null,reason:reason||'unknown'});
   log('caption_degraded',{provider:provider||null,reason:reason||'unknown',message:captionDegradedState.message},'warn');
   syncCaptionStatus();
 }
@@ -421,6 +430,11 @@ function clearCaptionDegraded(provider){
   if(provider)delete providerDegraded[provider];
   if(!captionDegradedState||!captionDegradedState.active)return;
   if(provider&&captionDegradedState.provider&&captionDegradedState.provider!==provider)return;
+  if(!(captionEngine&&captionEngine.active&&recognizing&&captionProviderState==='active')){
+    captionDegradedState=null;
+    syncCaptionStatus();
+    return;
+  }
   log('caption_recovered',{provider:provider||captionDegradedState.provider||null},'ok');
   captionDegradedState=null;
   syncCaptionStatus();
@@ -705,7 +719,7 @@ function isDupe(text){
 function recFinal(t){recentFinals.push({s:t.toLowerCase(),t:Date.now()});if(recentFinals.length>DEDUP_MAX)recentFinals.shift()}
 function isCallActive(){return !!(room.id&&$('call-screen').classList.contains('active'))}
 function clearSpeechRestart(){if(restartTimer){clearTimeout(restartTimer);restartTimer=null}restartScheduled=false}
-function resetSpeechState(){clearSpeechRestart();restartBackoff=250;endBurst=[];providerRestartAttempts={};providerDegraded={};clearCaptionDegraded()}
+function resetSpeechState(){clearSpeechRestart();restartBackoff=250;endBurst=[];providerRestartAttempts={};providerDegraded={};captionDegradedState=null;setCaptionProviderState('inactive',{reason:'reset'});syncCaptionStatus()}
 function canAutoStartSpeech(){return !!(wantSpeech&&isCallActive()&&!document.hidden&&Date.now()>=speechBlockedUntil)}
 function canScheduleSpeechRestart(){return !restartScheduled&&Date.now()>=speechBlockedUntil}
 function scheduleSpeechRestart(reason,minDelay,provider){
@@ -812,6 +826,7 @@ function buildStreamingProvider(){
         recorder.onerror=function(e){ctx.onError&&ctx.onError({provider:'streaming_stt',error:(e&&e.error&&e.error.message)||'recorder_error'})};
         recorder.start(250);
         wsConn.send(JSON.stringify({type:'start',session:room.id,client:deviceId,lang:room.myLang,targetLang:room.theirLang,sampleRate:16000,encoding:'webm_opus'}));
+        log('caption_socket_open',{provider:'streaming_stt'},'ok');
         ctx.onStart&&ctx.onStart();
       };
       wsConn.onmessage=function(ev){
@@ -819,13 +834,24 @@ function buildStreamingProvider(){
         try{msg=JSON.parse(ev.data)}catch(_){return}
         if(!msg)return;
         if(msg.type==='final'||msg.isFinal)ctx.onFinal&&ctx.onFinal(msg.text||msg.transcript||'',{provider:'streaming_stt'});
-        else if(msg.type==='error')ctx.onError&&ctx.onError({provider:'streaming_stt',error:msg.error||'upstream_error'});
+        else if(msg.type==='error'){
+          var errCode=(msg.error||'upstream_error').toString();
+          var fatal=(errCode==='auth_error'||errCode==='invalid_api_key'||errCode==='forbidden'||errCode==='config_error'||errCode==='unsupported_lang');
+          log('caption_socket_message_error',{provider:'streaming_stt',error:errCode,fatal:fatal},fatal?'error':'warn');
+          ctx.onError&&ctx.onError({provider:'streaming_stt',error:errCode,fatal:fatal});
+        }
       };
-      wsConn.onerror=function(){ctx.onError&&ctx.onError({provider:'streaming_stt',error:'socket_error'})};
-      wsConn.onclose=function(){
+      wsConn.onerror=function(ev){
+        var detail={provider:'streaming_stt',error:'socket_error',readyState:wsConn.readyState};
+        log('caption_socket_error',detail,'warn');
+        ctx.onError&&ctx.onError(detail);
+      };
+      wsConn.onclose=function(ev){
         if(stopped)return;
         cleanup();
-        ctx.onStop&&ctx.onStop({reason:'socket_close'});
+        var closeMeta={provider:'streaming_stt',reason:'socket_close',code:ev&&ev.code,wasClean:!!(ev&&ev.wasClean),closeReason:ev&&ev.reason||''};
+        log('caption_socket_close',closeMeta,(ev&&ev.code===1000)?'ok':'warn');
+        ctx.onStop&&ctx.onStop(closeMeta);
       };
       this._stop=function(){
         if(stopped)return;
@@ -847,15 +873,18 @@ function createCaptionEngine(){
       clearSpeechRestart();
       var gen=++speechGen;
       var locale=TTS_LOCALE[room.myLang]||room.myLang;
+      setCaptionProviderState(captionProviderState==='degraded'?'recovering':'starting',{provider:self.provider?self.provider.name:null,reason:'start'});
       var context={
         locale:locale,
-        onStart:function(){if(gen!==speechGen)return;recognizing=true;self.active=true;restartBackoff=250;endBurst=[];endBurstWarned=false;var pn=self.provider?self.provider.name:null;if(pn)providerRestartAttempts[pn]=0;clearCaptionDegraded(pn);log('caption_engine_start',{provider:pn},'ok')},
+        onStart:function(){if(gen!==speechGen)return;recognizing=true;self.active=true;restartBackoff=250;endBurst=[];endBurstWarned=false;var pn=self.provider?self.provider.name:null;if(pn)providerRestartAttempts[pn]=0;setCaptionProviderState('active',{provider:pn,reason:'start_ok'});clearCaptionDegraded(pn);log('caption_engine_start',{provider:pn},'ok')},
         onFinal:function(text,meta){if(gen!==speechGen)return;emitCaptionFinal(text,meta)},
         onError:function(err){
           if(gen!==speechGen)return;
           recognizing=false;self.active=false;
+          setCaptionProviderState('recovering',{provider:(err&&err.provider)||(self.provider&&self.provider.name)||null,reason:'error'});
           log('caption_engine_error',err||{provider:self.provider?self.provider.name:null},'error');
           if(err&&(err.error==='not-allowed'||err.error==='service-not-allowed')){speechBlockedUntil=Date.now()+15000;clearSpeechRestart();toast('Mic permission needed');return}
+          if(err&&err.fatal){markCaptionDegraded((err&&err.provider)||(self.provider&&self.provider.name)||null,err.error||'fatal','Live transcript unavailable');return}
           if(err&&err.error==='audio-capture')toast('Microphone unavailable');
           var pErr=(err&&err.provider)||(self.provider&&self.provider.name)||'unknown';
           if(err&&(err.error==='aborted'||err.error==='network'||err.error==='socket_error'))scheduleSpeechRestart('onerror:'+(err.error||'unknown'),2600,pErr);
@@ -864,6 +893,7 @@ function createCaptionEngine(){
         onStop:function(info){
           if(gen!==speechGen)return;
           recognizing=false;self.active=false;
+          setCaptionProviderState('recovering',{provider:(info&&info.provider)||(self.provider&&self.provider.name)||null,reason:info&&info.reason||'stop'});
           log('caption_engine_stop',{provider:self.provider?self.provider.name:null,reason:info&&info.reason||'unknown'});
           var now=Date.now();endBurst=endBurst.filter(function(t){return now-t<8000});endBurst.push(now);
           if(endBurst.length>=4){
@@ -880,9 +910,11 @@ function createCaptionEngine(){
         var p=providers[i];
         if(!p||!p.isSupported||!p.isSupported())continue;
         if(providerDegraded[p.name]){log('caption_provider_skip',{provider:p.name,reason:'degraded'},'warn');continue}
+        log('caption_provider_transition',{from:self.provider?self.provider.name:null,to:p.name,reason:'start_attempt',ccOn:ccOn,callActive:isCallActive()},'info');
         self.provider=p;
         try{p.start(context);return}catch(err){log('caption_engine_error',{provider:p.name,error:(err&&err.message)||'start_failed'},'error')}
       }
+      setCaptionProviderState('degraded',{provider:null,reason:'provider_unavailable'});
       markCaptionDegraded(null,'provider_unavailable','Live transcript unavailable');
       toast('Live transcript unavailable');
     },
@@ -892,7 +924,8 @@ function createCaptionEngine(){
       recognizing=false;
       this.active=false;
       if(this.provider&&this.provider.stop)try{this.provider.stop()}catch(_){}
-      log('caption_engine_stop',{provider:this.provider?this.provider.name:null,reason:'stop_call'});
+      setCaptionProviderState('inactive',{provider:this.provider?this.provider.name:null,reason:'stop_call'});
+      log('caption_engine_stop',{provider:this.provider?this.provider.name:null,reason:'stop_call',ccOn:ccOn,callActive:isCallActive()},'info');
       this.provider=null;
     }
   };
@@ -903,8 +936,10 @@ function startSpeech(){
   try{captionEngine.start()}catch(_){scheduleSpeechRestart('start-throw',800)}
 }
 function stopSpeech(keepWant,skipRecognizerStop){
+  log('caption_stop_decision',{keepWant:!!keepWant,skipRecognizerStop:!!skipRecognizerStop,ccOn:ccOn,callActive:isCallActive(),hasEngine:!!captionEngine},'info');
   if(skipRecognizerStop)return;
   if(!keepWant)wantSpeech=false;
+  if(keepWant&&ccOn&&isCallActive())return;
   if(captionEngine)captionEngine.stop();
 }
 
