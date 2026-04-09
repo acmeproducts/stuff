@@ -81,6 +81,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .call.active{display:flex;}
 
 .call-videos{position:relative;background:#000;overflow:hidden;flex:1;min-height:0;transition:flex-basis .2s ease;}
+.call-info-chip{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;max-width:calc(100% - 24px);padding:5px 10px;border-radius:999px;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);color:#fff;font-size:12px;line-height:1.2;z-index:2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;}
+.call-info-chip-part{overflow:hidden;text-overflow:ellipsis;}
+.call-info-chip-divider{width:1px;height:12px;background:rgba(255,255,255,.35);flex-shrink:0;}
 #remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:1;}
 #local-video{position:absolute;top:8px;right:8px;width:min(20%,90px);aspect-ratio:9/16;border-radius:8px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
 .no-video-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--text-muted);z-index:1;}
@@ -233,6 +236,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   <div class="call-videos">
     <video id="remote-video" autoplay playsinline></video>
     <video id="local-video" autoplay muted playsinline></video>
+    <div class="call-info-chip" id="call-info-chip" style="display:none;"></div>
     <div class="no-video-placeholder" id="no-video-msg">👤</div>
     <div class="solo-banner" id="solo-banner" style="display:none;"><div class="solo-banner-text">Solo / test mode — waiting for partner</div></div>
     <div class="partner-speaking-indicator" id="partner-speaking-indicator" aria-hidden="true">…</div>
@@ -337,6 +341,16 @@ function detectLang(t,fb){t=(t||'').trim();if(!t)return fb||'en';if(/[฀-๿]/.
 function gL(c){c=(c||'').toLowerCase();for(var i=0;i<LANGS.length;i++)if(LANGS[i].code===c)return LANGS[i];return{code:c||'?',label:(c||'?').toUpperCase(),flag:'🌐'}}
 function updateBadges(){
   $('transcript-ribbon-title').textContent='Transcript';
+}
+function renderCallInfoChip(){
+  var chip=$('call-info-chip');if(!chip)return;
+  var roomName=norm(room.name);
+  var langPair=gL(room.myLang).flag+' → '+gL(room.theirLang).flag;
+  var parts=[];
+  if(roomName)parts.push('<span class="call-info-chip-part">'+esc(roomName)+'</span>');
+  if(langPair)parts.push('<span class="call-info-chip-part">'+esc(langPair)+'</span>');
+  chip.innerHTML=parts.join('<span class="call-info-chip-divider" aria-hidden="true"></span>');
+  chip.style.display=parts.length?'':'none';
 }
 function syncMic(){$('mic-btn').classList.toggle('off',!micOn);$('mic-on').style.display=micOn?'':'none';$('mic-off').style.display=micOn?'none':''}
 function syncCam(){$('cam-btn').classList.toggle('off',!camOn);$('cam-on').style.display=camOn?'':'none';$('cam-off').style.display=camOn?'none':'';$('local-video').style.display=camOn?'':'none'}
@@ -491,7 +505,7 @@ async function enterCall(){
   $('lobby').classList.add('hidden');
   if(!callHistoryPushed){history.pushState({tbView:'call'},'',location.href);callHistoryPushed=true}
   $('call-screen').classList.add('active');lobbyState=LS.call;
-  $('local-video').srcObject=videoStream;syncMic();syncCam();updateBadges();
+  $('local-video').srcObject=videoStream;syncMic();syncCam();updateBadges();renderCallInfoChip();
   $('solo-banner').style.display=room.solo?'':'none';
   renderTr();
   if(!ws||ws.readyState!==1)connectRelay();
