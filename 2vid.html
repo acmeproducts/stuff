@@ -628,6 +628,7 @@ var tEngine='cloud',ttsActive=null,typingTimer=null,typingStopTimer=null,localTy
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var recognition=null,sttActive=false;
 var sttIdleTimer=null,sttHardTimer=null,sttFinalText='';
+var ccRecentFinals=[],CC_DEDUP_MS=4000;
 var STT_IDLE_MS=4000,STT_HARD_MS=45000;
 var pendingOnboardingFlow=null;
 var synth=window.speechSynthesis,canSpeak='speechSynthesis' in window;
@@ -1311,7 +1312,7 @@ function startCCCapture(){
   if(recognitionMode==='cc'&&ccRecognition)return;
   if(!SpeechRec){toast('Voice not available');state.mediaRuntime.ccEnabled=false;recognitionMode='none';return}
   var sess=getSession(state.activeConvId||'');ccRecognition=new SpeechRec();
-  ccRecognition.lang=TTS_LOCALE[resolveEffectiveLang(sess,'owner')||'en']||'en';ccRecognition.interimResults=true;ccRecognition.continuous=true;
+  ccRecognition.lang=TTS_LOCALE[resolveEffectiveLang(sess,'owner')||'en']||'en';ccRecognition.interimResults=false;ccRecognition.continuous=true;
   ccRecognition.onstart=function(){ccActive=true;recognitionMode='cc';updateComposerMicState()};
   ccRecognition.onresult=function(e){var finalText='';for(var i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)finalText+=e.results[i][0].transcript}if(finalText.trim())emitCcTranscript(finalText.trim())};
   ccRecognition.onerror=function(){ccActive=false;recognitionMode='none';updateComposerMicState();if(state.mediaRuntime.ccEnabled){if(ccRestartTimer)clearTimeout(ccRestartTimer);ccRecognition=null;ccRestartTimer=setTimeout(function(){if(state.mediaRuntime.ccEnabled)startCCCapture()},250)}};
@@ -1321,6 +1322,11 @@ function startCCCapture(){
 function stopCCCapture(){state.mediaRuntime.ccEnabled=false;if(ccRestartTimer){clearTimeout(ccRestartTimer);ccRestartTimer=null}if(ccRecognition){try{ccRecognition.stop()}catch(_){}}ccRecognition=null;ccActive=false;recognitionMode='none';updateComposerMicState()}
 function emitCcTranscript(text){
   var sess=getSession(state.activeConvId||'');if(!sess||!text)return;
+  // dedup: skip if same/substring text seen in last 4s
+  var now=Date.now(),lo=text.toLowerCase();
+  ccRecentFinals=ccRecentFinals.filter(function(f){return now-f.t<CC_DEDUP_MS});
+  for(var _i=0;_i<ccRecentFinals.length;_i++){var p=ccRecentFinals[_i].s;if(p===lo||(p.length>5&&lo.length>5&&(p.indexOf(lo)>=0||lo.indexOf(p)>=0)))return;}
+  ccRecentFinals.push({s:lo,t:now});if(ccRecentFinals.length>5)ccRecentFinals.shift();
   var srcLang=detectLang(text,resolveEffectiveLang(sess,'owner')||'en');
   var tgtLang=resolveEffectiveLang(sess,'partner','en');var stamp=Date.now();
   transportSend({type:'cc-transcript',transient:true,sourceText:text,sourceLang:srcLang,targetLang:tgtLang,timestamp:stamp});
