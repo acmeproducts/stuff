@@ -1,5 +1,26 @@
 # Talk Session End-to-End QA Script (Reference)
 
+## Rollback Gate and Conflict Policy (must run first)
+
+1. **Hard rollback criteria (Samsung Chrome):**
+
+   - SpeechRecognition does not restart after a natural pause mid-call.
+   - Either bubble TTS button is silent.
+   - Mute/unmute breaks CC continuity after unmute.
+
+2. **Conflict policy table with explicit resolutions:**
+
+| Conflict area | Resolution (explicit) |
+| --- | --- |
+| `onend` restart behavior | Keep bridge1 `onend` restart + `endBurst` guard; prepend flush call. |
+| `canAutoStartSpeech` visibility gate | Keep bridge1 `&& !document.hidden` gate in `canAutoStartSpeech`. |
+| Hidden-state handling | Keep bridge1 hidden-state behavior (`flush` then `stopSpeech(true)` on hidden). |
+| Call audio transport | Force a design decision on call audio transport (`getUserMedia` audio true/false), documented before coding. |
+
+3. **Require revert to step entry commit if any rollback criterion fails.**
+
+---
+
 ## Scope
 Validate first-session lifecycle in two browsers from session creation through chat, translation, back-translate, clarify, save to phrasebook, tags, and phrasebook-first authoring continuity.
 
