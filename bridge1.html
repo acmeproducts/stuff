@@ -288,7 +288,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <button class="call-transcript-btn" onclick="copyTr()" title="Copy transcript" aria-label="Copy transcript">
           <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
         </button>
-        <button class="call-transcript-btn" onclick="exportTxt()" title="Download transcript" aria-label="Download transcript">
+        <button class="call-transcript-btn" onclick="openTranscriptExport()" title="Download transcript" aria-label="Download transcript">
           <svg viewBox="0 0 24 24"><path d="M12 3v11"/><path d="M8 10l4 4 4-4"/><path d="M4 20h16"/></svg>
         </button>
       </div>
@@ -863,10 +863,96 @@ function copyTr(){
   var t=transcript.map(function(e){var ts=new Date(e.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});return '['+ts+'] '+(e.who==='me'?'You':'Partner')+': '+e.sourceText+(e.translatedText&&e.translatedText!==e.sourceText?' → '+e.translatedText:'')}).join('\n');
   if(navigator.clipboard)navigator.clipboard.writeText(t).then(function(){toast('Copied')});
 }
+function csvEscape(value){var str=value==null?'':String(value);return /[",\n]/.test(str)?'"'+str.replace(/"/g,'""')+'"':str}
+function downloadBlob(content,type,fileName){
+  var blob=new Blob([content],{type:type});
+  var u=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=u;a.download=fileName;a.click();
+  setTimeout(function(){URL.revokeObjectURL(u)},0);
+}
+function getTranscriptExportCards(){
+  var now=Date.now();
+  return transcript.map(function(e,idx){
+    var source=(e.sourceText||'').trim();
+    var target=(e.translatedText||e.sourceText||'').trim();
+    var sourceLang=(e.srcLang||room.myLang||'en').toLowerCase();
+    var targetLang=(e.tgtLang||room.theirLang||sourceLang||'en').toLowerCase();
+    var ts=Number(e.ts)||now;
+    return {
+      id:'tr-'+ts+'-'+idx,
+      source:source,
+      sourceLang:sourceLang,
+      target:target,
+      targetLang:targetLang,
+      notes:'',
+      tags:[],
+      catalogIds:[],
+      clarifyChain:[],
+      backtranslate:{verdict:''},
+      savedBy:e.who==='me'?'You':'Partner',
+      createdAt:ts,
+      updatedAt:ts
+    };
+  }).filter(function(card){return card.source||card.target});
+}
+function getTranscriptPhrasebookPayload(){
+  return {type:'phrasebook',cards:getTranscriptExportCards(),catalogs:[],tags:[],exportedAt:Date.now()};
+}
+function getTranscriptPhrasebookCsvRows(cards){
+  return (cards||[]).map(function(card){
+    return {
+      id:card.id||'',
+      source:card.source||'',
+      sourceLang:card.sourceLang||'',
+      target:card.target||'',
+      targetLang:card.targetLang||'',
+      notes:card.notes||'',
+      tags:JSON.stringify(card.tags||[]),
+      catalogIds:JSON.stringify(card.catalogIds||[]),
+      catalogs:JSON.stringify([]),
+      clarifyChain:JSON.stringify(card.clarifyChain||[]),
+      backtranslate:JSON.stringify(card.backtranslate||{}),
+      backtranslateVerdict:(card.backtranslate&&card.backtranslate.verdict)||'',
+      savedBy:card.savedBy||'',
+      createdAt:card.createdAt||'',
+      updatedAt:card.updatedAt||''
+    };
+  });
+}
+function downloadCsvRows(rows,fileName){
+  if(!rows||!rows.length){toast('No transcript');return}
+  var headers=Object.keys(rows[0]);
+  var csv=[headers.map(csvEscape).join(',')].concat(rows.map(function(row){
+    return headers.map(function(h){return csvEscape(row[h]);}).join(',');
+  })).join('\n');
+  downloadBlob(csv,'text/csv;charset=utf-8',fileName);
+}
 function exportTxt(){
   if(!transcript.length){toast('No transcript');return}
   var t='TalkBridge Transcript\n'+(room.name?room.name+'\n':'')+new Date().toLocaleString()+'\n\n'+transcript.map(function(e){var ts=new Date(e.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});return '['+ts+'] '+(e.who==='me'?'You':'Partner')+' ('+((e.srcLang||'?').toUpperCase())+'): '+e.sourceText+(e.translatedText&&e.translatedText!==e.sourceText?'\n → ('+((e.tgtLang||'?').toUpperCase())+'): '+e.translatedText:'')}).join('\n\n');
-  var blob=new Blob([t],{type:'text/plain'});var u=URL.createObjectURL(blob);var a=document.createElement('a');a.href=u;a.download='talkbridge-'+new Date().toISOString().slice(0,10)+'.txt';a.click();setTimeout(function(){URL.revokeObjectURL(u)},0);toast('Exported');
+  downloadBlob(t,'text/plain;charset=utf-8','talkbridge-'+new Date().toISOString().slice(0,10)+'.txt');toast('Exported TXT');
+}
+function exportPhrasebookJson(){
+  if(!transcript.length){toast('No transcript');return}
+  var payload=getTranscriptPhrasebookPayload();
+  downloadBlob(JSON.stringify(payload,null,2),'application/json','talkbridge-phrasebook-'+new Date().toISOString().slice(0,10)+'.json');
+  toast('Exported phrasebook JSON');
+}
+function exportPhrasebookCsv(){
+  if(!transcript.length){toast('No transcript');return}
+  var cards=getTranscriptExportCards();
+  var rows=getTranscriptPhrasebookCsvRows(cards);
+  downloadCsvRows(rows,'talkbridge-phrasebook-'+new Date().toISOString().slice(0,10)+'.csv');
+  toast('Exported phrasebook CSV');
+}
+function openTranscriptExport(){
+  if(!transcript.length){toast('No transcript');return}
+  var choice=(window.prompt('Export format: txt, json, or csv','json')||'').toLowerCase().trim();
+  if(choice==='json'||choice==='phrasebook'||choice==='phrasebook-json'){exportPhrasebookJson();return}
+  if(choice==='csv'||choice==='phrasebook-csv'){exportPhrasebookCsv();return}
+  if(choice==='txt'||!choice){exportTxt();return}
+  toast('Unknown format. Use txt, json, or csv.');
 }
 
 function toggleMic(){
