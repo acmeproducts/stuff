@@ -89,7 +89,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .call-info-chip-divider{width:1px;height:12px;background:rgba(255,255,255,.35);flex-shrink:0;}
 #remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:1;}
 #local-video{position:absolute;top:8px;right:8px;width:min(20%,90px);aspect-ratio:9/16;border-radius:8px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
-.no-video-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--text-muted);z-index:1;}
 .solo-banner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;text-align:center;pointer-events:none;}
 .solo-banner-text{background:rgba(0,0,0,.6);color:var(--text-dim);font-size:13px;padding:8px 18px;border-radius:20px;backdrop-filter:blur(6px);}
 .subtitle-area{position:absolute;bottom:0;left:0;right:0;z-index:4;padding:8px 14px 10px;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:4px;background:linear-gradient(transparent,rgba(0,0,0,.6) 40%);}
@@ -125,7 +124,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .transcript-more-indicator.show{display:flex;}
 .call.transcript-collapsed .call-transcript{flex:0 0 32px;max-height:32px;overflow:hidden;}
 .call.transcript-collapsed #transcript-body{display:none;}
-.call-videos.swapped #remote-video{top:8px;right:8px;left:auto;bottom:auto;width:min(24%,120px);height:auto;aspect-ratio:16/9;border-radius:8px;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;}
+.call-videos.swapped #remote-video{top:8px;right:8px;left:auto;bottom:auto;width:min(20%,90px);height:auto;aspect-ratio:9/16;border-radius:8px;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;}
 .call-videos.swapped #local-video{inset:0;width:100%;height:100%;border-radius:0;border:none;box-shadow:none;z-index:1;}
 .tr-entry{padding:6px 0;}
 .tr-bubble{border:1px solid rgba(255,255,255,.14);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.02);}
@@ -158,6 +157,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 @media(min-width:768px){
   .lobby-card{width:420px;}
   #local-video{width:min(18%,160px);}
+  .call-videos.swapped #remote-video{width:min(18%,160px);}
   .call-controls{gap:20px;padding:10px 24px;}
   .ctrl-btn{width:54px;height:54px;}
   .ctrl-btn.end-call{width:64px;height:54px;}
@@ -167,6 +167,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 @media(max-height:500px) and (orientation:landscape){
   .call-transcript{flex-basis:34%;}
   #local-video{width:min(16%,90px);top:6px;right:6px;}
+  .call-videos.swapped #remote-video{width:min(16%,90px);top:6px;right:6px;}
   .call-controls{gap:10px;padding:6px 12px;}
   .ctrl-btn{width:40px;height:40px;}
   .ctrl-btn.end-call{width:48px;height:40px;}
@@ -250,7 +251,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <video id="remote-video" autoplay playsinline></video>
     <video id="local-video" autoplay muted playsinline></video>
     <div class="call-info-chip" id="call-info-chip" style="display:none;"></div>
-    <div class="no-video-placeholder" id="no-video-msg">👤</div>
     <div class="solo-banner" id="solo-banner" style="display:none;"><div class="solo-banner-text">Solo / test mode — waiting for partner</div></div>
     <div class="partner-speaking-indicator" id="partner-speaking-indicator" aria-hidden="true">…</div>
     <div class="subtitle-area" id="subtitle-area"></div>
@@ -359,7 +359,7 @@ var debugLog=[],HEARTBEAT_MS=30000,SUB_LINGER=5000,MAX_TR=300;
 var RK='tb_recent_rooms',TP='tb_transcript_',RL=12;
 var viewingRoomId=null,callHistoryPushed=false;
 var CC_PREFS_KEY='tb_cc_prefs';
-var CC_PREFS_DEFAULTS={CAPTION_PAUSE_MS:650,DEDUP_MS:4000,endBurst:4};
+var CC_PREFS_DEFAULTS={CAPTION_PAUSE_MS:280,DEDUP_MS:3500,endBurst:5};
 var CAPTION_PAUSE_MS=CC_PREFS_DEFAULTS.CAPTION_PAUSE_MS;
 var DEDUP_MS=CC_PREFS_DEFAULTS.DEDUP_MS;
 var END_BURST_THRESHOLD=CC_PREFS_DEFAULTS.endBurst;
@@ -637,9 +637,7 @@ function refreshRemoteVideo(){
     $('solo-banner').style.display='none';
   }
   if(hasVideoTrack){
-    $('no-video-msg').style.display='none';
   }else{
-    $('no-video-msg').style.display='';
     if(!hasRemoteTrack&&rv.srcObject)rv.srcObject=null;
     $('solo-banner').style.display=room.solo?'':'none';
   }
@@ -659,7 +657,6 @@ function resetRemoteMediaState(){
   });
   remoteStream=null;
   rv.srcObject=null;
-  $('no-video-msg').style.display='';
   $('solo-banner').style.display=room.solo?'':'none';
 }
 
@@ -752,7 +749,7 @@ function startSpeech(){
   log('speech_start_attempt',{gen:gen,locale:locale},'ok');
   recognizerActive=true;
   recognizer=new SpeechRec();recognizer.lang=locale;
-  recognizer.interimResults=false;
+  recognizer.interimResults=true;
   recognizer.continuous=true;recognizer.maxAlternatives=1;
   recognizer.onstart=function(){if(gen===speechGen){recognizing=true;recognizerActive=true;restartBackoff=250;endBurst=[];endBurstWarned=false;speechHeardSinceStart=false;lastSpeechEventTs=Date.now();log('speech_onstart',{gen:gen},'ok')}};
   recognizer.onresult=function(e){
@@ -779,7 +776,7 @@ function startSpeech(){
     if(!speechHeardSinceStart){
       log('speech_onend_idle',{atMs:now},'warn');
       flushSpeechRuntime('onend_idle');
-      scheduleSpeechRestart('onend_idle',12000);
+      scheduleSpeechRestart('onend_idle',1200);
       return;
     }
     var sinceSpeech=lastSpeechEventTs?now-lastSpeechEventTs:null;
@@ -788,9 +785,10 @@ function startSpeech(){
     if(countsTowardBurst)endBurst.push(now);
     log('speech_onend',{sinceSpeechMs:sinceSpeech,countsTowardBurst:countsTowardBurst,burstCount:endBurst.length},'warn');
     if(endBurst.length>=END_BURST_THRESHOLD){
-      speechBlockedUntil=now+20000;
+      speechBlockedUntil=now+5000;
       if(!endBurstWarned){toast('Live transcript is unstable on this browser right now');endBurstWarned=true}
       log('speech_end_burst',{count:endBurst.length},'warn');
+      scheduleSpeechRestart('end_burst',1200);
       return;
     }
     flushSpeechRuntime('onend');
@@ -984,7 +982,7 @@ function cleanUp(){
   logLocalMediaState('cleanup_after_stop');
   if(pc){pc.close();pc=null}lastLocalDescription=null;helloResentByPeer={};room.id=null;room.solo=false;stopHB();if(ws)try{ws.close()}catch(_){}ws=null;
   $('call-screen').classList.remove('active');$('lobby').classList.remove('hidden');setLS(LS.setup);
-  $('subtitle-area').innerHTML='';$('no-video-msg').style.display='';
+  $('subtitle-area').innerHTML='';
   $('partner-speaking-indicator').classList.remove('show');clearTimeout(partnerSpeakTimer);
   $('call-screen').classList.remove('transcript-collapsed');transcriptCollapsed=false;setTranscriptMore(false);syncTranscriptToggleButton();
   transcriptTtsOn=false;syncTranscriptTtsButton();if(window.speechSynthesis)window.speechSynthesis.cancel();
