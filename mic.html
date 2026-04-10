@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mic Timeout PoC</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0f1115;color:#e7eaf0;margin:0;padding:16px}
+  .card{max-width:760px;margin:0 auto;background:#171b22;border:1px solid #2a3240;border-radius:12px;padding:14px}
+  h1{font-size:20px;margin:0 0 10px}
+  p,li{color:#b8c0d0}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .row.stack{flex-direction:column;align-items:flex-start;gap:6px}
+  button{background:#2d7ef7;color:#fff;border:0;border-radius:10px;padding:10px 12px;font-weight:600;cursor:pointer}
+  button.alt{background:#313845}
+  button:disabled{opacity:.5;cursor:default}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  #status{padding:8px 10px;border-radius:8px;background:#111722;border:1px solid #263146;margin:8px 0}
+  #log{margin-top:10px;max-height:42vh;overflow:auto;background:#0c1018;border:1px solid #263146;border-radius:10px;padding:10px}
+  .line{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;border-bottom:1px solid rgba(255,255,255,.05);padding:2px 0}
+  .ok{color:#7ce5a2}.warn{color:#ffd166}.err{color:#ff7b7b}
+  .small{font-size:12px;color:#9facc4}
+  input[type="number"]{width:90px;background:#0f1520;color:#e7eaf0;border:1px solid #32405a;border-radius:8px;padding:6px 8px}
+  #tr{margin-top:10px;max-height:18vh;overflow:auto;background:#0c1018;border:1px solid #263146;border-radius:10px;padding:10px}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>mic.html — SpeechRecognition open-window benchmark</h1>
+    <p>Purpose: measure how long browser speech recognition stays open with no speech (target: Samsung devices + Chrome).</p>
+    <ul>
+      <li>Tap <b>Run 1 test</b> to measure one no-speech session.</li>
+      <li>Tap <b>Run 10 tests</b> to benchmark distribution.</li>
+      <li>Stay silent during each run for clean data.</li>
+    </ul>
+
+    <div class="row">
+      <button id="run1">Run 1 test</button>
+      <button id="run10">Run 10 tests</button>
+      <button id="stop" class="alt">Stop</button>
+      <button id="copy" class="alt">Copy results</button>
+      <button id="clear" class="alt">Clear</button>
+    </div>
+    <div class="row stack">
+      <label><input type="checkbox" id="tone-enabled"> Keepalive tone experiment (speaker output during run)</label>
+      <div class="small">
+        Tone Hz <input type="number" id="tone-hz" min="15" max="240" step="1" value="19"> |
+        Tone gain <input type="number" id="tone-gain" min="0" max="0.05" step="0.001" value="0.01"> |
+        Max open seconds <input type="number" id="max-open-sec" min="5" max="300" step="1" value="60">
+      </div>
+      <div class="small">Note: SpeechRecognition does not accept custom input streams directly; this is an acoustic/speaker keepalive experiment only.</div>
+    </div>
+
+    <div id="status" class="mono">Idle</div>
+    <div class="mono" id="summary">No results yet.</div>
+    <div id="tr" class="mono">Transcript events will appear here.</div>
+    <div id="log"></div>
+  </div>
+
+<script>
+'use strict';
+(function(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  var logEl=document.getElementById('log');
+  var statusEl=document.getElementById('status');
+  var summaryEl=document.getElementById('summary');
+  var trEl=document.getElementById('tr');
+  var runs=[];
+  var running=false;
+  var cancelled=false;
+  var activeRec=null;
+  var audioCtx=null;
+  var toneOsc=null;
+  var toneGainNode=null;
+  var autoStopTimer=null;
+
+  function nowIso(){return new Date().toISOString();}
+  function fmt(ms){return (ms/1000).toFixed(2)+'s';}
+  function log(msg,cls){
+    var row=document.createElement('div');
+    row.className='line '+(cls||'');
+    row.textContent='['+new Date().toLocaleTimeString()+'] '+msg;
+    logEl.appendChild(row);
+    logEl.scrollTop=logEl.scrollHeight;
+  }
+  function setStatus(text){statusEl.textContent=text;}
+  function addTranscriptLine(text,cls){
+    var row=document.createElement('div');
+    row.className='line '+(cls||'');
+    row.textContent='['+new Date().toLocaleTimeString()+'] '+text;
+    trEl.appendChild(row);
+    trEl.scrollTop=trEl.scrollHeight;
+  }
+  function median(arr){if(!arr.length)return 0;var s=arr.slice().sort(function(a,b){return a-b});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+  function refreshSummary(){
+    if(!runs.length){summaryEl.textContent='No results yet.';return;}
+    var d=runs.map(function(r){return r.ms});
+    var min=Math.min.apply(null,d),max=Math.max.apply(null,d);
+    var avg=d.reduce(function(a,b){return a+b},0)/d.length;
+    var med=median(d);
+    summaryEl.textContent='n='+d.length+' | min='+fmt(min)+' | median='+fmt(med)+' | avg='+fmt(avg)+' | max='+fmt(max);
+  }
+
+  function buildResult(runId,startedAt,endedAt,reason,error){
+    return {
+      run:runId,
+      started_iso:new Date(startedAt).toISOString(),
+      ended_iso:new Date(endedAt).toISOString(),
+      ms:endedAt-startedAt,
+      sec:Number(((endedAt-startedAt)/1000).toFixed(3)),
+      reason:reason||'',
+      error:error||'',
+      ua:navigator.userAgent
+    };
+  }
+
+  function runOnce(runId){
+    return new Promise(function(resolve,reject){
+      if(!SR)return reject(new Error('SpeechRecognition not supported on this browser/device.'));
+      var rec=new SR();
+      activeRec=rec;
+      var tStart=0;
+      var settled=false;
+      var finalError='';
+      var maxOpenMs=Math.max(5000,Number(document.getElementById('max-open-sec').value||60)*1000);
+
+      rec.lang='en-US';
+      rec.continuous=true;
+      rec.interimResults=true;
+      rec.maxAlternatives=1;
+
+      function finish(reason){
+        if(settled)return;
+        settled=true;
+        if(autoStopTimer){clearTimeout(autoStopTimer);autoStopTimer=null;}
+        stopTone();
+        activeRec=null;
+        var tEnd=Date.now();
+        var result=buildResult(runId,tStart||tEnd,tEnd,reason,finalError);
+        runs.push(result);
+        log('Run '+runId+' ended: '+fmt(result.ms)+' reason='+reason+(finalError?(' error='+finalError):''), reason==='onend'?'ok':'warn');
+        refreshSummary();
+        resolve(result);
+      }
+
+      rec.onstart=function(){
+        tStart=Date.now();
+        setStatus('Run '+runId+': listening… stay silent');
+        log('Run '+runId+' started', 'ok');
+      };
+
+      rec.onresult=function(e){
+        // Keep silent for benchmark. We still log if speech/noise was detected.
+        for(var i=e.resultIndex;i<e.results.length;i++){
+          var txt=(e.results[i][0]&&e.results[i][0].transcript||'').trim();
+          if(!txt)continue;
+          var isFinal=!!e.results[i].isFinal;
+          addTranscriptLine((isFinal?'FINAL':'INTERIM')+': '+txt.slice(0,140),isFinal?'ok':'warn');
+          log('Run '+runId+' detected speech/noise: "'+txt.slice(0,60)+'"', 'warn');
+        }
+      };
+
+      rec.onerror=function(e){
+        finalError=e.error||'unknown';
+        log('Run '+runId+' error='+finalError, 'err');
+      };
+
+      rec.onend=function(){finish('onend');};
+
+      try{
+        var toneEnabled=document.getElementById('tone-enabled').checked;
+        if(toneEnabled)startTone();
+        rec.start();
+        autoStopTimer=setTimeout(function(){
+          log('Run '+runId+' reached max open window ('+fmt(maxOpenMs)+'), forcing stop', 'warn');
+          try{rec.stop();}catch(_){}
+        },maxOpenMs);
+      }
+      catch(err){reject(err);}
+    });
+  }
+
+  async function runBatch(n){
+    if(running)return;
+    cancelled=false;
+    running=true;
+    setStatus('Preparing…');
+    for(var i=1;i<=n;i++){
+      if(cancelled)break;
+      try{await runOnce(runs.length+1);}catch(err){log('Run failed: '+(err&&err.message?err.message:String(err)),'err');break;}
+      if(i<n&&!cancelled)await new Promise(function(r){setTimeout(r,900);});
+    }
+    running=false;
+    setStatus(cancelled?'Stopped by user':'Idle');
+  }
+
+  function stop(){
+    cancelled=true;
+    if(autoStopTimer){clearTimeout(autoStopTimer);autoStopTimer=null;}
+    stopTone();
+    if(activeRec){try{activeRec.stop();}catch(_){}}
+    setStatus('Stopping…');
+  }
+  function startTone(){
+    var hz=Math.min(240,Math.max(15,Number(document.getElementById('tone-hz').value||19)));
+    var gain=Math.min(0.05,Math.max(0,Number(document.getElementById('tone-gain').value||0.01)));
+    if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    toneOsc=audioCtx.createOscillator();
+    toneGainNode=audioCtx.createGain();
+    toneOsc.type='sine';
+    toneOsc.frequency.value=hz;
+    toneGainNode.gain.value=gain;
+    toneOsc.connect(toneGainNode);
+    toneGainNode.connect(audioCtx.destination);
+    toneOsc.start();
+    log('Keepalive tone started hz='+hz+' gain='+gain,'warn');
+  }
+  function stopTone(){
+    if(toneOsc){try{toneOsc.stop();}catch(_){}}
+    if(toneOsc){try{toneOsc.disconnect();}catch(_){}}
+    if(toneGainNode){try{toneGainNode.disconnect();}catch(_){}}
+    toneOsc=null;toneGainNode=null;
+  }
+
+  function copyResults(){
+    if(!runs.length){log('No results to copy','warn');return;}
+    var header=['run','started_iso','ended_iso','ms','sec','reason','error','ua'];
+    var lines=[header.join(',')].concat(runs.map(function(r){
+      return [r.run,r.started_iso,r.ended_iso,r.ms,r.sec,r.reason,r.error,JSON.stringify(r.ua)].join(',');
+    }));
+    var text=lines.join('\n');
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){log('Results copied as CSV','ok');});
+    }else{
+      log('Clipboard API unavailable on this browser','warn');
+    }
+  }
+
+  document.getElementById('run1').onclick=function(){runBatch(1);};
+  document.getElementById('run10').onclick=function(){runBatch(10);};
+  document.getElementById('stop').onclick=stop;
+  document.getElementById('copy').onclick=copyResults;
+  document.getElementById('clear').onclick=function(){runs=[];logEl.innerHTML='';trEl.innerHTML='Transcript events will appear here.';refreshSummary();setStatus('Idle');};
+
+  if(!SR){
+    setStatus('Unsupported: SpeechRecognition not available');
+    log('SpeechRecognition API missing. Test on Chrome Android/Samsung Internet WebView variants where available.','err');
+  }else{
+    log('Ready. UA='+navigator.userAgent,'ok');
+  }
+})();
+</script>
+</body>
+</html>
