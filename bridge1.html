@@ -347,7 +347,7 @@ var deviceId=localStorage.getItem('tb_dev')||(function(){var id=crypto.randomUUI
 var ws=null,pc=null,videoStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false,ignoreOffer=false;
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
-var recognizer=null,recognizing=false,speechGen=0,wantSpeech=true,recognizerActive=false,restartScheduled=false,restartTimer=null,restartBackoff=250,lastRestartTs=0,speechBlockedUntil=0,endBurst=[],endBurstWarned=false;
+var recognizer=null,recognizing=false,speechGen=0,wantSpeech=true,recognizerActive=false,restartScheduled=false,restartTimer=null,restartBackoff=250,lastRestartTs=0,speechBlockedUntil=0,endBurst=[],endBurstWarned=false,speechHeardSinceStart=false;
 var mediaRequestInFlight=null,lastSpeechEventTs=0,lastVisibilityChangeTs=0,lastVisibilityState='visible',lastVisibilitySpeechActionTs=0;
 
 // Mic capture policy: keep WebRTC uplink audio disabled in this bridge pass.
@@ -754,7 +754,7 @@ function startSpeech(){
   recognizer=new SpeechRec();recognizer.lang=locale;
   recognizer.interimResults=false;
   recognizer.continuous=true;recognizer.maxAlternatives=1;
-  recognizer.onstart=function(){if(gen===speechGen){recognizing=true;recognizerActive=true;restartBackoff=250;endBurst=[];endBurstWarned=false;lastSpeechEventTs=Date.now();log('speech_onstart',{gen:gen},'ok')}};
+  recognizer.onstart=function(){if(gen===speechGen){recognizing=true;recognizerActive=true;restartBackoff=250;endBurst=[];endBurstWarned=false;speechHeardSinceStart=false;lastSpeechEventTs=Date.now();log('speech_onstart',{gen:gen},'ok')}};
   recognizer.onresult=function(e){
     if(gen!==speechGen)return;
     var text='';for(var i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)text+=e.results[i][0].transcript;
@@ -763,6 +763,7 @@ function startSpeech(){
       if(gen!==speechGen)return;
       if(isDupe(text)){log('dedup',{t:text.slice(0,40)},'warn');return}
       lastSpeechEventTs=Date.now();
+      speechHeardSinceStart=true;
       recFinal(text);log('final',{t:text.slice(0,60)},'ok');
       var src=detectLang(text,room.myLang),tgt=room.theirLang,ss=++localSubSeq;
       showSub(text,'mine');
@@ -775,6 +776,12 @@ function startSpeech(){
     if(gen!==speechGen)return;
     recognizing=false;recognizerActive=false;recognizer=null;
     var now=Date.now();
+    if(!speechHeardSinceStart){
+      log('speech_onend_idle',{atMs:now},'warn');
+      flushSpeechRuntime('onend_idle');
+      scheduleSpeechRestart('onend_idle',12000);
+      return;
+    }
     var sinceSpeech=lastSpeechEventTs?now-lastSpeechEventTs:null;
     var countsTowardBurst=sinceSpeech===null||sinceSpeech<3000;
     endBurst=endBurst.filter(function(t){return now-t<8000});
