@@ -348,7 +348,7 @@ var ws=null,pc=null,videoStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false,ignoreOffer=false;
 var SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 var recognizer=null,recognizing=false,speechGen=0,wantSpeech=true,recognizerActive=false,restartScheduled=false,restartTimer=null,restartBackoff=250,lastRestartTs=0,speechBlockedUntil=0,endBurst=[],endBurstWarned=false;
-var mediaRequestInFlight=null,lastSpeechEventTs=0,lastVisibilityChangeTs=0,lastVisibilityState='visible';
+var mediaRequestInFlight=null,lastSpeechEventTs=0,lastVisibilityChangeTs=0,lastVisibilityState='visible',lastVisibilitySpeechActionTs=0;
 
 // Mic capture policy: keep WebRTC uplink audio disabled in this bridge pass.
 // SpeechRecognition still uses a separate browser-managed microphone path.
@@ -416,6 +416,7 @@ function log(ev,d,l){
 function logLocalMediaState(reason){
   var tracks=videoStream?videoStream.getTracks():[];
   log('media_track_state',{
+    atMs:Date.now(),
     reason:reason||'unknown',
     hasStream:!!videoStream,
     tracks:tracks.map(function(t){return{kind:t.kind,enabled:t.enabled,readyState:t.readyState,id:t.id}})
@@ -602,7 +603,12 @@ function handleRelay(d){
 async function enterCall(){
   loadCcPrefs();
   recentFinals=[];
-  try{videoStream=await ensureVideoStream('enterCall')}catch(_){toast('Camera needed');return}
+  if(!(videoStream&&videoStream.getTracks().some(function(t){return t.readyState==='live'}))){
+    try{videoStream=await ensureVideoStream('enterCall')}catch(_){toast('Camera needed');return}
+  }else{
+    log('media_reuse',{reason:'enterCall_existing',atMs:Date.now()},'ok');
+    logLocalMediaState('enterCall_existing');
+  }
   $('lobby-link').textContent=invUrl();
   transcript=loadTr()||[];
   $('lobby').classList.add('hidden');
@@ -717,17 +723,17 @@ function resetSpeechState(){clearSpeechRestart();restartBackoff=250;endBurst=[]}
 function canAutoStartSpeech(){return !!(SpeechRec&&wantSpeech&&micOn&&isCallActive()&&!document.hidden&&Date.now()>=speechBlockedUntil)}
 function canScheduleSpeechRestart(){return !restartScheduled&&Date.now()>=speechBlockedUntil}
 function scheduleSpeechRestart(reason,minDelay){
-  if(!canScheduleSpeechRestart()||!canAutoStartSpeech()){log('speech_restart_skip',{reason:reason,scheduled:restartScheduled,auto:canAutoStartSpeech()},'warn');return}
+  if(!canScheduleSpeechRestart()||!canAutoStartSpeech()){log('speech_restart_skip',{reason:reason,scheduled:restartScheduled,auto:canAutoStartSpeech(),atMs:Date.now()},'warn');return}
   var now=Date.now();
   restartBackoff=(now-lastRestartTs<2500)?Math.min(6000,Math.max(restartBackoff*1.7,300)):Math.max(250,restartBackoff*0.85);
   lastRestartTs=now;
   var delay=Math.max(minDelay||0,Math.round(restartBackoff));
   restartScheduled=true;
-  log('speech_restart_scheduled',{reason:reason,delay:delay,backoff:Math.round(restartBackoff)},'warn');
+  log('speech_restart_scheduled',{reason:reason,delay:delay,backoff:Math.round(restartBackoff),atMs:now},'warn');
   restartTimer=setTimeout(function(){
     restartScheduled=false;restartTimer=null;
-    if(!canAutoStartSpeech()||recognizerActive){log('speech_restart_cancelled',{reason:reason,recognizerActive:recognizerActive,auto:canAutoStartSpeech()},'warn');return}
-    log('speech_restart',{reason:reason,delay:delay},'warn');
+    if(!canAutoStartSpeech()||recognizerActive){log('speech_restart_cancelled',{reason:reason,recognizerActive:recognizerActive,auto:canAutoStartSpeech(),atMs:Date.now()},'warn');return}
+    log('speech_restart',{reason:reason,delay:delay,atMs:Date.now()},'warn');
     startSpeech();
   },delay);
 }
@@ -735,7 +741,7 @@ function scheduleSpeechRestart(reason,minDelay){
 function flushSpeechRuntime(reason){
   // Flush lightweight runtime state before deliberate stops/restarts.
   recentFinals=[];
-  log('speech_flush',{reason:reason||'manual',recognizerActive:recognizerActive,recognizing:recognizing,wantSpeech:wantSpeech,micOn:micOn},'ok');
+  log('speech_flush',{reason:reason||'manual',recognizerActive:recognizerActive,recognizing:recognizing,wantSpeech:wantSpeech,micOn:micOn,atMs:Date.now()},'ok');
 }
 
 function startSpeech(){
@@ -867,8 +873,14 @@ function toggleMic(){
   micOn=!micOn;wantSpeech=micOn;
   log('mic_toggle',{micOn:micOn,callActive:isCallActive(),recognizerActive:recognizerActive},'ok');
   if(micOn){
-    recentFinals=[];if(isCallActive())scheduleSpeechRestart('mic_on',120);
-  }else stopSpeech(true,'mic_off');
+    recentFinals=[];
+    if(isCallActive()&&!recognizerActive&&!recognizing&&!restartScheduled)scheduleSpeechRestart('mic_on',120);
+    else log('mic_on_restart_skip',{callActive:isCallActive(),recognizerActive:recognizerActive,recognizing:recognizing,restartScheduled:restartScheduled,atMs:Date.now()},'warn');
+  }else if(recognizer||recognizerActive||recognizing||restartScheduled){
+    stopSpeech(true,'mic_off');
+  }else{
+    log('mic_off_stop_skip',{atMs:Date.now()},'warn');
+  }
   syncMic();
 }
 function toggleCam(){if(!videoStream)return;camOn=!camOn;videoStream.getVideoTracks().forEach(function(t){t.enabled=camOn});syncCam()}
@@ -903,8 +915,19 @@ window.addEventListener('visibilitychange',function(){
   log('visibility_change',{state:state,sinceMs:since,wantSpeech:wantSpeech,callActive:isCallActive()},'warn');
   if(state===lastVisibilityState&&since<350){log('visibility_ignored_repeat',{state:state,sinceMs:since},'warn');return}
   lastVisibilityState=state;lastVisibilityChangeTs=now;
-  if(document.hidden){flushSpeechRuntime('hidden');stopSpeech(true,'visibility_hidden');return}
-  if(wantSpeech&&isCallActive())scheduleSpeechRestart('visible',600);
+  if(now-lastVisibilitySpeechActionTs<700){log('visibility_speech_guard',{state:state,sinceSpeechActionMs:now-lastVisibilitySpeechActionTs},'warn');return}
+  if(document.hidden){
+    lastVisibilitySpeechActionTs=now;
+    if(recognizer||recognizerActive||recognizing||restartScheduled){
+      flushSpeechRuntime('hidden');
+      stopSpeech(true,'visibility_hidden');
+    }else log('visibility_hidden_noop',{atMs:now},'warn');
+    return;
+  }
+  if(wantSpeech&&isCallActive()){
+    lastVisibilitySpeechActionTs=now;
+    scheduleSpeechRestart('visible',600);
+  }
 });
 window.addEventListener('pagehide',function(){log('pagehide',{roomId:room.id||null},'warn');stopSpeech(false,'pagehide');resetSpeechState();if(room.id){saveTr();relaySend({type:'hangup',reason:'pagehide'})}});
 </script>
