@@ -3,1616 +3,570 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thai Transcriber v9 — Deepgram</title>
+    <title>Thai Transcriber v10 — Deepgram</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-
-        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-        :root {
-            --bg-0: #08080c;
-            --bg-1: #0e0e14;
-            --bg-2: #15151e;
-            --bg-3: #1c1c28;
-            --bg-4: #252534;
-            --border-1: #2a2a3c;
-            --border-2: #383850;
-            --text-1: #eaeaf2;
-            --text-2: #a8a8c0;
-            --text-3: #686880;
-            --gold: #e2b04a;
-            --gold-dim: #b08930;
-            --gold-glow: rgba(226, 176, 74, 0.12);
-            --thai-blue: #5a9fd4;
-            --eng-green: #5ab88a;
-            --ok: #4caf7a;
-            --warn: #d4a04a;
-            --err: #d45a5a;
-            --radius: 8px;
-        }
-
-        html, body { height: 100%; overflow: hidden; }
-
-        body {
-            font-family: 'DM Sans', sans-serif;
-            background: var(--bg-0);
-            color: var(--text-1);
-            line-height: 1.6;
-            font-size: 14px;
-        }
-
-        .app { display: flex; flex-direction: column; height: 100vh; }
-
-        .header {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 0.65rem 1.25rem;
-            background: var(--bg-1);
-            border-bottom: 1px solid var(--border-1);
-        }
-
-        .logo {
-            font-size: 0.85rem; font-weight: 300; letter-spacing: 0.25em; text-transform: uppercase;
-            background: linear-gradient(135deg, var(--gold), var(--gold-dim));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        }
-
-        .logo-sub {
-            font-size: 0.6rem; letter-spacing: 0.08em; color: var(--text-3);
-            margin-left: 0.75rem; font-family: 'DM Mono', monospace;
-        }
-
-        .header-right { display: flex; align-items: center; gap: 0.5rem; }
-
-        .api-status {
-            display: flex; align-items: center; gap: 0.4rem;
-            padding: 0.3rem 0.7rem;
-            background: var(--bg-2);
-            border: 1px solid var(--border-1);
-            border-radius: 20px;
-            font-size: 0.65rem;
-            font-family: 'DM Mono', monospace;
-            color: var(--text-3);
-        }
-
-        .api-dot {
-            width: 7px; height: 7px; border-radius: 50%;
-            background: var(--border-2);
-        }
-        .api-dot.ok { background: var(--ok); box-shadow: 0 0 6px rgba(76, 175, 122, 0.4); }
-        .api-dot.working { background: var(--gold); animation: pulse 0.6s infinite; }
-        .api-dot.error { background: var(--err); }
-
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-
-        .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-
-        .welcome {
-            flex: 1; display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            padding: 2rem;
-        }
-
-        .welcome-icon {
-            width: 80px; height: 80px;
-            background: var(--bg-2);
-            border: 2px solid var(--border-1);
-            border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 2rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .welcome h2 {
-            font-size: 1.1rem; font-weight: 400; color: var(--text-2);
-            margin-bottom: 0.4rem;
-        }
-
-        .welcome p {
-            font-size: 0.8rem; color: var(--text-3);
-            margin-bottom: 2rem; text-align: center; max-width: 420px;
-        }
-
-        .pipeline-note {
-            font-size: 0.7rem; color: var(--text-3);
-            font-family: 'DM Mono', monospace;
-            background: var(--bg-2);
-            border: 1px solid var(--border-1);
-            border-radius: var(--radius);
-            padding: 0.5rem 1rem;
-            margin-bottom: 1.5rem;
-            text-align: center;
-        }
-
-        .pipeline-note span { color: var(--gold); }
-
-        .drop-zone {
-            width: 100%; max-width: 420px;
-            padding: 2.5rem 2rem;
-            border: 2px dashed var(--border-2);
-            border-radius: 12px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .drop-zone:hover, .drop-zone.dragover {
-            border-color: var(--gold);
-            background: var(--gold-glow);
-        }
-
-        .drop-zone-label {
-            font-size: 0.85rem; color: var(--text-2); margin-bottom: 0.3rem;
-        }
-
-        .drop-zone-sub {
-            font-size: 0.7rem; color: var(--text-3);
-            font-family: 'DM Mono', monospace;
-        }
-
-        .session-bar {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 0.6rem 1.25rem;
-            background: var(--bg-1);
-            border-bottom: 1px solid var(--border-1);
-            gap: 1rem;
-        }
-
-        .session-info { flex: 1; min-width: 0; }
-
-        .session-name {
-            font-size: 0.95rem; font-weight: 500;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-
-        .session-meta {
-            font-size: 0.65rem; color: var(--text-3);
-            font-family: 'DM Mono', monospace;
-            display: flex; gap: 0.75rem; flex-wrap: wrap;
-        }
-
-        .session-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
-
-        .btn {
-            padding: 0.45rem 0.9rem;
-            border: none; border-radius: var(--radius);
-            font-family: 'DM Sans', sans-serif;
-            font-size: 0.75rem; font-weight: 500;
-            cursor: pointer;
-            display: inline-flex; align-items: center; gap: 0.35rem;
-            transition: all 0.15s;
-        }
-
-        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .btn-gold { background: linear-gradient(135deg, var(--gold), var(--gold-dim)); color: var(--bg-0); }
-        .btn-gold:hover:not(:disabled) { filter: brightness(1.1); }
-        .btn-outline { background: transparent; border: 1px solid var(--border-2); color: var(--text-2); }
-        .btn-outline:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
-        .btn-stop { background: var(--err); color: white; }
-        .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.7rem; }
-        .btn-ghost { background: transparent; color: var(--text-3); padding: 0.3rem 0.5rem; }
-        .btn-ghost:hover { color: var(--text-1); }
-
-        .progress-bar {
-            padding: 0.5rem 1.25rem;
-            background: var(--bg-1);
-            border-bottom: 1px solid var(--border-1);
-            display: none;
-        }
-
-        .progress-bar.visible { display: block; }
-
-        .progress-top {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 0.35rem;
-        }
-
-        .progress-label { font-size: 0.7rem; color: var(--text-2); }
-
-        .progress-stats {
-            font-size: 0.65rem; color: var(--text-3);
-            font-family: 'DM Mono', monospace;
-        }
-
-        .progress-track {
-            height: 5px; background: var(--bg-3);
-            border-radius: 3px; overflow: hidden;
-        }
-
-        .progress-fill {
-            height: 100%; width: 0%;
-            background: linear-gradient(90deg, var(--gold-dim), var(--gold));
-            border-radius: 3px;
-            transition: width 0.4s ease;
-        }
-
-        /* Phase badges inside progress */
-        .progress-phase {
-            font-size: 0.6rem; font-family: 'DM Mono', monospace;
-            color: var(--text-3); margin-top: 0.2rem;
-            display: flex; gap: 0.75rem;
-        }
-
-        .phase-badge {
-            padding: 0.1rem 0.4rem; border-radius: 3px;
-            background: var(--bg-3);
-        }
-
-        .phase-badge.active { background: var(--gold-glow); color: var(--gold); }
-        .phase-badge.done { color: var(--ok); }
-
-        .transcript { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-
-        .transcript-cols {
-            display: grid; grid-template-columns: 1fr 1fr;
-            border-bottom: 1px solid var(--border-1);
-            background: var(--bg-1);
-        }
-
-        .col-header {
-            padding: 0.55rem 1.25rem;
-            display: flex; align-items: center; justify-content: space-between;
-            font-size: 0.65rem; font-weight: 600;
-            text-transform: uppercase; letter-spacing: 0.1em;
-            color: var(--text-3);
-        }
-
-        .col-header:first-child { border-right: 1px solid var(--border-1); }
-
-        .scroll { flex: 1; overflow-y: auto; }
-
-        .chunk {
-            display: grid; grid-template-columns: 1fr 1fr;
-            border-bottom: 1px solid var(--border-1);
-            transition: background 0.15s;
-        }
-
-        .chunk:hover { background: rgba(255, 255, 255, 0.015); }
-        .chunk.processing { background: var(--gold-glow); }
-        .chunk.error-row { background: rgba(212, 90, 90, 0.05); }
-
-        .cell {
-            padding: 0.85rem 1.25rem;
-            min-height: 70px;
-        }
-
-        .cell:first-child { border-right: 1px solid var(--border-1); }
-
-        .cell-head {
-            display: flex; align-items: center; gap: 0.5rem;
-            margin-bottom: 0.45rem;
-        }
-
-        .cell-id {
-            font-family: 'DM Mono', monospace;
-            font-size: 0.6rem; color: var(--text-3);
-            background: var(--bg-3);
-            padding: 0.12rem 0.35rem; border-radius: 3px;
-        }
-
-        .cell-time {
-            font-family: 'DM Mono', monospace;
-            font-size: 0.6rem; color: var(--text-3);
-        }
-
-        /* Phase indicator on cell */
-        .cell-phase {
-            font-family: 'DM Mono', monospace;
-            font-size: 0.55rem; color: var(--gold);
-            background: var(--gold-glow);
-            padding: 0.1rem 0.35rem; border-radius: 3px;
-            margin-left: auto;
-        }
-
-        .cell-text {
-            font-size: 0.9rem; line-height: 1.8;
-        }
-
-        .cell-text.thai-text {
-            font-family: 'Noto Sans Thai', 'DM Sans', sans-serif;
-        }
-
-        .cell-text.empty {
-            color: var(--text-3); font-style: italic; font-size: 0.8rem;
-        }
-
-        .cell-text.error-text {
-            color: var(--err); font-size: 0.8rem;
-        }
-
-        .cell-actions {
-            display: flex; gap: 0.3rem; margin-top: 0.4rem;
-            opacity: 0; transition: opacity 0.15s;
-        }
-
-        .chunk:hover .cell-actions { opacity: 1; }
-
-        .cell-action {
-            padding: 0.15rem 0.35rem;
-            font-size: 0.6rem; font-family: 'DM Sans', sans-serif;
-            background: var(--bg-3); border: 1px solid var(--border-1);
-            color: var(--text-3); border-radius: 3px;
-            cursor: pointer; transition: all 0.15s;
-        }
-
-        .cell-action:hover {
-            background: var(--bg-4); color: var(--text-1);
-            border-color: var(--border-2);
-        }
-
-        /* ── Back-Translate Drawer ── */
-        .chunk-wrapper { border-bottom: 1px solid var(--border-1); }
-        .chunk-wrapper .chunk { border-bottom: none; }
-
-        .bt-toggle {
-            display: flex; align-items: center; gap: 0.5rem;
-            padding: 0.35rem 1.25rem;
-            background: var(--bg-1);
-            border-top: 1px solid var(--border-1);
-            cursor: pointer;
-            user-select: none;
-            transition: background 0.15s;
-        }
-
-        .bt-toggle:hover { background: var(--bg-2); }
-        .bt-toggle.disabled { opacity: 0.3; cursor: default; pointer-events: none; }
-
-        .bt-chevron {
-            font-size: 0.6rem; color: var(--text-3);
-            transition: transform 0.25s ease;
-            display: inline-block;
-            width: 12px; height: 12px;
-            text-align: center; line-height: 12px;
-        }
-
-        .bt-toggle.open .bt-chevron { transform: rotate(90deg); }
-
-        .bt-label {
-            font-size: 0.65rem;
-            font-family: 'DM Mono', monospace;
-            color: var(--text-3);
-        }
-
-        .bt-toggle:hover .bt-label { color: var(--gold); }
-        .bt-toggle:hover .bt-chevron { color: var(--gold); }
-
-        .bt-note {
-            font-size: 0.55rem; color: var(--text-3);
-            font-family: 'DM Mono', monospace;
-            margin-left: auto;
-        }
-
-        .bt-spinner {
-            width: 10px; height: 10px;
-            border: 1.5px solid var(--border-2);
-            border-top-color: var(--gold);
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-            display: none;
-        }
-
-        .bt-toggle.loading .bt-spinner { display: inline-block; }
-        .bt-toggle.loading .bt-chevron { display: none; }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        .bt-drawer {
-            max-height: 0; overflow: hidden;
-            transition: max-height 0.3s ease, opacity 0.25s ease;
-            opacity: 0; background: var(--bg-1);
-        }
-
-        .bt-drawer.open { max-height: 400px; opacity: 1; }
-
-        .bt-content {
-            display: grid; grid-template-columns: 1fr 1fr;
-            padding: 0.75rem 1.25rem 1rem; gap: 0;
-        }
-
-        .bt-col { padding: 0.5rem 0.75rem; }
-        .bt-col:first-child { border-right: 1px solid var(--border-1); }
-
-        .bt-col-label {
-            font-size: 0.6rem; font-weight: 600;
-            text-transform: uppercase; letter-spacing: 0.08em;
-            color: var(--text-3);
-            margin-bottom: 0.35rem;
-            display: flex; align-items: center; gap: 0.4rem;
-        }
-
-        .bt-arrow { color: var(--gold-dim); font-size: 0.7rem; }
-
-        .bt-text {
-            font-size: 0.85rem; line-height: 1.7;
-            color: var(--gold); font-style: italic;
-        }
-
-        .bt-text.thai-text { font-family: 'Noto Sans Thai', 'DM Sans', sans-serif; }
-        .bt-text.empty { color: var(--text-3); }
-
-        .bt-actions { padding: 0.25rem 1.25rem 0.6rem; display: flex; gap: 0.3rem; }
-
-        /* ── Settings / Overlay ── */
-        .overlay {
-            position: fixed; inset: 0;
-            background: rgba(8, 8, 12, 0.92);
-            z-index: 1000;
-            display: flex; align-items: center; justify-content: center;
-            padding: 1rem;
-            backdrop-filter: blur(4px);
-        }
-
-        .overlay.hidden { display: none; }
-
-        .modal {
-            background: var(--bg-1);
-            border: 1px solid var(--border-1);
-            border-radius: 12px;
-            width: 100%; max-width: 440px;
-            overflow: hidden;
-        }
-
-        .modal-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-1); }
-        .modal-title { font-size: 1rem; font-weight: 500; }
-        .modal-sub { font-size: 0.75rem; color: var(--text-3); margin-top: 0.2rem; }
-
-        .modal-body { padding: 1.5rem; }
-
-        .field { margin-bottom: 1.25rem; }
-
-        .field-label {
-            font-size: 0.7rem; font-weight: 600;
-            text-transform: uppercase; letter-spacing: 0.08em;
-            color: var(--text-3); margin-bottom: 0.5rem;
-        }
-
-        .field-input {
-            width: 100%; padding: 0.6rem 0.8rem;
-            background: var(--bg-2);
-            border: 1px solid var(--border-1);
-            border-radius: var(--radius);
-            color: var(--text-1);
-            font-family: 'DM Mono', monospace;
-            font-size: 0.8rem;
-        }
-
-        .field-input:focus {
-            outline: none; border-color: var(--gold);
-            box-shadow: 0 0 0 2px var(--gold-glow);
-        }
-
-        .field-hint { font-size: 0.65rem; color: var(--text-3); margin-top: 0.35rem; }
-
-        .field-select {
-            width: 100%; padding: 0.6rem 0.8rem;
-            background: var(--bg-2);
-            border: 1px solid var(--border-1);
-            border-radius: var(--radius);
-            color: var(--text-1);
-            font-family: 'DM Sans', sans-serif;
-            font-size: 0.8rem;
-        }
-
-        .field-select:focus { outline: none; border-color: var(--gold); }
-
-        .modal-footer {
-            padding: 1rem 1.5rem;
-            border-top: 1px solid var(--border-1);
-            display: flex; justify-content: flex-end; gap: 0.5rem;
-        }
-
-        /* free badge */
-        .free-badge {
-            display: inline-block;
-            font-size: 0.55rem; font-family: 'DM Mono', monospace;
-            padding: 0.1rem 0.4rem; border-radius: 3px;
-            background: rgba(90, 184, 138, 0.1);
-            color: var(--eng-green);
-            border: 1px solid rgba(90, 184, 138, 0.2);
-            vertical-align: middle;
-            margin-left: 0.4rem;
-        }
-
-        /* ── Ingest Overlay ── */
-        .ingest-modal {
-            background: var(--bg-1);
-            border: 1px solid var(--border-1);
-            border-radius: 12px;
-            width: 100%; max-width: 380px;
-            padding: 2rem; text-align: center;
-        }
-
-        .ingest-icon { font-size: 2.5rem; margin-bottom: 1rem; }
-        .ingest-title { font-size: 0.95rem; margin-bottom: 0.4rem; }
-        .ingest-status { font-size: 0.75rem; color: var(--text-3); margin-bottom: 1rem; }
-
-        .ingest-track {
-            height: 5px; background: var(--bg-3);
-            border-radius: 3px; overflow: hidden; margin-bottom: 0.5rem;
-        }
-
-        .ingest-fill {
-            height: 100%; width: 0%;
-            background: linear-gradient(90deg, var(--gold-dim), var(--gold));
-            transition: width 0.3s;
-        }
-
-        .ingest-detail {
-            font-size: 0.65rem; color: var(--text-3);
-            font-family: 'DM Mono', monospace;
-        }
-
-        /* ── Toast ── */
-        .toast-wrap {
-            position: fixed; bottom: 1rem; right: 1rem; z-index: 2000;
-            display: flex; flex-direction: column; gap: 0.4rem;
-        }
-
-        .toast {
-            padding: 0.6rem 1rem;
-            background: var(--bg-3);
-            border: 1px solid var(--border-1);
-            border-radius: var(--radius);
-            font-size: 0.8rem;
-            animation: slideIn 0.2s ease;
-            transition: opacity 0.3s;
-        }
-
-        .toast.ok { border-left: 3px solid var(--ok); }
-        .toast.err { border-left: 3px solid var(--err); }
-        .toast.warn { border-left: 3px solid var(--warn); }
-
-        @keyframes slideIn {
-            from { transform: translateX(40px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        .scroll::-webkit-scrollbar { width: 6px; }
-        .scroll::-webkit-scrollbar-track { background: transparent; }
-        .scroll::-webkit-scrollbar-thumb { background: var(--border-1); border-radius: 3px; }
-        .scroll::-webkit-scrollbar-thumb:hover { background: var(--border-2); }
-
-        input[type="file"] { display: none; }
-
-        @media (max-width: 768px) {
-            .chunk { grid-template-columns: 1fr; }
-            .cell:first-child { border-right: none; border-bottom: 1px solid var(--border-1); }
-            .transcript-cols { grid-template-columns: 1fr; }
-            .col-header:first-child { border-right: none; border-bottom: 1px solid var(--border-1); }
-            .bt-content { grid-template-columns: 1fr; }
-            .bt-col:first-child { border-right: none; border-bottom: 1px solid var(--border-1); padding-bottom: 0.75rem; margin-bottom: 0.5rem; }
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --bg-0:#08080c;--bg-1:#0e0e14;--bg-2:#15151e;--bg-3:#1c1c28;--bg-4:#252534;
+            --border-1:#2a2a3c;--border-2:#383850;--text-1:#eaeaf2;--text-2:#a8a8c0;--text-3:#686880;
+            --gold:#e2b04a;--gold-dim:#b08930;--gold-glow:rgba(226,176,74,0.12);
+            --thai-blue:#5a9fd4;--eng-green:#5ab88a;--ok:#4caf7a;--warn:#d4a04a;--err:#d45a5a;--radius:8px;
+        }
+        html,body{height:100%;overflow:hidden}
+        body{font-family:'DM Sans',sans-serif;background:var(--bg-0);color:var(--text-1);line-height:1.6;font-size:14px}
+        .app{display:flex;flex-direction:column;height:100vh}
+        .header{display:flex;align-items:center;justify-content:space-between;padding:.65rem 1.25rem;background:var(--bg-1);border-bottom:1px solid var(--border-1);flex-shrink:0}
+        .logo{font-size:.85rem;font-weight:300;letter-spacing:.25em;text-transform:uppercase;background:linear-gradient(135deg,var(--gold),var(--gold-dim));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .logo-sub{font-size:.6rem;letter-spacing:.08em;color:var(--text-3);margin-left:.75rem;font-family:'DM Mono',monospace}
+        .header-right{display:flex;align-items:center;gap:.5rem}
+        .api-status{display:flex;align-items:center;gap:.4rem;padding:.3rem .7rem;background:var(--bg-2);border:1px solid var(--border-1);border-radius:20px;font-size:.65rem;font-family:'DM Mono',monospace;color:var(--text-3)}
+        .api-dot{width:7px;height:7px;border-radius:50%;background:var(--border-2)}
+        .api-dot.ok{background:var(--ok);box-shadow:0 0 6px rgba(76,175,122,.4)}
+        .api-dot.working{background:var(--gold);animation:pulse .6s infinite}
+        .api-dot.error{background:var(--err)}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+        .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+        .welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem}
+        .welcome-icon{width:80px;height:80px;background:var(--bg-2);border:2px solid var(--border-1);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2rem;margin-bottom:1.5rem}
+        .welcome h2{font-size:1.1rem;font-weight:400;color:var(--text-2);margin-bottom:.4rem}
+        .welcome p{font-size:.8rem;color:var(--text-3);margin-bottom:1.5rem;text-align:center;max-width:440px}
+        .pipeline-note{font-size:.7rem;color:var(--text-3);font-family:'DM Mono',monospace;background:var(--bg-2);border:1px solid var(--border-1);border-radius:var(--radius);padding:.5rem 1rem;margin-bottom:1.5rem;text-align:center}
+        .pipeline-note span{color:var(--gold)}
+        .drop-zone{width:100%;max-width:420px;padding:2.5rem 2rem;border:2px dashed var(--border-2);border-radius:12px;text-align:center;cursor:pointer;transition:all .2s}
+        .drop-zone:hover,.drop-zone.dragover{border-color:var(--gold);background:var(--gold-glow)}
+        .drop-zone-label{font-size:.85rem;color:var(--text-2);margin-bottom:.3rem}
+        .drop-zone-sub{font-size:.7rem;color:var(--text-3);font-family:'DM Mono',monospace}
+        .session-bar{display:flex;align-items:center;justify-content:space-between;padding:.6rem 1.25rem;background:var(--bg-1);border-bottom:1px solid var(--border-1);gap:1rem;flex-shrink:0}
+        .session-info{flex:1;min-width:0}
+        .session-name{font-size:.95rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .session-meta{font-size:.65rem;color:var(--text-3);font-family:'DM Mono',monospace;display:flex;gap:.75rem;flex-wrap:wrap}
+        .session-actions{display:flex;gap:.5rem;flex-shrink:0}
+        .btn{padding:.45rem .9rem;border:none;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;transition:all .15s}
+        .btn:disabled{opacity:.4;cursor:not-allowed}
+        .btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:var(--bg-0)}
+        .btn-gold:hover:not(:disabled){filter:brightness(1.1)}
+        .btn-outline{background:transparent;border:1px solid var(--border-2);color:var(--text-2)}
+        .btn-outline:hover:not(:disabled){border-color:var(--gold);color:var(--gold)}
+        .btn-sm{padding:.3rem .6rem;font-size:.7rem}
+        .btn-ghost{background:transparent;color:var(--text-3);padding:.3rem .5rem}
+        .btn-ghost:hover{color:var(--text-1)}
+        .xlate-bar{flex-shrink:0;padding:.4rem 1.25rem;background:var(--bg-1);border-bottom:1px solid var(--border-1);display:none}
+        .xlate-bar.visible{display:flex;align-items:center;gap:.75rem}
+        .xlate-spinner{width:12px;height:12px;flex-shrink:0;border:1.5px solid var(--border-2);border-top-color:var(--eng-green);border-radius:50%;animation:spin .6s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .xlate-label{font-size:.7rem;color:var(--text-2);flex:1}
+        .xlate-stats{font-size:.65rem;color:var(--text-3);font-family:'DM Mono',monospace}
+        .transcript{flex:1;display:flex;flex-direction:column;overflow:hidden}
+        .transcript-cols{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border-1);background:var(--bg-1);flex-shrink:0}
+        .col-header{padding:.55rem 1.25rem;display:flex;align-items:center;justify-content:space-between;font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3)}
+        .col-header:first-child{border-right:1px solid var(--border-1)}
+        .scroll{flex:1;overflow-y:auto}
+        .para-row{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border-1);transition:background .15s}
+        .para-row:hover{background:rgba(255,255,255,.015)}
+        .para-row.translating{background:rgba(90,184,138,.04)}
+        .cell{padding:.85rem 1.25rem;min-height:70px}
+        .cell:first-child{border-right:1px solid var(--border-1)}
+        .cell-head{display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem}
+        .cell-id{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--text-3);background:var(--bg-3);padding:.12rem .35rem;border-radius:3px}
+        .cell-time{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--text-3)}
+        .conf-badge{font-family:'DM Mono',monospace;font-size:.55rem;padding:.1rem .35rem;border-radius:3px;margin-left:auto}
+        .cell-text{font-size:.9rem;line-height:1.8}
+        .cell-text.thai-text{font-family:'Noto Sans Thai','DM Sans',sans-serif}
+        .cell-text.empty{color:var(--text-3);font-style:italic;font-size:.8rem}
+        .cell-text.error-text{color:var(--err);font-size:.8rem}
+        .cell-actions{display:flex;gap:.3rem;margin-top:.4rem;opacity:0;transition:opacity .15s}
+        .para-row:hover .cell-actions{opacity:1}
+        .cell-action{padding:.15rem .35rem;font-size:.6rem;font-family:'DM Sans',sans-serif;background:var(--bg-3);border:1px solid var(--border-1);color:var(--text-3);border-radius:3px;cursor:pointer;transition:all .15s}
+        .cell-action:hover{background:var(--bg-4);color:var(--text-1);border-color:var(--border-2)}
+        .para-wrapper{border-bottom:1px solid var(--border-1)}
+        .para-wrapper .para-row{border-bottom:none}
+        .bt-toggle{display:flex;align-items:center;gap:.5rem;padding:.3rem 1.25rem;background:var(--bg-1);border-top:1px solid var(--border-1);cursor:pointer;user-select:none;transition:background .15s}
+        .bt-toggle:hover{background:var(--bg-2)}
+        .bt-toggle.disabled{opacity:.3;cursor:default;pointer-events:none}
+        .bt-toggle.open .bt-chevron{transform:rotate(90deg)}
+        .bt-chevron{font-size:.6rem;color:var(--text-3);transition:transform .25s ease;width:12px;height:12px;text-align:center;line-height:12px;display:inline-block}
+        .bt-label{font-size:.65rem;font-family:'DM Mono',monospace;color:var(--text-3)}
+        .bt-toggle:hover .bt-label,.bt-toggle:hover .bt-chevron{color:var(--gold)}
+        .bt-note{font-size:.55rem;color:var(--text-3);font-family:'DM Mono',monospace;margin-left:auto}
+        .bt-spinner{width:10px;height:10px;border:1.5px solid var(--border-2);border-top-color:var(--gold);border-radius:50%;animation:spin .6s linear infinite;display:none}
+        .bt-toggle.loading .bt-spinner{display:inline-block}
+        .bt-toggle.loading .bt-chevron{display:none}
+        .bt-drawer{max-height:0;overflow:hidden;transition:max-height .3s ease,opacity .25s ease;opacity:0;background:var(--bg-1)}
+        .bt-drawer.open{max-height:400px;opacity:1}
+        .bt-content{display:grid;grid-template-columns:1fr 1fr;padding:.75rem 1.25rem 1rem}
+        .bt-col{padding:.5rem .75rem}
+        .bt-col:first-child{border-right:1px solid var(--border-1)}
+        .bt-col-label{font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:.35rem;display:flex;align-items:center;gap:.4rem}
+        .bt-arrow{color:var(--gold-dim);font-size:.7rem}
+        .bt-text{font-size:.85rem;line-height:1.7;color:var(--gold);font-style:italic}
+        .bt-text.thai-text{font-family:'Noto Sans Thai','DM Sans',sans-serif}
+        .bt-text.empty{color:var(--text-3)}
+        .bt-actions{padding:.25rem 1.25rem .6rem;display:flex;gap:.3rem}
+        .overlay{position:fixed;inset:0;background:rgba(8,8,12,.92);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(4px)}
+        .overlay.hidden{display:none}
+        .modal{background:var(--bg-1);border:1px solid var(--border-1);border-radius:12px;width:100%;max-width:440px;overflow:hidden}
+        .modal-header{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border-1)}
+        .modal-title{font-size:1rem;font-weight:500}
+        .modal-sub{font-size:.75rem;color:var(--text-3);margin-top:.2rem}
+        .modal-body{padding:1.5rem}
+        .field{margin-bottom:1.25rem}
+        .field-label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:.5rem}
+        .field-input{width:100%;padding:.6rem .8rem;background:var(--bg-2);border:1px solid var(--border-1);border-radius:var(--radius);color:var(--text-1);font-family:'DM Mono',monospace;font-size:.8rem}
+        .field-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-glow)}
+        .field-hint{font-size:.65rem;color:var(--text-3);margin-top:.35rem}
+        .field-select{width:100%;padding:.6rem .8rem;background:var(--bg-2);border:1px solid var(--border-1);border-radius:var(--radius);color:var(--text-1);font-family:'DM Sans',sans-serif;font-size:.8rem}
+        .field-select:focus{outline:none;border-color:var(--gold)}
+        .modal-footer{padding:1rem 1.5rem;border-top:1px solid var(--border-1);display:flex;justify-content:flex-end;gap:.5rem}
+        .free-badge{display:inline-block;font-size:.55rem;font-family:'DM Mono',monospace;padding:.1rem .4rem;border-radius:3px;background:rgba(90,184,138,.1);color:var(--eng-green);border:1px solid rgba(90,184,138,.2);vertical-align:middle;margin-left:.4rem}
+        .toast-wrap{position:fixed;bottom:1rem;right:1rem;z-index:2000;display:flex;flex-direction:column;gap:.4rem}
+        .toast{padding:.6rem 1rem;background:var(--bg-3);border:1px solid var(--border-1);border-radius:var(--radius);font-size:.8rem;animation:slideIn .2s ease;transition:opacity .3s;max-width:320px}
+        .toast.ok{border-left:3px solid var(--ok)}
+        .toast.err{border-left:3px solid var(--err)}
+        .toast.warn{border-left:3px solid var(--warn)}
+        @keyframes slideIn{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
+        .scroll::-webkit-scrollbar{width:6px}
+        .scroll::-webkit-scrollbar-track{background:transparent}
+        .scroll::-webkit-scrollbar-thumb{background:var(--border-1);border-radius:3px}
+        .scroll::-webkit-scrollbar-thumb:hover{background:var(--border-2)}
+        input[type="file"]{display:none}
+        .stt-status{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;padding:2rem}
+        .stt-spinner-ring{width:64px;height:64px;border:3px solid var(--border-1);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite}
+        .stt-status-title{font-size:1rem;color:var(--text-2)}
+        .stt-status-sub{font-size:.75rem;color:var(--text-3);text-align:center;max-width:320px}
+        .stt-upload-track{width:280px;height:5px;background:var(--bg-3);border-radius:3px;overflow:hidden}
+        .stt-upload-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--thai-blue),var(--gold));border-radius:3px;transition:width .3s ease}
+        .stt-upload-label{font-size:.65rem;color:var(--text-3);font-family:'DM Mono',monospace}
+        @media(max-width:768px){
+            .para-row{grid-template-columns:1fr}
+            .cell:first-child{border-right:none;border-bottom:1px solid var(--border-1)}
+            .transcript-cols{grid-template-columns:1fr}
+            .col-header:first-child{border-right:none;border-bottom:1px solid var(--border-1)}
+            .bt-content{grid-template-columns:1fr}
+            .bt-col:first-child{border-right:none;border-bottom:1px solid var(--border-1);padding-bottom:.75rem;margin-bottom:.5rem}
         }
     </style>
 </head>
 <body>
-    <div class="app">
-        <header class="header">
-            <div style="display:flex;align-items:baseline;">
-                <span class="logo">Thai Transcriber</span>
-                <span class="logo-sub">v9 · Deepgram</span>
-            </div>
-            <div class="header-right">
-                <div class="api-status">
-                    <div class="api-dot" id="apiDot"></div>
-                    <span id="apiStatusText">No API key</span>
-                </div>
-                <button class="btn btn-ghost" id="settingsBtn" title="Settings">⚙️</button>
-            </div>
-        </header>
-
-        <div class="main" id="mainArea">
-            <div class="welcome" id="welcomeView">
-                <div class="welcome-icon">🎙️</div>
-                <h2>Thai Audio → English Text</h2>
-                <p>Drop a Thai audio recording. Deepgram transcribes the Thai speech, then MyMemory translates it to English — free with no usage limits per request.</p>
-                <div class="pipeline-note">
-                    <span>Deepgram</span> STT (Thai Nova-2) → <span>MyMemory</span> Translation (free, no key)
-                </div>
-                <div class="drop-zone" id="dropZone">
-                    <div class="drop-zone-label">📂 Drop audio file or click to browse</div>
-                    <div class="drop-zone-sub">m4a · mp3 · wav · ogg · flac</div>
-                </div>
-            </div>
+<div class="app">
+    <header class="header">
+        <div style="display:flex;align-items:baseline;">
+            <span class="logo">Thai Transcriber</span>
+            <span class="logo-sub">v10 · Deepgram</span>
         </div>
-
-        <div class="progress-bar" id="progressBar">
-            <div class="progress-top">
-                <span class="progress-label" id="progressLabel">Processing...</span>
-                <span class="progress-stats" id="progressStats">0 / 0</span>
+        <div class="header-right">
+            <div class="api-status">
+                <div class="api-dot" id="apiDot"></div>
+                <span id="apiStatusText">No API key</span>
             </div>
-            <div class="progress-track">
-                <div class="progress-fill" id="progressFill"></div>
+            <button class="btn btn-ghost" id="settingsBtn" title="Settings">⚙️</button>
+        </div>
+    </header>
+    <div class="main" id="mainArea">
+        <div class="welcome" id="welcomeView">
+            <div class="welcome-icon">🎙️</div>
+            <h2>Thai Audio → English Text</h2>
+            <p>Drop any Thai audio file. The original file is sent directly to Deepgram — no re-encoding — then paragraphs are translated to English for free.</p>
+            <div class="pipeline-note">
+                <span>Deepgram</span> STT (original file · Thai · Nova-2) → <span>MyMemory</span> translate (free)
             </div>
-            <div class="progress-phase" id="progressPhase">
-                <span class="phase-badge" id="phase-stt">STT</span>
-                <span class="phase-badge" id="phase-xlate">Translate</span>
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-label">📂 Drop audio file or click to browse</div>
+                <div class="drop-zone-sub">m4a · mp3 · wav · ogg · flac · aac · webm</div>
             </div>
         </div>
     </div>
+    <div class="xlate-bar" id="xlateBar">
+        <div class="xlate-spinner"></div>
+        <span class="xlate-label" id="xlateLabel">Translating paragraphs...</span>
+        <span class="xlate-stats" id="xlateStats">0 / 0</span>
+    </div>
+</div>
 
-    <!-- Settings overlay -->
-    <div class="overlay hidden" id="settingsOverlay">
-        <div class="modal">
-            <div class="modal-header">
-                <div class="modal-title">Settings</div>
-                <div class="modal-sub">Configure Deepgram API connection</div>
+<div class="overlay hidden" id="settingsOverlay">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">Settings</div>
+            <div class="modal-sub">Configure API connection</div>
+        </div>
+        <div class="modal-body">
+            <div class="field">
+                <div class="field-label">Deepgram API Key</div>
+                <input type="password" class="field-input" id="apiKeyInput" placeholder="Your Deepgram key..." autocomplete="off">
+                <div class="field-hint"><a href="https://console.deepgram.com" target="_blank" style="color:var(--gold)">console.deepgram.com</a> · stored locally · $200 free credit on signup</div>
             </div>
-            <div class="modal-body">
-                <div class="field">
-                    <div class="field-label">Deepgram API Key</div>
-                    <input type="password" class="field-input" id="apiKeyInput" placeholder="Your Deepgram key..." autocomplete="off">
-                    <div class="field-hint">From <a href="https://console.deepgram.com" target="_blank" style="color:var(--gold)">console.deepgram.com</a> · stored locally only · $200 free credit on signup</div>
-                </div>
-                <div class="field">
-                    <div class="field-label">Deepgram Model</div>
-                    <select class="field-select" id="modelSelect">
-                        <option value="nova-2">Nova-2 (best quality, recommended)</option>
-                        <option value="nova">Nova (fast, good quality)</option>
-                        <option value="enhanced">Enhanced (legacy, balanced)</option>
-                        <option value="base">Base (fastest, lowest cost)</option>
-                    </select>
-                    <div class="field-hint">Nova-2 has the best Thai language support</div>
-                </div>
-                <div class="field">
-                    <div class="field-label">Translation <span class="free-badge">FREE · no key needed</span></div>
-                    <select class="field-select" id="xlateSelect">
-                        <option value="mymemory">MyMemory — free, reliable</option>
-                        <option value="lingva">Lingva — open source frontend</option>
-                    </select>
-                    <div class="field-hint">MyMemory: 500 chars/request, auto-chunked · Lingva: open-source Google Translate proxy</div>
-                </div>
-                <div class="field">
-                    <div class="field-label">Chunk Duration (seconds)</div>
-                    <select class="field-select" id="chunkSelect">
-                        <option value="60">60s — More chunks, faster per-chunk</option>
-                        <option value="120" selected>120s — Good balance</option>
-                        <option value="180">180s — Better context</option>
-                        <option value="300">300s — Fewer chunks, more context</option>
-                    </select>
-                    <div class="field-hint">Longer chunks give Deepgram more speech context</div>
-                </div>
+            <div class="field">
+                <div class="field-label">Deepgram Model</div>
+                <select class="field-select" id="modelSelect">
+                    <option value="nova-2">Nova-2 (best, recommended)</option>
+                    <option value="nova">Nova (fast)</option>
+                    <option value="enhanced">Enhanced</option>
+                    <option value="base">Base (fastest)</option>
+                </select>
+                <div class="field-hint">Nova-2 has the best Thai language support</div>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-outline" id="settingsCancel">Cancel</button>
-                <button class="btn btn-gold" id="settingsSave">Save</button>
+            <div class="field">
+                <div class="field-label">Translation Engine <span class="free-badge">FREE · no key</span></div>
+                <select class="field-select" id="xlateSelect">
+                    <option value="mymemory">MyMemory (reliable, auto-chunked)</option>
+                    <option value="lingva">Lingva (open-source Google proxy)</option>
+                </select>
             </div>
         </div>
-    </div>
-
-    <!-- Ingest overlay -->
-    <div class="overlay hidden" id="ingestOverlay">
-        <div class="ingest-modal">
-            <div class="ingest-icon">🔊</div>
-            <div class="ingest-title">Preparing Audio</div>
-            <div class="ingest-status" id="ingestStatus">Reading file...</div>
-            <div class="ingest-track"><div class="ingest-fill" id="ingestFill"></div></div>
-            <div class="ingest-detail" id="ingestDetail">0%</div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" id="settingsCancel">Cancel</button>
+            <button class="btn btn-gold" id="settingsSave">Save</button>
         </div>
     </div>
+</div>
 
-    <div class="toast-wrap" id="toastWrap"></div>
-    <input type="file" id="fileInput" accept="audio/*,.m4a,.mp3,.wav,.ogg,.flac">
+<div class="toast-wrap" id="toastWrap"></div>
+<input type="file" id="fileInput" accept="audio/*,.m4a,.mp3,.wav,.ogg,.flac,.aac,.webm">
 
-    <script>
-        const CONFIG_KEY = 'thai-transcriber-v9-config';
-        const SR = 16000;
+<script>
+const CONFIG_KEY='thai-transcriber-v10-config';
+let config={apiKey:'',dgModel:'nova-2',xlateEngine:'mymemory'};
+let state={session:null,translating:false,abortController:null,audioUrl:null};
 
-        let config = {
-            apiKey: '',
-            dgModel: 'nova-2',
-            xlateEngine: 'mymemory',
-            chunkSec: 120
+function init(){
+    loadConfig();setupEvents();updateApiStatus();
+    if(!config.apiKey)document.getElementById('settingsOverlay').classList.remove('hidden');
+}
+
+function loadConfig(){
+    try{const s=JSON.parse(localStorage.getItem(CONFIG_KEY));if(s)config={...config,...s};}catch(e){}
+    document.getElementById('apiKeyInput').value=config.apiKey;
+    document.getElementById('modelSelect').value=config.dgModel;
+    document.getElementById('xlateSelect').value=config.xlateEngine;
+}
+
+function saveConfig(){
+    config.apiKey=document.getElementById('apiKeyInput').value.trim();
+    config.dgModel=document.getElementById('modelSelect').value;
+    config.xlateEngine=document.getElementById('xlateSelect').value;
+    localStorage.setItem(CONFIG_KEY,JSON.stringify(config));
+    updateApiStatus();
+}
+
+function updateApiStatus(){
+    const dot=document.getElementById('apiDot'),txt=document.getElementById('apiStatusText');
+    if(!config.apiKey){dot.className='api-dot';txt.textContent='No API key';}
+    else if(state.translating){dot.className='api-dot working';txt.textContent='Translating...';}
+    else{dot.className='api-dot ok';txt.textContent='dg:'+config.dgModel;}
+}
+
+function setupEvents(){
+    const drop=document.getElementById('dropZone'),fi=document.getElementById('fileInput');
+    drop.onclick=()=>fi.click();
+    drop.ondragover=e=>{e.preventDefault();drop.classList.add('dragover');};
+    drop.ondragleave=()=>drop.classList.remove('dragover');
+    drop.ondrop=e=>{e.preventDefault();drop.classList.remove('dragover');const f=e.dataTransfer.files[0];if(f&&isAudio(f))handleFile(f);else toast('err','Please drop an audio file');};
+    document.body.ondragover=e=>e.preventDefault();
+    document.body.ondrop=e=>{e.preventDefault();const f=e.dataTransfer?.files[0];if(f&&isAudio(f))handleFile(f);};
+    fi.onchange=e=>{if(e.target.files[0])handleFile(e.target.files[0]);e.target.value='';};
+    document.getElementById('settingsBtn').onclick=()=>{
+        document.getElementById('apiKeyInput').value=config.apiKey;
+        document.getElementById('modelSelect').value=config.dgModel;
+        document.getElementById('xlateSelect').value=config.xlateEngine;
+        document.getElementById('settingsOverlay').classList.remove('hidden');
+    };
+    document.getElementById('settingsCancel').onclick=()=>document.getElementById('settingsOverlay').classList.add('hidden');
+    document.getElementById('settingsSave').onclick=()=>{saveConfig();document.getElementById('settingsOverlay').classList.add('hidden');toast('ok','Settings saved');};
+}
+
+function isAudio(f){return f.type.startsWith('audio/')||/\.(m4a|mp3|wav|ogg|flac|aac|wma|webm)$/i.test(f.name);}
+
+function getMimeType(file){
+    if(file.type&&file.type!=='application/octet-stream')return file.type;
+    const ext=(file.name.match(/\.(\w+)$/)?.[1]||'').toLowerCase();
+    const map={mp3:'audio/mpeg',m4a:'audio/mp4',mp4:'audio/mp4',wav:'audio/wav',ogg:'audio/ogg',flac:'audio/flac',aac:'audio/aac',webm:'audio/webm',wma:'audio/x-ms-wma'};
+    return map[ext]||'audio/mpeg';
+}
+
+async function handleFile(file){
+    if(!config.apiKey){document.getElementById('settingsOverlay').classList.remove('hidden');toast('warn','Set your Deepgram API key first');return;}
+    if(state.audioUrl)URL.revokeObjectURL(state.audioUrl);
+    state.audioUrl=URL.createObjectURL(file);
+    showSttStatus(file);
+    try{
+        const paragraphs=await transcribeFile(file);
+        if(!paragraphs||paragraphs.length===0){
+            toast('err','Deepgram returned no transcript. Verify the file contains speech and your API key is valid.');
+            showWelcome();return;
+        }
+        state.session={
+            name:file.name.replace(/\.[^.]+$/,''),fileName:file.name,fileSize:file.size,
+            paragraphs:paragraphs.map((p,i)=>({index:i,startTime:p.start,endTime:p.end,thai:p.transcript,english:null,confidence:p.confidence,btThai:null,btEnglish:null,btStatus:'idle',btOpen:false}))
         };
+        toast('ok',`${paragraphs.length} paragraphs transcribed · translating now…`);
+        renderSession();
+        await translateAll();
+    }catch(err){
+        if(err.name!=='AbortError'){toast('err','Error: '+err.message);console.error(err);showWelcome();}
+    }
+}
 
-        let state = {
-            session: null,
-            processing: false,
-            currentChunk: -1,
-            abortController: null
+function showWelcome(){
+    document.getElementById('mainArea').innerHTML=`<div class="welcome" id="welcomeView"><div class="welcome-icon">🎙️</div><h2>Thai Audio → English Text</h2><p>Drop any Thai audio file. The original file is sent directly to Deepgram — no re-encoding — then paragraphs are translated to English for free.</p><div class="pipeline-note"><span>Deepgram</span> STT (original file · Thai · Nova-2) → <span>MyMemory</span> translate (free)</div><div class="drop-zone" id="dropZone"><div class="drop-zone-label">📂 Drop audio file or click to browse</div><div class="drop-zone-sub">m4a · mp3 · wav · ogg · flac · aac · webm</div></div></div>`;
+    const drop=document.getElementById('dropZone'),fi=document.getElementById('fileInput');
+    drop.onclick=()=>fi.click();
+    drop.ondragover=e=>{e.preventDefault();drop.classList.add('dragover');};
+    drop.ondragleave=()=>drop.classList.remove('dragover');
+    drop.ondrop=e=>{e.preventDefault();drop.classList.remove('dragover');const f=e.dataTransfer.files[0];if(f&&isAudio(f))handleFile(f);else toast('err','Please drop an audio file');};
+}
+
+function showSttStatus(file){
+    document.getElementById('mainArea').innerHTML=`<div class="stt-status" id="sttStatus"><div class="stt-spinner-ring"></div><div class="stt-status-title" id="sttTitle">Uploading to Deepgram…</div><div class="stt-status-sub" id="sttSub">Sending ${fmtSize(file.size)} · ${esc(file.name)}</div><div class="stt-upload-track"><div class="stt-upload-fill" id="sttFill"></div></div><div class="stt-upload-label" id="sttPct">0%</div></div>`;
+}
+
+function setSttUI(title,sub,pct){
+    const t=document.getElementById('sttTitle'),s=document.getElementById('sttSub'),f=document.getElementById('sttFill'),p=document.getElementById('sttPct');
+    if(t)t.textContent=title;if(s&&sub)s.textContent=sub;if(f&&pct!=null)f.style.width=pct+'%';if(p&&pct!=null)p.textContent=Math.round(pct)+'%';
+}
+
+async function transcribeFile(file){
+    const mimeType=getMimeType(file);
+    const params=new URLSearchParams({model:config.dgModel,language:'th',punctuate:'true',smart_format:'true',paragraphs:'true',diarize:'false'});
+    const url=`https://api.deepgram.com/v1/listen?${params}`;
+
+    const data=await new Promise((resolve,reject)=>{
+        const xhr=new XMLHttpRequest();
+        xhr.open('POST',url,true);
+        xhr.setRequestHeader('Authorization',`Token ${config.apiKey}`);
+        xhr.setRequestHeader('Content-Type',mimeType);
+        xhr.upload.onprogress=e=>{
+            if(e.lengthComputable){const pct=(e.loaded/e.total)*80;setSttUI('Uploading to Deepgram…',`${fmtSize(e.loaded)} / ${fmtSize(e.total)}`,pct);}
         };
+        xhr.onload=()=>{
+            if(xhr.status>=200&&xhr.status<300){try{resolve(JSON.parse(xhr.responseText));}catch(e){reject(new Error('Invalid JSON from Deepgram'));}}
+            else{let msg=`Deepgram HTTP ${xhr.status}`;try{const err=JSON.parse(xhr.responseText);msg=err.err_msg||err.message||msg;}catch(e){}reject(new Error(msg));}
+        };
+        xhr.onerror=()=>reject(new Error('Network error uploading to Deepgram'));
+        setSttUI('Uploading…',null,0);
+        xhr.send(file);
+    });
 
-        // ─── Init ───
-        function init() {
-            loadConfig();
-            setupEvents();
-            updateApiStatus();
-            if (!config.apiKey) {
-                document.getElementById('settingsOverlay').classList.remove('hidden');
-            }
+    setSttUI('Deepgram processing…','Analysing audio…',85);
+
+    const alt=data.results?.channels?.[0]?.alternatives?.[0];
+    if(!alt)throw new Error('No transcript data in Deepgram response');
+
+    const rawParas=alt.paragraphs?.paragraphs;
+    if(rawParas&&rawParas.length>0){
+        setSttUI('Done!',`${rawParas.length} paragraphs`,100);
+        return rawParas.map(p=>({
+            start:p.start,end:p.end,
+            transcript:p.sentences?.map(s=>s.text).join(' ')||'',
+            confidence:p.sentences?.[0]?.words?avgConf(p.sentences.flatMap(s=>s.words||[])):null
+        })).filter(p=>p.transcript.trim());
+    }
+
+    // Fallback: use words array for time-window splitting
+    const words=alt.words||[];
+    if(words.length>0){
+        setSttUI('Done!','Using word segments',100);
+        return splitWordsByTime(words,60);
+    }
+
+    // Last resort: whole transcript
+    const full=alt.transcript||'';
+    if(!full.trim())return[];
+    setSttUI('Done!','1 segment',100);
+    const dur=data.metadata?.duration||0;
+    return[{start:0,end:dur,transcript:full,confidence:alt.confidence??null}];
+}
+
+function avgConf(words){if(!words.length)return null;return words.reduce((s,w)=>s+(w.confidence||0),0)/words.length;}
+
+function splitWordsByTime(words,windowSec){
+    const segs=[];let segStart=words[0]?.start||0,segWords=[];
+    for(const w of words){
+        segWords.push(w);
+        if(w.end-segStart>=windowSec){
+            segs.push({start:segStart,end:w.end,transcript:segWords.map(x=>x.punctuated_word||x.word).join(' '),confidence:avgConf(segWords)});
+            segStart=w.end;segWords=[];
         }
-
-        function loadConfig() {
-            try {
-                const saved = JSON.parse(localStorage.getItem(CONFIG_KEY));
-                if (saved) config = { ...config, ...saved };
-            } catch(e) {}
-            document.getElementById('apiKeyInput').value = config.apiKey;
-            document.getElementById('modelSelect').value = config.dgModel;
-            document.getElementById('xlateSelect').value = config.xlateEngine;
-            document.getElementById('chunkSelect').value = String(config.chunkSec);
-        }
-
-        function saveConfig() {
-            config.apiKey = document.getElementById('apiKeyInput').value.trim();
-            config.dgModel = document.getElementById('modelSelect').value;
-            config.xlateEngine = document.getElementById('xlateSelect').value;
-            config.chunkSec = parseInt(document.getElementById('chunkSelect').value);
-            localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-            updateApiStatus();
-        }
-
-        function updateApiStatus() {
-            const dot = document.getElementById('apiDot');
-            const txt = document.getElementById('apiStatusText');
-            if (!config.apiKey) {
-                dot.className = 'api-dot';
-                txt.textContent = 'No API key';
-            } else if (state.processing) {
-                dot.className = 'api-dot working';
-                txt.textContent = 'Processing...';
-            } else {
-                dot.className = 'api-dot ok';
-                txt.textContent = 'dg:' + config.dgModel;
-            }
-        }
-
-        // ─── Events ───
-        function setupEvents() {
-            const drop = document.getElementById('dropZone');
-            const fileInput = document.getElementById('fileInput');
-
-            drop.onclick = () => fileInput.click();
-            drop.ondragover = e => { e.preventDefault(); drop.classList.add('dragover'); };
-            drop.ondragleave = () => drop.classList.remove('dragover');
-            drop.ondrop = e => {
-                e.preventDefault(); drop.classList.remove('dragover');
-                const f = e.dataTransfer.files[0];
-                if (f && isAudio(f)) ingestFile(f);
-                else toast('err', 'Please drop an audio file');
-            };
-
-            document.body.ondragover = e => e.preventDefault();
-            document.body.ondrop = e => {
-                e.preventDefault();
-                const f = e.dataTransfer?.files[0];
-                if (f && isAudio(f)) ingestFile(f);
-            };
-
-            fileInput.onchange = e => {
-                if (e.target.files[0]) ingestFile(e.target.files[0]);
-                e.target.value = '';
-            };
-
-            document.getElementById('settingsBtn').onclick = () => {
-                document.getElementById('apiKeyInput').value = config.apiKey;
-                document.getElementById('modelSelect').value = config.dgModel;
-                document.getElementById('xlateSelect').value = config.xlateEngine;
-                document.getElementById('chunkSelect').value = String(config.chunkSec);
-                document.getElementById('settingsOverlay').classList.remove('hidden');
-            };
-
-            document.getElementById('settingsCancel').onclick = () => {
-                document.getElementById('settingsOverlay').classList.add('hidden');
-            };
-
-            document.getElementById('settingsSave').onclick = () => {
-                saveConfig();
-                document.getElementById('settingsOverlay').classList.add('hidden');
-                toast('ok', 'Settings saved');
-            };
-        }
-
-        function isAudio(f) {
-            return f.type.startsWith('audio/') || /\.(m4a|mp3|wav|ogg|flac|aac|wma|webm)$/i.test(f.name);
-        }
-
-        // ─── Audio Ingest ───
-        async function ingestFile(file) {
-            if (!config.apiKey) {
-                document.getElementById('settingsOverlay').classList.remove('hidden');
-                toast('warn', 'Set your Deepgram API key first');
-                return;
-            }
-
-            const overlay = document.getElementById('ingestOverlay');
-            overlay.classList.remove('hidden');
-            setIngest('Reading file...', 0);
-
-            try {
-                const arrayBuf = await new Promise((res, rej) => {
-                    const reader = new FileReader();
-                    reader.onprogress = e => {
-                        if (e.lengthComputable) setIngest('Reading...', (e.loaded / e.total) * 25);
-                    };
-                    reader.onload = () => res(reader.result);
-                    reader.onerror = () => rej(reader.error);
-                    reader.readAsArrayBuffer(file);
-                });
-
-                setIngest('Decoding audio...', 35);
-
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SR });
-                const audioBuffer = await audioCtx.decodeAudioData(arrayBuf.slice(0));
-                const duration = audioBuffer.duration;
-
-                setIngest('Preparing chunks...', 55);
-
-                let mono;
-                if (audioBuffer.numberOfChannels === 1) {
-                    mono = new Float32Array(audioBuffer.length);
-                    audioBuffer.copyFromChannel(mono, 0);
-                } else {
-                    const left = new Float32Array(audioBuffer.length);
-                    const right = new Float32Array(audioBuffer.length);
-                    audioBuffer.copyFromChannel(left, 0);
-                    audioBuffer.copyFromChannel(right, 1);
-                    mono = new Float32Array(audioBuffer.length);
-                    for (let i = 0; i < mono.length; i++) mono[i] = (left[i] + right[i]) / 2;
-                }
-
-                const chunkSamples = config.chunkSec * SR;
-                const totalChunks = Math.ceil(mono.length / chunkSamples);
-
-                setIngest('Encoding chunks...', 65);
-
-                const chunks = [];
-                for (let i = 0; i < totalChunks; i++) {
-                    const start = i * chunkSamples;
-                    const end = Math.min(start + chunkSamples, mono.length);
-                    const samples = mono.slice(start, end);
-                    const wavBase64 = encodeWavBase64(samples, SR);
-
-                    chunks.push({
-                        index: i,
-                        startTime: start / SR,
-                        endTime: end / SR,
-                        audioBase64: wavBase64,
-                        thai: null,
-                        english: null,
-                        status: 'pending',   // pending | stt | translating | done | error
-                        phase: null,         // 'stt' | 'translate'
-                        error: null,
-                        confidence: null,    // Deepgram confidence score
-                        btThai: null,
-                        btEnglish: null,
-                        btStatus: 'idle',
-                        btOpen: false
-                    });
-
-                    if (i % 5 === 0) setIngest('Encoding chunks...', 65 + (i / totalChunks) * 30);
-                }
-
-                audioCtx.close();
-
-                state.session = {
-                    name: file.name.replace(/\.[^.]+$/, ''),
-                    fileName: file.name,
-                    fileSize: file.size,
-                    duration: duration,
-                    totalChunks: totalChunks,
-                    chunks: chunks
-                };
-
-                setIngest('Ready!', 100);
-                setTimeout(() => overlay.classList.add('hidden'), 300);
-
-                renderSession();
-                toast('ok', `${totalChunks} chunks ready · ${fmtDur(duration)}`);
-
-            } catch (err) {
-                overlay.classList.add('hidden');
-                toast('err', 'Failed to process audio: ' + err.message);
-                console.error(err);
-            }
-        }
-
-        function setIngest(text, pct) {
-            document.getElementById('ingestStatus').textContent = text;
-            document.getElementById('ingestFill').style.width = pct + '%';
-            document.getElementById('ingestDetail').textContent = Math.round(pct) + '%';
-        }
-
-        // ─── WAV Encoding ───
-        function encodeWavBase64(samples, sampleRate) {
-            const numChannels = 1;
-            const bitsPerSample = 16;
-            const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
-            const blockAlign = numChannels * (bitsPerSample / 8);
-            const dataSize = samples.length * (bitsPerSample / 8);
-            const buffer = new ArrayBuffer(44 + dataSize);
-            const view = new DataView(buffer);
-
-            writeString(view, 0, 'RIFF');
-            view.setUint32(4, 36 + dataSize, true);
-            writeString(view, 8, 'WAVE');
-            writeString(view, 12, 'fmt ');
-            view.setUint32(16, 16, true);
-            view.setUint16(20, 1, true);
-            view.setUint16(22, numChannels, true);
-            view.setUint32(24, sampleRate, true);
-            view.setUint32(28, byteRate, true);
-            view.setUint16(32, blockAlign, true);
-            view.setUint16(34, bitsPerSample, true);
-            writeString(view, 36, 'data');
-            view.setUint32(40, dataSize, true);
-
-            let offset = 44;
-            for (let i = 0; i < samples.length; i++) {
-                const s = Math.max(-1, Math.min(1, samples[i]));
-                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-                offset += 2;
-            }
-
-            const bytes = new Uint8Array(buffer);
-            let binary = '';
-            const chunkSize = 8192;
-            for (let i = 0; i < bytes.length; i += chunkSize) {
-                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
-            }
-            return btoa(binary);
-        }
-
-        function writeString(view, offset, str) {
-            for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
-        }
-
-        // ─── Deepgram STT ───
-        async function transcribeWithDeepgram(audioBase64) {
-            const binary = atob(audioBase64);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
-            const params = new URLSearchParams({
-                model: config.dgModel,
-                language: 'th',
-                punctuate: 'true',
-                smart_format: 'true',
-                diarize: 'false'
-            });
-
-            const resp = await fetch(`https://api.deepgram.com/v1/listen?${params}`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Token ${config.apiKey}`,
-                    'Content-Type': 'audio/wav'
-                },
-                body: bytes.buffer,
-                signal: state.abortController?.signal
-            });
-
-            if (!resp.ok) {
-                const errData = await resp.json().catch(() => ({}));
-                throw new Error(errData?.err_msg || errData?.message || `Deepgram HTTP ${resp.status}`);
-            }
-
-            const data = await resp.json();
-            const alt = data.results?.channels?.[0]?.alternatives?.[0];
-            return {
-                transcript: alt?.transcript || '',
-                confidence: alt?.confidence ?? null
-            };
-        }
-
-        // ─── Translation (free) ───
-        async function translateText(text, from, to) {
-            if (!text || !text.trim()) return '';
-
-            if (config.xlateEngine === 'mymemory') {
-                return translateMyMemory(text, from, to);
-            } else {
-                return translateLingva(text, from, to);
-            }
-        }
-
-        async function translateMyMemory(text, from, to) {
-            // MyMemory supports up to 500 chars per request — chunk if needed
-            const MAX = 490;
-            if (text.length <= MAX) {
-                return await myMemoryRequest(text, from, to);
-            }
-
-            // Split on sentence boundaries where possible
-            const parts = splitText(text, MAX);
-            const results = [];
-            for (const part of parts) {
-                if (state.abortController?.signal.aborted) throw new DOMException('', 'AbortError');
-                const translated = await myMemoryRequest(part, from, to);
-                results.push(translated);
-                if (parts.length > 1) await sleep(300); // gentle pacing
-            }
-            return results.join(' ');
-        }
-
-        async function myMemoryRequest(text, from, to) {
-            const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`;
-            const resp = await fetch(url, { signal: state.abortController?.signal });
-            if (!resp.ok) throw new Error(`MyMemory HTTP ${resp.status}`);
-            const data = await resp.json();
-            if (data.responseStatus === 429) throw new Error('MyMemory rate limit — please wait a moment');
-            const result = data.responseData?.translatedText || text;
-            // MyMemory sometimes returns "PLEASE SELECT TWO DISTINCT LANGUAGES" on bad input
-            if (result.startsWith('PLEASE SELECT')) return text;
-            return result;
-        }
-
-        async function translateLingva(text, from, to) {
-            // Lingva is an open-source Google Translate frontend
-            const MAX = 1000;
-            const parts = text.length > MAX ? splitText(text, MAX) : [text];
-            const results = [];
-            for (const part of parts) {
-                if (state.abortController?.signal.aborted) throw new DOMException('', 'AbortError');
-                const url = `https://lingva.ml/api/v1/${from}/${to}/${encodeURIComponent(part)}`;
-                const resp = await fetch(url, { signal: state.abortController?.signal });
-                if (!resp.ok) throw new Error(`Lingva HTTP ${resp.status}`);
-                const data = await resp.json();
-                results.push(data.translation || part);
-            }
-            return results.join(' ');
-        }
-
-        function splitText(text, maxLen) {
-            // Try to split on Thai sentence-ending characters or spaces
-            const parts = [];
-            let remaining = text;
-            while (remaining.length > maxLen) {
-                // Find a good split point — prefer ฯ ๚ ๛ or space near maxLen
-                let splitAt = maxLen;
-                for (let i = maxLen; i >= maxLen - 80 && i > 0; i--) {
-                    const ch = remaining[i];
-                    if (ch === ' ' || ch === '\n' || ch === '.' || ch === ',' || ch === 'ฯ') {
-                        splitAt = i + 1;
-                        break;
-                    }
-                }
-                parts.push(remaining.slice(0, splitAt).trim());
-                remaining = remaining.slice(splitAt).trim();
-            }
-            if (remaining) parts.push(remaining);
-            return parts;
-        }
-
-        // ─── Processing Pipeline ───
-        async function processChunk(index, contextHint) {
-            const chunk = state.session.chunks[index];
-
-            // Phase 1: Deepgram STT
-            chunk.status = 'processing';
-            chunk.phase = 'stt';
-            updateChunkUI(index);
-            setPhaseUI('stt');
-
-            const sttResult = await transcribeWithDeepgram(chunk.audioBase64);
-            chunk.thai = sttResult.transcript;
-            chunk.confidence = sttResult.confidence;
-
-            if (!chunk.thai.trim()) {
-                // Silence / no speech detected
-                chunk.thai = '';
-                chunk.english = '[No speech detected]';
-                chunk.status = 'done';
-                chunk.phase = null;
-                return;
-            }
-
-            // Phase 2: Translation
-            chunk.phase = 'translate';
-            updateChunkUI(index);
-            setPhaseUI('translate');
-
-            const english = await translateText(chunk.thai, 'th', 'en');
-            chunk.english = english;
-            chunk.status = 'done';
-            chunk.phase = null;
-        }
-
-        function setPhaseUI(phase) {
-            const stt = document.getElementById('phase-stt');
-            const xlate = document.getElementById('phase-xlate');
-            if (!stt || !xlate) return;
-            stt.className = 'phase-badge' + (phase === 'stt' ? ' active' : (phase === 'translate' ? ' done' : ''));
-            xlate.className = 'phase-badge' + (phase === 'translate' ? ' active' : '');
-        }
-
-        async function startProcessing() {
-            if (!state.session || state.processing) return;
-            if (!config.apiKey) {
-                document.getElementById('settingsOverlay').classList.remove('hidden');
-                toast('warn', 'Set your Deepgram API key first');
-                return;
-            }
-
-            state.processing = true;
-            state.abortController = new AbortController();
-            updateApiStatus();
-            showProgress();
-            updateProcButton();
-
-            const chunks = state.session.chunks;
-
-            for (let i = 0; i < chunks.length; i++) {
-                if (!state.processing) break;
-
-                const chunk = chunks[i];
-                if (chunk.status === 'done') {
-                    updateProgress(i + 1, chunks.length);
-                    continue;
-                }
-
-                state.currentChunk = i;
-                updateProgress(i, chunks.length);
-
-                try {
-                    await processChunk(i);
-                } catch (err) {
-                    if (err.name === 'AbortError') break;
-
-                    chunk.status = 'error';
-                    chunk.phase = null;
-                    chunk.error = err.message;
-                    console.error(`Chunk ${i} error:`, err);
-
-                    if (err.message.includes('429') || err.message.toLowerCase().includes('rate')) {
-                        toast('warn', 'Rate limited — waiting 15s...');
-                        await sleep(15000);
-                        if (state.processing) {
-                            i--;
-                            chunk.status = 'pending';
-                            chunk.phase = null;
-                        }
-                    } else {
-                        toast('err', `Chunk ${i + 1}: ${err.message.slice(0, 60)}`);
-                    }
-                }
-
-                updateChunkUI(i);
-                updateProgress(i + 1, chunks.length);
-
-                if (state.processing && i < chunks.length - 1) {
-                    await sleep(800);
-                }
-            }
-
-            state.processing = false;
-            state.currentChunk = -1;
-            updateApiStatus();
-            updateProcButton();
-            setPhaseUI(null);
-
-            const doneCount = chunks.filter(c => c.status === 'done').length;
-            if (doneCount === chunks.length) {
-                toast('ok', 'All chunks processed!');
-                hideProgress();
-            } else if (doneCount > 0) {
-                toast('warn', `${doneCount}/${chunks.length} chunks completed`);
-            }
-        }
-
-        function stopProcessing() {
-            state.processing = false;
-            if (state.abortController) {
-                state.abortController.abort();
-                state.abortController = null;
-            }
-            updateApiStatus();
-            updateProcButton();
-            setPhaseUI(null);
-            toast('warn', 'Stopped');
-        }
-
-        async function retryChunk(index) {
-            if (state.processing) {
-                toast('warn', 'Wait for current processing to finish');
-                return;
-            }
-
-            const chunk = state.session.chunks[index];
-            if (!chunk) return;
-
-            state.processing = true;
-            state.abortController = new AbortController();
-            chunk.status = 'pending';
-            chunk.phase = null;
-            chunk.thai = null;
-            chunk.english = null;
-            chunk.error = null;
-            updateChunkUI(index);
-            updateApiStatus();
-
-            try {
-                await processChunk(index);
-                toast('ok', `Chunk ${index + 1} done`);
-            } catch (err) {
-                chunk.status = 'error';
-                chunk.phase = null;
-                chunk.error = err.message;
-                toast('err', err.message.slice(0, 60));
-            }
-
-            state.processing = false;
-            updateChunkUI(index);
-            updateApiStatus();
-            setPhaseUI(null);
-        }
-
-        // ─── Back-Translate (MyMemory both ways) ───
-        async function toggleBt(index) {
-            const chunk = state.session?.chunks[index];
-            if (!chunk) return;
-
-            if (chunk.btStatus === 'done') {
-                chunk.btOpen = !chunk.btOpen;
-                updateChunkUI(index);
-                return;
-            }
-
-            if (chunk.btStatus === 'idle' && chunk.status === 'done') {
-                await backTranslateChunk(index);
-            }
-        }
-
-        async function backTranslateChunk(index) {
-            const chunk = state.session?.chunks[index];
-            if (!chunk || !chunk.thai || !chunk.english) return;
-
-            chunk.btStatus = 'loading';
-            chunk.btOpen = true;
-            updateChunkUI(index);
-
-            try {
-                // Run both back-translations in parallel
-                const [btThai, btEnglish] = await Promise.all([
-                    translateText(chunk.english, 'en', 'th'),   // English → Thai
-                    translateText(chunk.thai, 'th', 'en')        // Thai → English (fresh)
-                ]);
-
-                chunk.btThai = btThai;
-                chunk.btEnglish = btEnglish;
-                chunk.btStatus = 'done';
-                toast('ok', `Back-translation ${index + 1} done`);
-            } catch (err) {
-                chunk.btStatus = 'error';
-                toast('err', 'Back-translate: ' + err.message.slice(0, 60));
-            }
-
-            updateChunkUI(index);
-        }
-
-        function redoBt(index) {
-            const chunk = state.session?.chunks[index];
-            if (!chunk) return;
-            chunk.btThai = null;
-            chunk.btEnglish = null;
-            chunk.btStatus = 'idle';
-            chunk.btOpen = false;
-            updateChunkUI(index);
-            backTranslateChunk(index);
-        }
-
-        // ─── Render ───
-        function renderSession() {
-            const s = state.session;
-            if (!s) return;
-
-            document.getElementById('mainArea').innerHTML = `
-                <div class="session-bar">
-                    <div class="session-info">
-                        <div class="session-name">${esc(s.name)}</div>
-                        <div class="session-meta">
-                            <span>${esc(s.fileName)}</span>
-                            <span>${fmtDur(s.duration)}</span>
-                            <span>${s.totalChunks} chunks @ ${config.chunkSec}s</span>
-                            <span>${fmtSize(s.fileSize)}</span>
-                        </div>
-                    </div>
-                    <div class="session-actions">
-                        <button class="btn btn-outline btn-sm" id="newFileBtn">📂 New File</button>
-                        <button class="btn btn-outline btn-sm" id="exportBtn">📤 Export</button>
-                        <button class="btn btn-gold btn-sm" id="procBtn">▶ Process All</button>
-                    </div>
-                </div>
-                <div class="transcript">
-                    <div class="transcript-cols">
-                        <div class="col-header">
-                            <span>🇹🇭 Thai Original</span>
-                            <button class="btn btn-ghost btn-sm" id="copyThaiBtn">📋</button>
-                        </div>
-                        <div class="col-header">
-                            <span>🇺🇸 English Translation</span>
-                            <button class="btn btn-ghost btn-sm" id="copyEngBtn">📋</button>
-                        </div>
-                    </div>
-                    <div class="scroll" id="chunkScroll"></div>
-                </div>
-            `;
-
-            const scroll = document.getElementById('chunkScroll');
-            for (let i = 0; i < s.chunks.length; i++) {
-                scroll.appendChild(createChunkEl(i));
-            }
-
-            document.getElementById('procBtn').onclick = () => {
-                if (state.processing) stopProcessing();
-                else startProcessing();
-            };
-
-            document.getElementById('newFileBtn').onclick = () => {
-                document.getElementById('fileInput').click();
-            };
-
-            document.getElementById('exportBtn').onclick = exportResults;
-
-            document.getElementById('copyThaiBtn').onclick = () => {
-                const text = s.chunks.filter(c => c.thai).map(c => c.thai).join('\n\n');
-                navigator.clipboard.writeText(text).then(() => toast('ok', 'Thai text copied'));
-            };
-
-            document.getElementById('copyEngBtn').onclick = () => {
-                const text = s.chunks.filter(c => c.english).map(c => c.english).join('\n\n');
-                navigator.clipboard.writeText(text).then(() => toast('ok', 'English text copied'));
-            };
-        }
-
-        function createChunkEl(index) {
-            const chunk = state.session.chunks[index];
-            const wrapper = document.createElement('div');
-            wrapper.className = 'chunk-wrapper';
-            wrapper.id = 'chunk-' + index;
-
-            const id = String(index + 1).padStart(3, '0');
-            const time = fmtTime(chunk.startTime) + ' → ' + fmtTime(chunk.endTime);
-
-            let thaiContent, engContent;
-            const confLabel = chunk.confidence != null
-                ? `<span class="cell-id" style="margin-left:auto;color:${chunk.confidence > 0.85 ? 'var(--ok)' : chunk.confidence > 0.6 ? 'var(--warn)' : 'var(--err)'};">${Math.round(chunk.confidence * 100)}% conf</span>`
-                : '';
-
-            if (chunk.status === 'done' && chunk.thai) {
-                thaiContent = `<div class="cell-text thai-text">${esc(chunk.thai)}</div>
-                    <div class="cell-actions">
-                        <button class="cell-action" onclick="retryChunk(${index})">🔄 Redo</button>
-                        <button class="cell-action" onclick="playChunk(${index})">▶ Play</button>
-                    </div>`;
-            } else if (chunk.status === 'processing' && chunk.phase === 'stt') {
-                thaiContent = `<div class="cell-text empty">⏳ Transcribing...</div>`;
-            } else if (chunk.status === 'processing' && chunk.phase === 'translate') {
-                thaiContent = chunk.thai
-                    ? `<div class="cell-text thai-text">${esc(chunk.thai)}</div>`
-                    : `<div class="cell-text empty">⏳ Transcribing...</div>`;
-            } else if (chunk.status === 'error') {
-                thaiContent = `<div class="cell-text error-text">❌ ${esc(chunk.error?.slice(0, 80) || 'Error')}</div>
-                    <div class="cell-actions">
-                        <button class="cell-action" onclick="retryChunk(${index})">🔄 Retry</button>
-                        <button class="cell-action" onclick="playChunk(${index})">▶ Play</button>
-                    </div>`;
-            } else {
-                thaiContent = `<div class="cell-text empty">Waiting...</div>`;
-            }
-
-            if (chunk.status === 'done' && chunk.english) {
-                engContent = `<div class="cell-text">${esc(chunk.english)}</div>`;
-            } else if (chunk.status === 'processing' && chunk.phase === 'translate') {
-                engContent = `<div class="cell-text empty">⏳ Translating...</div>`;
-            } else if (chunk.status === 'processing') {
-                engContent = `<div class="cell-text empty">—</div>`;
-            } else if (chunk.status === 'error') {
-                engContent = `<div class="cell-text empty">—</div>`;
-            } else {
-                engContent = `<div class="cell-text empty">—</div>`;
-            }
-
-            const canBt = chunk.status === 'done' && chunk.thai && chunk.english;
-            const btLoading = chunk.btStatus === 'loading';
-            const btDone = chunk.btStatus === 'done';
-            const btOpen = chunk.btOpen;
-
-            let toggleClass = 'bt-toggle';
-            if (!canBt) toggleClass += ' disabled';
-            if (btOpen) toggleClass += ' open';
-            if (btLoading) toggleClass += ' loading';
-
-            let btLabel = 'Back-translate (verify quality)';
-            if (btLoading) btLabel = 'Translating...';
-            else if (btDone) btLabel = btOpen ? 'Hide back-translation' : 'Show back-translation';
-
-            const xlateEngineName = config.xlateEngine === 'mymemory' ? 'MyMemory' : 'Lingva';
-
-            let drawerContent = '';
-            if (btDone) {
-                drawerContent = `
-                    <div class="bt-content">
-                        <div class="bt-col">
-                            <div class="bt-col-label"><span class="bt-arrow">↩</span> English → Thai</div>
-                            <div class="bt-text thai-text">${esc(chunk.btThai) || '<span class="empty">—</span>'}</div>
-                        </div>
-                        <div class="bt-col">
-                            <div class="bt-col-label"><span class="bt-arrow">↩</span> Thai → English (fresh)</div>
-                            <div class="bt-text">${esc(chunk.btEnglish) || '<span class="empty">—</span>'}</div>
-                        </div>
-                    </div>
-                    <div class="bt-actions">
-                        <button class="cell-action" onclick="redoBt(${index})">🔄 Redo back-translate</button>
-                    </div>`;
-            } else if (btLoading) {
-                drawerContent = `
-                    <div class="bt-content">
-                        <div class="bt-col"><div class="bt-text empty">⏳ Generating...</div></div>
-                        <div class="bt-col"><div class="bt-text empty">⏳ Generating...</div></div>
-                    </div>`;
-            }
-
-            wrapper.innerHTML = `
-                <div class="chunk${chunk.status === 'processing' ? ' processing' : ''}${chunk.status === 'error' ? ' error-row' : ''}">
-                    <div class="cell">
-                        <div class="cell-head">
-                            <span class="cell-id">${id}</span>
-                            <span class="cell-time">${time}</span>
-                            ${confLabel}
-                        </div>
-                        ${thaiContent}
-                    </div>
-                    <div class="cell">
-                        <div class="cell-head"></div>
-                        ${engContent}
-                    </div>
-                </div>
-                <div class="${toggleClass}" onclick="toggleBt(${index})">
-                    <span class="bt-chevron">▶</span>
-                    <div class="bt-spinner"></div>
-                    <span class="bt-label">${btLabel}</span>
-                    ${canBt ? `<span class="bt-note">${xlateEngineName}</span>` : ''}
-                </div>
-                <div class="bt-drawer${btOpen ? ' open' : ''}">
-                    ${drawerContent}
-                </div>
-            `;
-
-            return wrapper;
-        }
-
-        function updateChunkUI(index) {
-            const old = document.getElementById('chunk-' + index);
-            if (old) old.replaceWith(createChunkEl(index));
-        }
-
-        function updateProcButton() {
-            const btn = document.getElementById('procBtn');
-            if (!btn) return;
-            if (state.processing) {
-                btn.textContent = '⏹ Stop';
-                btn.className = 'btn btn-stop btn-sm';
-            } else {
-                const done = state.session?.chunks.filter(c => c.status === 'done').length || 0;
-                const total = state.session?.totalChunks || 0;
-                if (done === total && total > 0) {
-                    btn.textContent = '🔄 Reprocess';
-                } else if (done > 0) {
-                    btn.textContent = '▶ Continue';
-                } else {
-                    btn.textContent = '▶ Process All';
-                }
-                btn.className = 'btn btn-gold btn-sm';
-            }
-        }
-
-        function showProgress() { document.getElementById('progressBar').classList.add('visible'); }
-        function hideProgress() { document.getElementById('progressBar').classList.remove('visible'); }
-
-        function updateProgress(current, total) {
-            const pct = total > 0 ? (current / total) * 100 : 0;
-            document.getElementById('progressFill').style.width = pct + '%';
-            document.getElementById('progressLabel').textContent = current >= total ? 'Complete' : `Processing chunk ${current + 1} of ${total}...`;
-            document.getElementById('progressStats').textContent = `${current} / ${total}`;
-        }
-
-        // ─── Audio Playback ───
-        let playCtx = null, playSrc = null;
-
-        function playChunk(index) {
-            const chunk = state.session?.chunks[index];
-            if (!chunk) return;
-
-            if (playSrc) { playSrc.stop(); playSrc = null; }
-            if (!playCtx) playCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (playCtx.state === 'suspended') playCtx.resume();
-
-            const binary = atob(chunk.audioBase64);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
-            playCtx.decodeAudioData(bytes.buffer.slice(0), buffer => {
-                const src = playCtx.createBufferSource();
-                src.buffer = buffer;
-                src.connect(playCtx.destination);
-                src.start();
-                playSrc = src;
-                src.onended = () => { playSrc = null; };
-            });
-        }
-
-        // ─── Export ───
-        function exportResults() {
-            if (!state.session) return;
-            const s = state.session;
-            const done = s.chunks.filter(c => c.status === 'done');
-
-            if (done.length === 0) { toast('warn', 'No results to export yet'); return; }
-
-            let md = `# ${s.name}\n\n`;
-            md += `**File:** ${s.fileName} · **Duration:** ${fmtDur(s.duration)}\n`;
-            md += `**Engine:** Deepgram ${config.dgModel} → ${config.xlateEngine === 'mymemory' ? 'MyMemory' : 'Lingva'} translation\n\n---\n\n`;
-
-            md += `## English Translation\n\n`;
-            for (const c of done) {
-                if (c.english && c.english.trim() && c.english !== '[No speech detected]') {
-                    md += c.english.trim() + '\n\n';
-                }
-            }
-
-            md += `---\n\n## Full Transcript (Thai + English)\n\n`;
-            for (const c of done) {
-                const id = String(c.index + 1).padStart(3, '0');
-                const conf = c.confidence != null ? ` · ${Math.round(c.confidence * 100)}% confidence` : '';
-                md += `### [${id}] ${fmtTime(c.startTime)} → ${fmtTime(c.endTime)}${conf}\n\n`;
-                if (c.thai) md += `🇹🇭 ${c.thai}\n\n`;
-                if (c.english) md += `🇺🇸 ${c.english}\n\n`;
-                if (c.btThai || c.btEnglish) {
-                    md += `**Back-translation:**\n\n`;
-                    if (c.btThai) md += `↩ EN→TH: ${c.btThai}\n\n`;
-                    if (c.btEnglish) md += `↩ TH→EN: ${c.btEnglish}\n\n`;
-                }
-            }
-
-            const blob = new Blob([md], { type: 'text/markdown' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = s.name + '-transcript.md';
-            a.click();
-
-            toast('ok', 'Exported ' + done.length + ' chunks');
-        }
-
-        // ─── Utilities ───
-        function fmtTime(s) {
-            const m = Math.floor(s / 60);
-            const sec = Math.floor(s % 60);
-            return m + ':' + sec.toString().padStart(2, '0');
-        }
-
-        function fmtDur(s) {
-            const h = Math.floor(s / 3600);
-            const m = Math.floor((s % 3600) / 60);
-            const sec = Math.floor(s % 60);
-            if (h > 0) return `${h}h ${m}m ${sec}s`;
-            return `${m}m ${sec}s`;
-        }
-
-        function fmtSize(bytes) {
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-            return (bytes / 1048576).toFixed(1) + ' MB';
-        }
-
-        function esc(t) {
-            if (!t) return '';
-            const d = document.createElement('div');
-            d.textContent = t;
-            return d.innerHTML;
-        }
-
-        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-        function toast(type, msg) {
-            const el = document.createElement('div');
-            el.className = 'toast ' + type;
-            el.textContent = msg;
-            document.getElementById('toastWrap').appendChild(el);
-            setTimeout(() => {
-                el.style.opacity = '0';
-                setTimeout(() => el.remove(), 300);
-            }, 4000);
-        }
-
-        init();
-    </script>
+    }
+    if(segWords.length)segs.push({start:segStart,end:segWords[segWords.length-1]?.end||segStart,transcript:segWords.map(x=>x.punctuated_word||x.word).join(' '),confidence:avgConf(segWords)});
+    return segs;
+}
+
+async function translateAll(){
+    const paras=state.session?.paragraphs;if(!paras)return;
+    state.translating=true;state.abortController=new AbortController();updateApiStatus();
+    showXlateBar(0,paras.length);
+    for(let i=0;i<paras.length;i++){
+        const p=paras[i];
+        if(p.english){updateXlateBar(i+1,paras.length);continue;}
+        try{p.english=await translateText(p.thai,'th','en');}
+        catch(err){if(err.name==='AbortError')break;p.english='[Translation failed]';console.warn('Translate err',i,err);}
+        updateParaUI(i);updateXlateBar(i+1,paras.length);
+        if(state.abortController?.signal.aborted)break;
+        if(i<paras.length-1)await sleep(300);
+    }
+    state.translating=false;updateApiStatus();hideXlateBar();
+    const done=paras.filter(p=>p.english&&p.english!=='[Translation failed]').length;
+    toast('ok',`Translation complete — ${done}/${paras.length} paragraphs`);
+}
+
+async function translateText(text,from,to){
+    if(!text||!text.trim())return'';
+    return config.xlateEngine==='lingva'?translateLingva(text,from,to):translateMyMemory(text,from,to);
+}
+
+async function translateMyMemory(text,from,to){
+    const MAX=490;
+    if(text.length<=MAX)return myMemoryReq(text,from,to);
+    const parts=splitText(text,MAX);const results=[];
+    for(const part of parts){if(state.abortController?.signal.aborted)throw new DOMException('','AbortError');results.push(await myMemoryReq(part,from,to));if(parts.length>1)await sleep(250);}
+    return results.join(' ');
+}
+
+async function myMemoryReq(text,from,to){
+    const resp=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`,{signal:state.abortController?.signal});
+    if(!resp.ok)throw new Error(`MyMemory HTTP ${resp.status}`);
+    const d=await resp.json();if(d.responseStatus===429)throw new Error('MyMemory rate limit');
+    const r=d.responseData?.translatedText||text;
+    return r.startsWith('PLEASE SELECT')?text:r;
+}
+
+async function translateLingva(text,from,to){
+    const MAX=1000;const parts=text.length>MAX?splitText(text,MAX):[text];const results=[];
+    for(const part of parts){
+        if(state.abortController?.signal.aborted)throw new DOMException('','AbortError');
+        const resp=await fetch(`https://lingva.ml/api/v1/${from}/${to}/${encodeURIComponent(part)}`,{signal:state.abortController?.signal});
+        if(!resp.ok)throw new Error(`Lingva HTTP ${resp.status}`);
+        const d=await resp.json();results.push(d.translation||part);
+    }
+    return results.join(' ');
+}
+
+function splitText(text,maxLen){
+    const parts=[];let rem=text;
+    while(rem.length>maxLen){let at=maxLen;for(let i=maxLen;i>=maxLen-80&&i>0;i--){const c=rem[i];if(c===' '||c==='\n'||c==='.'||c===','||c==='ฯ'){at=i+1;break;}}parts.push(rem.slice(0,at).trim());rem=rem.slice(at).trim();}
+    if(rem)parts.push(rem);return parts;
+}
+
+async function retryPara(index){
+    if(state.translating){toast('warn','Wait for translation to finish');return;}
+    const p=state.session?.paragraphs[index];if(!p)return;
+    p.english=null;updateParaUI(index);
+    state.abortController=new AbortController();
+    try{p.english=await translateText(p.thai,'th','en');toast('ok',`Para ${index+1} re-translated`);}
+    catch(err){p.english='[Translation failed]';toast('err',err.message.slice(0,60));}
+    updateParaUI(index);
+}
+
+async function toggleBt(index){
+    const p=state.session?.paragraphs[index];if(!p)return;
+    if(p.btStatus==='done'){p.btOpen=!p.btOpen;updateParaUI(index);return;}
+    if(p.btStatus==='idle'&&p.english)await backTranslatePara(index);
+}
+
+async function backTranslatePara(index){
+    const p=state.session?.paragraphs[index];if(!p||!p.thai||!p.english)return;
+    p.btStatus='loading';p.btOpen=true;updateParaUI(index);
+    const prevAbort=state.abortController;state.abortController=new AbortController();
+    try{
+        const[btThai,btEnglish]=await Promise.all([translateText(p.english,'en','th'),translateText(p.thai,'th','en')]);
+        p.btThai=btThai;p.btEnglish=btEnglish;p.btStatus='done';toast('ok',`Back-translation ${index+1} done`);
+    }catch(err){p.btStatus='error';toast('err','Back-translate: '+err.message.slice(0,60));}
+    state.abortController=prevAbort;updateParaUI(index);
+}
+
+function redoBt(index){
+    const p=state.session?.paragraphs[index];if(!p)return;
+    p.btThai=null;p.btEnglish=null;p.btStatus='idle';p.btOpen=false;updateParaUI(index);backTranslatePara(index);
+}
+
+function renderSession(){
+    const s=state.session;if(!s)return;
+    document.getElementById('mainArea').innerHTML=`
+        <div class="session-bar">
+            <div class="session-info">
+                <div class="session-name">${esc(s.name)}</div>
+                <div class="session-meta"><span>${esc(s.fileName)}</span><span>${s.paragraphs.length} paragraphs</span><span>${fmtSize(s.fileSize)}</span></div>
+            </div>
+            <div class="session-actions">
+                <button class="btn btn-outline btn-sm" id="newFileBtn">📂 New File</button>
+                <button class="btn btn-outline btn-sm" id="exportBtn">📤 Export</button>
+                <button class="btn btn-outline btn-sm" id="playAllBtn">▶ Play Audio</button>
+            </div>
+        </div>
+        <div class="transcript">
+            <div class="transcript-cols">
+                <div class="col-header"><span>🇹🇭 Thai Original</span><button class="btn btn-ghost btn-sm" id="copyThaiBtn">📋</button></div>
+                <div class="col-header"><span>🇺🇸 English Translation</span><button class="btn btn-ghost btn-sm" id="copyEngBtn">📋</button></div>
+            </div>
+            <div class="scroll" id="paraScroll"></div>
+        </div>`;
+    const scroll=document.getElementById('paraScroll');
+    for(let i=0;i<s.paragraphs.length;i++)scroll.appendChild(createParaEl(i));
+    document.getElementById('newFileBtn').onclick=()=>document.getElementById('fileInput').click();
+    document.getElementById('exportBtn').onclick=exportResults;
+    document.getElementById('playAllBtn').onclick=playAll;
+    document.getElementById('copyThaiBtn').onclick=()=>{const t=s.paragraphs.filter(p=>p.thai).map(p=>p.thai).join('\n\n');navigator.clipboard.writeText(t).then(()=>toast('ok','Thai copied'));};
+    document.getElementById('copyEngBtn').onclick=()=>{const t=s.paragraphs.filter(p=>p.english).map(p=>p.english).join('\n\n');navigator.clipboard.writeText(t).then(()=>toast('ok','English copied'));};
+}
+
+function createParaEl(index){
+    const p=state.session.paragraphs[index];
+    const wrapper=document.createElement('div');wrapper.className='para-wrapper';wrapper.id='para-'+index;
+    const id=String(index+1).padStart(3,'0');
+    const time=fmtTime(p.startTime)+' → '+fmtTime(p.endTime);
+    const confColor=p.confidence==null?'':p.confidence>.85?'var(--ok)':p.confidence>.6?'var(--warn)':'var(--err)';
+    const confBadge=p.confidence!=null?`<span class="conf-badge" style="color:${confColor};background:${confColor}18">${Math.round(p.confidence*100)}%</span>`:'';
+    const thaiContent=p.thai?`<div class="cell-text thai-text">${esc(p.thai)}</div><div class="cell-actions"><button class="cell-action" onclick="seekTo(${p.startTime})">▶ Play</button></div>`:`<div class="cell-text empty">—</div>`;
+    const engContent=p.english?`<div class="cell-text">${esc(p.english)}</div><div class="cell-actions"><button class="cell-action" onclick="retryPara(${index})">🔄 Re-translate</button></div>`:`<div class="cell-text empty">⏳ Translating…</div>`;
+    const canBt=!!p.english&&p.english!=='[Translation failed]';
+    const btLoading=p.btStatus==='loading',btDone=p.btStatus==='done';
+    let toggleClass='bt-toggle';if(!canBt)toggleClass+=' disabled';if(p.btOpen)toggleClass+=' open';if(btLoading)toggleClass+=' loading';
+    const btLabel=btLoading?'Translating...':btDone?(p.btOpen?'Hide back-translation':'Show back-translation'):'Back-translate (verify quality)';
+    let drawerContent='';
+    if(btDone){drawerContent=`<div class="bt-content"><div class="bt-col"><div class="bt-col-label"><span class="bt-arrow">↩</span> English → Thai</div><div class="bt-text thai-text">${esc(p.btThai)||'<span class="empty">—</span>'}</div></div><div class="bt-col"><div class="bt-col-label"><span class="bt-arrow">↩</span> Thai → English (fresh)</div><div class="bt-text">${esc(p.btEnglish)||'<span class="empty">—</span>'}</div></div></div><div class="bt-actions"><button class="cell-action" onclick="redoBt(${index})">🔄 Redo</button></div>`;}
+    else if(btLoading){drawerContent=`<div class="bt-content"><div class="bt-col"><div class="bt-text empty">⏳ Generating...</div></div><div class="bt-col"><div class="bt-text empty">⏳ Generating...</div></div></div>`;}
+    wrapper.innerHTML=`<div class="para-row${p.english==null?' translating':''}"><div class="cell"><div class="cell-head"><span class="cell-id">${id}</span><span class="cell-time">${time}</span>${confBadge}</div>${thaiContent}</div><div class="cell"><div class="cell-head"></div>${engContent}</div></div><div class="${toggleClass}" onclick="toggleBt(${index})"><span class="bt-chevron">▶</span><div class="bt-spinner"></div><span class="bt-label">${btLabel}</span>${canBt?`<span class="bt-note">${config.xlateEngine}</span>`:''}</div><div class="bt-drawer${p.btOpen?' open':''}"> ${drawerContent}</div>`;
+    return wrapper;
+}
+
+function updateParaUI(index){const old=document.getElementById('para-'+index);if(old)old.replaceWith(createParaEl(index));}
+
+function showXlateBar(cur,total){document.getElementById('xlateBar').classList.add('visible');updateXlateBar(cur,total);}
+function hideXlateBar(){document.getElementById('xlateBar').classList.remove('visible');}
+function updateXlateBar(cur,total){
+    document.getElementById('xlateLabel').textContent=cur>=total?'Translation complete':`Translating paragraph ${cur+1} of ${total}…`;
+    document.getElementById('xlateStats').textContent=`${cur} / ${total}`;
+}
+
+let audioEl=null;
+function getAudio(){if(!audioEl)audioEl=new Audio(state.audioUrl);return audioEl;}
+function seekTo(time){const a=getAudio();a.currentTime=time;a.play().catch(e=>toast('err','Playback: '+e.message));}
+function playAll(){const a=getAudio();a.currentTime=0;a.play().catch(e=>toast('err','Playback: '+e.message));}
+
+function exportResults(){
+    if(!state.session)return;const s=state.session;const paras=s.paragraphs.filter(p=>p.thai);
+    if(!paras.length){toast('warn','Nothing to export yet');return;}
+    let md=`# ${s.name}\n\n**File:** ${s.fileName}\n**Engine:** Deepgram ${config.dgModel} → ${config.xlateEngine}\n\n---\n\n## English Translation\n\n`;
+    for(const p of paras){if(p.english&&p.english!=='[Translation failed]')md+=p.english.trim()+'\n\n';}
+    md+=`---\n\n## Full Transcript (Thai + English)\n\n`;
+    for(const p of paras){
+        const id=String(p.index+1).padStart(3,'0');
+        const conf=p.confidence!=null?` · ${Math.round(p.confidence*100)}% conf`:'';
+        md+=`### [${id}] ${fmtTime(p.startTime)} → ${fmtTime(p.endTime)}${conf}\n\n`;
+        if(p.thai)md+=`🇹🇭 ${p.thai}\n\n`;if(p.english)md+=`🇺🇸 ${p.english}\n\n`;
+        if(p.btThai||p.btEnglish){md+=`**Back-translation:**\n`;if(p.btThai)md+=`↩ EN→TH: ${p.btThai}\n\n`;if(p.btEnglish)md+=`↩ TH→EN: ${p.btEnglish}\n\n`;}
+    }
+    const blob=new Blob([md],{type:'text/markdown'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=s.name+'-transcript.md';a.click();
+    toast('ok',`Exported ${paras.length} paragraphs`);
+}
+
+function fmtTime(s){const m=Math.floor(s/60),sec=Math.floor(s%60);return m+':'+sec.toString().padStart(2,'0');}
+function fmtSize(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB';}
+function esc(t){if(!t)return'';const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function toast(type,msg){const el=document.createElement('div');el.className='toast '+type;el.textContent=msg;document.getElementById('toastWrap').appendChild(el);setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.remove(),300);},5000);}
+
+init();
+</script>
 </body>
 </html>
