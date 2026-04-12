@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deepgram Key Test</title>
+<style>
+body{background:#0c0c0f;color:#e8e6f0;font-family:monospace;padding:24px;max-width:600px;margin:0 auto;}
+h2{color:#00e5b4;margin-bottom:20px;}
+input{width:100%;background:#1a1a22;color:#e8e6f0;border:1px solid #333;border-radius:8px;padding:12px;font-size:14px;font-family:monospace;box-sizing:border-box;}
+button{margin-top:12px;background:#00e5b4;color:#000;border:none;border-radius:8px;padding:12px 24px;font-size:14px;font-weight:700;cursor:pointer;width:100%;}
+button:hover{opacity:.85;}
+#result{margin-top:20px;padding:16px;border-radius:8px;font-size:13px;line-height:1.6;display:none;}
+#result.ok{background:rgba(0,201,122,.1);border:1px solid rgba(0,201,122,.4);color:#00c97a;}
+#result.err{background:rgba(255,68,85,.1);border:1px solid rgba(255,68,85,.4);color:#ff4455;}
+#result.warn{background:rgba(255,208,96,.1);border:1px solid rgba(255,208,96,.4);color:#ffd060;}
+</style>
+</head>
+<body>
+<h2>Deepgram Key Tester</h2>
+<input id="key" type="password" placeholder="Paste Deepgram API key here">
+<button onclick="runTests()">Run Tests</button>
+<div id="result"></div>
+
+<script>
+async function runTests() {
+  var key = document.getElementById('key').value.trim();
+  var out = document.getElementById('result');
+  out.style.display = 'block';
+  out.className = '';
+  out.textContent = 'Testing…';
+
+  if (!key) {
+    out.className = 'err';
+    out.textContent = '✕ No key entered.';
+    return;
+  }
+  if (key.length < 20) {
+    out.className = 'warn';
+    out.textContent = '⚠ Key looks too short (' + key.length + ' chars). Check for missing characters.';
+    return;
+  }
+
+  var lines = [];
+  lines.push('Key length: ' + key.length + ' chars');
+  lines.push('Key prefix: ' + key.slice(0, 8) + '…');
+  lines.push('');
+
+  // Test 1: REST API — projects list (lightweight, confirms auth)
+  try {
+    lines.push('TEST 1: REST auth (GET /v1/projects)');
+    var r1 = await fetch('https://api.deepgram.com/v1/projects', {
+      headers: { 'Authorization': 'Token ' + key }
+    });
+    var j1 = await r1.json();
+    if (r1.status === 200) {
+      lines.push('✅ HTTP 200 — key is valid');
+      var projects = j1.projects || [];
+      lines.push('   Projects: ' + projects.length);
+      if (projects.length > 0) lines.push('   First project: ' + projects[0].name);
+    } else if (r1.status === 401) {
+      lines.push('✕ HTTP 401 — INVALID KEY');
+      lines.push('   ' + JSON.stringify(j1));
+      out.className = 'err';
+      out.innerHTML = lines.join('<br>');
+      return;
+    } else {
+      lines.push('⚠ HTTP ' + r1.status);
+      lines.push('   ' + JSON.stringify(j1).slice(0, 200));
+    }
+  } catch(e) {
+    lines.push('✕ REST test failed: ' + e.message);
+    out.className = 'err';
+    out.innerHTML = lines.join('<br>');
+    return;
+  }
+
+  lines.push('');
+
+  // Test 2: WebSocket connection (same path as bridge.html)
+  lines.push('TEST 2: WebSocket (wss://api.deepgram.com/v1/listen)');
+  out.className = '';
+  out.innerHTML = lines.join('<br>');
+
+  await new Promise(function(resolve) {
+    var url = 'wss://api.deepgram.com/v1/listen'
+      + '?api_key=' + encodeURIComponent(key)
+      + '&model=nova-3&language=en-US&encoding=linear16&sample_rate=16000';
+    var ws = new WebSocket(url);
+    var timer = setTimeout(function() {
+      lines.push('⚠ WebSocket timeout (5s) — no response');
+      ws.close();
+      resolve();
+    }, 5000);
+
+    ws.onopen = function() {
+      clearTimeout(timer);
+      lines.push('✅ WebSocket connected — key works for streaming');
+      ws.close(1000);
+      resolve();
+    };
+    ws.onerror = function() {
+      // error fires before close on rejection
+    };
+    ws.onclose = function(ev) {
+      clearTimeout(timer);
+      if (ev.code === 1000) { resolve(); return; } // clean close
+      if (ev.code === 1006) {
+        lines.push('✕ WebSocket code 1006 — connection refused');
+        lines.push('   This usually means the key is invalid OR the key type');
+        lines.push('   does not have streaming permissions.');
+        lines.push('   Check console.deepgram.com → API Keys → Scopes.');
+      } else {
+        lines.push('⚠ WebSocket closed with code ' + ev.code);
+        if (ev.reason) lines.push('   Reason: ' + ev.reason);
+      }
+      resolve();
+    };
+  });
+
+  lines.push('');
+  lines.push('Done.');
+  var allOk = lines.some(function(l){ return l.includes('WebSocket connected'); });
+  out.className = allOk ? 'ok' : 'err';
+  out.innerHTML = lines.join('<br>');
+}
+</script>
+</body>
+</html>
