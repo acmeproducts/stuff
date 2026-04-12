@@ -92,10 +92,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .subtitle-line.mine{background:rgba(46,139,139,.2);color:rgba(255,255,255,.65);font-size:12px;}
 .subtitle-line.translation{background:rgba(63,193,193,.2);color:#fff;font-size:13px;}
 .subtitle-line.partner-source{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6);font-size:11px;}
-.call-info-wrap{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;}
-.room-name-chip{background:rgba(0,0,0,.72);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:4px 14px;font-size:12px;font-weight:600;white-space:nowrap;max-width:min(80vw,260px);overflow:hidden;text-overflow:ellipsis;backdrop-filter:blur(6px);}
-.lang-flags-chip{background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.15);border-radius:999px;padding:3px 12px;font-size:15px;backdrop-filter:blur(4px);}
-.partner-speaking-indicator{position:absolute;right:12px;bottom:56px;.partner-speaking-indicator{position:absolute;right:12px;bottom:56px;z-index:5;min-width:34px;height:24px;border-radius:999px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.2);color:#fff;display:none;align-items:center;justify-content:center;font-size:18px;font-weight:700;line-height:1;backdrop-filter:blur(4px);}
+.partner-speaking-indicator{position:absolute;right:12px;bottom:56px;z-index:5;min-width:34px;height:24px;border-radius:999px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.2);color:#fff;display:none;align-items:center;justify-content:center;font-size:18px;font-weight:700;line-height:1;backdrop-filter:blur(4px);}
 .partner-speaking-indicator.show{display:flex;animation:pulseSpeak .9s ease-in-out infinite alternate;}
 @keyframes pulseSpeak{from{opacity:.55;transform:scale(.98)}to{opacity:1;transform:scale(1.03)}}
 
@@ -239,7 +236,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <video id="remote-video" autoplay playsinline></video>
     <video id="local-video" autoplay muted playsinline></video>
     <div class="no-video-placeholder" id="no-video-msg">👤</div>
-    <div class="call-info-wrap"><div class="room-name-chip" id="room-name-chip">No room</div><div class="lang-flags-chip" id="lang-flags-chip">🌐 → 🌐</div></div>
     <div class="solo-banner" id="solo-banner" style="display:none;"><div class="solo-banner-text">Solo / test mode — waiting for partner</div></div>
     <div class="partner-speaking-indicator" id="partner-speaking-indicator" aria-hidden="true">…</div>
     <div class="subtitle-area" id="subtitle-area"></div>
@@ -342,14 +338,6 @@ function gL(c){c=(c||'').toLowerCase();for(var i=0;i<LANGS.length;i++)if(LANGS[i
 function updateBadges(){
   $('transcript-ribbon-title').textContent='Transcript';
 }
-function updateCallChip(){
-  var nameEl=$('room-name-chip'),flagEl=$('lang-flags-chip');
-  if(!nameEl||!flagEl)return;
-  nameEl.textContent=room.name||'No room';
-  // Initiator: myLang→theirLang; Partner: theirLang→myLang (their source is first)
-  var srcFlag=gL(room.myLang).flag,tgtFlag=gL(room.theirLang).flag;
-  flagEl.textContent=srcFlag+' → '+tgtFlag;
-}
 function syncMic(){$('mic-btn').classList.toggle('off',!micOn);$('mic-on').style.display=micOn?'':'none';$('mic-off').style.display=micOn?'none':''}
 function syncCam(){$('cam-btn').classList.toggle('off',!camOn);$('cam-on').style.display=camOn?'':'none';$('cam-off').style.display=camOn?'none':'';$('local-video').style.display=camOn?'':'none'}
 function markPartnerTalking(){var i=$('partner-speaking-indicator');if(!i)return;i.classList.add('show');clearTimeout(partnerSpeakTimer);partnerSpeakTimer=setTimeout(function(){i.classList.remove('show')},1200)}
@@ -381,7 +369,7 @@ function clearTrS(id){try{localStorage.removeItem(trKey(id))}catch(_){}}
 
 function encInv(p){try{return btoa(unescape(encodeURIComponent(JSON.stringify(p)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(_){return''}}
 function decInv(s){if(!s)return null;try{var b=s.replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';return JSON.parse(decodeURIComponent(escape(atob(b))))}catch(_){return null}}
-function invUrl(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';return location.href.split('?')[0].split('#')[0]+'#j='+encInv({r:room.id,ml:room.myLang,tl:room.theirLang,n:room.name||'',k:k})}
+function invUrl(){return location.href.split('?')[0].split('#')[0]+'#j='+encInv({r:room.id,ml:room.myLang,tl:room.theirLang,n:room.name||''})}
 
 var LS={setup:'setup',waiting:'waiting',call:'call'};
 var lobbyState=LS.setup;
@@ -441,7 +429,6 @@ function handleHash(p){
   navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(function(s){
     videoStream=s;$('joining-screen').classList.remove('show');
     room.id=p.r;room.myLang=p.tl;room.theirLang=p.ml;room.name=p.n||'';room.role='joiner';room.solo=false;
-    if(p.k){localStorage.setItem('tb_dg_key',p.k);if($('dg-key'))$('dg-key').value=p.k;}
     saveRecent();updateBadges();enterCall();
   }).catch(function(){$('joining-screen').classList.remove('show');toast('Camera access required');history.replaceState({},'',location.pathname)});
   history.replaceState({},'',location.pathname);
@@ -488,7 +475,7 @@ async function enterCall(){
   $('lobby').classList.add('hidden');
   if(!callHistoryPushed){history.pushState({tbView:'call'},'',location.href);callHistoryPushed=true}
   $('call-screen').classList.add('active');lobbyState=LS.call;
-  $('local-video').srcObject=videoStream;syncMic();syncCam();updateBadges();updateCallChip();
+  $('local-video').srcObject=videoStream;syncMic();syncCam();updateBadges();
   $('solo-banner').style.display=room.solo?'':'none';
   renderTr();
   if(!ws||ws.readyState!==1)connectRelay(); // setupPC fires inside ws.onopen
@@ -501,17 +488,11 @@ function refreshRemoteVideo(){
   var tracks=remoteStream?remoteStream.getTracks():[];
   var hasVideoTrack=tracks.some(function(t){return t.kind==='video'&&t.readyState==='live';});
   var hasRemoteTrack=tracks.some(function(t){return t.readyState==='live';});
-  log('rtc_refresh',{tracks:tracks.map(function(t){return t.kind+':'+t.readyState+':enabled='+t.enabled}).join(','),hasSrc:!!rv.srcObject});
-  if(hasRemoteTrack&&rv.srcObject!==remoteStream){rv.srcObject=remoteStream;rv.muted=false;}
-  rv.playsInline=true;rv.autoplay=true;
+  if(hasRemoteTrack&&rv.srcObject!==remoteStream)rv.srcObject=remoteStream;
+  rv.playsInline=true;rv.autoplay=true;rv.muted=true;
   if(hasRemoteTrack){
-    rv.muted=false; // attempt 1: before play
     var tryPlay=rv.play&&rv.play();
-    if(tryPlay&&tryPlay.then){
-      tryPlay.then(function(){rv.muted=false;log('rtc_audio_unmuted',{},'ok');}) // attempt 2: after play resolves
-             .catch(function(e){log('rtc_play_fail',{e:String(e)},'error');});
-    }
-    setTimeout(function(){if(rv.srcObject)rv.muted=false;},800); // attempt 3: fallback
+    if(tryPlay&&tryPlay.catch)tryPlay.catch(function(){});
     $('solo-banner').style.display='none';
   }
   if(hasVideoTrack){
@@ -548,10 +529,8 @@ function setupPC(){
   var localTracks=videoStream?videoStream.getTracks():[];
   localTracks.forEach(function(t){pc.addTrack(t,videoStream)});
   if(localTracks.length&&pc.signalingState==='stable'&&!makingOffer)emitOffer();
-  pc.onicecandidate=function(e){if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}});else log('rtc_ice_done',{});};
-  pc.oniceconnectionstatechange=function(){log('rtc_ice',{state:pc.iceConnectionState},pc.iceConnectionState==='connected'?'ok':pc.iceConnectionState==='failed'?'error':'info');};
-  pc.onconnectionstatechange=function(){log('rtc_conn',{state:pc.connectionState},pc.connectionState==='connected'?'ok':pc.connectionState==='failed'?'error':'info');};
-  pc.ontrack=function(e){log('rtc_track',{kind:e.track.kind,state:e.track.readyState},'ok');
+  pc.onicecandidate=function(e){if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}})};
+  pc.ontrack=function(e){
     if(!remoteStream)remoteStream=new MediaStream();
     if(e.streams&&e.streams[0]){
       e.streams[0].getTracks().forEach(function(track){
@@ -591,9 +570,8 @@ function isDupe(text){
 }
 function recFinal(t){recentFinals.push({s:t.toLowerCase(),t:Date.now()});if(recentFinals.length>DEDUP_MAX)recentFinals.shift()}
 
-function stripDGTags(t){return (t||'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim();}
 function onDGFinal(text){
-  text=stripDGTags(norm(text));if(!text)return;
+  text=norm(text);if(!text)return;
   if(isDupe(text)){log('dg_dedup',{t:text.slice(0,40)},'warn');return}
   recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
   var src=detectLang(text,room.myLang),tgt=room.theirLang,ss=++localSubSeq;
@@ -688,24 +666,28 @@ function patchTr(who,ss,newTr,sL,tL){
   addTr(who,newTr,newTr,sL,tL,ss);
 }
 function trHtml(e){
-  var lang=e.srcLang||room.myLang||'en';
-  var locale=TTS_LOCALE[lang]||lang||'en-US';
+  // left=source(original), right=target(translation) for both speakers
+  // me:      srcLang=myLang,    tgtLang=theirLang
+  // partner: srcLang=theirLang, tgtLang=myLang
+  var srcLang=e.srcLang||(e.who==='me'?room.myLang:room.theirLang)||'en';
+  var tgtLang=e.tgtLang||(e.who==='me'?room.theirLang:room.myLang)||'en';
+  var locale=TTS_LOCALE[srcLang]||'en-US';
   var ts=new Date(e.ts).toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  var who=e.who==='me'?'You':'Partner';
-  var tgtLang=e.tgtLang||room.theirLang||lang;
-  var sourceText=e.sourceText||'';
-  var targetText=e.translatedText||sourceText;
-  return '<div class="tr-entry"><div class="tr-bubble">'+
-    '<div class="tr-head"><div class="tr-who '+(e.who==='me'?'mine':'')+'">'+esc(who)+'</div><div class="tr-time">'+esc(ts)+'</div></div>'+
-    '<div class="tr-body">'+
-    '<div class="tr-col source"><div class="tr-text">'+esc(sourceText)+'</div>'+
-    '<button class="tr-tts" type="button" title="Play" data-tts-text="'+esc(sourceText)+'" data-tts-lang="'+esc(lang)+'">'+
-    '<svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'+
-    '<div class="tr-divider"></div>'+
-    '<div class="tr-col"><div class="tr-text">'+esc(targetText)+'</div>'+
-    '<button class="tr-tts" type="button" title="Play" data-tts-text="'+esc(targetText)+'" data-tts-lang="'+esc(tgtLang)+'">'+
-    '<svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'+
-    '</div></div></div>';
+  var speaker=e.who==='me'?'You':'Partner';
+  var srcText=e.sourceText||'';
+  var tgtText=e.translatedText||srcText;
+  // Use data attributes for TTS — avoids JSON escaping issues in onclick
+  return '<div class="tr-entry"><div class="tr-bubble">'
+    +'<div class="tr-head"><div class="tr-who '+(e.who==='me'?'mine':'')+'">'+esc(speaker)+'</div><div class="tr-time">'+esc(ts)+'</div></div>'
+    +'<div class="tr-body">'
+    +'<div class="tr-col source"><div class="tr-label">'+esc(gL(srcLang).flag+' '+gL(srcLang).label)+'</div>'
+    +'<div class="tr-text">'+esc(srcText)+'</div>'
+    +'<button class="tr-tts" type="button" data-tts-text="'+esc(srcText)+'" data-tts-lang="'+esc(srcLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'
+    +'<div class="tr-divider"></div>'
+    +'<div class="tr-col"><div class="tr-label">'+esc(gL(tgtLang).flag+' '+gL(tgtLang).label)+'</div>'
+    +'<div class="tr-text">'+esc(tgtText)+'</div>'
+    +'<button class="tr-tts" type="button" data-tts-text="'+esc(tgtText)+'" data-tts-lang="'+esc(tgtLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'
+    +'</div></div></div>';
 }
 function appendTrDom(entry){
   var b=$('transcript-body'),w=$('call-transcript');if(!b)return;
@@ -759,13 +741,6 @@ function cleanUp(){
 if(localStorage.getItem('tb_dg_key')&&$('dg-key'))$('dg-key').value=localStorage.getItem('tb_dg_key');
 populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
-// Delegated TTS handler — avoids HTML attribute quote issues
-$('transcript-body').addEventListener('click',function(ev){
-  var btn=ev.target.closest('.tr-tts');if(!btn)return;
-  var text=btn.getAttribute('data-tts-text')||'';
-  var lang=btn.getAttribute('data-tts-lang')||room.myLang||'en';
-  speakText(text,lang);
-});
 // TTS via delegation — avoids JSON escaping issues in dynamically generated HTML
 $('call-transcript').addEventListener('click',function(ev){
   var btn=ev.target.closest('.tr-tts');
