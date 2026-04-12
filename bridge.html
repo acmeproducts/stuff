@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · 2026-04-12 · transcript layout + TTS + PIP fix -->
+<!-- talkbridge · 2026-04-12 · deepgram STT, subprotocol auth, TTS data attrs -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -82,7 +82,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 
 .call-videos{position:relative;background:#000;overflow:hidden;flex:1;min-height:0;transition:flex-basis .2s ease;}
 #remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:1;}
-#local-video{position:absolute;top:8px;right:8px;width:min(14%,80px);aspect-ratio:9/16;border-radius:8px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
+#local-video{position:absolute;top:8px;right:8px;width:min(24%,120px);aspect-ratio:16/9;border-radius:8px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
 .no-video-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--text-muted);z-index:1;}
 .solo-banner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;text-align:center;pointer-events:none;}
 .solo-banner-text{background:rgba(0,0,0,.6);color:var(--text-dim);font-size:13px;padding:8px 18px;border-radius:20px;backdrop-filter:blur(6px);}
@@ -109,7 +109,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .transcript-more-indicator.show{display:flex;}
 .call.transcript-collapsed .call-transcript{flex:0 0 32px;max-height:32px;overflow:hidden;}
 .call.transcript-collapsed #transcript-body{display:none;}
-.call-videos.swapped #remote-video{top:8px;right:8px;left:auto;bottom:auto;width:min(14%,80px);height:auto;aspect-ratio:9/16;border-radius:8px;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;}
+.call-videos.swapped #remote-video{top:8px;right:8px;left:auto;bottom:auto;width:min(24%,120px);height:auto;aspect-ratio:16/9;border-radius:8px;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;}
 .call-videos.swapped #local-video{inset:0;width:100%;height:100%;border-radius:0;border:none;box-shadow:none;z-index:1;}
 .tr-entry{padding:6px 0;}
 .tr-bubble{border:1px solid rgba(255,255,255,.14);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.02);}
@@ -161,6 +161,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   .ctrl-btn{width:44px;height:44px;}
   .ctrl-btn.end-call{width:52px;height:44px;}
 }
+
+/* Room info chip — center top of video */
+.call-info-wrap{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;}
+.room-name-chip{background:rgba(0,0,0,.72);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:4px 14px;font-size:12px;font-weight:600;white-space:nowrap;max-width:min(78vw,260px);overflow:hidden;text-overflow:ellipsis;backdrop-filter:blur(5px);}
+.lang-flags-chip{background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:2px 10px;font-size:15px;backdrop-filter:blur(4px);}
 </style>
 </head>
 <body>
@@ -236,6 +241,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <video id="remote-video" autoplay playsinline></video>
     <video id="local-video" autoplay muted playsinline></video>
     <div class="no-video-placeholder" id="no-video-msg">👤</div>
+    <div class="call-info-wrap"><div class="room-name-chip" id="room-name-chip">No room</div><div class="lang-flags-chip" id="lang-flags-chip">🌐 → 🌐</div></div>
     <div class="solo-banner" id="solo-banner" style="display:none;"><div class="solo-banner-text">Solo / test mode — waiting for partner</div></div>
     <div class="partner-speaking-indicator" id="partner-speaking-indicator" aria-hidden="true">…</div>
     <div class="subtitle-area" id="subtitle-area"></div>
@@ -306,7 +312,6 @@ var room={id:null,myLang:'',theirLang:'',role:null,name:'',solo:false};
 var deviceId=localStorage.getItem('tb_dev')||(function(){var id=crypto.randomUUID();localStorage.setItem('tb_dev',id);return id})();
 var ws=null,pc=null,videoStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false,ignoreOffer=false;
-// Deepgram replaces SpeechRecognition — no mic contention, CC always runs
 var DG_LANGS={en:'en-US',th:'th',ja:'ja',ko:'ko',zh:'zh-CN',ar:'ar',hi:'hi',ru:'ru',fr:'fr',de:'de',es:'es',it:'it',pt:'pt-BR',vi:'vi',id:'id',ms:'ms',fil:'fil',nl:'nl',sv:'sv',pl:'pl',tr:'tr'};
 var dgWs=null,dgAudioCtx=null,dgProc=null,dgSrc=null,dgActive=false;
 var recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=5;
@@ -337,6 +342,11 @@ function detectLang(t,fb){t=(t||'').trim();if(!t)return fb||'en';if(/[฀-๿]/.
 function gL(c){c=(c||'').toLowerCase();for(var i=0;i<LANGS.length;i++)if(LANGS[i].code===c)return LANGS[i];return{code:c||'?',label:(c||'?').toUpperCase(),flag:'🌐'}}
 function updateBadges(){
   $('transcript-ribbon-title').textContent='Transcript';
+}
+function updateCallChip(){
+  var n=$('room-name-chip'),f=$('lang-flags-chip');if(!n||!f)return;
+  n.textContent=room.name||'No room';
+  f.textContent=gL(room.myLang).flag+' → '+gL(room.theirLang).flag;
 }
 function syncMic(){$('mic-btn').classList.toggle('off',!micOn);$('mic-on').style.display=micOn?'':'none';$('mic-off').style.display=micOn?'none':''}
 function syncCam(){$('cam-btn').classList.toggle('off',!camOn);$('cam-on').style.display=camOn?'':'none';$('cam-off').style.display=camOn?'none':'';$('local-video').style.display=camOn?'':'none'}
@@ -369,7 +379,7 @@ function clearTrS(id){try{localStorage.removeItem(trKey(id))}catch(_){}}
 
 function encInv(p){try{return btoa(unescape(encodeURIComponent(JSON.stringify(p)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(_){return''}}
 function decInv(s){if(!s)return null;try{var b=s.replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';return JSON.parse(decodeURIComponent(escape(atob(b))))}catch(_){return null}}
-function invUrl(){return location.href.split('?')[0].split('#')[0]+'#j='+encInv({r:room.id,ml:room.myLang,tl:room.theirLang,n:room.name||''})}
+function invUrl(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';return location.href.split('?')[0].split('#')[0]+'#j='+encInv({r:room.id,ml:room.myLang,tl:room.theirLang,n:room.name||'',k:k})}
 
 var LS={setup:'setup',waiting:'waiting',call:'call'};
 var lobbyState=LS.setup;
@@ -429,6 +439,7 @@ function handleHash(p){
   navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(function(s){
     videoStream=s;$('joining-screen').classList.remove('show');
     room.id=p.r;room.myLang=p.tl;room.theirLang=p.ml;room.name=p.n||'';room.role='joiner';room.solo=false;
+    if(p.k){localStorage.setItem('tb_dg_key',p.k);if($('dg-key'))$('dg-key').value=p.k;}
     saveRecent();updateBadges();enterCall();
   }).catch(function(){$('joining-screen').classList.remove('show');toast('Camera access required');history.replaceState({},'',location.pathname)});
   history.replaceState({},'',location.pathname);
@@ -440,7 +451,7 @@ function connectRelay(){
   if(ws)try{ws.close()}catch(_){}
   ws=new WebSocket(RELAY_WS+'?app='+encodeURIComponent(RELAY_APP)+'&session='+encodeURIComponent(room.id)+'&client='+encodeURIComponent(deviceId));
   var _ws=ws;
-  ws.onopen=function(){log('relay_open',{},'ok');relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});startHB();if(!room.solo&&!pc)setupPC();}; // setupPC inside onopen — relay ready before offer fires
+  ws.onopen=function(){log('relay_open',{},'ok');relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});startHB();if(!room.solo&&!pc)setupPC();};
   ws.onmessage=function(e){try{handleRelay(JSON.parse(e.data))}catch(_){}};
   ws.onclose=function(ev){if(ws!==_ws)return;log('relay_close',{code:ev.code},'warn');stopHB();clearTimeout(wsReconnectTimer);if(room.id&&(lobbyState===LS.waiting||lobbyState===LS.call))wsReconnectTimer=setTimeout(function(){wsReconnectTimer=null;if(room.id)connectRelay()},2000)};
   ws.onerror=function(){log('relay_err',{},'error')};
@@ -475,11 +486,11 @@ async function enterCall(){
   $('lobby').classList.add('hidden');
   if(!callHistoryPushed){history.pushState({tbView:'call'},'',location.href);callHistoryPushed=true}
   $('call-screen').classList.add('active');lobbyState=LS.call;
-  $('local-video').srcObject=videoStream;syncMic();syncCam();updateBadges();
+  $('local-video').srcObject=videoStream;syncMic();syncCam();updateBadges();updateCallChip();
   $('solo-banner').style.display=room.solo?'':'none';
   renderTr();
-  if(!ws||ws.readyState!==1)connectRelay(); // setupPC fires inside ws.onopen
-  startDeepgram(); // CC always starts, independent of mic/mute
+  if(!ws||ws.readyState!==1)connectRelay();
+  startDeepgram();
   relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
 }
 
@@ -488,11 +499,14 @@ function refreshRemoteVideo(){
   var tracks=remoteStream?remoteStream.getTracks():[];
   var hasVideoTrack=tracks.some(function(t){return t.kind==='video'&&t.readyState==='live';});
   var hasRemoteTrack=tracks.some(function(t){return t.readyState==='live';});
-  if(hasRemoteTrack&&rv.srcObject!==remoteStream)rv.srcObject=remoteStream;
-  rv.playsInline=true;rv.autoplay=true;rv.muted=true;
+  log('rtc_refresh',{tracks:tracks.map(function(t){return t.kind+':'+t.readyState}).join(',')});
+  if(hasRemoteTrack&&rv.srcObject!==remoteStream){rv.srcObject=remoteStream;}
+  rv.playsInline=true;rv.autoplay=true;
   if(hasRemoteTrack){
+    rv.muted=false;
     var tryPlay=rv.play&&rv.play();
-    if(tryPlay&&tryPlay.catch)tryPlay.catch(function(){});
+    if(tryPlay&&tryPlay.then){tryPlay.then(function(){rv.muted=false;log('rtc_unmuted',{},'ok');}).catch(function(e){log('rtc_play_err',{e:String(e)},'error');});}
+    setTimeout(function(){if(rv.srcObject){rv.muted=false;}},800);
     $('solo-banner').style.display='none';
   }
   if(hasVideoTrack){
@@ -525,12 +539,13 @@ function setupPC(){
   if(pc)return;pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
   var emitOffer=async function(){try{makingOffer=true;await pc.setLocalDescription(await pc.createOffer());relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}})}catch(_){}finally{makingOffer=false}};
   pc.onnegotiationneeded=emitOffer;
-  // Add all tracks: video + audio (audio:true in getUserMedia)
   var localTracks=videoStream?videoStream.getTracks():[];
   localTracks.forEach(function(t){pc.addTrack(t,videoStream)});
   if(localTracks.length&&pc.signalingState==='stable'&&!makingOffer)emitOffer();
-  pc.onicecandidate=function(e){if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}})};
-  pc.ontrack=function(e){
+  pc.onicecandidate=function(e){if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}});};
+  pc.oniceconnectionstatechange=function(){log('rtc_ice',{s:pc.iceConnectionState},pc.iceConnectionState==='connected'?'ok':'info');};
+  pc.onconnectionstatechange=function(){log('rtc_conn',{s:pc.connectionState},pc.connectionState==='connected'?'ok':pc.connectionState==='failed'?'error':'info');};
+  pc.ontrack=function(e){log('rtc_track',{kind:e.track.kind,state:e.track.readyState},'ok');
     if(!remoteStream)remoteStream=new MediaStream();
     if(e.streams&&e.streams[0]){
       e.streams[0].getTracks().forEach(function(track){
@@ -554,11 +569,10 @@ async function handleSig(d){
   }catch(_){isSettingRemoteAnswerPending=false}
 }
 
-/* === DEEPGRAM STT — replaces SpeechRecognition ===
-   - getUserMedia({audio:true,video:true}) acquires mic for WebRTC + Deepgram
-   - AudioContext pipes PCM from the same stream to Deepgram WebSocket
-   - No SpeechRecognition = no mic contention = no OS chime
-   - CC always runs; mute only gates the WebRTC audio track
+/* === DEEPGRAM STT ===
+   AudioContext pipes PCM from videoStream to Deepgram WebSocket.
+   No SpeechRecognition = no mic contention, no OS chime.
+   CC always runs; mute only gates the WebRTC audio track.
 */
 function isCallActive(){return !!(room.id&&$('call-screen').classList.contains('active'))}
 
@@ -570,8 +584,10 @@ function isDupe(text){
 }
 function recFinal(t){recentFinals.push({s:t.toLowerCase(),t:Date.now()});if(recentFinals.length>DEDUP_MAX)recentFinals.shift()}
 
+function stripDGTags(t){return(t||'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim();}
+
 function onDGFinal(text){
-  text=norm(text);if(!text)return;
+  text=stripDGTags(norm(text));if(!text)return;
   if(isDupe(text)){log('dg_dedup',{t:text.slice(0,40)},'warn');return}
   recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
   var src=detectLang(text,room.myLang),tgt=room.theirLang,ss=++localSubSeq;
@@ -593,12 +609,9 @@ function startDeepgram(){
     +'&language='+encodeURIComponent(langCode)
     +'&encoding=linear16&sample_rate=16000&channels=1'
     +'&interim_results=false&punctuate=true&endpointing=400';
-  // Browser WebSockets can't set Authorization header — pass key via subprotocol
   dgWs=new WebSocket(url,['token',key]);
   dgWs.onopen=function(){
-    dgActive=true;
-    log('dg_open',{lang:langCode},'ok');
-    // Pipe audio from videoStream → AudioContext → PCM → Deepgram
+    dgActive=true;log('dg_open',{lang:langCode},'ok');
     try{
       dgAudioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
       dgSrc=dgAudioCtx.createMediaStreamSource(videoStream);
@@ -623,25 +636,20 @@ function startDeepgram(){
   dgWs.onerror=function(){log('dg_error',{},'error');};
   dgWs.onclose=function(ev){
     log('dg_close',{code:ev.code},'warn');
-    dgActive=false;
-    stopDGAudio();
-    // Reconnect if call still active
+    dgActive=false;stopDGAudio();
     if(isCallActive())setTimeout(function(){if(isCallActive())startDeepgram();},2000);
   };
 }
-
 function stopDGAudio(){
   try{if(dgProc)dgProc.disconnect();}catch(_){}
   try{if(dgSrc)dgSrc.disconnect();}catch(_){}
   try{if(dgAudioCtx)dgAudioCtx.close();}catch(_){}
   dgProc=null;dgSrc=null;dgAudioCtx=null;
 }
-
 function stopDeepgram(){
   dgActive=false;
   if(dgWs){try{dgWs.close();}catch(_){}dgWs=null;}
-  stopDGAudio();
-  log('dg_stopped',{});
+  stopDGAudio();log('dg_stopped',{});
 }
 
 function showSub(text,cls){
@@ -666,9 +674,6 @@ function patchTr(who,ss,newTr,sL,tL){
   addTr(who,newTr,newTr,sL,tL,ss);
 }
 function trHtml(e){
-  // left=source(original), right=target(translation) for both speakers
-  // me:      srcLang=myLang,    tgtLang=theirLang
-  // partner: srcLang=theirLang, tgtLang=myLang
   var srcLang=e.srcLang||(e.who==='me'?room.myLang:room.theirLang)||'en';
   var tgtLang=e.tgtLang||(e.who==='me'?room.theirLang:room.myLang)||'en';
   var locale=TTS_LOCALE[srcLang]||'en-US';
@@ -676,25 +681,20 @@ function trHtml(e){
   var speaker=e.who==='me'?'You':'Partner';
   var srcText=e.sourceText||'';
   var tgtText=e.translatedText||srcText;
-  // Use data attributes for TTS — avoids JSON escaping issues in onclick
   return '<div class="tr-entry"><div class="tr-bubble">'
     +'<div class="tr-head"><div class="tr-who '+(e.who==='me'?'mine':'')+'">'+esc(speaker)+'</div><div class="tr-time">'+esc(ts)+'</div></div>'
     +'<div class="tr-body">'
-    +'<div class="tr-col source"><div class="tr-label">'+esc(gL(srcLang).flag+' '+gL(srcLang).label)+'</div>'
-    +'<div class="tr-text">'+esc(srcText)+'</div>'
+    +'<div class="tr-col source"><div class="tr-text">'+esc(srcText)+'</div>'
     +'<button class="tr-tts" type="button" data-tts-text="'+esc(srcText)+'" data-tts-lang="'+esc(srcLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'
     +'<div class="tr-divider"></div>'
-    +'<div class="tr-col"><div class="tr-label">'+esc(gL(tgtLang).flag+' '+gL(tgtLang).label)+'</div>'
-    +'<div class="tr-text">'+esc(tgtText)+'</div>'
+    +'<div class="tr-col"><div class="tr-text">'+esc(tgtText)+'</div>'
     +'<button class="tr-tts" type="button" data-tts-text="'+esc(tgtText)+'" data-tts-lang="'+esc(tgtLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'
     +'</div></div></div>';
 }
 function appendTrDom(entry){
   var b=$('transcript-body'),w=$('call-transcript');if(!b)return;
   var em=b.querySelector('.tr-empty');if(em)em.remove();
-  // Prepend — newest on top, reverse chronology
   b.insertAdjacentHTML('afterbegin',trHtml(entry));
-  w.scrollTop=0;
   setTranscriptMore(false);
 }
 function renderTr(){
@@ -717,7 +717,6 @@ function exportTxt(){
 
 function toggleMic(){
   micOn=!micOn;
-  // Gate WebRTC audio track only — Deepgram CC unaffected by mute
   if(videoStream)videoStream.getAudioTracks().forEach(function(t){t.enabled=micOn;});
   syncMic();
 }
@@ -737,25 +736,16 @@ function cleanUp(){
   transcript=[];micOn=true;camOn=true;syncMic();syncCam();callHistoryPushed=false;renderRecent();
 }
 
-// Load saved DG key into field if present
 if(localStorage.getItem('tb_dg_key')&&$('dg-key'))$('dg-key').value=localStorage.getItem('tb_dg_key');
 populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
-// TTS via delegation — avoids JSON escaping issues in dynamically generated HTML
-$('call-transcript').addEventListener('click',function(ev){
-  var btn=ev.target.closest('.tr-tts');
-  if(!btn)return;
-  var text=btn.getAttribute('data-tts-text')||'';
-  var lang=btn.getAttribute('data-tts-lang')||room.myLang||'en';
-  speakText(text,lang);
-});
+$('call-transcript').addEventListener('click',function(ev){var btn=ev.target.closest('.tr-tts');if(!btn)return;speakText(btn.getAttribute('data-tts-text')||'',btn.getAttribute('data-tts-lang')||room.myLang||'en');});
 $('local-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('loadedmetadata',refreshRemoteVideo);
 var hp=new URLSearchParams((location.hash||'').replace(/^#/,''));var inv=hp.get('j');if(inv){var p=decInv(inv);if(p&&p.r)handleHash(p)}
 window.addEventListener('popstate',function(){if(lobbyState===LS.call&&room.id){hangUp();history.pushState({},'',location.href);return}if(lobbyState===LS.waiting)setLS(LS.setup)});
 window.addEventListener('visibilitychange',function(){
-  // Deepgram reconnects automatically on close; no manual restart needed
   if(!document.hidden&&isCallActive()&&!dgActive)startDeepgram();
 });
 window.addEventListener('pagehide',function(){stopDeepgram();if(room.id){saveTr();relaySend({type:'hangup',reason:'pagehide'})}});
