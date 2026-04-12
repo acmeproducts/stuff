@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · 2026-04-11 · Deepgram auth fix: subprotocol instead of query param -->
+<!-- talkbridge · 2026-04-12 · transcript layout + TTS + PIP fix -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -82,7 +82,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 
 .call-videos{position:relative;background:#000;overflow:hidden;flex:1;min-height:0;transition:flex-basis .2s ease;}
 #remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:1;}
-#local-video{position:absolute;top:8px;right:8px;width:min(24%,120px);aspect-ratio:16/9;border-radius:8px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
+#local-video{position:absolute;top:8px;right:8px;width:min(14%,80px);aspect-ratio:9/16;border-radius:8px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
 .no-video-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--text-muted);z-index:1;}
 .solo-banner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;text-align:center;pointer-events:none;}
 .solo-banner-text{background:rgba(0,0,0,.6);color:var(--text-dim);font-size:13px;padding:8px 18px;border-radius:20px;backdrop-filter:blur(6px);}
@@ -109,7 +109,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .transcript-more-indicator.show{display:flex;}
 .call.transcript-collapsed .call-transcript{flex:0 0 32px;max-height:32px;overflow:hidden;}
 .call.transcript-collapsed #transcript-body{display:none;}
-.call-videos.swapped #remote-video{top:8px;right:8px;left:auto;bottom:auto;width:min(24%,120px);height:auto;aspect-ratio:16/9;border-radius:8px;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;}
+.call-videos.swapped #remote-video{top:8px;right:8px;left:auto;bottom:auto;width:min(14%,80px);height:auto;aspect-ratio:9/16;border-radius:8px;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;}
 .call-videos.swapped #local-video{inset:0;width:100%;height:100%;border-radius:0;border:none;box-shadow:none;z-index:1;}
 .tr-entry{padding:6px 0;}
 .tr-bubble{border:1px solid rgba(255,255,255,.14);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.02);}
@@ -666,29 +666,42 @@ function patchTr(who,ss,newTr,sL,tL){
   addTr(who,newTr,newTr,sL,tL,ss);
 }
 function trHtml(e){
-  var lang=e.srcLang||room.myLang||'en';
-  var locale=TTS_LOCALE[lang]||lang||'en-US';
+  // left=source(original), right=target(translation) for both speakers
+  // me:      srcLang=myLang,    tgtLang=theirLang
+  // partner: srcLang=theirLang, tgtLang=myLang
+  var srcLang=e.srcLang||(e.who==='me'?room.myLang:room.theirLang)||'en';
+  var tgtLang=e.tgtLang||(e.who==='me'?room.theirLang:room.myLang)||'en';
+  var locale=TTS_LOCALE[srcLang]||'en-US';
   var ts=new Date(e.ts).toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   var speaker=e.who==='me'?'You':'Partner';
-  var label=speaker+' · '+gL(lang).label;
-  var targetLabel=gL(e.tgtLang||room.theirLang||lang).label;
-  var sourceText=e.sourceText||'';
-  var targetText=e.translatedText||e.sourceText||'';
-  return '<div class="tr-entry"><div class="tr-bubble"><div class="tr-head"><div class="tr-who '+(e.who==='me'?'mine':'')+'">'+esc(label)+'</div><div class="tr-time">'+esc(ts)+'</div></div><div class="tr-body"><div class="tr-col source"><div class="tr-label">'+esc(gL(lang).label)+'</div><div class="tr-text">'+esc(sourceText)+'</div><button class="tr-tts" type="button" title="Play source" aria-label="Play source" onclick="speakText('+JSON.stringify(sourceText)+','+JSON.stringify(lang)+')"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div><div class="tr-divider"></div><div class="tr-col"><div class="tr-label">'+esc(targetLabel)+'</div><div class="tr-text">'+esc(targetText)+'</div><button class="tr-tts" type="button" title="Play target" aria-label="Play target" onclick="speakText('+JSON.stringify(targetText)+','+JSON.stringify(e.tgtLang||room.theirLang||lang)+')"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div></div></div></div>';
+  var srcText=e.sourceText||'';
+  var tgtText=e.translatedText||srcText;
+  // Use data attributes for TTS — avoids JSON escaping issues in onclick
+  return '<div class="tr-entry"><div class="tr-bubble">'
+    +'<div class="tr-head"><div class="tr-who '+(e.who==='me'?'mine':'')+'">'+esc(speaker)+'</div><div class="tr-time">'+esc(ts)+'</div></div>'
+    +'<div class="tr-body">'
+    +'<div class="tr-col source"><div class="tr-label">'+esc(gL(srcLang).flag+' '+gL(srcLang).label)+'</div>'
+    +'<div class="tr-text">'+esc(srcText)+'</div>'
+    +'<button class="tr-tts" type="button" data-tts-text="'+esc(srcText)+'" data-tts-lang="'+esc(srcLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'
+    +'<div class="tr-divider"></div>'
+    +'<div class="tr-col"><div class="tr-label">'+esc(gL(tgtLang).flag+' '+gL(tgtLang).label)+'</div>'
+    +'<div class="tr-text">'+esc(tgtText)+'</div>'
+    +'<button class="tr-tts" type="button" data-tts-text="'+esc(tgtText)+'" data-tts-lang="'+esc(tgtLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'
+    +'</div></div></div>';
 }
 function appendTrDom(entry){
   var b=$('transcript-body'),w=$('call-transcript');if(!b)return;
   var em=b.querySelector('.tr-empty');if(em)em.remove();
-  var near=transcriptNearBottom();
-  b.insertAdjacentHTML('beforeend',trHtml(entry));
-  if(near){w.scrollTop=w.scrollHeight;setTranscriptMore(false)}
-  else setTranscriptMore(true);
+  // Prepend — newest on top, reverse chronology
+  b.insertAdjacentHTML('afterbegin',trHtml(entry));
+  w.scrollTop=0;
+  setTranscriptMore(false);
 }
 function renderTr(){
   var b=$('transcript-body');if(!b)return;
   if(!transcript.length){b.innerHTML='<div class="tr-empty">Speak to see transcript here.</div>';setTranscriptMore(false);return}
-  b.innerHTML=transcript.slice(-120).map(trHtml).join('');
-  $('call-transcript').scrollTop=$('call-transcript').scrollHeight;
+  b.innerHTML=transcript.slice(-120).slice().reverse().map(trHtml).join('');
+  $('call-transcript').scrollTop=0;
   setTranscriptMore(false);
 }
 function copyTr(){
@@ -728,6 +741,14 @@ function cleanUp(){
 if(localStorage.getItem('tb_dg_key')&&$('dg-key'))$('dg-key').value=localStorage.getItem('tb_dg_key');
 populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
+// TTS via delegation — avoids JSON escaping issues in dynamically generated HTML
+$('call-transcript').addEventListener('click',function(ev){
+  var btn=ev.target.closest('.tr-tts');
+  if(!btn)return;
+  var text=btn.getAttribute('data-tts-text')||'';
+  var lang=btn.getAttribute('data-tts-lang')||room.myLang||'en';
+  speakText(text,lang);
+});
 $('local-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('loadedmetadata',refreshRemoteVideo);
