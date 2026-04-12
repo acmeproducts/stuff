@@ -329,31 +329,31 @@ function setSttUI(title,sub,pct){
 }
 
 async function transcribeFile(file){
-    // REST /v1/listen is CORS-blocked in browsers. Use WebSocket instead.
-    // Auth via subprotocol array — the only way to pass credentials from a browser WS.
+    // Deepgram blocks REST from browsers via CORS intentionally.
+    // WebSocket (wss://) is the only browser-native path.
+    // CRITICAL: read the buffer BEFORE opening the socket —
+    // Deepgram closes connections that don't receive audio within ~10s.
+    setSttUI('Reading audio…',fmtSize(file.size),5);
+    const buf=await file.arrayBuffer();
+
     const params=new URLSearchParams({model:config.dgModel,language:'th',punctuate:'true',paragraphs:'true',diarize:'false'});
     const wsUrl=`wss://api.deepgram.com/v1/listen?${params}`;
 
-    const data=await new Promise((resolve,reject)=>{
+    const result=await new Promise((resolve,reject)=>{
         const ws=new WebSocket(wsUrl,['token',config.apiKey]);
         ws.binaryType='arraybuffer';
-        // Accumulate final-result messages; Metadata signals end
-        const accumulated={transcript:'',words:[],paragraphs:[]};
+        const acc={transcript:'',words:[],paragraphs:[]};
         let metaSeen=false;
 
-        ws.onopen=async()=>{
-            setSttUI('Sending audio…',`Streaming ${fmtSize(file.size)}`,10);
-            const buf=await file.arrayBuffer();
+        ws.onopen=()=>{
+            // Buffer already in memory — send immediately, no async delay
             const CHUNK=65536;let sent=0;
             while(sent<buf.byteLength){
-                if(ws.readyState!==WebSocket.OPEN)break;
                 ws.send(buf.slice(sent,sent+CHUNK));
                 sent=Math.min(sent+CHUNK,buf.byteLength);
-                setSttUI('Sending audio…',`${fmtSize(sent)} / ${fmtSize(file.size)}`,10+(sent/buf.byteLength)*70);
-                await new Promise(r=>setTimeout(r,0));
             }
+            setSttUI('Deepgram processing…','Waiting for transcript…',85);
             ws.send(JSON.stringify({type:'CloseStream'}));
-            setSttUI('Deepgram processing…','Waiting for transcript…',82);
         };
 
         ws.onmessage=e=>{
@@ -362,47 +362,33 @@ async function transcribeFile(file){
                 if(msg.type==='Results'&&msg.is_final){
                     const alt=msg.channel?.alternatives?.[0];
                     if(alt){
-                        accumulated.transcript+=(accumulated.transcript?' ':'')+(alt.transcript||'');
-                        accumulated.words.push(...(alt.words||[]));
-                        // paragraphs come per-utterance in streaming
-                        const ps=alt.paragraphs?.paragraphs||[];
-                        accumulated.paragraphs.push(...ps);
+                        acc.transcript+=(acc.transcript?' ':'')+(alt.transcript||'');
+                        acc.words.push(...(alt.words||[]));
+                        acc.paragraphs.push(...(alt.paragraphs?.paragraphs||[]));
                     }
                 }
-                if(msg.type==='Metadata'){
-                    metaSeen=true;
-                    setSttUI('Done!','Processing…',96);
-                }
-            }catch(err){console.warn('WS msg parse',err);}
+                if(msg.type==='Metadata'){metaSeen=true;setSttUI('Done!','Building paragraphs…',97);}
+            }catch(e){console.warn('WS parse',e);}
         };
 
         ws.onclose=e=>{
-            if(e.code===1000||e.code===1001||metaSeen){
-                resolve({accumulated});
-            } else {
-                reject(new Error(`Deepgram WS closed (code ${e.code}) — invalid API key or network error`));
-            }
+            if(e.code===1000||e.code===1001||metaSeen)resolve(acc);
+            else reject(new Error(`Deepgram closed (code ${e.code}) — check API key`));
         };
 
-        ws.onerror=()=>reject(new Error('WebSocket connection to Deepgram failed'));
+        ws.onerror=()=>reject(new Error('WebSocket to Deepgram failed — check network/key'));
     });
 
-    const{accumulated}=data;
-    setSttUI('Deepgram processing…','Building paragraphs…',97);
-
-    // Try paragraphs accumulated from streaming results
-    if(accumulated.paragraphs.length>0){
-        setSttUI('Done!',`${accumulated.paragraphs.length} paragraphs`,100);
-        return accumulated.paragraphs.map(p=>({
+    if(result.paragraphs.length>0){
+        setSttUI('Done!',`${result.paragraphs.length} paragraphs`,100);
+        return result.paragraphs.map(p=>({
             start:p.start,end:p.end,
             transcript:p.sentences?.map(s=>s.text).join(' ')||'',
             confidence:p.sentences?.[0]?.words?avgConf(p.sentences.flatMap(s=>s.words||[])):null
         })).filter(p=>p.transcript.trim());
     }
 
-
-    // Last resort: whole transcript as one block
-    const full=accumulated.transcript.trim();
+    const full=result.transcript.trim();
     if(!full)return[];
     setSttUI('Done!','1 segment',100);
     return[{start:0,end:0,transcript:full,confidence:null}];
