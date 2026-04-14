@@ -494,6 +494,7 @@ async function enterCall(){
   $('solo-banner').style.display=room.solo?'':'none';
   renderTr();
   if(!ws||ws.readyState!==1)connectRelay();
+  else if(!room.solo&&!pc)setupPC(); // relay already open
   startDeepgram();
   relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
 }
@@ -511,9 +512,8 @@ function refreshRemoteVideo(){
   var hasRemoteTrack=tracks.length>0;
   log('rtc_refresh',{tracks:tracks.map(function(t){return t.kind+':'+t.readyState}).join(',')});
   if(hasRemoteTrack&&rv.srcObject!==remoteStream){rv.srcObject=remoteStream;}
-  rv.playsInline=true;rv.autoplay=true;
+  rv.playsInline=true;rv.autoplay=true;rv.muted=true;
   if(hasRemoteTrack){
-    rv.muted=false;
     var tryPlay=rv.play&&rv.play();
     if(tryPlay&&tryPlay.then){tryPlay.then(function(){rv.muted=false;log('rtc_unmuted',{},'ok');}).catch(function(e){log('rtc_play_err',{e:String(e)},'error');});}
     setTimeout(function(){if(rv.srcObject){rv.muted=false;var b=$('audio-btn');if(b&&rv.muted)b.style.display='block';}},1200);
@@ -547,7 +547,7 @@ function resetRemoteMediaState(){
 
 function setupPC(){
   if(pc)return;pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-  var emitOffer=async function(){if(makingOffer)return;try{makingOffer=true;await pc.setLocalDescription(await pc.createOffer());relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}})}catch(_){}finally{makingOffer=false}};
+  var emitOffer=async function(){try{makingOffer=true;await pc.setLocalDescription(await pc.createOffer());relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}})}catch(_){}finally{makingOffer=false}};
   pc.onnegotiationneeded=emitOffer;
   var localTracks=videoStream?videoStream.getTracks():[];
   localTracks.forEach(function(t){pc.addTrack(t,videoStream)});
