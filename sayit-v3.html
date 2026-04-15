@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SayIt Build Studio Fixed</title>
+<style>
+:root{
+  --bg:#07090d;--surface:#0f1724;--surface2:#111827;--surface3:#182233;
+  --border:#253247;--border2:#34445e;--text:#f3f6fb;--muted:#9aa8bd;
+  --accent:#22c55e;--danger:#ef4444;--info:#38bdf8;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+  --sans:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  --headerH:60px;--footerH:32px;--sidebarW:280px;--radius:16px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);display:flex;flex-direction:column;overflow:hidden}
+header{height:var(--headerH);display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+.logo{font-weight:800;font-size:20px;white-space:nowrap}.logo span{color:var(--accent)}
+.tabs{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;min-width:0}
+.tab,.btn{height:38px;border-radius:12px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-weight:700;font-size:12px;padding:0 10px;cursor:pointer;transition:.15s}
+.tab:hover,.btn:hover{background:var(--surface3)}
+.tab.active,.btn-primary{background:var(--accent);color:#03140a;border-color:transparent}
+.btn-info{background:#0a2638;border-color:#17577d;color:#d2f0ff}
+.btn-danger{background:#3a1111;border-color:#6e1d1d;color:#fecaca}
+.app{flex:1;display:flex;min-height:0}
+.view{display:none;width:100%;height:100%}
+.view.active{display:flex}
+.sidebar{width:var(--sidebarW);min-width:var(--sidebarW);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.sidebar-header{padding:14px;border-bottom:1px solid var(--border);font-weight:800}
+.sidebar-content{padding:12px;overflow:auto;flex:1}
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.pane-top{flex:1;overflow:auto;padding:16px;background:var(--surface2)}
+.pane-bottom{height:36%;min-height:220px;overflow:auto;padding:16px;background:var(--bg);border-top:1px solid var(--border)}
+.nav-item{padding:12px;border:1px solid var(--border);border-radius:14px;background:var(--surface2);cursor:pointer;margin-bottom:8px}
+.nav-item.active{border-color:var(--accent);background:#0f2717}
+.nav-item:hover{border-color:var(--border2)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+.section-title{font-size:19px;font-weight:800;margin:0 0 10px}
+.sub-title{font-size:13px;font-weight:700;color:var(--muted);margin:0 0 8px}
+.small{font-size:12px;color:var(--muted);line-height:1.55}
+.grid2,.grid3{display:grid;gap:14px}
+.grid2{grid-template-columns:1fr 1fr}
+.grid3{grid-template-columns:repeat(3,1fr)}
+.stack{display:flex;flex-direction:column;gap:12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+label{display:block;font-size:11px;color:var(--muted);margin:0 0 5px;font-weight:700}
+input[type=text],input[type=url],input[type=number],textarea{width:100%;background:#07111d;border:1px solid var(--border2);color:var(--text);border-radius:12px;padding:10px 12px;font-size:13px;outline:none}
+textarea{min-height:110px;resize:vertical}
+input:focus,textarea:focus{border-color:var(--accent)}
+.code{background:#04070b;border:1px solid var(--border);border-radius:16px;padding:14px;white-space:pre-wrap;overflow:auto;font:12px/1.55 var(--mono)}
+.ok,.warn,.note{padding:12px;border-radius:14px;border:1px solid;line-height:1.55}
+.ok{background:#052e16;border-color:#14532d;color:#bbf7d0}
+.warn{background:#3a2a05;border-color:#92400e;color:#fde68a}
+.note{background:#0c2336;border-color:#1d4f74;color:#c7e8ff}
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top;font-size:12px}
+.table th{background:#0b1420}
+.files{display:grid;gap:10px}
+.file{border:1px solid var(--border);border-radius:14px;padding:12px;background:var(--surface)}
+.footer{height:var(--footerH);background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font:11px var(--mono)}
+@media(max-width:1180px){.tabs{grid-template-columns:repeat(4,minmax(0,1fr))}header{height:auto;padding:10px}}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}.sidebar{width:220px;min-width:220px}}
+@media(max-width:760px){.app{display:block;overflow:auto}.view.active{display:block}.sidebar{width:auto;min-width:0;border-right:none;border-bottom:1px solid var(--border)}.pane-bottom{height:auto;min-height:0}.tabs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Say<span>It</span> Build Studio</div>
+  <div class="tabs" id="topTabs"></div>
+  <div class="row">
+    <button class="btn btn-info" id="btnExportBundle">Export Bundle</button>
+    <button class="btn btn-primary" id="btnExportState">Export State</button>
+  </div>
+</header>
+<div class="app" id="app"></div>
+<div class="footer">sayit-build-studio-fixed.html · generator-driven package compiler · HTML + JSON + Java outputs</div>
+<script>
+(function(){
+'use strict';
+
+var STORAGE_KEY = 'sayit_build_studio_fixed_v1';
+var views = {
+  init:{label:'Init',nav:[['summary','Summary'],['baseline','Baseline Inputs'],['workflow','Workflow']]},
+  build:{label:'Build',nav:[['files','Generated Files'],['repo','Repo Tree'],['android','Android Outputs'],['json','JSON Outputs']]},
+  gh:{label:'GH',nav:[['settings','GitHub Settings'],['pages','Pages URLs'],['commits','Commit Policy']]},
+  config:{label:'Config',nav:[['app','App Identity'],['voice','Voice'],['projects','Registry Seed'],['prompts','Prompt Templates']]},
+  learn:{label:'Learn',nav:[['runtimes','Runtime Profiles'],['adapters','Adapter Library'],['training','Training Rules']]},
+  test:{label:'Test',nav:[['preflight','Preflight'],['matrix','Validation Matrix'],['results','Generated Results']]},
+  troubleshoot:{label:'Troubleshoot',nav:[['matrix','Issue Matrix'],['apk','APK'],['gh','GitHub Pages'],['runtime','Runtime']]},
+  export:{label:'Export',nav:[['bundle','Bundle'],['files','Per-File Downloads'],['state','State Backup']]}
+};
+
+function uid(){ return 'id_' + Math.random().toString(36).slice(2,10); }
+function esc(v){
+  return String(v == null ? '' : v)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+var model = {
+  view:'init',
+  sections:{init:'summary',build:'files',gh:'settings',config:'app',learn:'runtimes',test:'preflight',troubleshoot:'matrix',export:'bundle'},
+  state:{
+    app:{
+      appName:'SayIt',wakeWord:'SayIt',version:'1.0.0',packageName:'com.sayit.app',
+      javaMainActivity:'MainActivity',javaBridgeClass:'AndroidBridge',
+      repoOwner:'acmeproducts',repoName:'dev',branch:'main',
+      pagesBaseUrl:'https://acmeproducts.github.io/dev/',artifactRoot:'/',
+      homeFile:'home.html',setupFile:'setup.html',defaultPlatform:'gemini',
+      enableVoice:true,requireConfirmationByDefault:true,useDarkTheme:true,
+      commitTemplate:'SayIt update: {{projectKey}}',environmentLabel:'prod'
+    },
+    voice:{shortPauseMs:800,longPauseMs:2000,graceWindowMs:1200,bargeInEnabled:true,typedFallbackEnabled:true},
+    runtimes:[{
+      id:uid(),platform:'gemini',runtimeName:'GeminiPrimary',launchUrl:'https://gemini.google.com/',
+      loginRequired:true,sessionPersistenceExpected:true,entryStrategy:'reuse-named-webview',
+      promptInputStrategy:'target-main-input',submitStrategy:'platform-submit-control',
+      captureStrategies:'dom-extract,share-copy,clipboard-bridge',fallbackStrategy:'manual-review',
+      validationStatus:'draft'
+    }],
+    promptTemplates:{
+      create:'Create or update the project artifact for {{projectKey}}. Return only the complete final HTML file.',
+      fix:'Fix the existing project {{projectKey}}. Change request: {{changeRequest}}. Return only the complete updated file.',
+      rollback:'Prepare a safe rollback for {{projectKey}} to the prior stable version. Preserve traceability.',
+      fork:'Fork {{sourceProjectKey}} into new project {{projectKey}}. Return the full initial artifact.'
+    },
+    projects:[{
+      projectKey:'test',spokenNames:'test',artifactPath:'test.html',title:'Test',
+      createdByPlatform:'gemini',lastModifiedByPlatform:'gemini',status:'ready'
+    }]
+  }
+};
+
+function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(model.state)); }
+function loadState(){
+  try{
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      var parsed = JSON.parse(raw);
+      if(parsed && typeof parsed === 'object') model.state = parsed;
+    }
+  }catch(e){}
+}
+function normalizeState(){
+  var a = model.state.app;
+  a.pagesBaseUrl = 'https://' + a.repoOwner + '.github.io/' + a.repoName + '/';
+  if(!Array.isArray(model.state.runtimes)) model.state.runtimes = [];
+  if(!Array.isArray(model.state.projects)) model.state.projects = [];
+}
+function setView(v){ model.view = v; render(); }
+function setSection(v,s){ model.sections[v] = s; render(); }
+function setAppField(key, value){
+  var current = model.state.app[key];
+  model.state.app[key] = typeof current === 'boolean' ? !!value : value;
+  saveState(); render(false);
+}
+function setVoiceField(key, value){
+  var current = model.state.voice[key];
+  model.state.voice[key] = typeof current === 'boolean' ? !!value : Number(value);
+  saveState(); render(false);
+}
+function setPromptField(key, value){ model.state.promptTemplates[key] = value; saveState(); render(false); }
+function addRuntime(){
+  model.state.runtimes.push({
+    id:uid(),platform:'chatgpt',runtimeName:'Runtime' + (model.state.runtimes.length + 1),
+    launchUrl:'https://chatgpt.com/',loginRequired:true,sessionPersistenceExpected:true,
+    entryStrategy:'reuse-named-webview',promptInputStrategy:'target-main-input',
+    submitStrategy:'platform-submit-control',captureStrategies:'dom-extract,share-copy,clipboard-bridge',
+    fallbackStrategy:'manual-review',validationStatus:'draft'
+  });
+  saveState(); render();
+}
+function setRuntimeField(id, key, value){
+  var r = model.state.runtimes.find(function(item){ return item.id === id; });
+  if(!r) return;
+  r[key] = typeof r[key] === 'boolean' ? !!value : value;
+  saveState(); render(false);
+}
+function removeRuntime(id){
+  model.state.runtimes = model.state.runtimes.filter(function(item){ return item.id !== id; });
+  saveState(); render();
+}
+function addProject(){
+  model.state.projects.push({
+    projectKey:'new-project',spokenNames:'new project',artifactPath:'new-project.html',title:'New Project',
+    createdByPlatform:model.state.app.defaultPlatform,lastModifiedByPlatform:model.state.app.defaultPlatform,status:'draft'
+  });
+  saveState(); render();
+}
+function setProjectField(index, key, value){ model.state.projects[index][key] = value; saveState(); render(false); }
+function removeProject(index){ model.state.projects.splice(index,1); saveState(); render(); }
+
+function generateHomeHtml(){
+  var a = model.state.app;
+  var v = model.state.voice;
+  var lines = [];
+  lines.push('<!DOCTYPE html>');
+  lines.push('<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">');
+  lines.push('<title>' + a.appName + ' Home</title>');
+  lines.push('<style>:root{--bg:#07090d;--surface:#0f1724;--surface2:#111827;--border:#253247;--text:#f3f6fb;--muted:#9aa8bd;--accent:#22c55e}*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text)}.wrap{max-width:980px;margin:0 auto;padding:18px;display:grid;gap:16px}.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:16px}.hero{display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:center}.orb{width:180px;height:180px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#123f21 0,#0b1f12 45%,#06120a 100%);border:2px solid #1f6e3b;font-weight:800}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.mono{font-family:ui-monospace,monospace;font-size:12px;white-space:pre-wrap;background:#05070a;border:1px solid var(--border);padding:12px;border-radius:14px}.chips{display:flex;gap:8px;flex-wrap:wrap}.chip{padding:8px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface2);font-size:12px}@media(max-width:780px){.hero,.grid{grid-template-columns:1fr}.orb{width:140px;height:140px}}</style>');
+  lines.push('</head><body><div class="wrap">');
+  lines.push('<div class="card hero"><div class="orb">' + esc(a.wakeWord) + '</div><div><h1 style="margin:0 0 8px">' + esc(a.appName) + ' Home</h1><div style="color:var(--muted);line-height:1.6">Voice-first project operator surface generated by SayIt Build Studio.</div><div class="chips" style="margin-top:10px"><div class="chip">Wake word: ' + esc(a.wakeWord) + '</div><div class="chip">Default platform: ' + esc(a.defaultPlatform) + '</div><div class="chip">Short pause: ' + esc(v.shortPauseMs) + ' ms</div><div class="chip">Long pause: ' + esc(v.longPauseMs) + ' ms</div></div></div></div>');
+  lines.push('<div class="grid"><div class="card"><h3 style="margin-top:0">Transcript</h3><div class="mono">Idle. Waiting for wake word and command.</div></div><div class="card"><h3 style="margin-top:0">Interpretation</h3><div class="mono">No active command. Typed fallback remains available.</div></div><div class="card"><h3 style="margin-top:0">Command Chips</h3><div class="chips"><div class="chip">Create project</div><div class="chip">Fix project</div><div class="chip">Rollback project</div><div class="chip">Tell me about project</div><div class="chip">Resume latest</div></div></div><div class="card"><h3 style="margin-top:0">Bridge Status</h3><div class="mono" id="bridgeStatus">Checking bridge...</div></div></div>');
+  lines.push('</div><script>(function(){var el=document.getElementById("bridgeStatus");var hasBridge=!!(window.AndroidBridge||window.AndroidHelper);el.textContent=hasBridge?"Native bridge detected.":"No native bridge detected. Browser mode active."})();<\/script></body></html>');
+  return lines.join('');
+}
+
+function generateSetupHtml(){
+  var a = model.state.app;
+  var rows = model.state.runtimes.map(function(r){
+    return '<tr><td>' + esc(r.platform) + '</td><td>' + esc(r.runtimeName) + '</td><td>' + esc(r.launchUrl) + '</td><td>' + esc(r.validationStatus) + '</td></tr>';
+  }).join('');
+  if(!rows) rows = '<tr><td colspan="4">No runtimes configured.</td></tr>';
+  var lines = [];
+  lines.push('<!DOCTYPE html>');
+  lines.push('<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">');
+  lines.push('<title>' + a.appName + ' Setup</title>');
+  lines.push('<style>:root{--bg:#07090d;--surface:#0f1724;--border:#253247;--text:#f3f6fb;--muted:#9aa8bd}*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text)}.wrap{max-width:1100px;margin:0 auto;padding:18px;display:grid;gap:16px}.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.code{font-family:ui-monospace,monospace;font-size:12px;white-space:pre-wrap;background:#05070a;border:1px solid var(--border);padding:12px;border-radius:14px}table{width:100%;border-collapse:collapse}th,td{border:1px solid var(--border);padding:8px 10px;text-align:left;font-size:12px}th{background:#0b1420}@media(max-width:780px){.grid{grid-template-columns:1fr}}</style>');
+  lines.push('</head><body><div class="wrap">');
+  lines.push('<div class="card"><h1 style="margin:0 0 8px">' + esc(a.appName) + ' Setup</h1><div style="color:var(--muted);line-height:1.6">Configuration, validation, and calibration surface generated by SayIt Build Studio.</div></div>');
+  lines.push('<div class="grid"><div class="card"><h3 style="margin-top:0">GitHub Config</h3><div class="code">Owner: ' + esc(a.repoOwner) + '\nRepo: ' + esc(a.repoName) + '\nBranch: ' + esc(a.branch) + '\nPages Base URL: ' + esc(a.pagesBaseUrl) + '\nArtifact Root: ' + esc(a.artifactRoot) + '</div></div>');
+  lines.push('<div class="card"><h3 style="margin-top:0">App Config</h3><div class="code">App Name: ' + esc(a.appName) + '\nWake Word: ' + esc(a.wakeWord) + '\nVersion: ' + esc(a.version) + '\nDefault Platform: ' + esc(a.defaultPlatform) + '</div></div></div>');
+  lines.push('<div class="card"><h3 style="margin-top:0">Runtime List</h3><table><thead><tr><th>Platform</th><th>Runtime</th><th>Launch URL</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div></div></body></html>');
+  return lines.join('');
+}
+
+function generateAndroidManifest(){
+  var a = model.state.app;
+  return [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="' + a.packageName + '">',
+    '    <uses-permission android:name="android.permission.INTERNET" />',
+    '    <uses-permission android:name="android.permission.RECORD_AUDIO" />',
+    '    <application android:allowBackup="true" android:label="' + a.appName + '" android:usesCleartextTraffic="false" android:theme="@android:style/Theme.DeviceDefault.NoActionBar">',
+    '        <activity android:name=".' + a.javaMainActivity + '" android:exported="true">',
+    '            <intent-filter>',
+    '                <action android:name="android.intent.action.MAIN" />',
+    '                <category android:name="android.intent.category.LAUNCHER" />',
+    '            </intent-filter>',
+    '        </activity>',
+    '    </application>',
+    '</manifest>'
+  ].join('\n');
+}
+
+function generateMainActivityJava(){
+  var a = model.state.app;
+  return [
+    'package ' + a.packageName + ';',
+    '',
+    'import android.app.Activity;',
+    'import android.os.Bundle;',
+    'import android.webkit.WebChromeClient;',
+    'import android.webkit.WebSettings;',
+    'import android.webkit.WebView;',
+    'import android.webkit.WebViewClient;',
+    '',
+    'public class ' + a.javaMainActivity + ' extends Activity {',
+    '    private WebView webView;',
+    '    private ' + a.javaBridgeClass + ' bridge;',
+    '',
+    '    @Override',
+    '    protected void onCreate(Bundle savedInstanceState) {',
+    '        super.onCreate(savedInstanceState);',
+    '        webView = new WebView(this);',
+    '        setContentView(webView);',
+    '        WebSettings settings = webView.getSettings();',
+    '        settings.setJavaScriptEnabled(true);',
+    '        settings.setDomStorageEnabled(true);',
+    '        settings.setAllowFileAccess(false);',
+    '        settings.setAllowContentAccess(false);',
+    '        bridge = new ' + a.javaBridgeClass + '(this, webView);',
+    '        webView.addJavascriptInterface(bridge, "AndroidBridge");',
+    '        webView.setWebViewClient(new WebViewClient());',
+    '        webView.setWebChromeClient(new WebChromeClient());',
+    '        webView.loadUrl("' + a.pagesBaseUrl + a.homeFile + '");',
+    '    }',
+    '',
+    '    @Override',
+    '    protected void onDestroy() {',
+    '        if (webView != null) {',
+    '            webView.removeJavascriptInterface("AndroidBridge");',
+    '            webView.destroy();',
+    '        }',
+    '        super.onDestroy();',
+    '    }',
+    '}'
+  ].join('\n');
+}
+
+function generateBridgeJava(){
+  var a = model.state.app;
+  return [
+    'package ' + a.packageName + ';',
+    '',
+    'import android.app.Activity;',
+    'import android.content.ClipData;',
+    'import android.content.ClipboardManager;',
+    'import android.content.Context;',
+    'import android.content.Intent;',
+    'import android.net.Uri;',
+    'import android.webkit.JavascriptInterface;',
+    'import android.webkit.WebView;',
+    '',
+    'public class ' + a.javaBridgeClass + ' {',
+    '    private final Activity activity;',
+    '    private final WebView webView;',
+    '',
+    '    public ' + a.javaBridgeClass + '(Activity activity, WebView webView) {',
+    '        this.activity = activity;',
+    '        this.webView = webView;',
+    '    }',
+    '',
+    '    @JavascriptInterface',
+    '    public String ping() {',
+    '        return "ok";',
+    '    }',
+    '',
+    '    @JavascriptInterface',
+    '    public void openUrl(String url) {',
+    '        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));',
+    '        activity.startActivity(intent);',
+    '    }',
+    '',
+    '    @JavascriptInterface',
+    '    public void writeClipboard(String text) {',
+    '        ClipboardManager clipboard = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);',
+    '        ClipData clip = ClipData.newPlainText("sayit", text);',
+    '        clipboard.setPrimaryClip(clip);',
+    '    }',
+    '',
+    '    @JavascriptInterface',
+    '    public String readClipboard() {',
+    '        ClipboardManager clipboard = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);',
+    '        if (clipboard == null || !clipboard.hasPrimaryClip()) return "";',
+    '        ClipData data = clipboard.getPrimaryClip();',
+    '        if (data == null || data.getItemCount() == 0) return "";',
+    '        CharSequence text = data.getItemAt(0).coerceToText(activity);',
+    '        return text == null ? "" : text.toString();',
+    '    }',
+    '',
+    '    @JavascriptInterface',
+    '    public String appState() {',
+    '        return "{\"bridge\":true,\"packageName\":\"' + a.packageName + '\"}";',
+    '    }',
+    '}'
+  ].join('\n');
+}
+
+function buildOutputs(){
+  normalizeState();
+  var a = model.state.app;
+  var voice = model.state.voice;
+  var files = {};
+  files[a.homeFile] = generateHomeHtml();
+  files[a.setupFile] = generateSetupHtml();
+  files['manifest.json'] = JSON.stringify({
+    app:{name:a.appName,version:a.version,wakeWord:a.wakeWord},
+    components:[
+      {key:'home',path:'/' + a.homeFile,required:true},
+      {key:'setup',path:'/' + a.setupFile,required:true},
+      {key:'jobs',path:'/jobs.json',required:true},
+      {key:'registry',path:'/registry.json',required:true},
+      {key:'sessions',path:'/sessions.json',required:true},
+      {key:'appConfig',path:'/config/app-config.json',required:true},
+      {key:'githubConfig',path:'/config/github-config.json',required:true},
+      {key:'voiceConfig',path:'/config/voice-config.json',required:true},
+      {key:'platformRuntimes',path:'/config/platform-runtimes.json',required:true}
+    ]
+  }, null, 2);
+  files['jobs.json'] = JSON.stringify({
+    jobs:[
+      {key:'boot',steps:['load-manifest','load-config','load-registry','load-sessions']},
+      {key:'runtime-ensure-' + a.defaultPlatform,steps:['bridge-runtime-ensure','bridge-runtime-focus']},
+      {key:'project-fix',steps:['resolve-project','compile-prompt','runtime-submit','capture-result','github-write','registry-update']},
+      {key:'project-create',steps:['check-project-absence','compile-prompt','runtime-submit','capture-result','github-write','registry-create']}
+    ]
+  }, null, 2);
+  files['registry.json'] = JSON.stringify({
+    projects:model.state.projects.map(function(p){
+      return {
+        projectKey:p.projectKey,
+        spokenNames:String(p.spokenNames || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean),
+        artifactPath:p.artifactPath,
+        title:p.title,
+        createdByPlatform:p.createdByPlatform,
+        lastModifiedByPlatform:p.lastModifiedByPlatform,
+        liveUrl:a.pagesBaseUrl + p.artifactPath,
+        activeSessionId:null,
+        status:p.status
+      };
+    })
+  }, null, 2);
+  files['sessions.json'] = JSON.stringify({sessions:[]}, null, 2);
+  files['config/app-config.json'] = JSON.stringify({
+    appName:a.appName,wakeWord:a.wakeWord,defaultTheme:a.useDarkTheme ? 'dark' : 'light',
+    homeTitle:a.appName + ' Home',setupTitle:a.appName + ' Setup',defaultPlatform:a.defaultPlatform
+  }, null, 2);
+  files['config/github-config.json'] = JSON.stringify({
+    owner:a.repoOwner,repo:a.repoName,branch:a.branch,pagesBaseUrl:a.pagesBaseUrl,artifactRoot:a.artifactRoot,
+    defaultExtension:'.html',tokenLabel:'sayit-fgpat',tokenStorage:'apk-secure-store',
+    commitTemplate:a.commitTemplate,environmentLabel:a.environmentLabel
+  }, null, 2);
+  files['config/voice-config.json'] = JSON.stringify({
+    wakeWord:a.wakeWord,shortPauseMs:voice.shortPauseMs,longPauseMs:voice.longPauseMs,graceWindowMs:voice.graceWindowMs,
+    defaultRequiresConfirmation:a.requireConfirmationByDefault,bargeInEnabled:voice.bargeInEnabled,typedFallbackEnabled:voice.typedFallbackEnabled
+  }, null, 2);
+  files['config/platform-runtimes.json'] = JSON.stringify({
+    runtimes:model.state.runtimes.map(function(r){
+      return {
+        platform:r.platform,runtimeName:r.runtimeName,launchUrl:r.launchUrl,
+        loginRequired:r.loginRequired,sessionPersistenceExpected:r.sessionPersistenceExpected,adapterKey:r.platform
+      };
+    })
+  }, null, 2);
+  model.state.runtimes.forEach(function(r){
+    files['adapters/' + r.platform + '.json'] = JSON.stringify({
+      platform:r.platform,runtimeName:r.runtimeName,entryStrategy:r.entryStrategy,
+      promptInputStrategy:r.promptInputStrategy,submitStrategy:r.submitStrategy,
+      captureStrategies:String(r.captureStrategies || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean),
+      fallbackStrategy:r.fallbackStrategy
+    }, null, 2);
+  });
+  files['android-app/app/src/main/AndroidManifest.xml'] = generateAndroidManifest();
+  files['android-app/app/src/main/java/' + a.packageName.replace(/\./g,'/') + '/' + a.javaMainActivity + '.java'] = generateMainActivityJava();
+  files['android-app/app/src/main/java/' + a.packageName.replace(/\./g,'/') + '/' + a.javaBridgeClass + '.java'] = generateBridgeJava();
+  return files;
+}
+
+function preflightChecks(){
+  var a = model.state.app;
+  var files = buildOutputs();
+  var required = [a.homeFile,a.setupFile,'manifest.json','jobs.json','registry.json','sessions.json','config/app-config.json','config/github-config.json','config/voice-config.json','config/platform-runtimes.json','android-app/app/src/main/AndroidManifest.xml'];
+  var checks = required.map(function(path){ return {name:'Required file: ' + path, pass:!!files[path], detail:files[path] ? 'Present' : 'Missing'}; });
+  checks.push({name:'GitHub owner present',pass:!!a.repoOwner.trim(),detail:a.repoOwner});
+  checks.push({name:'GitHub repo present',pass:!!a.repoName.trim(),detail:a.repoName});
+  checks.push({name:'Android package present',pass:!!a.packageName.trim(),detail:a.packageName});
+  checks.push({name:'At least one runtime defined',pass:model.state.runtimes.length > 0,detail:String(model.state.runtimes.length)});
+  checks.push({name:'At least one project defined',pass:model.state.projects.length > 0,detail:String(model.state.projects.length)});
+  return checks;
+}
+
+function issueMatrix(){
+  var a = model.state.app;
+  return [
+    ['Blank APK screen','Wrong Home URL, Pages not live, WebView load failure','Confirm ' + a.pagesBaseUrl + a.homeFile + ' opens in a normal browser, then rebuild APK.'],
+    ['404 on hosted page','Wrong repo name, wrong file name, wrong Pages source','Verify repo owner, repo name, file casing, and Pages publishing source.'],
+    ['No bridge detected','Running browser mode or missing Java interface','Confirm AndroidBridge.java is copied to the correct Java package path.'],
+    ['Runtime cannot launch','Launch URL missing or invalid','Update runtime profile launchUrl and export new adapter/config files.'],
+    ['Project cannot resolve','Registry seed missing project mapping','Add projectKey, spokenNames, artifactPath, and export updated registry.json.'],
+    ['Voice feels too eager','Pause thresholds too low','Increase shortPauseMs, longPauseMs, or graceWindowMs.']
+  ];
+}
+
+function button(label, action, extra){
+  return '<button class="btn ' + (extra || '') + '" onclick="' + action + '">' + esc(label) + '</button>';
+}
+function checkbox(label, checked, action){
+  return '<label class="row small"><input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="' + action + '"> ' + esc(label) + '</label>';
+}
+function fileSummary(path){
+  if(path.endsWith('.html')) return 'Generated web surface';
+  if(path.endsWith('.json')) return 'Generated configuration or registry file';
+  if(path.endsWith('.java')) return 'Generated Android source file';
+  if(path.endsWith('.xml')) return 'Generated Android manifest';
+  return 'Generated file';
+}
+function renderTabs(){
+  document.getElementById('topTabs').innerHTML = Object.keys(views).map(function(key){
+    return '<button class="tab' + (model.view === key ? ' active' : '') + '" onclick="window.SayItBuildStudio.setView(\'' + key + '\')">' + esc(views[key].label) + '</button>';
+  }).join('');
+}
+function fileCard(path){
+  return '<div class="file"><div><strong>' + esc(path) + '</strong></div><div class="small" style="margin-top:6px">' + esc(fileSummary(path)) + '</div><div class="row" style="margin-top:10px">' +
+    button('Preview','window.SayItBuildStudio.previewFile(' + JSON.stringify(path) + ')','') +
+    button('Download','window.SayItBuildStudio.downloadFile(' + JSON.stringify(path) + ')','btn-primary') +
+    '</div></div>';
+}
+
+function renderTop(view, section){
+  var files = buildOutputs();
+  var a = model.state.app;
+  if(view === 'init' && section === 'summary'){
+    return '<div class="section-title">Build Studio Summary</div><div class="note">This file replaces the static workbook with a generator-driven studio that produces HTML, JSON, and Java artifacts from one source of truth.</div><div class="grid3" style="margin-top:14px"><div class="card"><div class="sub-title">App</div><div class="small">' + esc(a.appName) + ' · ' + esc(a.version) + ' · ' + esc(a.packageName) + '</div></div><div class="card"><div class="sub-title">GitHub</div><div class="small">' + esc(a.repoOwner) + '/' + esc(a.repoName) + ' · ' + esc(a.branch) + '</div></div><div class="card"><div class="sub-title">Generated files</div><div class="small">' + Object.keys(files).length + '</div></div></div>';
+  }
+  if(view === 'init' && section === 'baseline'){
+    return '<div class="section-title">Baseline Inputs</div><div class="grid2"><div class="card stack"><div><label>App name</label><input type="text" value="' + esc(a.appName) + '" oninput="window.SayItBuildStudio.setAppField(\'appName\', this.value)"></div><div><label>Wake word</label><input type="text" value="' + esc(a.wakeWord) + '" oninput="window.SayItBuildStudio.setAppField(\'wakeWord\', this.value)"></div><div><label>Version</label><input type="text" value="' + esc(a.version) + '" oninput="window.SayItBuildStudio.setAppField(\'version\', this.value)"></div><div><label>Android package name</label><input type="text" value="' + esc(a.packageName) + '" oninput="window.SayItBuildStudio.setAppField(\'packageName\', this.value)"></div></div><div class="card stack"><div><label>GitHub owner</label><input type="text" value="' + esc(a.repoOwner) + '" oninput="window.SayItBuildStudio.setAppField(\'repoOwner\', this.value)"></div><div><label>GitHub repo</label><input type="text" value="' + esc(a.repoName) + '" oninput="window.SayItBuildStudio.setAppField(\'repoName\', this.value)"></div><div><label>Branch</label><input type="text" value="' + esc(a.branch) + '" oninput="window.SayItBuildStudio.setAppField(\'branch\', this.value)"></div><div><label>Environment label</label><input type="text" value="' + esc(a.environmentLabel) + '" oninput="window.SayItBuildStudio.setAppField(\'environmentLabel\', this.value)"></div></div></div>';
+  }
+  if(view === 'init' && section === 'workflow'){
+    return '<div class="section-title">Build Workflow</div><table class="table"><thead><tr><th>Stage</th><th>Purpose</th><th>Output</th></tr></thead><tbody><tr><td>Init</td><td>Capture baseline naming and repo identity</td><td>Single source of truth</td></tr><tr><td>Config</td><td>Set app, voice, prompt, and registry defaults</td><td>Normalized package state</td></tr><tr><td>Learn</td><td>Define runtime and adapter behavior</td><td>Runtime profiles and adapter JSON</td></tr><tr><td>Build</td><td>Compile outputs</td><td>HTML, JSON, Java files</td></tr><tr><td>Test</td><td>Run preflight checks</td><td>Pass/fail matrix</td></tr><tr><td>Export</td><td>Download files or bundle</td><td>Portable deployment package</td></tr></tbody></table>';
+  }
+  if(view === 'build' && section === 'files'){
+    return '<div class="section-title">Generated Files</div><div class="files">' + Object.keys(files).map(fileCard).join('') + '</div>';
+  }
+  if(view === 'build' && section === 'repo'){
+    var repoText = ['repo-root/','├── ' + a.homeFile,'├── ' + a.setupFile,'├── manifest.json','├── jobs.json','├── registry.json','├── sessions.json','├── config/','│   ├── app-config.json','│   ├── github-config.json','│   ├── voice-config.json','│   └── platform-runtimes.json','├── adapters/','└── android-app/'].join('\n');
+    return '<div class="section-title">Repository Tree</div><div class="code">' + esc(repoText) + '</div>';
+  }
+  if(view === 'build' && section === 'android'){
+    var manifestPath = 'android-app/app/src/main/AndroidManifest.xml';
+    var mainActivityPath = Object.keys(files).find(function(k){ return k.endsWith('/' + a.javaMainActivity + '.java'); });
+    var bridgePath = Object.keys(files).find(function(k){ return k.endsWith('/' + a.javaBridgeClass + '.java'); });
+    return '<div class="section-title">Android Outputs</div><div class="grid2"><div class="card"><div class="sub-title">AndroidManifest.xml</div><div class="code">' + esc(files[manifestPath]) + '</div></div><div class="card"><div class="sub-title">' + esc(a.javaMainActivity + '.java') + '</div><div class="code">' + esc(files[mainActivityPath]) + '</div></div><div class="card"><div class="sub-title">' + esc(a.javaBridgeClass + '.java') + '</div><div class="code">' + esc(files[bridgePath]) + '</div></div></div>';
+  }
+  if(view === 'build' && section === 'json'){
+    return '<div class="section-title">JSON Outputs</div><div class="grid2"><div class="card"><div class="sub-title">manifest.json</div><div class="code">' + esc(files['manifest.json']) + '</div></div><div class="card"><div class="sub-title">jobs.json</div><div class="code">' + esc(files['jobs.json']) + '</div></div><div class="card"><div class="sub-title">registry.json</div><div class="code">' + esc(files['registry.json']) + '</div></div><div class="card"><div class="sub-title">config/platform-runtimes.json</div><div class="code">' + esc(files['config/platform-runtimes.json']) + '</div></div></div>';
+  }
+  if(view === 'gh' && section === 'settings'){
+    return '<div class="section-title">GitHub Settings</div><div class="grid2"><div class="card stack"><div><label>Repo owner</label><input type="text" value="' + esc(a.repoOwner) + '" oninput="window.SayItBuildStudio.setAppField(\'repoOwner\', this.value)"></div><div><label>Repo name</label><input type="text" value="' + esc(a.repoName) + '" oninput="window.SayItBuildStudio.setAppField(\'repoName\', this.value)"></div><div><label>Branch</label><input type="text" value="' + esc(a.branch) + '" oninput="window.SayItBuildStudio.setAppField(\'branch\', this.value)"></div><div><label>Artifact root</label><input type="text" value="' + esc(a.artifactRoot) + '" oninput="window.SayItBuildStudio.setAppField(\'artifactRoot\', this.value)"></div></div><div class="card stack"><div><label>Home file</label><input type="text" value="' + esc(a.homeFile) + '" oninput="window.SayItBuildStudio.setAppField(\'homeFile\', this.value)"></div><div><label>Setup file</label><input type="text" value="' + esc(a.setupFile) + '" oninput="window.SayItBuildStudio.setAppField(\'setupFile\', this.value)"></div><div><label>Commit template</label><input type="text" value="' + esc(a.commitTemplate) + '" oninput="window.SayItBuildStudio.setAppField(\'commitTemplate\', this.value)"></div><div><label>Environment label</label><input type="text" value="' + esc(a.environmentLabel) + '" oninput="window.SayItBuildStudio.setAppField(\'environmentLabel\', this.value)"></div></div></div><div class="note" style="margin-top:14px">Pages base URL is derived automatically from owner and repo to reduce configuration drift.</div>';
+  }
+  if(view === 'gh' && section === 'pages'){
+    return '<div class="section-title">Pages URLs</div><div class="card"><div class="code">Pages base URL: ' + esc(a.pagesBaseUrl) + '\nHome URL: ' + esc(a.pagesBaseUrl + a.homeFile) + '\nSetup URL: ' + esc(a.pagesBaseUrl + a.setupFile) + '</div></div>';
+  }
+  if(view === 'gh' && section === 'commits'){
+    return '<div class="section-title">Commit Policy</div><div class="card"><div class="sub-title">Template</div><div class="code">' + esc(a.commitTemplate) + '</div><div class="small" style="margin-top:10px">Use fine-grained PAT storage in the APK secure store. Do not hardcode tokens in HTML.</div></div>';
+  }
+  if(view === 'config' && section === 'app'){
+    return '<div class="section-title">App Identity</div><div class="grid2"><div class="card stack"><div><label>App name</label><input type="text" value="' + esc(a.appName) + '" oninput="window.SayItBuildStudio.setAppField(\'appName\', this.value)"></div><div><label>Wake word</label><input type="text" value="' + esc(a.wakeWord) + '" oninput="window.SayItBuildStudio.setAppField(\'wakeWord\', this.value)"></div><div><label>Default platform</label><input type="text" value="' + esc(a.defaultPlatform) + '" oninput="window.SayItBuildStudio.setAppField(\'defaultPlatform\', this.value)"></div><div><label>Version</label><input type="text" value="' + esc(a.version) + '" oninput="window.SayItBuildStudio.setAppField(\'version\', this.value)"></div></div><div class="card stack">' + checkbox('Enable voice-oriented UI defaults', a.enableVoice, "window.SayItBuildStudio.setAppField('enableVoice', this.checked)") + checkbox('Require confirmation by default', a.requireConfirmationByDefault, "window.SayItBuildStudio.setAppField('requireConfirmationByDefault', this.checked)") + checkbox('Use dark theme', a.useDarkTheme, "window.SayItBuildStudio.setAppField('useDarkTheme', this.checked)") + '</div></div>';
+  }
+  if(view === 'config' && section === 'voice'){
+    var voice = model.state.voice;
+    return '<div class="section-title">Voice Settings</div><div class="grid2"><div class="card stack"><div><label>Short pause (ms)</label><input type="number" value="' + esc(voice.shortPauseMs) + '" oninput="window.SayItBuildStudio.setVoiceField(\'shortPauseMs\', this.value)"></div><div><label>Long pause (ms)</label><input type="number" value="' + esc(voice.longPauseMs) + '" oninput="window.SayItBuildStudio.setVoiceField(\'longPauseMs\', this.value)"></div><div><label>Grace window (ms)</label><input type="number" value="' + esc(voice.graceWindowMs) + '" oninput="window.SayItBuildStudio.setVoiceField(\'graceWindowMs\', this.value)"></div></div><div class="card stack">' + checkbox('Barge-in enabled', voice.bargeInEnabled, "window.SayItBuildStudio.setVoiceField('bargeInEnabled', this.checked)") + checkbox('Typed fallback enabled', voice.typedFallbackEnabled, "window.SayItBuildStudio.setVoiceField('typedFallbackEnabled', this.checked)") + '</div></div>';
+  }
+  if(view === 'config' && section === 'projects'){
+    return '<div class="section-title">Registry Seed</div><div class="row" style="margin-bottom:12px">' + button('Add Project','window.SayItBuildStudio.addProject()','btn-primary') + '</div><div class="stack">' + model.state.projects.map(function(p, idx){ return '<div class="card stack"><div class="row" style="justify-content:space-between"><strong>' + esc(p.projectKey) + '</strong>' + button('Remove','window.SayItBuildStudio.removeProject(' + idx + ')','btn-danger') + '</div><div class="grid2"><div class="stack"><div><label>Project key</label><input type="text" value="' + esc(p.projectKey) + '" oninput="window.SayItBuildStudio.setProjectField(' + idx + ', \'projectKey\', this.value)"></div><div><label>Spoken names</label><input type="text" value="' + esc(p.spokenNames) + '" oninput="window.SayItBuildStudio.setProjectField(' + idx + ', \'spokenNames\', this.value)"></div><div><label>Artifact path</label><input type="text" value="' + esc(p.artifactPath) + '" oninput="window.SayItBuildStudio.setProjectField(' + idx + ', \'artifactPath\', this.value)"></div></div><div class="stack"><div><label>Title</label><input type="text" value="' + esc(p.title) + '" oninput="window.SayItBuildStudio.setProjectField(' + idx + ', \'title\', this.value)"></div><div><label>Created by platform</label><input type="text" value="' + esc(p.createdByPlatform) + '" oninput="window.SayItBuildStudio.setProjectField(' + idx + ', \'createdByPlatform\', this.value)"></div><div><label>Last modified by platform</label><input type="text" value="' + esc(p.lastModifiedByPlatform) + '" oninput="window.SayItBuildStudio.setProjectField(' + idx + ', \'lastModifiedByPlatform\', this.value)"></div><div><label>Status</label><input type="text" value="' + esc(p.status) + '" oninput="window.SayItBuildStudio.setProjectField(' + idx + ', \'status\', this.value)"></div></div></div></div>'; }).join('') + '</div>';
+  }
+  if(view === 'config' && section === 'prompts'){
+    var p = model.state.promptTemplates;
+    return '<div class="section-title">Prompt Templates</div><div class="grid2"><div class="card"><label>Create template</label><textarea oninput="window.SayItBuildStudio.setPromptField(\'create\', this.value)">' + esc(p.create) + '</textarea></div><div class="card"><label>Fix template</label><textarea oninput="window.SayItBuildStudio.setPromptField(\'fix\', this.value)">' + esc(p.fix) + '</textarea></div><div class="card"><label>Rollback template</label><textarea oninput="window.SayItBuildStudio.setPromptField(\'rollback\', this.value)">' + esc(p.rollback) + '</textarea></div><div class="card"><label>Fork template</label><textarea oninput="window.SayItBuildStudio.setPromptField(\'fork\', this.value)">' + esc(p.fork) + '</textarea></div></div>';
+  }
+  if(view === 'learn' && section === 'runtimes'){
+    return '<div class="section-title">Runtime Profiles</div><div class="row" style="margin-bottom:12px">' + button('Add Runtime','window.SayItBuildStudio.addRuntime()','btn-primary') + '</div><div class="stack">' + model.state.runtimes.map(function(r){ return '<div class="card stack"><div class="row" style="justify-content:space-between"><strong>' + esc(r.platform) + ' · ' + esc(r.runtimeName) + '</strong>' + button('Remove','window.SayItBuildStudio.removeRuntime(' + JSON.stringify(r.id) + ')','btn-danger') + '</div><div class="grid2"><div class="stack"><div><label>Platform</label><input type="text" value="' + esc(r.platform) + '" oninput="window.SayItBuildStudio.setRuntimeField(' + JSON.stringify(r.id) + ', \'platform\', this.value)"></div><div><label>Runtime name</label><input type="text" value="' + esc(r.runtimeName) + '" oninput="window.SayItBuildStudio.setRuntimeField(' + JSON.stringify(r.id) + ', \'runtimeName\', this.value)"></div><div><label>Launch URL</label><input type="url" value="' + esc(r.launchUrl) + '" oninput="window.SayItBuildStudio.setRuntimeField(' + JSON.stringify(r.id) + ', \'launchUrl\', this.value)"></div><div><label>Validation status</label><input type="text" value="' + esc(r.validationStatus) + '" oninput="window.SayItBuildStudio.setRuntimeField(' + JSON.stringify(r.id) + ', \'validationStatus\', this.value)"></div></div><div class="stack"><div><label>Entry strategy</label><input type="text" value="' + esc(r.entryStrategy) + '" oninput="window.SayItBuildStudio.setRuntimeField(' + JSON.stringify(r.id) + ', \'entryStrategy\', this.value)"></div><div><label>Prompt input strategy</label><input type="text" value="' + esc(r.promptInputStrategy) + '" oninput="window.SayItBuildStudio.setRuntimeField(' + JSON.stringify(r.id) + ', \'promptInputStrategy\', this.value)"></div><div><label>Submit strategy</label><input type="text" value="' + esc(r.submitStrategy) + '" oninput="window.SayItBuildStudio.setRuntimeField(' + JSON.stringify(r.id) + ', \'submitStrategy\', this.value)"></div><div><label>Capture strategies</label><input type="text" value="' + esc(r.captureStrategies) + '" oninput="window.SayItBuildStudio.setRuntimeField(' + JSON.stringify(r.id) + ', \'captureStrategies\', this.value)"></div><div><label>Fallback strategy</label><input type="text" value="' + esc(r.fallbackStrategy) + '" oninput="window.SayItBuildStudio.setRuntimeField(' + JSON.stringify(r.id) + ', \'fallbackStrategy\', this.value)"></div>' + checkbox('Login required', r.loginRequired, 'window.SayItBuildStudio.setRuntimeField(' + JSON.stringify(r.id) + ', "loginRequired", this.checked)') + checkbox('Session persistence expected', r.sessionPersistenceExpected, 'window.SayItBuildStudio.setRuntimeField(' + JSON.stringify(r.id) + ', "sessionPersistenceExpected", this.checked)') + '</div></div></div>'; }).join('') + '</div>';
+  }
+  if(view === 'learn' && section === 'adapters'){
+    return '<div class="section-title">Adapter Library</div><div class="grid2">' + model.state.runtimes.map(function(r){ return '<div class="card"><div class="sub-title">' + esc(r.platform) + ' adapter</div><div class="code">' + esc(files['adapters/' + r.platform + '.json']) + '</div></div>'; }).join('') + '</div>';
+  }
+  if(view === 'learn' && section === 'training'){
+    return '<div class="section-title">Training Rules</div><div class="grid2"><div class="card"><div class="sub-title">Runtime training expectations</div><div class="code">- Each runtime must define a launch URL and named workspace.\n- Each adapter must define entry, input, submit, capture, and fallback behavior.\n- Validation status should be updated after manual verification.\n- Capture strategies should be ordered from deterministic to fallback.</div></div><div class="card"><div class="sub-title">Recommended capture order</div><div class="code">1. dom-extract\n2. share-copy\n3. clipboard-bridge\n4. manual-review</div></div></div>';
+  }
+  if(view === 'test' && section === 'preflight'){
+    var checks = preflightChecks();
+    return '<div class="section-title">Preflight</div><div class="' + (checks.every(function(c){ return c.pass; }) ? 'ok' : 'warn') + '">' + (checks.every(function(c){ return c.pass; }) ? 'All current preflight checks pass.' : 'One or more checks need correction before export.') + '</div><table class="table" style="margin-top:14px"><thead><tr><th>Check</th><th>Status</th><th>Detail</th></tr></thead><tbody>' + checks.map(function(c){ return '<tr><td>' + esc(c.name) + '</td><td>' + (c.pass ? 'PASS' : 'FAIL') + '</td><td>' + esc(c.detail) + '</td></tr>'; }).join('') + '</tbody></table>';
+  }
+  if(view === 'test' && section === 'matrix'){
+    return '<div class="section-title">Validation Matrix</div><table class="table"><thead><tr><th>Component</th><th>Validation question</th><th>Pass condition</th></tr></thead><tbody><tr><td>Manifest</td><td>Can the app find every required file?</td><td>No missing file errors</td></tr><tr><td>Home</td><td>Does the operational shell render?</td><td>Home file present and URL derived</td></tr><tr><td>Setup</td><td>Can settings be reviewed?</td><td>Setup file present</td></tr><tr><td>Bridge</td><td>Are bridge actions present?</td><td>ping, openUrl, readClipboard, writeClipboard, appState present</td></tr><tr><td>Runtime</td><td>Is at least one runtime defined?</td><td>Runtime count greater than 0</td></tr><tr><td>Registry</td><td>Can project identity resolve?</td><td>Project seed exists</td></tr></tbody></table>';
+  }
+  if(view === 'test' && section === 'results'){
+    var checks2 = preflightChecks();
+    var pass = checks2.filter(function(c){ return c.pass; }).length;
+    var fail = checks2.length - pass;
+    return '<div class="section-title">Generated Results</div><div class="grid3"><div class="card"><div class="sub-title">Pass</div><div style="font-size:28px;font-weight:800">' + pass + '</div></div><div class="card"><div class="sub-title">Fail</div><div style="font-size:28px;font-weight:800">' + fail + '</div></div><div class="card"><div class="sub-title">Generated files</div><div style="font-size:28px;font-weight:800">' + Object.keys(files).length + '</div></div></div>';
+  }
+  if(view === 'troubleshoot' && section === 'matrix'){
+    return '<div class="section-title">Issue Matrix</div><table class="table"><thead><tr><th>Symptom</th><th>Likely cause</th><th>Corrective action</th></tr></thead><tbody>' + issueMatrix().map(function(row){ return '<tr><td>' + esc(row[0]) + '</td><td>' + esc(row[1]) + '</td><td>' + esc(row[2]) + '</td></tr>'; }).join('') + '</tbody></table>';
+  }
+  if(view === 'troubleshoot' && section === 'apk'){
+    return '<div class="section-title">APK Troubleshooting</div><div class="warn">Most APK failures come from a bad hosted URL or a bridge class that was not copied into the correct Java package path.</div><div class="code" style="margin-top:12px">Verify:\n1. ' + esc(a.pagesBaseUrl + a.homeFile) + ' opens in a browser.\n2. ' + esc(a.javaMainActivity) + '.java sits under ' + esc(a.packageName.replace(/\./g,'/')) + '\n3. ' + esc(a.javaBridgeClass) + '.java sits under the same package path.\n4. AndroidManifest.xml uses the same package and activity name.</div>';
+  }
+  if(view === 'troubleshoot' && section === 'gh'){
+    return '<div class="section-title">GitHub Pages Troubleshooting</div><div class="code">Check:\n- repo owner is ' + esc(a.repoOwner) + '\n- repo name is ' + esc(a.repoName) + '\n- Pages base URL is ' + esc(a.pagesBaseUrl) + '\n- file name casing matches exactly\n- Pages publishing source matches repo structure</div>';
+  }
+  if(view === 'troubleshoot' && section === 'runtime'){
+    return '<div class="section-title">Runtime Troubleshooting</div><div class="stack">' + model.state.runtimes.map(function(r){ return '<div class="card"><div class="sub-title">' + esc(r.platform) + ' · ' + esc(r.runtimeName) + '</div><div class="code">Launch URL: ' + esc(r.launchUrl) + '\nEntry: ' + esc(r.entryStrategy) + '\nInput: ' + esc(r.promptInputStrategy) + '\nSubmit: ' + esc(r.submitStrategy) + '\nCapture: ' + esc(r.captureStrategies) + '\nFallback: ' + esc(r.fallbackStrategy) + '</div></div>'; }).join('') + '</div>';
+  }
+  if(view === 'export' && section === 'bundle'){
+    return '<div class="section-title">Bundle Export</div><div class="note">Bundle export produces one JSON package containing every generated file and the studio state used to generate them.</div><div class="row" style="margin-top:12px">' + button('Download Bundle JSON','window.SayItBuildStudio.exportBundle()','btn-primary') + button('Download State JSON','window.SayItBuildStudio.exportState()','') + '</div>';
+  }
+  if(view === 'export' && section === 'files'){
+    return '<div class="section-title">Per-File Downloads</div><div class="files">' + Object.keys(files).map(function(path){ return '<div class="file"><strong>' + esc(path) + '</strong><div class="row" style="margin-top:10px">' + button('Download','window.SayItBuildStudio.downloadFile(' + JSON.stringify(path) + ')','btn-primary') + '</div></div>'; }).join('') + '</div>';
+  }
+  if(view === 'export' && section === 'state'){
+    return '<div class="section-title">State Backup</div><div class="code">' + esc(JSON.stringify(model.state, null, 2)) + '</div>';
+  }
+  return '<div class="card">Section not found.</div>';
+}
+
+function renderBottom(view, section){
+  var files = buildOutputs();
+  if(view === 'build' && section === 'files'){
+    var firstKey = Object.keys(files)[0];
+    return '<div class="section-title">File Preview</div><div class="code" id="previewBox">' + esc(files[firstKey]) + '</div>';
+  }
+  if(view === 'init'){
+    return '<div class="section-title">Immediate next execution path</div><div class="code">1. Set repo owner, repo name, package name, and wake word.\n2. Configure runtime profiles.\n3. Review generated files under Build.\n4. Run Preflight.\n5. Download bundle or individual files.\n6. Publish HTML and JSON to GitHub.\n7. Paste Android files into the APK project.</div>';
+  }
+  if(view === 'test'){
+    return '<div class="section-title">Test Notes</div><div class="warn">These checks validate generated package consistency only. They do not execute Android compilation or live GitHub publishing from inside the browser.</div>';
+  }
+  if(view === 'gh'){
+    return '<div class="section-title">Derived GitHub Output</div><div class="code">' + esc(files['config/github-config.json']) + '</div>';
+  }
+  if(view === 'config'){
+    return '<div class="section-title">Current Config Snapshot</div><div class="code">' + esc(JSON.stringify({app:model.state.app, voice:model.state.voice}, null, 2)) + '</div>';
+  }
+  if(view === 'learn'){
+    return '<div class="section-title">Training Snapshot</div><div class="code">' + esc(JSON.stringify({runtimes:model.state.runtimes, prompts:model.state.promptTemplates}, null, 2)) + '</div>';
+  }
+  if(view === 'troubleshoot'){
+    return '<div class="section-title">Fast Diagnosis Rules</div><div class="code">- Blank app: verify hosted URL first.\n- Broken project resolution: verify registry.json.\n- Missing runtime behavior: verify adapter JSON.\n- Wrong URL paths: verify repo owner, repo name, and home file.\n- Voice feels wrong: tune shortPauseMs, longPauseMs, graceWindowMs.</div>';
+  }
+  if(view === 'export'){
+    return '<div class="section-title">Export Notes</div><div class="code">- Download the studio HTML as the primary build surface.\n- Download the bundle JSON for portable generated outputs.\n- Download individual files when pasting into AIDE or GitHub.\n- Use the state JSON to restore generator settings later.</div>';
+  }
+  return '<div class="card">No additional details.</div>';
+}
+
+function downloadBlob(filename, content, mime){
+  var blob = new Blob([content], {type:mime});
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  setTimeout(function(){ URL.revokeObjectURL(link.href); }, 500);
+}
+function guessMime(path){
+  if(path.endsWith('.html')) return 'text/html';
+  if(path.endsWith('.json')) return 'application/json';
+  if(path.endsWith('.xml')) return 'application/xml';
+  return 'text/plain';
+}
+function render(save){
+  normalizeState();
+  if(save !== false) saveState();
+  renderTabs();
+  var app = document.getElementById('app');
+  app.innerHTML = Object.keys(views).map(function(key){
+    var def = views[key];
+    return '<section class="view' + (model.view === key ? ' active' : '') + '"><aside class="sidebar"><div class="sidebar-header">' + esc(def.label) + '</div><div class="sidebar-content">' + def.nav.map(function(item){ return '<div class="nav-item' + (model.sections[key] === item[0] ? ' active' : '') + '" onclick="window.SayItBuildStudio.setSection(\'' + key + '\',\'' + item[0] + '\')"><strong>' + esc(item[1]) + '</strong></div>'; }).join('') + '</div></aside><main class="main"><div class="pane-top">' + renderTop(key, model.sections[key]) + '</div><div class="pane-bottom">' + renderBottom(key, model.sections[key]) + '</div></main></section>';
+  }).join('');
+}
+
+window.SayItBuildStudio = {
+  setView:setView,setSection:setSection,setAppField:setAppField,setVoiceField:setVoiceField,setPromptField:setPromptField,
+  addRuntime:addRuntime,setRuntimeField:setRuntimeField,removeRuntime:removeRuntime,
+  addProject:addProject,setProjectField:setProjectField,removeProject:removeProject,
+  previewFile:function(path){ var files = buildOutputs(); var box = document.getElementById('previewBox'); if(box) box.textContent = files[path] || ''; },
+  downloadFile:function(path){ var files = buildOutputs(); downloadBlob(path.split('/').pop(), files[path] || '', guessMime(path)); },
+  exportBundle:function(){ var bundle = {generatedAt:new Date().toISOString(),state:model.state,files:buildOutputs()}; downloadBlob('sayit-build-bundle.json', JSON.stringify(bundle, null, 2), 'application/json'); },
+  exportState:function(){ downloadBlob('sayit-build-studio-state.json', JSON.stringify(model.state, null, 2), 'application/json'); }
+};
+
+document.getElementById('btnExportBundle').addEventListener('click', function(){ window.SayItBuildStudio.exportBundle(); });
+document.getElementById('btnExportState').addEventListener('click', function(){ window.SayItBuildStudio.exportState(); });
+
+loadState();
+render();
+})();
+</script>
+</body>
+</html>
