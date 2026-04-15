@@ -336,17 +336,20 @@ async function transcribeFile(file){
     setSttUI('Reading audio…',fmtSize(file.size),5);
     const buf=await file.arrayBuffer();
 
-    const params=new URLSearchParams({model:config.dgModel,language:'th',punctuate:'true',diarize:'false',token:config.apiKey});
+    // Valid streaming params only — paragraphs/smart_format are pre-recorded only
+    const params=new URLSearchParams({model:config.dgModel,language:'th',punctuate:'true',diarize:'false'});
     const wsUrl=`wss://api.deepgram.com/v1/listen?${params}`;
 
     const result=await new Promise((resolve,reject)=>{
-        const ws=new WebSocket(wsUrl);
+        // Subprotocol is the only documented browser auth method for Deepgram WS
+        const ws=new WebSocket(wsUrl,['token',config.apiKey]);
         ws.binaryType='arraybuffer';
         const acc={transcript:'',words:[],paragraphs:[]};
         let metaSeen=false;
+        let firstMessage=false;
 
         ws.onopen=()=>{
-            // Buffer already in memory — send immediately, no async delay
+            setSttUI('Connected — sending audio…',fmtSize(buf.byteLength),20);
             const CHUNK=65536;let sent=0;
             while(sent<buf.byteLength){
                 ws.send(buf.slice(sent,sent+CHUNK));
@@ -357,6 +360,7 @@ async function transcribeFile(file){
         };
 
         ws.onmessage=e=>{
+            firstMessage=true;
             try{
                 const msg=JSON.parse(e.data);
                 if(msg.type==='Results'&&msg.is_final){
@@ -364,19 +368,36 @@ async function transcribeFile(file){
                     if(alt){
                         acc.transcript+=(acc.transcript?' ':'')+(alt.transcript||'');
                         acc.words.push(...(alt.words||[]));
-                        acc.paragraphs.push(...(alt.paragraphs?.paragraphs||[]));
                     }
+                    setSttUI('Receiving transcript…',`${acc.words.length} words`,90);
                 }
-                if(msg.type==='Metadata'){metaSeen=true;setSttUI('Done!','Building paragraphs…',97);}
+                if(msg.type==='Metadata'){metaSeen=true;setSttUI('Done!','Processing…',97);}
+                // Surface any Deepgram error messages
+                if(msg.type==='Error'||msg.error){
+                    const errMsg=msg.message||msg.error||JSON.stringify(msg);
+                    reject(new Error(`Deepgram error: ${errMsg}`));
+                }
             }catch(e){console.warn('WS parse',e);}
         };
 
         ws.onclose=e=>{
+            // Map close codes to actionable messages
+            const codeMap={
+                1000:'Success',1001:'Server going away — retry',
+                1006:'Connection rejected — likely invalid API key or bad params',
+                1008:'Policy violation — check API key permissions',
+                1011:'Deepgram server error — retry in a moment',
+                1015:'TLS handshake failed'
+            };
+            const reason=e.reason||codeMap[e.code]||`Unknown (code ${e.code})`;
             if(e.code===1000||e.code===1001||metaSeen)resolve(acc);
-            else reject(new Error(`Deepgram closed (code ${e.code}) — check API key`));
+            else reject(new Error(`WS closed: ${reason} [${e.code}]${firstMessage?'':' — connection never opened'}`));
         };
 
-        ws.onerror=()=>reject(new Error('WebSocket to Deepgram failed — check network/key'));
+        ws.onerror=e=>{
+            // onerror fires before onclose on connection failure; let onclose handle it
+            console.warn('WS onerror fired');
+        };
     });
 
     if(result.paragraphs.length>0){
