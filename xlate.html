@@ -152,7 +152,7 @@
     <header class="header">
         <div style="display:flex;align-items:baseline;">
             <span class="logo">Thai Transcriber</span>
-            <span class="logo-sub">v10 · Deepgram</span>
+            <span class="logo-sub">v11 · STT</span>
         </div>
         <div class="header-right">
             <div class="api-status">
@@ -166,9 +166,9 @@
         <div class="welcome" id="welcomeView">
             <div class="welcome-icon">🎙️</div>
             <h2>Thai Audio → English Text</h2>
-            <p>Drop any Thai audio file. The original file is sent directly to Deepgram — no re-encoding — then paragraphs are translated to English for free.</p>
+            <p>Drop any Thai audio file. Transcribed by Deepgram or Speechmatics — your choice — then translated to English for free. Results persist across page reloads.</p>
             <div class="pipeline-note">
-                <span>Deepgram</span> STT (original file · Thai · Nova-2) → <span>MyMemory</span> translate (free)
+                STT: <span>Deepgram</span> or <span>Speechmatics</span> → <span>MyMemory</span> translate (free)
             </div>
             <div class="drop-zone" id="dropZone">
                 <div class="drop-zone-label">📂 Drop audio file or click to browse</div>
@@ -191,19 +191,35 @@
         </div>
         <div class="modal-body">
             <div class="field">
-                <div class="field-label">Deepgram API Key</div>
-                <input type="password" class="field-input" id="apiKeyInput" placeholder="Your Deepgram key..." autocomplete="off">
-                <div class="field-hint"><a href="https://console.deepgram.com" target="_blank" style="color:var(--gold)">console.deepgram.com</a> · stored locally · $200 free credit on signup</div>
-            </div>
-            <div class="field">
-                <div class="field-label">Deepgram Model</div>
-                <select class="field-select" id="modelSelect">
-                    <option value="nova-2">Nova-2 (best, recommended)</option>
-                    <option value="nova">Nova (fast)</option>
-                    <option value="enhanced">Enhanced</option>
-                    <option value="base">Base (fastest)</option>
+                <div class="field-label">STT Engine</div>
+                <select class="field-select" id="sttEngineSelect" onchange="toggleSttFields()">
+                    <option value="deepgram">Deepgram (WebSocket streaming)</option>
+                    <option value="speechmatics">Speechmatics (batch REST · browser-native)</option>
                 </select>
-                <div class="field-hint">Nova-2 has the best Thai language support</div>
+            </div>
+            <div id="dgFields">
+                <div class="field">
+                    <div class="field-label">Deepgram API Key</div>
+                    <input type="password" class="field-input" id="apiKeyInput" placeholder="Your Deepgram key..." autocomplete="off">
+                    <div class="field-hint"><a href="https://console.deepgram.com" target="_blank" style="color:var(--gold)">console.deepgram.com</a> · stored locally · $200 free credit</div>
+                </div>
+                <div class="field">
+                    <div class="field-label">Deepgram Model</div>
+                    <select class="field-select" id="modelSelect">
+                        <option value="nova-2">Nova-2 (best, recommended)</option>
+                        <option value="nova">Nova (fast)</option>
+                        <option value="enhanced">Enhanced</option>
+                        <option value="base">Base (fastest)</option>
+                    </select>
+                    <div class="field-hint">Nova-2 has the best Thai language support</div>
+                </div>
+            </div>
+            <div id="smFields" style="display:none">
+                <div class="field">
+                    <div class="field-label">Speechmatics API Key</div>
+                    <input type="password" class="field-input" id="smKeyInput" placeholder="Your Speechmatics key..." autocomplete="off">
+                    <div class="field-hint"><a href="https://portal.speechmatics.com/api-keys" target="_blank" style="color:var(--gold)">portal.speechmatics.com</a> · REST API · browser-native CORS</div>
+                </div>
             </div>
             <div class="field">
                 <div class="field-label">Translation Engine <span class="free-badge">FREE · no key</span></div>
@@ -224,25 +240,96 @@
 <input type="file" id="fileInput" accept="audio/*,.m4a,.mp3,.wav,.ogg,.flac,.aac,.webm">
 
 <script>
-const CONFIG_KEY='thai-transcriber-v10-config';
-let config={apiKey:'',dgModel:'nova-2',xlateEngine:'mymemory'};
+const CONFIG_KEY='thai-transcriber-v11-config';
+const SESSION_KEY='xlate-session-v11';
+let config={apiKey:'',dgModel:'nova-2',smKey:'',sttEngine:'deepgram',xlateEngine:'mymemory'};
 let state={session:null,translating:false,abortController:null,audioUrl:null};
 
 function init(){
     loadConfig();setupEvents();updateApiStatus();
-    if(!config.apiKey)document.getElementById('settingsOverlay').classList.remove('hidden');
+    const hasKey=config.sttEngine==='speechmatics'?!!config.smKey:!!config.apiKey;
+    if(!hasKey)document.getElementById('settingsOverlay').classList.remove('hidden');
+    else checkSavedSession();
+}
+
+// ── Session persistence ──
+const SESSION_OMIT=['btThai','btEnglish','btStatus','btOpen']; // skip back-translate cache
+
+function saveSession(){
+    if(!state.session)return;
+    try{
+        const slim={
+            name:state.session.name,fileName:state.session.fileName,fileSize:state.session.fileSize,
+            savedAt:Date.now(),
+            paragraphs:state.session.paragraphs.map(p=>({
+                index:p.index,startTime:p.startTime,endTime:p.endTime,
+                thai:p.thai,english:p.english,confidence:p.confidence,
+                btThai:null,btEnglish:null,btStatus:'idle',btOpen:false
+            }))
+        };
+        localStorage.setItem(SESSION_KEY,JSON.stringify(slim));
+    }catch(e){console.warn('Session save failed',e);}
+}
+
+function clearSavedSession(){localStorage.removeItem(SESSION_KEY);}
+
+function checkSavedSession(){
+    try{
+        const saved=JSON.parse(localStorage.getItem(SESSION_KEY));
+        if(!saved||!saved.paragraphs?.length)return;
+        const done=saved.paragraphs.filter(p=>p.english).length;
+        const age=Math.round((Date.now()-saved.savedAt)/60000);
+        showRestoreBanner(saved,done,age);
+    }catch(e){}
+}
+
+function showRestoreBanner(saved,done,ageMin){
+    const main=document.getElementById('mainArea');
+    main.innerHTML=`
+        <div class="welcome">
+            <div class="welcome-icon">💾</div>
+            <h2>${esc(saved.name)}</h2>
+            <p style="color:var(--text-2)">${done}/${saved.paragraphs.length} paragraphs translated · saved ${ageMin}m ago</p>
+            <div style="display:flex;gap:.75rem;margin-top:1rem;flex-wrap:wrap;justify-content:center">
+                <button class="btn btn-gold" id="restoreBtn">Restore Session</button>
+                <button class="btn btn-outline" id="newFileFromBanner">New File</button>
+            </div>
+        </div>`;
+    document.getElementById('restoreBtn').onclick=()=>{
+        state.session={...saved};
+        renderSession();
+        // Resume translation if incomplete
+        const incomplete=saved.paragraphs.some(p=>!p.english);
+        if(incomplete)translateAll();
+        else toast('ok','Session restored');
+    };
+    document.getElementById('newFileFromBanner').onclick=()=>{
+        clearSavedSession();
+        showWelcome();
+    };
 }
 
 function loadConfig(){
     try{const s=JSON.parse(localStorage.getItem(CONFIG_KEY));if(s)config={...config,...s};}catch(e){}
     document.getElementById('apiKeyInput').value=config.apiKey;
     document.getElementById('modelSelect').value=config.dgModel;
+    document.getElementById('smKeyInput').value=config.smKey||'';
+    document.getElementById('sttEngineSelect').value=config.sttEngine||'deepgram';
     document.getElementById('xlateSelect').value=config.xlateEngine;
+    toggleSttFields();
+}
+
+function toggleSttFields(){
+    const v=document.getElementById('sttEngineSelect').value;
+    document.getElementById('dgFields').style.display=v==='deepgram'?'':'none';
+    document.getElementById('smFields').style.display=v==='speechmatics'?'':'none';
 }
 
 function saveConfig(){
     config.apiKey=document.getElementById('apiKeyInput').value.trim();
     config.dgModel=document.getElementById('modelSelect').value;
+    config.smKey=document.getElementById('smKeyInput').value.trim();
+    config.sttEngine=document.getElementById('sttEngineSelect').value;
     config.xlateEngine=document.getElementById('xlateSelect').value;
     localStorage.setItem(CONFIG_KEY,JSON.stringify(config));
     updateApiStatus();
@@ -250,9 +337,13 @@ function saveConfig(){
 
 function updateApiStatus(){
     const dot=document.getElementById('apiDot'),txt=document.getElementById('apiStatusText');
-    if(!config.apiKey){dot.className='api-dot';txt.textContent='No API key';}
+    const hasKey=config.sttEngine==='speechmatics'?!!config.smKey:!!config.apiKey;
+    if(!hasKey){dot.className='api-dot';txt.textContent='No API key';}
     else if(state.translating){dot.className='api-dot working';txt.textContent='Translating...';}
-    else{dot.className='api-dot ok';txt.textContent='dg:'+config.dgModel;}
+    else{
+        dot.className='api-dot ok';
+        txt.textContent=config.sttEngine==='speechmatics'?'speechmatics':'dg:'+config.dgModel;
+    }
 }
 
 function setupEvents(){
@@ -267,7 +358,10 @@ function setupEvents(){
     document.getElementById('settingsBtn').onclick=()=>{
         document.getElementById('apiKeyInput').value=config.apiKey;
         document.getElementById('modelSelect').value=config.dgModel;
+        document.getElementById('smKeyInput').value=config.smKey||'';
+        document.getElementById('sttEngineSelect').value=config.sttEngine||'deepgram';
         document.getElementById('xlateSelect').value=config.xlateEngine;
+        toggleSttFields();
         document.getElementById('settingsOverlay').classList.remove('hidden');
     };
     document.getElementById('settingsCancel').onclick=()=>document.getElementById('settingsOverlay').classList.add('hidden');
@@ -288,20 +382,25 @@ function getMimeType(file){
 }
 
 async function handleFile(file){
-    if(!config.apiKey){document.getElementById('settingsOverlay').classList.remove('hidden');toast('warn','Set your Deepgram API key first');return;}
+    const hasKey=config.sttEngine==='speechmatics'?!!config.smKey:!!config.apiKey;
+    if(!hasKey){document.getElementById('settingsOverlay').classList.remove('hidden');toast('warn','Set your API key first');return;}
     if(state.audioUrl)URL.revokeObjectURL(state.audioUrl);
     state.audioUrl=URL.createObjectURL(file);
+    clearSavedSession();
     showSttStatus(file);
     try{
-        const paragraphs=await transcribeFile(file);
+        const paragraphs=config.sttEngine==='speechmatics'
+            ?await transcribeWithSpeechmatics(file)
+            :await transcribeFile(file);
         if(!paragraphs||paragraphs.length===0){
-            toast('err','Deepgram returned no transcript. Verify the file contains speech and your API key is valid.');
+            toast('err','No transcript returned. Verify the file contains speech and your API key is valid.');
             showWelcome();return;
         }
         state.session={
-            name:file.name.replace(/\.[^.]+$/,''),fileName:file.name,fileSize:file.size,
+            name:file.name.replace(/\.[^.]+$/,''),fileName:file.name,fileSize:file.size,savedAt:Date.now(),
             paragraphs:paragraphs.map((p,i)=>({index:i,startTime:p.start,endTime:p.end,thai:p.transcript,english:null,confidence:p.confidence,btThai:null,btEnglish:null,btStatus:'idle',btOpen:false}))
         };
+        saveSession();
         toast('ok',`${paragraphs.length} paragraphs transcribed · translating now…`);
         renderSession();
         await translateAll();
@@ -311,7 +410,7 @@ async function handleFile(file){
 }
 
 function showWelcome(){
-    document.getElementById('mainArea').innerHTML=`<div class="welcome" id="welcomeView"><div class="welcome-icon">🎙️</div><h2>Thai Audio → English Text</h2><p>Drop any Thai audio file. The original file is sent directly to Deepgram — no re-encoding — then paragraphs are translated to English for free.</p><div class="pipeline-note"><span>Deepgram</span> STT (original file · Thai · Nova-2) → <span>MyMemory</span> translate (free)</div><div class="drop-zone" id="dropZone"><div class="drop-zone-label">📂 Drop audio file or click to browse</div><div class="drop-zone-sub">m4a · mp3 · wav · ogg · flac · aac · webm</div></div></div>`;
+    document.getElementById('mainArea').innerHTML=`<div class="welcome" id="welcomeView"><div class="welcome-icon">🎙️</div><h2>Thai Audio → English Text</h2><p>Drop any Thai audio file. Transcribed by Deepgram or Speechmatics — your choice — then translated to English for free. Results persist across page reloads.</p><div class="pipeline-note">STT: <span>Deepgram</span> or <span>Speechmatics</span> → <span>MyMemory</span> translate (free)</div><div class="drop-zone" id="dropZone"><div class="drop-zone-label">📂 Drop audio file or click to browse</div><div class="drop-zone-sub">m4a · mp3 · wav · ogg · flac · aac · webm</div></div></div>`;
     const drop=document.getElementById('dropZone'),fi=document.getElementById('fileInput');
     drop.onclick=()=>fi.click();
     drop.ondragover=e=>{e.preventDefault();drop.classList.add('dragover');};
@@ -430,6 +529,64 @@ function splitWordsByTime(words,windowSec){
     return segs;
 }
 
+// ── Speechmatics Batch API (browser-native CORS REST) ──
+async function transcribeWithSpeechmatics(file){
+    const BASE='https://asr.api.speechmatics.com/v2';
+    const headers={'Authorization':`Bearer ${config.smKey}`};
+
+    setSttUI('Uploading to Speechmatics…',fmtSize(file.size),5);
+
+    // 1. Submit job
+    const form=new FormData();
+    form.append('data_file',file);
+    form.append('config',JSON.stringify({
+        type:'transcription',
+        transcription_config:{language:'th',operating_point:'enhanced',punctuation_overrides:{permitted_marks:['.','?','!',',']}}
+    }));
+
+    const submitResp=await fetch(`${BASE}/jobs/`,{method:'POST',headers,body:form});
+    if(!submitResp.ok){
+        const err=await submitResp.json().catch(()=>({}));
+        throw new Error(`Speechmatics submit: ${err.detail||submitResp.status}`);
+    }
+    const{id:jobId}=await submitResp.json();
+    setSttUI('Speechmatics processing…',`Job ${jobId}`,30);
+
+    // 2. Poll for completion
+    let attempts=0;
+    while(attempts<120){ // max ~10 min
+        await sleep(5000);
+        attempts++;
+        const statusResp=await fetch(`${BASE}/jobs/${jobId}`,{headers});
+        if(!statusResp.ok)continue;
+        const job=await statusResp.json();
+        const status=job.job?.status;
+        const pct=30+Math.min(attempts/60*55,55);
+        setSttUI('Speechmatics processing…',`Status: ${status}`,pct);
+        if(status==='done')break;
+        if(status==='rejected'||status==='deleted')throw new Error(`Speechmatics job ${status}: ${job.job?.errors?.[0]?.message||''}`);
+    }
+
+    // 3. Fetch transcript
+    setSttUI('Fetching transcript…','',88);
+    const txResp=await fetch(`${BASE}/jobs/${jobId}/transcript?format=json-v2`,{headers});
+    if(!txResp.ok)throw new Error(`Speechmatics transcript fetch: ${txResp.status}`);
+    const tx=await txResp.json();
+
+    // 4. Group results into ~300s paragraphs
+    const words=(tx.results||[]).filter(r=>r.type==='word');
+    if(!words.length)return[];
+
+    setSttUI('Done!',`${words.length} words`,100);
+    return splitWordsByTime(words.map(w=>({
+        word:w.alternatives?.[0]?.content||'',
+        punctuated_word:w.alternatives?.[0]?.content||'',
+        start:w.start_time,end:w.end_time,
+        confidence:w.alternatives?.[0]?.confidence??null
+    })),300);
+}
+
+
 async function translateAll(){
     const paras=state.session?.paragraphs;if(!paras)return;
     state.translating=true;state.abortController=new AbortController();updateApiStatus();
@@ -440,10 +597,12 @@ async function translateAll(){
         try{p.english=await translateText(p.thai,'th','en');}
         catch(err){if(err.name==='AbortError')break;p.english='[Translation failed]';console.warn('Translate err',i,err);}
         updateParaUI(i);updateXlateBar(i+1,paras.length);
+        saveSession(); // persist after each paragraph
         if(state.abortController?.signal.aborted)break;
         if(i<paras.length-1)await sleep(300);
     }
     state.translating=false;updateApiStatus();hideXlateBar();
+    saveSession();
     const done=paras.filter(p=>p.english&&p.english!=='[Translation failed]').length;
     toast('ok',`Translation complete — ${done}/${paras.length} paragraphs`);
 }
