@@ -129,6 +129,21 @@
         .scroll::-webkit-scrollbar-track{background:transparent}
         .scroll::-webkit-scrollbar-thumb{background:var(--border-1);border-radius:3px}
         .scroll::-webkit-scrollbar-thumb:hover{background:var(--border-2)}
+
+        /* ── Saved transcript library ── */
+        .lib-list{display:flex;flex-direction:column;gap:.5rem;width:100%;max-width:520px;margin:0 auto}
+        .lib-row{display:flex;align-items:center;gap:.75rem;background:var(--bg-2);border:1px solid var(--border-1);border-radius:var(--radius);padding:.65rem .75rem;transition:border-color .15s}
+        .lib-row:hover{border-color:var(--border-2)}
+        .lib-info{flex:1;min-width:0;cursor:pointer}
+        .lib-info:hover .lib-name{color:var(--gold)}
+        .lib-name{font-size:.85rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-1);transition:color .15s}
+        .lib-meta{font-size:.6rem;color:var(--text-3);font-family:'DM Mono',monospace;margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .lib-bar{height:3px;background:var(--bg-3);border-radius:2px;margin-top:.4rem;overflow:hidden}
+        .lib-bar-fill{height:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));border-radius:2px;transition:width .3s}
+        .lib-actions{display:flex;gap:.35rem;flex-shrink:0}
+        .lib-btn{width:28px;height:28px;border:none;border-radius:5px;cursor:pointer;font-size:.8rem;font-weight:700;display:flex;align-items:center;justify-content:center;transition:all .15s}
+        .lib-dl{background:var(--bg-3);color:var(--text-2)}.lib-dl:hover{background:var(--gold);color:var(--bg-0)}
+        .lib-del{background:var(--bg-3);color:var(--text-3)}.lib-del:hover{background:var(--err);color:#fff}
         input[type="file"]{display:none}
         .stt-status{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;padding:2rem}
         .stt-spinner-ring{width:64px;height:64px;border:3px solid var(--border-1);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite}
@@ -241,7 +256,7 @@
 
 <script>
 const CONFIG_KEY='thai-transcriber-v11-config';
-const SESSION_KEY='xlate-session-v11';
+const LIB_KEY='xlate-library-v11'; // stores {[fileName]: sessionObj}
 let config={apiKey:'',dgModel:'nova-2',smKey:'',sttEngine:'deepgram',xlateEngine:'mymemory'};
 let state={session:null,translating:false,abortController:null,audioUrl:null};
 
@@ -252,13 +267,16 @@ function init(){
     else checkSavedSession();
 }
 
-// ── Session persistence ──
-const SESSION_OMIT=['btThai','btEnglish','btStatus','btOpen']; // skip back-translate cache
+// ── Session library (keyed by fileName) ──
+function loadLibrary(){
+    try{return JSON.parse(localStorage.getItem(LIB_KEY))||{};}catch(e){return{};}
+}
 
 function saveSession(){
     if(!state.session)return;
     try{
-        const slim={
+        const lib=loadLibrary();
+        lib[state.session.fileName]={
             name:state.session.name,fileName:state.session.fileName,fileSize:state.session.fileSize,
             savedAt:Date.now(),
             paragraphs:state.session.paragraphs.map(p=>({
@@ -267,46 +285,91 @@ function saveSession(){
                 btThai:null,btEnglish:null,btStatus:'idle',btOpen:false
             }))
         };
-        localStorage.setItem(SESSION_KEY,JSON.stringify(slim));
+        localStorage.setItem(LIB_KEY,JSON.stringify(lib));
     }catch(e){console.warn('Session save failed',e);}
 }
 
-function clearSavedSession(){localStorage.removeItem(SESSION_KEY);}
-
-function checkSavedSession(){
-    try{
-        const saved=JSON.parse(localStorage.getItem(SESSION_KEY));
-        if(!saved||!saved.paragraphs?.length)return;
-        const done=saved.paragraphs.filter(p=>p.english).length;
-        const age=Math.round((Date.now()-saved.savedAt)/60000);
-        showRestoreBanner(saved,done,age);
-    }catch(e){}
+function deleteFromLibrary(fileName){
+    const lib=loadLibrary();delete lib[fileName];
+    localStorage.setItem(LIB_KEY,JSON.stringify(lib));
 }
 
-function showRestoreBanner(saved,done,ageMin){
-    const main=document.getElementById('mainArea');
-    main.innerHTML=`
-        <div class="welcome">
-            <div class="welcome-icon">💾</div>
-            <h2>${esc(saved.name)}</h2>
-            <p style="color:var(--text-2)">${done}/${saved.paragraphs.length} paragraphs translated · saved ${ageMin}m ago</p>
-            <div style="display:flex;gap:.75rem;margin-top:1rem;flex-wrap:wrap;justify-content:center">
-                <button class="btn btn-gold" id="restoreBtn">Restore Session</button>
-                <button class="btn btn-outline" id="newFileFromBanner">New File</button>
+function checkSavedSession(){
+    const lib=loadLibrary();
+    const entries=Object.values(lib).sort((a,b)=>b.savedAt-a.savedAt);
+    if(entries.length)showLibrary(entries);
+}
+
+function buildMarkdown(s){
+    const paras=s.paragraphs.filter(p=>p.thai);
+    let md=`# ${s.name}\n\n**File:** ${s.fileName}\n**Saved:** ${new Date(s.savedAt).toLocaleString()}\n\n---\n\n## English Translation\n\n`;
+    for(const p of paras){if(p.english&&p.english!=='[Translation failed]')md+=p.english.trim()+'\n\n';}
+    md+=`---\n\n## Full Transcript (Thai + English)\n\n`;
+    for(const p of paras){
+        const id=String(p.index+1).padStart(3,'0');
+        const conf=p.confidence!=null?` · ${Math.round(p.confidence*100)}% conf`:'';
+        md+=`### [${id}] ${fmtTime(p.startTime)} → ${fmtTime(p.endTime)}${conf}\n\n`;
+        if(p.thai)md+=`🇹🇭 ${p.thai}\n\n`;
+        if(p.english)md+=`🇺🇸 ${p.english}\n\n`;
+    }
+    return md;
+}
+
+function downloadSession(fileName){
+    const lib=loadLibrary();const s=lib[fileName];if(!s)return;
+    const blob=new Blob([buildMarkdown(s)],{type:'text/markdown'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=s.name+'-transcript.md';a.click();
+    toast('ok','Downloaded');
+}
+
+function showLibrary(entries){
+    const rows=entries.map(s=>{
+        const done=s.paragraphs.filter(p=>p.english).length;
+        const total=s.paragraphs.length;
+        const pct=total?Math.round(done/total*100):0;
+        const age=Math.round((Date.now()-s.savedAt)/60000);
+        const ageStr=age<60?`${age}m ago`:age<1440?`${Math.round(age/60)}h ago`:`${Math.round(age/1440)}d ago`;
+        return `<div class="lib-row" data-file="${esc(s.fileName)}">
+            <div class="lib-info" onclick="restoreSession('${esc(s.fileName)}')">
+                <div class="lib-name">${esc(s.name)}</div>
+                <div class="lib-meta">${esc(s.fileName)} · ${done}/${total} translated · ${ageStr}</div>
+                <div class="lib-bar"><div class="lib-bar-fill" style="width:${pct}%"></div></div>
+            </div>
+            <div class="lib-actions">
+                <button class="lib-btn lib-dl" onclick="downloadSession('${esc(s.fileName)}')" title="Download">↓</button>
+                <button class="lib-btn lib-del" onclick="deleteLib('${esc(s.fileName)}')" title="Delete">✕</button>
             </div>
         </div>`;
-    document.getElementById('restoreBtn').onclick=()=>{
-        state.session={...saved};
-        renderSession();
-        // Resume translation if incomplete
-        const incomplete=saved.paragraphs.some(p=>!p.english);
-        if(incomplete)translateAll();
-        else toast('ok','Session restored');
-    };
-    document.getElementById('newFileFromBanner').onclick=()=>{
-        clearSavedSession();
-        showWelcome();
-    };
+    }).join('');
+
+    document.getElementById('mainArea').innerHTML=`
+        <div class="welcome" style="overflow-y:auto;align-items:stretch;padding:1.5rem">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-shrink:0">
+                <div style="font-size:.8rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3)">Saved Transcripts</div>
+                <button class="btn btn-gold btn-sm" id="newFileFromLib">+ New File</button>
+            </div>
+            <div class="lib-list">${rows}</div>
+        </div>`;
+    document.getElementById('newFileFromLib').onclick=()=>document.getElementById('fileInput').click();
+}
+
+function restoreSession(fileName){
+    const lib=loadLibrary();const saved=lib[fileName];if(!saved)return;
+    state.session={...saved};
+    renderSession();
+    const incomplete=saved.paragraphs.some(p=>!p.english);
+    if(incomplete)translateAll();
+    else toast('ok','Session restored');
+}
+
+function deleteLib(fileName){
+    deleteFromLibrary(fileName);
+    const lib=loadLibrary();
+    const entries=Object.values(lib).sort((a,b)=>b.savedAt-a.savedAt);
+    if(entries.length)showLibrary(entries);
+    else showWelcome();
+    toast('ok','Deleted');
 }
 
 function loadConfig(){
@@ -386,7 +449,6 @@ async function handleFile(file){
     if(!hasKey){document.getElementById('settingsOverlay').classList.remove('hidden');toast('warn','Set your API key first');return;}
     if(state.audioUrl)URL.revokeObjectURL(state.audioUrl);
     state.audioUrl=URL.createObjectURL(file);
-    clearSavedSession();
     showSttStatus(file);
     try{
         const paragraphs=config.sttEngine==='speechmatics'
@@ -742,20 +804,12 @@ function seekTo(time){const a=getAudio();a.currentTime=time;a.play().catch(e=>to
 function playAll(){const a=getAudio();a.currentTime=0;a.play().catch(e=>toast('err','Playback: '+e.message));}
 
 function exportResults(){
-    if(!state.session)return;const s=state.session;const paras=s.paragraphs.filter(p=>p.thai);
-    if(!paras.length){toast('warn','Nothing to export yet');return;}
-    let md=`# ${s.name}\n\n**File:** ${s.fileName}\n**Engine:** Deepgram ${config.dgModel} → ${config.xlateEngine}\n\n---\n\n## English Translation\n\n`;
-    for(const p of paras){if(p.english&&p.english!=='[Translation failed]')md+=p.english.trim()+'\n\n';}
-    md+=`---\n\n## Full Transcript (Thai + English)\n\n`;
-    for(const p of paras){
-        const id=String(p.index+1).padStart(3,'0');
-        const conf=p.confidence!=null?` · ${Math.round(p.confidence*100)}% conf`:'';
-        md+=`### [${id}] ${fmtTime(p.startTime)} → ${fmtTime(p.endTime)}${conf}\n\n`;
-        if(p.thai)md+=`🇹🇭 ${p.thai}\n\n`;if(p.english)md+=`🇺🇸 ${p.english}\n\n`;
-        if(p.btThai||p.btEnglish){md+=`**Back-translation:**\n`;if(p.btThai)md+=`↩ EN→TH: ${p.btThai}\n\n`;if(p.btEnglish)md+=`↩ TH→EN: ${p.btEnglish}\n\n`;}
-    }
-    const blob=new Blob([md],{type:'text/markdown'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=s.name+'-transcript.md';a.click();
-    toast('ok',`Exported ${paras.length} paragraphs`);
+    if(!state.session)return;
+    if(!state.session.paragraphs.filter(p=>p.thai).length){toast('warn','Nothing to export yet');return;}
+    const blob=new Blob([buildMarkdown(state.session)],{type:'text/markdown'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=state.session.name+'-transcript.md';a.click();
+    toast('ok','Downloaded');
 }
 
 function fmtTime(s){const m=Math.floor(s/60),sec=Math.floor(s%60);return m+':'+sec.toString().padStart(2,'0');}
