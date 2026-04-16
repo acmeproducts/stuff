@@ -167,7 +167,7 @@
     <header class="header">
         <div style="display:flex;align-items:baseline;">
             <span class="logo">Thai Transcriber</span>
-            <span class="logo-sub">v11 · STT</span>
+            <span class="logo-sub">v12 · Speechmatics</span>
         </div>
         <div class="header-right">
             <div class="api-status">
@@ -181,9 +181,9 @@
         <div class="welcome" id="welcomeView">
             <div class="welcome-icon">🎙️</div>
             <h2>Thai Audio → English Text</h2>
-            <p>Drop any Thai audio file. Transcribed by Deepgram or Speechmatics — your choice — then translated to English for free. Results persist across page reloads.</p>
+            <p>Drop any Thai audio file. Speechmatics transcribes it server-side, then MyMemory translates to English. Results persist across reloads.</p>
             <div class="pipeline-note">
-                STT: <span>Deepgram</span> or <span>Speechmatics</span> → <span>MyMemory</span> translate (free)
+                <span>Speechmatics</span> STT → <span>MyMemory</span> translate (free)
             </div>
             <div class="drop-zone" id="dropZone">
                 <div class="drop-zone-label">📂 Drop audio file or click to browse</div>
@@ -208,15 +208,15 @@
             <div class="field">
                 <div class="field-label">STT Engine</div>
                 <select class="field-select" id="sttEngineSelect" onchange="toggleSttFields()">
-                    <option value="deepgram">Deepgram (WebSocket streaming)</option>
-                    <option value="speechmatics">Speechmatics (batch REST · browser-native)</option>
+                    <option value="speechmatics">Speechmatics (batch REST · recommended)</option>
+                    <option value="deepgram">Deepgram (live mic only · not for files)</option>
                 </select>
             </div>
             <div id="dgFields">
                 <div class="field">
                     <div class="field-label">Deepgram API Key</div>
                     <input type="password" class="field-input" id="apiKeyInput" placeholder="Your Deepgram key..." autocomplete="off">
-                    <div class="field-hint"><a href="https://console.deepgram.com" target="_blank" style="color:var(--gold)">console.deepgram.com</a> · stored locally · $200 free credit</div>
+                    <div class="field-hint"><a href="https://console.deepgram.com" target="_blank" style="color:var(--gold)">console.deepgram.com</a> · live mic streaming only · pre-recorded files not supported from browser</div>
                 </div>
                 <div class="field">
                     <div class="field-label">Deepgram Model</div>
@@ -257,13 +257,13 @@
 <script>
 const CONFIG_KEY='thai-transcriber-v11-config';
 const LIB_KEY='xlate-library-v11'; // stores {[fileName]: sessionObj}
-let config={apiKey:'',dgModel:'nova-2',smKey:'',sttEngine:'deepgram',xlateEngine:'mymemory'};
+let config={apiKey:'',dgModel:'nova-2',smKey:'',sttEngine:'speechmatics',xlateEngine:'mymemory'};
 let state={session:null,translating:false,abortController:null,audioUrl:null};
 
 function init(){
     loadConfig();setupEvents();updateApiStatus();
     const hasKey=config.sttEngine==='speechmatics'?!!config.smKey:!!config.apiKey;
-    if(!hasKey)document.getElementById('settingsOverlay').classList.remove('hidden');
+    if(!hasKey){document.getElementById('settingsOverlay').classList.remove('hidden');}
     else checkSavedSession();
 }
 
@@ -401,12 +401,9 @@ function saveConfig(){
 function updateApiStatus(){
     const dot=document.getElementById('apiDot'),txt=document.getElementById('apiStatusText');
     const hasKey=config.sttEngine==='speechmatics'?!!config.smKey:!!config.apiKey;
-    if(!hasKey){dot.className='api-dot';txt.textContent='No API key';}
+    if(!hasKey){dot.className='api-dot';txt.textContent='No key';}
     else if(state.translating){dot.className='api-dot working';txt.textContent='Translating...';}
-    else{
-        dot.className='api-dot ok';
-        txt.textContent=config.sttEngine==='speechmatics'?'speechmatics':'dg:'+config.dgModel;
-    }
+    else{dot.className='api-dot ok';txt.textContent=config.sttEngine==='speechmatics'?'speechmatics':'deepgram';}
 }
 
 function setupEvents(){
@@ -451,9 +448,11 @@ async function handleFile(file){
     state.audioUrl=URL.createObjectURL(file);
     showSttStatus(file);
     try{
-        const paragraphs=config.sttEngine==='speechmatics'
-            ?await transcribeWithSpeechmatics(file)
-            :await transcribeFile(file);
+        if(config.sttEngine==='deepgram'){
+            toast('err','Deepgram cannot transcribe pre-recorded files from a browser. Switch to Speechmatics in Settings.');
+            showWelcome();return;
+        }
+        const paragraphs=await transcribeWithSpeechmatics(file);
         if(!paragraphs||paragraphs.length===0){
             toast('err','No transcript returned. Verify the file contains speech and your API key is valid.');
             showWelcome();return;
@@ -472,7 +471,7 @@ async function handleFile(file){
 }
 
 function showWelcome(){
-    document.getElementById('mainArea').innerHTML=`<div class="welcome" id="welcomeView"><div class="welcome-icon">🎙️</div><h2>Thai Audio → English Text</h2><p>Drop any Thai audio file. Transcribed by Deepgram or Speechmatics — your choice — then translated to English for free. Results persist across page reloads.</p><div class="pipeline-note">STT: <span>Deepgram</span> or <span>Speechmatics</span> → <span>MyMemory</span> translate (free)</div><div class="drop-zone" id="dropZone"><div class="drop-zone-label">📂 Drop audio file or click to browse</div><div class="drop-zone-sub">m4a · mp3 · wav · ogg · flac · aac · webm</div></div></div>`;
+    document.getElementById('mainArea').innerHTML=`<div class="welcome" id="welcomeView"><div class="welcome-icon">🎙️</div><h2>Thai Audio → English Text</h2><p>Drop any Thai audio file. Speechmatics transcribes it server-side, then MyMemory translates to English. Results persist across reloads.</p><div class="pipeline-note"><span>Speechmatics</span> STT → <span>MyMemory</span> translate (free)</div><div class="drop-zone" id="dropZone"><div class="drop-zone-label">📂 Drop audio file or click to browse</div><div class="drop-zone-sub">m4a · mp3 · wav · ogg · flac · aac · webm</div></div></div>`;
     const drop=document.getElementById('dropZone'),fi=document.getElementById('fileInput');
     drop.onclick=()=>fi.click();
     drop.ondragover=e=>{e.preventDefault();drop.classList.add('dragover');};
@@ -481,7 +480,7 @@ function showWelcome(){
 }
 
 function showSttStatus(file){
-    document.getElementById('mainArea').innerHTML=`<div class="stt-status" id="sttStatus"><div class="stt-spinner-ring"></div><div class="stt-status-title" id="sttTitle">Uploading to Deepgram…</div><div class="stt-status-sub" id="sttSub">Sending ${fmtSize(file.size)} · ${esc(file.name)}</div><div class="stt-upload-track"><div class="stt-upload-fill" id="sttFill"></div></div><div class="stt-upload-label" id="sttPct">0%</div></div>`;
+    document.getElementById('mainArea').innerHTML=`<div class="stt-status" id="sttStatus"><div class="stt-spinner-ring"></div><div class="stt-status-title" id="sttTitle">Uploading…</div><div class="stt-status-sub" id="sttSub">Sending ${fmtSize(file.size)} · ${esc(file.name)}</div><div class="stt-upload-track"><div class="stt-upload-fill" id="sttFill"></div></div><div class="stt-upload-label" id="sttPct">0%</div></div>`;
 }
 
 function setSttUI(title,sub,pct){
