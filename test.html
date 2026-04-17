@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- Talk + Say v3.7 · April 16, 2026 17:00 Los Angeles · lang roles clobber fix, speaker icon, auto-read helper removed, WASM seam -->
+<!-- Talk + Say v3.8 · April 16, 2026 22:30 Los Angeles · single source of truth: flat fields only for lang state -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Talk + Say · v3.7</title>
+<title>Talk + Say · v3.8</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Lora:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -1016,11 +1016,12 @@ function normalizeSession(sess){
   var lastActivity=Number(raw.lastActivity)||createdAt;
   var myHandle=firstRealName(raw.myHandle,raw.myName,p.globalName,p.userName)||p.userName||'yournamehere';
   var partnerHandle=firstRealName(raw.partnerHandle,raw.peerName)||'';
-  var legacyOwnerIdentity=String(raw.ownerIdentityId||raw.myIdentityId||PART_ID||'');
-  var legacyPartnerIdentity=String(raw.partnerIdentityId||'');
+  // Identity: read from flat fields first, fall back to roles sub-object for legacy sessions
   var rolesRaw=(raw.roles&&typeof raw.roles==='object')?raw.roles:{};
   var ownerRaw=(rolesRaw.owner&&typeof rolesRaw.owner==='object')?rolesRaw.owner:{};
   var partnerRaw=(rolesRaw.partner&&typeof rolesRaw.partner==='object')?rolesRaw.partner:{};
+  var legacyOwnerIdentity=String(raw.ownerIdentityId||raw.myIdentityId||ownerRaw.identityId||PART_ID||'');
+  var legacyPartnerIdentity=String(raw.partnerIdentityId||partnerRaw.identityId||'');
   var out={
     convId:raw.convId||uid(),
     myHandle:myHandle,
@@ -1029,24 +1030,26 @@ function normalizeSession(sess){
     peerName:partnerHandle,
     createdAt:createdAt,
     lastActivity:lastActivity,
-    ownerIdentityId:String(ownerRaw.identityId||legacyOwnerIdentity||''),
-    partnerIdentityId:String(partnerRaw.identityId||legacyPartnerIdentity||''),
+    ownerIdentityId:String(legacyOwnerIdentity||''),
+    partnerIdentityId:String(legacyPartnerIdentity||''),
     localRole:(raw.localRole==='partner')?'partner':'owner',
-    ownerLangMode:(ownerRaw.langMode==='fixed'||ownerRaw.langMode==='auto')?ownerRaw.langMode:((raw.ownerLangMode==='fixed'||raw.ownerLangMode==='auto')?raw.ownerLangMode:((normalizeLangSetting(p.myLang)||'')?'fixed':'auto')),
-    ownerFixedLang:normalizeLangSetting(ownerRaw.fixedLang!==undefined?ownerRaw.fixedLang:(raw.ownerFixedLang!==undefined?raw.ownerFixedLang:p.myLang))||'',
-    ownerLastSentLang:normalizeLangSetting(ownerRaw.lastSentLang!==undefined?ownerRaw.lastSentLang:raw.ownerLastSentLang)||'',
-    ownerEffectiveReplyLang:normalizeLangSetting(ownerRaw.effectiveReplyLang!==undefined?ownerRaw.effectiveReplyLang:raw.ownerEffectiveReplyLang)||'',
-    partnerLangMode:(partnerRaw.langMode==='fixed'||partnerRaw.langMode==='auto')?partnerRaw.langMode:((raw.partnerLangMode==='fixed'||raw.partnerLangMode==='auto')?raw.partnerLangMode:'auto'),
-    partnerFixedLang:normalizeLangSetting(partnerRaw.fixedLang!==undefined?partnerRaw.fixedLang:raw.partnerFixedLang)||'',
-    partnerLastSentLang:normalizeLangSetting(partnerRaw.lastSentLang!==undefined?partnerRaw.lastSentLang:raw.partnerLastSentLang)||'',
-    partnerEffectiveReplyLang:normalizeLangSetting(partnerRaw.effectiveReplyLang!==undefined?partnerRaw.effectiveReplyLang:raw.partnerEffectiveReplyLang)||'',
+    // ── Lang: FLAT FIELDS ONLY — roles sub-object is not consulted for lang state ──
+    ownerLangMode:(raw.ownerLangMode==='fixed'||raw.ownerLangMode==='auto')?raw.ownerLangMode:((normalizeLangSetting(p.myLang)||'')?'fixed':'auto'),
+    ownerFixedLang:normalizeLangSetting(raw.ownerFixedLang!==undefined?raw.ownerFixedLang:p.myLang)||'',
+    ownerLastSentLang:normalizeLangSetting(raw.ownerLastSentLang)||'',
+    ownerEffectiveReplyLang:normalizeLangSetting(raw.ownerEffectiveReplyLang)||'',
+    partnerLangMode:(raw.partnerLangMode==='fixed'||raw.partnerLangMode==='auto')?raw.partnerLangMode:'auto',
+    partnerFixedLang:normalizeLangSetting(raw.partnerFixedLang)||'',
+    partnerLastSentLang:normalizeLangSetting(raw.partnerLastSentLang)||'',
+    partnerEffectiveReplyLang:normalizeLangSetting(raw.partnerEffectiveReplyLang)||'',
     autoSpeakIncoming:hasOwn(raw,'autoSpeakIncoming')?!!raw.autoSpeakIncoming:null,
     partnerJoinedAt:Number(raw.partnerJoinedAt)||0,
     peerLastSeenAt:Number(raw.peerLastSeenAt)||0
   };
+  // roles object carries identity only — lang fields are NOT written here to avoid split-brain
   out.roles={
-    owner:{identityId:out.ownerIdentityId,langMode:out.ownerLangMode,fixedLang:out.ownerFixedLang,lastSentLang:out.ownerLastSentLang,effectiveReplyLang:out.ownerEffectiveReplyLang},
-    partner:{identityId:out.partnerIdentityId,langMode:out.partnerLangMode,fixedLang:out.partnerFixedLang,lastSentLang:out.partnerLastSentLang,effectiveReplyLang:out.partnerEffectiveReplyLang}
+    owner:{identityId:out.ownerIdentityId},
+    partner:{identityId:out.partnerIdentityId}
   };
   if(Number(raw.lastViewedAt))out.lastViewedAt=Number(raw.lastViewedAt);
   if(raw.inviterDeviceId)out.inviterDeviceId=raw.inviterDeviceId;
@@ -1331,33 +1334,24 @@ function normalizeAutoReplyTargetLang(v){
 }
 function getEffectiveReplyLang(sess,side,fallbackLang){
   var s=sess?normalizeSession(sess):normalizeSession({});
-  var role=side==='partner'?'partner':'owner';
-  var roleNode=(s.roles&&s.roles[role])||{};
-  var key=role==='partner'?'partnerEffectiveReplyLang':'ownerEffectiveReplyLang';
-  var saved=normalizeLangSetting(roleNode.effectiveReplyLang!==undefined?roleNode.effectiveReplyLang:s[key])||'';
+  var key=side==='partner'?'partnerEffectiveReplyLang':'ownerEffectiveReplyLang';
+  var saved=normalizeLangSetting(s[key])||'';
   if(saved)return saved;
   return resolveEffectiveLang(s,side,fallbackLang);
 }
 function setEffectiveReplyLang(sess,side,lang){
   if(!sess)return;
-  var role=side==='partner'?'partner':'owner';
-  var key=role==='partner'?'partnerEffectiveReplyLang':'ownerEffectiveReplyLang';
-  var value=normalizeLangSetting(lang)||'';
-  sess[key]=value;
-  if(!sess.roles||typeof sess.roles!=='object')sess.roles={owner:{},partner:{}};
-  if(!sess.roles[role]||typeof sess.roles[role]!=='object')sess.roles[role]={};
-  sess.roles[role].effectiveReplyLang=value;
+  var key=side==='partner'?'partnerEffectiveReplyLang':'ownerEffectiveReplyLang';
+  sess[key]=normalizeLangSetting(lang)||'';
 }
 function resolveEffectiveLang(sess,side,fallbackLang){
   var s=sess?normalizeSession(sess):normalizeSession({});
-  var role=side==='partner'?'partner':'owner';
-  var roleNode=(s.roles&&s.roles[role])||{};
-  var modeKey=role==='partner'?'partnerLangMode':'ownerLangMode';
-  var fixedKey=role==='partner'?'partnerFixedLang':'ownerFixedLang';
-  var lastKey=role==='partner'?'partnerLastSentLang':'ownerLastSentLang';
-  var mode=(roleNode.langMode||s[modeKey])==='fixed'?'fixed':'auto';
-  var fixed=normalizeLangSetting(roleNode.fixedLang!==undefined?roleNode.fixedLang:s[fixedKey])||'';
-  var last=normalizeLangSetting(roleNode.lastSentLang!==undefined?roleNode.lastSentLang:s[lastKey])||'';
+  var modeKey=side==='partner'?'partnerLangMode':'ownerLangMode';
+  var fixedKey=side==='partner'?'partnerFixedLang':'ownerFixedLang';
+  var lastKey=side==='partner'?'partnerLastSentLang':'ownerLastSentLang';
+  var mode=s[modeKey]==='fixed'?'fixed':'auto';
+  var fixed=normalizeLangSetting(s[fixedKey])||'';
+  var last=normalizeLangSetting(s[lastKey])||'';
   if(mode==='fixed'&&fixed)return fixed;
   return last||normalizeLangSetting(fallbackLang)||detectBrowserLang()||'en';
 }
@@ -2208,21 +2202,15 @@ function setMyLang(code){
   var activeSess=state.activeConvId?getSession(state.activeConvId):null;
   if(activeSess){
     var role=activeSess.localRole==='partner'?'partner':'owner';
-    if(!activeSess.roles||typeof activeSess.roles!=='object')activeSess.roles={owner:{},partner:{}};
-    if(!activeSess.roles[role]||typeof activeSess.roles[role]!=='object')activeSess.roles[role]={};
     var mode=code?'fixed':'auto';
     var fixed=code||'';
     if(role==='partner'){
       activeSess.partnerLangMode=mode;
       activeSess.partnerFixedLang=fixed;
-      activeSess.roles.partner.langMode=mode;
-      activeSess.roles.partner.fixedLang=fixed;
       if(code)setEffectiveReplyLang(activeSess,'partner',code);
     }else{
       activeSess.ownerLangMode=mode;
       activeSess.ownerFixedLang=fixed;
-      activeSess.roles.owner.langMode=mode;
-      activeSess.roles.owner.fixedLang=fixed;
       if(code)setEffectiveReplyLang(activeSess,'owner',code);
     }
     putSession(activeSess);
@@ -3064,20 +3052,22 @@ function upsertPartnerFromEnvelope(sess,d,opts){
 
 function applyPeerRoutingHints(sess,d){
   if(!sess||!d)return false;
-  if(!sess.roles||typeof sess.roles!=='object')sess.roles={owner:{},partner:{}};
-  if(!sess.roles.partner||typeof sess.roles.partner!=='object')sess.roles.partner={};
   var changed=false;
   if(d.lang){var l=normalizeLangSetting(d.lang)||'';if(l&&sess.partnerLastSentLang!==l){sess.partnerLastSentLang=l;changed=true;}}
   if(d.partnerLangMode==='fixed'||d.partnerLangMode==='auto'){
     if(sess.partnerLangMode!==d.partnerLangMode){sess.partnerLangMode=d.partnerLangMode;changed=true;}
-    sess.roles.partner.langMode=d.partnerLangMode;
   }
   if(d.partnerFixedLang!==undefined){
     var pf=normalizeLangSetting(d.partnerFixedLang)||'';
     if(sess.partnerFixedLang!==pf){sess.partnerFixedLang=pf;changed=true;}
-    sess.roles.partner.fixedLang=pf;
   }
-  if(d.effectiveTargetLang){var et=normalizeLangSetting(d.effectiveTargetLang)||'';if(et&&sess.partnerEffectiveReplyLang!==et){sess.partnerEffectiveReplyLang=et;changed=true;}}
+  if(d.effectiveTargetLang){
+    // Only update partner effective lang from wire when partner is not in fixed mode locally.
+    if(sess.partnerLangMode!=='fixed'||!sess.partnerFixedLang){
+      var et=normalizeLangSetting(d.effectiveTargetLang)||'';
+      if(et&&sess.partnerEffectiveReplyLang!==et){sess.partnerEffectiveReplyLang=et;changed=true;}
+    }
+  }
   if(d.partnerEffectiveReplyLang!==undefined){var pe=normalizeLangSetting(d.partnerEffectiveReplyLang)||'';if(sess.partnerEffectiveReplyLang!==pe){sess.partnerEffectiveReplyLang=pe;changed=true;}}
   return changed;
 }
@@ -3209,8 +3199,16 @@ function handleRelayEvent(d){
     markPeerSeen(sess.convId,d.timestamp||d.ts||Date.now(),{fromBackfill:!!d._fromBackfill,suppressJoinNote:true});
     var m2=findMsg(d.id);
     if(m2){
-      normalizeMsgSchema(m2,{sourceLang:m2.sourceLang||'en',targetLang:d.targetLang||(m2.from==='me'?resolveEffectiveLang(sess,'partner'):resolveEffectiveLang(sess,'owner'))});
-      applyMsgTarget(m2,d.targetLang||m2.targetLang,d.targetText||d.text||'');
+      // Always merge into translations map — useful for multi-lang display
+      if(d.targetLang&&(d.targetText||d.text))setMsgTranslation(m2,d.targetLang,d.targetText||d.text||'');
+      // For sender's own messages: only overwrite primary targetLang if it matches what was originally stored.
+      // The partner sends back their self-translation which may be a different target lang — don't clobber.
+      // For received messages (from='them'): apply normally.
+      var applyPrimary=m2.from!=='me'||(d.targetLang&&d.targetLang===m2.targetLang);
+      if(applyPrimary){
+        normalizeMsgSchema(m2,{sourceLang:m2.sourceLang||'en',targetLang:d.targetLang||(m2.from==='me'?resolveEffectiveLang(sess,'partner'):resolveEffectiveLang(sess,'owner'))});
+        applyMsgTarget(m2,d.targetLang||m2.targetLang,d.targetText||d.text||'');
+      }
       markMessageDeliveryState(state.activeConvId,m2.id,'translated',Date.now());
       updateTransDOM(m2);saveMsgs(state.activeConvId,state.messages);
     }
@@ -3985,8 +3983,9 @@ async function sendMessage(){
     updateTransDOM(msg);
     saveMsgs(sess.convId,state.messages);
   }else{
-    translate(outboundText,outLang,msg.targetLang).then(function(tr){
-      applyMsgTarget(msg,msg.targetLang,tr||outboundText);
+    var _capturedTargetLang=msg.targetLang;
+    translate(outboundText,outLang,_capturedTargetLang).then(function(tr){
+      applyMsgTarget(msg,_capturedTargetLang,tr||outboundText);
       updateTransDOM(msg);
       saveMsgs(sess.convId,state.messages);
     });
@@ -4363,7 +4362,7 @@ function resetSourceBubbleDefaults(){var p=getPrefs();p.sourceTheme=BUBBLE_DEFAU
 function resetTargetBubbleDefaults(){var p=getPrefs();p.targetTheme=BUBBLE_DEFAULTS.targetTheme;p.targetBubbleFontSize=BUBBLE_DEFAULTS.targetBubbleFontSize;p.targetAccentColor=BUBBLE_DEFAULTS.targetAccentColor;savePrefs(p);openSettings();applyBubbleTheme();toast('Target bubble reset');}
 function applyPhrasebookAccent(v){var p=getPrefs();p.phrasebookAccentColor=v;savePrefs(p);}
 
-function openInfoModal(kind){var title=document.getElementById('info-title');var body=document.getElementById('info-body');if(kind==='privacy'){title.textContent='Privacy';body.innerHTML='<strong>Local-first storage.</strong><br>All session and phrasebook data stays in localStorage unless you export it yourself.';}else{title.textContent='About';body.innerHTML='<strong>Talk + Say · v3.7</strong><br>Shell-first bilingual chat &amp; phrasebook with unified bubble renderer, back-translation, and clarify workflows.';}document.getElementById('info-overlay').hidden=false;}
+function openInfoModal(kind){var title=document.getElementById('info-title');var body=document.getElementById('info-body');if(kind==='privacy'){title.textContent='Privacy';body.innerHTML='<strong>Local-first storage.</strong><br>All session and phrasebook data stays in localStorage unless you export it yourself.';}else{title.textContent='About';body.innerHTML='<strong>Talk + Say · v3.8</strong><br>Shell-first bilingual chat &amp; phrasebook with unified bubble renderer, back-translation, and clarify workflows.';}document.getElementById('info-overlay').hidden=false;}
 function openPrintPhrasebookModal(){document.getElementById('print-overlay').hidden=false;}
 function printPhrasebookSelection(){document.getElementById('print-overlay').hidden=true;renderCatalogCards();setTimeout(function(){window.print();},60);}
 
@@ -4923,5 +4922,5 @@ document.addEventListener('DOMContentLoaded',function(){
   if(canSpeak&&_isIos){document.addEventListener('touchstart',warmTTS,{once:true,passive:true});}
 });
 </script>
-<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">Talk + Say v3.7 · Build Apr 16, 2026 17:00 Los Angeles</div></body>
+<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">Talk + Say v3.8 · Build Apr 16, 2026 22:30 Los Angeles</div></body>
 </html>
