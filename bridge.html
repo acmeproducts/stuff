@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · 2026-04-12 · deepgram STT, subprotocol auth, TTS data attrs -->
+<!-- talkbridge · 2026-04-18 · fix: setupPC deferred until peer hello received -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -455,7 +455,13 @@ function connectRelay(){
   if(ws)try{ws.close()}catch(_){}
   ws=new WebSocket(RELAY_WS+'?app='+encodeURIComponent(RELAY_APP)+'&session='+encodeURIComponent(room.id)+'&client='+encodeURIComponent(deviceId));
   var _ws=ws;
-  ws.onopen=function(){log('relay_open',{},'ok');relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});startHB();if(!room.solo&&!pc)setupPC();};
+  ws.onopen=function(){
+    log('relay_open',{},'ok');
+    relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
+    startHB();
+    // FIX: joiner initiates PC immediately on relay open (creator waits for peer hello)
+    if(room.role==='joiner'&&!pc)setupPC();
+  };
   ws.onmessage=function(e){try{handleRelay(JSON.parse(e.data))}catch(_){}};
   ws.onclose=function(ev){if(ws!==_ws)return;log('relay_close',{code:ev.code},'warn');stopHB();clearTimeout(wsReconnectTimer);if(room.id&&(lobbyState===LS.waiting||lobbyState===LS.call))wsReconnectTimer=setTimeout(function(){wsReconnectTimer=null;if(room.id)connectRelay()},2000)};
   ws.onerror=function(){log('relay_err',{},'error')};
@@ -466,7 +472,12 @@ function stopHB(){if(hbTimer){clearInterval(hbTimer);hbTimer=null}}
 
 function handleRelay(d){
   if(!d||d.from===deviceId)return;
-  if(d.type==='hello'){if(lobbyState===LS.waiting){room.solo=false;enterCall()}return}
+  if(d.type==='hello'){
+    if(lobbyState===LS.waiting){room.solo=false;enterCall();return}
+    // FIX: creator starts WebRTC only after receiving peer's hello — guarantees both parties present
+    if(lobbyState===LS.call&&room.role==='creator'&&!pc)setupPC();
+    return;
+  }
   if(d.type==='ping'){relaySend({type:'pong',transient:true});return}
   if(d.type==='pong')return;
   if(d.type==='webrtc-signal'){handleSig(d);return}
@@ -494,7 +505,6 @@ async function enterCall(){
   $('solo-banner').style.display=room.solo?'':'none';
   renderTr();
   if(!ws||ws.readyState!==1)connectRelay();
-  else if(!room.solo&&!pc)setupPC(); // relay already open
   startDeepgram();
   relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
 }
@@ -579,11 +589,7 @@ async function handleSig(d){
   }catch(_){isSettingRemoteAnswerPending=false}
 }
 
-/* === DEEPGRAM STT ===
-   AudioContext pipes PCM from videoStream to Deepgram WebSocket.
-   No SpeechRecognition = no mic contention, no OS chime.
-   CC always runs; mute only gates the WebRTC audio track.
-*/
+/* === DEEPGRAM STT === */
 function isCallActive(){return !!(room.id&&$('call-screen').classList.contains('active'))}
 
 function isDupe(text){
@@ -687,7 +693,6 @@ function trHtml(e){
   var locale=TTS_LOCALE[room.myLang]||'en-US';
   var ts=new Date(e.ts).toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   var speaker=e.who==='me'?'You':'Partner';
-  // Each person sees their own language on the left, partner language on right
   var leftText,leftLang,rightText,rightLang;
   if(e.who==='me'){
     leftText=e.sourceText||'';leftLang=e.srcLang||room.myLang;
