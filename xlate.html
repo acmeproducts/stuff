@@ -170,6 +170,7 @@
             <span class="logo-sub">v12 · Speechmatics</span>
         </div>
         <div class="header-right">
+            <button class="btn btn-ghost" id="libraryBtn" title="Saved transcripts">🗂️</button>
             <div class="api-status">
                 <div class="api-dot" id="apiDot"></div>
                 <span id="apiStatusText">No API key</span>
@@ -325,20 +326,21 @@ function downloadSession(fileName){
 
 function showLibrary(entries){
     const rows=entries.map(s=>{
+        const fileKey=encodeURIComponent(s.fileName);
         const done=s.paragraphs.filter(p=>p.english).length;
         const total=s.paragraphs.length;
         const pct=total?Math.round(done/total*100):0;
         const age=Math.round((Date.now()-s.savedAt)/60000);
         const ageStr=age<60?`${age}m ago`:age<1440?`${Math.round(age/60)}h ago`:`${Math.round(age/1440)}d ago`;
         return `<div class="lib-row" data-file="${esc(s.fileName)}">
-            <div class="lib-info" onclick="restoreSession('${esc(s.fileName)}')">
+            <div class="lib-info" onclick="restoreSession(decodeURIComponent('${fileKey}'))">
                 <div class="lib-name">${esc(s.name)}</div>
                 <div class="lib-meta">${esc(s.fileName)} · ${done}/${total} translated · ${ageStr}</div>
                 <div class="lib-bar"><div class="lib-bar-fill" style="width:${pct}%"></div></div>
             </div>
             <div class="lib-actions">
-                <button class="lib-btn lib-dl" onclick="downloadSession('${esc(s.fileName)}')" title="Download">↓</button>
-                <button class="lib-btn lib-del" onclick="deleteLib('${esc(s.fileName)}')" title="Delete">✕</button>
+                <button class="lib-btn lib-dl" onclick="downloadSession(decodeURIComponent('${fileKey}'))" title="Download">↓</button>
+                <button class="lib-btn lib-del" onclick="deleteLib(decodeURIComponent('${fileKey}'))" title="Delete">✕</button>
             </div>
         </div>`;
     }).join('');
@@ -415,6 +417,12 @@ function setupEvents(){
     document.body.ondragover=e=>e.preventDefault();
     document.body.ondrop=e=>{e.preventDefault();const f=e.dataTransfer?.files[0];if(f&&isAudio(f))handleFile(f);};
     fi.onchange=e=>{if(e.target.files[0])handleFile(e.target.files[0]);e.target.value='';};
+    document.getElementById('libraryBtn').onclick=()=>{
+        const lib=loadLibrary();
+        const entries=Object.values(lib).sort((a,b)=>b.savedAt-a.savedAt);
+        if(entries.length)showLibrary(entries);
+        else toast('warn','No saved transcripts yet');
+    };
     document.getElementById('settingsBtn').onclick=()=>{
         document.getElementById('apiKeyInput').value=config.apiKey;
         document.getElementById('modelSelect').value=config.dgModel;
@@ -749,6 +757,7 @@ function renderSession(){
             <div class="session-actions">
                 <button class="btn btn-outline btn-sm" id="newFileBtn">📂 New File</button>
                 <button class="btn btn-outline btn-sm" id="exportBtn">📤 Export</button>
+                <button class="btn btn-outline btn-sm" id="deleteSessionBtn">🗑️ Delete</button>
                 <button class="btn btn-outline btn-sm" id="playAllBtn">▶ Play Audio</button>
             </div>
         </div>
@@ -763,6 +772,14 @@ function renderSession(){
     for(let i=0;i<s.paragraphs.length;i++)scroll.appendChild(createParaEl(i));
     document.getElementById('newFileBtn').onclick=()=>document.getElementById('fileInput').click();
     document.getElementById('exportBtn').onclick=exportResults;
+    document.getElementById('deleteSessionBtn').onclick=()=>{
+        const fileName=state.session?.fileName;
+        if(!fileName)return;
+        deleteFromLibrary(fileName);
+        state.session=null;
+        showWelcome();
+        toast('ok','Session deleted');
+    };
     document.getElementById('playAllBtn').onclick=playAll;
     document.getElementById('copyThaiBtn').onclick=()=>{const t=s.paragraphs.filter(p=>p.thai).map(p=>p.thai).join('\n\n');navigator.clipboard.writeText(t).then(()=>toast('ok','Thai copied'));};
     document.getElementById('copyEngBtn').onclick=()=>{const t=s.paragraphs.filter(p=>p.english).map(p=>p.english).join('\n\n');navigator.clipboard.writeText(t).then(()=>toast('ok','English copied'));};
