@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Thai Browser Transcriber</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root{--bg:#0f172a;--panel:#111827;--text:#e5e7eb;--muted:#94a3b8;--border:#334155}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(180deg,#0b1220 0%,#111827 100%);color:var(--text)}
+    .wrap{max-width:1100px;margin:0 auto;padding:20px}
+    .card{background:rgba(17,24,39,.96);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:18px;box-shadow:0 10px 30px rgba(0,0,0,.28)}
+    h1,h2,h3{margin:0 0 12px 0;line-height:1.2}
+    p,li,label,td,th{line-height:1.45}
+    .muted{color:var(--muted)}
+    .grid{display:grid;gap:14px}
+    .grid-2{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+    .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    input[type=file],select,input[type=number]{width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;background:#020617;color:var(--text)}
+    button{appearance:none;border:1px solid #1d4ed8;background:#2563eb;color:white;padding:12px 16px;border-radius:10px;font-weight:700;cursor:pointer}
+    button.secondary{background:#166534;border-color:#15803d}
+    button.mutedBtn{background:#334155;border-color:#475569}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    textarea{width:100%;min-height:320px;resize:vertical;background:#020617;color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:15px;line-height:1.5;font-family:Arial,Helvetica,sans-serif}
+    .status{padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:#0b1220}
+    .status.good{border-color:#166534;background:rgba(22,101,52,.2)}
+    .status.bad{border-color:#7f1d1d;background:rgba(127,29,29,.28)}
+    .progressWrap{width:100%;height:12px;background:#020617;border-radius:999px;overflow:hidden;border:1px solid var(--border);margin-top:8px}
+    .progressBar{width:0%;height:100%;background:#2563eb;transition:width .2s linear}
+    table{width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--border)}
+    th{background:#020617}
+    tr:last-child td{border-bottom:0}
+    .pill{display:inline-block;padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:#020617;color:var(--muted);font-size:12px;margin:4px 8px 0 0}
+    .small{font-size:13px}
+    .code{background:#020617;border:1px solid var(--border);border-radius:12px;padding:12px;white-space:pre-wrap;word-break:break-word;overflow:auto;font-family:Consolas,Monaco,monospace;font-size:13px}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Thai Browser Transcriber</h1>
+      <p class="muted">Single-file HTML app. Open it in a browser, upload audio or video, and generate a transcript locally in the page using Transformers.js and Whisper.</p>
+      <div class="row">
+        <span class="pill">No Python</span>
+        <span class="pill">Single HTML file</span>
+        <span class="pill">Exports TXT SRT VTT JSON</span>
+        <span class="pill">Thai default</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Transcription</h2>
+      <div class="grid">
+        <div>
+          <label for="fileInput"><strong>Audio or video file</strong></label>
+          <input id="fileInput" type="file" accept=".m4a,.mp3,.wav,.mp4,.mov,.aac,.flac,.ogg,.webm,.mkv,.avi,.mpeg,.mpg,audio/*,video/*">
+        </div>
+
+        <div class="grid grid-2">
+          <div>
+            <label for="languageSelect"><strong>Language</strong></label>
+            <select id="languageSelect">
+              <option value="th" selected>Thai</option>
+              <option value="en">English</option>
+              <option value="auto">Auto-detect</option>
+            </select>
+          </div>
+          <div>
+            <label for="modelSelect"><strong>Model</strong></label>
+            <select id="modelSelect">
+              <option value="onnx-community/whisper-tiny">whisper-tiny</option>
+              <option value="onnx-community/whisper-base" selected>whisper-base</option>
+              <option value="onnx-community/whisper-small">whisper-small</option>
+            </select>
+          </div>
+          <div>
+            <label for="deviceSelect"><strong>Backend</strong></label>
+            <select id="deviceSelect">
+              <option value="auto" selected>Auto</option>
+              <option value="webgpu">WebGPU</option>
+              <option value="wasm">WASM</option>
+            </select>
+          </div>
+          <div>
+            <label for="chunkLength"><strong>Chunk length (seconds)</strong></label>
+            <input id="chunkLength" type="number" min="10" max="120" step="5" value="30">
+          </div>
+          <div>
+            <label for="strideLength"><strong>Chunk overlap / stride (seconds)</strong></label>
+            <input id="strideLength" type="number" min="1" max="20" step="1" value="5">
+          </div>
+          <div>
+            <label for="timestampsSelect"><strong>Timestamps</strong></label>
+            <select id="timestampsSelect">
+              <option value="segments" selected>Segment timestamps</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="loadModelBtn" type="button" class="mutedBtn">Load Model</button>
+          <button id="transcribeBtn" type="button">Create Transcript</button>
+          <button id="clearBtn" type="button" class="mutedBtn">Clear</button>
+        </div>
+
+        <div id="statusBox" class="status">Ready.</div>
+        <div class="progressWrap"><div id="progressBar" class="progressBar"></div></div>
+
+        <div class="small muted">
+          First use downloads the selected model into the browser cache. Larger models are more accurate but much heavier. For long Thai recordings, <strong>whisper-base</strong> is the practical default and <strong>whisper-small</strong> is better when your machine has enough memory.
+        </div>
+      </div>
+    </div>
+
+    <div id="downloadsCard" class="card hidden">
+      <h2>Downloads</h2>
+      <div class="row">
+        <button id="downloadTxtBtn" type="button" class="secondary">Download TXT</button>
+        <button id="downloadSrtBtn" type="button" class="secondary">Download SRT</button>
+        <button id="downloadVttBtn" type="button" class="secondary">Download VTT</button>
+        <button id="downloadJsonBtn" type="button" class="secondary">Download JSON</button>
+      </div>
+    </div>
+
+    <div id="summaryCard" class="card hidden">
+      <h2>Summary</h2>
+      <table>
+        <tbody>
+          <tr><th style="width:220px">File</th><td id="summaryFile"></td></tr>
+          <tr><th>Detected language</th><td id="summaryLang"></td></tr>
+          <tr><th>Model</th><td id="summaryModel"></td></tr>
+          <tr><th>Backend</th><td id="summaryBackend"></td></tr>
+          <tr><th>Chunking</th><td id="summaryChunking"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="transcriptCard" class="card hidden">
+      <h2>Transcript</h2>
+      <textarea id="transcriptText" readonly></textarea>
+    </div>
+
+    <div id="segmentsCard" class="card hidden">
+      <h2>Segments</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:120px">Start</th>
+            <th style="width:120px">End</th>
+            <th>Text</th>
+          </tr>
+        </thead>
+        <tbody id="segmentsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>How to use</h2>
+      <ol>
+        <li>Download the HTML file.</li>
+        <li>Double-click it to open in your browser, or drag it into Chrome or Edge.</li>
+        <li>Select the recording.</li>
+        <li>Click <strong>Create Transcript</strong>.</li>
+        <li>Download TXT, SRT, VTT, or JSON when it finishes.</li>
+      </ol>
+      <div class="small muted">Recommended browser: recent Chrome or Edge. WebGPU can be faster, but if it fails, switch Backend to WASM.</div>
+    </div>
+
+    <div class="card">
+      <h2>Technical notes</h2>
+      <div class="code" id="techNotes"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1';
+    env.allowLocalModels = false;
+    env.useBrowserCache = true;
+
+    const fileInput = document.getElementById('fileInput');
+    const languageSelect = document.getElementById('languageSelect');
+    const modelSelect = document.getElementById('modelSelect');
+    const deviceSelect = document.getElementById('deviceSelect');
+    const chunkLengthInput = document.getElementById('chunkLength');
+    const strideLengthInput = document.getElementById('strideLength');
+    const timestampsSelect = document.getElementById('timestampsSelect');
+
+    const loadModelBtn = document.getElementById('loadModelBtn');
+    const transcribeBtn = document.getElementById('transcribeBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    const statusBox = document.getElementById('statusBox');
+    const progressBar = document.getElementById('progressBar');
+
+    const downloadsCard = document.getElementById('downloadsCard');
+    const summaryCard = document.getElementById('summaryCard');
+    const transcriptCard = document.getElementById('transcriptCard');
+    const segmentsCard = document.getElementById('segmentsCard');
+
+    const summaryFile = document.getElementById('summaryFile');
+    const summaryLang = document.getElementById('summaryLang');
+    const summaryModel = document.getElementById('summaryModel');
+    const summaryBackend = document.getElementById('summaryBackend');
+    const summaryChunking = document.getElementById('summaryChunking');
+    const transcriptText = document.getElementById('transcriptText');
+    const segmentsBody = document.getElementById('segmentsBody');
+    const techNotes = document.getElementById('techNotes');
+
+    const downloadTxtBtn = document.getElementById('downloadTxtBtn');
+    const downloadSrtBtn = document.getElementById('downloadSrtBtn');
+    const downloadVttBtn = document.getElementById('downloadVttBtn');
+    const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+
+    let transcriber = null;
+    let loadedModelKey = null;
+    let latestResult = null;
+    let currentBackendUsed = 'unknown';
+
+    function setStatus(message, type = '') {
+      statusBox.textContent = message;
+      statusBox.className = 'status' + (type ? ' ' + type : '');
+    }
+    function setProgress(percent) {
+      const p = Math.max(0, Math.min(100, Number(percent) || 0));
+      progressBar.style.width = p.toFixed(1) + '%';
+    }
+    function formatTime(seconds) {
+      const totalMs = Math.max(0, Math.round((Number(seconds) || 0) * 1000));
+      const hours = Math.floor(totalMs / 3600000);
+      const minutes = Math.floor((totalMs % 3600000) / 60000);
+      const secs = Math.floor((totalMs % 60000) / 1000);
+      const ms = totalMs % 1000;
+      return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0') + ':' + String(secs).padStart(2, '0') + '.' + String(ms).padStart(3, '0');
+    }
+    function formatSrtTime(seconds) { return formatTime(seconds).replace('.', ','); }
+    function safeFilenameBase(name) {
+      const trimmed = (name || 'transcript').replace(/\.[^.]+$/, '');
+      return trimmed.replace(/[^a-z0-9._ -]+/gi, '_').trim() || 'transcript';
+    }
+    function downloadText(filename, content, type) {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+    function buildSrt(chunks) {
+      const rows = [];
+      let index = 1;
+      for (const chunk of chunks) {
+        const ts = chunk.timestamp || [0, 0];
+        const start = Number(ts[0] ?? 0);
+        const end = Number(ts[1] ?? ts[0] ?? 0);
+        rows.push(String(index++));
+        rows.push(formatSrtTime(start) + ' --> ' + formatSrtTime(end));
+        rows.push((chunk.text || '').trim());
+        rows.push('');
+      }
+      return rows.join('\n').trim() + '\n';
+    }
+    function buildVtt(chunks) {
+      const rows = ['WEBVTT', ''];
+      for (const chunk of chunks) {
+        const ts = chunk.timestamp || [0, 0];
+        const start = Number(ts[0] ?? 0);
+        const end = Number(ts[1] ?? ts[0] ?? 0);
+        rows.push(formatTime(start) + ' --> ' + formatTime(end));
+        rows.push((chunk.text || '').trim());
+        rows.push('');
+      }
+      return rows.join('\n').trim() + '\n';
+    }
+    function normalizeChunks(outputText, outputChunks) {
+      if (Array.isArray(outputChunks) && outputChunks.length) {
+        return outputChunks.map(chunk => {
+          const ts = Array.isArray(chunk.timestamp) ? chunk.timestamp : [0, 0];
+          return { text: (chunk.text || '').trim(), timestamp: [Number(ts[0] ?? 0), Number(ts[1] ?? ts[0] ?? 0)] };
+        }).filter(x => x.text);
+      }
+      return outputText ? [{ text: outputText.trim(), timestamp: [0, 0] }] : [];
+    }
+    function renderSegments(chunks) {
+      segmentsBody.innerHTML = '';
+      for (const chunk of chunks) {
+        const tr = document.createElement('tr');
+        const start = document.createElement('td');
+        const end = document.createElement('td');
+        const text = document.createElement('td');
+        start.textContent = formatTime(chunk.timestamp[0]);
+        end.textContent = formatTime(chunk.timestamp[1]);
+        text.textContent = chunk.text;
+        tr.appendChild(start); tr.appendChild(end); tr.appendChild(text);
+        segmentsBody.appendChild(tr);
+      }
+    }
+    function updateSummary(fileName, detectedLanguage, modelName, backendLabel, chunkLength, strideLength) {
+      summaryFile.textContent = fileName || '';
+      summaryLang.textContent = detectedLanguage || 'Not reported by model';
+      summaryModel.textContent = modelName || '';
+      summaryBackend.textContent = backendLabel || '';
+      summaryChunking.textContent = chunkLength + 's chunks with ' + strideLength + 's overlap';
+      summaryCard.classList.remove('hidden');
+    }
+    function clearResults() {
+      latestResult = null;
+      transcriptText.value = '';
+      segmentsBody.innerHTML = '';
+      downloadsCard.classList.add('hidden');
+      summaryCard.classList.add('hidden');
+      transcriptCard.classList.add('hidden');
+      segmentsCard.classList.add('hidden');
+      setProgress(0);
+      setStatus('Ready.');
+    }
+    function getRequestedDevice() {
+      const requested = deviceSelect.value;
+      if (requested === 'webgpu' || requested === 'wasm') return requested;
+      if (typeof navigator !== 'undefined' && 'gpu' in navigator) return 'webgpu';
+      return 'wasm';
+    }
+    async function loadTranscriber(forceReload = false) {
+      const modelName = modelSelect.value;
+      const requestedDevice = getRequestedDevice();
+      const modelKey = modelName + '::' + requestedDevice;
+      if (!forceReload && transcriber && loadedModelKey === modelKey) {
+        setStatus('Model already loaded.', 'good');
+        return transcriber;
+      }
+      setStatus('Loading model. First run downloads model files into your browser cache.');
+      setProgress(2);
+      loadModelBtn.disabled = true;
+      transcribeBtn.disabled = true;
+      try {
+        transcriber = await pipeline('automatic-speech-recognition', modelName, {
+          device: requestedDevice,
+          progress_callback: (data) => {
+            if (typeof data?.progress === 'number') setProgress(data.progress * 100);
+            else if (typeof data?.loaded === 'number' && typeof data?.total === 'number' && data.total > 0) setProgress((data.loaded / data.total) * 100);
+            if (data?.status) setStatus('Loading model: ' + data.status);
+          },
+        });
+        currentBackendUsed = requestedDevice;
+        loadedModelKey = modelKey;
+        setProgress(100);
+        setStatus('Model loaded successfully.', 'good');
+        return transcriber;
+      } catch (err) {
+        transcriber = null;
+        loadedModelKey = null;
+        currentBackendUsed = 'failed';
+        setProgress(0);
+        setStatus('Model load failed: ' + (err?.message || String(err)), 'bad');
+        throw err;
+      } finally {
+        loadModelBtn.disabled = false;
+        transcribeBtn.disabled = false;
+      }
+    }
+    async function transcribeCurrentFile() {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) {
+        setStatus('Choose a file first.', 'bad');
+        return;
+      }
+      transcribeBtn.disabled = true;
+      loadModelBtn.disabled = true;
+      clearBtn.disabled = true;
+      const modelName = modelSelect.value;
+      const languageCode = languageSelect.value;
+      const chunkLength = Math.max(10, Number(chunkLengthInput.value) || 30);
+      const strideLength = Math.max(1, Number(strideLengthInput.value) || 5);
+      const returnTimestamps = timestampsSelect.value === 'segments';
+      let objectUrl = null;
+      try {
+        const pipe = await loadTranscriber(false);
+        setStatus('Preparing audio input...');
+        setProgress(5);
+        objectUrl = URL.createObjectURL(file);
+        const options = { chunk_length_s: chunkLength, stride_length_s: strideLength, return_timestamps: returnTimestamps };
+        if (languageCode !== 'auto') options.language = languageCode;
+        setStatus('Transcribing. Keep this tab open.');
+        setProgress(10);
+        const startedAt = performance.now();
+        const output = await pipe(objectUrl, options);
+        const elapsed = ((performance.now() - startedAt) / 1000).toFixed(1);
+        const outputText = (output?.text || '').trim();
+        const chunks = normalizeChunks(outputText, output?.chunks);
+        latestResult = {
+          file_name: file.name,
+          file_size: file.size,
+          model: modelName,
+          backend: currentBackendUsed,
+          requested_language: languageCode,
+          detected_language: output?.language || null,
+          text: outputText,
+          chunks,
+          elapsed_seconds: Number(elapsed),
+          created_at: new Date().toISOString(),
+          options,
+        };
+        transcriptText.value = outputText;
+        renderSegments(chunks);
+        updateSummary(file.name, output?.language || (languageCode === 'auto' ? 'Auto' : languageCode), modelName, currentBackendUsed, chunkLength, strideLength);
+        transcriptCard.classList.remove('hidden');
+        segmentsCard.classList.toggle('hidden', !chunks.length);
+        downloadsCard.classList.remove('hidden');
+        setProgress(100);
+        setStatus('Transcription complete in ' + elapsed + ' seconds.', 'good');
+      } catch (err) {
+        setProgress(0);
+        setStatus('Transcription failed: ' + (err?.message || String(err)), 'bad');
+      } finally {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        transcribeBtn.disabled = false;
+        loadModelBtn.disabled = false;
+        clearBtn.disabled = false;
+      }
+    }
+    loadModelBtn.addEventListener('click', async () => { try { await loadTranscriber(true); } catch (_) {} });
+    transcribeBtn.addEventListener('click', async () => { await transcribeCurrentFile(); });
+    clearBtn.addEventListener('click', () => { clearResults(); fileInput.value = ''; });
+    downloadTxtBtn.addEventListener('click', () => { if (!latestResult) return; const base = safeFilenameBase(latestResult.file_name); downloadText(base + '.txt', latestResult.text || '', 'text/plain;charset=utf-8'); });
+    downloadSrtBtn.addEventListener('click', () => { if (!latestResult) return; const base = safeFilenameBase(latestResult.file_name); downloadText(base + '.srt', buildSrt(latestResult.chunks || []), 'text/plain;charset=utf-8'); });
+    downloadVttBtn.addEventListener('click', () => { if (!latestResult) return; const base = safeFilenameBase(latestResult.file_name); downloadText(base + '.vtt', buildVtt(latestResult.chunks || []), 'text/plain;charset=utf-8'); });
+    downloadJsonBtn.addEventListener('click', () => { if (!latestResult) return; const base = safeFilenameBase(latestResult.file_name); downloadText(base + '.json', JSON.stringify(latestResult, null, 2), 'application/json;charset=utf-8'); });
+    techNotes.textContent = `Model runtime: @huggingface/transformers in the browser
+Package version: 3.8.1
+ASR task: automatic-speech-recognition
+Suggested default model: onnx-community/whisper-base
+Long-audio handling: chunk_length_s + stride_length_s
+Export formats: TXT, SRT, VTT, JSON
+Backend behavior:
+- Auto: uses WebGPU when available, otherwise WASM
+- WebGPU: faster when supported
+- WASM: broader compatibility, slower`;
+  </script>
+</body>
+</html>
