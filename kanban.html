@@ -449,6 +449,8 @@ let remoteBoardSha = null;
 let autoSyncTimer = null;
 let autoSyncInFlight = null;
 let syncBootstrapComplete = false;
+let lastFocusCheckAt = 0;
+const FOCUS_SYNC_THROTTLE_MS = 15000;
 function trySave(key, value){ try{ localStorage.setItem(key, value); return localStorage.getItem(key)===value; }catch(e){ console.warn(e); return false; } }
 function loadPersistedGithubToken(){
   const keys=[GITHUB_PAT_KEY,...LEGACY_GITHUB_PAT_KEYS];
@@ -1537,6 +1539,16 @@ function queueAutoSync(reason="change"){
     });
   }, 900);
 }
+function checkForRemoteUpdateOnFocus(){
+  if(!syncBootstrapComplete) return;
+  if(autoSyncInFlight) return;
+  const now=Date.now();
+  if(now-lastFocusCheckAt < FOCUS_SYNC_THROTTLE_MS) return;
+  lastFocusCheckAt=now;
+  syncBoardWithGitHub("tab focus check", { silent:true }).catch(err=>{
+    console.warn("Foreground sync check failed", err);
+  });
+}
 function triggerRealtimeDriveSync(){
   if(typeof pushStateToRemote==="function") pushStateToRemote();
   queueAutoSync("local update");
@@ -1750,28 +1762,31 @@ async function pullBoardFromGitHub(options={}){
     throw err;
   }
 }
-async function syncBoardWithGitHub(reason="sync"){
+async function syncBoardWithGitHub(reason="sync", options={}){
   clearAutoSync();
   if(autoSyncInFlight) return autoSyncInFlight;
+  const { silent=false } = options || {};
   autoSyncInFlight=(async()=>{
     const cfg=getGitHubSyncConfig();
-    setStatus(`Syncing with GitHub (${cfg.owner}/${cfg.repo}:${cfg.path})…`);
+    if(!silent) setStatus(`Syncing with GitHub (${cfg.owner}/${cfg.repo}:${cfg.path})…`);
     const remote=await fetchGitHubBoard(cfg);
     remoteBoardSha=remote.sha || null;
     const localTs=boardTimestamp(state);
     const remoteTs=boardTimestamp(remote.board);
     if(boardsEqual(remote.board, state)){
-      setStatus(`GitHub already up to date (${cfg.owner}/${cfg.repo}:${cfg.path})`);
+      if(!silent) setStatus(`GitHub already up to date (${cfg.owner}/${cfg.repo}:${cfg.path})`);
       return { action:"noop", remote };
     }
     if(remoteTs > localTs){
       applyImportedBoard(remote.board, `GitHub (${cfg.owner}/${cfg.repo}:${cfg.path})`, { skipAutoSync:true });
-      toast("GitHub updated","Loaded newer board from repository");
-      setStatus(`Pulled newer board from ${cfg.owner}/${cfg.repo}:${cfg.path}`);
+      if(!silent){
+        toast("GitHub updated","Loaded newer board from repository");
+        setStatus(`Pulled newer board from ${cfg.owner}/${cfg.repo}:${cfg.path}`);
+      }
       return { action:"pull", remote };
     }
     await pushBoardToGitHub({ silent:true, reason, expectedSha:remote.sha || null });
-    toast("GitHub updated","Pushed latest local board to repository");
+    if(!silent) toast("GitHub updated","Pushed latest local board to repository");
     return { action:"push", remote };
   })();
   try{
@@ -1955,6 +1970,10 @@ window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
 
 $("#btnPushGitHub").addEventListener("click", ()=>{ syncBoardWithGitHub("manual sync").catch(err=>console.warn("Manual sync failed", err)); });
 $("#btnPullGitHub").addEventListener("click", ()=>{ pullBoardFromGitHub({ reason:"manual pull" }).catch(err=>console.warn("Manual pull failed", err)); });
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState==="visible") checkForRemoteUpdateOnFocus();
+});
+window.addEventListener("focus", checkForRemoteUpdateOnFocus);
 </script>
 </body>
 </html>
