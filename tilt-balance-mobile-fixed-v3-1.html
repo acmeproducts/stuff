@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Tilt Balance Surface</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070708;
+      --panel: rgba(18, 18, 22, 0.82);
+      --border: rgba(255, 255, 255, 0.12);
+      --text: #f2f2f2;
+      --muted: rgba(242, 242, 242, 0.72);
+      --accent: #ff8a00;
+      --good: #58d68d;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      touch-action: manipulation;
+      overscroll-behavior: none;
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .hud {
+      position: fixed;
+      left: max(12px, env(safe-area-inset-left));
+      right: max(12px, env(safe-area-inset-right));
+      bottom: max(12px, env(safe-area-inset-bottom));
+      pointer-events: none;
+      z-index: 10;
+      display: flex;
+      justify-content: center;
+    }
+
+    .panel {
+      pointer-events: auto;
+      width: min(520px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-radius: 18px;
+      padding: 14px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px 12px;
+      width: 100%;
+      min-width: 220px;
+      margin-bottom: 12px;
+    }
+
+    .title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin-bottom: 6px;
+    }
+
+    .line {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+      white-space: nowrap;
+    }
+
+    .line strong {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      width: 100%;
+      margin-bottom: 12px;
+    }
+
+    .help {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 12px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 46px;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    button.primary {
+      background: rgba(255, 138, 0, 0.18);
+      border-color: rgba(255, 138, 0, 0.4);
+      color: #ffd6a3;
+    }
+
+    .pulse {
+      color: var(--good);
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div class="hud">
+    <div class="panel">
+      <div class="title">Tilt Balance Surface</div>
+      <div class="stats">
+        <div class="line">Score: <strong id="score">0.0s</strong></div>
+        <div class="line">Best: <strong id="best">0.0s</strong></div>
+        <div class="line">Bounces: <strong id="bounces">0</strong></div>
+        <div class="line">Mode: <strong id="mode">Touch to Start</strong></div>
+        <div class="line">Tilt: <strong id="tilt">0°, 0°</strong></div>
+        <div class="line">Status: <strong id="status">Ready</strong></div>
+      </div>
+
+      <div class="controls">
+        <button id="motionButton" class="primary" type="button">Enable Motion</button>
+        <button id="recenterButton" type="button">Recenter</button>
+        <button id="resetButton" type="button">Reset Ball</button>
+        <button id="muteButton" type="button">Audio On</button>
+      </div>
+
+      <div class="help">Mobile only. Tap Enable Motion, approve permission, then tilt to keep the orange ball balanced. Recenter sets the current angle as neutral. If the ball hits a wall it bounces back with haptic and audio feedback.</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.183.2/build/three.module.js';
+
+    const app = document.getElementById('app');
+    const scoreEl = document.getElementById('score');
+    const bestEl = document.getElementById('best');
+    const bouncesEl = document.getElementById('bounces');
+    const modeEl = document.getElementById('mode');
+    const tiltEl = document.getElementById('tilt');
+    const statusEl = document.getElementById('status');
+    const motionButton = document.getElementById('motionButton');
+    const recenterButton = document.getElementById('recenterButton');
+    const resetButton = document.getElementById('resetButton');
+    const muteButton = document.getElementById('muteButton');
+
+    const boardSize = 10;
+    const halfBoard = boardSize * 0.5;
+    const boardThickness = 0.28;
+    const boardTopY = 0;
+    const railHeight = 0.42;
+    const railThickness = 0.22;
+    const ballRadius = 0.30;
+    const gridRibHeight = 0.028;
+    const surfaceClearance = 0.024;
+    const playLimit = halfBoard - railThickness - ballRadius - 0.08;
+    const gravityStrength = 24.0;
+    const visualTiltLimit = THREE.MathUtils.degToRad(12);
+    const controlTiltLimit = THREE.MathUtils.degToRad(15);
+    const restitution = 0.74;
+    const tangentDampOnBounce = 0.975;
+    const rollingDampingPer60 = 0.996;
+    const deadZoneVelocity = 0.015;
+    const deadZoneTilt = THREE.MathUtils.degToRad(0.55);
+    const clock = new THREE.Clock();
+
+    let renderer;
+    let scene;
+    let camera;
+    let boardGroup;
+    let boardMesh;
+    let ballMesh;
+    let shadowMesh;
+    let animationFrame = 0;
+    let audioContext = null;
+    let masterGain = null;
+
+    const state = {
+      useMotion: false,
+      audioMuted: false,
+      audioUnlocked: false,
+      deviceTiltX: 0,
+      deviceTiltZ: 0,
+      hasMotionSample: false,
+      motionSamples: 0,
+      lastMotionAt: 0,
+      calibrateX: 0,
+      calibrateZ: 0,
+      currentTiltX: 0,
+      currentTiltZ: 0,
+      score: 0,
+      best: Number(localStorage.getItem('tilt-balance-best') || 0),
+      bounceCount: 0,
+      ball: {
+        x: 0,
+        z: 0,
+        vx: 0,
+        vz: 0,
+        spinAngle: 0,
+        spinAxis: new THREE.Vector3(1, 0, 0)
+      }
+    };
+
+    bestEl.textContent = `${state.best.toFixed(1)}s`;
+
+    function setStatus(message, positive = false) {
+      statusEl.textContent = message;
+    }
+
+    function makeBoardTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+      const size = canvas.width;
+      const cells = 14;
+      const step = size / cells;
+
+      const bg = ctx.createLinearGradient(0, 0, 0, size);
+      bg.addColorStop(0, '#1b1b1f');
+      bg.addColorStop(1, '#0f1013');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, size, size);
+
+      for (let y = 0; y < cells; y++) {
+        for (let x = 0; x < cells; x++) {
+          const odd = (x + y) % 2 === 0;
+          ctx.fillStyle = odd ? '#1a1b20' : '#111216';
+          ctx.fillRect(x * step, y * step, step, step);
+        }
+      }
+
+      ctx.strokeStyle = 'rgba(255,145,24,0.30)';
+      ctx.lineWidth = 4;
+      for (let i = 0; i <= cells; i++) {
+        const p = i * step;
+        ctx.beginPath();
+        ctx.moveTo(p, 0);
+        ctx.lineTo(p, size);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, p);
+        ctx.lineTo(size, p);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = 'rgba(255,205,145,0.30)';
+      ctx.lineWidth = 14;
+      ctx.strokeRect(7, 7, size - 14, size - 14);
+
+      const sheen = ctx.createLinearGradient(0, 0, size, size);
+      sheen.addColorStop(0, 'rgba(255,255,255,0.045)');
+      sheen.addColorStop(0.4, 'rgba(255,255,255,0.0)');
+      sheen.addColorStop(1, 'rgba(255,255,255,0.02)');
+      ctx.fillStyle = sheen;
+      ctx.fillRect(0, 0, size, size);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = 8;
+      return texture;
+    }
+
+    function ensureAudio() {
+      if (audioContext) return;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) {
+        setStatus('Audio is unavailable on this device.');
+        return;
+      }
+      audioContext = new AudioContextClass();
+      masterGain = audioContext.createGain();
+      masterGain.gain.value = 0.08;
+      masterGain.connect(audioContext.destination);
+    }
+
+    async function unlockAudio() {
+      ensureAudio();
+      if (!audioContext) return;
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+      state.audioUnlocked = true;
+    }
+
+    function playBounceSound(intensity) {
+      if (state.audioMuted || !state.audioUnlocked || !audioContext || !masterGain) return;
+      const now = audioContext.currentTime;
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      const filter = audioContext.createBiquadFilter();
+
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(760 + intensity * 100, now);
+      filter.Q.value = 3.5;
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(310 + intensity * 120, now);
+      osc.frequency.exponentialRampToValueAtTime(180, now + 0.10);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.16, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.11);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(masterGain);
+      osc.start(now);
+      osc.stop(now + 0.12);
+    }
+
+    function vibrate(ms) {
+      if (navigator.vibrate) navigator.vibrate(ms);
+    }
+
+    function onBounce(speed) {
+      state.bounceCount += 1;
+      bouncesEl.textContent = String(state.bounceCount);
+      playBounceSound(THREE.MathUtils.clamp(speed / 4.5, 0.65, 1.35));
+      vibrate(speed > 4 ? 24 : 12);
+      setStatus('Boundary contact. Ball bounced back into fair play.', true);
+    }
+
+    function resetBall(resetScore = false) {
+      if (resetScore) {
+        if (state.score > state.best) {
+          state.best = state.score;
+          localStorage.setItem('tilt-balance-best', String(state.best));
+          bestEl.textContent = `${state.best.toFixed(1)}s`;
+        }
+        state.score = 0;
+        scoreEl.textContent = '0.0s';
+      }
+
+      state.bounceCount = 0;
+      state.ball.x = 0;
+      state.ball.z = 0;
+      state.ball.vx = 0;
+      state.ball.vz = 0;
+      state.ball.spinAngle = 0;
+      state.ball.spinAxis.set(1, 0, 0);
+      bouncesEl.textContent = '0';
+      updateBallVisuals();
+    }
+
+    function clampTilt(value) {
+      return THREE.MathUtils.clamp(value, -controlTiltLimit, controlTiltLimit);
+    }
+
+    function setCalibration() {
+      state.calibrateX = state.deviceTiltX;
+      state.calibrateZ = state.deviceTiltZ;
+      setStatus('Tilt baseline recentered.', true);
+    }
+
+    function updateInput(dt) {
+      const targetX = clampTilt(state.deviceTiltX - state.calibrateX);
+      const targetZ = clampTilt(state.deviceTiltZ - state.calibrateZ);
+      state.currentTiltX = THREE.MathUtils.damp(state.currentTiltX, targetX, 16, dt);
+      state.currentTiltZ = THREE.MathUtils.damp(state.currentTiltZ, targetZ, 16, dt);
+      tiltEl.textContent = `${THREE.MathUtils.radToDeg(state.currentTiltX).toFixed(1)}°, ${THREE.MathUtils.radToDeg(state.currentTiltZ).toFixed(1)}°`;
+    }
+
+    function updateBoardVisuals() {
+      boardGroup.rotation.x = THREE.MathUtils.mapLinear(state.currentTiltX, -controlTiltLimit, controlTiltLimit, -visualTiltLimit, visualTiltLimit);
+      boardGroup.rotation.z = THREE.MathUtils.mapLinear(state.currentTiltZ, -controlTiltLimit, controlTiltLimit, visualTiltLimit, -visualTiltLimit);
+    }
+
+    function updatePhysics(dt) {
+      const ax = Math.sin(state.currentTiltZ) * gravityStrength;
+      const az = Math.sin(state.currentTiltX) * gravityStrength;
+
+      state.ball.vx += ax * dt;
+      state.ball.vz += az * dt;
+
+      const damping = Math.pow(rollingDampingPer60, dt * 60);
+      state.ball.vx *= damping;
+      state.ball.vz *= damping;
+
+      if (Math.abs(state.currentTiltX) < deadZoneTilt && Math.abs(state.currentTiltZ) < deadZoneTilt) {
+        if (Math.abs(state.ball.vx) < deadZoneVelocity) state.ball.vx = 0;
+        if (Math.abs(state.ball.vz) < deadZoneVelocity) state.ball.vz = 0;
+      }
+
+      state.ball.x += state.ball.vx * dt;
+      state.ball.z += state.ball.vz * dt;
+
+      let bounced = false;
+      let collisionSpeed = 0;
+
+      if (state.ball.x > playLimit) {
+        collisionSpeed = Math.max(collisionSpeed, Math.abs(state.ball.vx));
+        state.ball.x = playLimit - 0.01;
+        state.ball.vx = -Math.abs(state.ball.vx) * restitution;
+        state.ball.vz *= tangentDampOnBounce;
+        bounced = true;
+      } else if (state.ball.x < -playLimit) {
+        collisionSpeed = Math.max(collisionSpeed, Math.abs(state.ball.vx));
+        state.ball.x = -playLimit + 0.01;
+        state.ball.vx = Math.abs(state.ball.vx) * restitution;
+        state.ball.vz *= tangentDampOnBounce;
+        bounced = true;
+      }
+
+      if (state.ball.z > playLimit) {
+        collisionSpeed = Math.max(collisionSpeed, Math.abs(state.ball.vz));
+        state.ball.z = playLimit - 0.01;
+        state.ball.vz = -Math.abs(state.ball.vz) * restitution;
+        state.ball.vx *= tangentDampOnBounce;
+        bounced = true;
+      } else if (state.ball.z < -playLimit) {
+        collisionSpeed = Math.max(collisionSpeed, Math.abs(state.ball.vz));
+        state.ball.z = -playLimit + 0.01;
+        state.ball.vz = Math.abs(state.ball.vz) * restitution;
+        state.ball.vx *= tangentDampOnBounce;
+        bounced = true;
+      }
+
+      if (bounced) onBounce(collisionSpeed);
+
+      const planarSpeed = Math.hypot(state.ball.vx, state.ball.vz);
+      if (planarSpeed > 0.0001) {
+        state.ball.spinAxis.set(state.ball.vz / planarSpeed, 0, -state.ball.vx / planarSpeed).normalize();
+        state.ball.spinAngle += (planarSpeed / ballRadius) * dt;
+      }
+    }
+
+    function updateBallVisuals() {
+      const y = boardTopY + ballRadius + surfaceClearance;
+      ballMesh.position.set(state.ball.x, y, state.ball.z);
+
+      const ballRotation = new THREE.Quaternion().setFromAxisAngle(state.ball.spinAxis, state.ball.spinAngle);
+      ballMesh.quaternion.copy(ballRotation);
+
+      shadowMesh.position.set(state.ball.x, boardTopY + 0.01, state.ball.z);
+      const speed = Math.hypot(state.ball.vx, state.ball.vz);
+      const squash = THREE.MathUtils.clamp(1.0 - speed * 0.012, 0.88, 1.0);
+      shadowMesh.scale.set(1.02 / squash, 1.02 / squash, 1.02 / squash);
+    }
+
+    function updateScore(dt) {
+      state.score += dt;
+      if (state.score > state.best) {
+        state.best = state.score;
+        localStorage.setItem('tilt-balance-best', String(state.best));
+        bestEl.textContent = `${state.best.toFixed(1)}s`;
+      }
+      scoreEl.textContent = `${state.score.toFixed(1)}s`;
+    }
+
+    function createGridRibs(group) {
+      const ribMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xd27b1e,
+        roughness: 0.52,
+        metalness: 0.06,
+        clearcoat: 0.20,
+        transparent: true,
+        opacity: 0.95
+      });
+      const cells = 14;
+      const step = boardSize / cells;
+      const inner = boardSize - railThickness * 2.25;
+      const longGeo = new THREE.BoxGeometry(inner, gridRibHeight, 0.04);
+      const crossGeo = new THREE.BoxGeometry(0.04, gridRibHeight, inner);
+
+      for (let i = 1; i < cells; i++) {
+        const p = -halfBoard + i * step;
+        const h = new THREE.Mesh(longGeo, ribMaterial);
+        h.position.set(0, boardTopY + gridRibHeight * 0.5 + 0.001, p);
+        group.add(h);
+
+        const v = new THREE.Mesh(crossGeo, ribMaterial);
+        v.position.set(p, boardTopY + gridRibHeight * 0.5 + 0.001, 0);
+        group.add(v);
+      }
+    }
+
+    function createRails(group) {
+      const material = new THREE.MeshPhysicalMaterial({
+        color: 0xff9326,
+        roughness: 0.45,
+        metalness: 0.10,
+        clearcoat: 0.28
+      });
+      const railLongGeo = new THREE.BoxGeometry(boardSize, railHeight, railThickness);
+      const railShortGeo = new THREE.BoxGeometry(railThickness, railHeight, boardSize - railThickness * 2);
+      const y = boardTopY + railHeight * 0.5;
+
+      const north = new THREE.Mesh(railLongGeo, material);
+      north.position.set(0, y, -halfBoard + railThickness * 0.5);
+      group.add(north);
+
+      const south = new THREE.Mesh(railLongGeo, material);
+      south.position.set(0, y, halfBoard - railThickness * 0.5);
+      group.add(south);
+
+      const west = new THREE.Mesh(railShortGeo, material);
+      west.position.set(-halfBoard + railThickness * 0.5, y, 0);
+      group.add(west);
+
+      const east = new THREE.Mesh(railShortGeo, material);
+      east.position.set(halfBoard - railThickness * 0.5, y, 0);
+      group.add(east);
+    }
+
+    function createScene() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x060608);
+      scene.fog = new THREE.Fog(0x060608, 14, 28);
+
+      camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+      camera.position.set(0, 8.2, 10.8);
+      camera.lookAt(0, 0.6, 0);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      app.appendChild(renderer.domElement);
+
+      boardGroup = new THREE.Group();
+      scene.add(boardGroup);
+
+      const boardTexture = makeBoardTexture();
+      const boardMaterial = new THREE.MeshPhysicalMaterial({
+        map: boardTexture,
+        roughness: 0.76,
+        metalness: 0.04,
+        clearcoat: 0.10,
+        color: 0xffffff
+      });
+      const boardGeo = new THREE.BoxGeometry(boardSize, boardThickness, boardSize);
+      boardMesh = new THREE.Mesh(boardGeo, boardMaterial);
+      boardMesh.position.y = boardTopY - boardThickness * 0.5;
+      boardGroup.add(boardMesh);
+
+      createGridRibs(boardGroup);
+      createRails(boardGroup);
+
+      const ballGeometry = new THREE.SphereGeometry(ballRadius, 48, 48);
+      const ballMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xff8a00,
+        roughness: 0.34,
+        metalness: 0.04,
+        clearcoat: 0.46,
+        emissive: 0x241000,
+        emissiveIntensity: 0.12
+      });
+      ballMesh = new THREE.Mesh(ballGeometry, ballMaterial);
+      boardGroup.add(ballMesh);
+
+      const shadowCanvas = document.createElement('canvas');
+      shadowCanvas.width = 256;
+      shadowCanvas.height = 256;
+      const shadowCtx = shadowCanvas.getContext('2d');
+      const shadowGradient = shadowCtx.createRadialGradient(128, 128, 10, 128, 128, 118);
+      shadowGradient.addColorStop(0, 'rgba(0,0,0,0.40)');
+      shadowGradient.addColorStop(1, 'rgba(0,0,0,0)');
+      shadowCtx.fillStyle = shadowGradient;
+      shadowCtx.fillRect(0, 0, 256, 256);
+      const shadowTexture = new THREE.CanvasTexture(shadowCanvas);
+      shadowMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(ballRadius * 2.8, ballRadius * 2.8),
+        new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false })
+      );
+      shadowMesh.rotation.x = -Math.PI * 0.5;
+      boardGroup.add(shadowMesh);
+
+      const floor = new THREE.Mesh(
+        new THREE.CircleGeometry(12, 72),
+        new THREE.MeshBasicMaterial({ color: 0x0e0e11 })
+      );
+      floor.rotation.x = -Math.PI * 0.5;
+      floor.position.y = -0.95;
+      scene.add(floor);
+
+      scene.add(new THREE.AmbientLight(0xffffff, 1.18));
+
+      const keyLight = new THREE.DirectionalLight(0xffffff, 1.55);
+      keyLight.position.set(6.5, 10.5, 7.5);
+      scene.add(keyLight);
+
+      const warmFill = new THREE.PointLight(0xffa34a, 12, 25, 2);
+      warmFill.position.set(-5, 3.2, -5);
+      scene.add(warmFill);
+
+      const hemi = new THREE.HemisphereLight(0x89a4ff, 0x110d09, 0.48);
+      scene.add(hemi);
+    }
+
+    function onResize() {
+      if (!renderer || !camera) return;
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function onDeviceOrientation(event) {
+      if (!state.useMotion) return;
+      if (event.beta == null || event.gamma == null) return;
+
+      const portrait = window.matchMedia('(orientation: portrait)').matches;
+      let xDeg;
+      let zDeg;
+
+      if (portrait) {
+        xDeg = event.beta;
+        zDeg = event.gamma;
+      } else {
+        xDeg = event.gamma;
+        zDeg = event.beta;
+      }
+
+state.deviceTiltX = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(xDeg), -0.8, 0.8);
+      state.deviceTiltZ = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(zDeg), -0.8, 0.8);
+      state.hasMotionSample = true;
+      state.motionSamples += 1;
+      state.lastMotionAt = performance.now();
+    }
+
+    async function requestMotionPermission() {
+      await unlockAudio();
+
+      if (!('DeviceOrientationEvent' in window)) {
+        state.useMotion = false;
+        modeEl.textContent = 'Unavailable';
+        setStatus('Device tilt is unavailable in this browser.');
+        return;
+      }
+
+      try {
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+          const result = await DeviceOrientationEvent.requestPermission();
+          if (result !== 'granted') {
+            state.useMotion = false;
+            modeEl.textContent = 'Denied';
+            setStatus('Motion permission was not granted.');
+            return;
+          }
+        }
+
+state.useMotion = true;
+        state.hasMotionSample = false;
+        state.motionSamples = 0;
+        modeEl.textContent = 'Device Tilt';
+        motionButton.textContent = 'Motion Enabled';
+        motionButton.disabled = true;
+        setStatus('Motion enabled. Tilt the device to move the ball.', true);
+        window.setTimeout(() => {
+          if (state.useMotion && !state.hasMotionSample) {
+            modeEl.textContent = 'No Sensor Data';
+            setStatus('Permission granted but this browser is not delivering motion data.');
+          }
+        }, 1500);
+      } catch (error) {
+        console.error(error);
+        state.useMotion = false;
+        modeEl.textContent = 'Error';
+        setStatus('Unable to enable motion in this browser.');
+      }
+    }
+
+    function bindControls() {
+      const unlockFromGesture = () => { unlockAudio().catch(console.error); };
+
+      window.addEventListener('resize', onResize, { passive: true });
+      window.addEventListener('deviceorientation', onDeviceOrientation, true);
+      document.body.addEventListener('pointerdown', unlockFromGesture, { passive: true });
+      document.body.addEventListener('touchstart', unlockFromGesture, { passive: true });
+
+      motionButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        requestMotionPermission();
+      }, { passive: false });
+
+      recenterButton.addEventListener('click', async (event) => {
+        event.preventDefault();
+        await unlockAudio();
+        setCalibration();
+      }, { passive: false });
+
+      resetButton.addEventListener('click', async (event) => {
+        event.preventDefault();
+        await unlockAudio();
+        resetBall(true);
+        setStatus('Ball reset to center.', true);
+      }, { passive: false });
+
+      muteButton.addEventListener('click', async (event) => {
+        event.preventDefault();
+        await unlockAudio();
+        state.audioMuted = !state.audioMuted;
+        muteButton.textContent = state.audioMuted ? 'Audio Off' : 'Audio On';
+        setStatus(state.audioMuted ? 'Audio muted.' : 'Audio enabled.', true);
+      }, { passive: false });
+    }
+
+    function animate() {
+      animationFrame = requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.033);
+      updateInput(dt);
+      updateBoardVisuals();
+      updatePhysics(dt);
+      updateBallVisuals();
+      updateScore(dt);
+      renderer.render(scene, camera);
+    }
+
+    function init() {
+      createScene();
+      bindControls();
+      resetBall(false);
+      updateBoardVisuals();
+      updateBallVisuals();
+      animate();
+      setStatus('Ready. Tap Enable Motion, allow access, then tilt the device.', true);
+    }
+
+    try {
+      init();
+    } catch (error) {
+      console.error(error);
+      cancelAnimationFrame(animationFrame);
+      setStatus('Initialization failed on this device.');
+    }
+  </script>
+</body>
+</html>
