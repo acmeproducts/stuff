@@ -63,7 +63,6 @@
         .col-header:first-child{border-right:1px solid var(--border-1)}
         .scroll{flex:1;overflow-y:auto}
         .para-row{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border-1);transition:background .15s}
-        .para-row:hover{background:rgba(255,255,255,.015)}
         .para-row.translating{background:rgba(90,184,138,.04)}
         .cell{padding:.85rem 1.25rem;min-height:70px}
         .cell:first-child{border-right:1px solid var(--border-1)}
@@ -75,10 +74,10 @@
         .cell-text.thai-text{font-family:'Noto Sans Thai','DM Sans',sans-serif}
         .cell-text.empty{color:var(--text-3);font-style:italic;font-size:.8rem}
         .cell-text.error-text{color:var(--err);font-size:.8rem}
-        .cell-actions{display:flex;gap:.3rem;margin-top:.4rem;opacity:0;transition:opacity .15s}
-        .para-row:hover .cell-actions{opacity:1}
+        .cell-actions{display:flex;gap:.3rem;margin-top:.5rem;flex-wrap:wrap}
         .cell-action{padding:.15rem .35rem;font-size:.6rem;font-family:'DM Sans',sans-serif;background:var(--bg-3);border:1px solid var(--border-1);color:var(--text-3);border-radius:3px;cursor:pointer;transition:all .15s}
         .cell-action:hover{background:var(--bg-4);color:var(--text-1);border-color:var(--border-2)}
+        .cell-action-del{color:var(--err)!important}.cell-action-del:hover{background:var(--err)!important;color:#fff!important;border-color:var(--err)!important}
         .para-wrapper{border-bottom:1px solid var(--border-1)}
         .para-wrapper .para-row{border-bottom:none}
         .bt-toggle{display:flex;align-items:center;gap:.5rem;padding:.3rem 1.25rem;background:var(--bg-1);border-top:1px solid var(--border-1);cursor:pointer;user-select:none;transition:background .15s}
@@ -142,6 +141,7 @@
         .lib-bar-fill{height:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));border-radius:2px;transition:width .3s}
         .lib-actions{display:flex;gap:.35rem;flex-shrink:0}
         .lib-btn{width:28px;height:28px;border:none;border-radius:5px;cursor:pointer;font-size:.8rem;font-weight:700;display:flex;align-items:center;justify-content:center;transition:all .15s}
+        .lib-copy{background:var(--bg-3);color:var(--text-2)}.lib-copy:hover{background:var(--thai-blue);color:#fff}
         .lib-dl{background:var(--bg-3);color:var(--text-2)}.lib-dl:hover{background:var(--gold);color:var(--bg-0)}
         .lib-del{background:var(--bg-3);color:var(--text-3)}.lib-del:hover{background:var(--err);color:#fff}
         input[type="file"]{display:none}
@@ -315,6 +315,13 @@ function buildMarkdown(s){
     return md;
 }
 
+
+function copySession(fileName){
+    const lib=loadLibrary();const s=lib[fileName];if(!s)return;
+    const text=s.paragraphs.filter(p=>p.english&&p.english!=='[Translation failed]').map(p=>p.english).join('\n\n');
+    navigator.clipboard.writeText(text).then(()=>toast('ok','English translation copied'));
+}
+
 function downloadSession(fileName){
     const lib=loadLibrary();const s=lib[fileName];if(!s)return;
     const blob=new Blob([buildMarkdown(s)],{type:'text/markdown'});
@@ -337,7 +344,8 @@ function showLibrary(entries){
                 <div class="lib-bar"><div class="lib-bar-fill" style="width:${pct}%"></div></div>
             </div>
             <div class="lib-actions">
-                <button class="lib-btn lib-dl" onclick="downloadSession('${esc(s.fileName)}')" title="Download">↓</button>
+                <button class="lib-btn lib-copy" onclick="copySession('${esc(s.fileName)}')" title="Copy English text">📋</button>
+                <button class="lib-btn lib-dl" onclick="downloadSession('${esc(s.fileName)}')" title="Download markdown">↓</button>
                 <button class="lib-btn lib-del" onclick="deleteLib('${esc(s.fileName)}')" title="Delete">✕</button>
             </div>
         </div>`;
@@ -775,8 +783,16 @@ function createParaEl(index){
     const time=fmtTime(p.startTime)+' → '+fmtTime(p.endTime);
     const confColor=p.confidence==null?'':p.confidence>.85?'var(--ok)':p.confidence>.6?'var(--warn)':'var(--err)';
     const confBadge=p.confidence!=null?`<span class="conf-badge" style="color:${confColor};background:${confColor}18">${Math.round(p.confidence*100)}%</span>`:'';
-    const thaiContent=p.thai?`<div class="cell-text thai-text">${esc(p.thai)}</div><div class="cell-actions"><button class="cell-action" onclick="seekTo(${p.startTime})">▶ Play</button></div>`:`<div class="cell-text empty">—</div>`;
-    const engContent=p.english?`<div class="cell-text">${esc(p.english)}</div><div class="cell-actions"><button class="cell-action" onclick="retryPara(${index})">🔄 Re-translate</button></div>`:`<div class="cell-text empty">⏳ Translating…</div>`;
+    const thaiContent=p.thai?`<div class="cell-text thai-text">${esc(p.thai)}</div>
+        <div class="cell-actions">
+            <button class="cell-action" onclick="copyText(${index},'thai')" title="Copy Thai">📋 Copy</button>
+            <button class="cell-action cell-action-del" onclick="deletePara(${index})" title="Delete paragraph">✕</button>
+        </div>`:`<div class="cell-text empty">—</div>`;
+    const engContent=p.english?`<div class="cell-text">${esc(p.english)}</div>
+        <div class="cell-actions">
+            <button class="cell-action" onclick="copyText(${index},'english')" title="Copy English">📋 Copy</button>
+            <button class="cell-action" onclick="retryPara(${index})" title="Re-translate">🔄 Redo</button>
+        </div>`:`<div class="cell-text empty">⏳ Translating…</div>`;
     const canBt=!!p.english&&p.english!=='[Translation failed]';
     const btLoading=p.btStatus==='loading',btDone=p.btStatus==='done';
     let toggleClass='bt-toggle';if(!canBt)toggleClass+=' disabled';if(p.btOpen)toggleClass+=' open';if(btLoading)toggleClass+=' loading';
@@ -786,6 +802,27 @@ function createParaEl(index){
     else if(btLoading){drawerContent=`<div class="bt-content"><div class="bt-col"><div class="bt-text empty">⏳ Generating...</div></div><div class="bt-col"><div class="bt-text empty">⏳ Generating...</div></div></div>`;}
     wrapper.innerHTML=`<div class="para-row${p.english==null?' translating':''}"><div class="cell"><div class="cell-head"><span class="cell-id">${id}</span><span class="cell-time">${time}</span>${confBadge}</div>${thaiContent}</div><div class="cell"><div class="cell-head"></div>${engContent}</div></div><div class="${toggleClass}" onclick="toggleBt(${index})"><span class="bt-chevron">▶</span><div class="bt-spinner"></div><span class="bt-label">${btLabel}</span>${canBt?`<span class="bt-note">${config.xlateEngine}</span>`:''}</div><div class="bt-drawer${p.btOpen?' open':''}"> ${drawerContent}</div>`;
     return wrapper;
+}
+
+
+function copyText(index, field){
+    const p=state.session?.paragraphs[index];
+    if(!p||!p[field])return;
+    navigator.clipboard.writeText(p[field]).then(()=>toast('ok', field==='thai'?'Thai copied':'English copied'));
+}
+
+function deletePara(index){
+    if(!state.session)return;
+    state.session.paragraphs.splice(index,1);
+    // Re-index
+    state.session.paragraphs.forEach((p,i)=>p.index=i);
+    saveSession();
+    // Re-render scroll only
+    const scroll=document.getElementById('paraScroll');
+    if(!scroll)return;
+    scroll.innerHTML='';
+    for(let i=0;i<state.session.paragraphs.length;i++)scroll.appendChild(createParaEl(i));
+    toast('ok','Paragraph deleted');
 }
 
 function updateParaUI(index){const old=document.getElementById('para-'+index);if(old)old.replaceWith(createParaEl(index));}
