@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Tilt Balance Surface</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0b0d;
+      --panel: rgba(18, 18, 22, 0.82);
+      --border: rgba(255, 255, 255, 0.12);
+      --text: #f4f4f4;
+      --muted: rgba(244, 244, 244, 0.72);
+      --accent: #ff8a00;
+      --good: #58d68d;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      touch-action: manipulation;
+      overscroll-behavior: none;
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .hud {
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top));
+      left: max(12px, env(safe-area-inset-left));
+      right: max(12px, env(safe-area-inset-right));
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .panel {
+      pointer-events: auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-radius: 16px;
+      padding: 12px 14px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+    }
+
+    .stats {
+      width: fit-content;
+      min-width: 220px;
+    }
+
+    .title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin-bottom: 6px;
+    }
+
+    .line {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+      white-space: nowrap;
+    }
+
+    .line strong {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 12px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 46px;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    button.primary {
+      background: rgba(255, 138, 0, 0.18);
+      border-color: rgba(255, 138, 0, 0.4);
+      color: #ffd6a3;
+    }
+
+    .status {
+      position: fixed;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-size: 12px;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      max-width: calc(100vw - 24px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .pulse {
+      color: var(--good);
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div class="hud">
+    <div class="panel stats">
+      <div class="title">Tilt Balance Surface</div>
+      <div class="line">Score: <strong id="score">0.0s</strong></div>
+      <div class="line">Best: <strong id="best">0.0s</strong></div>
+      <div class="line">Bounces: <strong id="bounces">0</strong></div>
+      <div class="line">Mode: <strong id="mode">Touch to Start</strong></div>
+      <div class="line">Tilt: <strong id="tilt">0°, 0°</strong></div>
+    </div>
+
+    <div class="panel controls">
+      <button id="motionButton" class="primary" type="button">Enable Motion</button>
+      <button id="recenterButton" type="button">Recenter</button>
+      <button id="resetButton" type="button">Reset Ball</button>
+      <button id="muteButton" type="button">Audio On</button>
+    </div>
+  </div>
+
+  <div id="status" class="status">Tap Enable Motion, then tilt your device to keep the orange ball centered.</div>
+
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.183.2/build/three.module.js';
+
+    const app = document.getElementById('app');
+    const scoreEl = document.getElementById('score');
+    const bestEl = document.getElementById('best');
+    const bouncesEl = document.getElementById('bounces');
+    const modeEl = document.getElementById('mode');
+    const tiltEl = document.getElementById('tilt');
+    const statusEl = document.getElementById('status');
+    const motionButton = document.getElementById('motionButton');
+    const recenterButton = document.getElementById('recenterButton');
+    const resetButton = document.getElementById('resetButton');
+    const muteButton = document.getElementById('muteButton');
+
+    const boardSize = 10;
+    const halfBoard = boardSize * 0.5;
+    const ballRadius = 0.32;
+    const playLimit = halfBoard - ballRadius - 0.08;
+    const gravityStrength = 11.0;
+    const visualTiltLimit = THREE.MathUtils.degToRad(12);
+    const controlTiltLimit = THREE.MathUtils.degToRad(14);
+    const restitution = 0.8;
+    const edgeDrag = 0.985;
+    const floorHeight = 0;
+
+    let renderer;
+    let scene;
+    let camera;
+    let boardGroup;
+    let ballMesh;
+    let shadowMesh;
+    let clock;
+    let animationFrame = 0;
+
+    let audioContext = null;
+    let masterGain = null;
+
+    const state = {
+      useMotion: false,
+      audioMuted: false,
+      audioUnlocked: false,
+      deviceTiltX: 0,
+      deviceTiltZ: 0,
+      calibrateX: 0,
+      calibrateZ: 0,
+      currentTiltX: 0,
+      currentTiltZ: 0,
+      score: 0,
+      best: Number(localStorage.getItem('tilt-balance-best') || 0),
+      bounceCount: 0,
+      ball: {
+        x: 0,
+        z: 0,
+        vx: 0,
+        vz: 0,
+        spinX: 0,
+        spinZ: 0
+      }
+    };
+
+    bestEl.textContent = `${state.best.toFixed(1)}s`;
+
+    function setStatus(message, isPositive = false) {
+      statusEl.textContent = message;
+      statusEl.classList.toggle('pulse', isPositive);
+    }
+
+    function makeBoardTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#111111';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const cells = 16;
+      const step = canvas.width / cells;
+
+      for (let y = 0; y < cells; y++) {
+        for (let x = 0; x < cells; x++) {
+          ctx.fillStyle = (x + y) % 2 === 0 ? '#1e1e20' : '#0c0c0d';
+          ctx.fillRect(x * step, y * step, step, step);
+        }
+      }
+
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(255,138,0,0.35)';
+      for (let i = 0; i <= cells; i++) {
+        const p = i * step;
+        ctx.beginPath();
+        ctx.moveTo(p, 0);
+        ctx.lineTo(p, canvas.height);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, p);
+        ctx.lineTo(canvas.width, p);
+        ctx.stroke();
+      }
+
+      const gradient = ctx.createRadialGradient(
+        canvas.width * 0.5,
+        canvas.height * 0.5,
+        canvas.width * 0.08,
+        canvas.width * 0.5,
+        canvas.height * 0.5,
+        canvas.width * 0.6
+      );
+      gradient.addColorStop(0, 'rgba(255,255,255,0.08)');
+      gradient.addColorStop(1, 'rgba(0,0,0,0.0)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      if ('anisotropy' in texture) texture.anisotropy = 8;
+      return texture;
+    }
+
+    function ensureAudio() {
+      if (audioContext) return;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) {
+        setStatus('Audio is unavailable on this device.');
+        return;
+      }
+      audioContext = new AudioContextClass();
+      masterGain = audioContext.createGain();
+      masterGain.gain.value = 0.07;
+      masterGain.connect(audioContext.destination);
+    }
+
+    async function unlockAudio() {
+      ensureAudio();
+      if (!audioContext) return;
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+      state.audioUnlocked = true;
+    }
+
+    function playBounceSound(intensity = 1) {
+      if (state.audioMuted || !state.audioUnlocked || !audioContext || !masterGain) return;
+
+      const now = audioContext.currentTime;
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      const filter = audioContext.createBiquadFilter();
+
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(740 + intensity * 90, now);
+      filter.Q.value = 4;
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(340 + intensity * 120, now);
+      osc.frequency.exponentialRampToValueAtTime(180, now + 0.11);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.18 * Math.min(1.3, intensity), now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(masterGain);
+      osc.start(now);
+      osc.stop(now + 0.13);
+    }
+
+    function vibrate(ms) {
+      if (navigator.vibrate) navigator.vibrate(ms);
+    }
+
+    function onBounce(speed) {
+      state.bounceCount += 1;
+      bouncesEl.textContent = String(state.bounceCount);
+      playBounceSound(THREE.MathUtils.clamp(speed / 5, 0.6, 1.3));
+      vibrate(speed > 4 ? 26 : 14);
+      setStatus('Boundary contact. Ball returned to fair play.', true);
+    }
+
+    function resetBall(keepScore = false) {
+      if (!keepScore) {
+        if (state.score > state.best) {
+          state.best = state.score;
+          localStorage.setItem('tilt-balance-best', String(state.best));
+          bestEl.textContent = `${state.best.toFixed(1)}s`;
+        }
+        state.score = 0;
+      }
+
+      state.ball.x = 0;
+      state.ball.z = 0;
+      state.ball.vx = 0;
+      state.ball.vz = 0;
+      state.ball.spinX = 0;
+      state.ball.spinZ = 0;
+      state.bounceCount = 0;
+      bouncesEl.textContent = '0';
+      scoreEl.textContent = '0.0s';
+      updateBallVisuals();
+    }
+
+    function clampTilt(value) {
+      return THREE.MathUtils.clamp(value, -controlTiltLimit, controlTiltLimit);
+    }
+
+    function setCalibration() {
+      state.calibrateX = state.deviceTiltX;
+      state.calibrateZ = state.deviceTiltZ;
+      setStatus('Tilt baseline recentered.', true);
+    }
+
+    function updateInput(dt) {
+      const targetX = clampTilt(state.deviceTiltX - state.calibrateX);
+      const targetZ = clampTilt(state.deviceTiltZ - state.calibrateZ);
+      state.currentTiltX = THREE.MathUtils.damp(state.currentTiltX, targetX, 8.5, dt);
+      state.currentTiltZ = THREE.MathUtils.damp(state.currentTiltZ, targetZ, 8.5, dt);
+    }
+
+    function updateBoardVisuals() {
+      boardGroup.rotation.x = THREE.MathUtils.mapLinear(state.currentTiltX, -controlTiltLimit, controlTiltLimit, -visualTiltLimit, visualTiltLimit);
+      boardGroup.rotation.z = THREE.MathUtils.mapLinear(state.currentTiltZ, -controlTiltLimit, controlTiltLimit, visualTiltLimit, -visualTiltLimit);
+      tiltEl.textContent = `${THREE.MathUtils.radToDeg(state.currentTiltX).toFixed(1)}°, ${THREE.MathUtils.radToDeg(state.currentTiltZ).toFixed(1)}°`;
+    }
+
+    function updatePhysics(dt) {
+      const ax = Math.sin(state.currentTiltZ) * gravityStrength;
+      const az = Math.sin(state.currentTiltX) * gravityStrength;
+
+      state.ball.vx += ax * dt;
+      state.ball.vz += az * dt;
+
+      const drag = Math.pow(0.92, dt * 60);
+      state.ball.vx *= drag;
+      state.ball.vz *= drag;
+
+      state.ball.x += state.ball.vx * dt;
+      state.ball.z += state.ball.vz * dt;
+
+      let bounced = false;
+      let collisionSpeed = 0;
+
+      if (state.ball.x > playLimit) {
+        collisionSpeed = Math.max(collisionSpeed, Math.abs(state.ball.vx));
+        state.ball.x = playLimit;
+        state.ball.vx = -Math.abs(state.ball.vx) * restitution;
+        state.ball.vz *= edgeDrag;
+        bounced = true;
+      } else if (state.ball.x < -playLimit) {
+        collisionSpeed = Math.max(collisionSpeed, Math.abs(state.ball.vx));
+        state.ball.x = -playLimit;
+        state.ball.vx = Math.abs(state.ball.vx) * restitution;
+        state.ball.vz *= edgeDrag;
+        bounced = true;
+      }
+
+      if (state.ball.z > playLimit) {
+        collisionSpeed = Math.max(collisionSpeed, Math.abs(state.ball.vz));
+        state.ball.z = playLimit;
+        state.ball.vz = -Math.abs(state.ball.vz) * restitution;
+        state.ball.vx *= edgeDrag;
+        bounced = true;
+      } else if (state.ball.z < -playLimit) {
+        collisionSpeed = Math.max(collisionSpeed, Math.abs(state.ball.vz));
+        state.ball.z = -playLimit;
+        state.ball.vz = Math.abs(state.ball.vz) * restitution;
+        state.ball.vx *= edgeDrag;
+        bounced = true;
+      }
+
+      if (bounced) onBounce(collisionSpeed);
+
+      state.ball.spinX += state.ball.vz * dt / ballRadius;
+      state.ball.spinZ -= state.ball.vx * dt / ballRadius;
+    }
+
+    function updateBallVisuals() {
+      const y = floorHeight + ballRadius + 0.03;
+      ballMesh.position.set(state.ball.x, y, state.ball.z);
+      ballMesh.rotation.x = state.ball.spinX;
+      ballMesh.rotation.z = state.ball.spinZ;
+
+      shadowMesh.position.set(state.ball.x, floorHeight + 0.015, state.ball.z);
+      const speed = Math.hypot(state.ball.vx, state.ball.vz);
+      const shadowScale = THREE.MathUtils.clamp(1.05 - speed * 0.02, 0.82, 1.05);
+      shadowMesh.scale.setScalar(shadowScale);
+    }
+
+    function updateScore(dt) {
+      state.score += dt;
+      if (state.score > state.best) {
+        state.best = state.score;
+        localStorage.setItem('tilt-balance-best', String(state.best));
+        bestEl.textContent = `${state.best.toFixed(1)}s`;
+      }
+      scoreEl.textContent = `${state.score.toFixed(1)}s`;
+    }
+
+    function animate() {
+      animationFrame = requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.033);
+      updateInput(dt);
+      updateBoardVisuals();
+      updatePhysics(dt);
+      updateBallVisuals();
+      updateScore(dt);
+      renderer.render(scene, camera);
+    }
+
+    async function requestMotionPermission() {
+      await unlockAudio();
+
+      if (!('DeviceOrientationEvent' in window)) {
+        state.useMotion = false;
+        modeEl.textContent = 'Unavailable';
+        setStatus('Device tilt is unavailable in this browser.');
+        return;
+      }
+
+      try {
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+          const result = await DeviceOrientationEvent.requestPermission();
+          if (result !== 'granted') {
+            state.useMotion = false;
+            modeEl.textContent = 'Denied';
+            setStatus('Motion permission was not granted.');
+            return;
+          }
+        }
+
+        state.useMotion = true;
+        modeEl.textContent = 'Device Tilt';
+        motionButton.textContent = 'Motion Enabled';
+        motionButton.disabled = true;
+        setCalibration();
+        setStatus('Motion enabled. Tilt the device to balance the ball.', true);
+      } catch (error) {
+        console.error(error);
+        state.useMotion = false;
+        modeEl.textContent = 'Error';
+        setStatus('Unable to enable motion in this browser.');
+      }
+    }
+
+    function onDeviceOrientation(event) {
+      if (!state.useMotion) return;
+      if (event.beta == null || event.gamma == null) return;
+
+      const portrait = window.matchMedia('(orientation: portrait)').matches;
+      let xDeg;
+      let zDeg;
+
+      if (portrait) {
+        xDeg = event.beta;
+        zDeg = event.gamma;
+      } else {
+        xDeg = event.gamma;
+        zDeg = event.beta;
+      }
+
+      state.deviceTiltX = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(xDeg), -0.75, 0.75);
+      state.deviceTiltZ = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(zDeg), -0.75, 0.75);
+    }
+
+    function createBoundaryOutline() {
+      const points = [
+        new THREE.Vector3(-halfBoard, 0.03, -halfBoard),
+        new THREE.Vector3(halfBoard, 0.03, -halfBoard),
+        new THREE.Vector3(halfBoard, 0.03, halfBoard),
+        new THREE.Vector3(-halfBoard, 0.03, halfBoard),
+        new THREE.Vector3(-halfBoard, 0.03, -halfBoard)
+      ];
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = new THREE.LineBasicMaterial({ color: 0xff8a00, transparent: true, opacity: 0.95 });
+      return new THREE.Line(geometry, material);
+    }
+
+    function onResize() {
+      if (!renderer || !camera) return;
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function createScene() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x060608);
+      scene.fog = new THREE.Fog(0x060608, 12, 26);
+
+      camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 100);
+      camera.position.set(0, 8.8, 9.6);
+      camera.lookAt(0, 0, 0);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      app.appendChild(renderer.domElement);
+
+      boardGroup = new THREE.Group();
+      scene.add(boardGroup);
+
+      const boardTexture = makeBoardTexture();
+      const boardGeometry = new THREE.PlaneGeometry(boardSize, boardSize, 1, 1);
+      const boardMaterial = new THREE.MeshPhysicalMaterial({
+        map: boardTexture,
+        roughness: 0.88,
+        metalness: 0.02,
+        clearcoat: 0.08,
+        color: 0xffffff
+      });
+      const boardMesh = new THREE.Mesh(boardGeometry, boardMaterial);
+      boardMesh.rotation.x = -Math.PI * 0.5;
+      boardGroup.add(boardMesh);
+
+      const underGlow = new THREE.Mesh(
+        new THREE.CircleGeometry(boardSize * 0.56, 64),
+        new THREE.MeshBasicMaterial({ color: 0xff8a00, transparent: true, opacity: 0.06 })
+      );
+      underGlow.rotation.x = -Math.PI * 0.5;
+      underGlow.position.y = -0.04;
+      boardGroup.add(underGlow);
+      boardGroup.add(createBoundaryOutline());
+
+      const ballGeometry = new THREE.SphereGeometry(ballRadius, 48, 48);
+      const ballMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xff8a00,
+        roughness: 0.36,
+        metalness: 0.05,
+        clearcoat: 0.45,
+        emissive: 0x2a1200,
+        emissiveIntensity: 0.18
+      });
+      ballMesh = new THREE.Mesh(ballGeometry, ballMaterial);
+      scene.add(ballMesh);
+
+      const shadowTextureCanvas = document.createElement('canvas');
+      shadowTextureCanvas.width = 256;
+      shadowTextureCanvas.height = 256;
+      const shadowCtx = shadowTextureCanvas.getContext('2d');
+      const shadowGradient = shadowCtx.createRadialGradient(128, 128, 10, 128, 128, 128);
+      shadowGradient.addColorStop(0, 'rgba(0,0,0,0.42)');
+      shadowGradient.addColorStop(1, 'rgba(0,0,0,0)');
+      shadowCtx.fillStyle = shadowGradient;
+      shadowCtx.fillRect(0, 0, 256, 256);
+
+      const shadowTexture = new THREE.CanvasTexture(shadowTextureCanvas);
+      shadowMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(ballRadius * 2.7, ballRadius * 2.7),
+        new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false })
+      );
+      shadowMesh.rotation.x = -Math.PI * 0.5;
+      scene.add(shadowMesh);
+
+      scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+
+      const keyLight = new THREE.DirectionalLight(0xffffff, 1.7);
+      keyLight.position.set(6, 10, 7);
+      scene.add(keyLight);
+
+      const rimLight = new THREE.PointLight(0xff8a00, 18, 22, 2);
+      rimLight.position.set(-5, 3, -5);
+      scene.add(rimLight);
+
+      const fillLight = new THREE.HemisphereLight(0x88aaff, 0x1f1308, 0.65);
+      scene.add(fillLight);
+    }
+
+    function bindControls() {
+      const unlockFromGesture = () => { unlockAudio().catch(console.error); };
+
+      window.addEventListener('resize', onResize, { passive: true });
+      window.addEventListener('deviceorientation', onDeviceOrientation, true);
+      document.body.addEventListener('pointerdown', unlockFromGesture, { passive: true });
+      document.body.addEventListener('touchstart', unlockFromGesture, { passive: true });
+
+      motionButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        requestMotionPermission();
+      }, { passive: false });
+
+      recenterButton.addEventListener('click', async (event) => {
+        event.preventDefault();
+        await unlockAudio();
+        setCalibration();
+      }, { passive: false });
+
+      resetButton.addEventListener('click', async (event) => {
+        event.preventDefault();
+        await unlockAudio();
+        resetBall(false);
+        setStatus('Ball reset to center.', true);
+      }, { passive: false });
+
+      muteButton.addEventListener('click', async (event) => {
+        event.preventDefault();
+        await unlockAudio();
+        state.audioMuted = !state.audioMuted;
+        muteButton.textContent = state.audioMuted ? 'Audio Off' : 'Audio On';
+        setStatus(state.audioMuted ? 'Audio muted.' : 'Audio enabled.', true);
+      }, { passive: false });
+    }
+
+    function init() {
+      createScene();
+      bindControls();
+      clock = new THREE.Clock();
+      resetBall(true);
+      updateBoardVisuals();
+      updateBallVisuals();
+      animate();
+      setStatus('Ready. Tap Enable Motion, then tilt the device.', true);
+    }
+
+    try {
+      init();
+    } catch (error) {
+      console.error(error);
+      cancelAnimationFrame(animationFrame);
+      setStatus('Initialization failed on this device.');
+    }
+  </script>
+</body>
+</html>
