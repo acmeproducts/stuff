@@ -15,12 +15,7 @@
     .wrap { width: min(1200px, 96vw); margin: 24px auto 30px; }
     h1 { margin: 0 0 14px; font-size: 1.45rem; font-weight: 700; color: #1f2937; }
 
-    .controls {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
+    .controls { margin-bottom: 10px; }
     input, button {
       border-radius: 10px;
       border: 1px solid #c6d0e1;
@@ -82,18 +77,20 @@
     a { color: #1d4ed8; text-decoration: none; font-weight: 600; }
     a:hover { text-decoration: underline; }
 
-    .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .actions { display: flex; align-items: center; justify-content: center; }
     .row-delete {
-      border: 1px solid #dc2626;
-      background: #ef4444;
-      color: #ffffff;
-      border-radius: 8px;
-      padding: 5px 9px;
+      border: 1px solid #cbd5e1;
+      background: #f1f5f9;
+      color: #64748b;
+      border-radius: 999px;
+      width: 24px;
+      height: 24px;
+      padding: 0;
       font-size: 0.8rem;
       line-height: 1;
       cursor: pointer;
     }
-    .row-delete:hover { background: #dc2626; }
+    .row-delete:hover { background: #e2e8f0; color: #334155; }
 
     .recycle {
       margin: 12px 0;
@@ -155,7 +152,6 @@
     <h1>Repository File List</h1>
     <div class="controls">
       <input id="repoInput" placeholder="owner/repo or github.com/owner/repo">
-      <button id="loadBtn" type="button">Load</button>
     </div>
     <div id="status" role="status" aria-live="polite"></div>
 
@@ -171,7 +167,9 @@
             <th data-key="name">Name</th>
             <th data-key="changed">Changed</th>
             <th data-key="size">Size</th>
-            <th>Actions</th>
+            <th>Launch</th>
+            <th>Listing</th>
+            <th>Delete</th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
@@ -357,7 +355,7 @@
       const tbody = document.getElementById('rows');
       const files = sortedFiles();
       if (!files.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';
       } else {
         tbody.innerHTML = files.map((f) => {
           const canLaunch = /\.html?$/i.test(f.path);
@@ -368,11 +366,9 @@
               <div class="commit-ago">${esc(fmtAgo(f.changed))}</div>
             </td>
             <td>${esc(fmtSize(f.size))}</td>
-            <td class="actions">
-              ${canLaunch ? `<a href="${esc(f.pagesUrl)}" target="_blank" rel="noopener">Launch</a>` : ''}
-              <a href="${esc(f.ghListingUrl)}" target="_blank" rel="noopener">Github Listing</a>
-              <button class="row-delete" type="button" data-delete="${esc(f.path)}">❌ Delete</button>
-            </td>
+            <td>${canLaunch ? `<a href="${esc(f.pagesUrl)}" target="_blank" rel="noopener">Launch</a>` : ''}</td>
+            <td><a href="${esc(f.ghListingUrl)}" target="_blank" rel="noopener">Listing</a></td>
+            <td class="actions"><button class="row-delete" type="button" data-delete="${esc(f.path)}" aria-label="Delete ${esc(f.path)}">×</button></td>
           </tr>`;
         }).join('');
         document.querySelectorAll('[data-delete]').forEach((btn) => btn.addEventListener('click', () => softDelete(btn.getAttribute('data-delete'))));
@@ -415,6 +411,20 @@
         if (!Array.isArray(commits) || commits.length < 100) break;
       }
 
+      for (const item of blobs) {
+        if (commitInfo.has(item.path)) continue;
+        try {
+          const latest = await fetchJson(`https://api.github.com/repos/${owner}/${name}/commits?path=${encodeURIComponent(item.path)}&sha=${encodeURIComponent(branch)}&per_page=1`);
+          const c = Array.isArray(latest) ? latest[0] : null;
+          if (c) {
+            commitInfo.set(item.path, {
+              changed: c.commit?.committer?.date || c.commit?.author?.date || null,
+              message: c.commit?.message || ''
+            });
+          }
+        } catch (_) {}
+      }
+
       state.files = blobs.map((item) => {
         const encodedPath = encodePath(item.path);
         const pagesPrefix = name.toLowerCase() === `${owner.toLowerCase()}.github.io`
@@ -435,13 +445,21 @@
       setStatus(`Loaded ${state.files.length} files from ${owner}/${name} (${branch}).`);
     }
 
-    document.getElementById('loadBtn').addEventListener('click', async () => {
-      try { await loadRepo(document.getElementById('repoInput').value); }
-      catch (err) { setStatus(err.message || String(err), true); }
+    document.getElementById('repoInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        loadRepo(document.getElementById('repoInput').value).catch((err) => setStatus(err.message || String(err), true));
+      }
     });
 
-    document.getElementById('repoInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); document.getElementById('loadBtn').click(); }
+    let loadTimer = null;
+    document.getElementById('repoInput').addEventListener('input', () => {
+      const v = document.getElementById('repoInput').value;
+      clearTimeout(loadTimer);
+      loadTimer = setTimeout(() => {
+        if (!parseRepoLike(v)) return;
+        loadRepo(v).catch((err) => setStatus(err.message || String(err), true));
+      }, 450);
     });
 
     document.getElementById('recycleHeader').addEventListener('click', () => {
@@ -465,7 +483,7 @@
         try { await loadRepo(detected); }
         catch (err) { setStatus(err.message || String(err), true); }
       } else {
-        setStatus('No repo detected automatically. Enter owner/repo and click Load.');
+        setStatus('No repo detected automatically. Enter owner/repo to auto-load.');
       }
     })();
   </script>
