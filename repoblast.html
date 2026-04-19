@@ -13,10 +13,7 @@
     @media (max-width: 850px) { .grid { grid-template-columns: 1fr; } }
     .panel { background: #101735; border: 1px solid #293563; border-radius: 12px; padding: 12px; }
     label { display: block; margin: 8px 0 4px; font-size: 0.9rem; }
-    input, button {
-      width: 100%; box-sizing: border-box; border-radius: 10px; border: 1px solid #46558d;
-      background: #111a39; color: #e8ecff; padding: 10px 12px;
-    }
+    input, button { width: 100%; box-sizing: border-box; border-radius: 10px; border: 1px solid #46558d; background: #111a39; color: #e8ecff; padding: 10px 12px; }
     button { background: #5e7cff; border: 0; cursor: pointer; margin-top: 10px; font-weight: 700; }
     #repos { max-height: 300px; overflow: auto; border: 1px solid #2d3a66; border-radius: 10px; padding: 8px; }
     .repo-item { display: flex; gap: 8px; align-items: center; padding: 4px 2px; }
@@ -56,6 +53,7 @@
       </section>
     </div>
   </main>
+
   <script>
     function defaultOwnerFromHost() {
       const host = window.location.hostname || '';
@@ -88,60 +86,51 @@
 
     function templateRepoList() {
       return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Repo File List</title></head>
-<body style="font-family:system-ui,Segoe UI,Roboto,sans-serif;padding:16px"><h1>Repository File List</h1><div id="app">Loading...</div><p><button id="toggleDeleted" type="button">Show Deleted</button></p>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Repo File List</title>
+<style>
+:root{color-scheme:light dark}*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1022;color:#e8ecff}.wrap{width:min(1180px,96vw);margin:22px auto 28px}h1{margin:0 0 14px;font-size:1.5rem}.controls{display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:10px}input,button{border-radius:10px;border:1px solid #42528d;background:#111a3a;color:#e8ecff;padding:10px 12px;font-size:.95rem}button{background:#5d7bff;border:0;font-weight:700;cursor:pointer}#status{margin:8px 0 10px;min-height:1.2em;color:#b8c7ff}.error{color:#ffb7b7}.card{border:1px solid #27386a;border-radius:14px;background:#0f1733;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.25)}table{width:100%;border-collapse:separate;border-spacing:0}thead th{background:#152149;border-bottom:1px solid #2f3f74;color:#d8e3ff;font-size:.82rem;letter-spacing:.02em;text-transform:uppercase;padding:11px 12px;text-align:left;user-select:none;cursor:pointer}thead th:last-child{cursor:default}thead th[data-active=true]::after{content:attr(data-dir);margin-left:7px;color:#9fb6ff}tbody td{border-bottom:1px solid #24335f;border-right:1px solid #1f2d56;padding:10px 12px;vertical-align:middle;font-size:.93rem}tbody td:last-child{border-right:0}tbody tr:nth-child(odd) td{background:#101a3a}tbody tr:nth-child(even) td{background:#0e1734}tbody tr:hover td{background:#182753}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85rem}a{color:#a9beff;text-decoration:none}a:hover{text-decoration:underline}.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.row-delete{border:1px solid #b14053;background:#7f1629;color:#ffdce2;border-radius:8px;padding:4px 8px;font-size:.8rem;cursor:pointer}.recycle{margin:12px 0;border:1px solid #2c3c72;border-radius:12px;background:#101937;overflow:hidden}.recycle-header{display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 12px;font-size:.83rem;font-weight:700;color:#b6c6ff;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #2a3a6c}.chev{display:inline-block;width:14px}.recycle-list{display:none;padding:10px}.recycle.open .recycle-list{display:block}.recycle-item{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:8px 10px;border:1px solid #2c3d72;border-radius:10px;background:#0d1530;margin-bottom:8px}.mini{border:1px solid #40518c;background:#182756;color:#e0e8ff;border-radius:8px;padding:4px 8px;font-size:.78rem;cursor:pointer}.mini.danger{border-color:#b64053;background:#7b1728;color:#ffd9df}.empty{opacity:.75;font-size:.9rem;padding:12px}
+</style></head>
+<body><main class="wrap"><h1>Repository File List</h1><div class="controls"><input id="repoInput" placeholder="owner/repo or github.com/owner/repo"><button id="loadBtn" type="button">Load</button></div><div id="status" role="status" aria-live="polite"></div><section id="recycle" class="recycle" style="display:none;"><div id="recycleHeader" class="recycle-header"><span id="recycleChev" class="chev">▸</span><span id="recycleLabel">Recently Deleted (0)</span></div><div id="recycleList" class="recycle-list"></div></section><section class="card"><table><thead><tr><th data-key="name">Name</th><th data-key="changed">Changed</th><th data-key="size">Size</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table></section></main>
 <script>
 (function(){
-  var deleted={},showDeleted=false;
-  function p(v){if(!v)return null;v=v.trim().replace(/^https?:\\/\\//i,'').replace(/^www\\./i,'');
-    var q=v.match(/(?:^|[?&])repo=([A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+)/);if(q)return q[1];
-    var m=v.match(/^github\\.com\\/([A-Za-z0-9_.-]+)\\/([A-Za-z0-9_.-]+)/i);if(m)return m[1]+'/'+m[2];
-    m=v.match(/^github\\.([A-Za-z0-9_.-]+)\\/([A-Za-z0-9_.-]+)/i);if(m)return m[1]+'/'+m[2];
-    m=v.match(/^([A-Za-z0-9_.-]+)\\.github\\.io\\/([A-Za-z0-9_.-]+)/i);if(m)return m[1]+'/'+m[2];
-    m=v.match(/^([A-Za-z0-9_.-]+)\\/([A-Za-z0-9_.-]+)/);if(m)return m[1]+'/'+m[2];return null;}
-  var u=new URL(location.href),r=p(u.searchParams.get('repo'))||p(u.host+u.pathname)||p(u.pathname.slice(1));
-  if(!r){document.getElementById('app').innerHTML='Add ?repo=owner/repo';return;}
-  var s=r.split('/'),o=s[0],n=s[1];
-  fetch('https://api.github.com/repos/'+o+'/'+n).then(function(x){return x.json()}).then(function(meta){
-    return fetch('https://api.github.com/repos/'+o+'/'+n+'/git/trees/'+encodeURIComponent(meta.default_branch)+'?recursive=1').then(function(x){return x.json()}).then(function(tree){return {branch:meta.default_branch,tree:tree.tree||[]};});
-  }).then(function(data){
-    function enc(path){return String(path).split('/').map(function(s){return encodeURIComponent(s)}).join('/');}
-    function pages(path){
-      var ep=enc(path);
-      if(n.toLowerCase()===String(o).toLowerCase()+'.github.io') return 'https://'+o+'.github.io/'+ep;
-      return 'https://'+o+'.github.io/'+n+'/'+ep;
-    }
-    function draw(){
-    var rows=data.tree.filter(function(i){return i.type==='blob';}).map(function(i){
-      if(!showDeleted&&deleted[i.path]) return '';
-      var isHtml=/\\.html?$/i.test(i.path),btn=deleted[i.path]?'Restore':'❌ Delete';
-      var launch=isHtml?'<a target="_blank" href="'+pages(i.path)+'">Launch</a> · <a target="_blank" href="https://'+o+'.github.io/'+enc(i.path)+'">Launch (root)</a> · ':'';
-      var style=deleted[i.path]?' style="opacity:.6;text-decoration:line-through"':'';
-      return '<tr'+style+'><td>'+i.path+'</td><td>'+(i.size||0)+'</td><td>'+launch+'<a target="_blank" href="https://github.com/'+o+'/'+n+'/blob/'+data.branch+'/'+enc(i.path)+'">GitHub Blob</a> · <details><summary>⌄</summary><button data-path="'+i.path+'">'+btn+'</button></details></td></tr>';
-    }).join('');
-    document.getElementById('app').innerHTML='<table border="1" cellpadding="6" cellspacing="0"><thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead><tbody>'+rows+'</tbody></table>';
-    Array.prototype.forEach.call(document.querySelectorAll('button[data-path]'),function(b){b.onclick=function(){var k=b.getAttribute('data-path');deleted[k]=!deleted[k];draw();};});
-    }
-    draw();
-    document.getElementById('toggleDeleted').onclick=function(){showDeleted=!showDeleted;this.textContent=showDeleted?'Hide Deleted':'Show Deleted';draw();};
-  }).catch(function(e){document.getElementById('app').textContent='Error: '+e;});
+var state={files:[],sortKey:'name',sortDir:'asc',repo:null,recycleOpen:false};
+function parseRepoLike(value){if(!value)return null;var v=String(value).trim().replace(/^https?:\/\//i,'').replace(/^www\./i,'');var q=v.match(/(?:^|[?&])repo=([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/);if(q)return q[1];var m=v.match(/^github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/i);if(m)return m[1]+'/'+m[2];m=v.match(/^github\.([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/i);if(m)return m[1]+'/'+m[2];m=v.match(/^([A-Za-z0-9_.-]+)\.github\.io\/([A-Za-z0-9_.-]+)/i);if(m)return m[1]+'/'+m[2];m=v.match(/^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/);return m?m[1]+'/'+m[2]:null;}
+function detectRepo(){var url=new URL(location.href);var candidates=[url.searchParams.get('repo'),url.host+url.pathname,url.pathname.slice(1),decodeURIComponent(url.pathname.slice(1)),decodeURIComponent(url.search)];for(var i=0;i<candidates.length;i++){var p=parseRepoLike(candidates[i]||'');if(p)return p;}return null;}
+function setStatus(t,e){var el=document.getElementById('status');el.textContent=t;el.className=e?'error':'';}
+function esc(s){return String(s).replace(/[&<>"']/g,function(ch){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
+function encodePath(path){return String(path||'').split('/').map(function(seg){return encodeURIComponent(seg);}).join('/');}
+function fmtSize(b){if(!Number.isFinite(b)||b<0)return '-';if(b<1024)return b+' B';var u=['KB','MB','GB'],n=b/1024,i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return n.toFixed(1)+' '+u[i];}
+function fmtAgo(iso){if(!iso)return 'unknown';var t=new Date(iso).getTime();if(!Number.isFinite(t))return 'unknown';var sec=Math.max(0,Math.floor((Date.now()-t)/1000)),d=Math.floor(sec/86400);sec-=d*86400;var h=Math.floor(sec/3600);sec-=h*3600;var m=Math.floor(sec/60);if(d>0)return d+'d '+h+'h ago';if(h>0)return h+'h '+m+'m ago';return m+'m ago';}
+function fetchJson(url){return fetch(url,{headers:{Accept:'application/vnd.github+json'}}).then(function(res){if(!res.ok){return res.text().then(function(b){throw new Error('GitHub API '+res.status+': '+b.slice(0,200));});}return res.json();});}
+function storageKey(base){if(!state.repo)return base+':global';return base+':'+state.repo.owner+'/'+state.repo.name;}
+function loadDeleted(){try{return JSON.parse(localStorage.getItem(storageKey('repolist:deleted'))||'[]');}catch(_){return[];}}
+function saveDeleted(x){try{localStorage.setItem(storageKey('repolist:deleted'),JSON.stringify(x));}catch(_){}}
+function loadPurgedSet(){try{return new Set(JSON.parse(localStorage.getItem(storageKey('repolist:purged'))||'[]'));}catch(_){return new Set();}}
+function savePurgedSet(set){try{localStorage.setItem(storageKey('repolist:purged'),JSON.stringify(Array.from(set)));}catch(_){}}
+function softDelete(path){var list=loadDeleted();if(!list.find(function(x){return x.path===path;})){list.unshift({path:path,deletedAt:Date.now()});saveDeleted(list);}render();}
+function restoreDeleted(path){saveDeleted(loadDeleted().filter(function(x){return x.path!==path;}));render();}
+function purgeDeleted(path){saveDeleted(loadDeleted().filter(function(x){return x.path!==path;}));var p=loadPurgedSet();p.add(path);savePurgedSet(p);render();}
+function sortedFiles(){var deleted=new Set(loadDeleted().map(function(x){return x.path;}));var purged=loadPurgedSet();var files=state.files.filter(function(f){return !deleted.has(f.path)&&!purged.has(f.path);});var key=state.sortKey,dir=state.sortDir==='asc'?1:-1;files.sort(function(a,b){var av=a[key],bv=b[key];if(key==='name'){av=av.toLowerCase();bv=bv.toLowerCase();}else if(key==='changed'){av=av?new Date(av).getTime():0;bv=bv?new Date(bv).getTime():0;}if(av<bv)return-1*dir;if(av>bv)return 1*dir;return 0;});return files;}
+function renderRecycleBin(){var wrap=document.getElementById('recycle');var list=loadDeleted();if(!list.length){wrap.style.display='none';return;}wrap.style.display='block';document.getElementById('recycleLabel').textContent='Recently Deleted ('+list.length+')';document.getElementById('recycleChev').textContent=state.recycleOpen?'▾':'▸';wrap.classList.toggle('open',state.recycleOpen);document.getElementById('recycleList').innerHTML=list.map(function(item){return '<div class="recycle-item"><span class="mono" title="'+esc(item.path)+'">'+esc(item.path)+'</span><button class="mini" type="button" data-restore="'+esc(item.path)+'">Restore</button><button class="mini danger" type="button" data-purge="'+esc(item.path)+'">Delete Forever</button></div>';}).join('');Array.prototype.forEach.call(document.querySelectorAll('[data-restore]'),function(btn){btn.addEventListener('click',function(){restoreDeleted(btn.getAttribute('data-restore'));});});Array.prototype.forEach.call(document.querySelectorAll('[data-purge]'),function(btn){btn.addEventListener('click',function(){purgeDeleted(btn.getAttribute('data-purge'));});});}
+function render(){renderRecycleBin();var tbody=document.getElementById('rows');var files=sortedFiles();if(!files.length){tbody.innerHTML='<tr><td colspan="4" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';}else{tbody.innerHTML=files.map(function(f){var canLaunch=/\.html?$/i.test(f.path);return '<tr><td class="mono">'+esc(f.path)+'</td><td>'+esc(fmtAgo(f.changed))+'</td><td>'+esc(fmtSize(f.size))+'</td><td class="actions">'+(canLaunch?'<a href="'+esc(f.pagesUrl)+'" target="_blank" rel="noopener">Launch</a>':'')+'<a href="'+esc(f.ghListingUrl)+'" target="_blank" rel="noopener">Github Listing</a><button class="row-delete" type="button" data-delete="'+esc(f.path)+'">❌ Delete</button></td></tr>';}).join('');Array.prototype.forEach.call(document.querySelectorAll('[data-delete]'),function(btn){btn.addEventListener('click',function(){softDelete(btn.getAttribute('data-delete'));});});}Array.prototype.forEach.call(document.querySelectorAll('th[data-key]'),function(th){var active=th.dataset.key===state.sortKey;th.dataset.active=active?'true':'false';th.dataset.dir=active?(state.sortDir==='asc'?'▲':'▼'):'';});}
+function loadRepo(value){var parsed=parseRepoLike(value);if(!parsed)return Promise.reject(new Error('Could not parse repo. Use owner/repo style input.'));var t=parsed.split('/'),owner=t[0],name=t[1];state.repo={owner:owner,name:name,branch:'main'};setStatus('Loading '+owner+'/'+name+' ...');return fetchJson('https://api.github.com/repos/'+owner+'/'+name).then(function(meta){var branch=meta.default_branch||'main';state.repo.branch=branch;return fetchJson('https://api.github.com/repos/'+owner+'/'+name+'/git/trees/'+encodeURIComponent(branch)+'?recursive=1').then(function(tree){return {branch:branch,blobs:(tree.tree||[]).filter(function(x){return x.type==='blob';})};});}).then(function(d){var commitDates=new Map();var chain=Promise.resolve();for(var page=1;page<=8;page++){(function(p){chain=chain.then(function(){return fetchJson('https://api.github.com/repos/'+owner+'/'+name+'/commits?per_page=100&sha='+encodeURIComponent(d.branch)+'&page='+p).then(function(commits){for(var i=0;i<commits.length;i++){var c=commits[i];for(var j=0;j<((c.files)||[]).length;j++){var f=c.files[j];if(!commitDates.has(f.filename))commitDates.set(f.filename,c.commit&&c.commit.committer?c.commit.committer.date:null);}}if(!Array.isArray(commits)||commits.length<100)throw new Error('STOP');});}).catch(function(e){if(e&&e.message==='STOP')throw e;});})(page);}return chain.catch(function(e){if(e&&e.message==='STOP')return;throw e;}).then(function(){state.files=d.blobs.map(function(item){var ep=encodePath(item.path);var prefix=name.toLowerCase()===String(owner).toLowerCase()+'.github.io'?'https://'+owner+'.github.io/':'https://'+owner+'.github.io/'+name+'/';return{path:item.path,name:item.path.split('/').pop(),size:Number.isFinite(item.size)?item.size:0,changed:commitDates.get(item.path)||null,pagesUrl:prefix+ep,ghListingUrl:'https://github.com/'+owner+'/'+name+'/blob/'+d.branch+'/'+ep};});render();setStatus('Loaded '+state.files.length+' files from '+owner+'/'+name+' ('+d.branch+').');});});}
+
+document.getElementById('loadBtn').addEventListener('click',function(){loadRepo(document.getElementById('repoInput').value).catch(function(err){setStatus(err.message||String(err),true);});});
+document.getElementById('repoInput').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();document.getElementById('loadBtn').click();}});
+document.getElementById('recycleHeader').addEventListener('click',function(){state.recycleOpen=!state.recycleOpen;renderRecycleBin();});
+Array.prototype.forEach.call(document.querySelectorAll('th[data-key]'),function(th){th.addEventListener('click',function(){var key=th.dataset.key;if(state.sortKey===key)state.sortDir=state.sortDir==='asc'?'desc':'asc';else{state.sortKey=key;state.sortDir=key==='name'?'asc':'desc';}render();});});
+(function init(){var detected=detectRepo();if(detected){document.getElementById('repoInput').value=detected;loadRepo(detected).catch(function(err){setStatus(err.message||String(err),true);});}else{setStatus('No repo detected automatically. Enter owner/repo and click Load.');}})();
 })();
 <\/script></body></html>`;
     }
 
     async function ghFetch(url, token, opts = {}) {
-      const headers = Object.assign({
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${token}`,
-        'X-GitHub-Api-Version': '2022-11-28'
-      }, opts.headers || {});
+      const headers = Object.assign({ Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' }, opts.headers || {});
       const res = await fetch(url, Object.assign({}, opts, { headers }));
       const text = await res.text();
       let json = null;
       try { json = text ? JSON.parse(text) : null; } catch (_) {}
-      if (!res.ok) {
-        throw new Error(`${res.status} ${res.statusText}: ${(json && (json.message || JSON.stringify(json))) || text}`);
-      }
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${(json && (json.message || JSON.stringify(json))) || text}`);
       return json;
     }
 
@@ -150,17 +139,12 @@
       return ghFetch(userUrl, token);
     }
 
-    function b64Utf8(str) {
-      return btoa(unescape(encodeURIComponent(str)));
-    }
+    function b64Utf8(str) { return btoa(unescape(encodeURIComponent(str))); }
 
     async function upsertFile(owner, repo, path, content, token, message) {
       const base = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodeURIComponent(path)}`;
-      let sha = undefined;
-      try {
-        const existing = await ghFetch(base, token);
-        sha = existing.sha;
-      } catch (_) {}
+      let sha;
+      try { const existing = await ghFetch(base, token); sha = existing.sha; } catch (_) {}
       const body = { message, content: b64Utf8(content) };
       if (sha) body.sha = sha;
       return ghFetch(base, token, { method: 'PUT', body: JSON.stringify(body) });
@@ -181,18 +165,14 @@
     async function loadRepos() {
       const owner = document.getElementById('owner').value.trim();
       const token = document.getElementById('token').value.trim();
-      if (!owner) { setStatus('Owner required.', true); return; }
-      if (!token) { setStatus('Token required to list private repos and write.', true); return; }
+      if (!owner) return setStatus('Owner required.', true);
+      if (!token) return setStatus('Token required to list private repos and write.', true);
       setStatus(`Loading repos for ${owner}...`);
       const reposWrap = document.getElementById('repos');
       reposWrap.innerHTML = '';
       try {
         const repos = await listRepos(owner, token);
-        if (!repos.length) {
-          reposWrap.textContent = 'No repositories found.';
-          setStatus('No repositories found.', true);
-          return;
-        }
+        if (!repos.length) { reposWrap.textContent = 'No repositories found.'; return setStatus('No repositories found.', true); }
         for (const r of repos) {
           const div = document.createElement('div');
           div.className = 'repo-item';
@@ -208,9 +188,9 @@
     async function deploySelected() {
       const owner = document.getElementById('owner').value.trim();
       const token = document.getElementById('token').value.trim();
-      if (!owner || !token) { setStatus('Owner and token are required.', true); return; }
+      if (!owner || !token) return setStatus('Owner and token are required.', true);
       const checked = Array.from(document.querySelectorAll('#repos input[type="checkbox"]:checked'));
-      if (!checked.length) { setStatus('Select at least one repository.', true); return; }
+      if (!checked.length) return setStatus('Select at least one repository.', true);
 
       document.getElementById('results').innerHTML = '';
       let okCount = 0;
@@ -219,20 +199,10 @@
       for (const cb of checked) {
         const repo = cb.value;
         let indexMsg = 'pending', listMsg = 'pending', ok = true;
-        try {
-          await upsertFile(owner, repo, 'index.html', templateIndex(), token, 'Deploy dynamic index redirect page');
-          indexMsg = 'updated';
-        } catch (err) {
-          ok = false;
-          indexMsg = `error: ${err.message || err}`;
-        }
-        try {
-          await upsertFile(owner, repo, 'repolist.html', templateRepoList(), token, 'Deploy dynamic repolist app');
-          listMsg = 'updated';
-        } catch (err) {
-          ok = false;
-          listMsg = `error: ${err.message || err}`;
-        }
+        try { await upsertFile(owner, repo, 'index.html', templateIndex(), token, 'Deploy dynamic index redirect page'); indexMsg = 'updated'; }
+        catch (err) { ok = false; indexMsg = `error: ${err.message || err}`; }
+        try { await upsertFile(owner, repo, 'repolist.html', templateRepoList(), token, 'Deploy dynamic repolist app'); listMsg = 'updated'; }
+        catch (err) { ok = false; listMsg = `error: ${err.message || err}`; }
         if (ok) okCount++;
         addResultRow(repo, indexMsg, listMsg, ok);
       }
