@@ -30,6 +30,54 @@
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     a { color: #a9bdff; text-decoration: none; }
     a:hover { text-decoration: underline; }
+    .deleted { opacity: 0.6; }
+    .deleted .mono { text-decoration: line-through; }
+    .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    details.row-menu { display: inline-block; }
+    details.row-menu > summary {
+      list-style: none;
+      cursor: pointer;
+      user-select: none;
+      display: inline-flex;
+      width: 28px;
+      height: 28px;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #445085;
+      border-radius: 8px;
+      background: #111a38;
+      color: #e8ecff;
+    }
+    details.row-menu > summary::-webkit-details-marker { display: none; }
+    .menu-panel {
+      margin-top: 6px;
+      background: #0f1833;
+      border: 1px solid #2b3866;
+      border-radius: 8px;
+      padding: 6px;
+      min-width: 150px;
+    }
+    .danger {
+      background: #7a1022;
+      color: #ffd8de;
+      border: 1px solid #b83b52;
+      border-radius: 8px;
+      padding: 6px 8px;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+    }
+    .ghost {
+      background: #1c2a56;
+      color: #dbe4ff;
+      border: 1px solid #42518a;
+      border-radius: 8px;
+      padding: 6px 8px;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      margin-top: 6px;
+    }
   </style>
 </head>
 <body>
@@ -38,6 +86,7 @@
     <div class="controls">
       <input id="repoInput" placeholder="owner/repo or github.com/owner/repo">
       <button id="loadBtn">Load</button>
+      <button id="toggleDeletedBtn" type="button">Show Deleted</button>
     </div>
     <div id="status" role="status" aria-live="polite"></div>
     <table>
@@ -53,7 +102,13 @@
     </table>
   </main>
   <script>
-    const state = { files: [], sortKey: 'name', sortDir: 'asc' };
+    const state = {
+      files: [],
+      sortKey: 'name',
+      sortDir: 'asc',
+      deletedPaths: new Set(),
+      showDeleted: false
+    };
 
     function parseRepoLike(value) {
       if (!value) return null;
@@ -154,17 +209,31 @@
         name: item.path.split('/').pop(),
         size: Number.isFinite(item.size) ? item.size : 0,
         date: commitDates.get(item.path) || null,
-        rawUrl: `https://${owner}.github.io/${name}/${item.path}`,
-        ghUrl: `https://github.com/${owner}/${name}/blob/${branch}/${item.path}`
+        pagesUrl: buildPagesUrl(owner, name, item.path),
+        rootPagesUrl: `https://${owner}.github.io/${encodePath(item.path)}`,
+        ghBlobUrl: `https://github.com/${owner}/${name}/blob/${branch}/${encodePath(item.path)}`
       }));
 
       state.repo = { owner, name, branch };
+      state.deletedPaths = new Set();
       render();
       setStatus(`Loaded ${state.files.length} files from ${owner}/${name} (${branch}).`);
     }
 
+    function encodePath(path) {
+      return path.split('/').map(seg => encodeURIComponent(seg)).join('/');
+    }
+
+    function buildPagesUrl(owner, repo, path) {
+      const encodedPath = encodePath(path);
+      if (repo.toLowerCase() === `${owner.toLowerCase()}.github.io`) {
+        return `https://${owner}.github.io/${encodedPath}`;
+      }
+      return `https://${owner}.github.io/${repo}/${encodedPath}`;
+    }
+
     function sortedFiles() {
-      const files = [...state.files];
+      const files = state.files.filter(file => state.showDeleted || !state.deletedPaths.has(file.path));
       const key = state.sortKey;
       const dir = state.sortDir === 'asc' ? 1 : -1;
       files.sort((a, b) => {
@@ -187,19 +256,42 @@
       const tbody = document.getElementById('rows');
       tbody.innerHTML = '';
       for (const f of sortedFiles()) {
+        const isDeleted = state.deletedPaths.has(f.path);
         const tr = document.createElement('tr');
+        tr.className = isDeleted ? 'deleted' : '';
         const ext = f.name.toLowerCase();
         const canLaunch = ext.endsWith('.html') || ext.endsWith('.htm');
+        const toggleLabel = isDeleted ? 'Restore' : '❌ Delete';
+        const toggleClass = isDeleted ? 'ghost' : 'danger';
         tr.innerHTML = `
           <td class="mono">${f.path}</td>
           <td>${fmtDate(f.date)}</td>
           <td>${fmtSize(f.size)}</td>
-          <td>
-            ${canLaunch ? `<a href="${f.rawUrl}" target="_blank" rel="noopener">Launch</a> · ` : ''}
-            <a href="${f.ghUrl}" target="_blank" rel="noopener">GitHub</a>
+          <td class="actions">
+            ${canLaunch ? `<a href="${f.pagesUrl}" target="_blank" rel="noopener">Launch</a>` : ''}
+            ${canLaunch ? `<a href="${f.rootPagesUrl}" target="_blank" rel="noopener">Launch (root)</a>` : ''}
+            <a href="${f.ghBlobUrl}" target="_blank" rel="noopener">GitHub Blob</a>
+            <details class="row-menu">
+              <summary title="Row actions">⌄</summary>
+              <div class="menu-panel">
+                <button type="button" class="${toggleClass}" data-path="${f.path}">${toggleLabel}</button>
+              </div>
+            </details>
           </td>`;
         tbody.appendChild(tr);
       }
+      tbody.querySelectorAll('button[data-path]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const path = btn.dataset.path;
+          if (!path) return;
+          if (state.deletedPaths.has(path)) {
+            state.deletedPaths.delete(path);
+          } else {
+            state.deletedPaths.add(path);
+          }
+          render();
+        });
+      });
 
       document.querySelectorAll('th[data-key]').forEach(th => {
         const active = th.dataset.key === state.sortKey;
@@ -221,6 +313,12 @@
         e.preventDefault();
         document.getElementById('loadBtn').click();
       }
+    });
+
+    document.getElementById('toggleDeletedBtn').addEventListener('click', () => {
+      state.showDeleted = !state.showDeleted;
+      document.getElementById('toggleDeletedBtn').textContent = state.showDeleted ? 'Hide Deleted' : 'Show Deleted';
+      render();
     });
 
     document.querySelectorAll('th[data-key]').forEach(th => {
