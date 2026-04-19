@@ -280,6 +280,18 @@
       render();
     }
 
+    function encodePath(path) {
+      return path.split('/').map(seg => encodeURIComponent(seg)).join('/');
+    }
+
+    function buildPagesUrl(owner, repo, path) {
+      const encodedPath = encodePath(path);
+      if (repo.toLowerCase() === `${owner.toLowerCase()}.github.io`) {
+        return `https://${owner}.github.io/${encodedPath}`;
+      }
+      return `https://${owner}.github.io/${repo}/${encodedPath}`;
+    }
+
     function sortedFiles() {
       const deleted = new Set(loadDeleted().map(x => x.path));
       const purged = loadPurgedSet();
@@ -343,6 +355,18 @@
         }).join('');
         document.querySelectorAll('[data-delete]').forEach(btn => btn.addEventListener('click', () => softDelete(btn.getAttribute('data-delete'))));
       }
+      tbody.querySelectorAll('button[data-path]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const path = btn.dataset.path;
+          if (!path) return;
+          if (state.deletedPaths.has(path)) {
+            state.deletedPaths.delete(path);
+          } else {
+            state.deletedPaths.add(path);
+          }
+          render();
+        });
+      });
 
       document.querySelectorAll('th[data-key]').forEach(th => {
         const active = th.dataset.key === state.sortKey;
@@ -405,6 +429,12 @@
     document.getElementById('recycleHeader').addEventListener('click', () => {
       state.recycleOpen = !state.recycleOpen;
       renderRecycleBin();
+    });
+
+    document.getElementById('toggleDeletedBtn').addEventListener('click', () => {
+      state.showDeleted = !state.showDeleted;
+      document.getElementById('toggleDeletedBtn').textContent = state.showDeleted ? 'Hide Deleted' : 'Show Deleted';
+      render();
     });
 
     document.querySelectorAll('th[data-key]').forEach(th => {
