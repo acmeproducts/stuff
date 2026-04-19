@@ -441,6 +441,36 @@
       catch (_) {}
     }
 
+    function loadRepoCache() {
+      try {
+        const raw = localStorage.getItem(storageKey('repolist:cache'));
+        const data = raw ? JSON.parse(raw) : null;
+        if (!data || !Array.isArray(data.files)) return null;
+        return data;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function saveRepoCache(cache) {
+      try { localStorage.setItem(storageKey('repolist:cache'), JSON.stringify(cache)); }
+      catch (_) {}
+    }
+
+    async function fetchLatestCommitForPath(owner, name, branch, path) {
+      try {
+        const latest = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/commits?path=\${encodeURIComponent(path)}&sha=\${encodeURIComponent(branch)}&per_page=1\`);
+        const c = Array.isArray(latest) ? latest[0] : null;
+        if (!c) return { changed: null, message: '' };
+        return {
+          changed: c.commit?.committer?.date || c.commit?.author?.date || null,
+          message: c.commit?.message || ''
+        };
+      } catch (_) {
+        return { changed: null, message: '' };
+      }
+    }
+
     function softDelete(path) {
       const list = loadDeleted();
       if (!list.find((x) => x.path === path)) {
@@ -549,53 +579,62 @@
         const branch = meta.default_branch || 'main';
         state.repo.branch = branch;
 
+        const headList = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/commits?per_page=1&sha=\${encodeURIComponent(branch)}\`);
+        const headSha = Array.isArray(headList) && headList[0] ? headList[0].sha : null;
+        const cache = loadRepoCache();
+        const cachedByPath = new Map((cache?.files || []).map((f) => [f.path, f]));
+
+        if (cache && cache.branch === branch && cache.headSha && headSha && cache.headSha === headSha) {
+          state.files = cache.files;
+          render();
+          setStatus(\`Loaded \${state.files.length} files from \${owner}/\${name} (\${branch}) from cache.\`);
+          return;
+        }
+
         const tree = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/git/trees/\${encodeURIComponent(branch)}?recursive=1\`);
         const blobs = (tree.tree || []).filter((x) => x.type === 'blob');
+        const changedPaths = new Set();
 
-        const commitInfo = new Map();
-        for (let page = 1; page <= 8; page++) {
-          const commits = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/commits?per_page=100&sha=\${encodeURIComponent(branch)}&page=\${page}\`);
-          for (const c of commits) {
-            for (const f of c.files || []) {
-              if (!commitInfo.has(f.filename)) {
-                commitInfo.set(f.filename, {
-                  changed: c.commit?.committer?.date || null,
-                  message: c.commit?.message || ''
-                });
-              }
-            }
-          }
-          if (!Array.isArray(commits) || commits.length < 100) break;
-        }
-
-        for (const item of blobs) {
-          if (commitInfo.has(item.path)) continue;
+        if (cache && cache.branch === branch && cache.headSha && headSha) {
           try {
-            const latest = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/commits?path=\${encodeURIComponent(item.path)}&sha=\${encodeURIComponent(branch)}&per_page=1\`);
-            const c = Array.isArray(latest) ? latest[0] : null;
-            if (c) {
-              commitInfo.set(item.path, {
-                changed: c.commit?.committer?.date || c.commit?.author?.date || null,
-                message: c.commit?.message || ''
-              });
+            const cmp = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/compare/\${encodeURIComponent(cache.headSha)}...\${encodeURIComponent(headSha)}\`);
+            for (const f of (cmp.files || [])) {
+              if (f.filename) changedPaths.add(f.filename);
+              if (f.previous_filename) changedPaths.add(f.previous_filename);
             }
-          } catch (_) {}
+          } catch (_) {
+            for (const b of blobs) changedPaths.add(b.path);
+          }
+        } else {
+          for (const b of blobs) changedPaths.add(b.path);
         }
 
-        state.files = blobs.map((item) => {
+        state.files = await Promise.all(blobs.map(async (item) => {
           const encodedPath = encodePath(item.path);
           const pagesPrefix = name.toLowerCase() === \`\${owner.toLowerCase()}.github.io\`
             ? \`https://\${owner}.github.io/\`
             : \`https://\${owner}.github.io/\${name}/\`;
+          const cached = cachedByPath.get(item.path);
+          const commitData = (!changedPaths.has(item.path) && cached)
+            ? { changed: cached.changed || null, message: cached.commitMessage || '' }
+            : await fetchLatestCommitForPath(owner, name, branch, item.path);
           return {
             path: item.path,
             name: item.path.split('/').pop(),
             size: Number.isFinite(item.size) ? item.size : 0,
-            changed: commitInfo.get(item.path)?.changed || null,
-            commitMessage: commitInfo.get(item.path)?.message || '',
+            changed: commitData.changed || null,
+            commitMessage: commitData.message || '',
             pagesUrl: pagesPrefix + encodedPath,
             ghListingUrl: \`https://github.com/\${owner}/\${name}/blob/\${branch}/\${encodedPath}\`
           };
+        }));
+
+        saveRepoCache({
+          branch,
+          headSha: headSha || null,
+          treeSha: tree.sha || null,
+          savedAt: new Date().toISOString(),
+          files: state.files
         });
 
         render();
