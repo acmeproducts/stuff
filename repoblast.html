@@ -83,15 +83,16 @@
   if(!r){document.body.innerHTML='<h2>Enter repo</h2><input id="i" placeholder="owner/repo"><button id="b">Go</button>';document.getElementById('b').onclick=function(){var x=p(document.getElementById('i').value);if(x)location.href='https://'+x.split('/')[0]+'.github.io/'+x.split('/')[1]+'/repolist.html';};return;}
   var s=r.split('/');location.replace('https://'+s[0]+'.github.io/'+s[1]+'/repolist.html');
 })();
-</script></body></html>`;
+<\/script></body></html>`;
     }
 
     function templateRepoList() {
       return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Repo File List</title></head>
-<body style="font-family:system-ui,Segoe UI,Roboto,sans-serif;padding:16px"><h1>Repository File List</h1><div id="app">Loading...</div>
+<body style="font-family:system-ui,Segoe UI,Roboto,sans-serif;padding:16px"><h1>Repository File List</h1><div id="app">Loading...</div><p><button id="toggleDeleted" type="button">Show Deleted</button></p>
 <script>
 (function(){
+  var deleted={},showDeleted=false;
   function p(v){if(!v)return null;v=v.trim().replace(/^https?:\\/\\//i,'').replace(/^www\\./i,'');
     var q=v.match(/(?:^|[?&])repo=([A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+)/);if(q)return q[1];
     var m=v.match(/^github\\.com\\/([A-Za-z0-9_.-]+)\\/([A-Za-z0-9_.-]+)/i);if(m)return m[1]+'/'+m[2];
@@ -104,14 +105,28 @@
   fetch('https://api.github.com/repos/'+o+'/'+n).then(function(x){return x.json()}).then(function(meta){
     return fetch('https://api.github.com/repos/'+o+'/'+n+'/git/trees/'+encodeURIComponent(meta.default_branch)+'?recursive=1').then(function(x){return x.json()}).then(function(tree){return {branch:meta.default_branch,tree:tree.tree||[]};});
   }).then(function(data){
+    function enc(path){return String(path).split('/').map(function(s){return encodeURIComponent(s)}).join('/');}
+    function pages(path){
+      var ep=enc(path);
+      if(n.toLowerCase()===String(o).toLowerCase()+'.github.io') return 'https://'+o+'.github.io/'+ep;
+      return 'https://'+o+'.github.io/'+n+'/'+ep;
+    }
+    function draw(){
     var rows=data.tree.filter(function(i){return i.type==='blob';}).map(function(i){
-      var launch=/\\.html?$/i.test(i.path)?'<a target="_blank" href="https://'+o+'.github.io/'+n+'/'+i.path+'">Launch</a> · ':'';
-      return '<tr><td>'+i.path+'</td><td>'+(i.size||0)+'</td><td>'+launch+'<a target="_blank" href="https://github.com/'+o+'/'+n+'/blob/'+data.branch+'/'+i.path+'">GitHub</a></td></tr>';
+      if(!showDeleted&&deleted[i.path]) return '';
+      var isHtml=/\\.html?$/i.test(i.path),btn=deleted[i.path]?'Restore':'❌ Delete';
+      var launch=isHtml?'<a target="_blank" href="'+pages(i.path)+'">Launch</a> · <a target="_blank" href="https://'+o+'.github.io/'+enc(i.path)+'">Launch (root)</a> · ':'';
+      var style=deleted[i.path]?' style="opacity:.6;text-decoration:line-through"':'';
+      return '<tr'+style+'><td>'+i.path+'</td><td>'+(i.size||0)+'</td><td>'+launch+'<a target="_blank" href="https://github.com/'+o+'/'+n+'/blob/'+data.branch+'/'+enc(i.path)+'">GitHub Blob</a> · <details><summary>⌄</summary><button data-path="'+i.path+'">'+btn+'</button></details></td></tr>';
     }).join('');
     document.getElementById('app').innerHTML='<table border="1" cellpadding="6" cellspacing="0"><thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    Array.prototype.forEach.call(document.querySelectorAll('button[data-path]'),function(b){b.onclick=function(){var k=b.getAttribute('data-path');deleted[k]=!deleted[k];draw();};});
+    }
+    draw();
+    document.getElementById('toggleDeleted').onclick=function(){showDeleted=!showDeleted;this.textContent=showDeleted?'Hide Deleted':'Show Deleted';draw();};
   }).catch(function(e){document.getElementById('app').textContent='Error: '+e;});
 })();
-</script></body></html>`;
+<\/script></body></html>`;
     }
 
     async function ghFetch(url, token, opts = {}) {
