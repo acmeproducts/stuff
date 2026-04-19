@@ -800,6 +800,11 @@
       el.className = bad ? 'bad' : 'ok';
     }
 
+    function persistDeployAuth() {
+      localStorage.setItem('repoblast:owner', ownerEl.value.trim());
+      localStorage.setItem('repoblast:token', tokenEl.value.trim());
+    }
+
     function addResultRow(repo, indexMsg, listMsg, ok) {
       const tr = document.createElement('tr');
       tr.innerHTML = `<td>${escapeHtml(repo)}</td><td>${escapeHtml(indexMsg)}</td><td>${escapeHtml(listMsg)}</td><td class="${ok ? 'ok' : 'bad'}">${ok ? 'OK' : 'FAILED'}</td>`;
@@ -811,6 +816,7 @@
       const token = document.getElementById('token').value.trim();
       if (!owner) return setStatus('Owner required.', true);
       if (!token) return setStatus('Token required to list private repos and write.', true);
+      persistDeployAuth();
       setStatus(`Loading repos for ${owner}...`);
       const reposWrap = document.getElementById('repos');
       reposWrap.innerHTML = '';
@@ -839,13 +845,23 @@
       document.getElementById('results').innerHTML = '';
       let okCount = 0;
       setStatus(`Deploying to ${checked.length} repos...`);
+      persistDeployAuth();
+      let repolistPayload = '';
+      try {
+        repolistPayload = await fetch('repolist.html', { cache: 'no-store' }).then((res) => {
+          if (!res.ok) throw new Error(`Unable to load local repolist.html (${res.status})`);
+          return res.text();
+        });
+      } catch (err) {
+        return setStatus(`Failed to read local repolist.html: ${err.message || err}`, true);
+      }
 
       for (const cb of checked) {
         const repo = cb.value;
         let indexMsg = 'pending', listMsg = 'pending', ok = true;
         try { await upsertFile(owner, repo, 'index.html', templateIndex(), token, 'Deploy dynamic index redirect page'); indexMsg = 'updated'; }
         catch (err) { ok = false; indexMsg = `error: ${err.message || err}`; }
-        try { await upsertFile(owner, repo, 'repolist.html', templateRepoList(), token, 'Deploy dynamic repolist app'); listMsg = 'updated'; }
+        try { await upsertFile(owner, repo, 'repolist.html', repolistPayload, token, 'Deploy dynamic repolist app'); listMsg = 'updated'; }
         catch (err) { ok = false; listMsg = `error: ${err.message || err}`; }
         if (ok) okCount++;
         addResultRow(repo, indexMsg, listMsg, ok);
@@ -858,10 +874,13 @@
     const tokenEl = document.getElementById('token');
     ownerEl.value = localStorage.getItem('repoblast:owner') || defaultOwnerFromHost();
     tokenEl.value = localStorage.getItem('repoblast:token') || '';
-    ownerEl.addEventListener('blur', () => localStorage.setItem('repoblast:owner', ownerEl.value.trim()));
-    tokenEl.addEventListener('blur', () => localStorage.setItem('repoblast:token', tokenEl.value.trim()));
+    ownerEl.addEventListener('input', persistDeployAuth);
+    tokenEl.addEventListener('input', persistDeployAuth);
+    ownerEl.addEventListener('blur', persistDeployAuth);
+    tokenEl.addEventListener('blur', persistDeployAuth);
     document.getElementById('loadRepos').addEventListener('click', loadRepos);
     document.getElementById('deploy').addEventListener('click', deploySelected);
+    if (ownerEl.value && tokenEl.value) loadRepos();
   </script>
 </body>
 </html>
