@@ -86,42 +86,461 @@
 
     function templateRepoList() {
       return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Repo File List</title>
-<style>
-:root{color-scheme:light dark}*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1022;color:#e8ecff}.wrap{width:min(1180px,96vw);margin:22px auto 28px}h1{margin:0 0 14px;font-size:1.5rem}.controls{display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:10px}input,button{border-radius:10px;border:1px solid #42528d;background:#111a3a;color:#e8ecff;padding:10px 12px;font-size:.95rem}button{background:#5d7bff;border:0;font-weight:700;cursor:pointer}#status{margin:8px 0 10px;min-height:1.2em;color:#b8c7ff}.error{color:#ffb7b7}.card{border:1px solid #27386a;border-radius:14px;background:#0f1733;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.25)}table{width:100%;border-collapse:separate;border-spacing:0}thead th{background:#152149;border-bottom:1px solid #2f3f74;color:#d8e3ff;font-size:.82rem;letter-spacing:.02em;text-transform:uppercase;padding:11px 12px;text-align:left;user-select:none;cursor:pointer}thead th:last-child{cursor:default}thead th[data-active=true]::after{content:attr(data-dir);margin-left:7px;color:#9fb6ff}tbody td{border-bottom:1px solid #24335f;border-right:1px solid #1f2d56;padding:10px 12px;vertical-align:middle;font-size:.93rem}tbody td:last-child{border-right:0}tbody tr:nth-child(odd) td{background:#101a3a}tbody tr:nth-child(even) td{background:#0e1734}tbody tr:hover td{background:#182753}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85rem}a{color:#a9beff;text-decoration:none}a:hover{text-decoration:underline}.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.row-delete{border:1px solid #b14053;background:#7f1629;color:#ffdce2;border-radius:8px;padding:4px 8px;font-size:.8rem;cursor:pointer}.recycle{margin:12px 0;border:1px solid #2c3c72;border-radius:12px;background:#101937;overflow:hidden}.recycle-header{display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 12px;font-size:.83rem;font-weight:700;color:#b6c6ff;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #2a3a6c}.chev{display:inline-block;width:14px}.recycle-list{display:none;padding:10px}.recycle.open .recycle-list{display:block}.recycle-item{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:8px 10px;border:1px solid #2c3d72;border-radius:10px;background:#0d1530;margin-bottom:8px}.mini{border:1px solid #40518c;background:#182756;color:#e0e8ff;border-radius:8px;padding:4px 8px;font-size:.78rem;cursor:pointer}.mini.danger{border-color:#b64053;background:#7b1728;color:#ffd9df}.empty{opacity:.75;font-size:.9rem;padding:12px}
-</style></head>
-<body><main class="wrap"><h1>Repository File List</h1><div class="controls"><input id="repoInput" placeholder="owner/repo or github.com/owner/repo"><button id="loadBtn" type="button">Load</button></div><div id="status" role="status" aria-live="polite"></div><section id="recycle" class="recycle" style="display:none;"><div id="recycleHeader" class="recycle-header"><span id="recycleChev" class="chev">▸</span><span id="recycleLabel">Recently Deleted (0)</span></div><div id="recycleList" class="recycle-list"></div></section><section class="card"><table><thead><tr><th data-key="name">Name</th><th data-key="changed">Changed</th><th data-key="size">Size</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table></section></main>
-<script>
-(function(){
-var state={files:[],sortKey:'name',sortDir:'asc',repo:null,recycleOpen:false};
-function parseRepoLike(value){if(!value)return null;var v=String(value).trim().replace(/^https?:\/\//i,'').replace(/^www\./i,'');var q=v.match(/(?:^|[?&])repo=([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/);if(q)return q[1];var m=v.match(/^github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/i);if(m)return m[1]+'/'+m[2];m=v.match(/^github\.([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/i);if(m)return m[1]+'/'+m[2];m=v.match(/^([A-Za-z0-9_.-]+)\.github\.io\/([A-Za-z0-9_.-]+)/i);if(m)return m[1]+'/'+m[2];m=v.match(/^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/);return m?m[1]+'/'+m[2]:null;}
-function detectRepo(){var url=new URL(location.href);var candidates=[url.searchParams.get('repo'),url.host+url.pathname,url.pathname.slice(1),decodeURIComponent(url.pathname.slice(1)),decodeURIComponent(url.search)];for(var i=0;i<candidates.length;i++){var p=parseRepoLike(candidates[i]||'');if(p)return p;}return null;}
-function setStatus(t,e){var el=document.getElementById('status');el.textContent=t;el.className=e?'error':'';}
-function esc(s){return String(s).replace(/[&<>"']/g,function(ch){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
-function encodePath(path){return String(path||'').split('/').map(function(seg){return encodeURIComponent(seg);}).join('/');}
-function fmtSize(b){if(!Number.isFinite(b)||b<0)return '-';if(b<1024)return b+' B';var u=['KB','MB','GB'],n=b/1024,i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return n.toFixed(1)+' '+u[i];}
-function fmtAgo(iso){if(!iso)return 'unknown';var t=new Date(iso).getTime();if(!Number.isFinite(t))return 'unknown';var sec=Math.max(0,Math.floor((Date.now()-t)/1000)),d=Math.floor(sec/86400);sec-=d*86400;var h=Math.floor(sec/3600);sec-=h*3600;var m=Math.floor(sec/60);if(d>0)return d+'d '+h+'h ago';if(h>0)return h+'h '+m+'m ago';return m+'m ago';}
-function fetchJson(url){return fetch(url,{headers:{Accept:'application/vnd.github+json'}}).then(function(res){if(!res.ok){return res.text().then(function(b){throw new Error('GitHub API '+res.status+': '+b.slice(0,200));});}return res.json();});}
-function storageKey(base){if(!state.repo)return base+':global';return base+':'+state.repo.owner+'/'+state.repo.name;}
-function loadDeleted(){try{return JSON.parse(localStorage.getItem(storageKey('repolist:deleted'))||'[]');}catch(_){return[];}}
-function saveDeleted(x){try{localStorage.setItem(storageKey('repolist:deleted'),JSON.stringify(x));}catch(_){}}
-function loadPurgedSet(){try{return new Set(JSON.parse(localStorage.getItem(storageKey('repolist:purged'))||'[]'));}catch(_){return new Set();}}
-function savePurgedSet(set){try{localStorage.setItem(storageKey('repolist:purged'),JSON.stringify(Array.from(set)));}catch(_){}}
-function softDelete(path){var list=loadDeleted();if(!list.find(function(x){return x.path===path;})){list.unshift({path:path,deletedAt:Date.now()});saveDeleted(list);}render();}
-function restoreDeleted(path){saveDeleted(loadDeleted().filter(function(x){return x.path!==path;}));render();}
-function purgeDeleted(path){saveDeleted(loadDeleted().filter(function(x){return x.path!==path;}));var p=loadPurgedSet();p.add(path);savePurgedSet(p);render();}
-function sortedFiles(){var deleted=new Set(loadDeleted().map(function(x){return x.path;}));var purged=loadPurgedSet();var files=state.files.filter(function(f){return !deleted.has(f.path)&&!purged.has(f.path);});var key=state.sortKey,dir=state.sortDir==='asc'?1:-1;files.sort(function(a,b){var av=a[key],bv=b[key];if(key==='name'){av=av.toLowerCase();bv=bv.toLowerCase();}else if(key==='changed'){av=av?new Date(av).getTime():0;bv=bv?new Date(bv).getTime():0;}if(av<bv)return-1*dir;if(av>bv)return 1*dir;return 0;});return files;}
-function renderRecycleBin(){var wrap=document.getElementById('recycle');var list=loadDeleted();if(!list.length){wrap.style.display='none';return;}wrap.style.display='block';document.getElementById('recycleLabel').textContent='Recently Deleted ('+list.length+')';document.getElementById('recycleChev').textContent=state.recycleOpen?'▾':'▸';wrap.classList.toggle('open',state.recycleOpen);document.getElementById('recycleList').innerHTML=list.map(function(item){return '<div class="recycle-item"><span class="mono" title="'+esc(item.path)+'">'+esc(item.path)+'</span><button class="mini" type="button" data-restore="'+esc(item.path)+'">Restore</button><button class="mini danger" type="button" data-purge="'+esc(item.path)+'">Delete Forever</button></div>';}).join('');Array.prototype.forEach.call(document.querySelectorAll('[data-restore]'),function(btn){btn.addEventListener('click',function(){restoreDeleted(btn.getAttribute('data-restore'));});});Array.prototype.forEach.call(document.querySelectorAll('[data-purge]'),function(btn){btn.addEventListener('click',function(){purgeDeleted(btn.getAttribute('data-purge'));});});}
-function render(){renderRecycleBin();var tbody=document.getElementById('rows');var files=sortedFiles();if(!files.length){tbody.innerHTML='<tr><td colspan="4" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';}else{tbody.innerHTML=files.map(function(f){var canLaunch=/\.html?$/i.test(f.path);return '<tr><td class="mono">'+esc(f.path)+'</td><td>'+esc(fmtAgo(f.changed))+'</td><td>'+esc(fmtSize(f.size))+'</td><td class="actions">'+(canLaunch?'<a href="'+esc(f.pagesUrl)+'" target="_blank" rel="noopener">Launch</a>':'')+'<a href="'+esc(f.ghListingUrl)+'" target="_blank" rel="noopener">Github Listing</a><button class="row-delete" type="button" data-delete="'+esc(f.path)+'">❌ Delete</button></td></tr>';}).join('');Array.prototype.forEach.call(document.querySelectorAll('[data-delete]'),function(btn){btn.addEventListener('click',function(){softDelete(btn.getAttribute('data-delete'));});});}Array.prototype.forEach.call(document.querySelectorAll('th[data-key]'),function(th){var active=th.dataset.key===state.sortKey;th.dataset.active=active?'true':'false';th.dataset.dir=active?(state.sortDir==='asc'?'▲':'▼'):'';});}
-function loadRepo(value){var parsed=parseRepoLike(value);if(!parsed)return Promise.reject(new Error('Could not parse repo. Use owner/repo style input.'));var t=parsed.split('/'),owner=t[0],name=t[1];state.repo={owner:owner,name:name,branch:'main'};setStatus('Loading '+owner+'/'+name+' ...');return fetchJson('https://api.github.com/repos/'+owner+'/'+name).then(function(meta){var branch=meta.default_branch||'main';state.repo.branch=branch;return fetchJson('https://api.github.com/repos/'+owner+'/'+name+'/git/trees/'+encodeURIComponent(branch)+'?recursive=1').then(function(tree){return {branch:branch,blobs:(tree.tree||[]).filter(function(x){return x.type==='blob';})};});}).then(function(d){var commitDates=new Map();var chain=Promise.resolve();for(var page=1;page<=8;page++){(function(p){chain=chain.then(function(){return fetchJson('https://api.github.com/repos/'+owner+'/'+name+'/commits?per_page=100&sha='+encodeURIComponent(d.branch)+'&page='+p).then(function(commits){for(var i=0;i<commits.length;i++){var c=commits[i];for(var j=0;j<((c.files)||[]).length;j++){var f=c.files[j];if(!commitDates.has(f.filename))commitDates.set(f.filename,c.commit&&c.commit.committer?c.commit.committer.date:null);}}if(!Array.isArray(commits)||commits.length<100)throw new Error('STOP');});}).catch(function(e){if(e&&e.message==='STOP')throw e;});})(page);}return chain.catch(function(e){if(e&&e.message==='STOP')return;throw e;}).then(function(){state.files=d.blobs.map(function(item){var ep=encodePath(item.path);var prefix=name.toLowerCase()===String(owner).toLowerCase()+'.github.io'?'https://'+owner+'.github.io/':'https://'+owner+'.github.io/'+name+'/';return{path:item.path,name:item.path.split('/').pop(),size:Number.isFinite(item.size)?item.size:0,changed:commitDates.get(item.path)||null,pagesUrl:prefix+ep,ghListingUrl:'https://github.com/'+owner+'/'+name+'/blob/'+d.branch+'/'+ep};});render();setStatus('Loaded '+state.files.length+' files from '+owner+'/'+name+' ('+d.branch+').');});});}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Repo File List</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: #0f172a;
+      background: #f3f5fb;
+    }
+    .wrap { width: min(1200px, 96vw); margin: 24px auto 30px; }
+    h1 { margin: 0 0 14px; font-size: 1.45rem; font-weight: 700; color: #1f2937; }
 
-document.getElementById('loadBtn').addEventListener('click',function(){loadRepo(document.getElementById('repoInput').value).catch(function(err){setStatus(err.message||String(err),true);});});
-document.getElementById('repoInput').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();document.getElementById('loadBtn').click();}});
-document.getElementById('recycleHeader').addEventListener('click',function(){state.recycleOpen=!state.recycleOpen;renderRecycleBin();});
-Array.prototype.forEach.call(document.querySelectorAll('th[data-key]'),function(th){th.addEventListener('click',function(){var key=th.dataset.key;if(state.sortKey===key)state.sortDir=state.sortDir==='asc'?'desc':'asc';else{state.sortKey=key;state.sortDir=key==='name'?'asc':'desc';}render();});});
-(function init(){var detected=detectRepo();if(detected){document.getElementById('repoInput').value=detected;loadRepo(detected).catch(function(err){setStatus(err.message||String(err),true);});}else{setStatus('No repo detected automatically. Enter owner/repo and click Load.');}})();
-})();
-<\/script></body></html>`;
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    input, button {
+      border-radius: 10px;
+      border: 1px solid #c6d0e1;
+      background: #ffffff;
+      color: #0f172a;
+      padding: 10px 12px;
+      font-size: 0.94rem;
+    }
+    button {
+      border-color: #1d4ed8;
+      background: #2563eb;
+      color: #ffffff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:hover { background: #1d4ed8; }
+    #status { margin: 8px 0 10px; min-height: 1.2em; color: #334155; font-size: 0.92rem; }
+    #status.error { color: #b91c1c; }
+
+    .card {
+      border: 1px solid #d8deea;
+      border-radius: 14px;
+      background: #ffffff;
+      overflow: hidden;
+      box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08);
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      background: #f6f8fc;
+      border-bottom: 1px solid #d9e1ee;
+      color: #334155;
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 12px;
+      text-align: left;
+      user-select: none;
+      cursor: pointer;
+    }
+    thead th:last-child { cursor: default; }
+    thead th[data-active="true"]::after { content: attr(data-dir); margin-left: 7px; color: #2563eb; }
+
+    tbody td {
+      border-bottom: 1px solid #e3e8f3;
+      border-right: 1px solid #ebf0f7;
+      padding: 10px 12px;
+      font-size: 0.92rem;
+      vertical-align: middle;
+    }
+    tbody td:last-child { border-right: 0; }
+    tbody tr:nth-child(odd) td { background: #ffffff; }
+    tbody tr:nth-child(even) td { background: #f9fbff; }
+    tbody tr:hover td { background: #eef4ff; }
+
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.84rem; }
+    a { color: #1d4ed8; text-decoration: none; font-weight: 600; }
+    a:hover { text-decoration: underline; }
+
+    .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .row-delete {
+      border: 1px solid #dc2626;
+      background: #ef4444;
+      color: #ffffff;
+      border-radius: 8px;
+      padding: 5px 9px;
+      font-size: 0.8rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .row-delete:hover { background: #dc2626; }
+
+    .recycle {
+      margin: 12px 0;
+      border: 1px solid #d8deea;
+      border-radius: 12px;
+      background: #ffffff;
+      overflow: hidden;
+      box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+    }
+    .recycle-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      padding: 10px 12px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: #f8faff;
+      border-bottom: 1px solid #e3e8f3;
+    }
+    .chev { display: inline-block; width: 14px; }
+    .recycle-list { display: none; padding: 10px; }
+    .recycle.open .recycle-list { display: block; }
+    .recycle-item {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto auto;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid #e3e8f3;
+      border-radius: 10px;
+      background: #fcfdff;
+      margin-bottom: 8px;
+    }
+    .mini {
+      border: 1px solid #c5d2ea;
+      background: #f8fbff;
+      color: #1f2937;
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+    .mini:hover { background: #edf3ff; }
+    .mini.danger {
+      border-color: #fecaca;
+      background: #fef2f2;
+      color: #b91c1c;
+    }
+    .mini.danger:hover { background: #fee2e2; }
+    .empty { color: #64748b; font-size: 0.9rem; padding: 12px; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Repository File List</h1>
+    <div class="controls">
+      <input id="repoInput" placeholder="owner/repo or github.com/owner/repo">
+      <button id="loadBtn" type="button">Load</button>
+    </div>
+    <div id="status" role="status" aria-live="polite"></div>
+
+    <section id="recycle" class="recycle" style="display:none;">
+      <div id="recycleHeader" class="recycle-header"><span id="recycleChev" class="chev">▸</span><span id="recycleLabel">Recently Deleted (0)</span></div>
+      <div id="recycleList" class="recycle-list"></div>
+    </section>
+
+    <section class="card">
+      <table>
+        <thead>
+          <tr>
+            <th data-key="name">Name</th>
+            <th data-key="changed">Changed</th>
+            <th data-key="size">Size</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    const state = { files: [], sortKey: 'name', sortDir: 'asc', repo: null, recycleOpen: false };
+
+    function parseRepoLike(value) {
+      if (!value) return null;
+      const v = String(value).trim().replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+      const q = v.match(/(?:^|[?&])repo=([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/);
+      if (q) return q[1];
+      let m = v.match(/^github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/i);
+      if (m) return \`\${m[1]}/\${m[2]}\`;
+      m = v.match(/^github\.([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/i);
+      if (m) return \`\${m[1]}/\${m[2]}\`;
+      m = v.match(/^([A-Za-z0-9_.-]+)\.github\.io\/([A-Za-z0-9_.-]+)/i);
+      if (m) return \`\${m[1]}/\${m[2]}\`;
+      m = v.match(/^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/);
+      return m ? \`\${m[1]}/\${m[2]}\` : null;
+    }
+
+    function detectRepo() {
+      const url = new URL(location.href);
+      const candidates = [
+        url.searchParams.get('repo'),
+        url.host + url.pathname,
+        url.pathname.slice(1),
+        decodeURIComponent(url.pathname.slice(1)),
+        decodeURIComponent(url.search)
+      ];
+      for (const c of candidates) {
+        const parsed = parseRepoLike(c || '');
+        if (parsed) return parsed;
+      }
+      return null;
+    }
+
+    function setStatus(text, isError = false) {
+      const el = document.getElementById('status');
+      el.textContent = text;
+      el.className = isError ? 'error' : '';
+    }
+
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+
+    function encodePath(path) {
+      return String(path || '').split('/').map((seg) => encodeURIComponent(seg)).join('/');
+    }
+
+    function fmtSize(bytes) {
+      if (!Number.isFinite(bytes) || bytes < 0) return '-';
+      if (bytes < 1024) return \`\${bytes} B\`;
+      const units = ['KB', 'MB', 'GB'];
+      let n = bytes / 1024;
+      let i = 0;
+      while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+      return \`\${n.toFixed(1)} \${units[i]}\`;
+    }
+
+    function fmtAgo(iso) {
+      if (!iso) return 'unknown';
+      const t = new Date(iso).getTime();
+      if (!Number.isFinite(t)) return 'unknown';
+      let sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+      const d = Math.floor(sec / 86400); sec -= d * 86400;
+      const h = Math.floor(sec / 3600); sec -= h * 3600;
+      const m = Math.floor(sec / 60);
+      if (d > 0) return \`\${d}d \${h}h ago\`;
+      if (h > 0) return \`\${h}h \${m}m ago\`;
+      return \`\${m}m ago\`;
+    }
+
+    async function fetchJson(url) {
+      const res = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(\`GitHub API \${res.status}: \${body.slice(0, 200)}\`);
+      }
+      return res.json();
+    }
+
+    function storageKey(base) {
+      if (!state.repo) return \`\${base}:global\`;
+      return \`\${base}:\${state.repo.owner}/\${state.repo.name}\`;
+    }
+
+    function loadDeleted() {
+      try { return JSON.parse(localStorage.getItem(storageKey('repolist:deleted')) || '[]'); }
+      catch (_) { return []; }
+    }
+
+    function saveDeleted(items) {
+      try { localStorage.setItem(storageKey('repolist:deleted'), JSON.stringify(items)); }
+      catch (_) {}
+    }
+
+    function loadPurgedSet() {
+      try { return new Set(JSON.parse(localStorage.getItem(storageKey('repolist:purged')) || '[]')); }
+      catch (_) { return new Set(); }
+    }
+
+    function savePurgedSet(set) {
+      try { localStorage.setItem(storageKey('repolist:purged'), JSON.stringify([...set])); }
+      catch (_) {}
+    }
+
+    function softDelete(path) {
+      const list = loadDeleted();
+      if (!list.find((x) => x.path === path)) {
+        list.unshift({ path, deletedAt: Date.now() });
+        saveDeleted(list);
+      }
+      render();
+    }
+
+    function restoreDeleted(path) {
+      saveDeleted(loadDeleted().filter((x) => x.path !== path));
+      render();
+    }
+
+    function purgeDeleted(path) {
+      saveDeleted(loadDeleted().filter((x) => x.path !== path));
+      const purged = loadPurgedSet();
+      purged.add(path);
+      savePurgedSet(purged);
+      render();
+    }
+
+    function sortedFiles() {
+      const deleted = new Set(loadDeleted().map((x) => x.path));
+      const purged = loadPurgedSet();
+      const files = state.files.filter((f) => !deleted.has(f.path) && !purged.has(f.path));
+      const key = state.sortKey;
+      const dir = state.sortDir === 'asc' ? 1 : -1;
+      files.sort((a, b) => {
+        let av = a[key], bv = b[key];
+        if (key === 'name') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+        else if (key === 'changed') { av = av ? new Date(av).getTime() : 0; bv = bv ? new Date(bv).getTime() : 0; }
+        if (av < bv) return -1 * dir;
+        if (av > bv) return 1 * dir;
+        return 0;
+      });
+      return files;
+    }
+
+    function renderRecycleBin() {
+      const wrap = document.getElementById('recycle');
+      const list = loadDeleted();
+      if (!list.length) {
+        wrap.style.display = 'none';
+        return;
+      }
+      wrap.style.display = 'block';
+      document.getElementById('recycleLabel').textContent = \`Recently Deleted (\${list.length})\`;
+      document.getElementById('recycleChev').textContent = state.recycleOpen ? '▾' : '▸';
+      wrap.classList.toggle('open', state.recycleOpen);
+
+      document.getElementById('recycleList').innerHTML = list.map((item) => \`
+        <div class="recycle-item">
+          <span class="mono" title="\${esc(item.path)}">\${esc(item.path)}</span>
+          <button class="mini" type="button" data-restore="\${esc(item.path)}">Restore</button>
+          <button class="mini danger" type="button" data-purge="\${esc(item.path)}">Delete Forever</button>
+        </div>\`).join('');
+
+      document.querySelectorAll('[data-restore]').forEach((btn) => btn.addEventListener('click', () => restoreDeleted(btn.getAttribute('data-restore'))));
+      document.querySelectorAll('[data-purge]').forEach((btn) => btn.addEventListener('click', () => purgeDeleted(btn.getAttribute('data-purge'))));
+    }
+
+    function render() {
+      renderRecycleBin();
+      const tbody = document.getElementById('rows');
+      const files = sortedFiles();
+      if (!files.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';
+      } else {
+        tbody.innerHTML = files.map((f) => {
+          const canLaunch = /\.html?$/i.test(f.path);
+          return \`<tr>
+            <td class="mono">\${esc(f.path)}</td>
+            <td>\${esc(fmtAgo(f.changed))}</td>
+            <td>\${esc(fmtSize(f.size))}</td>
+            <td class="actions">
+              \${canLaunch ? \`<a href="\${esc(f.pagesUrl)}" target="_blank" rel="noopener">Launch</a>\` : ''}
+              <a href="\${esc(f.ghListingUrl)}" target="_blank" rel="noopener">Github Listing</a>
+              <button class="row-delete" type="button" data-delete="\${esc(f.path)}">❌ Delete</button>
+            </td>
+          </tr>\`;
+        }).join('');
+        document.querySelectorAll('[data-delete]').forEach((btn) => btn.addEventListener('click', () => softDelete(btn.getAttribute('data-delete'))));
+      }
+
+      document.querySelectorAll('th[data-key]').forEach((th) => {
+        const active = th.dataset.key === state.sortKey;
+        th.dataset.active = active ? 'true' : 'false';
+        th.dataset.dir = active ? (state.sortDir === 'asc' ? '▲' : '▼') : '';
+      });
+    }
+
+    async function loadRepo(value) {
+      const parsed = parseRepoLike(value);
+      if (!parsed) throw new Error('Could not parse repo. Use owner/repo style input.');
+      const [owner, name] = parsed.split('/');
+      state.repo = { owner, name, branch: 'main' };
+      setStatus(\`Loading \${owner}/\${name} ...\`);
+
+      const meta = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}\`);
+      const branch = meta.default_branch || 'main';
+      state.repo.branch = branch;
+
+      const tree = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/git/trees/\${encodeURIComponent(branch)}?recursive=1\`);
+      const blobs = (tree.tree || []).filter((x) => x.type === 'blob');
+
+      const commitDates = new Map();
+      for (let page = 1; page <= 8; page++) {
+        const commits = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/commits?per_page=100&sha=\${encodeURIComponent(branch)}&page=\${page}\`);
+        for (const c of commits) {
+          for (const f of c.files || []) {
+            if (!commitDates.has(f.filename)) commitDates.set(f.filename, c.commit?.committer?.date || null);
+          }
+        }
+        if (!Array.isArray(commits) || commits.length < 100) break;
+      }
+
+      state.files = blobs.map((item) => {
+        const encodedPath = encodePath(item.path);
+        const pagesPrefix = name.toLowerCase() === \`\${owner.toLowerCase()}.github.io\`
+          ? \`https://\${owner}.github.io/\`
+          : \`https://\${owner}.github.io/\${name}/\`;
+        return {
+          path: item.path,
+          name: item.path.split('/').pop(),
+          size: Number.isFinite(item.size) ? item.size : 0,
+          changed: commitDates.get(item.path) || null,
+          pagesUrl: pagesPrefix + encodedPath,
+          ghListingUrl: \`https://github.com/\${owner}/\${name}/blob/\${branch}/\${encodedPath}\`
+        };
+      });
+
+      render();
+      setStatus(\`Loaded \${state.files.length} files from \${owner}/\${name} (\${branch}).\`);
+    }
+
+    document.getElementById('loadBtn').addEventListener('click', async () => {
+      try { await loadRepo(document.getElementById('repoInput').value); }
+      catch (err) { setStatus(err.message || String(err), true); }
+    });
+
+    document.getElementById('repoInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); document.getElementById('loadBtn').click(); }
+    });
+
+    document.getElementById('recycleHeader').addEventListener('click', () => {
+      state.recycleOpen = !state.recycleOpen;
+      renderRecycleBin();
+    });
+
+    document.querySelectorAll('th[data-key]').forEach((th) => {
+      th.addEventListener('click', () => {
+        const key = th.dataset.key;
+        if (state.sortKey === key) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+        else { state.sortKey = key; state.sortDir = key === 'name' ? 'asc' : 'desc'; }
+        render();
+      });
+    });
+
+    (async function init() {
+      const detected = detectRepo();
+      if (detected) {
+        document.getElementById('repoInput').value = detected;
+        try { await loadRepo(detected); }
+        catch (err) { setStatus(err.message || String(err), true); }
+      } else {
+        setStatus('No repo detected automatically. Enter owner/repo and click Load.');
+      }
+    })();
+  <\/script>
+</body>
+</html>
+`;
     }
 
     async function ghFetch(url, token, opts = {}) {
