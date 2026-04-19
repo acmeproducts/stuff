@@ -103,10 +103,10 @@
     h1 { margin: 0 0 14px; font-size: 1.45rem; font-weight: 700; color: #1f2937; }
 
     .controls {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 10px;
       margin-bottom: 10px;
+      display: grid;
+      grid-template-columns: 1fr minmax(220px, 280px);
+      gap: 8px;
     }
     input, button {
       border-radius: 10px;
@@ -169,18 +169,20 @@
     a { color: #1d4ed8; text-decoration: none; font-weight: 600; }
     a:hover { text-decoration: underline; }
 
-    .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .actions { display: flex; align-items: center; justify-content: center; }
     .row-delete {
-      border: 1px solid #dc2626;
-      background: #ef4444;
-      color: #ffffff;
-      border-radius: 8px;
-      padding: 5px 9px;
+      border: 1px solid #cbd5e1;
+      background: #f1f5f9;
+      color: #64748b;
+      border-radius: 999px;
+      width: 24px;
+      height: 24px;
+      padding: 0;
       font-size: 0.8rem;
       line-height: 1;
       cursor: pointer;
     }
-    .row-delete:hover { background: #dc2626; }
+    .row-delete:hover { background: #e2e8f0; color: #334155; }
 
     .recycle {
       margin: 12px 0;
@@ -235,6 +237,42 @@
     }
     .mini.danger:hover { background: #fee2e2; }
     .empty { color: #64748b; font-size: 0.9rem; padding: 12px; }
+    .edit-btn {
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #334155;
+      border-radius: 8px;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+    .edit-btn:hover { background: #f8fafc; }
+    .modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 23, 42, 0.45);
+      padding: 16px;
+      z-index: 30;
+    }
+    .modal.open { display: flex; }
+    .modal-panel {
+      width: min(620px, 100%);
+      border-radius: 14px;
+      border: 1px solid #d8deea;
+      background: #fff;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2);
+      padding: 14px;
+    }
+    .modal-panel h3 { margin: 0 0 10px; font-size: 1.05rem; }
+    .modal-grid { display: grid; gap: 10px; }
+    .modal-grid label { font-size: 0.85rem; color: #475569; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+    .ghost { background: #fff; color: #334155; border-color: #cbd5e1; }
   </style>
 </head>
 <body>
@@ -242,7 +280,7 @@
     <h1>Repository File List</h1>
     <div class="controls">
       <input id="repoInput" placeholder="owner/repo or github.com/owner/repo">
-      <button id="loadBtn" type="button">Load</button>
+      <input id="tokenInput" type="password" placeholder="GitHub PAT (optional, persisted)">
     </div>
     <div id="status" role="status" aria-live="polite"></div>
 
@@ -258,16 +296,39 @@
             <th data-key="name">Name</th>
             <th data-key="changed">Changed</th>
             <th data-key="size">Size</th>
-            <th>Actions</th>
+            <th>Edit</th>
+            <th>Launch</th>
+            <th>Listing</th>
+            <th>Delete</th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
       </table>
     </section>
   </main>
+  <div id="editModal" class="modal" role="dialog" aria-modal="true" aria-label="Edit file metadata">
+    <div class="modal-panel">
+      <h3>Edit file</h3>
+      <div class="modal-grid">
+        <div>
+          <label for="editName">Name / Path</label>
+          <input id="editName" type="text">
+        </div>
+        <div>
+          <label for="editCommitMessage">Commit message</label>
+          <input id="editCommitMessage" type="text">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="editCancel" class="ghost" type="button">Cancel</button>
+        <button id="editSave" type="button">Save</button>
+      </div>
+    </div>
+  </div>
 
   <script>
-    const state = { files: [], sortKey: 'name', sortDir: 'asc', repo: null, recycleOpen: false };
+    const PAT_KEY = 'repolist:pat';
+    const state = { files: [], sortKey: 'name', sortDir: 'asc', repo: null, recycleOpen: false, editPath: null, loading: false };
 
     function parseRepoLike(value) {
       if (!value) return null;
@@ -311,7 +372,7 @@
     }
 
     function shortCommitMessage(message) {
-      const line = String(message || '').split('\\n')[0].trim();
+      const line = String(message || '').split('\n')[0].trim();
       if (!line) return '—';
       return line.length > 90 ? \`\${line.slice(0, 87)}…\` : line;
     }
@@ -344,7 +405,10 @@
     }
 
     async function fetchJson(url) {
-      const res = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
+      const token = (document.getElementById('tokenInput').value || '').trim();
+      const headers = { Accept: 'application/vnd.github+json' };
+      if (token) headers.Authorization = \`token \${token}\`;
+      const res = await fetch(url, { headers });
       if (!res.ok) {
         const body = await res.text();
         throw new Error(\`GitHub API \${res.status}: \${body.slice(0, 200)}\`);
@@ -444,7 +508,7 @@
       const tbody = document.getElementById('rows');
       const files = sortedFiles();
       if (!files.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';
       } else {
         tbody.innerHTML = files.map((f) => {
           const canLaunch = /\.html?$/i.test(f.path);
@@ -455,14 +519,14 @@
               <div class="commit-ago">\${esc(fmtAgo(f.changed))}</div>
             </td>
             <td>\${esc(fmtSize(f.size))}</td>
-            <td class="actions">
-              \${canLaunch ? \`<a href="\${esc(f.pagesUrl)}" target="_blank" rel="noopener">Launch</a>\` : ''}
-              <a href="\${esc(f.ghListingUrl)}" target="_blank" rel="noopener">Github Listing</a>
-              <button class="row-delete" type="button" data-delete="\${esc(f.path)}">❌ Delete</button>
-            </td>
+            <td class="actions"><button class="edit-btn" type="button" data-edit="\${esc(f.path)}" aria-label="Edit \${esc(f.path)}">✎</button></td>
+            <td>\${canLaunch ? \`<a href="\${esc(f.pagesUrl)}" target="_blank" rel="noopener">Launch</a>\` : ''}</td>
+            <td><a href="\${esc(f.ghListingUrl)}" target="_blank" rel="noopener">Listing</a></td>
+            <td class="actions"><button class="row-delete" type="button" data-delete="\${esc(f.path)}" aria-label="Delete \${esc(f.path)}">×</button></td>
           </tr>\`;
         }).join('');
         document.querySelectorAll('[data-delete]').forEach((btn) => btn.addEventListener('click', () => softDelete(btn.getAttribute('data-delete'))));
+        document.querySelectorAll('[data-edit]').forEach((btn) => btn.addEventListener('click', () => openEdit(btn.getAttribute('data-edit'))));
       }
 
       document.querySelectorAll('th[data-key]').forEach((th) => {
@@ -473,62 +537,179 @@
     }
 
     async function loadRepo(value) {
+      if (state.loading) return;
       const parsed = parseRepoLike(value);
       if (!parsed) throw new Error('Could not parse repo. Use owner/repo style input.');
+      state.loading = true;
       const [owner, name] = parsed.split('/');
       state.repo = { owner, name, branch: 'main' };
       setStatus(\`Loading \${owner}/\${name} ...\`);
+      try {
+        const meta = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}\`);
+        const branch = meta.default_branch || 'main';
+        state.repo.branch = branch;
 
-      const meta = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}\`);
-      const branch = meta.default_branch || 'main';
-      state.repo.branch = branch;
+        const tree = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/git/trees/\${encodeURIComponent(branch)}?recursive=1\`);
+        const blobs = (tree.tree || []).filter((x) => x.type === 'blob');
 
-      const tree = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/git/trees/\${encodeURIComponent(branch)}?recursive=1\`);
-      const blobs = (tree.tree || []).filter((x) => x.type === 'blob');
+        const commitInfo = new Map();
+        for (let page = 1; page <= 8; page++) {
+          const commits = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/commits?per_page=100&sha=\${encodeURIComponent(branch)}&page=\${page}\`);
+          for (const c of commits) {
+            for (const f of c.files || []) {
+              if (!commitInfo.has(f.filename)) {
+                commitInfo.set(f.filename, {
+                  changed: c.commit?.committer?.date || null,
+                  message: c.commit?.message || ''
+                });
+              }
+            }
+          }
+          if (!Array.isArray(commits) || commits.length < 100) break;
+        }
 
-      const commitInfo = new Map();
-      for (let page = 1; page <= 8; page++) {
-        const commits = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/commits?per_page=100&sha=\${encodeURIComponent(branch)}&page=\${page}\`);
-        for (const c of commits) {
-          for (const f of c.files || []) {
-            if (!commitInfo.has(f.filename)) {
-              commitInfo.set(f.filename, {
-                changed: c.commit?.committer?.date || null,
+        for (const item of blobs) {
+          if (commitInfo.has(item.path)) continue;
+          try {
+            const latest = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/commits?path=\${encodeURIComponent(item.path)}&sha=\${encodeURIComponent(branch)}&per_page=1\`);
+            const c = Array.isArray(latest) ? latest[0] : null;
+            if (c) {
+              commitInfo.set(item.path, {
+                changed: c.commit?.committer?.date || c.commit?.author?.date || null,
                 message: c.commit?.message || ''
               });
             }
-          }
+          } catch (_) {}
         }
-        if (!Array.isArray(commits) || commits.length < 100) break;
+
+        state.files = blobs.map((item) => {
+          const encodedPath = encodePath(item.path);
+          const pagesPrefix = name.toLowerCase() === \`\${owner.toLowerCase()}.github.io\`
+            ? \`https://\${owner}.github.io/\`
+            : \`https://\${owner}.github.io/\${name}/\`;
+          return {
+            path: item.path,
+            name: item.path.split('/').pop(),
+            size: Number.isFinite(item.size) ? item.size : 0,
+            changed: commitInfo.get(item.path)?.changed || null,
+            commitMessage: commitInfo.get(item.path)?.message || '',
+            pagesUrl: pagesPrefix + encodedPath,
+            ghListingUrl: \`https://github.com/\${owner}/\${name}/blob/\${branch}/\${encodedPath}\`
+          };
+        });
+
+        render();
+        setStatus(\`Loaded \${state.files.length} files from \${owner}/\${name} (\${branch}).\`);
+      } catch (err) {
+        const msg = err.message || String(err);
+        if (msg.includes('GitHub API 403')) {
+          setStatus('GitHub API rate limit hit. Add a PAT in the token box for higher limits.', true);
+        } else {
+          setStatus(msg, true);
+        }
+      } finally {
+        state.loading = false;
       }
-
-      state.files = blobs.map((item) => {
-        const encodedPath = encodePath(item.path);
-        const pagesPrefix = name.toLowerCase() === \`\${owner.toLowerCase()}.github.io\`
-          ? \`https://\${owner}.github.io/\`
-          : \`https://\${owner}.github.io/\${name}/\`;
-        return {
-          path: item.path,
-          name: item.path.split('/').pop(),
-          size: Number.isFinite(item.size) ? item.size : 0,
-          changed: commitInfo.get(item.path)?.changed || null,
-          commitMessage: commitInfo.get(item.path)?.message || '',
-          pagesUrl: pagesPrefix + encodedPath,
-          ghListingUrl: \`https://github.com/\${owner}/\${name}/blob/\${branch}/\${encodedPath}\`
-        };
-      });
-
-      render();
-      setStatus(\`Loaded \${state.files.length} files from \${owner}/\${name} (\${branch}).\`);
     }
 
-    document.getElementById('loadBtn').addEventListener('click', async () => {
-      try { await loadRepo(document.getElementById('repoInput').value); }
-      catch (err) { setStatus(err.message || String(err), true); }
-    });
+    function tryReloadCurrentRepo() {
+      const repoValue = document.getElementById('repoInput').value.trim();
+      const parsed = parseRepoLike(repoValue);
+      if (!parsed) return;
+      loadRepo(parsed).catch((err) => setStatus(err.message || String(err), true));
+    }
+
+    function openEdit(path) {
+      const file = state.files.find((f) => f.path === path);
+      if (!file) return;
+      state.editPath = path;
+      document.getElementById('editName').value = file.path;
+      document.getElementById('editCommitMessage').value = shortCommitMessage(file.commitMessage || \`Update \${file.path}\`);
+      document.getElementById('editModal').classList.add('open');
+    }
+
+    function closeEdit() {
+      state.editPath = null;
+      document.getElementById('editModal').classList.remove('open');
+    }
+
+    function b64Utf8(str) { return btoa(unescape(encodeURIComponent(str))); }
+
+    async function githubWrite(path, body, method = 'PUT') {
+      const token = (document.getElementById('tokenInput').value || '').trim();
+      if (!token) throw new Error('GitHub PAT required for edits.');
+      const [owner, name] = [state.repo.owner, state.repo.name];
+      const url = \`https://api.github.com/repos/\${owner}/\${name}/contents/\${encodePath(path)}\`;
+      const res = await fetch(url, {
+        method,
+        headers: {
+          Accept: 'application/vnd.github+json',
+          Authorization: \`token \${token}\`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error(\`GitHub API \${res.status}: \${(await res.text()).slice(0, 200)}\`);
+      return res.json();
+    }
+
+    async function saveEdit() {
+      if (!state.editPath || !state.repo) return;
+      const oldPath = state.editPath;
+      const newPath = (document.getElementById('editName').value || '').trim();
+      const message = (document.getElementById('editCommitMessage').value || '').trim() || \`Update \${oldPath}\`;
+      if (!newPath) return setStatus('Name/path is required.', true);
+      const [owner, name, branch] = [state.repo.owner, state.repo.name, state.repo.branch];
+      try {
+        setStatus(\`Saving \${oldPath}...\`);
+        const current = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/contents/\${encodePath(oldPath)}?ref=\${encodeURIComponent(branch)}\`);
+        const content = current.content ? current.content.replace(/\n/g, '') : '';
+        if (newPath !== oldPath) {
+          await githubWrite(newPath, { message, content, branch });
+          await githubWrite(oldPath, { message: \`Remove \${oldPath}\`, sha: current.sha, branch }, 'DELETE');
+        } else {
+          const decoded = current.content ? decodeURIComponent(escape(atob(content))) : '';
+          await githubWrite(oldPath, { message, content: b64Utf8(decoded), sha: current.sha, branch });
+        }
+        closeEdit();
+        await loadRepo(\`\${owner}/\${name}\`);
+        setStatus(\`Saved changes for \${newPath}.\`);
+      } catch (err) {
+        setStatus(err.message || String(err), true);
+      }
+    }
 
     document.getElementById('repoInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); document.getElementById('loadBtn').click(); }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        loadRepo(document.getElementById('repoInput').value).catch((err) => setStatus(err.message || String(err), true));
+      }
+    });
+
+    let loadTimer = null;
+    document.getElementById('repoInput').addEventListener('input', () => {
+      const v = document.getElementById('repoInput').value;
+      clearTimeout(loadTimer);
+      loadTimer = setTimeout(() => {
+        if (!parseRepoLike(v)) return;
+        loadRepo(v).catch((err) => setStatus(err.message || String(err), true));
+      }, 450);
+    });
+    document.getElementById('tokenInput').value = localStorage.getItem(PAT_KEY) || '';
+    document.getElementById('tokenInput').addEventListener('blur', () => {
+      localStorage.setItem(PAT_KEY, document.getElementById('tokenInput').value.trim());
+      tryReloadCurrentRepo();
+    });
+    document.getElementById('tokenInput').addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      localStorage.setItem(PAT_KEY, document.getElementById('tokenInput').value.trim());
+      tryReloadCurrentRepo();
+    });
+    document.getElementById('editCancel').addEventListener('click', closeEdit);
+    document.getElementById('editSave').addEventListener('click', saveEdit);
+    document.getElementById('editModal').addEventListener('click', (e) => {
+      if (e.target.id === 'editModal') closeEdit();
     });
 
     document.getElementById('recycleHeader').addEventListener('click', () => {
@@ -552,7 +733,7 @@
         try { await loadRepo(detected); }
         catch (err) { setStatus(err.message || String(err), true); }
       } else {
-        setStatus('No repo detected automatically. Enter owner/repo and click Load.');
+        setStatus('No repo detected automatically. Enter owner/repo to auto-load.');
       }
     })();
   <\/script>
@@ -647,7 +828,12 @@
       setStatus(`Done. Success: ${okCount}/${checked.length}.`, okCount !== checked.length);
     }
 
-    document.getElementById('owner').value = defaultOwnerFromHost();
+    const ownerEl = document.getElementById('owner');
+    const tokenEl = document.getElementById('token');
+    ownerEl.value = localStorage.getItem('repoblast:owner') || defaultOwnerFromHost();
+    tokenEl.value = localStorage.getItem('repoblast:token') || '';
+    ownerEl.addEventListener('blur', () => localStorage.setItem('repoblast:owner', ownerEl.value.trim()));
+    tokenEl.addEventListener('blur', () => localStorage.setItem('repoblast:token', tokenEl.value.trim()));
     document.getElementById('loadRepos').addEventListener('click', loadRepos);
     document.getElementById('deploy').addEventListener('click', deploySelected);
   </script>
