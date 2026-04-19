@@ -76,6 +76,9 @@
     tbody tr:hover td { background: #eef4ff; }
 
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.84rem; }
+    .changed-cell { min-width: 220px; }
+    .commit-msg { font-weight: 600; color: #0f172a; margin-bottom: 2px; }
+    .commit-ago { font-size: 0.84rem; color: #64748b; }
     a { color: #1d4ed8; text-decoration: none; font-weight: 600; }
     a:hover { text-decoration: underline; }
 
@@ -220,6 +223,12 @@
       return String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
     }
 
+    function shortCommitMessage(message) {
+      const line = String(message || '').split('\n')[0].trim();
+      if (!line) return '—';
+      return line.length > 90 ? `${line.slice(0, 87)}…` : line;
+    }
+
     function encodePath(path) {
       return String(path || '').split('/').map((seg) => encodeURIComponent(seg)).join('/');
     }
@@ -354,7 +363,10 @@
           const canLaunch = /\.html?$/i.test(f.path);
           return `<tr>
             <td class="mono">${esc(f.path)}</td>
-            <td>${esc(fmtAgo(f.changed))}</td>
+            <td class="changed-cell">
+              <div class="commit-msg" title="${esc(f.commitMessage || '')}">${esc(shortCommitMessage(f.commitMessage || ''))}</div>
+              <div class="commit-ago">${esc(fmtAgo(f.changed))}</div>
+            </td>
             <td>${esc(fmtSize(f.size))}</td>
             <td class="actions">
               ${canLaunch ? `<a href="${esc(f.pagesUrl)}" target="_blank" rel="noopener">Launch</a>` : ''}
@@ -387,12 +399,17 @@
       const tree = await fetchJson(`https://api.github.com/repos/${owner}/${name}/git/trees/${encodeURIComponent(branch)}?recursive=1`);
       const blobs = (tree.tree || []).filter((x) => x.type === 'blob');
 
-      const commitDates = new Map();
+      const commitInfo = new Map();
       for (let page = 1; page <= 8; page++) {
         const commits = await fetchJson(`https://api.github.com/repos/${owner}/${name}/commits?per_page=100&sha=${encodeURIComponent(branch)}&page=${page}`);
         for (const c of commits) {
           for (const f of c.files || []) {
-            if (!commitDates.has(f.filename)) commitDates.set(f.filename, c.commit?.committer?.date || null);
+            if (!commitInfo.has(f.filename)) {
+              commitInfo.set(f.filename, {
+                changed: c.commit?.committer?.date || null,
+                message: c.commit?.message || ''
+              });
+            }
           }
         }
         if (!Array.isArray(commits) || commits.length < 100) break;
@@ -407,7 +424,8 @@
           path: item.path,
           name: item.path.split('/').pop(),
           size: Number.isFinite(item.size) ? item.size : 0,
-          changed: commitDates.get(item.path) || null,
+          changed: commitInfo.get(item.path)?.changed || null,
+          commitMessage: commitInfo.get(item.path)?.message || '',
           pagesUrl: pagesPrefix + encodedPath,
           ghListingUrl: `https://github.com/${owner}/${name}/blob/${branch}/${encodedPath}`
         };
