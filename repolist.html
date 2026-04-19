@@ -82,7 +82,30 @@
     a { color: #1d4ed8; text-decoration: none; font-weight: 600; }
     a:hover { text-decoration: underline; }
 
-    .actions { display: flex; align-items: center; justify-content: center; }
+    .actions { display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .links-cell {
+      white-space: nowrap;
+      width: 180px;
+      min-width: 180px;
+    }
+    .link-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+      color: #334155;
+      font-size: 0.86rem;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .link-icon:hover {
+      background: #f8fafc;
+      text-decoration: none;
+    }
     .row-delete {
       border: 1px solid #cbd5e1;
       background: #f1f5f9;
@@ -207,11 +230,10 @@
         <thead>
           <tr>
             <th data-key="name">Name</th>
-            <th data-key="changed">Changed</th>
+            <th>Links</th>
+            <th>Commit</th>
             <th data-key="size">Size</th>
-            <th>Edit</th>
-            <th>Launch</th>
-            <th>Listing</th>
+            <th data-key="changed">Changed</th>
             <th>Delete</th>
           </tr>
         </thead>
@@ -317,11 +339,22 @@
       return `${m}m ago`;
     }
 
+    function currentToken() {
+      return (document.getElementById('tokenInput').value || '').trim();
+    }
+
+    function persistToken() {
+      localStorage.setItem(PAT_KEY, currentToken());
+    }
+
     async function fetchJson(url) {
-      const token = (document.getElementById('tokenInput').value || '').trim();
+      const token = currentToken();
       const headers = { Accept: 'application/vnd.github+json' };
-      if (token) headers.Authorization = `token ${token}`;
-      const res = await fetch(url, { headers });
+      if (token) headers.Authorization = `Bearer ${token}`;
+      let res = await fetch(url, { headers });
+      if (res.status === 401 && token) {
+        res = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
+      }
       if (!res.ok) {
         const body = await res.text();
         throw new Error(`GitHub API ${res.status}: ${body.slice(0, 200)}`);
@@ -451,20 +484,22 @@
       const tbody = document.getElementById('rows');
       const files = sortedFiles();
       if (!files.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';
       } else {
         tbody.innerHTML = files.map((f) => {
           const canLaunch = /\.html?$/i.test(f.path);
           return `<tr>
             <td class="mono">${esc(f.path)}</td>
+            <td class="actions links-cell">
+              <button class="edit-btn" type="button" data-edit="${esc(f.path)}" aria-label="Edit ${esc(f.path)}">✎</button>
+              ${canLaunch ? `<a class="link-icon" href="${esc(f.pagesUrl)}" target="_blank" rel="noopener" aria-label="Open Pages URL for ${esc(f.path)}">Pg</a>` : '<span class="link-icon" aria-hidden="true">—</span>'}
+              <a class="link-icon" href="${esc(f.ghListingUrl)}" target="_blank" rel="noopener" aria-label="Open GitHub blob for ${esc(f.path)}">Gh</a>
+            </td>
             <td class="changed-cell">
               <div class="commit-msg" title="${esc(f.commitMessage || '')}">${esc(shortCommitMessage(f.commitMessage || ''))}</div>
-              <div class="commit-ago">${esc(fmtAgo(f.changed))}</div>
             </td>
             <td>${esc(fmtSize(f.size))}</td>
-            <td class="actions"><button class="edit-btn" type="button" data-edit="${esc(f.path)}" aria-label="Edit ${esc(f.path)}">✎</button></td>
-            <td>${canLaunch ? `<a href="${esc(f.pagesUrl)}" target="_blank" rel="noopener">Launch</a>` : ''}</td>
-            <td><a href="${esc(f.ghListingUrl)}" target="_blank" rel="noopener">Listing</a></td>
+            <td class="commit-ago">${esc(fmtAgo(f.changed))}</td>
             <td class="actions"><button class="row-delete" type="button" data-delete="${esc(f.path)}" aria-label="Delete ${esc(f.path)}">×</button></td>
           </tr>`;
         }).join('');
@@ -554,6 +589,9 @@
         setStatus(`Loaded ${state.files.length} files from ${owner}/${name} (${branch}).`);
       } catch (err) {
         const msg = err.message || String(err);
+        if (msg.includes('GitHub API 401')) {
+          setStatus('GitHub token was rejected (401). Re-enter PAT and it will persist automatically.', true);
+        } else
         if (msg.includes('GitHub API 403')) {
           setStatus('GitHub API rate limit hit. Add a PAT in the token box for higher limits.', true);
         } else {
@@ -582,7 +620,7 @@
     function b64Utf8(str) { return btoa(unescape(encodeURIComponent(str))); }
 
     async function githubWrite(path, body, method = 'PUT') {
-      const token = (document.getElementById('tokenInput').value || '').trim();
+      const token = currentToken();
       if (!token) throw new Error('GitHub PAT required for edits.');
       const [owner, name] = [state.repo.owner, state.repo.name];
       const url = `https://api.github.com/repos/${owner}/${name}/contents/${encodePath(path)}`;
@@ -590,7 +628,7 @@
         method,
         headers: {
           Accept: 'application/vnd.github+json',
-          Authorization: `token ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(body)
@@ -642,9 +680,8 @@
       }, 450);
     });
     document.getElementById('tokenInput').value = localStorage.getItem(PAT_KEY) || '';
-    document.getElementById('tokenInput').addEventListener('blur', () => {
-      localStorage.setItem(PAT_KEY, document.getElementById('tokenInput').value.trim());
-    });
+    document.getElementById('tokenInput').addEventListener('input', persistToken);
+    document.getElementById('tokenInput').addEventListener('blur', persistToken);
     document.getElementById('editCancel').addEventListener('click', closeEdit);
     document.getElementById('editSave').addEventListener('click', saveEdit);
     document.getElementById('editModal').addEventListener('click', (e) => {
