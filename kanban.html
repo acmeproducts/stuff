@@ -138,6 +138,9 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px;max-width:100%;overflow-wrap:anywhere}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
 .chip button:hover{color:#000}
+.tag-search-btn{cursor:pointer;color:#1f6feb}
+.tag-search-btn:hover{border-color:var(--accent);color:#1d4ed8}
+.tag-search-btn:focus-visible{outline:2px solid #93c5fd;outline-offset:1px}
 .attachment-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
 .attachment-item{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--border);border-radius:10px;padding:6px 8px;background:#fff}
 .attachment-item .attachment-link,.attachment-item .attachment-name{font-size:12px;color:#1f6feb;text-decoration:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
@@ -944,7 +947,19 @@ function renderCard(card){
   const tagsRow=document.createElement("div"); tagsRow.className="card-tags";
   const p=document.createElement("span"); p.className="chip card-platform"; p.textContent=card.platform;
   tagsRow.appendChild(p);
-  if(card.tags?.length){ card.tags.forEach(t=>{ const chip=document.createElement("span"); chip.className="chip"; chip.textContent=t; tagsRow.appendChild(chip); }); }
+  if(card.tags?.length){
+    card.tags.forEach(t=>{
+      const chip=document.createElement("button");
+      chip.type="button";
+      chip.className="chip tag-search-btn";
+      chip.textContent=t;
+      chip.title=`Search tag: ${t}`;
+      chip.addEventListener("click", (e)=>{ e.stopPropagation(); applyTagSearch(t); });
+      chip.addEventListener("pointerdown", e=>e.stopPropagation());
+      chip.addEventListener("pointerup", e=>e.stopPropagation());
+      tagsRow.appendChild(chip);
+    });
+  }
   el.append(tagsRow);
 
   const detail=document.createElement("div"); detail.className="card-detail";
@@ -1609,6 +1624,12 @@ function applySearch(q){
   highlightMatches(new Set(currentMatches.map(c=>c.id)), includes.length||excludes.length);
   renderResultsPreview(currentMatches.slice(0,120));
   $("#searchCount").textContent=(includes.length||excludes.length)? `${currentMatches.length} match(es)`:"";
+}
+function applyTagSearch(tag){
+  const next=(tag||"").trim().toLowerCase();
+  if(!next) return;
+  searchInput.value=next;
+  applySearch(next);
 }
 function parseSearch(q){ const parts=q.trim().toLowerCase().split(/\s+/).filter(Boolean); const includes=[], excludes=[]; for(const p of parts){ if(p.startsWith("-")&&p.length>1) excludes.push(p.slice(1)); else includes.push(p); } return {includes,excludes}; }
 function haystack(c){ const files = (c.files||[]).map(f=>f.name).join(" "); return [c.title,c.platform,c.stage,c.notes,c.dev,c.live,normalizeStatusColor(c.statusColor),files,...(c.tags||[])].join(" ").toLowerCase(); }
