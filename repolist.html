@@ -87,6 +87,8 @@
     .desc-cell { min-width: 300px; width: 48%; }
     .delete-cell, .edit-cell, .size-cell, .changed-cell { white-space: nowrap; }
     .delete-cell, .edit-cell { width: 38px; text-align: center; padding: 5px; }
+    .size-cell { width: 6ch; min-width: 6ch; padding: 7px 4px; }
+    .changed-cell { width: 8ch; min-width: 8ch; padding: 7px 4px; }
     .file-primary {
       display: inline-block;
       font-weight: 600;
@@ -95,7 +97,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 20ch;
+      max-width: 40ch;
       vertical-align: middle;
     }
     .file-external {
@@ -259,6 +261,7 @@
     <section id="recycle" class="recycle" style="display:none;">
       <div id="recycleHeader" class="recycle-header"><span id="recycleChev" class="chev">▸</span><span id="recycleLabel">Recently Deleted (0)</span></div>
       <div id="recycleList" class="recycle-list"></div>
+      <div style="padding: 0 10px 10px;"><button id="deleteAllDeletedBtn" class="mini danger" type="button" style="display:none;">Delete All</button></div>
     </section>
 
     <section class="card">
@@ -347,19 +350,19 @@
     function shortCommitMessage(message) {
       const line = String(message || '').split('\n')[0].trim();
       if (!line) return '—';
-      return line.length > 120 ? `${line.slice(0, 120)}…` : line;
+      return line.length > 131 ? `${line.slice(0, 131)}…` : line;
     }
 
     function shortFileName(path) {
       const full = String(path || '');
-      return full.length > 20 ? `${full.slice(0, 20)}…` : full;
+      return full.length > 40 ? `${full.slice(0, 40)}…` : full;
     }
 
     function commitWrappedPreview(message) {
       const text = shortCommitMessage(message || '');
       if (!text || text === '—') return '—';
       const parts = [];
-      for (let i = 0; i < text.length; i += 36) parts.push(text.slice(i, i + 36));
+      for (let i = 0; i < text.length; i += 130) parts.push(text.slice(i, i + 130));
       if (parts.join('').length < text.length) parts.push('…');
       return parts.join('\n');
     }
@@ -523,11 +526,14 @@
     function renderRecycleBin() {
       const wrap = document.getElementById('recycle');
       const list = loadDeleted();
+      const deleteAllBtn = document.getElementById('deleteAllDeletedBtn');
       if (!list.length) {
         wrap.style.display = 'none';
+        deleteAllBtn.style.display = 'none';
         return;
       }
       wrap.style.display = 'block';
+      deleteAllBtn.style.display = 'inline-flex';
       document.getElementById('recycleLabel').textContent = `Recently Deleted (${list.length})`;
       document.getElementById('recycleChev').textContent = state.recycleOpen ? '▾' : '▸';
       wrap.classList.toggle('open', state.recycleOpen);
@@ -587,11 +593,12 @@
       if (!files.length) return;
       const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
       const rows = ['filename,pages_url,blob_url,description,size,updated_when,updated_iso'];
+      const asLink = (v) => `=HYPERLINK("${String(v ?? '').replace(/"/g, '""')}","${String(v ?? '').replace(/"/g, '""')}")`;
       for (const f of files) {
         rows.push([
           q(f.path),
-          q(f.pagesUrl || ''),
-          q(f.ghListingUrl || ''),
+          q(asLink(f.pagesUrl || '')),
+          q(asLink(f.ghListingUrl || '')),
           q(f.commitMessage || ''),
           q(f.size),
           q(fmtAgo(f.changed)),
@@ -794,6 +801,16 @@
     document.getElementById('recycleHeader').addEventListener('click', () => {
       state.recycleOpen = !state.recycleOpen;
       renderRecycleBin();
+    });
+    document.getElementById('deleteAllDeletedBtn').addEventListener('click', () => {
+      const list = loadDeleted();
+      if (!list.length) return;
+      if (!window.confirm(`Delete all ${list.length} recently deleted entries forever? This cannot be undone.`)) return;
+      const purged = loadPurgedSet();
+      for (const item of list) purged.add(item.path);
+      savePurgedSet(purged);
+      saveDeleted([]);
+      render();
     });
 
     document.querySelectorAll('[data-sort-key]').forEach((el) => {
