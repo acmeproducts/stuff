@@ -703,6 +703,17 @@ let suppressNextCardClick=false;
 function isInteractiveCardTarget(target){
   return !!target?.closest?.('a,button,input,textarea,select,label,[contenteditable="true"]');
 }
+function shieldInteractiveControl(el){
+  if(!el) return el;
+  ["pointerdown","pointerup","mousedown","mouseup","click"].forEach(ev=>{
+    el.addEventListener(ev, e=>e.stopPropagation());
+  });
+  el.addEventListener("dragstart", e=>{
+    e.preventDefault();
+    e.stopPropagation();
+  });
+  return el;
+}
 function pointerFromCardStart(card, e){
   if(e.pointerType==="mouse") return;
   if(isInteractiveCardTarget(e.target)) return;
@@ -963,7 +974,10 @@ function renderCard(card){
   el.append(tagsRow);
 
   const detail=document.createElement("div"); detail.className="card-detail";
-  ["pointerdown","pointerup","mousedown","mouseup","dragstart"].forEach(ev=>detail.addEventListener(ev, e=>e.stopPropagation()));
+  ["pointerdown","pointerup","mousedown","mouseup","click","dragstart"].forEach(ev=>detail.addEventListener(ev, e=>{
+    if(ev==="dragstart") e.preventDefault();
+    e.stopPropagation();
+  }));
   if(isCollapsed) detail.classList.add("collapsed");
 
   const inlineState={
@@ -1070,22 +1084,27 @@ function renderCard(card){
   titleInput.value=inlineState.title;
   titleInput.placeholder="Card title";
   titleInput.addEventListener("input", ()=>{ inlineState.title=titleInput.value; });
+  shieldInteractiveControl(titleInput);
 
   const platformSelect=document.createElement("select");
   state.platforms.forEach(pl=>{ const opt=document.createElement("option"); opt.value=pl; opt.textContent=pl; if(pl===inlineState.platform) opt.selected=true; platformSelect.append(opt); });
   platformSelect.addEventListener("change", ()=>{ inlineState.platform=platformSelect.value; });
+  shieldInteractiveControl(platformSelect);
 
   const stageSelect=document.createElement("select");
   state.stages.forEach(st=>{ const opt=document.createElement("option"); opt.value=st; opt.textContent=st; if(st===inlineState.stage) opt.selected=true; stageSelect.append(opt); });
   stageSelect.addEventListener("change", ()=>{ inlineState.stage=stageSelect.value; });
+  shieldInteractiveControl(stageSelect);
 
   const devInput=document.createElement("input");
   devInput.type="url"; devInput.placeholder="https://dev…"; devInput.value=inlineState.dev;
   devInput.addEventListener("input", ()=>{ inlineState.dev=devInput.value; });
+  shieldInteractiveControl(devInput);
 
   const liveInput=document.createElement("input");
   liveInput.type="url"; liveInput.placeholder="https://live…"; liveInput.value=inlineState.live;
   liveInput.addEventListener("input", ()=>{ inlineState.live=liveInput.value; });
+  shieldInteractiveControl(liveInput);
 
   // NEW: inline tag editor replaces plain tagsInput
   const inlineTagEditor = buildInlineTagEditor(inlineState.tagArr);
@@ -1140,6 +1159,7 @@ function renderCard(card){
     e.stopPropagation();
   });
   notesWrap.append(notesInput, notesPreview);
+  shieldInteractiveControl(notesInput);
   showInlineNotesPreview();
 
   const attachmentsWrap=document.createElement("ul");
