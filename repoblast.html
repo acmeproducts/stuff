@@ -124,7 +124,8 @@
       cursor: pointer;
     }
     button:hover { background: #1d4ed8; }
-    #status { margin: 8px 0 10px; min-height: 1.2em; color: #334155; font-size: 0.92rem; }
+    .status-row { margin: 8px 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    #status { min-height: 1.2em; color: #334155; font-size: 0.92rem; flex: 1; }
     #status.error { color: #b91c1c; }
 
     .card {
@@ -134,11 +135,15 @@
       overflow: hidden;
       box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08);
     }
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
     table { width: 100%; border-collapse: collapse; }
     thead th {
-      background: #f6f8fc;
+      background: #dbeafe;
       border-bottom: 1px solid #d9e1ee;
-      color: #334155;
+      color: #000000;
       font-size: 0.78rem;
       letter-spacing: 0.04em;
       text-transform: uppercase;
@@ -147,7 +152,6 @@
       user-select: none;
       cursor: pointer;
     }
-    thead th:last-child { cursor: default; }
     thead th[data-active="true"]::after { content: attr(data-dir); margin-left: 7px; color: #2563eb; }
 
     tbody td {
@@ -163,20 +167,52 @@
     tbody tr:hover td { background: #eef4ff; }
 
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.84rem; }
-    .changed-cell { min-width: 220px; }
-    .commit-msg { font-weight: 600; color: #0f172a; margin-bottom: 2px; }
+    .name-cell { min-width: 72px; max-width: 96px; }
+    .desc-cell { min-width: 220px; max-width: 360px; }
+    .changed-cell { min-width: 110px; max-width: 130px; white-space: nowrap; }
+    .commit-msg { font-weight: 600; color: #0f172a; margin-top: 2px; white-space: pre-wrap; word-break: break-word; font-size: 0.8rem; line-height: 1.2; }
     .commit-ago { font-size: 0.84rem; color: #64748b; }
     a { color: #1d4ed8; text-decoration: none; font-weight: 600; }
     a:hover { text-decoration: underline; }
 
-    .actions { display: flex; align-items: center; justify-content: center; }
+    .actions { display: flex; align-items: center; justify-content: center; gap: 4px; }
+    .link-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #fff;
+      color: #334155;
+      font-size: 0.72rem;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .link-icon:hover {
+      background: #f8fafc;
+      text-decoration: none;
+    }
+    .file-main {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+    }
+    .fname-link {
+      color: #1d4ed8;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .fname-link:hover { text-decoration: underline; }
     .row-delete {
       border: 1px solid #cbd5e1;
       background: #f1f5f9;
       color: #64748b;
       border-radius: 999px;
-      width: 24px;
-      height: 24px;
+      width: 20px;
+      height: 20px;
       padding: 0;
       font-size: 0.8rem;
       line-height: 1;
@@ -242,11 +278,11 @@
       background: #ffffff;
       color: #334155;
       border-radius: 8px;
-      width: 28px;
-      height: 28px;
+      width: 20px;
+      height: 20px;
       padding: 0;
       cursor: pointer;
-      font-size: 0.95rem;
+      font-size: 0.8rem;
     }
     .edit-btn:hover { background: #f8fafc; }
     .modal {
@@ -273,6 +309,23 @@
     .modal-grid label { font-size: 0.85rem; color: #475569; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
     .ghost { background: #fff; color: #334155; border-color: #cbd5e1; }
+    #exportBtn {
+      display: none;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #334155;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    #exportBtn:hover { background: #f8fafc; }
+    @media (max-width: 760px) {
+      .wrap { width: min(1200px, 99vw); margin: 10px auto 16px; }
+      .controls { grid-template-columns: 1fr; }
+      th, td { padding: 8px; }
+      .link-icon, .edit-btn { width: 26px; height: 26px; }
+    }
   </style>
 </head>
 <body>
@@ -282,7 +335,10 @@
       <input id="repoInput" placeholder="owner/repo or github.com/owner/repo">
       <input id="tokenInput" type="password" placeholder="GitHub PAT (optional, persisted)">
     </div>
-    <div id="status" role="status" aria-live="polite"></div>
+    <div class="status-row">
+      <div id="status" role="status" aria-live="polite"></div>
+      <button id="exportBtn" type="button">Export CSV</button>
+    </div>
 
     <section id="recycle" class="recycle" style="display:none;">
       <div id="recycleHeader" class="recycle-header"><span id="recycleChev" class="chev">▸</span><span id="recycleLabel">Recently Deleted (0)</span></div>
@@ -290,20 +346,21 @@
     </section>
 
     <section class="card">
+      <div class="table-scroll">
       <table>
         <thead>
           <tr>
-            <th data-key="name">Name</th>
-            <th data-key="changed">Changed</th>
-            <th data-key="size">Size</th>
-            <th>Edit</th>
-            <th>Launch</th>
-            <th>Listing</th>
+            <th data-key="name">Filename</th>
             <th>Delete</th>
+            <th>Edit</th>
+            <th data-key="commitMessage">Description</th>
+            <th data-key="size">Size</th>
+            <th data-key="changed">Updated When</th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
       </table>
+      </div>
     </section>
   </main>
   <div id="editModal" class="modal" role="dialog" aria-modal="true" aria-label="Edit file metadata">
@@ -328,7 +385,7 @@
 
   <script>
     const PAT_KEY = 'repolist:pat';
-    const state = { files: [], sortKey: 'name', sortDir: 'asc', repo: null, recycleOpen: false, editPath: null, loading: false };
+    const state = { files: [], sortKey: 'changed', sortDir: 'desc', repo: null, recycleOpen: false, editPath: null, loading: false };
 
     function parseRepoLike(value) {
       if (!value) return null;
@@ -374,7 +431,20 @@
     function shortCommitMessage(message) {
       const line = String(message || '').split('\n')[0].trim();
       if (!line) return '—';
-      return line.length > 90 ? \`\${line.slice(0, 87)}…\` : line;
+      return line.length > 36 ? \`\${line.slice(0, 36)}…\` : line;
+    }
+
+    function shortFileName(path) {
+      const name = String(path || '').split('/').pop() || '';
+      return name.length > 20 ? \`\${name.slice(0, 20)}…\` : name;
+    }
+
+    function commitWrappedPreview(message) {
+      const text = shortCommitMessage(message || '');
+      if (!text || text === '—') return '—';
+      const parts = [];
+      for (let i = 0; i < text.length; i += 12) parts.push(text.slice(i, i + 12));
+      return parts.join('\n');
     }
 
     function encodePath(path) {
@@ -457,6 +527,16 @@
       catch (_) {}
     }
 
+    function loadMetadata() {
+      try { return JSON.parse(localStorage.getItem(storageKey('repolist:metadata')) || '{}'); }
+      catch (_) { return {}; }
+    }
+
+    function saveMetadata(meta) {
+      try { localStorage.setItem(storageKey('repolist:metadata'), JSON.stringify(meta)); }
+      catch (_) {}
+    }
+
     async function fetchLatestCommitForPath(owner, name, branch, path) {
       try {
         const latest = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/commits?path=\${encodeURIComponent(path)}&sha=\${encodeURIComponent(branch)}&per_page=1\`);
@@ -502,6 +582,7 @@
       files.sort((a, b) => {
         let av = a[key], bv = b[key];
         if (key === 'name') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+        else if (key === 'commitMessage') { av = (av || '').toLowerCase(); bv = (bv || '').toLowerCase(); }
         else if (key === 'changed') { av = av ? new Date(av).getTime() : 0; bv = bv ? new Date(bv).getTime() : 0; }
         if (av < bv) return -1 * dir;
         if (av > bv) return 1 * dir;
@@ -538,21 +619,24 @@
       const tbody = document.getElementById('rows');
       const files = sortedFiles();
       if (!files.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';
       } else {
         tbody.innerHTML = files.map((f) => {
           const canLaunch = /\.html?$/i.test(f.path);
           return \`<tr>
-            <td class="mono">\${esc(f.path)}</td>
-            <td class="changed-cell">
-              <div class="commit-msg" title="\${esc(f.commitMessage || '')}">\${esc(shortCommitMessage(f.commitMessage || ''))}</div>
-              <div class="commit-ago">\${esc(fmtAgo(f.changed))}</div>
+            <td class="mono name-cell" title="\${esc(f.path)}">
+              <div class="file-main">
+                \${canLaunch ? \`<a class="fname-link" href="\${esc(f.pagesUrl)}" target="_blank" rel="noopener" aria-label="Open Pages URL for \${esc(f.path)}">\${esc(shortFileName(f.path))}</a>\` : \`<span>\${esc(shortFileName(f.path))}</span>\`}
+                <a class="link-icon" href="\${esc(f.ghListingUrl)}" target="_blank" rel="noopener" aria-label="Open GitHub blob for \${esc(f.path)}">↗</a>
+              </div>
+            </td>
+            <td class="actions"><button class="row-delete" type="button" data-delete="\${esc(f.path)}" aria-label="Delete \${esc(f.path)}">×</button></td>
+            <td class="actions"><button class="edit-btn" type="button" data-edit="\${esc(f.path)}" aria-label="Edit \${esc(f.path)}">✎</button></td>
+            <td class="desc-cell" title="\${esc(f.commitMessage || '')}">
+              <div class="commit-msg">\${esc(commitWrappedPreview(f.commitMessage || ''))}</div>
             </td>
             <td>\${esc(fmtSize(f.size))}</td>
-            <td class="actions"><button class="edit-btn" type="button" data-edit="\${esc(f.path)}" aria-label="Edit \${esc(f.path)}">✎</button></td>
-            <td>\${canLaunch ? \`<a href="\${esc(f.pagesUrl)}" target="_blank" rel="noopener">Launch</a>\` : ''}</td>
-            <td><a href="\${esc(f.ghListingUrl)}" target="_blank" rel="noopener">Listing</a></td>
-            <td class="actions"><button class="row-delete" type="button" data-delete="\${esc(f.path)}" aria-label="Delete \${esc(f.path)}">×</button></td>
+            <td class="commit-ago">\${esc(fmtAgo(f.changed))}</td>
           </tr>\`;
         }).join('');
         document.querySelectorAll('[data-delete]').forEach((btn) => btn.addEventListener('click', () => softDelete(btn.getAttribute('data-delete'))));
@@ -582,12 +666,14 @@
         const headList = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/commits?per_page=1&sha=\${encodeURIComponent(branch)}\`);
         const headSha = Array.isArray(headList) && headList[0] ? headList[0].sha : null;
         const cache = loadRepoCache();
+        const metadata = loadMetadata();
         const cachedByPath = new Map((cache?.files || []).map((f) => [f.path, f]));
 
         if (cache && cache.branch === branch && cache.headSha && headSha && cache.headSha === headSha) {
           state.files = cache.files;
           render();
           setStatus(\`Loaded \${state.files.length} files from \${owner}/\${name} (\${branch}) from cache.\`);
+          document.getElementById('exportBtn').style.display = state.files.length ? 'inline-flex' : 'none';
           return;
         }
 
@@ -618,16 +704,24 @@
           const commitData = (!changedPaths.has(item.path) && cached)
             ? { changed: cached.changed || null, message: cached.commitMessage || '' }
             : await fetchLatestCommitForPath(owner, name, branch, item.path);
+          const persistent = metadata[item.path] || {};
+          const finalChanged = commitData.changed || cached?.changed || persistent.changed || null;
+          const finalMessage = commitData.message || cached?.commitMessage || persistent.commitMessage || '';
           return {
             path: item.path,
             name: item.path.split('/').pop(),
             size: Number.isFinite(item.size) ? item.size : 0,
-            changed: commitData.changed || null,
-            commitMessage: commitData.message || '',
+            changed: finalChanged,
+            commitMessage: finalMessage,
             pagesUrl: pagesPrefix + encodedPath,
             ghListingUrl: \`https://github.com/\${owner}/\${name}/blob/\${branch}/\${encodedPath}\`
           };
         }));
+
+        saveMetadata(state.files.reduce((acc, file) => {
+          acc[file.path] = { changed: file.changed || null, commitMessage: file.commitMessage || '' };
+          return acc;
+        }, {}));
 
         saveRepoCache({
           branch,
@@ -639,6 +733,7 @@
 
         render();
         setStatus(\`Loaded \${state.files.length} files from \${owner}/\${name} (\${branch}).\`);
+        document.getElementById('exportBtn').style.display = state.files.length ? 'inline-flex' : 'none';
       } catch (err) {
         const msg = err.message || String(err);
         if (msg.includes('GitHub API 403')) {
@@ -667,6 +762,31 @@
     }
 
     function b64Utf8(str) { return btoa(unescape(encodeURIComponent(str))); }
+
+    function exportCsv() {
+      const rows = sortedFiles().map((f) => {
+        const canLaunch = /\.html?$/i.test(f.path);
+        return {
+          filename: f.path,
+          pages_url: canLaunch ? f.pagesUrl : '',
+          blob_url: f.ghListingUrl,
+          description: f.commitMessage || '',
+          size: fmtSize(f.size),
+          updated_when: fmtAgo(f.changed),
+          updated_iso: f.changed || ''
+        };
+      });
+      const headers = ['filename', 'pages_url', 'blob_url', 'description', 'size', 'updated_when', 'updated_iso'];
+      const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const csv = [headers.join(','), ...rows.map((r) => headers.map((h) => q(r[h])).join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${state.repo?.owner || 'repo'}-${state.repo?.name || 'files'}-export.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
 
     async function githubWrite(path, body, method = 'PUT') {
       const token = (document.getElementById('tokenInput').value || '').trim();
@@ -734,6 +854,7 @@
     });
     document.getElementById('editCancel').addEventListener('click', closeEdit);
     document.getElementById('editSave').addEventListener('click', saveEdit);
+    document.getElementById('exportBtn').addEventListener('click', exportCsv);
     document.getElementById('editModal').addEventListener('click', (e) => {
       if (e.target.id === 'editModal') closeEdit();
     });
@@ -760,6 +881,7 @@
         catch (err) { setStatus(err.message || String(err), true); }
       } else {
         setStatus('No repo detected automatically. Enter owner/repo to auto-load.');
+        document.getElementById('exportBtn').style.display = 'none';
       }
     })();
   <\/script>
