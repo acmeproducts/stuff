@@ -736,6 +736,17 @@ let suppressNextCardClick=false;
 function isInteractiveCardTarget(target){
   return !!target?.closest?.('a,button,input,textarea,select,label,[contenteditable="true"]');
 }
+function shieldInteractiveControl(el){
+  if(!el) return el;
+  ["pointerdown","pointerup","mousedown","mouseup","click"].forEach(ev=>{
+    el.addEventListener(ev, e=>e.stopPropagation());
+  });
+  el.addEventListener("dragstart", e=>{
+    e.preventDefault();
+    e.stopPropagation();
+  });
+  return el;
+}
 function pointerFromCardStart(card, e){
   if(e.pointerType==="mouse") return;
   if(isInteractiveCardTarget(e.target)) return;
@@ -876,7 +887,7 @@ function buildInlineTagEditor(tagArr){
       chip.append(txt, rx);
       chip.onclick = e=>{
         e.stopPropagation();
-        if(e.target === rx){ removeTagFromActiveCards(t); tagIn.focus(); return; }
+        if(e.target === rx){ removeTagFromActiveCards(t); return; }
         if(!tagArr.includes(t)){ tagArr.push(t); renderAssigned(); renderSuggestions(); }
         tagIn.focus();
       };
@@ -887,9 +898,8 @@ function buildInlineTagEditor(tagArr){
   function commitInput(){
     const raw = tagIn.value.trim().toLowerCase();
     if(!raw) return;
-    const candidates = tagHistory.filter(t=>t.includes(raw) && !tagArr.includes(t));
-    const exact = candidates.find(t=>t===raw);
-    const chosen = exact || (candidates.length===1 ? candidates[0] : raw);
+    const match = tagHistory.find(t=>t.includes(raw) && !tagArr.includes(t));
+    const chosen = match || raw;
     if(chosen && !tagArr.includes(chosen)) tagArr.push(chosen);
     tagIn.value = "";
     renderAssigned(); renderSuggestions();
@@ -1002,7 +1012,10 @@ function renderCard(card){
   el.append(tagsRow);
 
   const detail=document.createElement("div"); detail.className="card-detail";
-  ["pointerdown","pointerup","mousedown","mouseup","dragstart"].forEach(ev=>detail.addEventListener(ev, e=>e.stopPropagation()));
+  ["pointerdown","pointerup","mousedown","mouseup","click","dragstart"].forEach(ev=>detail.addEventListener(ev, e=>{
+    if(ev==="dragstart") e.preventDefault();
+    e.stopPropagation();
+  }));
   if(isCollapsed) detail.classList.add("collapsed");
 
   const inlineState={
@@ -1109,22 +1122,27 @@ function renderCard(card){
   titleInput.value=inlineState.title;
   titleInput.placeholder="Card title";
   titleInput.addEventListener("input", ()=>{ inlineState.title=titleInput.value; });
+  shieldInteractiveControl(titleInput);
 
   const platformSelect=document.createElement("select");
   state.platforms.forEach(pl=>{ const opt=document.createElement("option"); opt.value=pl; opt.textContent=pl; if(pl===inlineState.platform) opt.selected=true; platformSelect.append(opt); });
   platformSelect.addEventListener("change", ()=>{ inlineState.platform=platformSelect.value; });
+  shieldInteractiveControl(platformSelect);
 
   const stageSelect=document.createElement("select");
   state.stages.forEach(st=>{ const opt=document.createElement("option"); opt.value=st; opt.textContent=st; if(st===inlineState.stage) opt.selected=true; stageSelect.append(opt); });
   stageSelect.addEventListener("change", ()=>{ inlineState.stage=stageSelect.value; });
+  shieldInteractiveControl(stageSelect);
 
   const devInput=document.createElement("input");
   devInput.type="url"; devInput.placeholder="https://dev…"; devInput.value=inlineState.dev;
   devInput.addEventListener("input", ()=>{ inlineState.dev=devInput.value; });
+  shieldInteractiveControl(devInput);
 
   const liveInput=document.createElement("input");
   liveInput.type="url"; liveInput.placeholder="https://live…"; liveInput.value=inlineState.live;
   liveInput.addEventListener("input", ()=>{ inlineState.live=liveInput.value; });
+  shieldInteractiveControl(liveInput);
 
   // NEW: inline tag editor replaces plain tagsInput
   const inlineTagEditor = buildInlineTagEditor(inlineState.tagArr);
@@ -1179,6 +1197,7 @@ function renderCard(card){
     e.stopPropagation();
   });
   notesWrap.append(notesInput, notesPreview);
+  shieldInteractiveControl(notesInput);
   showInlineNotesPreview();
 
   const attachmentsWrap=document.createElement("ul");
@@ -1337,9 +1356,8 @@ const tagInput=$("#tagInput"), tagChips=$("#tagChips"), tagSuggestions=$("#tagSu
 function commitTagFromInput(){
   const raw = tagInput.value.trim().toLowerCase();
   if(!raw) return;
-  const candidates = getFilteredTagSuggestions(raw).filter(t=>!activeTags.includes(t));
-  const exact = candidates.find(t=>t===raw);
-  const nextTag = exact || (candidates.length===1 ? candidates[0] : raw);
+  const selected = getFilteredTagSuggestions(raw).find(t=>!activeTags.includes(t));
+  const nextTag = selected || raw;
   if(nextTag && !activeTags.includes(nextTag)) activeTags.push(nextTag);
   tagInput.value="";
   renderTagChips();
@@ -1370,7 +1388,7 @@ function renderTagSuggestions(){
     el.append(txt,rm);
     el.onclick=(e)=>{
       if(e.target===rm){ removeTagFromActiveCards(t); return; }
-      if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); renderTagSuggestions(); }
+      if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); }
     };
     tagSuggestions.appendChild(el);
   });
