@@ -300,7 +300,6 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
       <div class="tag-input-row">
         <input id="tagInput" placeholder="type a tag, press Enter" />
       </div>
-      <div class="suggestions" id="tagSuggestions" aria-label="Previously used tags"></div>
       <input id="fTags" class="hidden" />
     </div>
 
@@ -521,8 +520,6 @@ function removeTagFromActiveCards(tag){
   if(changed){
     scheduleSave();
     render();
-  }else{
-    renderTagSuggestions();
   }
 }
 
@@ -1305,7 +1302,7 @@ function openEditor(id=null, presetStage=null){
   activeTags = c?.tags ? [...c.tags] : [];
   currentFiles = Array.isArray(c?.files) ? c.files.slice() : [];
   pendingFiles = [];
-  renderTagChips(); renderTagSuggestions();
+  renderTagChips();
   renderFileChips();
   $("#fFiles").value = ""; // reset file input
   editDialog.showModal(); $("#fTitle").focus();
@@ -1352,29 +1349,34 @@ function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("
 function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join(""); $("#fStage").innerHTML = state.stages.map(s=>`<option>${s}</option>`).join(""); }
 
 /* ===== Tagging UI ===== */
-const tagInput=$("#tagInput"), tagChips=$("#tagChips"), tagSuggestions=$("#tagSuggestions"), hiddenTags=$("#fTags");
-function isNewCardEditor(){ return !editingId; }
+const tagInput=$("#tagInput"), tagChips=$("#tagChips"), hiddenTags=$("#fTags");
 function parseTagsFromInput(value){
   return String(value||"")
     .split(",")
     .map(s=>s.trim().toLowerCase())
     .filter(Boolean);
 }
+function resolveExistingTag(rawTag){
+  const q=String(rawTag||"").trim().toLowerCase();
+  if(!q) return "";
+  const exact=tagHistory.find(t=>t.toLowerCase()===q);
+  if(exact) return exact;
+  const startsWith=tagHistory.filter(t=>t.toLowerCase().startsWith(q));
+  if(startsWith.length===1) return startsWith[0];
+  return q;
+}
 function commitTagFromInput(){
   const tagsToAdd=parseTagsFromInput(tagInput.value);
   if(!tagsToAdd.length) return;
   tagsToAdd.forEach(rawTag=>{
-    const selected = getFilteredTagSuggestions(rawTag).find(t=>!activeTags.includes(t));
-    const nextTag = selected || rawTag;
+    const nextTag = resolveExistingTag(rawTag);
     if(nextTag && !activeTags.includes(nextTag)) activeTags.push(nextTag);
   });
   tagInput.value="";
   renderTagChips();
-  renderTagSuggestions();
 }
 tagInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter" || e.key===","){ e.preventDefault(); commitTagFromInput(); } });
 tagInput.addEventListener("blur", ()=>{ commitTagFromInput(); });
-tagInput.addEventListener("input", ()=> renderTagSuggestions());
 function renderTagChips(){
   tagChips.innerHTML="";
   activeTags.forEach(t=>{
@@ -1383,37 +1385,6 @@ function renderTagChips(){
     tagChips.appendChild(el);
   });
   hiddenTags.value = activeTags.join(",");
-}
-function renderTagSuggestions(){
-  tagSuggestions.innerHTML=""; if(!tagHistory.length) return;
-  const query=tagInput.value.trim().toLowerCase();
-  const showAllForNewCard=isNewCardEditor();
-  const suggestions=showAllForNewCard ? getFilteredTagSuggestions("") : getFilteredTagSuggestions(query);
-  if(!showAllForNewCard && !query) return;
-  const seen=new Set();
-  suggestions.forEach(t=>{
-    const k=t.toLowerCase(); if(seen.has(k)) return; seen.add(k);
-    const el=document.createElement("span"); el.className="chip";
-    const txt=document.createElement("span"); txt.textContent=t;
-    el.append(txt);
-    let rm=null;
-    if(showAllForNewCard){
-      rm=document.createElement("span");
-      rm.textContent="×";
-      rm.className="remove";
-      rm.title="delete tag from active cards";
-      el.append(rm);
-    }
-    el.onclick=(e)=>{
-      if(rm && e.target===rm){ removeTagFromActiveCards(t); return; }
-      if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); }
-    };
-    tagSuggestions.appendChild(el);
-  });
-}
-function getFilteredTagSuggestions(query=""){
-  const q=String(query||"").trim().toLowerCase();
-  return tagHistory.filter(t=>(!q || t.includes(q)));
 }
 
 /* ===== Attachments ===== */
