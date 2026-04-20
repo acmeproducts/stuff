@@ -67,7 +67,7 @@
       cursor: default;
     }
     [data-sort-key] { cursor: pointer; }
-    [data-sort-key][data-active="true"]::after { content: attr(data-dir); margin-left: 6px; color: #2563eb; }
+    [data-sort-key][data-active="true"]::after { content: attr(data-dir); margin-left: 6px; color: #64748b; }
 
     tbody td {
       border-bottom: 1px solid #e3e8f3;
@@ -83,10 +83,12 @@
     tbody tr:hover td { background: #eef4ff; }
 
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.84rem; }
-    .name-cell { width: 140px; max-width: 140px; min-width: 120px; }
+    .name-cell { width: 180px; max-width: 180px; min-width: 150px; white-space: nowrap; }
     .desc-cell { min-width: 300px; width: 48%; }
-    .delete-cell, .edit-cell, .size-cell, .changed-cell { white-space: nowrap; }
-    .delete-cell, .edit-cell { width: 38px; text-align: center; padding: 5px; }
+    .open-cell, .delete-cell, .edit-cell, .size-cell, .changed-cell { white-space: nowrap; }
+    .open-cell, .delete-cell, .edit-cell { width: 38px; text-align: center; padding: 5px; }
+    .size-cell { width: 6ch; min-width: 6ch; padding: 7px 4px; }
+    .changed-cell { width: 6ch; min-width: 6ch; padding: 7px 2px; }
     .file-primary {
       display: inline-block;
       font-weight: 600;
@@ -95,25 +97,24 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 20ch;
+      max-width: 55ch;
       vertical-align: middle;
     }
     .file-external {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 15px;
-      height: 15px;
-      margin-left: 4px;
+      width: 22px;
+      height: 22px;
       border: 1px solid #cbd5e1;
-      border-radius: 3px;
-      color: #475569;
-      font-size: 0.64rem;
+      border-radius: 6px;
+      color: #64748b;
+      background: #f8fafc;
       line-height: 1;
       text-decoration: none;
       vertical-align: middle;
     }
-    .file-external:hover { background: #f8fafc; text-decoration: none; }
+    .file-external:hover { background: #e2e8f0; text-decoration: none; }
     .commit-msg {
       font-size: 0.76rem;
       color: #475569;
@@ -150,11 +151,11 @@
       pointer-events: none;
     }
     .action-btn.delete {
-      background: #fef2f2;
-      color: #b91c1c;
-      border-color: #fecaca;
+      color: #64748b;
+      border-color: #cbd5e1;
+      background: #f8fafc;
     }
-    .action-btn.delete:hover { background: #fee2e2; }
+    .action-btn.delete:hover { background: #e2e8f0; }
 
     .recycle {
       margin: 12px 0;
@@ -202,6 +203,17 @@
       cursor: pointer;
     }
     .mini:hover { background: #edf3ff; }
+    .sort-chip {
+      border-color: #cbd5e1;
+      background: #f8fafc;
+      color: #64748b;
+    }
+    .sort-chip:hover { background: #e2e8f0; }
+    [data-sort-key][data-active="true"].sort-chip {
+      background: #e2e8f0;
+      border-color: #cbd5e1;
+      color: #475569;
+    }
     .mini.danger {
       border-color: #fecaca;
       background: #fef2f2;
@@ -259,6 +271,7 @@
     <section id="recycle" class="recycle" style="display:none;">
       <div id="recycleHeader" class="recycle-header"><span id="recycleChev" class="chev">▸</span><span id="recycleLabel">Recently Deleted (0)</span></div>
       <div id="recycleList" class="recycle-list"></div>
+      <div style="padding: 0 10px 10px;"><button id="deleteAllDeletedBtn" class="mini danger" type="button" style="display:none;">Delete All</button></div>
     </section>
 
     <section class="card">
@@ -266,12 +279,13 @@
       <table>
         <thead>
           <tr>
-            <th><button class="mini" type="button" data-sort-key="name">Filename</button></th>
+            <th><button class="mini sort-chip" type="button" data-sort-key="name">Filename</button></th>
+            <th>Open</th>
             <th>Delete</th>
             <th>Edit</th>
-            <th><button class="mini" type="button" data-sort-key="commitMessage">Description</button></th>
-            <th><button class="mini" type="button" data-sort-key="size">Size</button></th>
-            <th><button class="mini" type="button" data-sort-key="changed">Changed</button></th>
+            <th><button class="mini sort-chip" type="button" data-sort-key="commitMessage">Description</button></th>
+            <th><button class="mini sort-chip" type="button" data-sort-key="size">Size</button></th>
+            <th><button class="mini sort-chip" type="button" data-sort-key="changed">Changed</button></th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
@@ -347,19 +361,19 @@
     function shortCommitMessage(message) {
       const line = String(message || '').split('\n')[0].trim();
       if (!line) return '—';
-      return line.length > 120 ? `${line.slice(0, 120)}…` : line;
+      return line.length > 131 ? `${line.slice(0, 131)}…` : line;
     }
 
     function shortFileName(path) {
       const full = String(path || '');
-      return full.length > 20 ? `${full.slice(0, 20)}…` : full;
+      return full.length > 55 ? `${full.slice(0, 55)}…` : full;
     }
 
     function commitWrappedPreview(message) {
       const text = shortCommitMessage(message || '');
       if (!text || text === '—') return '—';
       const parts = [];
-      for (let i = 0; i < text.length; i += 36) parts.push(text.slice(i, i + 36));
+      for (let i = 0; i < text.length; i += 130) parts.push(text.slice(i, i + 130));
       if (parts.join('').length < text.length) parts.push('…');
       return parts.join('\n');
     }
@@ -523,11 +537,14 @@
     function renderRecycleBin() {
       const wrap = document.getElementById('recycle');
       const list = loadDeleted();
+      const deleteAllBtn = document.getElementById('deleteAllDeletedBtn');
       if (!list.length) {
         wrap.style.display = 'none';
+        deleteAllBtn.style.display = 'none';
         return;
       }
       wrap.style.display = 'block';
+      deleteAllBtn.style.display = 'inline-flex';
       document.getElementById('recycleLabel').textContent = `Recently Deleted (${list.length})`;
       document.getElementById('recycleChev').textContent = state.recycleOpen ? '▾' : '▸';
       wrap.classList.toggle('open', state.recycleOpen);
@@ -548,20 +565,22 @@
       const tbody = document.getElementById('rows');
       const files = sortedFiles();
       if (!files.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';
       } else {
         tbody.innerHTML = files.map((f) => {
           const canLaunch = /\.html?$/i.test(f.path);
           return `<tr>
             <td class="mono name-cell" title="${esc(f.path)}">
               ${canLaunch ? `<a class="file-primary" href="${esc(f.pagesUrl)}" target="_blank" rel="noopener" title="${esc(f.path)}">${esc(shortFileName(f.path))}</a>` : `<span class="file-primary" title="${esc(f.path)}">${esc(shortFileName(f.path))}</span>`}
-              <a class="file-external" href="${esc(f.ghListingUrl)}" target="_blank" rel="noopener" aria-label="Open GitHub blob for ${esc(f.path)}">↗</a>
+            </td>
+            <td class="open-cell">
+              <a class="file-external" href="${esc(f.ghListingUrl)}" target="_blank" rel="noopener" aria-label="Open GitHub blob for ${esc(f.path)}"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3z"></path><path fill="currentColor" d="M5 5h6v2H7v10h10v-4h2v6H5z"></path></svg></a>
             </td>
             <td class="delete-cell">
-              <button class="action-btn delete" type="button" data-delete="${esc(f.path)}" aria-label="Delete ${esc(f.path)}">×</button>
+              <button class="action-btn delete" type="button" data-delete="${esc(f.path)}" aria-label="Delete ${esc(f.path)}"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"></path></svg></button>
             </td>
             <td class="edit-cell">
-              <button class="action-btn" type="button" data-edit="${esc(f.path)}" aria-label="Edit ${esc(f.path)}">✎</button>
+              <button class="action-btn" type="button" data-edit="${esc(f.path)}" aria-label="Edit ${esc(f.path)}"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm18-11.5a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75L21 5.75z"></path></svg></button>
             </td>
             <td class="desc-cell" title="${esc(f.commitMessage || '')}">
               <span class="commit-msg">${esc(commitWrappedPreview(f.commitMessage || ''))}</span>
@@ -587,11 +606,12 @@
       if (!files.length) return;
       const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
       const rows = ['filename,pages_url,blob_url,description,size,updated_when,updated_iso'];
+      const asLink = (v) => `=HYPERLINK("${String(v ?? '').replace(/"/g, '""')}","${String(v ?? '').replace(/"/g, '""')}")`;
       for (const f of files) {
         rows.push([
           q(f.path),
-          q(f.pagesUrl || ''),
-          q(f.ghListingUrl || ''),
+          q(asLink(f.pagesUrl || '')),
+          q(asLink(f.ghListingUrl || '')),
           q(f.commitMessage || ''),
           q(f.size),
           q(fmtAgo(f.changed)),
@@ -794,6 +814,16 @@
     document.getElementById('recycleHeader').addEventListener('click', () => {
       state.recycleOpen = !state.recycleOpen;
       renderRecycleBin();
+    });
+    document.getElementById('deleteAllDeletedBtn').addEventListener('click', () => {
+      const list = loadDeleted();
+      if (!list.length) return;
+      if (!window.confirm(`Delete all ${list.length} recently deleted entries forever? This cannot be undone.`)) return;
+      const purged = loadPurgedSet();
+      for (const item of list) purged.add(item.path);
+      savePurgedSet(purged);
+      saveDeleted([]);
+      render();
     });
 
     document.querySelectorAll('[data-sort-key]').forEach((el) => {
