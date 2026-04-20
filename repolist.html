@@ -37,8 +37,10 @@
       cursor: pointer;
     }
     button:hover { background: #1d4ed8; }
-    #status { margin: 8px 0 10px; min-height: 1.2em; color: #334155; font-size: 0.92rem; }
+    .status-row { margin: 8px 0 10px; min-height: 1.2em; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    #status { min-height: 1.2em; color: #334155; font-size: 0.92rem; }
     #status.error { color: #b91c1c; }
+    #exportCsvBtn { display: none; margin: 0; width: auto; padding: 5px 9px; font-size: 0.76rem; border-radius: 8px; white-space: nowrap; }
 
     .card {
       border: 1px solid #d8deea;
@@ -81,72 +83,57 @@
     tbody tr:hover td { background: #eef4ff; }
 
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.84rem; }
-    .name-cell { min-width: 220px; }
-    .details-cell { min-width: 260px; width: 42%; }
+    .name-cell { width: 140px; max-width: 140px; min-width: 120px; }
+    .desc-cell { min-width: 300px; width: 48%; }
+    .delete-cell, .edit-cell, .size-cell, .changed-cell { white-space: nowrap; }
+    .delete-cell, .edit-cell { width: 38px; text-align: center; padding: 5px; }
     .file-primary {
-      display: block;
+      display: inline-block;
       font-weight: 600;
       color: #0f172a;
       line-height: 1.2;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      max-width: 20ch;
+      vertical-align: middle;
     }
-    .file-secondary {
-      display: block;
-      margin-top: 1px;
-      font-size: 0.76rem;
-      color: #94a3b8;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+    .file-external {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      margin-left: 4px;
+      border: 1px solid #cbd5e1;
+      border-radius: 3px;
+      color: #475569;
+      font-size: 0.64rem;
+      line-height: 1;
+      text-decoration: none;
+      vertical-align: middle;
     }
-    .detail-stack {
-      display: grid;
-      gap: 1px;
-      line-height: 1.15;
-    }
-    .detail-size {
-      font-size: 0.77rem;
-      color: #334155;
-      font-weight: 600;
-    }
-    .commit-ago {
-      font-size: 0.76rem;
-      color: #64748b;
-      white-space: nowrap;
-    }
+    .file-external:hover { background: #f8fafc; text-decoration: none; }
     .commit-msg {
       font-size: 0.76rem;
       color: #475569;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      white-space: pre-line;
+      overflow-wrap: anywhere;
     }
     a { color: #1d4ed8; text-decoration: none; font-weight: 600; }
     a:hover { text-decoration: underline; }
 
-    .actions { white-space: nowrap; }
-    .action-group {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 2px;
-      border: 1px solid #dbe3f0;
-      border-radius: 10px;
-      background: #f8fbff;
-    }
     .action-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 28px;
-      height: 28px;
+      width: 22px;
+      height: 22px;
       border: 1px solid #cbd5e1;
-      border-radius: 8px;
+      border-radius: 6px;
       background: #fff;
       color: #334155;
-      font-size: 0.72rem;
+      font-size: 0.67rem;
       text-decoration: none;
       font-weight: 700;
       padding: 0;
@@ -249,9 +236,11 @@
     @media (max-width: 760px) {
       .wrap { width: min(1200px, 99vw); margin: 10px auto 16px; }
       .controls { grid-template-columns: 1fr; }
-      th, td { padding: 7px 8px; }
-      .details-cell { min-width: 180px; width: auto; }
-      .action-btn { width: 26px; height: 26px; }
+      .status-row { flex-wrap: wrap; }
+      th, td { padding: 6px 6px; }
+      .name-cell { min-width: 110px; width: 120px; }
+      .desc-cell { min-width: 220px; width: auto; }
+      .action-btn { width: 20px; height: 20px; }
     }
   </style>
 </head>
@@ -262,7 +251,10 @@
       <input id="repoInput" placeholder="owner/repo or github.com/owner/repo">
       <input id="tokenInput" type="password" placeholder="GitHub PAT (optional, persisted)">
     </div>
-    <div id="status" role="status" aria-live="polite"></div>
+    <div class="status-row">
+      <div id="status" role="status" aria-live="polite"></div>
+      <button id="exportCsvBtn" class="mini" type="button">Export CSV</button>
+    </div>
 
     <section id="recycle" class="recycle" style="display:none;">
       <div id="recycleHeader" class="recycle-header"><span id="recycleChev" class="chev">▸</span><span id="recycleLabel">Recently Deleted (0)</span></div>
@@ -274,13 +266,12 @@
       <table>
         <thead>
           <tr>
-            <th><button class="mini" type="button" data-sort-key="name">File</button></th>
-            <th>
-              <span>Details</span>
-              <button class="mini" type="button" data-sort-key="size">Size</button>
-              <button class="mini" type="button" data-sort-key="changed">Changed</button>
-            </th>
-            <th>Actions</th>
+            <th><button class="mini" type="button" data-sort-key="name">Filename</button></th>
+            <th>Delete</th>
+            <th>Edit</th>
+            <th><button class="mini" type="button" data-sort-key="commitMessage">Description</button></th>
+            <th><button class="mini" type="button" data-sort-key="size">Size</button></th>
+            <th><button class="mini" type="button" data-sort-key="changed">Changed</button></th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
@@ -356,24 +347,20 @@
     function shortCommitMessage(message) {
       const line = String(message || '').split('\n')[0].trim();
       if (!line) return '—';
-      return line.length > 60 ? `${line.slice(0, 60)}…` : line;
+      return line.length > 120 ? `${line.slice(0, 120)}…` : line;
     }
 
     function shortFileName(path) {
-      return String(path || '').split('/').pop() || '';
-    }
-
-    function pathHint(path) {
       const full = String(path || '');
-      const i = full.lastIndexOf('/');
-      return i > 0 ? full.slice(0, i) : '';
+      return full.length > 20 ? `${full.slice(0, 20)}…` : full;
     }
 
     function commitWrappedPreview(message) {
       const text = shortCommitMessage(message || '');
       if (!text || text === '—') return '—';
       const parts = [];
-      for (let i = 0; i < text.length; i += 20) parts.push(text.slice(i, i + 20));
+      for (let i = 0; i < text.length; i += 36) parts.push(text.slice(i, i + 36));
+      if (parts.join('').length < text.length) parts.push('…');
       return parts.join('\n');
     }
 
@@ -561,42 +548,63 @@
       const tbody = document.getElementById('rows');
       const files = sortedFiles();
       if (!files.length) {
-        tbody.innerHTML = '<tr><td colspan="3" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No visible files. Restore files from Recently Deleted if needed.</td></tr>';
       } else {
         tbody.innerHTML = files.map((f) => {
           const canLaunch = /\.html?$/i.test(f.path);
-          const hint = pathHint(f.path);
           return `<tr>
             <td class="mono name-cell" title="${esc(f.path)}">
-              <span class="file-primary">${esc(shortFileName(f.path))}</span>
-              ${hint ? `<span class="file-secondary">${esc(hint)}</span>` : ''}
+              ${canLaunch ? `<a class="file-primary" href="${esc(f.pagesUrl)}" target="_blank" rel="noopener" title="${esc(f.path)}">${esc(shortFileName(f.path))}</a>` : `<span class="file-primary" title="${esc(f.path)}">${esc(shortFileName(f.path))}</span>`}
+              <a class="file-external" href="${esc(f.ghListingUrl)}" target="_blank" rel="noopener" aria-label="Open GitHub blob for ${esc(f.path)}">↗</a>
             </td>
-            <td class="details-cell" title="${esc(f.commitMessage || '')}">
-              <div class="detail-stack">
-                <span class="detail-size">${esc(fmtSize(f.size))}</span>
-                <span class="commit-ago">${esc(fmtAgo(f.changed))}</span>
-                <span class="commit-msg">${esc(shortCommitMessage(f.commitMessage || ''))}</span>
-              </div>
+            <td class="delete-cell">
+              <button class="action-btn delete" type="button" data-delete="${esc(f.path)}" aria-label="Delete ${esc(f.path)}">×</button>
             </td>
-            <td class="actions">
-              <div class="action-group">
-                <button class="action-btn" type="button" data-edit="${esc(f.path)}" aria-label="Edit ${esc(f.path)}">✎</button>
-                ${canLaunch ? `<a class="action-btn" href="${esc(f.pagesUrl)}" target="_blank" rel="noopener" aria-label="Open Pages URL for ${esc(f.path)}">Pg</a>` : '<span class="action-btn ghost" aria-hidden="true">Pg</span>'}
-                <a class="action-btn" href="${esc(f.ghListingUrl)}" target="_blank" rel="noopener" aria-label="Open GitHub blob for ${esc(f.path)}">Gh</a>
-                <button class="action-btn delete" type="button" data-delete="${esc(f.path)}" aria-label="Delete ${esc(f.path)}">×</button>
-              </div>
+            <td class="edit-cell">
+              <button class="action-btn" type="button" data-edit="${esc(f.path)}" aria-label="Edit ${esc(f.path)}">✎</button>
             </td>
+            <td class="desc-cell" title="${esc(f.commitMessage || '')}">
+              <span class="commit-msg">${esc(commitWrappedPreview(f.commitMessage || ''))}</span>
+            </td>
+            <td class="size-cell">${esc(fmtSize(f.size))}</td>
+            <td class="changed-cell" title="${esc(f.changed || '')}">${esc(fmtAgo(f.changed))}</td>
           </tr>`;
         }).join('');
         document.querySelectorAll('[data-delete]').forEach((btn) => btn.addEventListener('click', () => softDelete(btn.getAttribute('data-delete'))));
         document.querySelectorAll('[data-edit]').forEach((btn) => btn.addEventListener('click', () => openEdit(btn.getAttribute('data-edit'))));
       }
+      document.getElementById('exportCsvBtn').style.display = files.length ? 'inline-flex' : 'none';
 
       document.querySelectorAll('[data-sort-key]').forEach((el) => {
         const active = el.dataset.sortKey === state.sortKey;
         el.dataset.active = active ? 'true' : 'false';
         el.dataset.dir = active ? (state.sortDir === 'asc' ? '▲' : '▼') : '';
       });
+    }
+
+    function exportCsv() {
+      const files = sortedFiles();
+      if (!files.length) return;
+      const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const rows = ['filename,pages_url,blob_url,description,size,updated_when,updated_iso'];
+      for (const f of files) {
+        rows.push([
+          q(f.path),
+          q(f.pagesUrl || ''),
+          q(f.ghListingUrl || ''),
+          q(f.commitMessage || ''),
+          q(f.size),
+          q(fmtAgo(f.changed)),
+          q(f.changed || '')
+        ].join(','));
+      }
+      const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${state.repo?.owner || 'repo'}-${state.repo?.name || 'files'}-files.csv`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 500);
     }
 
     async function loadRepo(value) {
@@ -781,6 +789,7 @@
     document.getElementById('editModal').addEventListener('click', (e) => {
       if (e.target.id === 'editModal') closeEdit();
     });
+    document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
 
     document.getElementById('recycleHeader').addEventListener('click', () => {
       state.recycleOpen = !state.recycleOpen;
@@ -791,7 +800,7 @@
       el.addEventListener('click', () => {
         const key = el.dataset.sortKey;
         if (state.sortKey === key) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
-        else { state.sortKey = key; state.sortDir = key === 'name' ? 'asc' : 'desc'; }
+        else { state.sortKey = key; state.sortDir = (key === 'name' || key === 'commitMessage') ? 'asc' : 'desc'; }
         render();
       });
     });
