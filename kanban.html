@@ -295,7 +295,6 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
       <div class="tag-input-row">
         <input id="tagInput" placeholder="type a tag, press Enter" />
       </div>
-      <div class="suggestions" id="tagSuggestions" aria-label="Previously used tags"></div>
       <input id="fTags" class="hidden" />
     </div>
 
@@ -1271,7 +1270,7 @@ function openEditor(id=null, presetStage=null){
   activeTags = c?.tags ? [...c.tags] : [];
   currentFiles = Array.isArray(c?.files) ? c.files.slice() : [];
   pendingFiles = [];
-  renderTagChips(); renderTagSuggestions();
+  renderTagChips();
   renderFileChips();
   $("#fFiles").value = ""; // reset file input
   editDialog.showModal(); $("#fTitle").focus();
@@ -1318,8 +1317,7 @@ function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("
 function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join(""); $("#fStage").innerHTML = state.stages.map(s=>`<option>${s}</option>`).join(""); }
 
 /* ===== Tagging UI ===== */
-const tagInput=$("#tagInput"), tagChips=$("#tagChips"), tagSuggestions=$("#tagSuggestions"), hiddenTags=$("#fTags");
-function isNewCardEditor(){ return !editingId; }
+const tagInput=$("#tagInput"), tagChips=$("#tagChips"), hiddenTags=$("#fTags");
 function parseTagsFromInput(value){
   return String(value||"")
     .split(",")
@@ -1344,11 +1342,9 @@ function commitTagFromInput(){
   });
   tagInput.value="";
   renderTagChips();
-  renderTagSuggestions();
 }
 tagInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter" || e.key===","){ e.preventDefault(); commitTagFromInput(); } });
 tagInput.addEventListener("blur", ()=>{ commitTagFromInput(); });
-tagInput.addEventListener("input", ()=> renderTagSuggestions());
 function renderTagChips(){
   tagChips.innerHTML="";
   activeTags.forEach(t=>{
@@ -1357,36 +1353,6 @@ function renderTagChips(){
     tagChips.appendChild(el);
   });
   hiddenTags.value = activeTags.join(",");
-}
-function getFilteredTagSuggestions(query=""){
-  const q=String(query||"").trim().toLowerCase();
-  return tagHistory.filter(t=>(!q || t.includes(q)));
-}
-function renderTagSuggestions(){
-  if(!tagSuggestions) return;
-  tagSuggestions.innerHTML="";
-  if(!tagHistory.length) return;
-  const query=tagInput.value.trim().toLowerCase();
-  const showAllPool=isNewCardEditor() && !query;
-  const suggestions=getFilteredTagSuggestions(query).filter(t=>!activeTags.includes(t));
-  if(!showAllPool && !query) return;
-  const seen=new Set();
-  suggestions.forEach(t=>{
-    const k=t.toLowerCase(); if(seen.has(k)) return; seen.add(k);
-    const chip=document.createElement("span");
-    chip.className="chip";
-    chip.textContent=t;
-    chip.addEventListener("pointerdown",(e)=>e.preventDefault());
-    chip.onclick=(e)=>{
-      e.stopPropagation();
-      if(!activeTags.includes(t)){
-        activeTags.push(t);
-        renderTagChips();
-        renderTagSuggestions();
-      }
-    };
-    tagSuggestions.appendChild(chip);
-  });
 }
 
 /* ===== Attachments ===== */
