@@ -1353,12 +1353,21 @@ function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<o
 
 /* ===== Tagging UI ===== */
 const tagInput=$("#tagInput"), tagChips=$("#tagChips"), tagSuggestions=$("#tagSuggestions"), hiddenTags=$("#fTags");
+function isNewCardEditor(){ return !editingId; }
+function parseTagsFromInput(value){
+  return String(value||"")
+    .split(",")
+    .map(s=>s.trim().toLowerCase())
+    .filter(Boolean);
+}
 function commitTagFromInput(){
-  const raw = tagInput.value.trim().toLowerCase();
-  if(!raw) return;
-  const selected = getFilteredTagSuggestions(raw).find(t=>!activeTags.includes(t));
-  const nextTag = selected || raw;
-  if(nextTag && !activeTags.includes(nextTag)) activeTags.push(nextTag);
+  const tagsToAdd=parseTagsFromInput(tagInput.value);
+  if(!tagsToAdd.length) return;
+  tagsToAdd.forEach(rawTag=>{
+    const selected = getFilteredTagSuggestions(rawTag).find(t=>!activeTags.includes(t));
+    const nextTag = selected || rawTag;
+    if(nextTag && !activeTags.includes(nextTag)) activeTags.push(nextTag);
+  });
   tagInput.value="";
   renderTagChips();
   renderTagSuggestions();
@@ -1378,16 +1387,25 @@ function renderTagChips(){
 function renderTagSuggestions(){
   tagSuggestions.innerHTML=""; if(!tagHistory.length) return;
   const query=tagInput.value.trim().toLowerCase();
-  const suggestions=getFilteredTagSuggestions(query);
+  const showAllForNewCard=isNewCardEditor();
+  const suggestions=showAllForNewCard ? getFilteredTagSuggestions("") : getFilteredTagSuggestions(query);
+  if(!showAllForNewCard && !query) return;
   const seen=new Set();
   suggestions.forEach(t=>{
     const k=t.toLowerCase(); if(seen.has(k)) return; seen.add(k);
     const el=document.createElement("span"); el.className="chip";
     const txt=document.createElement("span"); txt.textContent=t;
-    const rm=document.createElement("span"); rm.textContent="×"; rm.className="remove"; rm.title="delete tag from active cards";
-    el.append(txt,rm);
+    el.append(txt);
+    let rm=null;
+    if(showAllForNewCard){
+      rm=document.createElement("span");
+      rm.textContent="×";
+      rm.className="remove";
+      rm.title="delete tag from active cards";
+      el.append(rm);
+    }
     el.onclick=(e)=>{
-      if(e.target===rm){ removeTagFromActiveCards(t); return; }
+      if(rm && e.target===rm){ removeTagFromActiveCards(t); return; }
       if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); }
     };
     tagSuggestions.appendChild(el);
