@@ -157,11 +157,6 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .inline-tag-input-row input{flex:1;border:1px solid var(--border);border-radius:8px;padding:5px 8px;font:inherit;font-size:12px}
 .inline-tag-input-row button{padding:5px 9px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap}
 .inline-tag-input-row button:hover{border-color:var(--accent);color:var(--accent)}
-.inline-tag-sug-label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
-.inline-tag-suggestions{display:flex;flex-wrap:wrap;gap:4px}
-.chip .sug-x{cursor:pointer;font-size:12px;font-weight:800;color:#999;line-height:1}
-.chip .sug-x:hover{color:var(--danger)}
-
 /* Inline board-list rows */
 .board-list-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--border);border-radius:10px;background:#fff}
 .board-list-row.current{border-color:var(--accent)}
@@ -521,8 +516,6 @@ function removeTagFromActiveCards(tag){
   if(changed){
     scheduleSave();
     render();
-  }else{
-    renderTagSuggestions();
   }
 }
 
@@ -855,60 +848,33 @@ function buildInlineTagEditor(tagArr){
   tagIn.placeholder = "type tag, press Enter";
   inputRow.append(tagIn);
 
-  const sugLabel = document.createElement("div");
-  sugLabel.className = "inline-tag-sug-label";
-  sugLabel.textContent = "Suggestions (click to add · × to remove from list)";
-
-  const sugEl = document.createElement("div");
-  sugEl.className = "inline-tag-suggestions";
-
-  wrap.append(assignedEl, inputRow, sugLabel, sugEl);
+  wrap.append(assignedEl, inputRow);
 
   function renderAssigned(){
     assignedEl.innerHTML = "";
     tagArr.forEach(t=>{
       const chip = document.createElement("span"); chip.className = "chip";
       chip.innerHTML = `${escapeHtml(t)} <button type="button" title="remove tag">×</button>`;
-      chip.querySelector("button").onclick = e=>{ e.stopPropagation(); tagArr.splice(tagArr.indexOf(t),1); renderAssigned(); renderSuggestions(); tagIn.focus(); };
+      chip.querySelector("button").onclick = e=>{ e.stopPropagation(); tagArr.splice(tagArr.indexOf(t),1); renderAssigned(); tagIn.focus(); };
       assignedEl.appendChild(chip);
     });
   }
 
-  function renderSuggestions(){
-    const q=tagIn.value.trim().toLowerCase();
-    sugEl.innerHTML = "";
-    tagHistory
-      .filter(t=>!tagArr.includes(t))
-      .filter(t=>!q || t.includes(q))
-      .forEach(t=>{
-      const chip = document.createElement("span"); chip.className = "chip";
-      const txt = document.createElement("span"); txt.textContent = t;
-      const rx = document.createElement("span"); rx.className = "sug-x"; rx.textContent = "×"; rx.title = "remove from list";
-      chip.append(txt, rx);
-      chip.onclick = e=>{
-        e.stopPropagation();
-        if(e.target === rx){ removeTagFromActiveCards(t); return; }
-        if(!tagArr.includes(t)){ tagArr.push(t); renderAssigned(); renderSuggestions(); }
-        tagIn.focus();
-      };
-      sugEl.appendChild(chip);
-    });
-  }
-
   function commitInput(){
-    const raw = tagIn.value.trim().toLowerCase();
-    if(!raw) return;
-    const match = tagHistory.find(t=>t.includes(raw) && !tagArr.includes(t));
-    const chosen = match || raw;
-    if(chosen && !tagArr.includes(chosen)) tagArr.push(chosen);
+    const rawTags = parseTagsFromInput(tagIn.value);
+    if(!rawTags.length) return;
+    rawTags.forEach(rawTag=>{
+      const chosen = resolveExistingTag(rawTag);
+      if(chosen && !tagArr.includes(chosen)) tagArr.push(chosen);
+    });
     tagIn.value = "";
-    renderAssigned(); renderSuggestions();
+    renderAssigned();
   }
 
   tagIn.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===","){ e.preventDefault(); e.stopPropagation(); commitInput(); } });
-  tagIn.addEventListener("input", renderSuggestions);
+  tagIn.addEventListener("blur", commitInput);
 
-  renderAssigned(); renderSuggestions();
+  renderAssigned();
   return wrap;
 }
 
@@ -1360,12 +1326,20 @@ function parseTagsFromInput(value){
     .map(s=>s.trim().toLowerCase())
     .filter(Boolean);
 }
+function resolveExistingTag(rawTag){
+  const q=String(rawTag||"").trim().toLowerCase();
+  if(!q) return "";
+  const exact=tagHistory.find(t=>t.toLowerCase()===q);
+  if(exact) return exact;
+  const startsWith=tagHistory.filter(t=>t.toLowerCase().startsWith(q));
+  if(startsWith.length===1) return startsWith[0];
+  return q;
+}
 function commitTagFromInput(){
   const tagsToAdd=parseTagsFromInput(tagInput.value);
   if(!tagsToAdd.length) return;
   tagsToAdd.forEach(rawTag=>{
-    const selected = getFilteredTagSuggestions(rawTag).find(t=>!activeTags.includes(t));
-    const nextTag = selected || rawTag;
+    const nextTag = resolveExistingTag(rawTag);
     if(nextTag && !activeTags.includes(nextTag)) activeTags.push(nextTag);
   });
   tagInput.value="";
@@ -1379,41 +1353,40 @@ function renderTagChips(){
   tagChips.innerHTML="";
   activeTags.forEach(t=>{
     const el=document.createElement("span"); el.className="chip"; el.innerHTML=`${escapeHtml(t)} <button title="remove" aria-label="remove tag">×</button>`;
-    el.querySelector("button").onclick=()=>{ activeTags=activeTags.filter(x=>x!==t); renderTagChips(); };
+    el.querySelector("button").onclick=()=>{ activeTags=activeTags.filter(x=>x!==t); renderTagChips(); renderTagSuggestions(); };
     tagChips.appendChild(el);
   });
   hiddenTags.value = activeTags.join(",");
 }
-function renderTagSuggestions(){
-  tagSuggestions.innerHTML=""; if(!tagHistory.length) return;
-  const query=tagInput.value.trim().toLowerCase();
-  const showAllForNewCard=isNewCardEditor();
-  const suggestions=showAllForNewCard ? getFilteredTagSuggestions("") : getFilteredTagSuggestions(query);
-  if(!showAllForNewCard && !query) return;
-  const seen=new Set();
-  suggestions.forEach(t=>{
-    const k=t.toLowerCase(); if(seen.has(k)) return; seen.add(k);
-    const el=document.createElement("span"); el.className="chip";
-    const txt=document.createElement("span"); txt.textContent=t;
-    el.append(txt);
-    let rm=null;
-    if(showAllForNewCard){
-      rm=document.createElement("span");
-      rm.textContent="×";
-      rm.className="remove";
-      rm.title="delete tag from active cards";
-      el.append(rm);
-    }
-    el.onclick=(e)=>{
-      if(rm && e.target===rm){ removeTagFromActiveCards(t); return; }
-      if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); }
-    };
-    tagSuggestions.appendChild(el);
-  });
-}
 function getFilteredTagSuggestions(query=""){
   const q=String(query||"").trim().toLowerCase();
   return tagHistory.filter(t=>(!q || t.includes(q)));
+}
+function renderTagSuggestions(){
+  if(!tagSuggestions) return;
+  tagSuggestions.innerHTML="";
+  if(!tagHistory.length) return;
+  const query=tagInput.value.trim().toLowerCase();
+  const showAllPool=isNewCardEditor() && !query;
+  const suggestions=getFilteredTagSuggestions(query).filter(t=>!activeTags.includes(t));
+  if(!showAllPool && !query) return;
+  const seen=new Set();
+  suggestions.forEach(t=>{
+    const k=t.toLowerCase(); if(seen.has(k)) return; seen.add(k);
+    const chip=document.createElement("span");
+    chip.className="chip";
+    chip.textContent=t;
+    chip.addEventListener("pointerdown",(e)=>e.preventDefault());
+    chip.onclick=(e)=>{
+      e.stopPropagation();
+      if(!activeTags.includes(t)){
+        activeTags.push(t);
+        renderTagChips();
+        renderTagSuggestions();
+      }
+    };
+    tagSuggestions.appendChild(chip);
+  });
 }
 
 /* ===== Attachments ===== */
