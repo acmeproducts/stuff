@@ -493,6 +493,38 @@ function loadState(){
 }
 function loadTagHistory(){ try{ const arr=JSON.parse(localStorage.getItem(TAGS_KEY)||"[]"); return Array.isArray(arr)?arr:[]; }catch{ return []; } }
 function saveTagHistory(list){ const uniq=[...new Set(list.map(t=>String(t).toLowerCase()))]; trySave(TAGS_KEY, JSON.stringify(uniq)); return uniq; }
+function getActiveCardTags(){
+  return [...new Set(
+    (state.cards||[])
+      .flatMap(c=>Array.isArray(c.tags) ? c.tags : [])
+      .map(t=>String(t).trim().toLowerCase())
+      .filter(Boolean)
+  )];
+}
+function syncTagHistoryToActiveCards(){
+  tagHistory = saveTagHistory(getActiveCardTags());
+}
+function removeTagFromActiveCards(tag){
+  const target=String(tag||"").trim().toLowerCase();
+  if(!target) return;
+  let changed=false;
+  state.cards.forEach(card=>{
+    const before=Array.isArray(card.tags) ? card.tags.length : 0;
+    if(!before) return;
+    card.tags = card.tags.filter(t=>String(t).toLowerCase()!==target);
+    if(card.tags.length!==before){
+      card.updatedAt=Date.now();
+      changed=true;
+    }
+  });
+  syncTagHistoryToActiveCards();
+  if(changed){
+    scheduleSave();
+    render();
+  }else{
+    renderTagSuggestions();
+  }
+}
 
 /* ===== App State ===== */
 const persistedState = loadState();
@@ -510,6 +542,7 @@ state.cardCollapsed = state.cardCollapsed || {};
 state.layout = state.layout || "auto";
 state.archive = Array.isArray(state.archive)? state.archive : [];
 let tagHistory = loadTagHistory();
+syncTagHistoryToActiveCards();
 const $ = s=>document.querySelector(s), $$ = s=>Array.from(document.querySelectorAll(s));
 function uid(){return Math.random().toString(36).slice(2,10)}
 function formatLastUpdated(ts){
@@ -808,10 +841,8 @@ function buildInlineTagEditor(tagArr){
   const inputRow = document.createElement("div");
   inputRow.className = "inline-tag-input-row";
   const tagIn = document.createElement("input");
-  tagIn.placeholder = "type tag, Enter or Add";
-  const addBtn = document.createElement("button");
-  addBtn.type = "button"; addBtn.textContent = "Add";
-  inputRow.append(tagIn, addBtn);
+  tagIn.placeholder = "type tag, press Enter";
+  inputRow.append(tagIn);
 
   const sugLabel = document.createElement("div");
   sugLabel.className = "inline-tag-sug-label";
@@ -833,15 +864,19 @@ function buildInlineTagEditor(tagArr){
   }
 
   function renderSuggestions(){
+    const q=tagIn.value.trim().toLowerCase();
     sugEl.innerHTML = "";
-    tagHistory.filter(t=>!tagArr.includes(t)).forEach(t=>{
+    tagHistory
+      .filter(t=>!tagArr.includes(t))
+      .filter(t=>!q || t.includes(q))
+      .forEach(t=>{
       const chip = document.createElement("span"); chip.className = "chip";
       const txt = document.createElement("span"); txt.textContent = t;
       const rx = document.createElement("span"); rx.className = "sug-x"; rx.textContent = "×"; rx.title = "remove from list";
       chip.append(txt, rx);
       chip.onclick = e=>{
         e.stopPropagation();
-        if(e.target === rx){ tagHistory = saveTagHistory(tagHistory.filter(x=>x!==t)); renderSuggestions(); return; }
+        if(e.target === rx){ removeTagFromActiveCards(t); return; }
         if(!tagArr.includes(t)){ tagArr.push(t); renderAssigned(); renderSuggestions(); }
       };
       sugEl.appendChild(chip);
@@ -849,15 +884,17 @@ function buildInlineTagEditor(tagArr){
   }
 
   function commitInput(){
-    const raw = tagIn.value.trim(); if(!raw) return;
-    raw.split(/[,\s]+/).forEach(piece=>{ const t=piece.trim().toLowerCase(); if(t&&!tagArr.includes(t)) tagArr.push(t); });
+    const raw = tagIn.value.trim().toLowerCase();
+    if(!raw) return;
+    const match = tagHistory.find(t=>t.includes(raw) && !tagArr.includes(t));
+    const chosen = match || raw;
+    if(chosen && !tagArr.includes(chosen)) tagArr.push(chosen);
     tagIn.value = "";
-    bumpTagHistory(tagArr);
     renderAssigned(); renderSuggestions();
   }
 
   tagIn.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===","){ e.preventDefault(); e.stopPropagation(); commitInput(); } });
-  addBtn.addEventListener("click", e=>{ e.stopPropagation(); commitInput(); });
+  tagIn.addEventListener("input", renderSuggestions);
 
   renderAssigned(); renderSuggestions();
   return wrap;
@@ -1296,19 +1333,18 @@ function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<o
 /* ===== Tagging UI ===== */
 const tagInput=$("#tagInput"), tagChips=$("#tagChips"), tagSuggestions=$("#tagSuggestions"), hiddenTags=$("#fTags");
 function commitTagFromInput(){
-  const raw = tagInput.value.trim();
+  const raw = tagInput.value.trim().toLowerCase();
   if(!raw) return;
-  raw.split(/[\,\s]+/).forEach(piece=>{
-    const t = piece.trim().toLowerCase();
-    if(t && !activeTags.includes(t)) activeTags.push(t);
-  });
+  const selected = getFilteredTagSuggestions(raw).find(t=>!activeTags.includes(t));
+  const nextTag = selected || raw;
+  if(nextTag && !activeTags.includes(nextTag)) activeTags.push(nextTag);
   tagInput.value="";
   renderTagChips();
-  bumpTagHistory(activeTags);
   renderTagSuggestions();
 }
 tagInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter" || e.key===","){ e.preventDefault(); commitTagFromInput(); } });
 tagInput.addEventListener("blur", ()=>{ commitTagFromInput(); });
+tagInput.addEventListener("input", ()=> renderTagSuggestions());
 function renderTagChips(){
   tagChips.innerHTML="";
   activeTags.forEach(t=>{
@@ -1320,19 +1356,25 @@ function renderTagChips(){
 }
 function renderTagSuggestions(){
   tagSuggestions.innerHTML=""; if(!tagHistory.length) return;
+  const query=tagInput.value.trim().toLowerCase();
+  const suggestions=getFilteredTagSuggestions(query);
   const seen=new Set();
-  tagHistory.forEach(t=>{
+  suggestions.forEach(t=>{
     const k=t.toLowerCase(); if(seen.has(k)) return; seen.add(k);
     const el=document.createElement("span"); el.className="chip";
     const txt=document.createElement("span"); txt.textContent=t;
-    const rm=document.createElement("span"); rm.textContent="×"; rm.className="remove"; rm.title="remove from history";
+    const rm=document.createElement("span"); rm.textContent="×"; rm.className="remove"; rm.title="delete tag from active cards";
     el.append(txt,rm);
     el.onclick=(e)=>{
-      if(e.target===rm){ tagHistory=saveTagHistory(tagHistory.filter(x=>x!==t)); renderTagSuggestions(); return; }
+      if(e.target===rm){ removeTagFromActiveCards(t); return; }
       if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); }
     };
     tagSuggestions.appendChild(el);
   });
+}
+function getFilteredTagSuggestions(query=""){
+  const q=String(query||"").trim().toLowerCase();
+  return tagHistory.filter(t=>(!q || t.includes(q)));
 }
 
 /* ===== Attachments ===== */
@@ -1417,8 +1459,10 @@ $("#bKeySwitch").addEventListener("click", ()=>{
     state.cardCollapsed = state.cardCollapsed||{};
     state.archive     = Array.isArray(state.archive)?state.archive:[];
     state.layout      = state.layout||"auto";
+    syncTagHistoryToActiveCards();
   } else {
     state.cards=[]; state.archive=[]; state.collapsed={}; state.cardCollapsed={};
+    syncTagHistoryToActiveCards();
   }
   boardsDialog.close();
   render();
@@ -1492,6 +1536,7 @@ function applyImportedBoard(obj, sourceLabel="import", options={}){
   state.cardCollapsed = state.cardCollapsed || {};
   state.lastModified = Number(state.lastModified||Date.now());
   state.cards.forEach(c=>{ c.statusColor=normalizeStatusColor(c.statusColor); });
+  syncTagHistoryToActiveCards();
   state.stages.forEach(st=>{ const list=state.cards.filter(c=>c.stage===st); list.sort((a,b)=>(a.pos??0)-(b.pos??0)||(a.createdAt-b.createdAt)); list.forEach((c,i)=>{ if(typeof c.pos!=="number") c.pos=(i+1)*1000; }); });
   clearTimeout(saveTimer);
   dirty=true;
