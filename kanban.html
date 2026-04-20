@@ -703,9 +703,16 @@ let suppressNextCardClick=false;
 function isInteractiveCardTarget(target){
   return !!target?.closest?.('a,button,input,textarea,select,label,[contenteditable="true"]');
 }
+function hasActiveTextSelection(){
+  const sel = window.getSelection?.();
+  return !!sel && !sel.isCollapsed && String(sel).trim().length>0;
+}
+function isTextSelectableCardTarget(target){
+  return !!target?.closest?.('.card-detail,.live-notes-preview,.attachment-list,.attachment-item,.attachment-link,.card-tags,.chip');
+}
 function pointerFromCardStart(card, e){
   if(e.pointerType==="mouse") return;
-  if(isInteractiveCardTarget(e.target)) return;
+  if(isInteractiveCardTarget(e.target) || isTextSelectableCardTarget(e.target) || hasActiveTextSelection()) return;
   pointerDrag={id:card.id,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,startAt:Date.now(),active:false};
   card.setPointerCapture?.(e.pointerId);
 }
@@ -834,7 +841,12 @@ function buildInlineTagEditor(tagArr){
 
   function renderSuggestions(){
     sugEl.innerHTML = "";
-    tagHistory.filter(t=>!tagArr.includes(t)).forEach(t=>{
+    const query = tagIn.value.trim().toLowerCase();
+    const show = query.length>0;
+    sugLabel.style.display = show ? "" : "none";
+    sugEl.style.display = show ? "" : "none";
+    if(!show) return;
+    tagHistory.filter(t=>!tagArr.includes(t) && t.toLowerCase().includes(query)).forEach(t=>{
       const chip = document.createElement("span"); chip.className = "chip";
       const txt = document.createElement("span"); txt.textContent = t;
       const rx = document.createElement("span"); rx.className = "sug-x"; rx.textContent = "×"; rx.title = "remove from list";
@@ -857,6 +869,7 @@ function buildInlineTagEditor(tagArr){
   }
 
   tagIn.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===","){ e.preventDefault(); e.stopPropagation(); commitInput(); } });
+  tagIn.addEventListener("input", ()=> renderSuggestions());
   addBtn.addEventListener("click", e=>{ e.stopPropagation(); commitInput(); });
 
   renderAssigned(); renderSuggestions();
@@ -866,7 +879,12 @@ function buildInlineTagEditor(tagArr){
 function renderCard(card){
   const el=document.createElement("article"); el.className="card"; el.draggable=true; el.dataset.id=card.id;
   el.addEventListener("dragstart", e=>{
-    if(isInteractiveCardTarget(e.target) || e.target.closest('.card-links,.live-notes-preview,.attachment-list')){
+    if(
+      isInteractiveCardTarget(e.target) ||
+      isTextSelectableCardTarget(e.target) ||
+      hasActiveTextSelection() ||
+      e.target.closest('.card-links,.live-notes-preview,.attachment-list')
+    ){
       e.preventDefault();
       return;
     }
@@ -1309,6 +1327,7 @@ function commitTagFromInput(){
 }
 tagInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter" || e.key===","){ e.preventDefault(); commitTagFromInput(); } });
 tagInput.addEventListener("blur", ()=>{ commitTagFromInput(); });
+tagInput.addEventListener("input", ()=> renderTagSuggestions());
 function renderTagChips(){
   tagChips.innerHTML="";
   activeTags.forEach(t=>{
@@ -1319,17 +1338,21 @@ function renderTagChips(){
   hiddenTags.value = activeTags.join(",");
 }
 function renderTagSuggestions(){
-  tagSuggestions.innerHTML=""; if(!tagHistory.length) return;
+  tagSuggestions.innerHTML="";
+  const query = tagInput.value.trim().toLowerCase();
+  if(!query || !tagHistory.length) return;
   const seen=new Set();
   tagHistory.forEach(t=>{
-    const k=t.toLowerCase(); if(seen.has(k)) return; seen.add(k);
+    const k=t.toLowerCase();
+    if(!k.includes(query) || seen.has(k) || activeTags.includes(t)) return;
+    seen.add(k);
     const el=document.createElement("span"); el.className="chip";
     const txt=document.createElement("span"); txt.textContent=t;
     const rm=document.createElement("span"); rm.textContent="×"; rm.className="remove"; rm.title="remove from history";
     el.append(txt,rm);
     el.onclick=(e)=>{
       if(e.target===rm){ tagHistory=saveTagHistory(tagHistory.filter(x=>x!==t)); renderTagSuggestions(); return; }
-      if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); }
+      if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); renderTagSuggestions(); }
     };
     tagSuggestions.appendChild(el);
   });
@@ -1412,11 +1435,11 @@ $("#bKeySwitch").addEventListener("click", ()=>{
   // reload state from the new slot
   const fresh = loadState();
   if(fresh){
-    Object.assign(state, fresh);
-    state.collapsed   = state.collapsed||{};
-    state.cardCollapsed = state.cardCollapsed||{};
-    state.archive     = Array.isArray(state.archive)?state.archive:[];
-    state.layout      = state.layout||"auto";
+    state = fresh;
+    state.collapsed = (state.collapsed && typeof state.collapsed==="object") ? state.collapsed : {};
+    state.cardCollapsed = (state.cardCollapsed && typeof state.cardCollapsed==="object") ? state.cardCollapsed : {};
+    state.archive = Array.isArray(state.archive) ? state.archive : [];
+    state.layout = state.layout || "auto";
   } else {
     state.cards=[]; state.archive=[]; state.collapsed={}; state.cardCollapsed={};
   }
@@ -1928,11 +1951,11 @@ function sanitizeMarkdownImages(s){
     updateKeyLabel();
     const fresh = loadState();
     if(fresh){
-      Object.assign(state, fresh);
-      state.collapsed = state.collapsed||{};
-      state.cardCollapsed = state.cardCollapsed||{};
-      state.archive = Array.isArray(state.archive)?state.archive:[];
-      state.layout = state.layout||"auto";
+      state = fresh;
+      state.collapsed = (state.collapsed && typeof state.collapsed==="object") ? state.collapsed : {};
+      state.cardCollapsed = (state.cardCollapsed && typeof state.cardCollapsed==="object") ? state.cardCollapsed : {};
+      state.archive = Array.isArray(state.archive) ? state.archive : [];
+      state.layout = state.layout || "auto";
     } else {
       state.cards=[]; state.archive=[]; state.collapsed={}; state.cardCollapsed={};
     }
