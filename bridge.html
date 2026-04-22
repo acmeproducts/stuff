@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · 2026-04-21 · fix: dg key trim + verify-before-save -->
+<!-- talkbridge · 2026-04-22 · role-based rtc, joiner-offers, clean hangup, no waiting room -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -82,7 +82,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 
 .call-videos{position:relative;background:#000;overflow:hidden;flex:1;min-height:0;transition:flex-basis .2s ease;}
 #remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:1;}
-#local-video{position:absolute;top:8px;right:8px;width:min(24%,120px);aspect-ratio:16/9;border-radius:8px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
+#local-video{position:absolute;top:8px;right:8px;width:min(14%,80px);aspect-ratio:9/16;border-radius:8px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
 .no-video-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--text-muted);z-index:1;}
 .solo-banner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;text-align:center;pointer-events:none;}
 .solo-banner-text{background:rgba(0,0,0,.6);color:var(--text-dim);font-size:13px;padding:8px 18px;border-radius:20px;backdrop-filter:blur(6px);}
@@ -109,7 +109,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .transcript-more-indicator.show{display:flex;}
 .call.transcript-collapsed .call-transcript{flex:0 0 32px;max-height:32px;overflow:hidden;}
 .call.transcript-collapsed #transcript-body{display:none;}
-.call-videos.swapped #remote-video{top:8px;right:8px;left:auto;bottom:auto;width:min(24%,120px);height:auto;aspect-ratio:16/9;border-radius:8px;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;}
+.call-videos.swapped #remote-video{top:8px;right:8px;left:auto;bottom:auto;width:min(14%,80px);height:auto;aspect-ratio:9/16;border-radius:8px;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;}
 .call-videos.swapped #local-video{inset:0;width:100%;height:100%;border-radius:0;border:none;box-shadow:none;z-index:1;}
 .tr-entry{padding:6px 0;}
 .tr-bubble{border:1px solid rgba(255,255,255,.14);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.02);}
@@ -166,6 +166,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .call-info-wrap{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;}
 .room-name-chip{background:rgba(0,0,0,.72);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:4px 14px;font-size:12px;font-weight:600;white-space:nowrap;max-width:min(78vw,260px);overflow:hidden;text-overflow:ellipsis;backdrop-filter:blur(5px);}
 .lang-flags-chip{background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:2px 10px;font-size:15px;backdrop-filter:blur(4px);}
+.call-ended-screen{position:fixed;inset:0;background:var(--bg);z-index:30;display:none;align-items:center;justify-content:center;}
+.call-ended-screen.show{display:flex;}
 </style>
 </head>
 <body>
@@ -243,7 +245,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <video id="local-video" autoplay muted playsinline></video>
     <div class="no-video-placeholder" id="no-video-msg">👤</div>
     <div class="call-info-wrap"><div class="room-name-chip" id="room-name-chip">No room</div><div class="lang-flags-chip" id="lang-flags-chip">🌐 → 🌐</div></div>
-    <div class="solo-banner" id="solo-banner" style="display:none;"><div class="solo-banner-text">Solo / test mode — waiting for partner</div></div>
     <div class="partner-speaking-indicator" id="partner-speaking-indicator" aria-hidden="true">…</div>
     <div class="subtitle-area" id="subtitle-area"></div>
   </div>
@@ -288,6 +289,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   </div>
 </div>
 <div id="toast"></div>
+<div class="call-ended-screen" id="call-ended-screen">
+  <div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px;">
+    <div style="font-size:40px;">📵</div>
+    <div style="font-family:'Lora',serif;font-size:22px;font-weight:600;color:var(--text);">Call ended</div>
+    <div style="font-size:14px;color:var(--text-dim);">The host ended this call.</div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -391,7 +399,7 @@ function getRecent(){try{return JSON.parse(localStorage.getItem(RK)||'[]')}catch
 function setRecent(r){localStorage.setItem(RK,JSON.stringify(r.slice(0,RL)))}
 function saveRecent(){
   if(!room.id)return;var rows=getRecent().filter(function(r){return r.id!==room.id});
-  rows.unshift({id:room.id,name:room.name||(gL(room.myLang).flag+' ↔ '+gL(room.theirLang).flag),myLang:room.myLang,theirLang:room.theirLang,ts:Date.now()});
+  rows.unshift({id:room.id,name:room.name||(gL(room.myLang).flag+' ↔ '+gL(room.theirLang).flag),myLang:room.myLang,theirLang:room.theirLang,role:room.role||'creator',ts:Date.now()});
   setRecent(rows);renderRecent();
 }
 function delRecent(id){setRecent(getRecent().filter(function(r){return r.id!==id}));clearTrS(id);renderRecent()}
@@ -418,7 +426,7 @@ function copyRoomTr(){var entries=loadTr(viewingRoomId);if(!entries.length){toas
 function renderRecent(){
   var w=$('recent-rooms'),l=$('recent-rooms-list'),rows=getRecent();
   w.style.display=rows.length?'':'none';
-  l.innerHTML=rows.map(function(r){var t=new Date(r.ts).toLocaleString();var h=!!loadTr(r.id).length;return '<div class="recent-item"><div class="recent-item-top"><button class="recent-open jr" data-id="'+esc(r.id)+'">'+esc(r.name)+'<small>'+esc(t)+'</small></button></div><div class="recent-actions"><button class="recent-act jr" data-id="'+esc(r.id)+'">▶ Reopen</button>'+(h?'<button class="recent-act jv" data-id="'+esc(r.id)+'">📄 Transcript</button>':'')+'<button class="recent-act danger jd" data-id="'+esc(r.id)+'">✕ Delete</button></div></div>'}).join('');
+  l.innerHTML=rows.map(function(r){var t=new Date(r.ts).toLocaleString();var h=!!loadTr(r.id).length;var isCreator=r.role!=='joiner';return '<div class="recent-item"><div class="recent-item-top"><button class="recent-open jr" data-id="'+esc(r.id)+'">'+esc(r.name)+'<small>'+esc(t)+'</small></button></div><div class="recent-actions">'+(isCreator?'<button class="recent-act jr" data-id="'+esc(r.id)+'">▶ Reopen</button>':'')+(h?'<button class="recent-act jv" data-id="'+esc(r.id)+'">📄 Transcript</button>':'')+'<button class="recent-act danger jd" data-id="'+esc(r.id)+'">✕ Delete</button></div></div>';}).join('');
   l.querySelectorAll('.jr').forEach(function(b){b.onclick=function(){reuseRoom(b.dataset.id)}});
   l.querySelectorAll('.jv').forEach(function(b){b.onclick=function(){viewRoomTr(b.dataset.id)}});
   l.querySelectorAll('.jd').forEach(function(b){b.onclick=function(){delRecent(b.dataset.id)}});
@@ -435,10 +443,10 @@ function onDgKeyInput(){
   setDgKeyStatus('Verifying…','#f39c12');syncBtn();
   dgKeyVerifyTimer=setTimeout(function(){verifyDgKey(k)},800);
 }
-function verifyDgKey(key){
+function verifyDgKey(key,isRetry){
   var url='wss://api.deepgram.com/v1/listen?model=nova-3&language=en-US&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=true&endpointing=400';
   var ws=new WebSocket(url,['token',key]),done=false;
-  var timer=setTimeout(function(){ws.close();if(!done){done=true;setDgKeyStatus('❌ Timed out — check key','#e74c3c');dgKeyVerified=false;syncBtn();}},8000);
+  var timer=setTimeout(function(){ws.close();if(!done){done=true;if(!isRetry){setDgKeyStatus('Retrying…','#f39c12');verifyDgKey(key,true);}else{setDgKeyStatus('❌ Timed out — check connection','#e74c3c');dgKeyVerified=false;syncBtn();}}},15000);
   ws.onopen=function(){if(done)return;done=true;clearTimeout(timer);ws.close();dgKeyVerified=true;localStorage.setItem('tb_dg_key',key);setDgKeyStatus('✅ Key verified','#2ecc71');syncBtn();log('dg_key_verified',{},'ok');};
   ws.onerror=function(){};
   ws.onclose=function(ev){clearTimeout(timer);if(!done){done=true;setDgKeyStatus('❌ Invalid key ('+ev.code+') — re-paste and try again','#e74c3c');dgKeyVerified=false;syncBtn();}};
@@ -457,9 +465,9 @@ function handleHash(p){
   if(!p||!p.r)return;$('joining-screen').classList.add('show');
   navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(function(s){
     videoStream=s;$('joining-screen').classList.remove('show');
-    room.id=p.r;room.myLang=p.tl;room.theirLang=p.ml;room.name=p.n||'';room.role='joiner';room.solo=false;
+    room.id=p.r;room.myLang=p.tl;room.theirLang=p.ml;room.name=p.n||'';room.role='joiner';
     if(p.k){localStorage.setItem('tb_dg_key',p.k);if($('dg-key'))$('dg-key').value=p.k;}
-    saveRecent();updateBadges();enterCall();
+    updateBadges();enterCall();
   }).catch(function(){$('joining-screen').classList.remove('show');toast('Camera access required');history.replaceState({},'',location.pathname)});
   history.replaceState({},'',location.pathname);
 }
@@ -470,7 +478,7 @@ function connectRelay(){
   if(ws)try{ws.close()}catch(_){}
   ws=new WebSocket(RELAY_WS+'?app='+encodeURIComponent(RELAY_APP)+'&session='+encodeURIComponent(room.id)+'&client='+encodeURIComponent(deviceId));
   var _ws=ws;
-  ws.onopen=function(){log('relay_open',{},'ok');relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});startHB();if(!room.solo&&!pc)setupPC();};
+  ws.onopen=function(){log('relay_open',{},'ok');relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});startHB();if(room.role==='joiner'&&!pc)setupPC();};
   ws.onmessage=function(e){try{handleRelay(JSON.parse(e.data))}catch(_){}};
   ws.onclose=function(ev){if(ws!==_ws)return;log('relay_close',{code:ev.code},'warn');stopHB();clearTimeout(wsReconnectTimer);if(room.id&&(lobbyState===LS.waiting||lobbyState===LS.call))wsReconnectTimer=setTimeout(function(){wsReconnectTimer=null;if(room.id)connectRelay()},2000)};
   ws.onerror=function(){log('relay_err',{},'error')};
@@ -481,7 +489,10 @@ function stopHB(){if(hbTimer){clearInterval(hbTimer);hbTimer=null}}
 
 function handleRelay(d){
   if(!d||d.from===deviceId)return;
-  if(d.type==='hello'){if(lobbyState===LS.waiting){room.solo=false;enterCall()}return}
+  if(d.type==='hello'){
+    if(room.role==='creator'&&!pc)setupPC();
+    return;
+  }
   if(d.type==='ping'){relaySend({type:'pong',transient:true});return}
   if(d.type==='pong')return;
   if(d.type==='webrtc-signal'){handleSig(d);return}
@@ -495,7 +506,11 @@ function handleRelay(d){
     if(d.text&&d.targetLang===room.myLang)showSub(d.text,'partner');
     patchTr('partner',d.subtitleSeq,d.text,d.sourceLang,d.targetLang);return;
   }
-  if(d.type==='hangup'){toast('Partner left');cleanUp();return}
+  if(d.type==='hangup'){
+    if(room.role==='joiner'){cleanUp();try{window.close();}catch(_){}$('call-ended-screen').classList.add('show');}
+    else{toast('Partner left');cleanUp();}
+    return;
+  }
 }
 
 async function enterCall(){
@@ -506,7 +521,6 @@ async function enterCall(){
   if(!callHistoryPushed){history.pushState({tbView:'call'},'',location.href);callHistoryPushed=true}
   $('call-screen').classList.add('active');lobbyState=LS.call;
   $('local-video').srcObject=videoStream;syncMic();syncCam();updateBadges();updateCallChip();
-  $('solo-banner').style.display=room.solo?'':'none';
   renderTr();
   if(!ws||ws.readyState!==1)connectRelay();
   startDeepgram();
@@ -526,14 +540,12 @@ function refreshRemoteVideo(){
     var tryPlay=rv.play&&rv.play();
     if(tryPlay&&tryPlay.then){tryPlay.then(function(){rv.muted=false;log('rtc_unmuted',{},'ok');}).catch(function(e){log('rtc_play_err',{e:String(e)},'error');});}
     setTimeout(function(){if(rv.srcObject){rv.muted=false;}},800);
-    $('solo-banner').style.display='none';
   }
   if(hasVideoTrack){
     $('no-video-msg').style.display='none';
   }else{
     $('no-video-msg').style.display='';
     if(!hasRemoteTrack&&rv.srcObject)rv.srcObject=null;
-    $('solo-banner').style.display=room.solo?'':'none';
   }
 }
 function bindRemoteTrackState(track){
@@ -551,7 +563,6 @@ function resetRemoteMediaState(){
   remoteStream=null;
   rv.srcObject=null;
   $('no-video-msg').style.display='';
-  $('solo-banner').style.display=room.solo?'':'none';
 }
 
 function setupPC(){
@@ -740,11 +751,11 @@ function toggleMic(){
   syncMic();
 }
 function toggleCam(){if(!videoStream)return;camOn=!camOn;videoStream.getVideoTracks().forEach(function(t){t.enabled=camOn});syncCam()}
-function hangUp(){relaySend({type:'hangup'});cleanUp()}
+function hangUp(){relaySend({type:'hangup'});cleanUp();if(room.role==='joiner'){try{window.close();}catch(_){}}}
 function cleanUp(){
   saveTr();stopDeepgram();recentFinals=[];clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
   if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}
-  if(pc){pc.close();pc=null}room.id=null;room.solo=false;stopHB();if(ws)try{ws.close()}catch(_){}ws=null;
+  if(pc){pc.close();pc=null}room.id=null;stopHB();if(ws)try{ws.close()}catch(_){}ws=null;
   $('call-screen').classList.remove('active');$('lobby').classList.remove('hidden');setLS(LS.setup);
   $('subtitle-area').innerHTML='';$('no-video-msg').style.display='';
   $('partner-speaking-indicator').classList.remove('show');clearTimeout(partnerSpeakTimer);
@@ -763,7 +774,7 @@ $('local-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('loadedmetadata',refreshRemoteVideo);
 var hp=new URLSearchParams((location.hash||'').replace(/^#/,''));var inv=hp.get('j');if(inv){var p=decInv(inv);if(p&&p.r)handleHash(p)}
-window.addEventListener('popstate',function(){if(lobbyState===LS.call&&room.id){hangUp();history.pushState({},'',location.href);return}if(lobbyState===LS.waiting)setLS(LS.setup)});
+window.addEventListener('popstate',function(){if(lobbyState===LS.call&&room.id){if(room.role==='joiner'){history.pushState({tbView:'call'},'',location.href);return;}hangUp();return;}if(lobbyState===LS.waiting)setLS(LS.setup);});
 window.addEventListener('visibilitychange',function(){
   if(!document.hidden&&isCallActive()&&!dgActive)startDeepgram();
 });
