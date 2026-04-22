@@ -473,7 +473,13 @@ function invUrl(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('
 var LS={setup:'setup',waiting:'waiting',call:'call'};
 var lobbyState=LS.setup;
 function setLS(s){lobbyState=s;$('lobby-setup').style.display=s===LS.setup?'':'none';$('lobby-waiting').style.display=s===LS.waiting?'block':'none'}
-function backToSetup(){if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}setLS(LS.setup)}
+function backToSetup(){
+  if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}
+  stopHB();clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
+  if(ws)try{ws.close()}catch(_){}ws=null;
+  room.id=null;room.solo=false;
+  setLS(LS.setup);
+}
 function getRecent(){try{return JSON.parse(localStorage.getItem(RK)||'[]')}catch(_){return[]}}
 function setRecent(r){localStorage.setItem(RK,JSON.stringify(r.slice(0,RL)))}
 function saveRecent(){
@@ -485,11 +491,15 @@ function delRecent(id){setRecent(getRecent().filter(function(r){return r.id!==id
 
 async function reuseRoom(id){
   var rec=getRecent().find(function(r){return r.id===id});if(!rec)return;
-  room.id=rec.id;room.myLang=rec.myLang;room.theirLang=rec.theirLang;room.role='creator';room.name=rec.name||'';
+  /* Teardown any stale session state first */
+  stopHB();clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
+  if(ws)try{ws.close()}catch(_){}ws=null;
+  if(pc){pc.close();pc=null}
+  room.id=rec.id;room.myLang=rec.myLang;room.theirLang=rec.theirLang;room.role='creator';room.name=rec.name||'';room.solo=true;
   $('my-lang').value=rec.myLang;$('their-lang').value=rec.theirLang;$('room-name').value=rec.name||'';syncBtn();
   try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});$('preview-video').srcObject=videoStream}catch(_){toast('Camera needed');return}
   $('lobby-link').textContent=invUrl();var nd=$('room-name-display');if(nd)nd.textContent=rec.name?'📋 '+rec.name:'';
-  saveRecent();room.solo=true;setLS(LS.waiting);
+  saveRecent();setLS(LS.waiting);
   if(!callHistoryPushed){history.pushState({tbView:'call'},'',location.href);callHistoryPushed=true}
   connectRelay();
 }
@@ -577,8 +587,10 @@ function handleRelay(d){
     /* Incoming typed chat message from partner */
     markPartnerTalking();
     var srcTxt=d.sourceText||d.text||'';
-    var trTxt=d.translatedText||srcTxt;
-    if(trTxt)showSub(trTxt,'partner');
+    var trTxt=d.translatedText||d.text||srcTxt;
+    /* Show translation if target matches my lang, else show source */
+    var displayTxt=(d.targetLang===room.myLang&&trTxt)?trTxt:srcTxt;
+    if(displayTxt)showSub(displayTxt,'partner');
     addTr('partner',srcTxt,trTxt,d.sourceLang,d.targetLang,d.subtitleSeq);return;
   }
   if(d.type==='hangup'){toast('Partner left');cleanUp();return}
@@ -799,25 +811,19 @@ async function composeSend(){
     log('compose_normalized',{t:normalizedText.slice(0,40)});
   }
 
-  /* Now translate from my language to their language */
+  /* Translate then send ONE final message — no provisional */
   var ss=++localSubSeq;
   showSub(normalizedText,'mine');
   addTr('me',normalizedText,normalizedText,myLang,theirLang,ss);
 
-  /* Send provisional chat message */
-  relaySend({type:'chat-msg',subtitleSeq:ss,text:normalizedText,sourceText:normalizedText,sourceLang:myLang,targetLang:theirLang,provisional:true});
-
-  if(myLang===theirLang){
-    /* Same language — no translation needed */
-    return;
+  var translated=normalizedText;
+  if(myLang!==theirLang){
+    translated=norm(await translate(normalizedText,myLang,theirLang))||normalizedText;
+    if(translated!==normalizedText)patchTr('me',ss,translated,myLang,theirLang);
   }
 
-  var translated=await translate(normalizedText,myLang,theirLang);
-  translated=norm(translated)||normalizedText;
-  if(translated!==normalizedText){
-    relaySend({type:'chat-msg',subtitleSeq:ss,text:translated,sourceText:normalizedText,translatedText:translated,sourceLang:myLang,targetLang:theirLang});
-    patchTr('me',ss,translated,myLang,theirLang);
-  }
+  /* Always send exactly one chat-msg with both source and target */
+  relaySend({type:'chat-msg',subtitleSeq:ss,sourceText:normalizedText,translatedText:translated,text:translated,sourceLang:myLang,targetLang:theirLang});
 }
 
 /* ═══ VOICE TYPING — SpeechRecognition into compose input ═══
@@ -832,12 +838,15 @@ function toggleVoiceType(){
   vtRecognition.interimResults=true;vtRecognition.continuous=true;
   var btn=$('compose-mic-btn'),ta=$('compose-input');
   var baseText=(ta&&ta.value.trim())?ta.value.trimEnd()+' ':'';
+  var committedFinals='';
   var silenceTimer=null;
   function resetSilence(){clearTimeout(silenceTimer);silenceTimer=setTimeout(function(){if(vtRecognition)vtRecognition.stop()},3000)}
   vtRecognition.onstart=function(){vtActive=true;if(btn)btn.classList.add('active');resetSilence()};
   vtRecognition.onresult=function(e){
-    var f='',i='';for(var r of e.results){if(r.isFinal)f+=r[0].transcript;else i+=r[0].transcript;}
-    if(ta)ta.value=baseText+(f||i);composeAutoResize();composeSyncSend();resetSilence();
+    var f='',interim='';
+    for(var idx=0;idx<e.results.length;idx++){if(e.results[idx].isFinal)f+=e.results[idx][0].transcript;else interim+=e.results[idx][0].transcript;}
+    committedFinals=f;
+    if(ta)ta.value=baseText+committedFinals+interim;composeAutoResize();composeSyncSend();resetSilence();
   };
   vtRecognition.onend=function(){vtActive=false;clearTimeout(silenceTimer);if(btn)btn.classList.remove('active')};
   vtRecognition.onerror=function(e){if(e.error==='not-allowed')toast('Mic permission needed');vtActive=false;clearTimeout(silenceTimer);if(btn)btn.classList.remove('active')};
@@ -864,6 +873,7 @@ function cleanUp(){
   document.querySelector('.call-videos').classList.remove('swapped');
   resetRemoteMediaState();
   transcript=[];micOn=true;camOn=true;syncMic();syncCam();callHistoryPushed=false;renderRecent();
+  var ci=$('compose-input');if(ci){ci.value='';ci.style.height=''}var csb=$('compose-send-btn');if(csb)csb.disabled=true;
 }
 
 /* ═══ INIT ═══ */
