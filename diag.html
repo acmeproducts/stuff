@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TalkBridge Full A/V Diagnostic</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b0f14;color:#e8eef5;margin:0;padding:14px}
+    .card{background:#131a22;border:1px solid #223142;border-radius:12px;padding:12px;margin-bottom:12px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    input,button,select{background:#0f151c;color:#e8eef5;border:1px solid #2a3b4d;border-radius:8px;padding:8px}
+    input{min-width:220px}
+    button{cursor:pointer}
+    button:hover{background:#16212c}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#1a2430;border:1px solid #2b3c4f;font-size:12px}
+    .ok{color:#5ad28c}.warn{color:#ffd166}.err{color:#ff6b6b}.muted{color:#9fb0c1}
+    #log{height:36vh;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:#0b1117;padding:8px;border-radius:8px;border:1px solid #223142}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    video{width:100%;max-height:28vh;background:#000;border-radius:8px;border:1px solid #2a3b4d}
+    .meter{height:8px;background:#202a35;border-radius:999px;overflow:hidden;border:1px solid #2f4256}
+    .bar{height:100%;width:0;background:linear-gradient(90deg,#3fc1c1,#5ad28c)}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 style="margin:0 0 8px">TalkBridge Full A/V Diagnostic</h2>
+    <div class="muted">Goal: prove relay + signaling + ICE + DTLS + datachannel + audio + video across two devices.</div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <label>Relay URL <input id="relayUrl" value="wss://talk-signal.myacctfortracking.workers.dev/signal"></label>
+      <label>App <input id="app" value="talk-say-v1"></label>
+      <label>Room <input id="room" placeholder="auto when host creates"></label>
+      <label>Role
+        <select id="role">
+          <option value="creator">creator</option>
+          <option value="joiner">joiner</option>
+        </select>
+      </label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button id="createBtn">1) Create Room + Connect</button>
+      <button id="joinBtn">2) Join Room + Connect</button>
+      <button id="mediaBtn">3) Enable Camera+Mic</button>
+      <button id="rtcBtn">4) Start WebRTC</button>
+      <button id="dcPingBtn">Send DC Ping</button>
+      <button id="muteBtn">Toggle Mic Track</button>
+      <button id="camBtn">Toggle Cam Track</button>
+      <button id="copyInviteBtn">Copy Invite Link</button>
+      <button id="copyLogBtn">Copy Log</button>
+      <button id="clearBtn">Clear Log</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <span class="pill">clientId: <span id="clientId"></span></span>
+      <span class="pill">peerClientId: <span id="peerClientId">-</span></span>
+      <span class="pill">ws: <span id="wsState">idle</span></span>
+      <span class="pill">pc: <span id="pcState">idle</span></span>
+      <span class="pill">ice: <span id="iceState">idle</span></span>
+      <span class="pill">dc: <span id="dcState">idle</span></span>
+      <span class="pill">local tracks: <span id="localTracks">none</span></span>
+      <span class="pill">remote tracks: <span id="remoteTracks">none</span></span>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <span class="pill">Local mic level</span>
+      <div class="meter" style="width:180px"><div id="localBar" class="bar"></div></div>
+      <span class="pill">Remote audio level</span>
+      <div class="meter" style="width:180px"><div id="remoteBar" class="bar"></div></div>
+      <span class="pill">Remote audio bytes: <span id="audioBytes">0</span></span>
+      <span class="pill">Remote video frames: <span id="videoFrames">0</span></span>
+    </div>
+    <div class="muted" style="margin-top:8px">Invite URL: <span id="inviteOut">-</span></div>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div>
+        <div class="muted">Local preview</div>
+        <video id="localVideo" autoplay playsinline muted></video>
+      </div>
+      <div>
+        <div class="muted">Remote stream</div>
+        <video id="remoteVideo" autoplay playsinline></video>
+      </div>
+    </div>
+  </div>
+
+  <div class="card"><div id="log"></div></div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const logEl = $('log');
+
+  const S = {
+    clientId: localStorage.getItem('diag_client_id') || crypto.randomUUID(),
+    peerClientId: null,
+    ws: null, pc: null, dc: null,
+    room: null, app: null, role: null, seq: 0,
+    makingOffer: false, ignoreOffer: false, settingRemoteAnswerPending: false,
+    localStream: null, remoteStream: null,
+    micOn: true, camOn: true,
+    localAudioCtx: null, localAnalyser: null, localData: null,
+    remoteAudioCtx: null, remoteAnalyser: null, remoteData: null,
+    statsTimer: null
+  };
+  localStorage.setItem('diag_client_id', S.clientId);
+  $('clientId').textContent = S.clientId;
+
+  const stamp = () => new Date().toISOString().slice(11,23);
+  function line(level, ev, d){
+    const div = document.createElement('div');
+    div.className = (level==='ok'?'ok':level==='warn'?'warn':level==='err'?'err':'');
+    div.textContent = `[${stamp()}] ${ev} ${d?JSON.stringify(d):''}`;
+    logEl.appendChild(div); logEl.scrollTop = logEl.scrollHeight; console.log(div.textContent);
+  }
+  function set(id,v){$(id).textContent = v;}
+  function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
+  function invite(room){
+    const base = location.href.split('#')[0].split('?')[0];
+    return `${base}?room=${encodeURIComponent(room)}&role=joiner`;
+  }
+
+  function refreshBadges(){
+    set('wsState', S.ws ? ['CONNECTING','OPEN','CLOSING','CLOSED'][S.ws.readyState] : 'idle');
+    set('pcState', S.pc ? S.pc.connectionState : 'idle');
+    set('iceState', S.pc ? S.pc.iceConnectionState : 'idle');
+    set('dcState', S.dc ? S.dc.readyState : 'idle');
+    set('peerClientId', S.peerClientId || '-');
+
+    const lt = S.localStream ? S.localStream.getTracks().map(t=>`${t.kind}:${t.readyState}:${t.enabled?'on':'off'}`).join(',') : 'none';
+    const rt = S.remoteStream ? S.remoteStream.getTracks().map(t=>`${t.kind}:${t.readyState}:${t.enabled?'on':'off'}`).join(',') : 'none';
+    set('localTracks', lt || 'none');
+    set('remoteTracks', rt || 'none');
+  }
+
+  function relaySend(m){
+    if(!S.ws || S.ws.readyState!==1){ line('warn','relay_send_skip',{reason:'ws_not_open',type:m.type}); return; }
+    m.session=S.room; m.from=S.clientId; m.ts=Date.now(); m.seq=++S.seq;
+    S.ws.send(JSON.stringify(m));
+    line('ok','relay_send',{type:m.type,seq:m.seq});
+  }
+
+  function stopStats(){
+    if(S.statsTimer){ clearInterval(S.statsTimer); S.statsTimer=null; }
+  }
+
+  function closeAll(){
+    stopStats();
+    try{ if(S.dc) S.dc.close(); }catch{}
+    try{ if(S.pc) S.pc.close(); }catch{}
+    try{ if(S.ws) S.ws.close(); }catch{}
+    S.dc=null; S.pc=null; S.ws=null; S.peerClientId=null; S.remoteStream=null;
+    $('remoteVideo').srcObject = null;
+    refreshBadges();
+  }
+
+  async function enableMedia(){
+    try{
+      if(S.localStream){
+        line('warn','media_already_on',{});
+        return;
+      }
+      const st = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+      S.localStream = st;
+      $('localVideo').srcObject = st;
+      line('ok','media_acquired',{tracks:st.getTracks().map(t=>({kind:t.kind,id:t.id,label:t.label,readyState:t.readyState}))});
+      setupLocalMeter(st);
+      refreshBadges();
+    }catch(e){
+      line('err','media_error',{err:String(e)});
+    }
+  }
+
+  function setupLocalMeter(stream){
+    try{
+      S.localAudioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      const src = S.localAudioCtx.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
+      S.localAnalyser = S.localAudioCtx.createAnalyser(); S.localAnalyser.fftSize=256;
+      S.localData = new Uint8Array(S.localAnalyser.frequencyBinCount);
+      src.connect(S.localAnalyser);
+    }catch(e){
+      line('warn','local_meter_err',{err:String(e)});
+    }
+  }
+
+  function setupRemoteMeter(stream){
+    try{
+      S.remoteAudioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      const src = S.remoteAudioCtx.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
+      S.remoteAnalyser = S.remoteAudioCtx.createAnalyser(); S.remoteAnalyser.fftSize=256;
+      S.remoteData = new Uint8Array(S.remoteAnalyser.frequencyBinCount);
+      src.connect(S.remoteAnalyser);
+    }catch(e){
+      line('warn','remote_meter_err',{err:String(e)});
+    }
+  }
+
+  function calcLevel(analyser, arr){
+    if(!analyser||!arr) return 0;
+    analyser.getByteFrequencyData(arr);
+    let sum=0; for(let i=0;i<arr.length;i++) sum+=arr[i];
+    return Math.min(100, Math.round((sum/arr.length)/2.55));
+  }
+
+  function connectRelay(){
+    closeAll();
+    S.room = $('room').value.trim();
+    S.app = $('app').value.trim() || 'talk-say-v1';
+    S.role = $('role').value;
+
+    const relay = $('relayUrl').value.trim();
+    if(!relay || !S.room){ line('err','missing_fields',{relay:!!relay,room:!!S.room}); return; }
+
+    const wsUrl = `${relay}?app=${encodeURIComponent(S.app)}&session=${encodeURIComponent(S.room)}&client=${encodeURIComponent(S.clientId)}`;
+    S.ws = new WebSocket(wsUrl); refreshBadges();
+    line('ok','relay_connect_start',{wsUrl,role:S.role});
+
+    S.ws.onopen = () => {
+      line('ok','relay_open',{clientId:S.clientId,room:S.room,role:S.role});
+      refreshBadges();
+      relaySend({type:'hello',role:S.role,diag:true});
+    };
+    S.ws.onclose = ev => { line('warn','relay_close',{code:ev.code,reason:ev.reason}); refreshBadges(); };
+    S.ws.onerror = () => { line('err','relay_error',{}); refreshBadges(); };
+    S.ws.onmessage = async e => {
+      let d; try{ d=JSON.parse(e.data);}catch{return line('warn','relay_non_json',{});}
+      if(!d) return;
+
+      // critical collision detector
+      if(d.from===S.clientId){
+        line('warn','same_client_id_or_echo',{from:d.from,local:S.clientId,type:d.type});
+        return;
+      }
+
+      if(d.from && d.from!==S.peerClientId){
+        S.peerClientId=d.from; refreshBadges();
+        line('ok','peer_seen',{peerClientId:S.peerClientId});
+      }
+
+      if(d.type==='hello'){ line('ok','hello_rx',{from:d.from,role:d.role}); return; }
+      if(d.type==='diag-ping'){ line('ok','diag_ping_rx',{from:d.from}); relaySend({type:'diag-pong',t:Date.now()}); return; }
+      if(d.type==='diag-pong'){ line('ok','diag_pong_rx',{from:d.from}); return; }
+      if(d.type==='webrtc-signal'){ await handleSignal(d.signal,d.from); return; }
+      line('warn','unknown_type',{type:d.type});
+    };
+  }
+
+  function bindDataChannel(dc){
+    S.dc = dc; refreshBadges();
+    dc.onopen = ()=>{ line('ok','dc_open',{label:dc.label}); refreshBadges(); };
+    dc.onclose = ()=>{ line('warn','dc_close',{}); refreshBadges(); };
+    dc.onerror = ()=>{ line('err','dc_error',{}); refreshBadges(); };
+    dc.onmessage = ev => {
+      line('ok','dc_msg_rx',{data:ev.data});
+      if(String(ev.data).startsWith('ping:')){
+        try{ dc.send('pong:'+String(ev.data).slice(5)); line('ok','dc_msg_tx',{data:'pong:*'});}catch{}
+      }
+    };
+  }
+
+  function setupPC(){
+    if(S.pc) return S.pc;
+    const pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+    S.pc = pc;
+    refreshBadges();
+
+    if(S.localStream){
+      S.localStream.getTracks().forEach(t => pc.addTrack(t,S.localStream));
+      line('ok','local_tracks_added',{count:S.localStream.getTracks().length});
+    }else{
+      line('warn','no_local_stream_before_pc',{});
+    }
+
+    pc.onicecandidate = e => { if(e.candidate) relaySend({type:'webrtc-signal',signal:{candidate:e.candidate}}); };
+    pc.onconnectionstatechange = ()=>{ line('ok','pc_conn_state',{state:pc.connectionState}); refreshBadges(); };
+    pc.oniceconnectionstatechange = ()=>{ line('ok','pc_ice_state',{state:pc.iceConnectionState}); refreshBadges(); };
+    pc.onsignalingstatechange = ()=> line('ok','pc_signaling',{state:pc.signalingState});
+
+    pc.ontrack = e => {
+      line('ok','pc_ontrack',{kind:e.track.kind,id:e.track.id,streams:e.streams?.length||0});
+      if(!S.remoteStream) S.remoteStream = new MediaStream();
+      if(e.streams && e.streams[0]){
+        e.streams[0].getTracks().forEach(t=>{
+          if(!S.remoteStream.getTracks().some(x=>x.id===t.id)) S.remoteStream.addTrack(t);
+        });
+      }else{
+        if(!S.remoteStream.getTracks().some(x=>x.id===e.track.id)) S.remoteStream.addTrack(e.track);
+      }
+      $('remoteVideo').srcObject = S.remoteStream;
+      setupRemoteMeter(S.remoteStream);
+      refreshBadges();
+    };
+
+    pc.ondatachannel = ev => { line('ok','pc_ondatachannel',{label:ev.channel.label}); bindDataChannel(ev.channel); };
+
+    if($('role').value==='creator'){
+      bindDataChannel(pc.createDataChannel('diag'));
+    }
+
+    pc.onnegotiationneeded = async ()=>{
+      try{
+        S.makingOffer=true;
+        await pc.setLocalDescription(await pc.createOffer());
+        relaySend({type:'webrtc-signal',signal:{description:pc.localDescription}});
+        line('ok','offer_sent',{type:pc.localDescription.type});
+      }catch(e){
+        line('err','offer_err',{err:String(e)});
+      }finally{
+        S.makingOffer=false;
+      }
+    };
+
+    startStatsLoop();
+    return pc;
+  }
+
+  async function handleSignal(signal, from){
+    if(!signal) return;
+    const pc = setupPC();
+    try{
+      if(signal.description){
+        const desc = signal.description;
+        const polite = S.clientId > from;
+        const ready = !S.makingOffer && (pc.signalingState==='stable' || S.settingRemoteAnswerPending);
+        const collision = desc.type==='offer' && !ready;
+        S.ignoreOffer = !polite && collision;
+
+        line('ok','sig_desc_rx',{from,type:desc.type,polite,ready,collision,ignore:S.ignoreOffer,ss:pc.signalingState});
+        if(S.ignoreOffer) return;
+
+        S.settingRemoteAnswerPending = desc.type==='answer';
+        await pc.setRemoteDescription(desc);
+        S.settingRemoteAnswerPending = false;
+
+        if(desc.type==='offer'){
+          await pc.setLocalDescription(await pc.createAnswer());
+          relaySend({type:'webrtc-signal',signal:{description:pc.localDescription}});
+          line('ok','answer_sent',{type:pc.localDescription.type});
+        }
+      }else if(signal.candidate){
+        await pc.addIceCandidate(signal.candidate);
+        line('ok','ice_added',{candidateType:signal.candidate.type||'n/a',protocol:signal.candidate.protocol||'n/a'});
+      }
+    }catch(e){
+      S.settingRemoteAnswerPending=false;
+      line('err','sig_err',{err:String(e)});
+    }
+  }
+
+  function startStatsLoop(){
+    stopStats();
+    S.statsTimer = setInterval(async ()=>{
+      // meters
+      const l = calcLevel(S.localAnalyser,S.localData);
+      const r = calcLevel(S.remoteAnalyser,S.remoteData);
+      $('localBar').style.width = `${l}%`;
+      $('remoteBar').style.width = `${r}%`;
+
+      // rtc stats proof
+      if(!S.pc) return;
+      try{
+        const stats = await S.pc.getStats();
+        let audioBytes=0, videoFrames=0;
+        stats.forEach(rep=>{
+          if(rep.type==='inbound-rtp' && !rep.isRemote){
+            if(rep.kind==='audio') audioBytes += (rep.bytesReceived||0);
+            if(rep.kind==='video') videoFrames += (rep.framesDecoded||0);
+          }
+        });
+        set('audioBytes', String(audioBytes));
+        set('videoFrames', String(videoFrames));
+      }catch{}
+      refreshBadges();
+    }, 1000);
+  }
+
+  function toggleMic(){
+    if(!S.localStream) return line('warn','toggle_mic_no_stream',{});
+    S.micOn=!S.micOn;
+    S.localStream.getAudioTracks().forEach(t=>t.enabled=S.micOn);
+    line('ok','mic_toggle',{enabled:S.micOn});
+    refreshBadges();
+  }
+
+  function toggleCam(){
+    if(!S.localStream) return line('warn','toggle_cam_no_stream',{});
+    S.camOn=!S.camOn;
+    S.localStream.getVideoTracks().forEach(t=>t.enabled=S.camOn);
+    line('ok','cam_toggle',{enabled:S.camOn});
+    refreshBadges();
+  }
+
+  // buttons
+  $('createBtn').onclick = ()=>{
+    const r = uid();
+    $('room').value = r;
+    $('role').value = 'creator';
+    const u = invite(r);
+    $('inviteOut').textContent = u;
+    line('ok','room_created',{room:r,invite:u});
+    connectRelay();
+  };
+  $('joinBtn').onclick = ()=>{ if(!$('room').value.trim()) return line('err','join_missing_room',{}); connectRelay(); };
+  $('mediaBtn').onclick = enableMedia;
+  $('rtcBtn').onclick = ()=>{ if(!S.ws||S.ws.readyState!==1) return line('err','rtc_requires_ws_open',{}); setupPC(); line('ok','rtc_start',{}); };
+  $('dcPingBtn').onclick = ()=>{
+    if(S.dc && S.dc.readyState==='open'){ const p='ping:'+Date.now(); S.dc.send(p); line('ok','dc_msg_tx',{data:p}); }
+    else relaySend({type:'diag-ping',t:Date.now()});
+  };
+  $('muteBtn').onclick = toggleMic;
+  $('camBtn').onclick = toggleCam;
+  $('copyInviteBtn').onclick = async ()=>{ const t=$('inviteOut').textContent; if(!t||t==='-') return; try{await navigator.clipboard.writeText(t);line('ok','invite_copied',{});}catch(e){line('err','invite_copy_err',{err:String(e)});} };
+  $('copyLogBtn').onclick = async ()=>{ const txt=[...logEl.children].map(n=>n.textContent).join('\n'); try{await navigator.clipboard.writeText(txt);line('ok','log_copied',{});}catch(e){line('err','log_copy_err',{err:String(e)});} };
+  $('clearBtn').onclick = ()=> logEl.innerHTML='';
+
+  // query support
+  const q = new URLSearchParams(location.search);
+  if(q.get('room')) $('room').value = q.get('room');
+  if(q.get('role')) $('role').value = q.get('role');
+
+  refreshBadges();
+  line('ok','diag_ready',{clientId:S.clientId,ua:navigator.userAgent});
+})();
+</script>
+</body>
+</html>
