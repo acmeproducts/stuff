@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · 2026-04-22 · role-based WebRTC + hangup + PIP fix -->
+<!-- talkbridge · 2026-04-21 · fix: dg key trim + verify-before-save -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -435,13 +435,13 @@ function onDgKeyInput(){
   setDgKeyStatus('Verifying…','#f39c12');syncBtn();
   dgKeyVerifyTimer=setTimeout(function(){verifyDgKey(k)},800);
 }
-function verifyDgKey(key,isRetry){
+function verifyDgKey(key){
   var url='wss://api.deepgram.com/v1/listen?model=nova-3&language=en-US&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=true&endpointing=400';
   var ws=new WebSocket(url,['token',key]),done=false;
-  var timer=setTimeout(function(){ws.close();if(!done){done=true;if(!isRetry){setDgKeyStatus('Retrying…','#f39c12');verifyDgKey(key,true);}else{setDgKeyStatus('❌ Timed out — check connection','#e74c3c');dgKeyVerified=false;syncBtn();}}},15000);
+  var timer=setTimeout(function(){ws.close();if(!done){done=true;setDgKeyStatus('❌ Timed out — check key','#e74c3c');dgKeyVerified=false;syncBtn();}},8000);
   ws.onopen=function(){if(done)return;done=true;clearTimeout(timer);ws.close();dgKeyVerified=true;localStorage.setItem('tb_dg_key',key);setDgKeyStatus('✅ Key verified','#2ecc71');syncBtn();log('dg_key_verified',{},'ok');};
   ws.onerror=function(){};
-  ws.onclose=function(ev){clearTimeout(timer);if(!done){done=true;setDgKeyStatus('❌ Invalid key ('+ev.code+') — re-paste','#e74c3c');dgKeyVerified=false;syncBtn();}};
+  ws.onclose=function(ev){clearTimeout(timer);if(!done){done=true;setDgKeyStatus('❌ Invalid key ('+ev.code+') — re-paste and try again','#e74c3c');dgKeyVerified=false;syncBtn();}};
 }
 
 async function createRoom(){
@@ -470,7 +470,7 @@ function connectRelay(){
   if(ws)try{ws.close()}catch(_){}
   ws=new WebSocket(RELAY_WS+'?app='+encodeURIComponent(RELAY_APP)+'&session='+encodeURIComponent(room.id)+'&client='+encodeURIComponent(deviceId));
   var _ws=ws;
-  ws.onopen=function(){log('relay_open',{},'ok');relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});startHB();if(room.role==='joiner'&&!pc)setupPC();};
+  ws.onopen=function(){log('relay_open',{},'ok');relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});startHB();if(!room.solo&&!pc)setupPC();};
   ws.onmessage=function(e){try{handleRelay(JSON.parse(e.data))}catch(_){}};
   ws.onclose=function(ev){if(ws!==_ws)return;log('relay_close',{code:ev.code},'warn');stopHB();clearTimeout(wsReconnectTimer);if(room.id&&(lobbyState===LS.waiting||lobbyState===LS.call))wsReconnectTimer=setTimeout(function(){wsReconnectTimer=null;if(room.id)connectRelay()},2000)};
   ws.onerror=function(){log('relay_err',{},'error')};
@@ -495,11 +495,7 @@ function handleRelay(d){
     if(d.text&&d.targetLang===room.myLang)showSub(d.text,'partner');
     patchTr('partner',d.subtitleSeq,d.text,d.sourceLang,d.targetLang);return;
   }
-  if(d.type==='hangup'){
-    if(room.role==='joiner'){cleanUp();try{window.close();}catch(_){}}
-    else{toast('Partner left');cleanUp();}
-    return;
-  }
+  if(d.type==='hangup'){toast('Partner left');cleanUp();return}
 }
 
 async function enterCall(){
@@ -561,10 +557,10 @@ function resetRemoteMediaState(){
 function setupPC(){
   if(pc)return;pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
   var emitOffer=async function(){try{makingOffer=true;await pc.setLocalDescription(await pc.createOffer());relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}})}catch(_){}finally{makingOffer=false}};
-  if(room.role==='joiner')pc.onnegotiationneeded=emitOffer;
+  pc.onnegotiationneeded=emitOffer;
   var localTracks=videoStream?videoStream.getTracks():[];
   localTracks.forEach(function(t){pc.addTrack(t,videoStream)});
-  if(room.role==='joiner'&&localTracks.length&&pc.signalingState==='stable'&&!makingOffer)emitOffer();
+  if(localTracks.length&&pc.signalingState==='stable'&&!makingOffer)emitOffer();
   pc.onicecandidate=function(e){if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}});};
   pc.oniceconnectionstatechange=function(){log('rtc_ice',{s:pc.iceConnectionState},pc.iceConnectionState==='connected'?'ok':'info');};
   pc.onconnectionstatechange=function(){log('rtc_conn',{s:pc.connectionState},pc.connectionState==='connected'?'ok':pc.connectionState==='failed'?'error':'info');};
@@ -585,7 +581,7 @@ function setupPC(){
   };
 }
 async function handleSig(d){
-  if(!d.signal)return;if(!pc){if(room.role==='creator')setupPC();else return;}
+  if(!d.signal)return;if(!pc)setupPC();
   try{
     if(d.signal.description){var desc=d.signal.description,pol=deviceId>d.from;var rdy=!makingOffer&&(pc.signalingState==='stable'||isSettingRemoteAnswerPending);var col=desc.type==='offer'&&!rdy;ignoreOffer=!pol&&col;if(ignoreOffer)return;isSettingRemoteAnswerPending=desc.type==='answer';await pc.setRemoteDescription(desc);isSettingRemoteAnswerPending=false;if(desc.type==='offer'){await pc.setLocalDescription(await pc.createAnswer());relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}})}}
     else if(d.signal.candidate){try{await pc.addIceCandidate(d.signal.candidate)}catch(_){}}
@@ -744,7 +740,7 @@ function toggleMic(){
   syncMic();
 }
 function toggleCam(){if(!videoStream)return;camOn=!camOn;videoStream.getVideoTracks().forEach(function(t){t.enabled=camOn});syncCam()}
-function hangUp(){relaySend({type:'hangup'});cleanUp();if(room.role==='joiner'){try{window.close();}catch(_){}}}
+function hangUp(){relaySend({type:'hangup'});cleanUp()}
 function cleanUp(){
   saveTr();stopDeepgram();recentFinals=[];clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
   if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}
