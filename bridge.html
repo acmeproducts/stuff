@@ -335,7 +335,8 @@ var deviceId=localStorage.getItem('tb_dev')||(function(){var id=crypto.randomUUI
 var ws=null,pc=null,videoStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false,ignoreOffer=false;
 var DG_LANGS={en:'en-US',th:'th',ja:'ja',ko:'ko',zh:'zh-CN',ar:'ar',hi:'hi',ru:'ru',fr:'fr',de:'de',es:'es',it:'it',pt:'pt-BR',vi:'vi',id:'id',ms:'ms',fil:'fil',nl:'nl',sv:'sv',pl:'pl',tr:'tr'};
-var dgWs=null,dgAudioCtx=null,dgProc=null,dgSrc=null,dgActive=false;
+var dgWs=null,dgAudioCtx=null,dgProc=null,dgSrc=null,dgMuteNode=null,dgActive=false;
+var dgRetryCount=0,dgRetryTimer=null,dgDisabledForCall=false;
 var recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=5;
 var localSubSeq=0,transcript=[],trCache=new Map();
 var hbTimer=null,seq=0,wsReconnectTimer=null,isSettingRemoteAnswerPending=false;
@@ -475,7 +476,7 @@ function connectRelay(){
   if(ws)try{ws.close()}catch(_){}
   ws=new WebSocket(RELAY_WS+'?app='+encodeURIComponent(RELAY_APP)+'&session='+encodeURIComponent(room.id)+'&client='+encodeURIComponent(deviceId));
   var _ws=ws;
-  ws.onopen=function(){log('relay_open',{},'ok');relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});startHB();if(room.role==='joiner'&&!pc)setupPC();};
+  ws.onopen=function(){log('relay_open',{},'ok');relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});startHB();if(!pc&&videoStream)setupPC();};
   ws.onmessage=function(e){try{handleRelay(JSON.parse(e.data))}catch(_){}};
   ws.onclose=function(ev){if(ws!==_ws)return;log('relay_close',{code:ev.code},'warn');stopHB();clearTimeout(wsReconnectTimer);if(room.id&&(lobbyState===LS.waiting||lobbyState===LS.call))wsReconnectTimer=setTimeout(function(){wsReconnectTimer=null;if(room.id)connectRelay()},2000)};
   ws.onerror=function(){log('relay_err',{},'error')};
@@ -657,6 +658,7 @@ function sendTypedMessage(){
 function startDeepgram(){
   var key=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';
   if(!key){toast('Deepgram key missing');return;}
+  if(dgDisabledForCall)return;
   localStorage.setItem('tb_dg_key',key);
   if(dgActive)return;
   if(!videoStream){log('dg_no_stream',{},'error');return;}
@@ -673,6 +675,8 @@ function startDeepgram(){
       dgAudioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
       dgSrc=dgAudioCtx.createMediaStreamSource(videoStream);
       dgProc=dgAudioCtx.createScriptProcessor(4096,1,1);
+      dgMuteNode=dgAudioCtx.createGain();
+      dgMuteNode.gain.value=0;
       dgProc.onaudioprocess=function(e){
         if(!dgWs||dgWs.readyState!==1)return;
         var f=e.inputBuffer.getChannelData(0);
@@ -680,7 +684,8 @@ function startDeepgram(){
         for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF;}
         dgWs.send(b.buffer);
       };
-      dgSrc.connect(dgProc);dgProc.connect(dgAudioCtx.destination);
+      dgSrc.connect(dgProc);dgProc.connect(dgMuteNode);dgMuteNode.connect(dgAudioCtx.destination);
+      dgRetryCount=0;
     }catch(e){log('dg_audio_err',{e:String(e)},'error');}
   };
   dgWs.onmessage=function(e){
@@ -694,17 +699,28 @@ function startDeepgram(){
   dgWs.onclose=function(ev){
     log('dg_close',{code:ev.code},'warn');
     dgActive=false;stopDGAudio();
-    if(isCallActive())setTimeout(function(){if(isCallActive())startDeepgram();},2000);
+    if(!isCallActive()||dgDisabledForCall)return;
+    dgRetryCount++;
+    if(dgRetryCount>=4){
+      dgDisabledForCall=true;
+      toast('Live transcription unavailable (Deepgram connection failed)');
+      log('dg_retry_stop',{retries:dgRetryCount},'warn');
+      return;
+    }
+    clearTimeout(dgRetryTimer);
+    dgRetryTimer=setTimeout(function(){dgRetryTimer=null;if(isCallActive())startDeepgram();},Math.min(2000*Math.pow(2,dgRetryCount-1),12000));
   };
 }
 function stopDGAudio(){
   try{if(dgProc)dgProc.disconnect();}catch(_){}
   try{if(dgSrc)dgSrc.disconnect();}catch(_){}
+  try{if(dgMuteNode)dgMuteNode.disconnect();}catch(_){}
   try{if(dgAudioCtx)dgAudioCtx.close();}catch(_){}
-  dgProc=null;dgSrc=null;dgAudioCtx=null;
+  dgProc=null;dgSrc=null;dgMuteNode=null;dgAudioCtx=null;
 }
 function stopDeepgram(){
   dgActive=false;
+  clearTimeout(dgRetryTimer);dgRetryTimer=null;
   if(dgWs){try{dgWs.close();}catch(_){}dgWs=null;}
   stopDGAudio();log('dg_stopped',{});
 }
@@ -785,6 +801,7 @@ function toggleCam(){if(!videoStream)return;camOn=!camOn;videoStream.getVideoTra
 function hangUp(){relaySend({type:'hangup'});cleanUp()}
 function cleanUp(){
   saveTr();stopDeepgram();recentFinals=[];clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
+  dgRetryCount=0;dgDisabledForCall=false;
   if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}
   if(pc){pc.close();pc=null}room.id=null;room.solo=false;stopHB();if(ws)try{ws.close()}catch(_){}ws=null;
   $('call-screen').classList.remove('active');$('lobby').classList.remove('hidden');setLS(LS.setup);
