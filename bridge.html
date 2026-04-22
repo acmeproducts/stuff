@@ -544,10 +544,19 @@ function refreshRemoteVideo(){
   if(hasRemoteTrack&&rv.srcObject!==remoteStream){rv.srcObject=remoteStream;}
   rv.playsInline=true;rv.autoplay=true;
   if(hasRemoteTrack){
-    rv.muted=false;
+    // Start muted first so autoplay succeeds across stricter mobile/browser policies.
+    rv.muted=true;
     var tryPlay=rv.play&&rv.play();
-    if(tryPlay&&tryPlay.then){tryPlay.then(function(){rv.muted=false;log('rtc_unmuted',{},'ok');}).catch(function(e){log('rtc_play_err',{e:String(e)},'error');});}
-    setTimeout(function(){if(rv.srcObject){rv.muted=false;}},800);
+    if(tryPlay&&tryPlay.then){
+      tryPlay.then(function(){
+        rv.muted=false;
+        log('rtc_play_ok',{},'ok');
+      }).catch(function(e){
+        // Keep muted so remote video still renders even if unmuted autoplay is blocked.
+        rv.muted=true;
+        log('rtc_play_err',{e:String(e)},'error');
+      });
+    }
     $('solo-banner').style.display='none';
   }
   if(hasVideoTrack){
