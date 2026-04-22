@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · 2026-04-22 · role-based rtc, joiner-offers, clean hangup, no waiting room -->
+<!-- talkbridge · 2026-04-22 · role-based WebRTC + hangup + PIP fix -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -166,8 +166,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .call-info-wrap{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;}
 .room-name-chip{background:rgba(0,0,0,.72);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:4px 14px;font-size:12px;font-weight:600;white-space:nowrap;max-width:min(78vw,260px);overflow:hidden;text-overflow:ellipsis;backdrop-filter:blur(5px);}
 .lang-flags-chip{background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:2px 10px;font-size:15px;backdrop-filter:blur(4px);}
-.call-ended-screen{position:fixed;inset:0;background:var(--bg);z-index:30;display:none;align-items:center;justify-content:center;}
-.call-ended-screen.show{display:flex;}
 </style>
 </head>
 <body>
@@ -245,6 +243,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <video id="local-video" autoplay muted playsinline></video>
     <div class="no-video-placeholder" id="no-video-msg">👤</div>
     <div class="call-info-wrap"><div class="room-name-chip" id="room-name-chip">No room</div><div class="lang-flags-chip" id="lang-flags-chip">🌐 → 🌐</div></div>
+    <div class="solo-banner" id="solo-banner" style="display:none;"><div class="solo-banner-text">Solo / test mode — waiting for partner</div></div>
     <div class="partner-speaking-indicator" id="partner-speaking-indicator" aria-hidden="true">…</div>
     <div class="subtitle-area" id="subtitle-area"></div>
   </div>
@@ -289,13 +288,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   </div>
 </div>
 <div id="toast"></div>
-<div class="call-ended-screen" id="call-ended-screen">
-  <div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px;">
-    <div style="font-size:40px;">📵</div>
-    <div style="font-family:'Lora',serif;font-size:22px;font-weight:600;color:var(--text);">Call ended</div>
-    <div style="font-size:14px;color:var(--text-dim);">The host ended this call.</div>
-  </div>
-</div>
 
 <script>
 'use strict';
@@ -399,7 +391,7 @@ function getRecent(){try{return JSON.parse(localStorage.getItem(RK)||'[]')}catch
 function setRecent(r){localStorage.setItem(RK,JSON.stringify(r.slice(0,RL)))}
 function saveRecent(){
   if(!room.id)return;var rows=getRecent().filter(function(r){return r.id!==room.id});
-  rows.unshift({id:room.id,name:room.name||(gL(room.myLang).flag+' ↔ '+gL(room.theirLang).flag),myLang:room.myLang,theirLang:room.theirLang,role:room.role||'creator',ts:Date.now()});
+  rows.unshift({id:room.id,name:room.name||(gL(room.myLang).flag+' ↔ '+gL(room.theirLang).flag),myLang:room.myLang,theirLang:room.theirLang,ts:Date.now()});
   setRecent(rows);renderRecent();
 }
 function delRecent(id){setRecent(getRecent().filter(function(r){return r.id!==id}));clearTrS(id);renderRecent()}
@@ -426,7 +418,7 @@ function copyRoomTr(){var entries=loadTr(viewingRoomId);if(!entries.length){toas
 function renderRecent(){
   var w=$('recent-rooms'),l=$('recent-rooms-list'),rows=getRecent();
   w.style.display=rows.length?'':'none';
-  l.innerHTML=rows.map(function(r){var t=new Date(r.ts).toLocaleString();var h=!!loadTr(r.id).length;var isCreator=r.role!=='joiner';return '<div class="recent-item"><div class="recent-item-top"><button class="recent-open jr" data-id="'+esc(r.id)+'">'+esc(r.name)+'<small>'+esc(t)+'</small></button></div><div class="recent-actions">'+(isCreator?'<button class="recent-act jr" data-id="'+esc(r.id)+'">▶ Reopen</button>':'')+(h?'<button class="recent-act jv" data-id="'+esc(r.id)+'">📄 Transcript</button>':'')+'<button class="recent-act danger jd" data-id="'+esc(r.id)+'">✕ Delete</button></div></div>';}).join('');
+  l.innerHTML=rows.map(function(r){var t=new Date(r.ts).toLocaleString();var h=!!loadTr(r.id).length;return '<div class="recent-item"><div class="recent-item-top"><button class="recent-open jr" data-id="'+esc(r.id)+'">'+esc(r.name)+'<small>'+esc(t)+'</small></button></div><div class="recent-actions"><button class="recent-act jr" data-id="'+esc(r.id)+'">▶ Reopen</button>'+(h?'<button class="recent-act jv" data-id="'+esc(r.id)+'">📄 Transcript</button>':'')+'<button class="recent-act danger jd" data-id="'+esc(r.id)+'">✕ Delete</button></div></div>'}).join('');
   l.querySelectorAll('.jr').forEach(function(b){b.onclick=function(){reuseRoom(b.dataset.id)}});
   l.querySelectorAll('.jv').forEach(function(b){b.onclick=function(){viewRoomTr(b.dataset.id)}});
   l.querySelectorAll('.jd').forEach(function(b){b.onclick=function(){delRecent(b.dataset.id)}});
@@ -449,7 +441,7 @@ function verifyDgKey(key,isRetry){
   var timer=setTimeout(function(){ws.close();if(!done){done=true;if(!isRetry){setDgKeyStatus('Retrying…','#f39c12');verifyDgKey(key,true);}else{setDgKeyStatus('❌ Timed out — check connection','#e74c3c');dgKeyVerified=false;syncBtn();}}},15000);
   ws.onopen=function(){if(done)return;done=true;clearTimeout(timer);ws.close();dgKeyVerified=true;localStorage.setItem('tb_dg_key',key);setDgKeyStatus('✅ Key verified','#2ecc71');syncBtn();log('dg_key_verified',{},'ok');};
   ws.onerror=function(){};
-  ws.onclose=function(ev){clearTimeout(timer);if(!done){done=true;setDgKeyStatus('❌ Invalid key ('+ev.code+') — re-paste and try again','#e74c3c');dgKeyVerified=false;syncBtn();}};
+  ws.onclose=function(ev){clearTimeout(timer);if(!done){done=true;setDgKeyStatus('❌ Invalid key ('+ev.code+') — re-paste','#e74c3c');dgKeyVerified=false;syncBtn();}};
 }
 
 async function createRoom(){
@@ -465,9 +457,9 @@ function handleHash(p){
   if(!p||!p.r)return;$('joining-screen').classList.add('show');
   navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(function(s){
     videoStream=s;$('joining-screen').classList.remove('show');
-    room.id=p.r;room.myLang=p.tl;room.theirLang=p.ml;room.name=p.n||'';room.role='joiner';
+    room.id=p.r;room.myLang=p.tl;room.theirLang=p.ml;room.name=p.n||'';room.role='joiner';room.solo=false;
     if(p.k){localStorage.setItem('tb_dg_key',p.k);if($('dg-key'))$('dg-key').value=p.k;}
-    updateBadges();enterCall();
+    saveRecent();updateBadges();enterCall();
   }).catch(function(){$('joining-screen').classList.remove('show');toast('Camera access required');history.replaceState({},'',location.pathname)});
   history.replaceState({},'',location.pathname);
 }
@@ -489,10 +481,7 @@ function stopHB(){if(hbTimer){clearInterval(hbTimer);hbTimer=null}}
 
 function handleRelay(d){
   if(!d||d.from===deviceId)return;
-  if(d.type==='hello'){
-    if(room.role==='creator'&&!pc)setupPC();
-    return;
-  }
+  if(d.type==='hello'){if(lobbyState===LS.waiting){room.solo=false;enterCall()}return}
   if(d.type==='ping'){relaySend({type:'pong',transient:true});return}
   if(d.type==='pong')return;
   if(d.type==='webrtc-signal'){handleSig(d);return}
@@ -507,7 +496,7 @@ function handleRelay(d){
     patchTr('partner',d.subtitleSeq,d.text,d.sourceLang,d.targetLang);return;
   }
   if(d.type==='hangup'){
-    if(room.role==='joiner'){cleanUp();try{window.close();}catch(_){}$('call-ended-screen').classList.add('show');}
+    if(room.role==='joiner'){cleanUp();try{window.close();}catch(_){}}
     else{toast('Partner left');cleanUp();}
     return;
   }
@@ -521,6 +510,7 @@ async function enterCall(){
   if(!callHistoryPushed){history.pushState({tbView:'call'},'',location.href);callHistoryPushed=true}
   $('call-screen').classList.add('active');lobbyState=LS.call;
   $('local-video').srcObject=videoStream;syncMic();syncCam();updateBadges();updateCallChip();
+  $('solo-banner').style.display=room.solo?'':'none';
   renderTr();
   if(!ws||ws.readyState!==1)connectRelay();
   startDeepgram();
@@ -540,12 +530,14 @@ function refreshRemoteVideo(){
     var tryPlay=rv.play&&rv.play();
     if(tryPlay&&tryPlay.then){tryPlay.then(function(){rv.muted=false;log('rtc_unmuted',{},'ok');}).catch(function(e){log('rtc_play_err',{e:String(e)},'error');});}
     setTimeout(function(){if(rv.srcObject){rv.muted=false;}},800);
+    $('solo-banner').style.display='none';
   }
   if(hasVideoTrack){
     $('no-video-msg').style.display='none';
   }else{
     $('no-video-msg').style.display='';
     if(!hasRemoteTrack&&rv.srcObject)rv.srcObject=null;
+    $('solo-banner').style.display=room.solo?'':'none';
   }
 }
 function bindRemoteTrackState(track){
@@ -563,15 +555,16 @@ function resetRemoteMediaState(){
   remoteStream=null;
   rv.srcObject=null;
   $('no-video-msg').style.display='';
+  $('solo-banner').style.display=room.solo?'':'none';
 }
 
 function setupPC(){
   if(pc)return;pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
   var emitOffer=async function(){try{makingOffer=true;await pc.setLocalDescription(await pc.createOffer());relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}})}catch(_){}finally{makingOffer=false}};
-  pc.onnegotiationneeded=emitOffer;
+  if(room.role==='joiner')pc.onnegotiationneeded=emitOffer;
   var localTracks=videoStream?videoStream.getTracks():[];
   localTracks.forEach(function(t){pc.addTrack(t,videoStream)});
-  if(localTracks.length&&pc.signalingState==='stable'&&!makingOffer)emitOffer();
+  if(room.role==='joiner'&&localTracks.length&&pc.signalingState==='stable'&&!makingOffer)emitOffer();
   pc.onicecandidate=function(e){if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}});};
   pc.oniceconnectionstatechange=function(){log('rtc_ice',{s:pc.iceConnectionState},pc.iceConnectionState==='connected'?'ok':'info');};
   pc.onconnectionstatechange=function(){log('rtc_conn',{s:pc.connectionState},pc.connectionState==='connected'?'ok':pc.connectionState==='failed'?'error':'info');};
@@ -592,7 +585,7 @@ function setupPC(){
   };
 }
 async function handleSig(d){
-  if(!d.signal)return;if(!pc)setupPC();
+  if(!d.signal)return;if(!pc){if(room.role==='creator')setupPC();else return;}
   try{
     if(d.signal.description){var desc=d.signal.description,pol=deviceId>d.from;var rdy=!makingOffer&&(pc.signalingState==='stable'||isSettingRemoteAnswerPending);var col=desc.type==='offer'&&!rdy;ignoreOffer=!pol&&col;if(ignoreOffer)return;isSettingRemoteAnswerPending=desc.type==='answer';await pc.setRemoteDescription(desc);isSettingRemoteAnswerPending=false;if(desc.type==='offer'){await pc.setLocalDescription(await pc.createAnswer());relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}})}}
     else if(d.signal.candidate){try{await pc.addIceCandidate(d.signal.candidate)}catch(_){}}
@@ -755,7 +748,7 @@ function hangUp(){relaySend({type:'hangup'});cleanUp();if(room.role==='joiner'){
 function cleanUp(){
   saveTr();stopDeepgram();recentFinals=[];clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
   if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}
-  if(pc){pc.close();pc=null}room.id=null;stopHB();if(ws)try{ws.close()}catch(_){}ws=null;
+  if(pc){pc.close();pc=null}room.id=null;room.solo=false;stopHB();if(ws)try{ws.close()}catch(_){}ws=null;
   $('call-screen').classList.remove('active');$('lobby').classList.remove('hidden');setLS(LS.setup);
   $('subtitle-area').innerHTML='';$('no-video-msg').style.display='';
   $('partner-speaking-indicator').classList.remove('show');clearTimeout(partnerSpeakTimer);
@@ -774,7 +767,7 @@ $('local-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('loadedmetadata',refreshRemoteVideo);
 var hp=new URLSearchParams((location.hash||'').replace(/^#/,''));var inv=hp.get('j');if(inv){var p=decInv(inv);if(p&&p.r)handleHash(p)}
-window.addEventListener('popstate',function(){if(lobbyState===LS.call&&room.id){if(room.role==='joiner'){history.pushState({tbView:'call'},'',location.href);return;}hangUp();return;}if(lobbyState===LS.waiting)setLS(LS.setup);});
+window.addEventListener('popstate',function(){if(lobbyState===LS.call&&room.id){hangUp();history.pushState({},'',location.href);return}if(lobbyState===LS.waiting)setLS(LS.setup)});
 window.addEventListener('visibilitychange',function(){
   if(!document.hidden&&isCallActive()&&!dgActive)startDeepgram();
 });
