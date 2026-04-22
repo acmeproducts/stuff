@@ -491,7 +491,19 @@ function handleRelay(d){
   if(d.type==='hello'){
     if(lobbyState===LS.waiting){room.solo=false;enterCall();return}
     // Already in call: partner arrived, clear solo banner
-    if(lobbyState===LS.call){room.solo=false;$('solo-banner').style.display='none';if(!pc)setupPC();}
+    if(lobbyState===LS.call){
+      room.solo=false;
+      $('solo-banner').style.display='none';
+      if(!pc)setupPC();
+      if(pc&&pc.signalingState==='stable'&&!makingOffer){
+        makingOffer=true;
+        pc.createOffer().then(function(offer){
+          return pc.setLocalDescription(offer);
+        }).then(function(){
+          relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}});
+        }).catch(function(){}).finally(function(){makingOffer=false;});
+      }
+    }
     return;
   }
   if(d.type==='ping'){relaySend({type:'pong',transient:true});return}
