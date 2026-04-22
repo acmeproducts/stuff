@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · 2026-04-18 · fix: setupPC deferred until peer hello received -->
+<!-- talkbridge · 2026-04-22 · fix: lang-drift, audio-echo, autoplay, offer-glare, double-enterCall, double-offer, multi-stun, audioworklet -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -166,9 +166,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .call-info-wrap{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;}
 .room-name-chip{background:rgba(0,0,0,.72);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:4px 14px;font-size:12px;font-weight:600;white-space:nowrap;max-width:min(78vw,260px);overflow:hidden;text-overflow:ellipsis;backdrop-filter:blur(5px);}
 .lang-flags-chip{background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:2px 10px;font-size:15px;backdrop-filter:blur(4px);}
-
-/* Tap-to-unmute overlay */
-#audio-btn{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(0,0,0,.65);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer;display:none;backdrop-filter:blur(6px);font-family:"DM Sans",sans-serif;}
 </style>
 </head>
 <body>
@@ -186,7 +183,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <div><div class="lobby-label" style="margin-bottom:6px;">They speak</div>
         <select class="lobby-select" id="their-lang"></select></div>
         <div><div class="lobby-label" style="margin-bottom:6px;">Deepgram API key</div>
-        <input class="lobby-input" id="dg-key" type="password" placeholder="Paste key — stored locally" oninput="syncBtn()"></div>
+        <input class="lobby-input" id="dg-key" type="password" placeholder="Paste key — stored locally" oninput="onDgKeyInput()">
+        <div id="dg-key-status" style="font-size:11px;min-height:16px;margin-top:4px;padding-left:2px;transition:color .2s;"></div></div>
         <button class="lobby-btn" id="create-btn" onclick="createRoom()" disabled>Start a room</button>
       </div>
       <div class="recent-rooms" id="recent-rooms" style="display:none;">
@@ -248,7 +246,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <div class="solo-banner" id="solo-banner" style="display:none;"><div class="solo-banner-text">Solo / test mode — waiting for partner</div></div>
     <div class="partner-speaking-indicator" id="partner-speaking-indicator" aria-hidden="true">…</div>
     <div class="subtitle-area" id="subtitle-area"></div>
-    <button id="audio-btn" onclick="tapUnmute()">🔇 Tap to hear audio</button>
   </div>
   <div class="call-controls">
     <button class="ctrl-btn" id="mic-btn" onclick="toggleMic()" title="Mute/unmute">
@@ -324,8 +321,8 @@ var hbTimer=null,seq=0,wsReconnectTimer=null,isSettingRemoteAnswerPending=false;
 var debugLog=[],HEARTBEAT_MS=30000,SUB_LINGER=5000,MAX_TR=300;
 var RK='tb_recent_rooms',TP='tb_transcript_',RL=12;
 var viewingRoomId=null,callHistoryPushed=false;
-var recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=5;
 var transcriptCollapsed=false,showTranscriptMore=false,partnerSpeakTimer=null,transcriptTtsOn=false;
+var dgKeyVerified=false,dgKeyVerifyTimer=null;
 
 function $(id){return document.getElementById(id)}
 function toast(m){var e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(function(){e.classList.remove('show')},2500)}
@@ -383,7 +380,7 @@ function clearTrS(id){try{localStorage.removeItem(trKey(id))}catch(_){}}
 
 function encInv(p){try{return btoa(unescape(encodeURIComponent(JSON.stringify(p)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(_){return''}}
 function decInv(s){if(!s)return null;try{var b=s.replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';return JSON.parse(decodeURIComponent(escape(atob(b))))}catch(_){return null}}
-function invUrl(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';return location.href.split('?')[0].split('#')[0]+'#j='+encInv({r:room.id,ml:room.myLang,tl:room.theirLang,n:room.name||'',k:k})}
+function invUrl(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';return location.href.split('?')[0].split('#')[0]+'#j='+encInv({r:room.id,ml:room.myLang,tl:room.theirLang,n:room.name||'',k:k});}
 
 var LS={setup:'setup',waiting:'waiting',call:'call'};
 var lobbyState=LS.setup;
@@ -404,7 +401,11 @@ async function reuseRoom(id){
   $('my-lang').value=rec.myLang;$('their-lang').value=rec.theirLang;$('room-name').value=rec.name||'';syncBtn();
   try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});$('preview-video').srcObject=videoStream}catch(_){toast('Camera needed');return}
   $('lobby-link').textContent=invUrl();var nd=$('room-name-display');if(nd)nd.textContent=rec.name?'📋 '+rec.name:'';
-  saveRecent();enterCall();
+  saveRecent();
+  room.solo=true;
+  setLS(LS.waiting);
+  if(!callHistoryPushed){history.pushState({tbView:'call'},'',location.href);callHistoryPushed=true}
+  connectRelay();
 }
 function viewRoomTr(id){
   var rec=getRecent().find(function(r){return r.id===id});var entries=loadTr(id);viewingRoomId=id;
@@ -420,14 +421,37 @@ function copyRoomTr(){var entries=loadTr(viewingRoomId);if(!entries.length){toas
 function renderRecent(){
   var w=$('recent-rooms'),l=$('recent-rooms-list'),rows=getRecent();
   w.style.display=rows.length?'':'none';
-  l.innerHTML=rows.map(function(r){var t=new Date(r.ts).toLocaleString();var h=!!loadTr(r.id).length;var flags=gL(r.myLang).flag+' → '+gL(r.theirLang).flag;return '<div class="recent-item"><div class="recent-item-top"><button class="recent-open jr" data-id="'+esc(r.id)+'">'+esc(flags)+' '+esc(r.name)+'<small>'+esc(t)+'</small></button></div><div class="recent-actions"><button class="recent-act jr" data-id="'+esc(r.id)+'">▶ Reopen</button>'+(h?'<button class="recent-act jv" data-id="'+esc(r.id)+'">📄 Transcript</button>':'')+'<button class="recent-act danger jd" data-id="'+esc(r.id)+'">✕ Delete</button></div></div>'}).join('');
+  l.innerHTML=rows.map(function(r){var t=new Date(r.ts).toLocaleString();var h=!!loadTr(r.id).length;return '<div class="recent-item"><div class="recent-item-top"><button class="recent-open jr" data-id="'+esc(r.id)+'">'+esc(r.name)+'<small>'+esc(t)+'</small></button></div><div class="recent-actions"><button class="recent-act jr" data-id="'+esc(r.id)+'">▶ Reopen</button>'+(h?'<button class="recent-act jv" data-id="'+esc(r.id)+'">📄 Transcript</button>':'')+'<button class="recent-act danger jd" data-id="'+esc(r.id)+'">✕ Delete</button></div></div>'}).join('');
   l.querySelectorAll('.jr').forEach(function(b){b.onclick=function(){reuseRoom(b.dataset.id)}});
   l.querySelectorAll('.jv').forEach(function(b){b.onclick=function(){viewRoomTr(b.dataset.id)}});
   l.querySelectorAll('.jd').forEach(function(b){b.onclick=function(){delRecent(b.dataset.id)}});
 }
 
 function populateLangs(){['my-lang','their-lang'].forEach(function(id){var s=$(id);s.innerHTML='<option value="" disabled selected>Select language…</option>'+LANGS.map(function(l){return'<option value="'+l.code+'">'+l.flag+' '+l.label+'</option>'}).join('');s.onchange=syncBtn});syncBtn()}
-function syncBtn(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';$('create-btn').disabled=!($('my-lang').value&&$('their-lang').value&&k)}
+function syncBtn(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';$('create-btn').disabled=!($('my-lang').value&&$('their-lang').value&&k&&dgKeyVerified);}
+function setDgKeyStatus(msg,color){var el=$('dg-key-status');if(!el)return;el.textContent=msg;el.style.color=color||'#888';}
+function onDgKeyInput(){
+  var raw=$('dg-key').value,k=raw.trim();
+  if(raw!==k)$('dg-key').value=k;
+  dgKeyVerified=false;clearTimeout(dgKeyVerifyTimer);
+  if(!k){setDgKeyStatus('','');syncBtn();return;}
+  setDgKeyStatus('Verifying…','#f39c12');syncBtn();
+  dgKeyVerifyTimer=setTimeout(function(){verifyDgKey(k);},800);
+}
+function verifyDgKey(key){
+  fetch('https://api.deepgram.com/v1/projects',{headers:{'Authorization':'Token '+key}})
+    .then(function(r){
+      if(r.ok){dgKeyVerified=true;localStorage.setItem('tb_dg_key',key);setDgKeyStatus('✅ Key verified','#2ecc71');log('dg_key_verified',{},'ok');}
+      else{dgKeyVerified=false;setDgKeyStatus('❌ Invalid key (HTTP '+r.status+') — re-paste','#e74c3c');log('dg_key_bad',{status:r.status},'error');}
+      syncBtn();
+    })
+    .catch(function(e){
+      // Network error — can't reach DG to verify; trust the key and let the call reveal the truth
+      dgKeyVerified=true;localStorage.setItem('tb_dg_key',key);
+      setDgKeyStatus('⚠️ Network error — proceeding unverified','#f39c12');
+      log('dg_key_verify_err',{e:String(e)},'warn');syncBtn();
+    });
+}
 
 async function createRoom(){
   room.myLang=$('my-lang').value;room.theirLang=$('their-lang').value;room.name=($('room-name').value||'').trim();
@@ -435,7 +459,12 @@ async function createRoom(){
   room.id=uid();room.role='creator';
   try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});$('preview-video').srcObject=videoStream}catch(_){toast('Camera needed');return}
   $('lobby-link').textContent=invUrl();var nd=$('room-name-display');if(nd)nd.textContent=room.name?'📋 '+room.name:'';
-  saveRecent();enterCall();
+  saveRecent();
+  // Enter waiting state — show link/QR, wait for partner hello before starting call
+  room.solo=true;
+  setLS(LS.waiting);
+  if(!callHistoryPushed){history.pushState({tbView:'call'},'',location.href);callHistoryPushed=true}
+  connectRelay();
 }
 
 function handleHash(p){
@@ -455,13 +484,7 @@ function connectRelay(){
   if(ws)try{ws.close()}catch(_){}
   ws=new WebSocket(RELAY_WS+'?app='+encodeURIComponent(RELAY_APP)+'&session='+encodeURIComponent(room.id)+'&client='+encodeURIComponent(deviceId));
   var _ws=ws;
-  ws.onopen=function(){
-    log('relay_open',{},'ok');
-    relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
-    startHB();
-    // FIX: joiner initiates PC immediately on relay open (creator waits for peer hello)
-    if(room.role==='joiner'&&!pc)setupPC();
-  };
+  ws.onopen=function(){log('relay_open',{},'ok');relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});startHB();if(room.role==='joiner'&&!pc)setupPC();};
   ws.onmessage=function(e){try{handleRelay(JSON.parse(e.data))}catch(_){}};
   ws.onclose=function(ev){if(ws!==_ws)return;log('relay_close',{code:ev.code},'warn');stopHB();clearTimeout(wsReconnectTimer);if(room.id&&(lobbyState===LS.waiting||lobbyState===LS.call))wsReconnectTimer=setTimeout(function(){wsReconnectTimer=null;if(room.id)connectRelay()},2000)};
   ws.onerror=function(){log('relay_err',{},'error')};
@@ -474,8 +497,8 @@ function handleRelay(d){
   if(!d||d.from===deviceId)return;
   if(d.type==='hello'){
     if(lobbyState===LS.waiting){room.solo=false;enterCall();return}
-    // FIX: creator starts WebRTC only after receiving peer's hello — guarantees both parties present
-    if(lobbyState===LS.call&&room.role==='creator'&&!pc)setupPC();
+    // Already in call: partner arrived, clear solo banner
+    if(lobbyState===LS.call){room.solo=false;$('solo-banner').style.display='none';if(!pc)setupPC();}
     return;
   }
   if(d.type==='ping'){relaySend({type:'pong',transient:true});return}
@@ -495,6 +518,7 @@ function handleRelay(d){
 }
 
 async function enterCall(){
+  if(lobbyState===LS.call)return;
   if(!videoStream){try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true})}catch(_){toast('Camera needed');return}}
   $('lobby-link').textContent=invUrl();
   transcript=loadTr()||[];
@@ -505,28 +529,23 @@ async function enterCall(){
   $('solo-banner').style.display=room.solo?'':'none';
   renderTr();
   if(!ws||ws.readyState!==1)connectRelay();
+  else if(!pc)setupPC();
   startDeepgram();
   relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
 }
 
-function tapUnmute(){
-  var rv=$('remote-video'),b=$('audio-btn');
-  rv.muted=false;if(rv.paused)rv.play().catch(function(){});
-  if(b)b.style.display='none';
-  log('tap_unmute',{},'ok');
-}
 function refreshRemoteVideo(){
   var rv=$('remote-video');
   var tracks=remoteStream?remoteStream.getTracks():[];
-  var hasVideoTrack=tracks.some(function(t){return t.kind==='video';});
-  var hasRemoteTrack=tracks.length>0;
+  var hasVideoTrack=tracks.some(function(t){return t.kind==='video'&&t.readyState==='live';});
+  var hasRemoteTrack=tracks.some(function(t){return t.readyState==='live';});
   log('rtc_refresh',{tracks:tracks.map(function(t){return t.kind+':'+t.readyState}).join(',')});
   if(hasRemoteTrack&&rv.srcObject!==remoteStream){rv.srcObject=remoteStream;}
-  rv.playsInline=true;rv.autoplay=true;rv.muted=true;
+  rv.playsInline=true;rv.autoplay=true;
   if(hasRemoteTrack){
+    rv.muted=true;
     var tryPlay=rv.play&&rv.play();
     if(tryPlay&&tryPlay.then){tryPlay.then(function(){rv.muted=false;log('rtc_unmuted',{},'ok');}).catch(function(e){log('rtc_play_err',{e:String(e)},'error');});}
-    setTimeout(function(){if(rv.srcObject){rv.muted=false;var b=$('audio-btn');if(b&&rv.muted)b.style.display='block';}},1200);
     $('solo-banner').style.display='none';
   }
   if(hasVideoTrack){
@@ -556,12 +575,11 @@ function resetRemoteMediaState(){
 }
 
 function setupPC(){
-  if(pc)return;pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  if(pc)return;pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:stun2.l.google.com:19302'},{urls:'stun:stun3.l.google.com:19302'}]});
   var emitOffer=async function(){try{makingOffer=true;await pc.setLocalDescription(await pc.createOffer());relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}})}catch(_){}finally{makingOffer=false}};
   pc.onnegotiationneeded=emitOffer;
   var localTracks=videoStream?videoStream.getTracks():[];
   localTracks.forEach(function(t){pc.addTrack(t,videoStream)});
-  if(localTracks.length&&pc.signalingState==='stable'&&!makingOffer)emitOffer();
   pc.onicecandidate=function(e){if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}});};
   pc.oniceconnectionstatechange=function(){log('rtc_ice',{s:pc.iceConnectionState},pc.iceConnectionState==='connected'?'ok':'info');};
   pc.onconnectionstatechange=function(){log('rtc_conn',{s:pc.connectionState},pc.connectionState==='connected'?'ok':pc.connectionState==='failed'?'error':'info');};
@@ -582,14 +600,31 @@ function setupPC(){
   };
 }
 async function handleSig(d){
-  if(!d.signal)return;if(!pc)setupPC();
+  if(!d.signal||lobbyState!==LS.call)return;if(!pc)setupPC();
   try{
     if(d.signal.description){var desc=d.signal.description,pol=deviceId>d.from;var rdy=!makingOffer&&(pc.signalingState==='stable'||isSettingRemoteAnswerPending);var col=desc.type==='offer'&&!rdy;ignoreOffer=!pol&&col;if(ignoreOffer)return;isSettingRemoteAnswerPending=desc.type==='answer';await pc.setRemoteDescription(desc);isSettingRemoteAnswerPending=false;if(desc.type==='offer'){await pc.setLocalDescription(await pc.createAnswer());relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}})}}
     else if(d.signal.candidate){try{await pc.addIceCandidate(d.signal.candidate)}catch(_){}}
   }catch(_){isSettingRemoteAnswerPending=false}
 }
 
-/* === DEEPGRAM STT === */
+/* === DEEPGRAM STT ===
+   AudioWorklet pipes PCM from videoStream to Deepgram WebSocket.
+   No destination connection = no mic echo/feedback.
+   Falls back to ScriptProcessor + silent GainNode on older browsers.
+   CC always runs; mute only gates the WebRTC audio track.
+*/
+var WORKLET_CODE=[
+  'class PCMProcessor extends AudioWorkletProcessor{',
+  '  process(inputs){',
+  '    var ch=inputs[0]&&inputs[0][0];if(!ch||!ch.length)return true;',
+  '    var b=new Int16Array(ch.length);',
+  '    for(var i=0;i<ch.length;i++){var s=Math.max(-1,Math.min(1,ch[i]));b[i]=s<0?s*0x8000:s*0x7FFF;}',
+  '    this.port.postMessage(b.buffer,[b.buffer]);',
+  '    return true;',
+  '  }',
+  '}',
+  'registerProcessor("tb-pcm",PCMProcessor);'
+].join('\n');
 function isCallActive(){return !!(room.id&&$('call-screen').classList.contains('active'))}
 
 function isDupe(text){
@@ -606,7 +641,7 @@ function onDGFinal(text){
   text=stripDGTags(norm(text));if(!text)return;
   if(isDupe(text)){log('dg_dedup',{t:text.slice(0,40)},'warn');return}
   recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
-  var src=detectLang(text,room.myLang),tgt=room.theirLang,ss=++localSubSeq;
+  var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
   showSub(text,'mine');
   relaySend({type:'subtitle',subtitleSeq:ss,text:text,sourceText:text,sourceLang:src,targetLang:tgt,provisional:true});
   addTr('me',text,text,src,tgt,ss);
@@ -614,7 +649,7 @@ function onDGFinal(text){
 }
 
 function startDeepgram(){
-  var key=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';
+  var key=(($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'').trim();
   if(!key){toast('Deepgram key missing');return;}
   localStorage.setItem('tb_dg_key',key);
   if(dgActive)return;
@@ -631,6 +666,26 @@ function startDeepgram(){
     try{
       dgAudioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
       dgSrc=dgAudioCtx.createMediaStreamSource(videoStream);
+      if(dgAudioCtx.audioWorklet&&dgAudioCtx.audioWorklet.addModule){
+        var blob=new Blob([WORKLET_CODE],{type:'application/javascript'});
+        var blobUrl=URL.createObjectURL(blob);
+        dgAudioCtx.audioWorklet.addModule(blobUrl).then(function(){
+          URL.revokeObjectURL(blobUrl);
+          var wn=new AudioWorkletNode(dgAudioCtx,'tb-pcm');
+          wn.port.onmessage=function(e){if(dgWs&&dgWs.readyState===1)dgWs.send(e.data);};
+          dgSrc.connect(wn);
+          dgProc=wn;
+          log('dg_worklet_ok',{},'ok');
+        }).catch(function(e){
+          log('dg_worklet_err',{e:String(e)},'warn');
+          _startScriptProcessor();
+        });
+      }else{_startScriptProcessor();}
+    }catch(e){log('dg_audio_err',{e:String(e)},'error');}
+  };
+  function _startScriptProcessor(){
+    try{
+      var silentGain=dgAudioCtx.createGain();silentGain.gain.value=0;silentGain.connect(dgAudioCtx.destination);
       dgProc=dgAudioCtx.createScriptProcessor(4096,1,1);
       dgProc.onaudioprocess=function(e){
         if(!dgWs||dgWs.readyState!==1)return;
@@ -639,9 +694,10 @@ function startDeepgram(){
         for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF;}
         dgWs.send(b.buffer);
       };
-      dgSrc.connect(dgProc);dgProc.connect(dgAudioCtx.destination);
-    }catch(e){log('dg_audio_err',{e:String(e)},'error');}
-  };
+      dgSrc.connect(dgProc);dgProc.connect(silentGain);
+      log('dg_scriptproc_ok',{},'ok');
+    }catch(e2){log('dg_audio_err',{e:String(e2)},'error');}
+  }
   dgWs.onmessage=function(e){
     try{
       var d=JSON.parse(e.data);
@@ -690,25 +746,21 @@ function patchTr(who,ss,newTr,sL,tL){
   addTr(who,newTr,newTr,sL,tL,ss);
 }
 function trHtml(e){
-  var locale=TTS_LOCALE[room.myLang]||'en-US';
+  var srcLang=e.srcLang||(e.who==='me'?room.myLang:room.theirLang)||'en';
+  var tgtLang=e.tgtLang||(e.who==='me'?room.theirLang:room.myLang)||'en';
+  var locale=TTS_LOCALE[srcLang]||'en-US';
   var ts=new Date(e.ts).toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   var speaker=e.who==='me'?'You':'Partner';
-  var leftText,leftLang,rightText,rightLang;
-  if(e.who==='me'){
-    leftText=e.sourceText||'';leftLang=e.srcLang||room.myLang;
-    rightText=e.translatedText||leftText;rightLang=e.tgtLang||room.theirLang;
-  }else{
-    leftText=e.translatedText||e.sourceText||'';leftLang=e.tgtLang||room.myLang;
-    rightText=e.sourceText||'';rightLang=e.srcLang||room.theirLang;
-  }
+  var srcText=e.sourceText||'';
+  var tgtText=e.translatedText||srcText;
   return '<div class="tr-entry"><div class="tr-bubble">'
     +'<div class="tr-head"><div class="tr-who '+(e.who==='me'?'mine':'')+'">'+esc(speaker)+'</div><div class="tr-time">'+esc(ts)+'</div></div>'
     +'<div class="tr-body">'
-    +'<div class="tr-col source"><div class="tr-text">'+esc(leftText)+'</div>'
-    +'<button class="tr-tts" type="button" data-tts-text="'+esc(leftText)+'" data-tts-lang="'+esc(leftLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'
+    +'<div class="tr-col source"><div class="tr-text">'+esc(srcText)+'</div>'
+    +'<button class="tr-tts" type="button" data-tts-text="'+esc(srcText)+'" data-tts-lang="'+esc(srcLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'
     +'<div class="tr-divider"></div>'
-    +'<div class="tr-col"><div class="tr-text">'+esc(rightText)+'</div>'
-    +'<button class="tr-tts" type="button" data-tts-text="'+esc(rightText)+'" data-tts-lang="'+esc(rightLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'
+    +'<div class="tr-col"><div class="tr-text">'+esc(tgtText)+'</div>'
+    +'<button class="tr-tts" type="button" data-tts-text="'+esc(tgtText)+'" data-tts-lang="'+esc(tgtLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'
     +'</div></div></div>';
 }
 function appendTrDom(entry){
@@ -756,7 +808,7 @@ function cleanUp(){
   transcript=[];micOn=true;camOn=true;syncMic();syncCam();callHistoryPushed=false;renderRecent();
 }
 
-if(localStorage.getItem('tb_dg_key')&&$('dg-key'))$('dg-key').value=localStorage.getItem('tb_dg_key');
+if(localStorage.getItem('tb_dg_key')&&$('dg-key')){$('dg-key').value=localStorage.getItem('tb_dg_key');dgKeyVerified=false;setDgKeyStatus('Verifying saved key…','#f39c12');verifyDgKey($('dg-key').value);}
 populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
 $('call-transcript').addEventListener('click',function(ev){var btn=ev.target.closest('.tr-tts');if(!btn)return;speakText(btn.getAttribute('data-tts-text')||'',btn.getAttribute('data-tts-lang')||room.myLang||'en');});
@@ -764,7 +816,7 @@ $('local-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('loadedmetadata',refreshRemoteVideo);
 var hp=new URLSearchParams((location.hash||'').replace(/^#/,''));var inv=hp.get('j');if(inv){var p=decInv(inv);if(p&&p.r)handleHash(p)}
-window.addEventListener('popstate',function(){if(lobbyState===LS.call&&room.id){hangUp();history.pushState({},'',location.href);return}if(lobbyState===LS.waiting)setLS(LS.setup)});
+window.addEventListener('popstate',function(){if(lobbyState===LS.call&&room.id){hangUp();return}if(lobbyState===LS.waiting){cleanUp();setLS(LS.setup);}});
 window.addEventListener('visibilitychange',function(){
   if(!document.hidden&&isCallActive()&&!dgActive)startDeepgram();
 });
