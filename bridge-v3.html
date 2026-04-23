@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · 2026-04-21 · fix: dg key trim + verify-before-save -->
+<!-- talkbridge · 2026-04-21 · fix: dg key trim + verify-before-save · feat: typed compose strip -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -82,7 +82,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 
 .call-videos{position:relative;background:#000;overflow:hidden;flex:1;min-height:0;transition:flex-basis .2s ease;}
 #remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:1;}
-#local-video{position:absolute;top:8px;right:8px;width:min(14%,80px);aspect-ratio:9/16;border-radius:8px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
+#local-video{position:absolute;top:8px;right:8px;width:min(24%,120px);aspect-ratio:16/9;border-radius:8px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
 .no-video-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--text-muted);z-index:1;}
 .solo-banner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;text-align:center;pointer-events:none;}
 .solo-banner-text{background:rgba(0,0,0,.6);color:var(--text-dim);font-size:13px;padding:8px 18px;border-radius:20px;backdrop-filter:blur(6px);}
@@ -109,7 +109,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .transcript-more-indicator.show{display:flex;}
 .call.transcript-collapsed .call-transcript{flex:0 0 32px;max-height:32px;overflow:hidden;}
 .call.transcript-collapsed #transcript-body{display:none;}
-.call-videos.swapped #remote-video{top:8px;right:8px;left:auto;bottom:auto;width:min(14%,80px);height:auto;aspect-ratio:9/16;border-radius:8px;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;}
+.call-videos.swapped #remote-video{top:8px;right:8px;left:auto;bottom:auto;width:min(24%,120px);height:auto;aspect-ratio:16/9;border-radius:8px;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;}
 .call-videos.swapped #local-video{inset:0;width:100%;height:100%;border-radius:0;border:none;box-shadow:none;z-index:1;}
 .tr-entry{padding:6px 0;}
 .tr-bubble{border:1px solid rgba(255,255,255,.14);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.02);}
@@ -129,6 +129,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .tr-empty{color:var(--text-muted);font-size:12px;font-style:italic;padding:12px 0;}
 
 .call-controls{display:flex;align-items:center;justify-content:center;gap:14px;padding:8px 16px max(8px,env(safe-area-inset-bottom));background:var(--surface);flex-shrink:0;}
+.compose-strip{display:none;align-items:flex-end;gap:8px;padding:6px 10px;background:var(--surface);border-top:1px solid rgba(255,255,255,.06);flex-shrink:0;}
+.call.active .compose-strip{display:flex;}
+.compose-ta{flex:1;background:var(--surface2);color:var(--text);border:1.5px solid rgba(255,255,255,.1);border-radius:18px;padding:7px 13px;font-size:14px;font-family:"DM Sans",sans-serif;outline:none;resize:none;min-height:34px;max-height:84px;line-height:1.4;overflow-y:auto;-webkit-appearance:none;}
+.compose-ta:focus{border-color:var(--teal);}
+.compose-ta::placeholder{color:var(--text-muted);}
+.compose-send{width:34px;height:34px;border-radius:50%;background:var(--teal);color:#fff;border:none;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:opacity .12s;}
+.compose-send:disabled{opacity:.3;cursor:default;}
 .ctrl-btn{width:48px;height:48px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,transform .1s;background:rgba(255,255,255,.1);color:#fff;}
 .ctrl-btn:hover{background:rgba(255,255,255,.18);}
 .ctrl-btn:active{transform:scale(.93);}
@@ -285,6 +292,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     </div>
     <div id="transcript-body"><div class="tr-empty">Speak to see transcript here.</div></div>
     <div class="transcript-more-indicator" id="transcript-more-indicator" aria-hidden="true">↓</div>
+  </div>
+  <div class="compose-strip" id="compose-strip">
+    <textarea class="compose-ta" id="compose-ta" placeholder="Type a message…" rows="1" oninput="composeInput()" onkeydown="composeKeydown(event)"></textarea>
+    <button class="compose-send" id="compose-send" onclick="sendTypedMsg()" disabled>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
   </div>
 </div>
 <div id="toast"></div>
@@ -753,6 +766,51 @@ function cleanUp(){
   document.querySelector('.call-videos').classList.remove('swapped');
   resetRemoteMediaState();
   transcript=[];micOn=true;camOn=true;syncMic();syncCam();callHistoryPushed=false;renderRecent();
+}
+
+/* === TYPED COMPOSE STRIP === */
+function composeInput(){
+  var ta=$('compose-ta'),sb=$('compose-send');
+  if(!ta)return;
+  ta.style.height='auto';
+  ta.style.height=Math.min(ta.scrollHeight,84)+'px';
+  if(sb)sb.disabled=!ta.value.trim();
+}
+function composeKeydown(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendTypedMsg();}
+}
+function sendTypedMsg(){
+  var ta=$('compose-ta');
+  var text=(ta&&ta.value.trim())||'';
+  if(!text||!isCallActive())return;
+  ta.value='';composeInput();
+  var srcLang=room.myLang||detectLang(text,'en');
+  var tgtLang=room.theirLang||'en';
+  var ss=++localSubSeq;
+  // Detect what language was actually typed
+  var detectedLang=detectLang(text,srcLang);
+  // Normalize: if typed in a different language than myLang, translate to myLang first
+  // so source column always reflects "what I speak", matching voice subtitle behavior
+  var normalizeStep;
+  if(detectedLang&&srcLang&&detectedLang!==srcLang){
+    normalizeStep=translate(text,detectedLang,srcLang).then(function(t){return norm(t)||text;});
+  }else{
+    normalizeStep=Promise.resolve(text);
+  }
+  normalizeStep.then(function(sourceText){
+    sourceText=norm(sourceText)||text;
+    showSub(sourceText,'mine');
+    // Send provisional to partner immediately (they get source text while translation runs)
+    relaySend({type:'subtitle',subtitleSeq:ss,text:sourceText,sourceText:sourceText,sourceLang:srcLang,targetLang:tgtLang,provisional:true});
+    addTr('me',sourceText,sourceText,srcLang,tgtLang,ss);
+    if(srcLang===tgtLang)return;
+    // Translate source → partner's language, then update
+    translate(sourceText,srcLang,tgtLang).then(function(tr){
+      tr=norm(tr)||sourceText;
+      relaySend({type:'subtitle-update',subtitleSeq:ss,text:tr,sourceText:sourceText,sourceLang:srcLang,targetLang:tgtLang});
+      patchTr('me',ss,tr,srcLang,tgtLang);
+    });
+  });
 }
 
 if(localStorage.getItem('tb_dg_key')&&$('dg-key')){var _sk=localStorage.getItem('tb_dg_key').trim();$('dg-key').value=_sk;setDgKeyStatus('Verifying saved key…','#f39c12');verifyDgKey(_sk);}

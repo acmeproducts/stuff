@@ -701,7 +701,22 @@ document.addEventListener("dragover", e=> e.preventDefault());
 let pointerDrag=null;
 let suppressNextCardClick=false;
 function isInteractiveCardTarget(target){
-  return !!target?.closest?.('a,button,input,textarea,select,label,[contenteditable="true"]');
+  return !!target?.closest?.('a,button,input,textarea,select,label,[contenteditable]');
+}
+function hasActiveTextSelection(){
+  const sel = window.getSelection?.();
+  return !!sel && !sel.isCollapsed && String(sel).trim().length>0;
+}
+function hasActiveEditableInCard(cardEl){
+  const active = document.activeElement;
+  return !!(
+    active &&
+    cardEl?.contains(active) &&
+    active.matches?.('input,textarea,select,[contenteditable]')
+  );
+}
+function isTextSelectableCardTarget(target){
+  return !!target?.closest?.('.card-detail,.live-notes-preview,.attachment-list,.attachment-item,.attachment-link,.card-tags,.chip');
 }
 function hasActiveTextSelection(){
   const sel = window.getSelection?.();
@@ -711,7 +726,7 @@ function isTextSelectableCardTarget(target){
   return !!target?.closest?.('.card-detail,.live-notes-preview,.attachment-list,.attachment-item,.attachment-link,.card-tags,.chip');
 }
 function pointerFromCardStart(card, e){
-  if(typeof e.button==="number" && e.button!==0) return;
+  if(e.pointerType==="mouse") return;
   if(isInteractiveCardTarget(e.target) || isTextSelectableCardTarget(e.target) || hasActiveTextSelection()) return;
   pointerDrag={id:card.id,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,startAt:Date.now(),active:false};
   card.setPointerCapture?.(e.pointerId);
@@ -868,18 +883,28 @@ function buildInlineTagEditor(tagArr){
 
   tagIn.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===","){ e.preventDefault(); e.stopPropagation(); commitInput(); } });
   tagIn.addEventListener("input", ()=> renderSuggestions());
+  addBtn.addEventListener("click", e=>{ e.stopPropagation(); commitInput(); });
 
   renderAssigned(); renderSuggestions();
   return wrap;
 }
 
 function renderCard(card){
-  const el=document.createElement("article"); el.className="card"; el.draggable=false; el.dataset.id=card.id;
+  const el=document.createElement("article"); el.className="card"; el.draggable=true; el.dataset.id=card.id;
+  el.addEventListener("focusin", (e)=>{
+    if(e.target?.closest?.('input,textarea,select,[contenteditable]')) el.draggable=false;
+  });
+  el.addEventListener("focusout", ()=>{
+    requestAnimationFrame(()=>{
+      if(!hasActiveEditableInCard(el)) el.draggable=true;
+    });
+  });
   el.addEventListener("dragstart", e=>{
     if(
       isInteractiveCardTarget(e.target) ||
       isTextSelectableCardTarget(e.target) ||
       hasActiveTextSelection() ||
+      hasActiveEditableInCard(el) ||
       e.target.closest('.card-links,.live-notes-preview,.attachment-list')
     ){
       e.preventDefault();
