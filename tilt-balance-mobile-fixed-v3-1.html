@@ -276,8 +276,14 @@
       best: Number(localStorage.getItem('tilt-balance-best') || 0),
       bounceCount: 0,
       gravityScale: 1,
-      lastTapAt: 0,
-      balls: []
+      ball: {
+        x: 0,
+        z: 0,
+        vx: 0,
+        vz: 0,
+        spinAngle: 0,
+        spinAxis: new THREE.Vector3(1, 0, 0)
+      }
     };
 
     bestEl.textContent = `${state.best.toFixed(1)}s`;
@@ -490,8 +496,8 @@
 
     function updatePhysics(dt) {
       const gravity = gravityStrength * state.gravityScale;
-      const ax = Math.sin(state.currentTiltX) * gravity;
-      const az = Math.sin(state.currentTiltZ) * gravity;
+      const ax = Math.sin(state.currentTiltZ) * gravity;
+      const az = Math.sin(state.currentTiltX) * gravity;
 
       for (const ball of state.balls) {
         ball.vx += ax * dt;
@@ -765,28 +771,6 @@
       window.addEventListener('deviceorientation', onDeviceOrientation, true);
       document.body.addEventListener('pointerdown', unlockFromGesture, { passive: true });
       document.body.addEventListener('touchstart', unlockFromGesture, { passive: true });
-
-      renderer.domElement.addEventListener('pointerdown', (event) => {
-        const rect = renderer.domElement.getBoundingClientRect();
-        const tapX = event.clientX - rect.left;
-        const tapY = event.clientY - rect.top;
-        const nx = (tapX - rect.width * 0.5) / (rect.width * 0.5);
-        const ny = (tapY - rect.height * 0.5) / (rect.height * 0.5);
-        const impulse = 3.2;
-        for (const ball of state.balls) {
-          ball.vx += -nx * impulse;
-          ball.vz += -ny * impulse;
-        }
-
-        const now = performance.now();
-        if (now - state.lastTapAt < 320 && state.balls.length < 6) {
-          const spawnX = THREE.MathUtils.clamp(nx * playLimit * 0.45, -playLimit * 0.85, playLimit * 0.85);
-          const spawnZ = THREE.MathUtils.clamp(ny * playLimit * 0.45, -playLimit * 0.85, playLimit * 0.85);
-          state.balls.push(createBallEntity(spawnX, spawnZ));
-          setStatus(`Double tap: spawned ball #${state.balls.length}.`, true);
-        }
-        state.lastTapAt = now;
-      }, { passive: true });
 
       panelToggle.addEventListener('click', (event) => {
         event.preventDefault();
