@@ -255,8 +255,6 @@
     let camera;
     let boardGroup;
     let boardMesh;
-    let ballMesh;
-    let shadowMesh;
     let animationFrame = 0;
     let audioContext = null;
     let masterGain = null;
@@ -270,8 +268,8 @@
       hasMotionSample: false,
       motionSamples: 0,
       lastMotionAt: 0,
-      calibrateX: 0,
-      calibrateZ: 0,
+      calibrateX: THREE.MathUtils.degToRad(45),
+      calibrateZ: THREE.MathUtils.degToRad(45),
       currentTiltX: 0,
       currentTiltZ: 0,
       score: 0,
@@ -410,6 +408,48 @@
       setStatus('Boundary contact. Ball bounced back into fair play.', true);
     }
 
+    function createBallEntity(startX = 0, startZ = 0) {
+      const ballGeometry = new THREE.SphereGeometry(ballRadius, 48, 48);
+      const ballMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xff8a00,
+        roughness: 0.34,
+        metalness: 0.04,
+        clearcoat: 0.46,
+        emissive: 0x241000,
+        emissiveIntensity: 0.12
+      });
+      const mesh = new THREE.Mesh(ballGeometry, ballMaterial);
+      boardGroup.add(mesh);
+
+      const shadowCanvas = document.createElement('canvas');
+      shadowCanvas.width = 256;
+      shadowCanvas.height = 256;
+      const shadowCtx = shadowCanvas.getContext('2d');
+      const shadowGradient = shadowCtx.createRadialGradient(128, 128, 10, 128, 128, 118);
+      shadowGradient.addColorStop(0, 'rgba(0,0,0,0.40)');
+      shadowGradient.addColorStop(1, 'rgba(0,0,0,0)');
+      shadowCtx.fillStyle = shadowGradient;
+      shadowCtx.fillRect(0, 0, 256, 256);
+      const shadowTexture = new THREE.CanvasTexture(shadowCanvas);
+      const shadow = new THREE.Mesh(
+        new THREE.PlaneGeometry(ballRadius * 2.8, ballRadius * 2.8),
+        new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false })
+      );
+      shadow.rotation.x = -Math.PI * 0.5;
+      boardGroup.add(shadow);
+
+      return {
+        x: startX,
+        z: startZ,
+        vx: 0,
+        vz: 0,
+        spinAngle: 0,
+        spinAxis: new THREE.Vector3(1, 0, 0),
+        mesh,
+        shadow
+      };
+    }
+
     function resetBall(resetScore = false) {
       if (resetScore) {
         if (state.score > state.best) {
@@ -422,12 +462,11 @@
       }
 
       state.bounceCount = 0;
-      state.ball.x = 0;
-      state.ball.z = 0;
-      state.ball.vx = 0;
-      state.ball.vz = 0;
-      state.ball.spinAngle = 0;
-      state.ball.spinAxis.set(1, 0, 0);
+      for (const ball of state.balls) {
+        boardGroup.remove(ball.mesh);
+        boardGroup.remove(ball.shadow);
+      }
+      state.balls = [createBallEntity(0, 0)];
       bouncesEl.textContent = '0';
       updateBallVisuals();
     }
@@ -445,8 +484,8 @@
     function updateInput(dt) {
       const targetX = clampTilt(state.deviceTiltX - state.calibrateX);
       const targetZ = clampTilt(state.deviceTiltZ - state.calibrateZ);
-      state.currentTiltX = THREE.MathUtils.damp(state.currentTiltX, targetX, 16, dt);
-      state.currentTiltZ = THREE.MathUtils.damp(state.currentTiltZ, targetZ, 16, dt);
+      state.currentTiltX = THREE.MathUtils.damp(state.currentTiltX, targetX, 28, dt);
+      state.currentTiltZ = THREE.MathUtils.damp(state.currentTiltZ, targetZ, 28, dt);
       tiltEl.textContent = `${THREE.MathUtils.radToDeg(state.currentTiltX).toFixed(1)}°, ${THREE.MathUtils.radToDeg(state.currentTiltZ).toFixed(1)}°`;
     }
 
@@ -460,72 +499,75 @@
       const ax = Math.sin(state.currentTiltZ) * gravity;
       const az = Math.sin(state.currentTiltX) * gravity;
 
-      state.ball.vx += ax * dt;
-      state.ball.vz += az * dt;
+      for (const ball of state.balls) {
+        ball.vx += ax * dt;
+        ball.vz += az * dt;
 
-      const damping = Math.pow(rollingDampingPer60, dt * 60);
-      state.ball.vx *= damping;
-      state.ball.vz *= damping;
+        const damping = Math.pow(rollingDampingPer60, dt * 60);
+        ball.vx *= damping;
+        ball.vz *= damping;
 
-      if (Math.abs(state.currentTiltX) < deadZoneTilt && Math.abs(state.currentTiltZ) < deadZoneTilt) {
-        if (Math.abs(state.ball.vx) < deadZoneVelocity) state.ball.vx = 0;
-        if (Math.abs(state.ball.vz) < deadZoneVelocity) state.ball.vz = 0;
-      }
+        if (Math.abs(state.currentTiltX) < deadZoneTilt && Math.abs(state.currentTiltZ) < deadZoneTilt) {
+          if (Math.abs(ball.vx) < deadZoneVelocity) ball.vx = 0;
+          if (Math.abs(ball.vz) < deadZoneVelocity) ball.vz = 0;
+        }
 
-      state.ball.x += state.ball.vx * dt;
-      state.ball.z += state.ball.vz * dt;
+        ball.x += ball.vx * dt;
+        ball.z += ball.vz * dt;
 
-      let bounced = false;
-      let collisionSpeed = 0;
+        let bounced = false;
+        let collisionSpeed = 0;
 
-      if (state.ball.x > playLimit) {
-        collisionSpeed = Math.max(collisionSpeed, Math.abs(state.ball.vx));
-        state.ball.x = playLimit - 0.01;
-        state.ball.vx = -Math.abs(state.ball.vx) * restitution;
-        state.ball.vz *= tangentDampOnBounce;
-        bounced = true;
-      } else if (state.ball.x < -playLimit) {
-        collisionSpeed = Math.max(collisionSpeed, Math.abs(state.ball.vx));
-        state.ball.x = -playLimit + 0.01;
-        state.ball.vx = Math.abs(state.ball.vx) * restitution;
-        state.ball.vz *= tangentDampOnBounce;
-        bounced = true;
-      }
+        if (ball.x > playLimit) {
+          collisionSpeed = Math.max(collisionSpeed, Math.abs(ball.vx));
+          ball.x = playLimit - 0.01;
+          ball.vx = -Math.abs(ball.vx) * restitution;
+          ball.vz *= tangentDampOnBounce;
+          bounced = true;
+        } else if (ball.x < -playLimit) {
+          collisionSpeed = Math.max(collisionSpeed, Math.abs(ball.vx));
+          ball.x = -playLimit + 0.01;
+          ball.vx = Math.abs(ball.vx) * restitution;
+          ball.vz *= tangentDampOnBounce;
+          bounced = true;
+        }
 
-      if (state.ball.z > playLimit) {
-        collisionSpeed = Math.max(collisionSpeed, Math.abs(state.ball.vz));
-        state.ball.z = playLimit - 0.01;
-        state.ball.vz = -Math.abs(state.ball.vz) * restitution;
-        state.ball.vx *= tangentDampOnBounce;
-        bounced = true;
-      } else if (state.ball.z < -playLimit) {
-        collisionSpeed = Math.max(collisionSpeed, Math.abs(state.ball.vz));
-        state.ball.z = -playLimit + 0.01;
-        state.ball.vz = Math.abs(state.ball.vz) * restitution;
-        state.ball.vx *= tangentDampOnBounce;
-        bounced = true;
-      }
+        if (ball.z > playLimit) {
+          collisionSpeed = Math.max(collisionSpeed, Math.abs(ball.vz));
+          ball.z = playLimit - 0.01;
+          ball.vz = -Math.abs(ball.vz) * restitution;
+          ball.vx *= tangentDampOnBounce;
+          bounced = true;
+        } else if (ball.z < -playLimit) {
+          collisionSpeed = Math.max(collisionSpeed, Math.abs(ball.vz));
+          ball.z = -playLimit + 0.01;
+          ball.vz = Math.abs(ball.vz) * restitution;
+          ball.vx *= tangentDampOnBounce;
+          bounced = true;
+        }
 
-      if (bounced) onBounce(collisionSpeed);
+        if (bounced) onBounce(collisionSpeed);
 
-      const planarSpeed = Math.hypot(state.ball.vx, state.ball.vz);
-      if (planarSpeed > 0.0001) {
-        state.ball.spinAxis.set(state.ball.vz / planarSpeed, 0, -state.ball.vx / planarSpeed).normalize();
-        state.ball.spinAngle += (planarSpeed / ballRadius) * dt;
+        const planarSpeed = Math.hypot(ball.vx, ball.vz);
+        if (planarSpeed > 0.0001) {
+          ball.spinAxis.set(ball.vz / planarSpeed, 0, -ball.vx / planarSpeed).normalize();
+          ball.spinAngle += (planarSpeed / ballRadius) * dt;
+        }
       }
     }
 
     function updateBallVisuals() {
       const y = boardTopY + ballRadius + surfaceClearance;
-      ballMesh.position.set(state.ball.x, y, state.ball.z);
+      for (const ball of state.balls) {
+        ball.mesh.position.set(ball.x, y, ball.z);
+        const ballRotation = new THREE.Quaternion().setFromAxisAngle(ball.spinAxis, ball.spinAngle);
+        ball.mesh.quaternion.copy(ballRotation);
 
-      const ballRotation = new THREE.Quaternion().setFromAxisAngle(state.ball.spinAxis, state.ball.spinAngle);
-      ballMesh.quaternion.copy(ballRotation);
-
-      shadowMesh.position.set(state.ball.x, boardTopY + 0.01, state.ball.z);
-      const speed = Math.hypot(state.ball.vx, state.ball.vz);
-      const squash = THREE.MathUtils.clamp(1.0 - speed * 0.012, 0.88, 1.0);
-      shadowMesh.scale.set(1.02 / squash, 1.02 / squash, 1.02 / squash);
+        ball.shadow.position.set(ball.x, boardTopY + 0.01, ball.z);
+        const speed = Math.hypot(ball.vx, ball.vz);
+        const squash = THREE.MathUtils.clamp(1.0 - speed * 0.012, 0.88, 1.0);
+        ball.shadow.scale.set(1.02 / squash, 1.02 / squash, 1.02 / squash);
+      }
     }
 
     function updateScore(dt) {
@@ -627,35 +669,6 @@
       createGridRibs(boardGroup);
       createRails(boardGroup);
 
-      const ballGeometry = new THREE.SphereGeometry(ballRadius, 48, 48);
-      const ballMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0xff8a00,
-        roughness: 0.34,
-        metalness: 0.04,
-        clearcoat: 0.46,
-        emissive: 0x241000,
-        emissiveIntensity: 0.12
-      });
-      ballMesh = new THREE.Mesh(ballGeometry, ballMaterial);
-      boardGroup.add(ballMesh);
-
-      const shadowCanvas = document.createElement('canvas');
-      shadowCanvas.width = 256;
-      shadowCanvas.height = 256;
-      const shadowCtx = shadowCanvas.getContext('2d');
-      const shadowGradient = shadowCtx.createRadialGradient(128, 128, 10, 128, 128, 118);
-      shadowGradient.addColorStop(0, 'rgba(0,0,0,0.40)');
-      shadowGradient.addColorStop(1, 'rgba(0,0,0,0)');
-      shadowCtx.fillStyle = shadowGradient;
-      shadowCtx.fillRect(0, 0, 256, 256);
-      const shadowTexture = new THREE.CanvasTexture(shadowCanvas);
-      shadowMesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(ballRadius * 2.8, ballRadius * 2.8),
-        new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false })
-      );
-      shadowMesh.rotation.x = -Math.PI * 0.5;
-      boardGroup.add(shadowMesh);
-
       const floor = new THREE.Mesh(
         new THREE.CircleGeometry(12, 72),
         new THREE.MeshBasicMaterial({ color: 0x0e0e11 })
@@ -695,14 +708,14 @@
       let zDeg;
 
       if (portrait) {
-        xDeg = event.beta;
-        zDeg = event.gamma;
-      } else {
         xDeg = event.gamma;
         zDeg = event.beta;
+      } else {
+        xDeg = event.beta;
+        zDeg = event.gamma;
       }
 
-state.deviceTiltX = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(xDeg), -0.8, 0.8);
+      state.deviceTiltX = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(xDeg), -0.8, 0.8);
       state.deviceTiltZ = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(zDeg), -0.8, 0.8);
       state.hasMotionSample = true;
       state.motionSamples += 1;
@@ -730,7 +743,7 @@ state.deviceTiltX = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(xDeg), -0.8, 
           }
         }
 
-state.useMotion = true;
+        state.useMotion = true;
         state.hasMotionSample = false;
         state.motionSamples = 0;
         modeEl.textContent = 'Device Tilt';
