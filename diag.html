@@ -138,10 +138,13 @@
   }
 
   function connectRelay(){
-    S.room = $('room').value.trim();
+    const nextRoom = $('room').value.trim();
+    const prevRoom = S.room;
+    S.room = nextRoom;
     const relay = $('relay').value.trim();
     const app = $('app').value.trim() || 'talk-say-v1';
     if(!relay || !S.room){ line('err','missing_relay_or_room',{}); return; }
+    if(prevRoom && prevRoom !== S.room) resetPeer('room_changed');
 
     if(S.ws){ try{S.ws.close();}catch{} }
     const gen = ++S.wsGen;
@@ -251,6 +254,11 @@
           line('ok','answer_sent',{});
         }
       } else if(signal.candidate){
+        if(!pc.remoteDescription){
+          S.pendingCandidates.push(signal.candidate);
+          line('warn','ice_queued',{count:S.pendingCandidates.length});
+          return;
+        }
         await pc.addIceCandidate(signal.candidate);
       }
     }catch(err){
@@ -266,6 +274,10 @@
 
   // Buttons
   $('hostStart').onclick = ()=>{
+    if(S.role !== 'host'){
+      S.role = 'host';
+      $('name').value = 'A';
+    }
     $('room').value = uid();
     const link = inviteLink($('room').value);
     $('invite').textContent = link;
