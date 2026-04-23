@@ -3,468 +3,398 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Bridge Diagnostic</title>
+  <title>Bridge Call</title>
   <style>
     :root{--bg:#0a0f16;--card:#101826;--line:#23364f;--txt:#e9eef6;--muted:#9db0c7;--ok:#54d38a;--warn:#ffcf66;--bad:#ff6f6f}
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);margin:0;padding:14px}
     .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
-    h1{font-size:1.15rem;margin:0 0 6px}
-    .muted{color:var(--muted)}
+    h1{font-size:1.1rem;margin:0 0 8px}
     .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .muted{color:var(--muted)}
     input,button,textarea{background:#0c1521;color:var(--txt);border:1px solid #2a415e;border-radius:10px;padding:10px;font-size:.95rem}
-    input{min-width:220px}
     button{cursor:pointer}
-    button:hover{background:#142238}
     button.primary{background:#173456;border-color:#2f5e92}
+    button.danger{background:#4a1f2a;border-color:#7a3244}
+    textarea{width:100%;min-height:110px}
+    video{width:48%;background:#000;border:1px solid #294364;border-radius:10px}
+    #invite{word-break:break-all}
+    #log{max-height:220px;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:.8rem;background:#0a121d;border:1px solid #294364;border-radius:10px;padding:8px}
     .pill{display:inline-block;border:1px solid #2f4768;border-radius:999px;padding:2px 8px;font-size:.8rem;margin:2px 4px 2px 0}
-    .step{padding:8px 10px;border:1px dashed #355174;border-radius:10px;background:#0d1724}
-    #log{height:36vh;overflow:auto;white-space:pre-wrap;background:#0a121d;border:1px solid #294364;border-radius:10px;padding:8px;font-family:ui-monospace,Menlo,monospace;font-size:.8rem}
-    .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--bad)}
-    textarea{width:100%;min-height:72px}
+    details summary{cursor:pointer;color:var(--muted)}
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>Bridge Diagnostic (Push-Button)</h1>
-    <div class="muted">Host taps Start Session. Joiner opens link. Camera/mic prompt is the only required browser step.</div>
-  </div>
-
-  <div class="card">
-    <div class="row">
-      <label>Relay <input id="relay" value="wss://talk-signal.myacctfortracking.workers.dev/signal"></label>
-      <label>App <input id="app" value="talk-say-v1"></label>
-      <label>Room <input id="room" placeholder="auto-created by Host"></label>
-    </div>
-    <div class="row" style="margin-top:8px">
-      <button id="hostStart" class="primary">Start Session</button>
-      <button id="copyInvite">Copy Invite Link</button>
-      <button id="mediaBtn">Retry Camera + Mic</button>
-    </div>
-    <div class="row" style="margin-top:8px">
-      <span class="pill">clientId: <span id="clientId"></span></span>
-      <span class="pill">peerId: <span id="peerId">-</span></span>
-      <span class="pill">ws: <span id="ws">idle</span></span>
-      <span class="pill">pc: <span id="pc">idle</span></span>
-      <span class="pill">ice: <span id="ice">idle</span></span>
-      <span class="pill">dc: <span id="dc">idle</span></span>
+    <h1>Bridge Call</h1>
+    <div class="muted" id="modeHint">Host starts a session, shares link, and both peers connect automatically.</div>
+    <div class="row" style="margin-top:10px">
+      <button id="startBtn" class="primary">Start Session</button>
+      <button id="copyBtn">Copy Link</button>
+      <button id="endBtn" class="danger">End Conversation</button>
     </div>
     <div class="muted" style="margin-top:8px">Invite link: <span id="invite">-</span></div>
   </div>
 
   <div class="card">
-    <div class="step"><strong>1) Start Session</strong> (host only) creates room + invite link + relay connection.</div>
-    <div class="step" style="margin-top:8px"><strong>2) Open Link</strong> (joiner) auto-connects and auto-starts media flow.</div>
-    <div class="step" style="margin-top:8px"><strong>3) Share status</strong> is optional; export logs anytime.</div>
-  </div>
-
-  <div class="card">
     <div class="row">
-      <video id="localVideo" autoplay playsinline muted style="width:48%;background:#000;border:1px solid #294364;border-radius:10px"></video>
-      <video id="remoteVideo" autoplay playsinline style="width:48%;background:#000;border:1px solid #294364;border-radius:10px"></video>
+      <video id="localVideo" autoplay playsinline muted></video>
+      <video id="remoteVideo" autoplay playsinline></video>
     </div>
   </div>
 
   <div class="card">
     <div class="row">
-      <input id="name" placeholder="Device label (A or B)" value="A">
-      <input id="statusInput" placeholder="camera:OK mic:OK hear:YES see:YES notes:...">
-      <button id="sendStatus">Send Status</button>
-      <button id="exportLog">Export Logs</button>
-      <button id="clearLog">Clear</button>
+      <input id="chatInput" placeholder="Type a message..." style="flex:1;min-width:260px">
+      <button id="chatSend">Send</button>
     </div>
-    <textarea id="statusBoard" readonly placeholder="Status messages appear here..."></textarea>
-    <div class="row" style="margin-top:8px">
-      <input id="chatInput" placeholder="Type a chat message..." style="flex:1;min-width:260px">
-      <button id="chatSend">Send Chat</button>
-    </div>
-    <textarea id="chatLog" readonly placeholder="Chat messages appear here..."></textarea>
+    <textarea id="chatLog" readonly placeholder="Chat transcript"></textarea>
   </div>
 
-  <div class="card"><div id="log"></div></div>
+  <div class="card">
+    <details>
+      <summary>Advanced</summary>
+      <div class="row" style="margin-top:8px">
+        <label>Relay <input id="relay" value="wss://talk-signal.myacctfortracking.workers.dev/signal"></label>
+        <label>App <input id="app" value="talk-say-v1"></label>
+        <label>Room <input id="room"></label>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <span class="pill">role: <span id="role">host</span></span>
+        <span class="pill">clientId: <span id="clientId"></span></span>
+        <span class="pill">peerId: <span id="peerId">-</span></span>
+        <span class="pill">ws: <span id="ws">idle</span></span>
+        <span class="pill">pc: <span id="pc">idle</span></span>
+        <span class="pill">ice: <span id="ice">idle</span></span>
+        <span class="pill">dc: <span id="dc">idle</span></span>
+      </div>
+      <div id="log" style="margin-top:8px"></div>
+    </details>
+  </div>
 
 <script>
 (() => {
-  const $ = (id)=>document.getElementById(id);
+  const $ = (id) => document.getElementById(id);
   const S = {
     id: sessionStorage.getItem('diag_client_id') || crypto.randomUUID(),
     role: 'host',
-    peerId: null, ws: null, pc: null, dc: null, room: null, seq: 0,
-    localStream: null, remoteStream: null, makingOffer: false,
-    ignoreOffer: false, pendingAnswer: false, needsNegotiation: false,
-    wsGen: 0, reconnectAttempts: 0, reconnectTimer: null,
-    pendingCandidates: [], isInitiator: true
+    isInitiator: true,
+    room: '',
+    peerId: null,
+    ws: null,
+    wsGen: 0,
+    pc: null,
+    dc: null,
+    localStream: null,
+    remoteStream: null,
+    pendingCandidates: [],
+    seq: 0,
+    makingOffer: false,
+    needsInitialOffer: false,
   };
   sessionStorage.setItem('diag_client_id', S.id);
   $('clientId').textContent = S.id;
 
   const logEl = $('log');
-  const board = $('statusBoard');
   const chatLog = $('chatLog');
 
-  function t(){return new Date().toISOString().slice(11,23)}
-  function line(level, event, obj){
+  function log(level, event, data){
     const div = document.createElement('div');
-    div.className = level==='ok'?'ok':level==='warn'?'warn':level==='err'?'err':'';
-    div.textContent = `[${t()}] ${event} ${obj?JSON.stringify(obj):''}`;
-    logEl.appendChild(div); logEl.scrollTop = logEl.scrollHeight;
-    console.log(div.textContent);
+    div.style.color = level === 'err' ? 'var(--bad)' : level === 'warn' ? 'var(--warn)' : 'var(--ok)';
+    div.textContent = `[${new Date().toISOString().slice(11,23)}] ${event} ${data ? JSON.stringify(data) : ''}`;
+    logEl.appendChild(div);
+    logEl.scrollTop = logEl.scrollHeight;
   }
 
   function refresh(){
+    $('role').textContent = S.role;
     $('peerId').textContent = S.peerId || '-';
-    $('ws').textContent = S.ws?['CONNECTING','OPEN','CLOSING','CLOSED'][S.ws.readyState]:'idle';
-    $('pc').textContent = S.pc?S.pc.connectionState:'idle';
-    $('ice').textContent = S.pc?S.pc.iceConnectionState:'idle';
-    $('dc').textContent = S.dc?S.dc.readyState:'idle';
+    $('ws').textContent = S.ws ? ['CONNECTING','OPEN','CLOSING','CLOSED'][S.ws.readyState] : 'idle';
+    $('pc').textContent = S.pc ? S.pc.connectionState : 'idle';
+    $('ice').textContent = S.pc ? S.pc.iceConnectionState : 'idle';
+    $('dc').textContent = S.dc ? S.dc.readyState : 'idle';
   }
-
-  function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 
   function inviteLink(room){
     const base = location.href.split('?')[0].split('#')[0];
-    return `${base}?room=${encodeURIComponent(room)}&auto=1&role=joiner`;
+    return `${base}?room=${encodeURIComponent(room)}&role=joiner&auto=1`;
   }
 
   function sendRelay(msg){
-    if(!S.ws || S.ws.readyState!==1){ line('warn','relay_send_skip',{type:msg.type}); return; }
-    msg.session = S.room; msg.from = S.id; msg.seq = ++S.seq; msg.ts = Date.now();
-    S.ws.send(JSON.stringify(msg));
+    if(!S.ws || S.ws.readyState !== WebSocket.OPEN) return;
+    S.ws.send(JSON.stringify({...msg, session:S.room, from:S.id, seq:++S.seq, ts:Date.now()}));
   }
 
-  function autoStatus(tag, text){
-    appendStatus(`${tag} | ${text}`, 'system');
+  function appendChat(sender, text){
+    const line = `${new Date().toLocaleTimeString()} | ${sender}: ${text}`;
+    chatLog.value = chatLog.value ? `${chatLog.value}\n${line}` : line;
   }
 
-  function ensureLocalTracksAttached(){
-    if(!S.pc || !S.localStream) return;
-    const existing = new Set(S.pc.getSenders().map(s => s.track && s.track.id).filter(Boolean));
-    let added = false;
-    S.localStream.getTracks().forEach((t)=>{
-      if(existing.has(t.id)) return;
-      S.pc.addTrack(t, S.localStream);
-      added = true;
-      line('ok','track_attached',{kind:t.kind,trackId:t.id});
-    });
-    if(added && S.pc.signalingState === 'stable'){
-      S.pc.dispatchEvent(new Event('negotiationneeded'));
-      line('ok','renegotiate_triggered',{});
+  function flushIceQueue(){
+    if(!S.pc || !S.pc.remoteDescription) return;
+    while(S.pendingCandidates.length){
+      const candidate = S.pendingCandidates.shift();
+      S.pc.addIceCandidate(candidate).catch((err)=>log('err','ice_add_error',{err:String(err)}));
     }
   }
 
-  function appendChat(name, text, side){
-    const lineTxt = `${new Date().toLocaleTimeString()} | ${name}: ${text}`;
-    chatLog.value = chatLog.value ? `${chatLog.value}\n${lineTxt}` : lineTxt;
-    line('ok', side === 'local' ? 'chat_local_append' : 'chat_remote_append', {name});
-  }
-
-  function sendChat(){
-    const name = ($('name').value || 'device').trim();
-    const text = ($('chatInput').value || '').trim();
-    if(!text) return;
-    appendChat(name, text, 'local');
-    if(S.dc && S.dc.readyState==='open'){
-      S.dc.send(`CHAT|${name}|${text}`);
-      line('ok','chat_sent',{name});
-    } else {
-      line('warn','chat_send_skip_dc_not_open',{});
-    }
-    $('chatInput').value = '';
-  }
-
-  function resetPeer(reason){
-    line('warn','peer_reset',{reason});
+  function teardownPeer(){
     S.pendingCandidates = [];
-    S.makingOffer = false;
-    S.pendingAnswer = false;
-    S.needsNegotiation = false;
-    S.ignoreOffer = false;
-    if(S.dc){
-      try{ S.dc.close(); }catch{}
-      S.dc = null;
-    }
+    if(S.dc){ try{ S.dc.close(); }catch{} S.dc = null; }
     if(S.pc){
       S.pc.onicecandidate = null;
-      S.pc.onnegotiationneeded = null;
+      S.pc.ondatachannel = null;
       S.pc.ontrack = null;
+      S.pc.onnegotiationneeded = null;
       try{ S.pc.close(); }catch{}
       S.pc = null;
     }
-    S.remoteStream = null;
+    if(S.remoteStream){
+      S.remoteStream.getTracks().forEach((t)=>t.stop());
+      S.remoteStream = null;
+    }
     $('remoteVideo').srcObject = null;
+  }
+
+  function stopLocalMedia(){
+    if(!S.localStream) return;
+    S.localStream.getTracks().forEach((t)=>t.stop());
+    S.localStream = null;
+    $('localVideo').srcObject = null;
+  }
+
+  function closeRelay(){
+    S.wsGen += 1;
+    if(S.ws){ try{ S.ws.close(); }catch{} S.ws = null; }
+  }
+
+  function endConversation(reason='local_end', notify=true){
+    if(notify) sendRelay({type:'end', reason});
+    teardownPeer();
+    stopLocalMedia();
+    closeRelay();
+    S.peerId = null;
+    S.makingOffer = false;
+    refresh();
+    log('warn','conversation_ended',{reason});
+  }
+
+  async function getLocalMedia(){
+    if(S.localStream) return;
+    S.localStream = await navigator.mediaDevices.getUserMedia({audio:true,video:true});
+    $('localVideo').srcObject = S.localStream;
+    log('ok','media_ready',{tracks:S.localStream.getTracks().map(t=>t.kind)});
+  }
+
+  function bindDataChannel(dc){
+    S.dc = dc;
+    dc.onopen = ()=>{ refresh(); log('ok','dc_open'); };
+    dc.onclose = ()=>{ refresh(); log('warn','dc_close'); };
+    dc.onmessage = (e)=>{
+      const raw = String(e.data || '');
+      if(raw.startsWith('CHAT|')){
+        const parts = raw.split('|');
+        appendChat(parts[1] || 'peer', parts.slice(2).join('|'));
+      }
+    };
     refresh();
   }
 
-  function connectRelay(){
-    const nextRoom = $('room').value.trim();
-    const prevRoom = S.room;
-    S.room = nextRoom;
-    const relay = $('relay').value.trim();
-    const app = $('app').value.trim() || 'talk-say-v1';
-    if(!relay || !S.room){ line('err','missing_relay_or_room',{}); return; }
-    if(prevRoom && prevRoom !== S.room) resetPeer('room_changed');
-
-    if(S.ws){ try{S.ws.close();}catch{} }
-    const gen = ++S.wsGen;
-    if(S.reconnectTimer){ clearTimeout(S.reconnectTimer); S.reconnectTimer = null; }
-    const url = `${relay}?app=${encodeURIComponent(app)}&session=${encodeURIComponent(S.room)}&client=${encodeURIComponent(S.id)}`;
-    line('ok','relay_connect_start',{url});
-    S.ws = new WebSocket(url); refresh();
-
-    S.ws.onopen = ()=>{
-      line('ok','relay_open',{room:S.room});
-      autoStatus('relay_open', `role=${S.role} room=${S.room}`);
-      refresh();
-      sendRelay({type:'hello'});
-      ensurePc();
-      enableMedia();
-    };
-    S.ws.onclose = (e)=>{ line('warn','relay_close',{code:e.code,reason:e.reason}); refresh(); };
-    S.ws.onerror = ()=>{ line('err','relay_error',{}); refresh(); };
-    S.ws.onmessage = async (e)=>{
-      if(gen !== S.wsGen) return;
-      let d; try{ d = JSON.parse(e.data);}catch{return;}
-      if(!d) return;
-      if(d.from===S.id){ line('warn','self_or_echo',{type:d.type}); return; }
-      if(d.from && d.from!==S.peerId){ S.peerId = d.from; refresh(); line('ok','peer_seen',{peerId:S.peerId}); }
-
-      if(d.type==='hello'){ line('ok','hello_rx',{from:d.from}); return; }
-      if(d.type==='status'){ appendStatus(d.text, d.from); return; }
-      if(d.type==='webrtc'){ await onSignal(d.signal,d.from); return; }
-    };
-  }
-
-  async function enableMedia(){
-    try{
-      if(S.localStream) return line('warn','media_already_on',{});
-      S.localStream = await navigator.mediaDevices.getUserMedia({audio:true,video:true});
-      $('localVideo').srcObject = S.localStream;
-      line('ok','media_ready',{tracks:S.localStream.getTracks().map(t=>t.kind)});
-      line('ok','local_preview_attached',{});
-      autoStatus('media_ok', S.localStream.getTracks().map(t=>t.kind).join(','));
-      ensureLocalTracksAttached();
-    }catch(err){
-      line('err','media_error',{err:String(err)});
-      autoStatus('media_error', String(err));
-    }
-  }
-
-  function bindDc(dc){
-    S.dc = dc; refresh();
-    dc.onopen = ()=>{ line('ok','dc_open',{}); autoStatus('dc_open','ready'); refresh(); };
-    dc.onclose = ()=>{ line('warn','dc_close',{}); refresh(); };
-    dc.onmessage = (e)=>{
-      const raw = String(e.data);
-      if(raw.startsWith('STATUS|')){
-        appendStatus(raw.slice(7), S.peerId || 'peer');
-      } else if(raw.startsWith('CHAT|')){
-        const parts = raw.split('|');
-        const sender = parts[1] || S.peerId || 'peer';
-        const msg = parts.slice(2).join('|');
-        appendChat(sender, msg, 'remote');
-        line('ok','chat_rx',{sender});
-      }
-      line('ok','dc_msg_rx',{kind:raw.split('|')[0] || 'unknown'});
-    };
-  }
-
-  async function tryNegotiation(pc){
-    if(!pc || pc !== S.pc) return;
-    if(!S.isInitiator){
-      line('warn','offer_suppressed_non_initiator',{role:S.role});
-      return;
-    }
-    if(pc.signalingState !== 'stable'){
-      S.needsNegotiation = true;
-      line('warn','offer_deferred_not_stable',{state:pc.signalingState});
-      return;
-    }
-    try{
-      S.makingOffer = true;
-      S.needsNegotiation = false;
-      await pc.setLocalDescription(await pc.createOffer());
-      sendRelay({type:'webrtc',signal:{description:pc.localDescription}});
-      line('ok','offer_sent',{initiator:S.isInitiator});
-    }catch(err){
-      line('err','offer_error',{err:String(err)});
-    }finally{
-      S.makingOffer = false;
-    }
-  }
-
-  function ensurePc(){
+  function ensurePeerConnection(){
     if(S.pc) return S.pc;
     const pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-    S.pc = pc; refresh();
+    S.pc = pc;
 
-    if(S.localStream){ ensureLocalTracksAttached(); }
-    if(!Array.isArray(S.pendingCandidates)) S.pendingCandidates = [];
+    if(S.localStream){
+      S.localStream.getTracks().forEach((track)=>pc.addTrack(track, S.localStream));
+    }
 
-    pc.onicecandidate = (e)=>{ if(e.candidate) sendRelay({type:'webrtc',signal:{candidate:e.candidate}}); };
-    pc.onconnectionstatechange = ()=>{
-      line('ok','pc_state',{state:pc.connectionState});
-      if(pc.connectionState === 'connected') autoStatus('pc_connected','ok');
-      refresh();
-    };
-    pc.oniceconnectionstatechange = ()=>{ line('ok','ice_state',{state:pc.iceConnectionState}); refresh(); };
-    pc.ondatachannel = (ev)=> bindDc(ev.channel);
-    pc.ontrack = (ev)=>{
+    pc.onicecandidate = (e)=>{ if(e.candidate) sendRelay({type:'webrtc', signal:{candidate:e.candidate}}); };
+    pc.onconnectionstatechange = ()=>refresh();
+    pc.oniceconnectionstatechange = ()=>refresh();
+    pc.ontrack = (e)=>{
       if(!S.remoteStream) S.remoteStream = new MediaStream();
-      ev.streams.forEach((stream)=>{
-        stream.getTracks().forEach((track)=>{
-          if(!S.remoteStream.getTracks().some(t => t.id === track.id)) S.remoteStream.addTrack(track);
-        });
-      });
-      if(ev.track && !S.remoteStream.getTracks().some(t => t.id === ev.track.id)) S.remoteStream.addTrack(ev.track);
+      if(e.track && !S.remoteStream.getTracks().some((t)=>t.id === e.track.id)) S.remoteStream.addTrack(e.track);
       $('remoteVideo').srcObject = S.remoteStream;
-      line('ok','remote_track_rx',{kind:ev.track?.kind || 'unknown'});
+      log('ok','remote_track',{kind:e.track?.kind || 'unknown'});
     };
 
-    if(S.isInitiator) bindDc(pc.createDataChannel('diag-status'));
+    pc.ondatachannel = (e)=>bindDataChannel(e.channel);
 
-    pc.onnegotiationneeded = ()=>{ tryNegotiation(pc); };
+    if(S.isInitiator){
+      bindDataChannel(pc.createDataChannel('chat'));
+      pc.onnegotiationneeded = async () => {
+        if(!S.isInitiator || !S.pc || S.makingOffer || pc.signalingState !== 'stable') return;
+        try{
+          S.makingOffer = true;
+          await pc.setLocalDescription(await pc.createOffer());
+          sendRelay({type:'webrtc', signal:{description:pc.localDescription}});
+          log('ok','offer_sent');
+        }catch(err){
+          log('err','offer_error',{err:String(err)});
+        }finally{
+          S.makingOffer = false;
+        }
+      };
+    }
 
+    refresh();
     return pc;
   }
 
   async function onSignal(signal, from){
-    const pc = ensurePc();
+    const pc = ensurePeerConnection();
     try{
       if(signal.description){
         const desc = signal.description;
-        const polite = S.id > from;
-        const ready = !S.makingOffer && (pc.signalingState === 'stable' || S.pendingAnswer);
-        const collision = desc.type === 'offer' && !ready;
-        S.ignoreOffer = !polite && collision;
-        if(S.ignoreOffer) return;
-
-        S.pendingAnswer = desc.type === 'answer';
+        if(desc.type === 'offer' && S.isInitiator){
+          log('warn','ignore_offer_initiator');
+          return;
+        }
+        if(desc.type === 'answer' && !S.isInitiator){
+          log('warn','ignore_answer_joiner');
+          return;
+        }
         await pc.setRemoteDescription(desc);
-        S.pendingAnswer = false;
-        line('ok','remote_description_set',{type:desc.type});
-        while(S.pendingCandidates.length){
-          const queued = S.pendingCandidates.shift();
-          await pc.addIceCandidate(queued);
-          line('ok','ice_queued_drain',{remaining:S.pendingCandidates.length});
-        }
-        if(S.needsNegotiation && pc.signalingState === 'stable'){
-          queueMicrotask(()=>tryNegotiation(pc));
-        }
-
-        if(desc.type==='offer'){
+        flushIceQueue();
+        if(desc.type === 'offer'){
           await pc.setLocalDescription(await pc.createAnswer());
-          sendRelay({type:'webrtc',signal:{description:pc.localDescription}});
-          line('ok','answer_sent',{});
+          sendRelay({type:'webrtc', signal:{description:pc.localDescription}});
+          log('ok','answer_sent',{from});
         }
-      } else if(signal.candidate){
-        if(!Array.isArray(S.pendingCandidates)) S.pendingCandidates = [];
+      }
+      if(signal.candidate){
         if(!pc.remoteDescription){
           S.pendingCandidates.push(signal.candidate);
-          line('warn','ice_queued',{count:S.pendingCandidates.length});
+          log('warn','ice_queued',{count:S.pendingCandidates.length});
           return;
         }
         await pc.addIceCandidate(signal.candidate);
       }
     }catch(err){
-      S.pendingAnswer = false;
-      line('err','signal_error',{err:String(err)});
+      log('err','signal_error',{err:String(err)});
     }
   }
 
-  function appendStatus(text, from){
-    const lineTxt = `${new Date().toLocaleTimeString()} | ${from}: ${text}`;
-    board.value = board.value ? `${board.value}\n${lineTxt}` : lineTxt;
+  function connectRelay(){
+    const relay = $('relay').value.trim();
+    const app = $('app').value.trim() || 'talk-say-v1';
+    if(!relay || !S.room) throw new Error('Missing relay or room');
+    const gen = ++S.wsGen;
+    const url = `${relay}?app=${encodeURIComponent(app)}&session=${encodeURIComponent(S.room)}&client=${encodeURIComponent(S.id)}`;
+    S.ws = new WebSocket(url);
+    refresh();
+
+    S.ws.onopen = () => {
+      if(gen !== S.wsGen) return;
+      sendRelay({type:'hello'});
+      refresh();
+      log('ok','relay_open',{room:S.room});
+      if(S.isInitiator && S.needsInitialOffer && S.pc && S.pc.signalingState === 'stable'){
+        (async () => {
+          try{
+            await S.pc.setLocalDescription(await S.pc.createOffer());
+            sendRelay({type:'webrtc', signal:{description:S.pc.localDescription}});
+            S.needsInitialOffer = false;
+            log('ok','initial_offer_sent');
+          }catch(err){
+            log('err','initial_offer_error',{err:String(err)});
+          }
+        })();
+      }
+    };
+    S.ws.onclose = () => { if(gen === S.wsGen){ refresh(); log('warn','relay_closed'); } };
+    S.ws.onerror = () => { if(gen === S.wsGen) log('err','relay_error'); };
+    S.ws.onmessage = async (e) => {
+      if(gen !== S.wsGen) return;
+      let data;
+      try{ data = JSON.parse(e.data); }catch{return;}
+      if(!data || data.from === S.id) return;
+      S.peerId = data.from || S.peerId;
+      refresh();
+
+      if(data.type === 'webrtc' && data.signal) await onSignal(data.signal, data.from);
+      if(data.type === 'end'){
+        log('warn','remote_end',{reason:data.reason || 'remote_end'});
+        endConversation('remote_end', false);
+      }
+    };
   }
 
-  // Buttons
-  $('hostStart').onclick = ()=>{
-    if(S.role !== 'host'){
-      S.role = 'host';
-      $('name').value = 'A';
+  function resetSessionIfChanged(nextRole, nextRoom){
+    if(S.role !== nextRole || S.room !== nextRoom){
+      endConversation('session_change', false);
+      S.role = nextRole;
+      S.isInitiator = nextRole === 'host';
+      S.room = nextRoom;
     }
-    S.isInitiator = true;
-    resetPeer('host_start');
-    $('room').value = uid();
-    const link = inviteLink($('room').value);
+    $('room').value = S.room;
+    $('role').textContent = S.role;
+  }
+
+  async function startConversation(){
+    try{
+      await getLocalMedia();
+      ensurePeerConnection();
+      connectRelay();
+      S.needsInitialOffer = S.isInitiator;
+      refresh();
+    }catch(err){
+      log('err','start_error',{err:String(err)});
+      endConversation('start_error', false);
+    }
+  }
+
+  function makeRoomId(){
+    return `${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
+  }
+
+  $('startBtn').onclick = async () => {
+    const room = makeRoomId();
+    resetSessionIfChanged('host', room);
+    const link = inviteLink(room);
     $('invite').textContent = link;
-    connectRelay();
-    line('ok','host_started',{room:$('room').value});
+    history.replaceState(null, '', `?room=${encodeURIComponent(room)}&role=host`);
+    await startConversation();
   };
 
-  $('copyInvite').onclick = async ()=>{
-    const txt = $('invite').textContent;
-    if(!txt || txt==='-') return line('warn','no_invite_yet',{});
-    try{ await navigator.clipboard.writeText(txt); line('ok','invite_copied',{});}catch(err){line('err','copy_failed',{err:String(err)})}
+  $('copyBtn').onclick = async () => {
+    const link = $('invite').textContent;
+    if(!link || link === '-') return;
+    try{ await navigator.clipboard.writeText(link); log('ok','invite_copied'); }
+    catch(err){ log('err','copy_error',{err:String(err)}); }
   };
 
-  $('mediaBtn').onclick = enableMedia;
+  $('endBtn').onclick = ()=>endConversation('manual_end', true);
 
-  $('sendStatus').onclick = ()=>{
-    const name = ($('name').value || 'device').trim();
-    const text = ($('statusInput').value || '').trim();
+  function sendChat(){
+    const text = $('chatInput').value.trim();
     if(!text) return;
-    const full = `${name} | ${text}`;
-    appendStatus(full, 'me');
-    if(S.dc && S.dc.readyState==='open') S.dc.send(`STATUS|${full}`);
-    sendRelay({type:'status',text:full});
-    line('ok','status_sent',{});
-    $('statusInput').value='';
-  };
+    appendChat('me', text);
+    const sender = S.role === 'host' ? 'Host' : 'Joiner';
+    if(S.dc && S.dc.readyState === 'open') S.dc.send(`CHAT|${sender}|${text}`);
+    $('chatInput').value = '';
+  }
+
   $('chatSend').onclick = sendChat;
-  $('chatInput').addEventListener('keydown', (ev)=>{
-    if(ev.key === 'Enter'){
-      ev.preventDefault();
-      sendChat();
-    }
+  $('chatInput').addEventListener('keydown',(ev)=>{
+    if(ev.key === 'Enter'){ ev.preventDefault(); sendChat(); }
   });
 
-  $('exportLog').onclick = ()=>{
-    const lines = Array.from(logEl.children).map(n=>n.textContent);
-    const payload = [
-      `role=${S.role}`,
-      `clientId=${S.id}`,
-      `peerId=${S.peerId || '-'}`,
-      `room=${$('room').value || '-'}`,
-      `ws=${S.ws?['CONNECTING','OPEN','CLOSING','CLOSED'][S.ws.readyState]:'idle'}`,
-      `pc=${S.pc?S.pc.connectionState:'idle'}`,
-      `ice=${S.pc?S.pc.iceConnectionState:'idle'}`,
-      `dc=${S.dc?S.dc.readyState:'idle'}`,
-      `isInitiator=${S.isInitiator}`,
-      `pendingCandidates=${Array.isArray(S.pendingCandidates)?S.pendingCandidates.length:0}`,
-      `--- STATUS BOARD ---`,
-      board.value || '(none)',
-      `--- CHAT LOG ---`,
-      chatLog.value || '(none)',
-      `--- EVENT LOG ---`,
-      ...lines
-    ].join('\n');
-
-    const blob = new Blob([payload], {type:'text/plain'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `diag-${Date.now()}.log.txt`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(a.href), 800);
-    line('ok','log_exported',{});
-  };
-
-  $('clearLog').onclick = ()=>{ logEl.innerHTML=''; board.value=''; chatLog.value=''; };
-
-  // Query param prefill + optional auto join
   const q = new URLSearchParams(location.search);
-  S.role = q.get('role') === 'joiner' ? 'joiner' : 'host';
-  S.isInitiator = S.role !== 'joiner';
-  if(q.get('room')) $('room').value = q.get('room');
-  if(S.role==='joiner' && q.get('room')){
-    $('name').value = 'B';
-    resetPeer('joiner_auto_join');
-    line('ok','auto_join_from_link',{});
-    connectRelay();
-  } else {
-    $('name').value = 'A';
+  const role = q.get('role') === 'joiner' ? 'joiner' : 'host';
+  const room = q.get('room') || '';
+  resetSessionIfChanged(role, room);
+
+  if(role === 'joiner' && room){
+    $('modeHint').textContent = 'Joined from invite link. Connecting automatically...';
+    $('startBtn').disabled = true;
+    $('copyBtn').disabled = true;
+    $('invite').textContent = location.href;
+    startConversation();
   }
 
   refresh();
-  line('ok','diag_ready',{clientId:S.id});
+  log('ok','ready',{role:S.role, room:S.room || '-'});
 })();
 </script>
 </body>
