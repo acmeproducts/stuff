@@ -59,6 +59,13 @@
 
   <div class="card">
     <div class="row">
+      <video id="localVideo" autoplay playsinline muted style="width:48%;background:#000;border:1px solid #294364;border-radius:10px"></video>
+      <video id="remoteVideo" autoplay playsinline style="width:48%;background:#000;border:1px solid #294364;border-radius:10px"></video>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
       <input id="name" placeholder="Device label (A or B)" value="A">
       <input id="statusInput" placeholder="camera:OK mic:OK hear:YES see:YES notes:...">
       <button id="sendStatus">Send Status</button>
@@ -66,6 +73,11 @@
       <button id="clearLog">Clear</button>
     </div>
     <textarea id="statusBoard" readonly placeholder="Status messages appear here..."></textarea>
+    <div class="row" style="margin-top:8px">
+      <input id="chatInput" placeholder="Type a chat message..." style="flex:1;min-width:260px">
+      <button id="chatSend">Send Chat</button>
+    </div>
+    <textarea id="chatLog" readonly placeholder="Chat messages appear here..."></textarea>
   </div>
 
   <div class="card"><div id="log"></div></div>
@@ -79,13 +91,15 @@
     peerId: null, ws: null, pc: null, dc: null, room: null, seq: 0,
     localStream: null, remoteStream: null, makingOffer: false,
     ignoreOffer: false, pendingAnswer: false, needsNegotiation: false,
-    wsGen: 0, reconnectAttempts: 0, reconnectTimer: null
+    wsGen: 0, reconnectAttempts: 0, reconnectTimer: null,
+    pendingCandidates: [], isInitiator: true
   };
   sessionStorage.setItem('diag_client_id', S.id);
   $('clientId').textContent = S.id;
 
   const logEl = $('log');
   const board = $('statusBoard');
+  const chatLog = $('chatLog');
 
   function t(){return new Date().toISOString().slice(11,23)}
   function line(level, event, obj){
@@ -137,6 +151,49 @@
     }
   }
 
+  function appendChat(name, text, side){
+    const lineTxt = `${new Date().toLocaleTimeString()} | ${name}: ${text}`;
+    chatLog.value = chatLog.value ? `${chatLog.value}\n${lineTxt}` : lineTxt;
+    line('ok', side === 'local' ? 'chat_local_append' : 'chat_remote_append', {name});
+  }
+
+  function sendChat(){
+    const name = ($('name').value || 'device').trim();
+    const text = ($('chatInput').value || '').trim();
+    if(!text) return;
+    appendChat(name, text, 'local');
+    if(S.dc && S.dc.readyState==='open'){
+      S.dc.send(`CHAT|${name}|${text}`);
+      line('ok','chat_sent',{name});
+    } else {
+      line('warn','chat_send_skip_dc_not_open',{});
+    }
+    $('chatInput').value = '';
+  }
+
+  function resetPeer(reason){
+    line('warn','peer_reset',{reason});
+    S.pendingCandidates = [];
+    S.makingOffer = false;
+    S.pendingAnswer = false;
+    S.needsNegotiation = false;
+    S.ignoreOffer = false;
+    if(S.dc){
+      try{ S.dc.close(); }catch{}
+      S.dc = null;
+    }
+    if(S.pc){
+      S.pc.onicecandidate = null;
+      S.pc.onnegotiationneeded = null;
+      S.pc.ontrack = null;
+      try{ S.pc.close(); }catch{}
+      S.pc = null;
+    }
+    S.remoteStream = null;
+    $('remoteVideo').srcObject = null;
+    refresh();
+  }
+
   function connectRelay(){
     const nextRoom = $('room').value.trim();
     const prevRoom = S.room;
@@ -180,7 +237,9 @@
     try{
       if(S.localStream) return line('warn','media_already_on',{});
       S.localStream = await navigator.mediaDevices.getUserMedia({audio:true,video:true});
+      $('localVideo').srcObject = S.localStream;
       line('ok','media_ready',{tracks:S.localStream.getTracks().map(t=>t.kind)});
+      line('ok','local_preview_attached',{});
       autoStatus('media_ok', S.localStream.getTracks().map(t=>t.kind).join(','));
       ensureLocalTracksAttached();
     }catch(err){
@@ -194,9 +253,42 @@
     dc.onopen = ()=>{ line('ok','dc_open',{}); autoStatus('dc_open','ready'); refresh(); };
     dc.onclose = ()=>{ line('warn','dc_close',{}); refresh(); };
     dc.onmessage = (e)=>{
-      if(String(e.data).startsWith('STATUS|')) appendStatus(String(e.data).slice(7), S.peerId || 'peer');
-      line('ok','dc_msg_rx',{});
+      const raw = String(e.data);
+      if(raw.startsWith('STATUS|')){
+        appendStatus(raw.slice(7), S.peerId || 'peer');
+      } else if(raw.startsWith('CHAT|')){
+        const parts = raw.split('|');
+        const sender = parts[1] || S.peerId || 'peer';
+        const msg = parts.slice(2).join('|');
+        appendChat(sender, msg, 'remote');
+        line('ok','chat_rx',{sender});
+      }
+      line('ok','dc_msg_rx',{kind:raw.split('|')[0] || 'unknown'});
     };
+  }
+
+  async function tryNegotiation(pc){
+    if(!pc || pc !== S.pc) return;
+    if(!S.isInitiator){
+      line('warn','offer_suppressed_non_initiator',{role:S.role});
+      return;
+    }
+    if(pc.signalingState !== 'stable'){
+      S.needsNegotiation = true;
+      line('warn','offer_deferred_not_stable',{state:pc.signalingState});
+      return;
+    }
+    try{
+      S.makingOffer = true;
+      S.needsNegotiation = false;
+      await pc.setLocalDescription(await pc.createOffer());
+      sendRelay({type:'webrtc',signal:{description:pc.localDescription}});
+      line('ok','offer_sent',{initiator:S.isInitiator});
+    }catch(err){
+      line('err','offer_error',{err:String(err)});
+    }finally{
+      S.makingOffer = false;
+    }
   }
 
   function ensurePc(){
@@ -205,6 +297,7 @@
     S.pc = pc; refresh();
 
     if(S.localStream){ ensureLocalTracksAttached(); }
+    if(!Array.isArray(S.pendingCandidates)) S.pendingCandidates = [];
 
     pc.onicecandidate = (e)=>{ if(e.candidate) sendRelay({type:'webrtc',signal:{candidate:e.candidate}}); };
     pc.onconnectionstatechange = ()=>{
@@ -214,18 +307,21 @@
     };
     pc.oniceconnectionstatechange = ()=>{ line('ok','ice_state',{state:pc.iceConnectionState}); refresh(); };
     pc.ondatachannel = (ev)=> bindDc(ev.channel);
-
-    if(S.role !== 'joiner') bindDc(pc.createDataChannel('diag-status'));
-
-    pc.onnegotiationneeded = async ()=>{
-      try{
-        S.makingOffer = true;
-        await pc.setLocalDescription(await pc.createOffer());
-        sendRelay({type:'webrtc',signal:{description:pc.localDescription}});
-        line('ok','offer_sent',{});
-      }catch(err){ line('err','offer_error',{err:String(err)}); }
-      finally{ S.makingOffer = false; }
+    pc.ontrack = (ev)=>{
+      if(!S.remoteStream) S.remoteStream = new MediaStream();
+      ev.streams.forEach((stream)=>{
+        stream.getTracks().forEach((track)=>{
+          if(!S.remoteStream.getTracks().some(t => t.id === track.id)) S.remoteStream.addTrack(track);
+        });
+      });
+      if(ev.track && !S.remoteStream.getTracks().some(t => t.id === ev.track.id)) S.remoteStream.addTrack(ev.track);
+      $('remoteVideo').srcObject = S.remoteStream;
+      line('ok','remote_track_rx',{kind:ev.track?.kind || 'unknown'});
     };
+
+    if(S.isInitiator) bindDc(pc.createDataChannel('diag-status'));
+
+    pc.onnegotiationneeded = ()=>{ tryNegotiation(pc); };
 
     return pc;
   }
@@ -244,6 +340,12 @@
         S.pendingAnswer = desc.type === 'answer';
         await pc.setRemoteDescription(desc);
         S.pendingAnswer = false;
+        line('ok','remote_description_set',{type:desc.type});
+        while(S.pendingCandidates.length){
+          const queued = S.pendingCandidates.shift();
+          await pc.addIceCandidate(queued);
+          line('ok','ice_queued_drain',{remaining:S.pendingCandidates.length});
+        }
         if(S.needsNegotiation && pc.signalingState === 'stable'){
           queueMicrotask(()=>tryNegotiation(pc));
         }
@@ -254,6 +356,7 @@
           line('ok','answer_sent',{});
         }
       } else if(signal.candidate){
+        if(!Array.isArray(S.pendingCandidates)) S.pendingCandidates = [];
         if(!pc.remoteDescription){
           S.pendingCandidates.push(signal.candidate);
           line('warn','ice_queued',{count:S.pendingCandidates.length});
@@ -278,6 +381,8 @@
       S.role = 'host';
       $('name').value = 'A';
     }
+    S.isInitiator = true;
+    resetPeer('host_start');
     $('room').value = uid();
     const link = inviteLink($('room').value);
     $('invite').textContent = link;
@@ -304,6 +409,13 @@
     line('ok','status_sent',{});
     $('statusInput').value='';
   };
+  $('chatSend').onclick = sendChat;
+  $('chatInput').addEventListener('keydown', (ev)=>{
+    if(ev.key === 'Enter'){
+      ev.preventDefault();
+      sendChat();
+    }
+  });
 
   $('exportLog').onclick = ()=>{
     const lines = Array.from(logEl.children).map(n=>n.textContent);
@@ -316,8 +428,12 @@
       `pc=${S.pc?S.pc.connectionState:'idle'}`,
       `ice=${S.pc?S.pc.iceConnectionState:'idle'}`,
       `dc=${S.dc?S.dc.readyState:'idle'}`,
+      `isInitiator=${S.isInitiator}`,
+      `pendingCandidates=${Array.isArray(S.pendingCandidates)?S.pendingCandidates.length:0}`,
       `--- STATUS BOARD ---`,
       board.value || '(none)',
+      `--- CHAT LOG ---`,
+      chatLog.value || '(none)',
       `--- EVENT LOG ---`,
       ...lines
     ].join('\n');
@@ -331,14 +447,16 @@
     line('ok','log_exported',{});
   };
 
-  $('clearLog').onclick = ()=>{ logEl.innerHTML=''; board.value=''; };
+  $('clearLog').onclick = ()=>{ logEl.innerHTML=''; board.value=''; chatLog.value=''; };
 
   // Query param prefill + optional auto join
   const q = new URLSearchParams(location.search);
   S.role = q.get('role') === 'joiner' ? 'joiner' : 'host';
+  S.isInitiator = S.role !== 'joiner';
   if(q.get('room')) $('room').value = q.get('room');
   if(S.role==='joiner' && q.get('room')){
     $('name').value = 'B';
+    resetPeer('joiner_auto_join');
     line('ok','auto_join_from_link',{});
     connectRelay();
   } else {
