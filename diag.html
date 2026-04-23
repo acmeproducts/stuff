@@ -79,8 +79,7 @@
     peerId: null, ws: null, pc: null, dc: null, room: null, seq: 0,
     localStream: null, remoteStream: null, makingOffer: false,
     ignoreOffer: false, pendingAnswer: false, needsNegotiation: false,
-    wsGen: 0, reconnectAttempts: 0, reconnectTimer: null,
-    pendingCandidates: []
+    wsGen: 0, reconnectAttempts: 0, reconnectTimer: null
   };
   sessionStorage.setItem('diag_client_id', S.id);
   $('clientId').textContent = S.id;
@@ -122,44 +121,6 @@
     appendStatus(`${tag} | ${text}`, 'system');
   }
 
-  function resetPeer(reason){
-    if(S.dc){ try{ S.dc.close(); }catch{} }
-    if(S.pc){
-      try{ S.pc.onicecandidate = null; }catch{}
-      try{ S.pc.onnegotiationneeded = null; }catch{}
-      try{ S.pc.ondatachannel = null; }catch{}
-      try{ S.pc.close(); }catch{}
-    }
-    S.pc = null;
-    S.dc = null;
-    S.peerId = null;
-    S.makingOffer = false;
-    S.ignoreOffer = false;
-    S.pendingAnswer = false;
-    S.needsNegotiation = false;
-    S.pendingCandidates = [];
-    line('warn','pc_reset',{reason});
-    refresh();
-  }
-
-  async function tryNegotiation(pc){
-    if(!pc || S.makingOffer || pc.signalingState !== 'stable') return;
-    if(!S.needsNegotiation) return;
-    S.needsNegotiation = false;
-    try{
-      S.makingOffer = true;
-      await pc.setLocalDescription(await pc.createOffer());
-      sendRelay({type:'webrtc',signal:{description:pc.localDescription}});
-      line('ok','offer_sent',{});
-    }catch(err){
-      line('err','offer_error',{err:String(err)});
-      S.needsNegotiation = true;
-    }finally{
-      S.makingOffer = false;
-      if(S.needsNegotiation && pc.signalingState === 'stable') queueMicrotask(()=>tryNegotiation(pc));
-    }
-  }
-
   function ensureLocalTracksAttached(){
     if(!S.pc || !S.localStream) return;
     const existing = new Set(S.pc.getSenders().map(s => s.track && s.track.id).filter(Boolean));
@@ -170,14 +131,9 @@
       added = true;
       line('ok','track_attached',{kind:t.kind,trackId:t.id});
     });
-    if(added){
-      S.needsNegotiation = true;
-      if(S.pc.signalingState === 'stable'){
-        line('ok','renegotiate_triggered',{});
-        queueMicrotask(()=>tryNegotiation(S.pc));
-      } else {
-        line('ok','renegotiate_pending',{state:S.pc.signalingState});
-      }
+    if(added && S.pc.signalingState === 'stable'){
+      S.pc.dispatchEvent(new Event('negotiationneeded'));
+      line('ok','renegotiate_triggered',{});
     }
   }
 
@@ -198,8 +154,6 @@
     S.ws = new WebSocket(url); refresh();
 
     S.ws.onopen = ()=>{
-      if(gen !== S.wsGen) return;
-      S.reconnectAttempts = 0;
       line('ok','relay_open',{room:S.room});
       autoStatus('relay_open', `role=${S.role} room=${S.room}`);
       refresh();
@@ -207,21 +161,8 @@
       ensurePc();
       enableMedia();
     };
-    S.ws.onclose = (e)=>{
-      if(gen !== S.wsGen) return;
-      line('warn','relay_close',{code:e.code,reason:e.reason});
-      refresh();
-      if(e.code === 1000) return;
-      const delay = Math.min(5000, 800 * Math.pow(2, S.reconnectAttempts));
-      S.reconnectAttempts += 1;
-      line('warn','relay_reconnect_scheduled',{attempt:S.reconnectAttempts,delayMs:delay});
-      S.reconnectTimer = setTimeout(()=>connectRelay(), delay);
-    };
-    S.ws.onerror = ()=>{
-      if(gen !== S.wsGen) return;
-      line('err','relay_error',{});
-      refresh();
-    };
+    S.ws.onclose = (e)=>{ line('warn','relay_close',{code:e.code,reason:e.reason}); refresh(); };
+    S.ws.onerror = ()=>{ line('err','relay_error',{}); refresh(); };
     S.ws.onmessage = async (e)=>{
       if(gen !== S.wsGen) return;
       let d; try{ d = JSON.parse(e.data);}catch{return;}
@@ -276,9 +217,14 @@
 
     if(S.role !== 'joiner') bindDc(pc.createDataChannel('diag-status'));
 
-    pc.onnegotiationneeded = ()=>{
-      S.needsNegotiation = true;
-      queueMicrotask(()=>tryNegotiation(pc));
+    pc.onnegotiationneeded = async ()=>{
+      try{
+        S.makingOffer = true;
+        await pc.setLocalDescription(await pc.createOffer());
+        sendRelay({type:'webrtc',signal:{description:pc.localDescription}});
+        line('ok','offer_sent',{});
+      }catch(err){ line('err','offer_error',{err:String(err)}); }
+      finally{ S.makingOffer = false; }
     };
 
     return pc;
@@ -298,11 +244,6 @@
         S.pendingAnswer = desc.type === 'answer';
         await pc.setRemoteDescription(desc);
         S.pendingAnswer = false;
-        while(S.pendingCandidates.length){
-          const c = S.pendingCandidates.shift();
-          try{ await pc.addIceCandidate(c); }
-          catch(err){ line('err','ice_add_error',{err:String(err)}); }
-        }
         if(S.needsNegotiation && pc.signalingState === 'stable'){
           queueMicrotask(()=>tryNegotiation(pc));
         }
