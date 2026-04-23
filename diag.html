@@ -3,425 +3,297 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>TalkBridge Full A/V Diagnostic</title>
+  <title>Bridge Diagnostic</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b0f14;color:#e8eef5;margin:0;padding:14px}
-    .card{background:#131a22;border:1px solid #223142;border-radius:12px;padding:12px;margin-bottom:12px}
+    :root{--bg:#0a0f16;--card:#101826;--line:#23364f;--txt:#e9eef6;--muted:#9db0c7;--ok:#54d38a;--warn:#ffcf66;--bad:#ff6f6f}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);margin:0;padding:14px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+    h1{font-size:1.15rem;margin:0 0 6px}
+    .muted{color:var(--muted)}
     .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    input,button,select{background:#0f151c;color:#e8eef5;border:1px solid #2a3b4d;border-radius:8px;padding:8px}
+    input,button,textarea{background:#0c1521;color:var(--txt);border:1px solid #2a415e;border-radius:10px;padding:10px;font-size:.95rem}
     input{min-width:220px}
     button{cursor:pointer}
-    button:hover{background:#16212c}
-    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#1a2430;border:1px solid #2b3c4f;font-size:12px}
-    .ok{color:#5ad28c}.warn{color:#ffd166}.err{color:#ff6b6b}.muted{color:#9fb0c1}
-    #log{height:36vh;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:#0b1117;padding:8px;border-radius:8px;border:1px solid #223142}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    video{width:100%;max-height:28vh;background:#000;border-radius:8px;border:1px solid #2a3b4d}
-    .meter{height:8px;background:#202a35;border-radius:999px;overflow:hidden;border:1px solid #2f4256}
-    .bar{height:100%;width:0;background:linear-gradient(90deg,#3fc1c1,#5ad28c)}
-    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+    button:hover{background:#142238}
+    button.primary{background:#173456;border-color:#2f5e92}
+    .pill{display:inline-block;border:1px solid #2f4768;border-radius:999px;padding:2px 8px;font-size:.8rem;margin:2px 4px 2px 0}
+    .step{padding:8px 10px;border:1px dashed #355174;border-radius:10px;background:#0d1724}
+    #log{height:36vh;overflow:auto;white-space:pre-wrap;background:#0a121d;border:1px solid #294364;border-radius:10px;padding:8px;font-family:ui-monospace,Menlo,monospace;font-size:.8rem}
+    .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--bad)}
+    textarea{width:100%;min-height:72px}
   </style>
 </head>
 <body>
   <div class="card">
-    <h2 style="margin:0 0 8px">TalkBridge Full A/V Diagnostic</h2>
-    <div class="muted">Goal: prove relay + signaling + ICE + DTLS + datachannel + audio + video across two devices.</div>
+    <h1>Bridge Diagnostic (Push-Button)</h1>
+    <div class="muted">Load → Create link → Send → Join → Type status → Export log</div>
   </div>
 
   <div class="card">
     <div class="row">
-      <label>Relay URL <input id="relayUrl" value="wss://talk-signal.myacctfortracking.workers.dev/signal"></label>
+      <label>Relay <input id="relay" value="wss://talk-signal.myacctfortracking.workers.dev/signal"></label>
       <label>App <input id="app" value="talk-say-v1"></label>
-      <label>Room <input id="room" placeholder="auto when host creates"></label>
-      <label>Role
-        <select id="role">
-          <option value="creator">creator</option>
-          <option value="joiner">joiner</option>
-        </select>
-      </label>
+      <label>Room <input id="room" placeholder="auto-created by Host"></label>
     </div>
     <div class="row" style="margin-top:8px">
-      <button id="createBtn">1) Create Room + Connect</button>
-      <button id="joinBtn">2) Join Room + Connect</button>
-      <button id="mediaBtn">3) Enable Camera+Mic</button>
-      <button id="rtcBtn">4) Start WebRTC</button>
-      <button id="dcPingBtn">Send DC Ping</button>
-      <button id="muteBtn">Toggle Mic Track</button>
-      <button id="camBtn">Toggle Cam Track</button>
-      <button id="copyInviteBtn">Copy Invite Link</button>
-      <button id="copyLogBtn">Copy Log</button>
-      <button id="clearBtn">Clear Log</button>
+      <button id="hostStart" class="primary">1) Host: Start / Create Session</button>
+      <button id="copyInvite">2) Host: Copy Invite Link</button>
+      <button id="joinNow" class="primary">3) Joiner: Answer / Join</button>
+      <button id="mediaBtn">4) Enable Camera + Mic</button>
+      <button id="rtcBtn">5) Start AV Connection</button>
     </div>
     <div class="row" style="margin-top:8px">
       <span class="pill">clientId: <span id="clientId"></span></span>
-      <span class="pill">peerClientId: <span id="peerClientId">-</span></span>
-      <span class="pill">ws: <span id="wsState">idle</span></span>
-      <span class="pill">pc: <span id="pcState">idle</span></span>
-      <span class="pill">ice: <span id="iceState">idle</span></span>
-      <span class="pill">dc: <span id="dcState">idle</span></span>
-      <span class="pill">local tracks: <span id="localTracks">none</span></span>
-      <span class="pill">remote tracks: <span id="remoteTracks">none</span></span>
+      <span class="pill">peerId: <span id="peerId">-</span></span>
+      <span class="pill">ws: <span id="ws">idle</span></span>
+      <span class="pill">pc: <span id="pc">idle</span></span>
+      <span class="pill">ice: <span id="ice">idle</span></span>
+      <span class="pill">dc: <span id="dc">idle</span></span>
     </div>
-    <div class="row" style="margin-top:8px">
-      <span class="pill">Local mic level</span>
-      <div class="meter" style="width:180px"><div id="localBar" class="bar"></div></div>
-      <span class="pill">Remote audio level</span>
-      <div class="meter" style="width:180px"><div id="remoteBar" class="bar"></div></div>
-      <span class="pill">Remote audio bytes: <span id="audioBytes">0</span></span>
-      <span class="pill">Remote video frames: <span id="videoFrames">0</span></span>
-    </div>
-    <div class="muted" style="margin-top:8px">Invite URL: <span id="inviteOut">-</span></div>
+    <div class="muted" style="margin-top:8px">Invite link: <span id="invite">-</span></div>
   </div>
 
   <div class="card">
-    <div class="grid">
-      <div>
-        <div class="muted">Local preview</div>
-        <video id="localVideo" autoplay playsinline muted></video>
-      </div>
-      <div>
-        <div class="muted">Remote stream</div>
-        <video id="remoteVideo" autoplay playsinline></video>
-      </div>
+    <div class="step"><strong>Host steps:</strong> Tap button 1, then 2. Send link.</div>
+    <div class="step" style="margin-top:8px"><strong>Joiner steps:</strong> Open link, then tap button 3.</div>
+    <div class="step" style="margin-top:8px"><strong>Both:</strong> Tap 4, then 5. Then type status below and send.</div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <input id="name" placeholder="Device label (A or B)" value="A">
+      <input id="statusInput" placeholder="camera:OK mic:OK hear:YES see:YES notes:...">
+      <button id="sendStatus">Send Status</button>
+      <button id="exportLog">Export Logs</button>
+      <button id="clearLog">Clear</button>
     </div>
+    <textarea id="statusBoard" readonly placeholder="Status messages appear here..."></textarea>
   </div>
 
   <div class="card"><div id="log"></div></div>
 
 <script>
 (() => {
-  const $ = id => document.getElementById(id);
-  const logEl = $('log');
-
+  const $ = (id)=>document.getElementById(id);
   const S = {
-    clientId: localStorage.getItem('diag_client_id') || crypto.randomUUID(),
-    peerClientId: null,
-    ws: null, pc: null, dc: null,
-    room: null, app: null, role: null, seq: 0,
-    makingOffer: false, ignoreOffer: false, settingRemoteAnswerPending: false,
-    localStream: null, remoteStream: null,
-    micOn: true, camOn: true,
-    localAudioCtx: null, localAnalyser: null, localData: null,
-    remoteAudioCtx: null, remoteAnalyser: null, remoteData: null,
-    statsTimer: null
+    id: sessionStorage.getItem('diag_client_id') || crypto.randomUUID(),
+    peerId: null, ws: null, pc: null, dc: null, room: null, seq: 0,
+    localStream: null, remoteStream: null, makingOffer: false,
+    ignoreOffer: false, pendingAnswer: false
   };
-  localStorage.setItem('diag_client_id', S.clientId);
-  $('clientId').textContent = S.clientId;
+  sessionStorage.setItem('diag_client_id', S.id);
+  $('clientId').textContent = S.id;
 
-  const stamp = () => new Date().toISOString().slice(11,23);
-  function line(level, ev, d){
+  const logEl = $('log');
+  const board = $('statusBoard');
+
+  function t(){return new Date().toISOString().slice(11,23)}
+  function line(level, event, obj){
     const div = document.createElement('div');
-    div.className = (level==='ok'?'ok':level==='warn'?'warn':level==='err'?'err':'');
-    div.textContent = `[${stamp()}] ${ev} ${d?JSON.stringify(d):''}`;
-    logEl.appendChild(div); logEl.scrollTop = logEl.scrollHeight; console.log(div.textContent);
-  }
-  function set(id,v){$(id).textContent = v;}
-  function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
-  function invite(room){
-    const base = location.href.split('#')[0].split('?')[0];
-    return `${base}?room=${encodeURIComponent(room)}&role=joiner`;
+    div.className = level==='ok'?'ok':level==='warn'?'warn':level==='err'?'err':'';
+    div.textContent = `[${t()}] ${event} ${obj?JSON.stringify(obj):''}`;
+    logEl.appendChild(div); logEl.scrollTop = logEl.scrollHeight;
+    console.log(div.textContent);
   }
 
-  function refreshBadges(){
-    set('wsState', S.ws ? ['CONNECTING','OPEN','CLOSING','CLOSED'][S.ws.readyState] : 'idle');
-    set('pcState', S.pc ? S.pc.connectionState : 'idle');
-    set('iceState', S.pc ? S.pc.iceConnectionState : 'idle');
-    set('dcState', S.dc ? S.dc.readyState : 'idle');
-    set('peerClientId', S.peerClientId || '-');
-
-    const lt = S.localStream ? S.localStream.getTracks().map(t=>`${t.kind}:${t.readyState}:${t.enabled?'on':'off'}`).join(',') : 'none';
-    const rt = S.remoteStream ? S.remoteStream.getTracks().map(t=>`${t.kind}:${t.readyState}:${t.enabled?'on':'off'}`).join(',') : 'none';
-    set('localTracks', lt || 'none');
-    set('remoteTracks', rt || 'none');
+  function refresh(){
+    $('peerId').textContent = S.peerId || '-';
+    $('ws').textContent = S.ws?['CONNECTING','OPEN','CLOSING','CLOSED'][S.ws.readyState]:'idle';
+    $('pc').textContent = S.pc?S.pc.connectionState:'idle';
+    $('ice').textContent = S.pc?S.pc.iceConnectionState:'idle';
+    $('dc').textContent = S.dc?S.dc.readyState:'idle';
   }
 
-  function relaySend(m){
-    if(!S.ws || S.ws.readyState!==1){ line('warn','relay_send_skip',{reason:'ws_not_open',type:m.type}); return; }
-    m.session=S.room; m.from=S.clientId; m.ts=Date.now(); m.seq=++S.seq;
-    S.ws.send(JSON.stringify(m));
-    line('ok','relay_send',{type:m.type,seq:m.seq});
+  function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+
+  function inviteLink(room){
+    const base = location.href.split('?')[0].split('#')[0];
+    return `${base}?room=${encodeURIComponent(room)}&auto=1&role=joiner`;
   }
 
-  function stopStats(){
-    if(S.statsTimer){ clearInterval(S.statsTimer); S.statsTimer=null; }
+  function sendRelay(msg){
+    if(!S.ws || S.ws.readyState!==1){ line('warn','relay_send_skip',{type:msg.type}); return; }
+    msg.session = S.room; msg.from = S.id; msg.seq = ++S.seq; msg.ts = Date.now();
+    S.ws.send(JSON.stringify(msg));
   }
 
-  function closeAll(){
-    stopStats();
-    try{ if(S.dc) S.dc.close(); }catch{}
-    try{ if(S.pc) S.pc.close(); }catch{}
-    try{ if(S.ws) S.ws.close(); }catch{}
-    S.dc=null; S.pc=null; S.ws=null; S.peerClientId=null; S.remoteStream=null;
-    $('remoteVideo').srcObject = null;
-    refreshBadges();
+  function connectRelay(){
+    S.room = $('room').value.trim();
+    const relay = $('relay').value.trim();
+    const app = $('app').value.trim() || 'talk-say-v1';
+    if(!relay || !S.room){ line('err','missing_relay_or_room',{}); return; }
+
+    if(S.ws){ try{S.ws.close();}catch{} }
+    const url = `${relay}?app=${encodeURIComponent(app)}&session=${encodeURIComponent(S.room)}&client=${encodeURIComponent(S.id)}`;
+    line('ok','relay_connect_start',{url});
+    S.ws = new WebSocket(url); refresh();
+
+    S.ws.onopen = ()=>{ line('ok','relay_open',{room:S.room}); refresh(); sendRelay({type:'hello'}); };
+    S.ws.onclose = (e)=>{ line('warn','relay_close',{code:e.code,reason:e.reason}); refresh(); };
+    S.ws.onerror = ()=>{ line('err','relay_error',{}); refresh(); };
+    S.ws.onmessage = async (e)=>{
+      let d; try{ d = JSON.parse(e.data);}catch{return;}
+      if(!d) return;
+      if(d.from===S.id){ line('warn','self_or_echo',{type:d.type}); return; }
+      if(d.from && d.from!==S.peerId){ S.peerId = d.from; refresh(); line('ok','peer_seen',{peerId:S.peerId}); }
+
+      if(d.type==='hello'){ line('ok','hello_rx',{from:d.from}); return; }
+      if(d.type==='status'){ appendStatus(d.text, d.from); return; }
+      if(d.type==='webrtc'){ await onSignal(d.signal,d.from); return; }
+    };
   }
 
   async function enableMedia(){
     try{
-      if(S.localStream){
-        line('warn','media_already_on',{});
-        return;
-      }
-      const st = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-      S.localStream = st;
-      $('localVideo').srcObject = st;
-      line('ok','media_acquired',{tracks:st.getTracks().map(t=>({kind:t.kind,id:t.id,label:t.label,readyState:t.readyState}))});
-      setupLocalMeter(st);
-      refreshBadges();
-    }catch(e){
-      line('err','media_error',{err:String(e)});
+      if(S.localStream) return line('warn','media_already_on',{});
+      S.localStream = await navigator.mediaDevices.getUserMedia({audio:true,video:true});
+      line('ok','media_ready',{tracks:S.localStream.getTracks().map(t=>t.kind)});
+    }catch(err){
+      line('err','media_error',{err:String(err)});
     }
   }
 
-  function setupLocalMeter(stream){
-    try{
-      S.localAudioCtx = new (window.AudioContext||window.webkitAudioContext)();
-      const src = S.localAudioCtx.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
-      S.localAnalyser = S.localAudioCtx.createAnalyser(); S.localAnalyser.fftSize=256;
-      S.localData = new Uint8Array(S.localAnalyser.frequencyBinCount);
-      src.connect(S.localAnalyser);
-    }catch(e){
-      line('warn','local_meter_err',{err:String(e)});
-    }
-  }
-
-  function setupRemoteMeter(stream){
-    try{
-      S.remoteAudioCtx = new (window.AudioContext||window.webkitAudioContext)();
-      const src = S.remoteAudioCtx.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
-      S.remoteAnalyser = S.remoteAudioCtx.createAnalyser(); S.remoteAnalyser.fftSize=256;
-      S.remoteData = new Uint8Array(S.remoteAnalyser.frequencyBinCount);
-      src.connect(S.remoteAnalyser);
-    }catch(e){
-      line('warn','remote_meter_err',{err:String(e)});
-    }
-  }
-
-  function calcLevel(analyser, arr){
-    if(!analyser||!arr) return 0;
-    analyser.getByteFrequencyData(arr);
-    let sum=0; for(let i=0;i<arr.length;i++) sum+=arr[i];
-    return Math.min(100, Math.round((sum/arr.length)/2.55));
-  }
-
-  function connectRelay(){
-    closeAll();
-    S.room = $('room').value.trim();
-    S.app = $('app').value.trim() || 'talk-say-v1';
-    S.role = $('role').value;
-
-    const relay = $('relayUrl').value.trim();
-    if(!relay || !S.room){ line('err','missing_fields',{relay:!!relay,room:!!S.room}); return; }
-
-    const wsUrl = `${relay}?app=${encodeURIComponent(S.app)}&session=${encodeURIComponent(S.room)}&client=${encodeURIComponent(S.clientId)}`;
-    S.ws = new WebSocket(wsUrl); refreshBadges();
-    line('ok','relay_connect_start',{wsUrl,role:S.role});
-
-    S.ws.onopen = () => {
-      line('ok','relay_open',{clientId:S.clientId,room:S.room,role:S.role});
-      refreshBadges();
-      relaySend({type:'hello',role:S.role,diag:true});
-    };
-    S.ws.onclose = ev => { line('warn','relay_close',{code:ev.code,reason:ev.reason}); refreshBadges(); };
-    S.ws.onerror = () => { line('err','relay_error',{}); refreshBadges(); };
-    S.ws.onmessage = async e => {
-      let d; try{ d=JSON.parse(e.data);}catch{return line('warn','relay_non_json',{});}
-      if(!d) return;
-
-      // critical collision detector
-      if(d.from===S.clientId){
-        line('warn','same_client_id_or_echo',{from:d.from,local:S.clientId,type:d.type});
-        return;
-      }
-
-      if(d.from && d.from!==S.peerClientId){
-        S.peerClientId=d.from; refreshBadges();
-        line('ok','peer_seen',{peerClientId:S.peerClientId});
-      }
-
-      if(d.type==='hello'){ line('ok','hello_rx',{from:d.from,role:d.role}); return; }
-      if(d.type==='diag-ping'){ line('ok','diag_ping_rx',{from:d.from}); relaySend({type:'diag-pong',t:Date.now()}); return; }
-      if(d.type==='diag-pong'){ line('ok','diag_pong_rx',{from:d.from}); return; }
-      if(d.type==='webrtc-signal'){ await handleSignal(d.signal,d.from); return; }
-      line('warn','unknown_type',{type:d.type});
+  function bindDc(dc){
+    S.dc = dc; refresh();
+    dc.onopen = ()=>{ line('ok','dc_open',{}); refresh(); };
+    dc.onclose = ()=>{ line('warn','dc_close',{}); refresh(); };
+    dc.onmessage = (e)=>{
+      if(String(e.data).startsWith('STATUS|')) appendStatus(String(e.data).slice(7), S.peerId || 'peer');
+      line('ok','dc_msg_rx',{});
     };
   }
 
-  function bindDataChannel(dc){
-    S.dc = dc; refreshBadges();
-    dc.onopen = ()=>{ line('ok','dc_open',{label:dc.label}); refreshBadges(); };
-    dc.onclose = ()=>{ line('warn','dc_close',{}); refreshBadges(); };
-    dc.onerror = ()=>{ line('err','dc_error',{}); refreshBadges(); };
-    dc.onmessage = ev => {
-      line('ok','dc_msg_rx',{data:ev.data});
-      if(String(ev.data).startsWith('ping:')){
-        try{ dc.send('pong:'+String(ev.data).slice(5)); line('ok','dc_msg_tx',{data:'pong:*'});}catch{}
-      }
-    };
-  }
-
-  function setupPC(){
+  function ensurePc(){
     if(S.pc) return S.pc;
     const pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-    S.pc = pc;
-    refreshBadges();
+    S.pc = pc; refresh();
 
-    if(S.localStream){
-      S.localStream.getTracks().forEach(t => pc.addTrack(t,S.localStream));
-      line('ok','local_tracks_added',{count:S.localStream.getTracks().length});
-    }else{
-      line('warn','no_local_stream_before_pc',{});
-    }
+    if(S.localStream){ S.localStream.getTracks().forEach(t=>pc.addTrack(t,S.localStream)); }
 
-    pc.onicecandidate = e => { if(e.candidate) relaySend({type:'webrtc-signal',signal:{candidate:e.candidate}}); };
-    pc.onconnectionstatechange = ()=>{ line('ok','pc_conn_state',{state:pc.connectionState}); refreshBadges(); };
-    pc.oniceconnectionstatechange = ()=>{ line('ok','pc_ice_state',{state:pc.iceConnectionState}); refreshBadges(); };
-    pc.onsignalingstatechange = ()=> line('ok','pc_signaling',{state:pc.signalingState});
+    pc.onicecandidate = (e)=>{ if(e.candidate) sendRelay({type:'webrtc',signal:{candidate:e.candidate}}); };
+    pc.onconnectionstatechange = ()=>{ line('ok','pc_state',{state:pc.connectionState}); refresh(); };
+    pc.oniceconnectionstatechange = ()=>{ line('ok','ice_state',{state:pc.iceConnectionState}); refresh(); };
+    pc.ondatachannel = (ev)=> bindDc(ev.channel);
 
-    pc.ontrack = e => {
-      line('ok','pc_ontrack',{kind:e.track.kind,id:e.track.id,streams:e.streams?.length||0});
-      if(!S.remoteStream) S.remoteStream = new MediaStream();
-      if(e.streams && e.streams[0]){
-        e.streams[0].getTracks().forEach(t=>{
-          if(!S.remoteStream.getTracks().some(x=>x.id===t.id)) S.remoteStream.addTrack(t);
-        });
-      }else{
-        if(!S.remoteStream.getTracks().some(x=>x.id===e.track.id)) S.remoteStream.addTrack(e.track);
-      }
-      $('remoteVideo').srcObject = S.remoteStream;
-      setupRemoteMeter(S.remoteStream);
-      refreshBadges();
-    };
-
-    pc.ondatachannel = ev => { line('ok','pc_ondatachannel',{label:ev.channel.label}); bindDataChannel(ev.channel); };
-
-    if($('role').value==='creator'){
-      bindDataChannel(pc.createDataChannel('diag'));
-    }
+    const role = new URLSearchParams(location.search).get('role');
+    if(role !== 'joiner') bindDc(pc.createDataChannel('diag-status'));
 
     pc.onnegotiationneeded = async ()=>{
       try{
-        S.makingOffer=true;
+        S.makingOffer = true;
         await pc.setLocalDescription(await pc.createOffer());
-        relaySend({type:'webrtc-signal',signal:{description:pc.localDescription}});
-        line('ok','offer_sent',{type:pc.localDescription.type});
-      }catch(e){
-        line('err','offer_err',{err:String(e)});
-      }finally{
-        S.makingOffer=false;
-      }
+        sendRelay({type:'webrtc',signal:{description:pc.localDescription}});
+        line('ok','offer_sent',{});
+      }catch(err){ line('err','offer_error',{err:String(err)}); }
+      finally{ S.makingOffer = false; }
     };
 
-    startStatsLoop();
     return pc;
   }
 
-  async function handleSignal(signal, from){
-    if(!signal) return;
-    const pc = setupPC();
+  async function onSignal(signal, from){
+    const pc = ensurePc();
     try{
       if(signal.description){
         const desc = signal.description;
-        const polite = S.clientId > from;
-        const ready = !S.makingOffer && (pc.signalingState==='stable' || S.settingRemoteAnswerPending);
-        const collision = desc.type==='offer' && !ready;
+        const polite = S.id > from;
+        const ready = !S.makingOffer && (pc.signalingState === 'stable' || S.pendingAnswer);
+        const collision = desc.type === 'offer' && !ready;
         S.ignoreOffer = !polite && collision;
-
-        line('ok','sig_desc_rx',{from,type:desc.type,polite,ready,collision,ignore:S.ignoreOffer,ss:pc.signalingState});
         if(S.ignoreOffer) return;
 
-        S.settingRemoteAnswerPending = desc.type==='answer';
+        S.pendingAnswer = desc.type === 'answer';
         await pc.setRemoteDescription(desc);
-        S.settingRemoteAnswerPending = false;
+        S.pendingAnswer = false;
 
         if(desc.type==='offer'){
           await pc.setLocalDescription(await pc.createAnswer());
-          relaySend({type:'webrtc-signal',signal:{description:pc.localDescription}});
-          line('ok','answer_sent',{type:pc.localDescription.type});
+          sendRelay({type:'webrtc',signal:{description:pc.localDescription}});
+          line('ok','answer_sent',{});
         }
-      }else if(signal.candidate){
+      } else if(signal.candidate){
         await pc.addIceCandidate(signal.candidate);
-        line('ok','ice_added',{candidateType:signal.candidate.type||'n/a',protocol:signal.candidate.protocol||'n/a'});
       }
-    }catch(e){
-      S.settingRemoteAnswerPending=false;
-      line('err','sig_err',{err:String(e)});
+    }catch(err){
+      S.pendingAnswer = false;
+      line('err','signal_error',{err:String(err)});
     }
   }
 
-  function startStatsLoop(){
-    stopStats();
-    S.statsTimer = setInterval(async ()=>{
-      // meters
-      const l = calcLevel(S.localAnalyser,S.localData);
-      const r = calcLevel(S.remoteAnalyser,S.remoteData);
-      $('localBar').style.width = `${l}%`;
-      $('remoteBar').style.width = `${r}%`;
-
-      // rtc stats proof
-      if(!S.pc) return;
-      try{
-        const stats = await S.pc.getStats();
-        let audioBytes=0, videoFrames=0;
-        stats.forEach(rep=>{
-          if(rep.type==='inbound-rtp' && !rep.isRemote){
-            if(rep.kind==='audio') audioBytes += (rep.bytesReceived||0);
-            if(rep.kind==='video') videoFrames += (rep.framesDecoded||0);
-          }
-        });
-        set('audioBytes', String(audioBytes));
-        set('videoFrames', String(videoFrames));
-      }catch{}
-      refreshBadges();
-    }, 1000);
+  function appendStatus(text, from){
+    const lineTxt = `${new Date().toLocaleTimeString()} | ${from}: ${text}`;
+    board.value = board.value ? `${board.value}\n${lineTxt}` : lineTxt;
   }
 
-  function toggleMic(){
-    if(!S.localStream) return line('warn','toggle_mic_no_stream',{});
-    S.micOn=!S.micOn;
-    S.localStream.getAudioTracks().forEach(t=>t.enabled=S.micOn);
-    line('ok','mic_toggle',{enabled:S.micOn});
-    refreshBadges();
-  }
-
-  function toggleCam(){
-    if(!S.localStream) return line('warn','toggle_cam_no_stream',{});
-    S.camOn=!S.camOn;
-    S.localStream.getVideoTracks().forEach(t=>t.enabled=S.camOn);
-    line('ok','cam_toggle',{enabled:S.camOn});
-    refreshBadges();
-  }
-
-  // buttons
-  $('createBtn').onclick = ()=>{
-    const r = uid();
-    $('room').value = r;
-    $('role').value = 'creator';
-    const u = invite(r);
-    $('inviteOut').textContent = u;
-    line('ok','room_created',{room:r,invite:u});
+  // Buttons
+  $('hostStart').onclick = ()=>{
+    $('room').value = uid();
+    const link = inviteLink($('room').value);
+    $('invite').textContent = link;
     connectRelay();
+    line('ok','host_started',{room:$('room').value});
   };
-  $('joinBtn').onclick = ()=>{ if(!$('room').value.trim()) return line('err','join_missing_room',{}); connectRelay(); };
-  $('mediaBtn').onclick = enableMedia;
-  $('rtcBtn').onclick = ()=>{ if(!S.ws||S.ws.readyState!==1) return line('err','rtc_requires_ws_open',{}); setupPC(); line('ok','rtc_start',{}); };
-  $('dcPingBtn').onclick = ()=>{
-    if(S.dc && S.dc.readyState==='open'){ const p='ping:'+Date.now(); S.dc.send(p); line('ok','dc_msg_tx',{data:p}); }
-    else relaySend({type:'diag-ping',t:Date.now()});
-  };
-  $('muteBtn').onclick = toggleMic;
-  $('camBtn').onclick = toggleCam;
-  $('copyInviteBtn').onclick = async ()=>{ const t=$('inviteOut').textContent; if(!t||t==='-') return; try{await navigator.clipboard.writeText(t);line('ok','invite_copied',{});}catch(e){line('err','invite_copy_err',{err:String(e)});} };
-  $('copyLogBtn').onclick = async ()=>{ const txt=[...logEl.children].map(n=>n.textContent).join('\n'); try{await navigator.clipboard.writeText(txt);line('ok','log_copied',{});}catch(e){line('err','log_copy_err',{err:String(e)});} };
-  $('clearBtn').onclick = ()=> logEl.innerHTML='';
 
-  // query support
+  $('copyInvite').onclick = async ()=>{
+    const txt = $('invite').textContent;
+    if(!txt || txt==='-') return line('warn','no_invite_yet',{});
+    try{ await navigator.clipboard.writeText(txt); line('ok','invite_copied',{});}catch(err){line('err','copy_failed',{err:String(err)})}
+  };
+
+  $('joinNow').onclick = ()=>{ connectRelay(); line('ok','join_clicked',{}); };
+  $('mediaBtn').onclick = enableMedia;
+  $('rtcBtn').onclick = ()=>{ if(!S.ws||S.ws.readyState!==1) return line('warn','connect_first',{}); ensurePc(); line('ok','rtc_started',{}); };
+
+  $('sendStatus').onclick = ()=>{
+    const name = ($('name').value || 'device').trim();
+    const text = ($('statusInput').value || '').trim();
+    if(!text) return;
+    const full = `${name} | ${text}`;
+    appendStatus(full, 'me');
+    if(S.dc && S.dc.readyState==='open') S.dc.send(`STATUS|${full}`);
+    sendRelay({type:'status',text:full});
+    line('ok','status_sent',{});
+    $('statusInput').value='';
+  };
+
+  $('exportLog').onclick = ()=>{
+    const lines = Array.from(logEl.children).map(n=>n.textContent);
+    const payload = [
+      `clientId=${S.id}`,
+      `peerId=${S.peerId || '-'}`,
+      `room=${$('room').value || '-'}`,
+      `--- STATUS BOARD ---`,
+      board.value || '(none)',
+      `--- EVENT LOG ---`,
+      ...lines
+    ].join('\n');
+
+    const blob = new Blob([payload], {type:'text/plain'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `diag-${Date.now()}.log.txt`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 800);
+    line('ok','log_exported',{});
+  };
+
+  $('clearLog').onclick = ()=>{ logEl.innerHTML=''; board.value=''; };
+
+  // Query param prefill + optional auto join
   const q = new URLSearchParams(location.search);
   if(q.get('room')) $('room').value = q.get('room');
-  if(q.get('role')) $('role').value = q.get('role');
+  if(q.get('role')==='joiner' && q.get('room')){
+    $('name').value = 'B';
+    if(q.get('auto')==='1'){
+      line('ok','auto_join_from_link',{});
+      connectRelay();
+    }
+  } else {
+    $('name').value = 'A';
+  }
 
-  refreshBadges();
-  line('ok','diag_ready',{clientId:S.clientId,ua:navigator.userAgent});
+  refresh();
+  line('ok','diag_ready',{clientId:S.id});
 })();
 </script>
 </body>
