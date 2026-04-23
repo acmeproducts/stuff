@@ -44,10 +44,24 @@
       left: max(12px, env(safe-area-inset-left));
       right: max(12px, env(safe-area-inset-right));
       bottom: max(12px, env(safe-area-inset-bottom));
-      pointer-events: none;
       z-index: 10;
       display: flex;
-      justify-content: center;
+      justify-content: flex-end;
+      align-items: flex-end;
+      pointer-events: none;
+    }
+
+    .gear-button {
+      pointer-events: auto;
+      width: 48px;
+      height: 48px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      font-size: 22px;
+      line-height: 1;
+      padding: 0;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
     }
 
     .panel {
@@ -60,6 +74,13 @@
       border-radius: 18px;
       padding: 14px;
       box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+      margin-right: 10px;
+      max-height: min(72vh, 560px);
+      overflow: auto;
+    }
+
+    .panel.hidden {
+      display: none;
     }
 
     .stats {
@@ -98,6 +119,32 @@
       margin-bottom: 12px;
     }
 
+    .slider-control {
+      grid-column: 1 / -1;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    .slider-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .slider-head strong {
+      color: var(--text);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
     .help {
       font-size: 12px;
       color: var(--muted);
@@ -134,7 +181,7 @@
   <div id="app"></div>
 
   <div class="hud">
-    <div class="panel">
+    <div id="controlPanel" class="panel hidden">
       <div class="title">Tilt Balance Surface</div>
       <div class="stats">
         <div class="line">Score: <strong id="score">0.0s</strong></div>
@@ -150,10 +197,18 @@
         <button id="recenterButton" type="button">Recenter</button>
         <button id="resetButton" type="button">Reset Ball</button>
         <button id="muteButton" type="button">Audio On</button>
+        <div class="slider-control">
+          <div class="slider-head">
+            <span>Gravity Effect</span>
+            <strong id="gravityValue">100%</strong>
+          </div>
+          <input id="gravitySlider" type="range" min="30" max="200" step="5" value="100" />
+        </div>
       </div>
 
       <div class="help">Mobile only. Tap Enable Motion, approve permission, then tilt to keep the orange ball balanced. Recenter sets the current angle as neutral. If the ball hits a wall it bounces back with haptic and audio feedback.</div>
     </div>
+    <button id="panelToggle" class="gear-button" type="button" aria-controls="controlPanel" aria-expanded="false" aria-label="Open controls">⚙️</button>
   </div>
 
   <script type="module">
@@ -170,6 +225,10 @@
     const recenterButton = document.getElementById('recenterButton');
     const resetButton = document.getElementById('resetButton');
     const muteButton = document.getElementById('muteButton');
+    const gravitySlider = document.getElementById('gravitySlider');
+    const gravityValue = document.getElementById('gravityValue');
+    const controlPanel = document.getElementById('controlPanel');
+    const panelToggle = document.getElementById('panelToggle');
 
     const boardSize = 10;
     const halfBoard = boardSize * 0.5;
@@ -218,6 +277,7 @@
       score: 0,
       best: Number(localStorage.getItem('tilt-balance-best') || 0),
       bounceCount: 0,
+      gravityScale: 1,
       ball: {
         x: 0,
         z: 0,
@@ -396,8 +456,9 @@
     }
 
     function updatePhysics(dt) {
-      const ax = Math.sin(state.currentTiltZ) * gravityStrength;
-      const az = Math.sin(state.currentTiltX) * gravityStrength;
+      const gravity = gravityStrength * state.gravityScale;
+      const ax = Math.sin(state.currentTiltZ) * gravity;
+      const az = Math.sin(state.currentTiltX) * gravity;
 
       state.ball.vx += ax * dt;
       state.ball.vz += az * dt;
@@ -698,6 +759,13 @@ state.useMotion = true;
       document.body.addEventListener('pointerdown', unlockFromGesture, { passive: true });
       document.body.addEventListener('touchstart', unlockFromGesture, { passive: true });
 
+      panelToggle.addEventListener('click', (event) => {
+        event.preventDefault();
+        const isHidden = controlPanel.classList.toggle('hidden');
+        panelToggle.setAttribute('aria-expanded', String(!isHidden));
+        panelToggle.setAttribute('aria-label', isHidden ? 'Open controls' : 'Close controls');
+      }, { passive: false });
+
       motionButton.addEventListener('click', (event) => {
         event.preventDefault();
         requestMotionPermission();
@@ -723,6 +791,12 @@ state.useMotion = true;
         muteButton.textContent = state.audioMuted ? 'Audio Off' : 'Audio On';
         setStatus(state.audioMuted ? 'Audio muted.' : 'Audio enabled.', true);
       }, { passive: false });
+
+      gravitySlider.addEventListener('input', (event) => {
+        const value = Number(event.target.value);
+        state.gravityScale = value / 100;
+        gravityValue.textContent = `${value}%`;
+      }, { passive: true });
     }
 
     function animate() {
