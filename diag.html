@@ -26,7 +26,7 @@
 <body>
   <div class="card">
     <h1>Bridge Diagnostic (Push-Button)</h1>
-    <div class="muted">Load → Create link → Send → Join → Type status → Export log</div>
+    <div class="muted">Host taps Start Session. Joiner opens link. Camera/mic prompt is the only required browser step.</div>
   </div>
 
   <div class="card">
@@ -36,11 +36,9 @@
       <label>Room <input id="room" placeholder="auto-created by Host"></label>
     </div>
     <div class="row" style="margin-top:8px">
-      <button id="hostStart" class="primary">1) Host: Start / Create Session</button>
-      <button id="copyInvite">2) Host: Copy Invite Link</button>
-      <button id="joinNow" class="primary">3) Joiner: Answer / Join</button>
-      <button id="mediaBtn">4) Enable Camera + Mic</button>
-      <button id="rtcBtn">5) Start AV Connection</button>
+      <button id="hostStart" class="primary">Start Session</button>
+      <button id="copyInvite">Copy Invite Link</button>
+      <button id="mediaBtn">Retry Camera + Mic</button>
     </div>
     <div class="row" style="margin-top:8px">
       <span class="pill">clientId: <span id="clientId"></span></span>
@@ -54,9 +52,9 @@
   </div>
 
   <div class="card">
-    <div class="step"><strong>Host steps:</strong> Tap button 1, then 2. Send link.</div>
-    <div class="step" style="margin-top:8px"><strong>Joiner steps:</strong> Open link, then tap button 3.</div>
-    <div class="step" style="margin-top:8px"><strong>Both:</strong> Tap 4, then 5. Then type status below and send.</div>
+    <div class="step"><strong>1) Start Session</strong> (host only) creates room + invite link + relay connection.</div>
+    <div class="step" style="margin-top:8px"><strong>2) Open Link</strong> (joiner) auto-connects and auto-starts media flow.</div>
+    <div class="step" style="margin-top:8px"><strong>3) Share status</strong> is optional; export logs anytime.</div>
   </div>
 
   <div class="card">
@@ -77,6 +75,7 @@
   const $ = (id)=>document.getElementById(id);
   const S = {
     id: sessionStorage.getItem('diag_client_id') || crypto.randomUUID(),
+    role: 'host',
     peerId: null, ws: null, pc: null, dc: null, room: null, seq: 0,
     localStream: null, remoteStream: null, makingOffer: false,
     ignoreOffer: false, pendingAnswer: false
@@ -117,6 +116,26 @@
     S.ws.send(JSON.stringify(msg));
   }
 
+  function autoStatus(tag, text){
+    appendStatus(`${tag} | ${text}`, 'system');
+  }
+
+  function ensureLocalTracksAttached(){
+    if(!S.pc || !S.localStream) return;
+    const existing = new Set(S.pc.getSenders().map(s => s.track && s.track.id).filter(Boolean));
+    let added = false;
+    S.localStream.getTracks().forEach((t)=>{
+      if(existing.has(t.id)) return;
+      S.pc.addTrack(t, S.localStream);
+      added = true;
+      line('ok','track_attached',{kind:t.kind,trackId:t.id});
+    });
+    if(added && S.pc.signalingState === 'stable'){
+      S.pc.dispatchEvent(new Event('negotiationneeded'));
+      line('ok','renegotiate_triggered',{});
+    }
+  }
+
   function connectRelay(){
     S.room = $('room').value.trim();
     const relay = $('relay').value.trim();
@@ -128,7 +147,14 @@
     line('ok','relay_connect_start',{url});
     S.ws = new WebSocket(url); refresh();
 
-    S.ws.onopen = ()=>{ line('ok','relay_open',{room:S.room}); refresh(); sendRelay({type:'hello'}); };
+    S.ws.onopen = ()=>{
+      line('ok','relay_open',{room:S.room});
+      autoStatus('relay_open', `role=${S.role} room=${S.room}`);
+      refresh();
+      sendRelay({type:'hello'});
+      ensurePc();
+      enableMedia();
+    };
     S.ws.onclose = (e)=>{ line('warn','relay_close',{code:e.code,reason:e.reason}); refresh(); };
     S.ws.onerror = ()=>{ line('err','relay_error',{}); refresh(); };
     S.ws.onmessage = async (e)=>{
@@ -148,14 +174,17 @@
       if(S.localStream) return line('warn','media_already_on',{});
       S.localStream = await navigator.mediaDevices.getUserMedia({audio:true,video:true});
       line('ok','media_ready',{tracks:S.localStream.getTracks().map(t=>t.kind)});
+      autoStatus('media_ok', S.localStream.getTracks().map(t=>t.kind).join(','));
+      ensureLocalTracksAttached();
     }catch(err){
       line('err','media_error',{err:String(err)});
+      autoStatus('media_error', String(err));
     }
   }
 
   function bindDc(dc){
     S.dc = dc; refresh();
-    dc.onopen = ()=>{ line('ok','dc_open',{}); refresh(); };
+    dc.onopen = ()=>{ line('ok','dc_open',{}); autoStatus('dc_open','ready'); refresh(); };
     dc.onclose = ()=>{ line('warn','dc_close',{}); refresh(); };
     dc.onmessage = (e)=>{
       if(String(e.data).startsWith('STATUS|')) appendStatus(String(e.data).slice(7), S.peerId || 'peer');
@@ -168,15 +197,18 @@
     const pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
     S.pc = pc; refresh();
 
-    if(S.localStream){ S.localStream.getTracks().forEach(t=>pc.addTrack(t,S.localStream)); }
+    if(S.localStream){ ensureLocalTracksAttached(); }
 
     pc.onicecandidate = (e)=>{ if(e.candidate) sendRelay({type:'webrtc',signal:{candidate:e.candidate}}); };
-    pc.onconnectionstatechange = ()=>{ line('ok','pc_state',{state:pc.connectionState}); refresh(); };
+    pc.onconnectionstatechange = ()=>{
+      line('ok','pc_state',{state:pc.connectionState});
+      if(pc.connectionState === 'connected') autoStatus('pc_connected','ok');
+      refresh();
+    };
     pc.oniceconnectionstatechange = ()=>{ line('ok','ice_state',{state:pc.iceConnectionState}); refresh(); };
     pc.ondatachannel = (ev)=> bindDc(ev.channel);
 
-    const role = new URLSearchParams(location.search).get('role');
-    if(role !== 'joiner') bindDc(pc.createDataChannel('diag-status'));
+    if(S.role !== 'joiner') bindDc(pc.createDataChannel('diag-status'));
 
     pc.onnegotiationneeded = async ()=>{
       try{
@@ -240,9 +272,7 @@
     try{ await navigator.clipboard.writeText(txt); line('ok','invite_copied',{});}catch(err){line('err','copy_failed',{err:String(err)})}
   };
 
-  $('joinNow').onclick = ()=>{ connectRelay(); line('ok','join_clicked',{}); };
   $('mediaBtn').onclick = enableMedia;
-  $('rtcBtn').onclick = ()=>{ if(!S.ws||S.ws.readyState!==1) return line('warn','connect_first',{}); ensurePc(); line('ok','rtc_started',{}); };
 
   $('sendStatus').onclick = ()=>{
     const name = ($('name').value || 'device').trim();
@@ -259,9 +289,14 @@
   $('exportLog').onclick = ()=>{
     const lines = Array.from(logEl.children).map(n=>n.textContent);
     const payload = [
+      `role=${S.role}`,
       `clientId=${S.id}`,
       `peerId=${S.peerId || '-'}`,
       `room=${$('room').value || '-'}`,
+      `ws=${S.ws?['CONNECTING','OPEN','CLOSING','CLOSED'][S.ws.readyState]:'idle'}`,
+      `pc=${S.pc?S.pc.connectionState:'idle'}`,
+      `ice=${S.pc?S.pc.iceConnectionState:'idle'}`,
+      `dc=${S.dc?S.dc.readyState:'idle'}`,
       `--- STATUS BOARD ---`,
       board.value || '(none)',
       `--- EVENT LOG ---`,
@@ -281,13 +316,12 @@
 
   // Query param prefill + optional auto join
   const q = new URLSearchParams(location.search);
+  S.role = q.get('role') === 'joiner' ? 'joiner' : 'host';
   if(q.get('room')) $('room').value = q.get('room');
-  if(q.get('role')==='joiner' && q.get('room')){
+  if(S.role==='joiner' && q.get('room')){
     $('name').value = 'B';
-    if(q.get('auto')==='1'){
-      line('ok','auto_join_from_link',{});
-      connectRelay();
-    }
+    line('ok','auto_join_from_link',{});
+    connectRelay();
   } else {
     $('name').value = 'A';
   }
