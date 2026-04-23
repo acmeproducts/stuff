@@ -29,12 +29,12 @@
   .column{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px;min-height:0}
   .portlet{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:rgba(26,26,28,0.8);box-shadow:var(--shadow);overflow:hidden;flex:0 0 auto}
   .portlet.collapsed{max-height:44px}
-  .portlet.expanded{flex:0 0 auto;min-height:220px;max-height:min(60vh,680px)}
+  .portlet.expanded{flex:1 1 auto;min-height:160px}
   .portlet-header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer;background:rgba(255,255,255,0.03);user-select:none}
   .portlet-title{font-weight:800;font-size:13px}
   .portlet-actions{display:flex;gap:6px;align-items:center}
   .count{font-size:11px;background:rgba(134,170,240,0.2);color:var(--accent);padding:2px 8px;border-radius:999px;font-weight:700}
-  .portlet-body{flex:1;overflow:auto;min-height:0}
+  .portlet-body{flex:1;overflow:auto}
   .item{padding:10px 12px;border-bottom:1px solid var(--line)}
   .item:last-child{border-bottom:none}
   .headline{font-weight:700;font-size:13px;display:block;margin-bottom:6px}
@@ -91,7 +91,6 @@
   .notif{position:fixed;right:16px;bottom:16px;background:var(--success);color:#000;padding:10px 14px;border-radius:10px;box-shadow:var(--shadow);opacity:0;transform:translateY(8px);transition:all .25s}
   .notif.show{opacity:1;transform:translateY(0)}
   .danger{background:var(--warning)!important;color:#000}
-  .portlet.dragging{opacity:.6;border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -295,7 +294,7 @@ function buildDashboard(){
 }
 
 function makePortlet(sec, idx){
-  const card = document.createElement('div'); card.className='portlet collapsed'; card.dataset.section=String(idx); card.draggable = true;
+  const card = document.createElement('div'); card.className='portlet collapsed'; card.dataset.section=String(idx);
   const header = document.createElement('div'); header.className='portlet-header';
   const title = document.createElement('div'); title.className='portlet-title'; title.textContent = sec.label || '(Untitled)';
   const actions = document.createElement('div'); actions.className='portlet-actions';
@@ -303,7 +302,6 @@ function makePortlet(sec, idx){
   actions.appendChild(count); header.appendChild(title); header.appendChild(actions);
   const body = document.createElement('div'); body.className='portlet-body'; body.innerHTML='<div class="empty">No content yet</div>';
   header.addEventListener('click', ()=>{
-    if (card.classList.contains('dragging')) return;
     const column = card.parentElement;
     Array.from(column.children).forEach(el => { if (el!==card) { el.classList.remove('expanded'); el.classList.add('collapsed'); } });
     const isExpanded = card.classList.contains('expanded');
@@ -312,29 +310,6 @@ function makePortlet(sec, idx){
     } else {
       card.classList.remove('collapsed'); card.classList.add('expanded');
     }
-  });
-
-  card.addEventListener('dragstart', (e)=>{
-    card.classList.add('dragging');
-    window.__dragPortlet = card;
-    if (e.dataTransfer){ e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.dataset.section || ''); }
-  });
-  card.addEventListener('dragend', ()=>{ card.classList.remove('dragging'); window.__dragPortlet = null; });
-  card.addEventListener('dragover', (e)=>{ e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; });
-  card.addEventListener('drop', (e)=>{
-    e.preventDefault();
-    const dragging = window.__dragPortlet;
-    if (!dragging || dragging === card) return;
-    const from = Number(dragging.dataset.section);
-    const to = Number(card.dataset.section);
-    if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0 || from === to) return;
-    const moved = state.sections.splice(from, 1)[0];
-    state.sections.splice(to, 0, moved);
-    buildConfigUI();
-    buildDashboard();
-    saveConfig();
-    refreshAll();
-    toast('Portlet order updated');
   });
   card.appendChild(header); card.appendChild(body); return card;
 }
