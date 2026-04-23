@@ -78,7 +78,8 @@
     role: 'host',
     peerId: null, ws: null, pc: null, dc: null, room: null, seq: 0,
     localStream: null, remoteStream: null, makingOffer: false,
-    ignoreOffer: false, pendingAnswer: false
+    ignoreOffer: false, pendingAnswer: false, needsNegotiation: false,
+    wsGen: 0, reconnectAttempts: 0, reconnectTimer: null
   };
   sessionStorage.setItem('diag_client_id', S.id);
   $('clientId').textContent = S.id;
@@ -143,6 +144,8 @@
     if(!relay || !S.room){ line('err','missing_relay_or_room',{}); return; }
 
     if(S.ws){ try{S.ws.close();}catch{} }
+    const gen = ++S.wsGen;
+    if(S.reconnectTimer){ clearTimeout(S.reconnectTimer); S.reconnectTimer = null; }
     const url = `${relay}?app=${encodeURIComponent(app)}&session=${encodeURIComponent(S.room)}&client=${encodeURIComponent(S.id)}`;
     line('ok','relay_connect_start',{url});
     S.ws = new WebSocket(url); refresh();
@@ -158,6 +161,7 @@
     S.ws.onclose = (e)=>{ line('warn','relay_close',{code:e.code,reason:e.reason}); refresh(); };
     S.ws.onerror = ()=>{ line('err','relay_error',{}); refresh(); };
     S.ws.onmessage = async (e)=>{
+      if(gen !== S.wsGen) return;
       let d; try{ d = JSON.parse(e.data);}catch{return;}
       if(!d) return;
       if(d.from===S.id){ line('warn','self_or_echo',{type:d.type}); return; }
@@ -237,6 +241,9 @@
         S.pendingAnswer = desc.type === 'answer';
         await pc.setRemoteDescription(desc);
         S.pendingAnswer = false;
+        if(S.needsNegotiation && pc.signalingState === 'stable'){
+          queueMicrotask(()=>tryNegotiation(pc));
+        }
 
         if(desc.type==='offer'){
           await pc.setLocalDescription(await pc.createAnswer());
