@@ -315,6 +315,7 @@ var transcriptCollapsed=false,showTranscriptMore=false,partnerSpeakTimer=null,tr
 var dgKeyVerified=false,dgKeyVerifyTimer=null;
 // FIX 5: ICE candidate queue — holds candidates that arrive before remote description is set
 var pendingCandidates=[];
+var savedOffer=null; // Creator stores offer here so it can be resent when joiner arrives
 
 var LS={setup:'setup',waiting:'waiting',call:'call'};
 var lobbyState=LS.setup;
@@ -465,7 +466,8 @@ function connectRelay(){
     log('relay_open',{},'ok');
     relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
     startHB();
-    // FIX 4: One-way offer — creator sets up PC and offers; joiner waits passively for the offer
+    // Creator sets up the room immediately: PC created, offer sent and saved.
+    // Joiner's hello resends the same saved offer. No rebuild. No race.
     if(room.role==='creator'&&!pc)setupPC();
   };
   ws.onmessage=function(e){try{handleRelay(JSON.parse(e.data))}catch(_){}};
@@ -482,6 +484,16 @@ function stopHB(){if(hbTimer){clearInterval(hbTimer);hbTimer=null}}
 
 function handleRelay(d){
   if(!d||d.from===deviceId)return;
+  if(d.type==='hello'){
+    if(room.role==='creator'){
+      $('solo-banner').style.display='none';
+      var state=pc&&pc.connectionState;
+      if(state==='connected'){log('rtc_hello_skip',{state:state});return;}
+      // Joiner just walked in — resend the saved offer (same key, no rebuild)
+      if(savedOffer){relaySend(savedOffer);log('rtc_offer_resent',{},'ok');}
+    }
+    return;
+  }
   if(d.type==='ping'){relaySend({type:'pong',transient:true});return}
   if(d.type==='pong')return;
   if(d.type==='webrtc-signal'){handleSig(d);return}
@@ -562,7 +574,7 @@ function setupPC(){
   if(room.role==='creator'){
     // Creator originates — onnegotiationneeded fires when tracks are added
     pc.onnegotiationneeded=async function(){
-      try{makingOffer=true;await pc.setLocalDescription(await pc.createOffer());relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}})}
+      try{makingOffer=true;await pc.setLocalDescription(await pc.createOffer());var _offer={type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}};relaySend(_offer);savedOffer=_offer;log('rtc_offer_saved',{},'ok');}
       catch(_){}finally{makingOffer=false}
     };
   }else{
@@ -604,7 +616,8 @@ async function handleSig(d){
     if(d.signal.description){
       var desc=d.signal.description;
       if(desc.type==='offer'){
-        // FIX 4: Joiner receives offer — set up PC now if not already, then answer
+        // Joiner ignores resent offer if already connected
+        if(pc&&(pc.connectionState==='connected'||pc.connectionState==='connecting')){log('rtc_offer_skip',{state:pc.connectionState});return;}
         if(!pc)setupPC();
         await pc.setRemoteDescription(desc);
         await flushPendingCandidates();
@@ -616,6 +629,7 @@ async function handleSig(d){
         // Creator receives answer
         await pc.setRemoteDescription(desc);
         await flushPendingCandidates();
+        savedOffer=null;
         log('rtc_got_answer',{},'ok');
       }
     }else if(d.signal.candidate){
@@ -774,7 +788,7 @@ function toggleMic(){micOn=!micOn;if(videoStream)videoStream.getAudioTracks().fo
 function toggleCam(){if(!videoStream)return;camOn=!camOn;videoStream.getVideoTracks().forEach(function(t){t.enabled=camOn});syncCam()}
 function hangUp(){relaySend({type:'hangup'});cleanUp()}
 function cleanUp(){
-  saveTr();stopDeepgram();recentFinals=[];pendingCandidates=[];clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
+  saveTr();stopDeepgram();recentFinals=[];pendingCandidates=[];savedOffer=null;clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
   if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}
   if(pc){pc.close();pc=null}
   room.id=null;room.solo=false;room.role=null;
