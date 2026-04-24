@@ -1,0 +1,438 @@
+<!-- PII-Swapper-1.0-2026-04-24 03:38 PM -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PII Swapper & Scrubber</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f1f5f9;
+            --card: #ffffff;
+            --text: #0f172a;
+            --border: #e2e8f0;
+            --accent: #f8fafc;
+            --danger: #dc2626;
+            --success: #16a34a;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            padding-bottom: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: var(--text);
+            text-align: center;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-title {
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--bg);
+            padding-bottom: 10px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 18px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-secondary { background: #64748b; color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-success { background: var(--success); color: white; }
+
+        input[type="text"], input[type="file"] {
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .mapping-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .mapping-table th, .mapping-table td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .mapping-table th {
+            background: var(--accent);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+
+        .original-text {
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: #ef4444;
+            word-break: break-all;
+        }
+
+        .replacement-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+
+        .preview-area {
+            width: 100%;
+            height: 300px;
+            background: #1e293b;
+            color: #e2e8f0;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-size: 0.9rem;
+            border: 1px solid #334155;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .status-waiting { background: #fef3c7; color: #92400e; }
+        .status-active { background: #dcfce7; color: #166534; }
+
+        footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #0f172a;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 0.85rem;
+            z-index: 1000;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #94a3b8;
+            padding: 40px;
+            font-style: italic;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .controls { flex-direction: column; }
+            button { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>PII Swapper & Persistent Scrubber</h1>
+
+    <!-- 1. File Input & Global State -->
+    <div class="card">
+        <div class="section-title">
+            <span>Step 1: Upload & Session Control</span>
+            <span id="fileBadge" class="status-badge status-waiting">No File in Memory</span>
+        </div>
+        <div class="controls">
+            <input type="file" id="fileInput" accept=".txt">
+            <button class="btn-danger" onclick="resetMemory()">Reset Memory</button>
+        </div>
+        <div id="fileStats" style="font-size: 0.8rem; color: #64748b;"></div>
+    </div>
+
+    <!-- 2. Candidate Detection -->
+    <div class="card" id="step2" style="display: none;">
+        <div class="section-title">Step 2: Auto-Detected PII Candidates</div>
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 10px;">
+            Unique instances of Names and Email addresses found. 
+        </p>
+        <div id="detectionContainer" style="max-height: 400px; overflow-y: auto;">
+            <table class="mapping-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50%;">Candidate (Original)</th>
+                        <th>Replacement String</th>
+                    </tr>
+                </thead>
+                <tbody id="candidateBody"></tbody>
+            </table>
+        </div>
+        <div class="controls" style="margin-top: 20px;">
+            <button class="btn-primary" onclick="applySwaps('candidate')">Apply Global Swaps</button>
+        </div>
+    </div>
+
+    <!-- 3. Wildcard Search -->
+    <div class="card" id="step3" style="display: none;">
+        <div class="section-title">Step 3: Wildcard Scrubber (Advanced Search)</div>
+        <div class="controls">
+            <input type="text" id="wildcardInput" placeholder="Enter pattern: e.g. https://* or 192.168.*">
+            <button class="btn-secondary" onclick="runWildcardSearch()">Search Wildcard</button>
+        </div>
+        <div id="wildcardContainer" style="max-height: 400px; overflow-y: auto; display: none;">
+            <table class="mapping-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50%;">Pattern Match</th>
+                        <th>Replacement String</th>
+                    </tr>
+                </thead>
+                <tbody id="wildcardBody"></tbody>
+            </table>
+            <div class="controls" style="margin-top: 20px;">
+                <button class="btn-primary" onclick="applySwaps('wildcard')">Apply Wildcard Swaps</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Preview & Download -->
+    <div class="card" id="step4" style="display: none;">
+        <div class="section-title">
+            <span>Step 4: Memory Instance Preview</span>
+            <button class="btn-success" onclick="downloadScrubbedFile()">Download Scrubbed Instance</button>
+        </div>
+        <div id="filePreview" class="preview-area"></div>
+    </div>
+
+</div>
+
+<footer>
+    PII Swapper - Version 1.0 | 2026-04-24 03:38 PM
+</footer>
+
+<script>
+    // In-memory state
+    let memoryBuffer = "";
+    let originalName = "scrubbed_data.txt";
+    let detectedPII = [];
+    let wildcardMatches = [];
+
+    const fileInput = document.getElementById('fileInput');
+    const badge = document.getElementById('fileBadge');
+    const stats = document.getElementById('fileStats');
+
+    // Handle File Upload
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        originalName = file.name;
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            memoryBuffer = event.target.result;
+            initializeScrubbingSession();
+        };
+        reader.readAsText(file);
+    });
+
+    function initializeScrubbingSession() {
+        badge.innerText = "File Active in Memory";
+        badge.className = "status-badge status-active";
+        stats.innerText = `Size: ${memoryBuffer.length} characters | Lines: ${memoryBuffer.split('\n').length}`;
+        
+        // Show interface sections
+        document.getElementById('step2').style.display = 'block';
+        document.getElementById('step3').style.display = 'block';
+        document.getElementById('step4').style.display = 'block';
+
+        autoDetectPII();
+        updatePreview();
+    }
+
+    function autoDetectPII() {
+        // Simple regex patterns for PII candidates
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+        // Names: Capitalized words followed by more capitalized words (Heuristic)
+        const nameRegex = /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/g;
+
+        const emails = [...new Set(memoryBuffer.match(emailRegex) || [])];
+        const names = [...new Set(memoryBuffer.match(nameRegex) || [])];
+        
+        detectedPII = [...emails, ...names];
+        renderMappingTable('candidateBody', detectedPII, 'pii-rep');
+    }
+
+    function runWildcardSearch() {
+        const query = document.getElementById('wildcardInput').value.trim();
+        if (!query) return;
+
+        // Support standard wildcard *
+        // Convert to regex: Escape dots, convert * to non-whitespace catch-all
+        const escaped = query.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+        const regexStr = escaped.replace(/\\\*/g, '[^\\s\\r\\n,<>"]+');
+        
+        try {
+            const re = new RegExp(regexStr, 'g');
+            wildcardMatches = [...new Set(memoryBuffer.match(re) || [])];
+            
+            const container = document.getElementById('wildcardContainer');
+            if (wildcardMatches.length > 0) {
+                container.style.display = 'block';
+                renderMappingTable('wildcardBody', wildcardMatches, 'wild-rep');
+            } else {
+                container.style.display = 'none';
+                alert("No matches found for that pattern.");
+            }
+        } catch (e) {
+            alert("Invalid wildcard pattern logic.");
+        }
+    }
+
+    function renderMappingTable(targetId, list, inputClass) {
+        const tbody = document.getElementById(targetId);
+        tbody.innerHTML = '';
+
+        if (list.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="2" class="empty-state">No candidates found.</td></tr>';
+            return;
+        }
+
+        list.forEach((item, idx) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="original-text">${item}</td>
+                <td>
+                    <input type="text" class="replacement-input ${inputClass}" 
+                           data-original="${item.replace(/"/g, '&quot;')}" 
+                           placeholder="Enter replacement...">
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    function applySwaps(type) {
+        const selector = type === 'candidate' ? '.pii-rep' : '.wild-rep';
+        const inputs = document.querySelectorAll(selector);
+        let changesCount = 0;
+
+        let workingBuffer = memoryBuffer;
+
+        inputs.forEach(input => {
+            const original = input.getAttribute('data-original');
+            const replacement = input.value.trim();
+
+            if (replacement !== "") {
+                // Global literal replacement (escaped regex)
+                const escapedLiteral = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const re = new RegExp(escapedLiteral, 'g');
+                workingBuffer = workingBuffer.replace(re, replacement);
+                changesCount++;
+            }
+        });
+
+        if (changesCount > 0) {
+            memoryBuffer = workingBuffer;
+            updatePreview();
+            // Re-detect to see if the new version still has items
+            if (type === 'candidate') autoDetectPII();
+            if (type === 'wildcard') runWildcardSearch();
+            
+            alert(`Applied ${changesCount} global swap(s). Memory buffer updated.`);
+        } else {
+            alert("No replacement values entered.");
+        }
+    }
+
+    function updatePreview() {
+        const preview = document.getElementById('filePreview');
+        preview.textContent = memoryBuffer;
+    }
+
+    function downloadScrubbedFile() {
+        if (!memoryBuffer) return;
+        const blob = new Blob([memoryBuffer], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `scrubbed_${new Date().getTime()}_${originalName}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    }
+
+    function resetMemory() {
+        if (confirm("Are you sure? This will wipe the current memory instance and reset the session.")) {
+            memoryBuffer = "";
+            detectedPII = [];
+            wildcardMatches = [];
+            
+            document.getElementById('fileInput').value = "";
+            document.getElementById('wildcardInput').value = "";
+            
+            badge.innerText = "No File in Memory";
+            badge.className = "status-badge status-waiting";
+            stats.innerText = "";
+            
+            document.getElementById('step2').style.display = 'none';
+            document.getElementById('step3').style.display = 'none';
+            document.getElementById('step4').style.display = 'none';
+            document.getElementById('wildcardContainer').style.display = 'none';
+            
+            updatePreview();
+        }
+    }
+</script>
+
+</body>
+</html>
