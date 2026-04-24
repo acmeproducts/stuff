@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · 2026-04-21 · fix: waiting-room live, solo active, back-btn, dedup-decl, invite-key-isolation uh-oh I have a bad feeling -->
+<!-- talkbridge · 2026-04-21 · fix: dg key trim + verify-before-save -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -17,8 +17,6 @@
   --radius:14px;
 }
 html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans",sans-serif;color:var(--text);}
-
-/* LOBBY */
 .lobby{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;z-index:10;background:var(--bg);transition:opacity .3s;overflow-y:auto;}
 .lobby.hidden{opacity:0;pointer-events:none;}
 .lobby-card{width:min(100%,380px);display:flex;flex-direction:column;gap:16px;}
@@ -55,15 +53,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .lobby-footer{display:flex;gap:8px;margin-top:4px;}
 .lobby-footer-btn{flex:1;background:none;border:1px solid var(--surface2);border-radius:8px;color:var(--text-dim);padding:8px;font-size:12px;cursor:pointer;font-family:"DM Sans",sans-serif;}
 .lobby-footer-btn:hover{background:var(--surface2);color:var(--text);}
-
-/* JOINING */
 .joining-screen{position:fixed;inset:0;background:var(--bg);z-index:20;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
 .joining-screen.show{display:flex;}
 .joining-spinner{width:40px;height:40px;border:3px solid var(--surface2);border-top-color:var(--teal-bright);border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
 .joining-label{font-size:14px;color:var(--text-dim);}
-
-/* DEBUG LOG overlay */
 .log-overlay{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:50;display:none;flex-direction:column;}
 .log-overlay.show{display:flex;}
 .log-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--surface2);flex-shrink:0;gap:8px;flex-wrap:wrap;}
@@ -75,12 +69,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .log-row{border-bottom:1px solid rgba(255,255,255,.03);padding:1px 0;}
 .log-row .ts{color:#555;}.log-row .ev{color:var(--teal-bright);}
 .log-row.error .ev{color:#e74c3c;}.log-row.warn .ev{color:#f39c12;}.log-row.ok .ev{color:#2ecc71;}
-
-/* === CALL — 2-row flex: video | transcript === */
 .call{position:fixed;inset:0;background:#000;z-index:5;display:none;flex-direction:column;}
 .call.active{display:flex;}
-
-.call-videos{position:relative;background:#000;overflow:hidden;flex:1;min-height:0;transition:flex-basis .2s ease;}
+.call-videos{position:relative;background:#000;overflow:hidden;flex:1;min-height:0;}
 #remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:1;}
 #local-video{position:absolute;top:8px;right:8px;width:min(14%,80px);aspect-ratio:9/16;border-radius:8px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
 .no-video-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--text-muted);z-index:1;}
@@ -90,12 +81,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .subtitle-line{max-width:94%;padding:4px 12px;border-radius:6px;font-size:14px;line-height:1.35;text-align:center;word-break:break-word;}
 .subtitle-line.partner{background:rgba(0,0,0,.6);color:#fff;}
 .subtitle-line.mine{background:rgba(46,139,139,.2);color:rgba(255,255,255,.65);font-size:12px;}
-.subtitle-line.translation{background:rgba(63,193,193,.2);color:#fff;font-size:13px;}
-.subtitle-line.partner-source{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6);font-size:11px;}
 .partner-speaking-indicator{position:absolute;right:12px;bottom:56px;z-index:5;min-width:34px;height:24px;border-radius:999px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.2);color:#fff;display:none;align-items:center;justify-content:center;font-size:18px;font-weight:700;line-height:1;backdrop-filter:blur(4px);}
 .partner-speaking-indicator.show{display:flex;animation:pulseSpeak .9s ease-in-out infinite alternate;}
 @keyframes pulseSpeak{from{opacity:.55;transform:scale(.98)}to{opacity:1;transform:scale(1.03)}}
-
 .call-transcript{position:relative;flex:0 0 30%;min-height:0;max-height:45%;overflow-y:auto;background:var(--bg);border-top:1px solid var(--surface2);padding:0 12px;transition:flex-basis .2s ease;}
 .call-transcript-header{display:flex;align-items:center;justify-content:flex-start;padding:8px 0;position:sticky;top:0;background:var(--bg);z-index:1;gap:8px;}
 .call-transcript-title{font-size:12px;font-weight:700;color:var(--text-dim);letter-spacing:.3px;}
@@ -120,51 +108,67 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .tr-body{display:grid;grid-template-columns:1fr 1px 1fr;}
 .tr-col{padding:8px 10px;display:flex;flex-direction:column;gap:6px;min-width:0;}
 .tr-divider{background:rgba(255,255,255,.08);}
-.tr-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text-muted);}
 .tr-text{font-size:13px;line-height:1.4;color:var(--text);word-break:break-word;}
 .tr-col.source .tr-text{color:var(--text-dim);}
 .tr-tts{border:none;background:transparent;color:#8f959d;cursor:pointer;padding:0;display:flex;align-items:center;gap:4px;font-size:10px;line-height:1;}
 .tr-tts:hover{color:#c4ccd4;}
 .tr-tts svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 .tr-empty{color:var(--text-muted);font-size:12px;font-style:italic;padding:12px 0;}
-
-.call-controls{position:absolute;top:8px;left:8px;z-index:6;display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.65);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.15);border-radius:999px;padding:6px;}
-.ctrl-btn{width:40px;height:40px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,transform .1s;background:rgba(255,255,255,.1);color:#fff;}
+.call-controls{display:flex;align-items:center;justify-content:center;gap:14px;padding:8px 16px max(8px,env(safe-area-inset-bottom));background:var(--surface);flex-shrink:0;}
+.ctrl-btn{width:48px;height:48px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,transform .1s;background:rgba(255,255,255,.1);color:#fff;}
 .ctrl-btn:hover{background:rgba(255,255,255,.18);}
 .ctrl-btn:active{transform:scale(.93);}
 .ctrl-btn.off{background:rgba(231,76,60,.2);color:var(--red);}
-.ctrl-btn.end-call{background:var(--red);color:#fff;width:48px;height:40px;border-radius:20px;}
+.ctrl-btn.end-call{background:var(--red);color:#fff;width:56px;height:48px;border-radius:24px;}
 .ctrl-btn.end-call:hover{background:#c0392b;}
-
-#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(255,255,255,.15);backdrop-filter:blur(12px);color:#fff;font-size:13px;font-weight:600;padding:10px 20px;border-radius:22px;z-index:100;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;}
+#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(255,255,255,.15);backdrop-filter:blur(12px);color:#fff;font-size:13px;font-weight:600;padding:10px 20px;border-radius:22px;z-index:100;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-
 @media(min-width:768px){
   .lobby-card{width:420px;}
   #local-video{width:min(18%,160px);}
-  .ctrl-btn{width:44px;height:44px;}
-  .ctrl-btn.end-call{width:52px;height:44px;}
+  .call-controls{gap:20px;padding:10px 24px;}
+  .ctrl-btn{width:54px;height:54px;}
+  .ctrl-btn.end-call{width:64px;height:54px;}
   .subtitle-line{font-size:16px;max-width:80%;}
   .call-transcript{flex-basis:28%;}
 }
 @media(max-height:500px) and (orientation:landscape){
   .call-transcript{flex-basis:34%;}
   #local-video{width:min(16%,90px);top:6px;right:6px;}
-  .call-controls{gap:8px;}
-  .ctrl-btn{width:36px;height:36px;}
-  .ctrl-btn.end-call{width:44px;height:36px;}
+  .call-controls{gap:10px;padding:6px 12px;}
+  .ctrl-btn{width:40px;height:40px;}
+  .ctrl-btn.end-call{width:48px;height:40px;}
   .subtitle-line{font-size:12px;padding:3px 8px;}
 }
 @media(max-width:400px){
-  .call-controls{gap:8px;}
-  .ctrl-btn{width:38px;height:38px;}
-  .ctrl-btn.end-call{width:46px;height:38px;}
+  .call-controls{gap:10px;}
+  .ctrl-btn{width:44px;height:44px;}
+  .ctrl-btn.end-call{width:52px;height:44px;}
 }
-
-/* Room info chip — center top of video */
 .call-info-wrap{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;}
 .room-name-chip{background:rgba(0,0,0,.72);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:4px 14px;font-size:12px;font-weight:600;white-space:nowrap;max-width:min(78vw,260px);overflow:hidden;text-overflow:ellipsis;backdrop-filter:blur(5px);}
 .lang-flags-chip{background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:2px 10px;font-size:15px;backdrop-filter:blur(4px);}
+
+/* === CHAT COMPOSE STRIP === */
+.chat-compose-strip{display:flex;align-items:flex-end;gap:8px;padding:8px 12px max(8px,env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid rgba(255,255,255,.1);flex-shrink:0;}
+.chat-compose-ta{flex:1;background:rgba(255,255,255,.08);color:var(--text);border:1.5px solid rgba(255,255,255,.15);border-radius:20px;padding:8px 14px;font-size:14px;font-family:"DM Sans",sans-serif;resize:none;outline:none;min-height:38px;max-height:80px;line-height:1.4;-webkit-appearance:none;}
+.chat-compose-ta::placeholder{color:var(--text-muted);}
+.chat-compose-ta:focus{border-color:var(--teal);}
+.chat-send-btn{width:38px;height:38px;border-radius:50%;border:none;background:var(--teal);color:#fff;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:opacity .15s;}
+.chat-send-btn:disabled{opacity:.3;cursor:default;}
+.chat-send-btn:hover:not(:disabled){opacity:.85;}
+#chat-body{padding:0;}
+.ch-entry{padding:4px 0;}
+.ch-bubble{border:1px solid rgba(255,255,255,.14);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.03);}
+.ch-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 10px;border-bottom:1px solid rgba(255,255,255,.08);font-size:11px;}
+.ch-who{font-weight:700;}.ch-who.mine{color:var(--teal-bright);}.ch-who.theirs{color:var(--text-dim);}
+.ch-time{font-size:10px;color:var(--text-muted);font-variant-numeric:tabular-nums;}
+.ch-body{display:grid;grid-template-columns:1fr 1px 1fr;}
+.ch-col{padding:7px 10px;font-size:13px;line-height:1.4;color:var(--text);word-break:break-word;min-width:0;}
+.ch-col.orig{color:var(--text-dim);}
+.ch-divider{background:rgba(255,255,255,.08);}
+@media(min-width:768px){.chat-compose-ta{font-size:15px;}}
+@media(max-height:500px) and (orientation:landscape){.chat-compose-strip{padding:5px 10px;}.chat-compose-ta{min-height:32px;font-size:13px;}}
 </style>
 </head>
 <body>
@@ -182,7 +186,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <div><div class="lobby-label" style="margin-bottom:6px;">They speak</div>
         <select class="lobby-select" id="their-lang"></select></div>
         <div><div class="lobby-label" style="margin-bottom:6px;">Deepgram API key</div>
-        <input class="lobby-input" id="dg-key" type="password" placeholder="Paste key — stored locally" oninput="syncBtn()"></div>
+        <input class="lobby-input" id="dg-key" type="password" placeholder="Paste key — stored locally" oninput="onDgKeyInput()">
+        <div id="dg-key-status" style="font-size:11px;min-height:16px;margin-top:4px;padding-left:2px;transition:color .2s;"></div></div>
         <button class="lobby-btn" id="create-btn" onclick="createRoom()" disabled>Start a room</button>
       </div>
       <div class="recent-rooms" id="recent-rooms" style="display:none;">
@@ -202,14 +207,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <button class="lobby-link-btn" onclick="shareLink()">Share</button>
       </div>
       <button class="lobby-btn secondary" style="margin-top:8px;" onclick="backToSetup()">← Back</button>
-      <div style="margin-top:12px;font-size:12px;color:var(--text-muted);text-align:center;">Or wait for partner to join via link…</div>
+      <div style="margin-top:12px;font-size:12px;color:var(--text-muted);text-align:center;">Waiting for partner to join via link…</div>
     </div>
   </div>
 </div>
 
 <div class="joining-screen" id="joining-screen">
   <div class="joining-spinner"></div>
-  <div class="joining-label" id="joining-label">Joining call…</div>
+  <div class="joining-label">Joining call…</div>
 </div>
 
 <div class="log-overlay" id="log-overlay">
@@ -240,8 +245,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <video id="remote-video" autoplay playsinline></video>
     <video id="local-video" autoplay muted playsinline></video>
     <div class="no-video-placeholder" id="no-video-msg">👤</div>
-    <div class="call-info-wrap"><div class="room-name-chip" id="room-name-chip">No room</div><div class="lang-flags-chip" id="lang-flags-chip">🌐 → 🌐</div></div>
-    <div class="solo-banner" id="solo-banner" style="display:none;"><div class="solo-banner-text">Solo / test mode — waiting for partner</div></div>
+    <div class="call-info-wrap">
+      <div class="room-name-chip" id="room-name-chip">No room</div>
+      <div class="lang-flags-chip" id="lang-flags-chip">🌐 → 🌐</div>
+    </div>
+    <div class="solo-banner" id="solo-banner" style="display:none;">
+      <div class="solo-banner-text">Waiting for partner to join…</div>
+    </div>
     <div class="partner-speaking-indicator" id="partner-speaking-indicator" aria-hidden="true">…</div>
     <div class="subtitle-area" id="subtitle-area"></div>
   </div>
@@ -262,27 +272,34 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <div class="call-transcript-header">
       <div class="call-transcript-actions">
         <button class="call-transcript-btn" id="transcript-toggle-btn" onclick="toggleTranscript()" title="Collapse transcript" aria-label="Collapse transcript" aria-expanded="true">
-          <svg class="chevron-down" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-          <svg class="chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          <svg class="chevron-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+          <svg class="chevron-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
-        <button class="call-transcript-btn" id="transcript-tts-toggle" onclick="toggleTranscriptTts()" title="Transcript TTS off" aria-label="Transcript TTS off" aria-pressed="false">
-          <svg class="tts-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18 7a7 7 0 0 1 0 10"/></svg>
-          <svg class="tts-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h4l5-4v12l-5-4H4z"/><line x1="3" y1="21" x2="21" y2="3" stroke="#e74c3c" stroke-width="2.5"/></svg>
+        <button class="call-transcript-btn" id="transcript-tts-toggle" onclick="toggleTranscriptTts()" title="Transcript TTS off" aria-pressed="false">
+          <svg class="tts-on" viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18 7a7 7 0 0 1 0 10"/></svg>
+          <svg class="tts-off" viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><line x1="3" y1="21" x2="21" y2="3" stroke="#e74c3c" stroke-width="2.5"/></svg>
         </button>
-        <button class="call-transcript-btn" onclick="shareLink()" title="Share invite" aria-label="Share invite">
+        <button class="call-transcript-btn" onclick="shareLink()" title="Share invite">
           <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.8 10.8l6.4-3.6M8.8 13.2l6.4 3.6"/></svg>
         </button>
-        <button class="call-transcript-btn" onclick="copyTr()" title="Copy transcript" aria-label="Copy transcript">
+        <button class="call-transcript-btn" onclick="copyTr()" title="Copy transcript">
           <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
         </button>
-        <button class="call-transcript-btn" onclick="exportTxt()" title="Download transcript" aria-label="Download transcript">
+        <button class="call-transcript-btn" onclick="exportTxt()" title="Download transcript">
           <svg viewBox="0 0 24 24"><path d="M12 3v11"/><path d="M8 10l4 4 4-4"/><path d="M4 20h16"/></svg>
         </button>
       </div>
-      <span class="call-transcript-title" id="transcript-ribbon-title">Transcript</span>
+      <span class="call-transcript-title">Transcript</span>
     </div>
     <div id="transcript-body"><div class="tr-empty">Speak to see transcript here.</div></div>
-    <div class="transcript-more-indicator" id="transcript-more-indicator" aria-hidden="true">↓</div>
+    <div id="chat-body"></div>
+    <div class="transcript-more-indicator" id="transcript-more-indicator">↓</div>
+  </div>
+  <div class="chat-compose-strip" id="chat-compose-strip">
+    <textarea class="chat-compose-ta" id="chat-input" placeholder="Type a message…" rows="1" oninput="chatInputEvt()" onkeydown="chatKeydown(event)"></textarea>
+    <button class="chat-send-btn" id="chat-send-btn" onclick="sendChat()" disabled title="Send">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
   </div>
 </div>
 <div id="toast"></div>
@@ -306,20 +323,166 @@ var LANGS=[
   {code:'tr',label:'Turkish',flag:'🇹🇷'}
 ];
 var TTS_LOCALE={en:'en-US',th:'th-TH',ja:'ja-JP',ko:'ko-KR',zh:'zh-CN',ar:'ar-SA',hi:'hi-IN',ru:'ru-RU',fr:'fr-FR',de:'de-DE',es:'es-ES',it:'it-IT',pt:'pt-BR',vi:'vi-VN',id:'id-ID',ms:'ms-MY',fil:'fil-PH',nl:'nl-NL',sv:'sv-SE',pl:'pl-PL',tr:'tr-TR'};
+var DG_LANGS={en:'en-US',th:'th',ja:'ja',ko:'ko',zh:'zh-CN',ar:'ar',hi:'hi',ru:'ru',fr:'fr',de:'de',es:'es',it:'it',pt:'pt-BR',vi:'vi',id:'id',ms:'ms',fil:'fil',nl:'nl',sv:'sv',pl:'pl',tr:'tr'};
 
 var room={id:null,myLang:'',theirLang:'',role:null,name:'',solo:false};
 var deviceId=localStorage.getItem('tb_dev')||(function(){var id=crypto.randomUUID();localStorage.setItem('tb_dev',id);return id})();
-var ws=null,pc=null,videoStream=null,remoteStream=null;
-var micOn=true,camOn=true,makingOffer=false,ignoreOffer=false;
-var DG_LANGS={en:'en-US',th:'th',ja:'ja',ko:'ko',zh:'zh-CN',ar:'ar',hi:'hi',ru:'ru',fr:'fr',de:'de',es:'es',it:'it',pt:'pt-BR',vi:'vi',id:'id',ms:'ms',fil:'fil',nl:'nl',sv:'sv',pl:'pl',tr:'tr'};
+
+// Global relay WS — named _relayWs internally to avoid collision with verifyDgKey's local ws
+var _relayWs=null;
+var pc=null,videoStream=null,remoteStream=null;
+var micOn=true,camOn=true,makingOffer=false;
 var dgWs=null,dgAudioCtx=null,dgProc=null,dgSrc=null,dgActive=false;
 var recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=5;
 var localSubSeq=0,transcript=[],trCache=new Map();
-var hbTimer=null,seq=0,wsReconnectTimer=null,isSettingRemoteAnswerPending=false;
-var debugLog=[],HEARTBEAT_MS=30000,SUB_LINGER=60000,MAX_TR=300;
+var hbTimer=null,seq=0,wsReconnectTimer=null;
+var debugLog=[],HEARTBEAT_MS=30000,SUB_LINGER=5000,MAX_TR=300;
 var RK='tb_recent_rooms',TP='tb_transcript_',RL=12;
 var viewingRoomId=null,callHistoryPushed=false;
 var transcriptCollapsed=false,showTranscriptMore=false,partnerSpeakTimer=null,transcriptTtsOn=false;
+var dgKeyVerified=false,dgKeyVerifyTimer=null;
+// FIX 5: ICE candidate queue — holds candidates that arrive before remote description is set
+var pendingCandidates=[];
+var savedOffer=null; // Creator stores offer here so it can be resent when joiner arrives
+
+/* === FASTTEXT WASM — language detection (test.html pattern) ===
+   Non-blocking. Script-range handles CJK/Arabic/etc instantly.
+   Latin text routed through fastText lid.176.ftz when available.
+   Graceful fallback: returns null → caller uses room.myLang directly.
+   No language drift — routing always anchored to room.myLang/theirLang.
+*/
+var _ftReady=false,_ftModule=null,_ftLoadFailed=false,_ftPending=[];
+var FT_CONF=0.5;
+function _loadFastText(){
+  if(_ftReady||_ftLoadFailed)return;
+  var s=document.createElement('script');s.src='/fastText/fasttext.js';
+  s.onerror=function(){_ftLoadFailed=true;_ftPending.forEach(function(cb){cb(null);});_ftPending=[];};
+  s.onload=function(){
+    if(typeof FastText==='undefined'){_ftLoadFailed=true;_ftPending.forEach(function(cb){cb(null);});_ftPending=[];return;}
+    try{
+      var ft=new FastText();
+      ft.loadModel('/fastText/models/lid.176.ftz').then(function(){
+        _ftModule=ft;_ftReady=true;log('ft_ready',{},'ok');
+        _ftPending.forEach(function(cb){cb(ft);});_ftPending=[];
+      }).catch(function(){_ftLoadFailed=true;_ftPending.forEach(function(cb){cb(null);});_ftPending=[];});
+    }catch(e){_ftLoadFailed=true;_ftPending.forEach(function(cb){cb(null);});_ftPending=[];}
+  };
+  document.head.appendChild(s);
+}
+function _detectLangAsync(text){
+  var t=(text||'').trim();if(!t)return Promise.resolve(null);
+  // Script-range fast path — instant, no WASM needed
+  if(/[\u0E00-\u0E7F]/.test(t))return Promise.resolve('th');
+  if(/[\u3040-\u30FF\u31F0-\u31FF]/.test(t))return Promise.resolve('ja');
+  if(/[\u4E00-\u9FFF]/.test(t))return Promise.resolve('zh');
+  if(/[\uAC00-\uD7A3]/.test(t))return Promise.resolve('ko');
+  if(/[\u0600-\u06FF]/.test(t))return Promise.resolve('ar');
+  if(/[\u0900-\u097F]/.test(t))return Promise.resolve('hi');
+  if(/[\u0400-\u04FF]/.test(t))return Promise.resolve('ru');
+  // Latin — use fastText if available
+  if(_ftLoadFailed)return Promise.resolve(null);
+  if(_ftReady&&_ftModule){
+    return new Promise(function(resolve){
+      try{var r=_ftModule.predict(t,1);resolve((r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null);}catch(_){resolve(null);}
+    });
+  }
+  return new Promise(function(resolve){
+    _ftPending.push(function(ft){
+      if(!ft){resolve(null);return;}
+      try{var r=ft.predict(t,1);resolve((r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null);}catch(_){resolve(null);}
+    });
+    if(!_ftReady&&!_ftLoadFailed&&_ftPending.length===1)_loadFastText();
+  });
+}
+
+/* === CHAT — typed bidirectional messages over relay ===
+   Source language = room.myLang (never inferred from text = no drift).
+   WASM detection used ONLY to normalize input to room.myLang if user
+   accidentally types in a different script, then translate to theirLang.
+   relay type: 'chat-msg'  (distinct from subtitle/webrtc types)
+*/
+var chatMessages=[];
+
+function chatInputEvt(){
+  var ta=$('chat-input');if(!ta)return;
+  ta.style.height='auto';
+  ta.style.height=Math.min(ta.scrollHeight,80)+'px';
+  $('chat-send-btn').disabled=!ta.value.trim();
+}
+function chatKeydown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}}
+
+async function sendChat(){
+  var ta=$('chat-input');
+  var text=(ta&&ta.value||'').trim();if(!text||!room.id)return;
+  ta.value='';ta.style.height='';$('chat-send-btn').disabled=true;
+  var src=room.myLang,tgt=room.theirLang;
+  var srcText=text;
+  // Step 1: normalize to room.myLang if user typed a different language
+  try{
+    var detected=await _detectLangAsync(text);
+    if(detected&&detected!==src){
+      var normed=await translate(text,detected,src);
+      if(normed&&normed!==text)srcText=normed;
+    }
+  }catch(_){}
+  // Step 2: translate myLang → theirLang
+  var tgtText=srcText;
+  if(src&&tgt&&src!==tgt){
+    try{var tr=await translate(srcText,src,tgt);if(tr)tgtText=tr;}catch(_){}
+  }
+  var id='cm-'+uid();
+  var entry={id:id,who:'me',srcText:srcText,tgtText:tgtText,srcLang:src,tgtLang:tgt,ts:Date.now()};
+  chatMessages.push(entry);
+  renderChatEntry(entry);
+  relaySend({type:'chat-msg',chatId:id,srcText:srcText,tgtText:tgtText,srcLang:src,tgtLang:tgt});
+  log('chat_sent',{t:srcText.slice(0,40)},'ok');
+}
+
+function renderChatEntry(entry){
+  var b=$('chat-body');if(!b)return;
+  var isMine=entry.who==='me';
+  var who=isMine?'You':'Partner';
+  var whoClass=isMine?'mine':'theirs';
+  var locale=TTS_LOCALE[entry.srcLang]||'en-US';
+  var ts=new Date(entry.ts).toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  // Left col = reader's language, Right col = original/source language
+  // For 'me':      left=srcText (my lang), right=tgtText (partner lang)
+  // For 'partner': left=srcText (their myLang = my tgtLang), right=tgtText (my lang)
+  var leftText=entry.srcText,rightText=entry.tgtText||entry.srcText;
+  var html='<div class="ch-entry" id="ce-'+entry.id+'">'
+    +'<div class="ch-bubble">'
+    +'<div class="ch-head"><span class="ch-who '+whoClass+'">'+esc(who)+'</span><span class="ch-time">'+esc(ts)+'</span></div>'
+    +'<div class="ch-body">'
+    +'<div class="ch-col'+(isMine?'':' orig')+'">'+esc(leftText)+'</div>'
+    +'<div class="ch-divider"></div>'
+    +'<div class="ch-col'+(isMine?' orig':'')+'">'+esc(rightText)+'</div>'
+    +'</div></div></div>';
+  b.insertAdjacentHTML('afterbegin',html);
+  $('call-transcript').scrollTop=0;
+}
+
+function handleChatMsg(d){
+  if(!d)return;
+  // Partner sent: srcText=their myLang, tgtText=translated to their theirLang (= our myLang)
+  // Display for us: left=tgtText (our language, most readable), right=srcText (partner's original)
+  var entry={
+    id:d.chatId||('ci-'+uid()),
+    who:'partner',
+    srcText:d.tgtText||d.srcText||'',  // left = already in our language
+    tgtText:d.srcText||'',             // right = partner's original
+    srcLang:d.tgtLang||room.myLang,
+    tgtLang:d.srcLang||room.theirLang,
+    ts:d.ts||Date.now()
+  };
+  chatMessages.push(entry);
+  renderChatEntry(entry);
+  markPartnerTalking();
+  log('chat_rx',{t:(d.srcText||'').slice(0,40)},'ok');
+}
+
+
+var LS={setup:'setup',waiting:'waiting',call:'call'};
+var lobbyState=LS.setup;
 
 function $(id){return document.getElementById(id)}
 function toast(m){var e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(function(){e.classList.remove('show')},2500)}
@@ -336,11 +499,7 @@ function log(ev,d,l){
   b.appendChild(div);b.scrollTop=b.scrollHeight;
 }
 
-function detectLang(t,fb){t=(t||'').trim();if(!t)return fb||'en';if(/[฀-๿]/.test(t))return'th';if(/[぀-ヿ]/.test(t))return'ja';if(/[一-鿿]/.test(t))return'zh';if(/[가-힯]/.test(t))return'ko';if(/[؀-ۿ]/.test(t))return'ar';return fb||'en'}
 function gL(c){c=(c||'').toLowerCase();for(var i=0;i<LANGS.length;i++)if(LANGS[i].code===c)return LANGS[i];return{code:c||'?',label:(c||'?').toUpperCase(),flag:'🌐'}}
-function updateBadges(){
-  $('transcript-ribbon-title').textContent='Transcript';
-}
 function updateCallChip(){
   var n=$('room-name-chip'),f=$('lang-flags-chip');if(!n||!f)return;
   n.textContent=room.name||'No room';
@@ -352,7 +511,7 @@ function markPartnerTalking(){var i=$('partner-speaking-indicator');if(!i)return
 function setTranscriptMore(v){showTranscriptMore=!!v;$('transcript-more-indicator').classList.toggle('show',showTranscriptMore)}
 function transcriptNearBottom(){var w=$('call-transcript');if(!w)return true;return (w.scrollHeight-w.scrollTop-w.clientHeight)<50}
 function syncTranscriptToggleButton(){var b=$('transcript-toggle-btn');if(!b)return;var e=!transcriptCollapsed;b.title=e?'Collapse transcript':'Expand transcript';b.setAttribute('aria-label',b.title);b.setAttribute('aria-expanded',e?'true':'false')}
-function syncTranscriptTtsButton(){var b=$('transcript-tts-toggle');if(!b)return;b.classList.toggle('off',!transcriptTtsOn);b.style.color=transcriptTtsOn?'#b6bcc3':'#8f959d';b.title=transcriptTtsOn?'Transcript TTS on':'Transcript TTS off';b.setAttribute('aria-label',b.title);b.setAttribute('aria-pressed',transcriptTtsOn?'true':'false');var onIcon=b.querySelector('.tts-on'),offIcon=b.querySelector('.tts-off');if(onIcon)onIcon.style.display=transcriptTtsOn?'':'none';if(offIcon)offIcon.style.display=transcriptTtsOn?'none':''}
+function syncTranscriptTtsButton(){var b=$('transcript-tts-toggle');if(!b)return;b.style.color=transcriptTtsOn?'#b6bcc3':'#8f959d';b.title=transcriptTtsOn?'Transcript TTS on':'Transcript TTS off';b.setAttribute('aria-pressed',transcriptTtsOn?'true':'false');var onIcon=b.querySelector('.tts-on'),offIcon=b.querySelector('.tts-off');if(onIcon)onIcon.style.display=transcriptTtsOn?'':'none';if(offIcon)offIcon.style.display=transcriptTtsOn?'none':''}
 function toggleTranscriptTts(){transcriptTtsOn=!transcriptTtsOn;syncTranscriptTtsButton();if(!transcriptTtsOn&&window.speechSynthesis)window.speechSynthesis.cancel()}
 function speakText(text,lang){text=norm(text);if(!text||!window.speechSynthesis)return;window.speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(text);u.lang=TTS_LOCALE[lang]||lang||TTS_LOCALE[room.myLang]||'en-US';window.speechSynthesis.speak(u)}
 function toggleTranscript(){transcriptCollapsed=!transcriptCollapsed;$('call-screen').classList.toggle('transcript-collapsed',transcriptCollapsed);syncTranscriptToggleButton()}
@@ -377,10 +536,8 @@ function clearTrS(id){try{localStorage.removeItem(trKey(id))}catch(_){}}
 
 function encInv(p){try{return btoa(unescape(encodeURIComponent(JSON.stringify(p)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(_){return''}}
 function decInv(s){if(!s)return null;try{var b=s.replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';return JSON.parse(decodeURIComponent(escape(atob(b))))}catch(_){return null}}
-function invUrl(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';return location.href.split('?')[0].split('#')[0]+'#j='+encInv({r:room.id,ml:room.myLang,tl:room.theirLang,n:room.name||'',k:k});}
+function invUrl(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';return location.href.split('?')[0].split('#')[0]+'#j='+encInv({r:room.id,ml:room.myLang,tl:room.theirLang,n:room.name||'',k:k})}
 
-var LS={setup:'setup',waiting:'waiting',call:'call'};
-var lobbyState=LS.setup;
 function setLS(s){lobbyState=s;$('lobby-setup').style.display=s===LS.setup?'':'none';$('lobby-waiting').style.display=s===LS.waiting?'block':'none'}
 function backToSetup(){if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}setLS(LS.setup)}
 function getRecent(){try{return JSON.parse(localStorage.getItem(RK)||'[]')}catch(_){return[]}}
@@ -398,11 +555,7 @@ async function reuseRoom(id){
   $('my-lang').value=rec.myLang;$('their-lang').value=rec.theirLang;$('room-name').value=rec.name||'';syncBtn();
   try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});$('preview-video').srcObject=videoStream}catch(_){toast('Camera needed');return}
   $('lobby-link').textContent=invUrl();var nd=$('room-name-display');if(nd)nd.textContent=rec.name?'📋 '+rec.name:'';
-  saveRecent();
-  room.solo=true;
-  setLS(LS.waiting);
-  if(!callHistoryPushed){history.pushState({tbView:'call'},'',location.href);callHistoryPushed=true}
-  connectRelay();
+  saveRecent();enterCall();
 }
 function viewRoomTr(id){
   var rec=getRecent().find(function(r){return r.id===id});var entries=loadTr(id);viewingRoomId=id;
@@ -425,7 +578,24 @@ function renderRecent(){
 }
 
 function populateLangs(){['my-lang','their-lang'].forEach(function(id){var s=$(id);s.innerHTML='<option value="" disabled selected>Select language…</option>'+LANGS.map(function(l){return'<option value="'+l.code+'">'+l.flag+' '+l.label+'</option>'}).join('');s.onchange=syncBtn});syncBtn()}
-function syncBtn(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';$('create-btn').disabled=!($('my-lang').value&&$('their-lang').value&&k)}
+function syncBtn(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';$('create-btn').disabled=!($('my-lang').value&&$('their-lang').value&&k&&dgKeyVerified)}
+function setDgKeyStatus(msg,color){var el=$('dg-key-status');if(!el)return;el.textContent=msg;el.style.color=color||'#888';}
+function onDgKeyInput(){
+  var raw=$('dg-key').value,k=raw.trim();
+  if(raw!==k)$('dg-key').value=k;
+  dgKeyVerified=false;clearTimeout(dgKeyVerifyTimer);
+  if(!k){setDgKeyStatus('','');syncBtn();return;}
+  setDgKeyStatus('Verifying…','#f39c12');syncBtn();
+  dgKeyVerifyTimer=setTimeout(function(){verifyDgKey(k)},800);
+}
+function verifyDgKey(key){
+  var url='wss://api.deepgram.com/v1/listen?model=nova-3&language=en-US&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=true&endpointing=400';
+  var vws=new WebSocket(url,['token',key]),done=false;
+  var timer=setTimeout(function(){vws.close();if(!done){done=true;setDgKeyStatus('❌ Timed out — check key','#e74c3c');dgKeyVerified=false;syncBtn();}},8000);
+  vws.onopen=function(){if(done)return;done=true;clearTimeout(timer);vws.close();dgKeyVerified=true;localStorage.setItem('tb_dg_key',key);setDgKeyStatus('✅ Key verified','#2ecc71');syncBtn();log('dg_key_verified',{},'ok');};
+  vws.onerror=function(){};
+  vws.onclose=function(ev){clearTimeout(timer);if(!done){done=true;setDgKeyStatus('❌ Invalid key ('+ev.code+') — re-paste and try again','#e74c3c');dgKeyVerified=false;syncBtn();}};
+}
 
 async function createRoom(){
   room.myLang=$('my-lang').value;room.theirLang=$('their-lang').value;room.name=($('room-name').value||'').trim();
@@ -433,12 +603,7 @@ async function createRoom(){
   room.id=uid();room.role='creator';
   try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});$('preview-video').srcObject=videoStream}catch(_){toast('Camera needed');return}
   $('lobby-link').textContent=invUrl();var nd=$('room-name-display');if(nd)nd.textContent=room.name?'📋 '+room.name:'';
-  saveRecent();
-  // Enter waiting state — show link/QR, wait for partner hello before starting call
-  room.solo=true;
-  setLS(LS.waiting);
-  if(!callHistoryPushed){history.pushState({tbView:'call'},'',location.href);callHistoryPushed=true}
-  connectRelay();
+  saveRecent();enterCall();
 }
 
 function handleHash(p){
@@ -446,33 +611,51 @@ function handleHash(p){
   navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(function(s){
     videoStream=s;$('joining-screen').classList.remove('show');
     room.id=p.r;room.myLang=p.tl;room.theirLang=p.ml;room.name=p.n||'';room.role='joiner';room.solo=false;
-    if(p.k){localStorage.setItem('tb_dg_key',p.k);if($('dg-key'))$('dg-key').value=p.k;}
-    saveRecent();updateBadges();enterCall();
+    // Always apply key from invite — overwrites any stale key on partner device
+    if(p.k){localStorage.setItem('tb_dg_key',p.k);if($('dg-key'))$('dg-key').value=p.k;dgKeyVerified=true;}
+    saveRecent();enterCall();
   }).catch(function(){$('joining-screen').classList.remove('show');toast('Camera access required');history.replaceState({},'',location.pathname)});
   history.replaceState({},'',location.pathname);
 }
 function copyLink(){var u=room.id?invUrl():($('lobby-link').textContent||invUrl());if(navigator.clipboard)navigator.clipboard.writeText(u).then(function(){toast('Link copied')})}
 function shareLink(){var u=room.id?invUrl():($('lobby-link').textContent||invUrl());if(navigator.share)navigator.share({title:'TalkBridge',url:u}).catch(function(){});else copyLink()}
 
+// === RELAY ===
 function connectRelay(){
-  if(ws)try{ws.close()}catch(_){}
-  ws=new WebSocket(RELAY_WS+'?app='+encodeURIComponent(RELAY_APP)+'&session='+encodeURIComponent(room.id)+'&client='+encodeURIComponent(deviceId));
-  var _ws=ws;
-  ws.onopen=function(){log('relay_open',{},'ok');relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});startHB();if(room.role==='joiner'&&!pc)setupPC();};
+  if(_relayWs)try{_relayWs.close()}catch(_){}
+  var ws=new WebSocket(RELAY_WS+'?app='+encodeURIComponent(RELAY_APP)+'&session='+encodeURIComponent(room.id)+'&client='+encodeURIComponent(deviceId));
+  _relayWs=ws;
+  ws.onopen=function(){
+    if(ws!==_relayWs)return;
+    log('relay_open',{},'ok');
+    relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
+    startHB();
+    // Creator sets up the room immediately: PC created, offer sent and saved.
+    // Joiner's hello resends the same saved offer. No rebuild. No race.
+    if(room.role==='creator'&&!pc)setupPC();
+  };
   ws.onmessage=function(e){try{handleRelay(JSON.parse(e.data))}catch(_){}};
-  ws.onclose=function(ev){if(ws!==_ws)return;log('relay_close',{code:ev.code},'warn');stopHB();clearTimeout(wsReconnectTimer);if(room.id&&(lobbyState===LS.waiting||lobbyState===LS.call))wsReconnectTimer=setTimeout(function(){wsReconnectTimer=null;if(room.id)connectRelay()},2000)};
+  ws.onclose=function(ev){
+    if(ws!==_relayWs)return;
+    log('relay_close',{code:ev.code},'warn');stopHB();clearTimeout(wsReconnectTimer);
+    if(room.id&&lobbyState===LS.call)wsReconnectTimer=setTimeout(function(){wsReconnectTimer=null;if(room.id)connectRelay()},2000);
+  };
   ws.onerror=function(){log('relay_err',{},'error')};
 }
-function relaySend(m){if(!ws||ws.readyState!==1)return;m.session=room.id;m.from=deviceId;m.ts=Date.now();m.seq=++seq;try{ws.send(JSON.stringify(m))}catch(_){}}
+function relaySend(m){if(!_relayWs||_relayWs.readyState!==1)return;m.session=room.id;m.from=deviceId;m.ts=Date.now();m.seq=++seq;try{_relayWs.send(JSON.stringify(m))}catch(_){}}
 function startHB(){stopHB();hbTimer=setInterval(function(){relaySend({type:'ping',transient:true})},HEARTBEAT_MS)}
 function stopHB(){if(hbTimer){clearInterval(hbTimer);hbTimer=null}}
 
 function handleRelay(d){
   if(!d||d.from===deviceId)return;
   if(d.type==='hello'){
-    if(lobbyState===LS.waiting){room.solo=false;enterCall();return}
-    // Already in call: partner arrived, clear solo banner
-    if(lobbyState===LS.call){room.solo=false;$('solo-banner').style.display='none';if(!pc)setupPC();}
+    if(room.role==='creator'){
+      $('solo-banner').style.display='none';
+      var state=pc&&pc.connectionState;
+      if(state==='connected'){log('rtc_hello_skip',{state:state});return;}
+      // Joiner just walked in — resend the saved offer (same key, no rebuild)
+      if(savedOffer){relaySend(savedOffer);log('rtc_offer_resent',{},'ok');}
+    }
     return;
   }
   if(d.type==='ping'){relaySend({type:'pong',transient:true});return}
@@ -488,6 +671,7 @@ function handleRelay(d){
     if(d.text&&d.targetLang===room.myLang)showSub(d.text,'partner');
     patchTr('partner',d.subtitleSeq,d.text,d.sourceLang,d.targetLang);return;
   }
+  if(d.type==='chat-msg'){handleChatMsg(d);return;}
   if(d.type==='hangup'){toast('Partner left');cleanUp();return}
 }
 
@@ -498,28 +682,27 @@ async function enterCall(){
   $('lobby').classList.add('hidden');
   if(!callHistoryPushed){history.pushState({tbView:'call'},'',location.href);callHistoryPushed=true}
   $('call-screen').classList.add('active');lobbyState=LS.call;
-  $('local-video').srcObject=videoStream;syncMic();syncCam();updateBadges();updateCallChip();
-  $('solo-banner').style.display=room.solo?'':'none';
+  $('local-video').srcObject=videoStream;syncMic();syncCam();updateCallChip();
+  $('solo-banner').style.display=room.role==='creator'?'':'none';
   renderTr();
-  if(!ws||ws.readyState!==1)connectRelay();
-  else if(!pc)setupPC();
+  connectRelay();
   startDeepgram();
-  relaySend({type:'hello',lang:room.myLang,targetLang:room.theirLang,role:room.role});
 }
 
+// === REMOTE VIDEO ===
 function refreshRemoteVideo(){
   var rv=$('remote-video');
   var tracks=remoteStream?remoteStream.getTracks():[];
-  var hasVideoTrack=tracks.some(function(t){return t.kind==='video'&&t.readyState==='live';});
-  var hasRemoteTrack=tracks.some(function(t){return t.readyState==='live';});
+  var hasVideoTrack=tracks.some(function(t){return t.kind==='video'&&t.readyState==='live'});
+  var hasRemoteTrack=tracks.some(function(t){return t.readyState==='live'});
   log('rtc_refresh',{tracks:tracks.map(function(t){return t.kind+':'+t.readyState}).join(',')});
   if(hasRemoteTrack&&rv.srcObject!==remoteStream){rv.srcObject=remoteStream;}
   rv.playsInline=true;rv.autoplay=true;
   if(hasRemoteTrack){
-    rv.muted=false;
+    // FIX 3: Autoplay — muted first, unmute only after play() resolves
+    rv.muted=true;
     var tryPlay=rv.play&&rv.play();
     if(tryPlay&&tryPlay.then){tryPlay.then(function(){rv.muted=false;log('rtc_unmuted',{},'ok');}).catch(function(e){log('rtc_play_err',{e:String(e)},'error');});}
-    setTimeout(function(){if(rv.srcObject){rv.muted=false;}},800);
     $('solo-banner').style.display='none';
   }
   if(hasVideoTrack){
@@ -527,68 +710,107 @@ function refreshRemoteVideo(){
   }else{
     $('no-video-msg').style.display='';
     if(!hasRemoteTrack&&rv.srcObject)rv.srcObject=null;
-    $('solo-banner').style.display=room.solo?'':'none';
   }
 }
 function bindRemoteTrackState(track){
   if(!track||track._tbBound)return;
   track._tbBound=true;
-  track.onunmute=refreshRemoteVideo;
-  track.onmute=refreshRemoteVideo;
-  track.onended=refreshRemoteVideo;
+  track.onunmute=refreshRemoteVideo;track.onmute=refreshRemoteVideo;track.onended=refreshRemoteVideo;
 }
 function resetRemoteMediaState(){
   var rv=$('remote-video');
-  if(remoteStream)remoteStream.getTracks().forEach(function(t){
-    t.onunmute=null;t.onmute=null;t.onended=null;
-  });
-  remoteStream=null;
-  rv.srcObject=null;
+  if(remoteStream)remoteStream.getTracks().forEach(function(t){t.onunmute=null;t.onmute=null;t.onended=null;});
+  remoteStream=null;rv.srcObject=null;
   $('no-video-msg').style.display='';
-  $('solo-banner').style.display=room.solo?'':'none';
 }
 
+// === WEBRTC — FIX 4: One-way offer model ===
+// Creator: calls setupPC() → adds tracks → onnegotiationneeded → emitOffer
+// Joiner:  does NOT call setupPC() on relay open; waits for offer in handleSig
 function setupPC(){
-  if(pc)return;pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-  var emitOffer=async function(){try{makingOffer=true;await pc.setLocalDescription(await pc.createOffer());relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}})}catch(_){}finally{makingOffer=false}};
-  pc.onnegotiationneeded=emitOffer;
+  if(pc)return;
+  // FIX 6: Four STUN servers
+  pc=new RTCPeerConnection({iceServers:[
+    {urls:'stun:stun.l.google.com:19302'},
+    {urls:'stun:stun1.l.google.com:19302'},
+    {urls:'stun:stun2.l.google.com:19302'},
+    {urls:'stun:stun3.l.google.com:19302'}
+  ]});
+  if(room.role==='creator'){
+    // Creator originates — onnegotiationneeded fires when tracks are added
+    pc.onnegotiationneeded=async function(){
+      try{makingOffer=true;await pc.setLocalDescription(await pc.createOffer());var _offer={type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}};relaySend(_offer);savedOffer=_offer;log('rtc_offer_saved',{},'ok');}
+      catch(_){}finally{makingOffer=false}
+    };
+  }else{
+    // Joiner never originates offers
+    pc.onnegotiationneeded=function(){};
+  }
   var localTracks=videoStream?videoStream.getTracks():[];
   localTracks.forEach(function(t){pc.addTrack(t,videoStream)});
-  if(localTracks.length&&pc.signalingState==='stable'&&!makingOffer)emitOffer();
-  pc.onicecandidate=function(e){if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}});};
-  pc.oniceconnectionstatechange=function(){log('rtc_ice',{s:pc.iceConnectionState},pc.iceConnectionState==='connected'?'ok':'info');};
-  pc.onconnectionstatechange=function(){log('rtc_conn',{s:pc.connectionState},pc.connectionState==='connected'?'ok':pc.connectionState==='failed'?'error':'info');};
-  pc.ontrack=function(e){log('rtc_track',{kind:e.track.kind,state:e.track.readyState},'ok');
+  pc.onicecandidate=function(e){if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}})};
+  pc.oniceconnectionstatechange=function(){log('rtc_ice',{s:pc.iceConnectionState},pc.iceConnectionState==='connected'?'ok':'info')};
+  pc.onconnectionstatechange=function(){log('rtc_conn',{s:pc.connectionState},pc.connectionState==='connected'?'ok':pc.connectionState==='failed'?'error':'info')};
+  pc.ontrack=function(e){
+    log('rtc_track',{kind:e.track.kind,state:e.track.readyState},'ok');
     if(!remoteStream)remoteStream=new MediaStream();
     if(e.streams&&e.streams[0]){
       e.streams[0].getTracks().forEach(function(track){
-        var hasTrack=remoteStream.getTracks().some(function(existing){return existing.id===track.id});
-        if(!hasTrack)remoteStream.addTrack(track);
+        if(!remoteStream.getTracks().some(function(x){return x.id===track.id}))remoteStream.addTrack(track);
         bindRemoteTrackState(track);
       });
     }else if(e.track){
-      var exists=remoteStream.getTracks().some(function(track){return track.id===e.track.id});
-      if(!exists)remoteStream.addTrack(e.track);
+      if(!remoteStream.getTracks().some(function(x){return x.id===e.track.id}))remoteStream.addTrack(e.track);
       bindRemoteTrackState(e.track);
     }
     refreshRemoteVideo();
   };
 }
-async function handleSig(d){
-  if(!d.signal)return;if(!pc)setupPC();
-  try{
-    if(d.signal.description){var desc=d.signal.description,pol=deviceId>d.from;var rdy=!makingOffer&&(pc.signalingState==='stable'||isSettingRemoteAnswerPending);var col=desc.type==='offer'&&!rdy;ignoreOffer=!pol&&col;if(ignoreOffer)return;isSettingRemoteAnswerPending=desc.type==='answer';await pc.setRemoteDescription(desc);isSettingRemoteAnswerPending=false;if(desc.type==='offer'){await pc.setLocalDescription(await pc.createAnswer());relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}})}}
-    else if(d.signal.candidate){try{await pc.addIceCandidate(d.signal.candidate)}catch(_){}}
-  }catch(_){isSettingRemoteAnswerPending=false}
+
+// FIX 5: Flush queued ICE candidates after remote description is set
+async function flushPendingCandidates(){
+  while(pendingCandidates.length){
+    var c=pendingCandidates.shift();
+    try{await pc.addIceCandidate(c);log('rtc_ice_flushed',{},'ok')}catch(_){}
+  }
 }
 
-/* === DEEPGRAM STT ===
-   AudioContext pipes PCM from videoStream to Deepgram WebSocket.
-   No SpeechRecognition = no mic contention, no OS chime.
-   CC always runs; mute only gates the WebRTC audio track.
-*/
-function isCallActive(){return !!(room.id&&$('call-screen').classList.contains('active'))}
+async function handleSig(d){
+  if(!d.signal)return;
+  try{
+    if(d.signal.description){
+      var desc=d.signal.description;
+      if(desc.type==='offer'){
+        // Joiner ignores resent offer if already connected
+        if(pc&&(pc.connectionState==='connected'||pc.connectionState==='connecting')){log('rtc_offer_skip',{state:pc.connectionState});return;}
+        if(!pc)setupPC();
+        await pc.setRemoteDescription(desc);
+        await flushPendingCandidates();
+        await pc.setLocalDescription(await pc.createAnswer());
+        relaySend({type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}});
+        $('solo-banner').style.display='none';
+        log('rtc_answered',{},'ok');
+      }else if(desc.type==='answer'){
+        // Creator receives answer
+        await pc.setRemoteDescription(desc);
+        await flushPendingCandidates();
+        savedOffer=null;
+        log('rtc_got_answer',{},'ok');
+      }
+    }else if(d.signal.candidate){
+      // FIX 5: Queue candidate if remote description not yet set
+      if(!pc||!pc.remoteDescription){
+        pendingCandidates.push(d.signal.candidate);
+        log('rtc_ice_queued',{n:pendingCandidates.length});
+      }else{
+        try{await pc.addIceCandidate(d.signal.candidate)}catch(_){}
+      }
+    }
+  }catch(e){log('rtc_sig_err',{e:String(e)},'error')}
+}
 
+// === DEEPGRAM STT ===
+function isCallActive(){return !!(room.id&&$('call-screen').classList.contains('active'))}
 function isDupe(text){
   var now=Date.now();recentFinals=recentFinals.filter(function(f){return now-f.t<DEDUP_MS});
   var lo=text.toLowerCase();
@@ -596,42 +818,42 @@ function isDupe(text){
   return false;
 }
 function recFinal(t){recentFinals.push({s:t.toLowerCase(),t:Date.now()});if(recentFinals.length>DEDUP_MAX)recentFinals.shift()}
-
-function stripDGTags(t){return(t||'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim();}
+function stripDGTags(t){return(t||'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim()}
 
 function onDGFinal(text){
   text=stripDGTags(norm(text));if(!text)return;
   if(isDupe(text)){log('dg_dedup',{t:text.slice(0,40)},'warn');return}
   recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
-  // Detect what language was actually spoken, target is always partner's language
-  var detectedSrc=detectLang(text,'');
-  var actualSrc=detectedSrc||room.myLang;
-  var tgt=room.theirLang;
-  var ss=++localSubSeq;
+  // FIX 1: Use room.myLang directly — never infer from text content
+  var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
   showSub(text,'mine');
-  relaySend({type:'subtitle',subtitleSeq:ss,text:text,sourceText:text,sourceLang:actualSrc,targetLang:tgt,provisional:true});
-  addTr('me',text,text,actualSrc,tgt,ss);
-  translate(text,actualSrc,tgt).then(function(tr){tr=norm(tr)||text;if(tr!==text){relaySend({type:'subtitle-update',subtitleSeq:ss,text:tr,sourceText:text,sourceLang:actualSrc,targetLang:tgt});patchTr('me',ss,tr,actualSrc,tgt)}});
+  relaySend({type:'subtitle',subtitleSeq:ss,text:text,sourceText:text,sourceLang:src,targetLang:tgt,provisional:true});
+  addTr('me',text,text,src,tgt,ss);
+  translate(text,src,tgt).then(function(tr){
+    tr=norm(tr)||text;
+    if(tr!==text){
+      relaySend({type:'subtitle-update',subtitleSeq:ss,text:tr,sourceText:text,sourceLang:src,targetLang:tgt});
+      patchTr('me',ss,tr,src,tgt);
+    }
+  });
 }
 
 function startDeepgram(){
-  var key=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';
-  if(!key){toast('Deepgram key missing');return;}
+  var key=(($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'').trim();
+  if(!key){toast('Deepgram key missing');return}
   localStorage.setItem('tb_dg_key',key);
   if(dgActive)return;
-  if(!videoStream){log('dg_no_stream',{},'error');return;}
+  if(!videoStream){log('dg_no_stream',{},'error');return}
   var langCode=DG_LANGS[room.myLang]||room.myLang||'en-US';
-  var url='wss://api.deepgram.com/v1/listen'
-    +'?model=nova-3'
-    +'&language='+encodeURIComponent(langCode)
-    +'&encoding=linear16&sample_rate=16000&channels=1'
-    +'&interim_results=false&punctuate=true&endpointing=400';
+  var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(langCode)+'&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=true&endpointing=400';
   dgWs=new WebSocket(url,['token',key]);
   dgWs.onopen=function(){
     dgActive=true;log('dg_open',{lang:langCode},'ok');
     try{
       dgAudioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
       dgSrc=dgAudioCtx.createMediaStreamSource(videoStream);
+      // FIX 2: Silent GainNode sink — prevents mic audio routing to speakers
+      var silentGain=dgAudioCtx.createGain();silentGain.gain.value=0;silentGain.connect(dgAudioCtx.destination);
       dgProc=dgAudioCtx.createScriptProcessor(4096,1,1);
       dgProc.onaudioprocess=function(e){
         if(!dgWs||dgWs.readyState!==1)return;
@@ -640,8 +862,8 @@ function startDeepgram(){
         for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF;}
         dgWs.send(b.buffer);
       };
-      dgSrc.connect(dgProc);dgProc.connect(dgAudioCtx.destination);
-    }catch(e){log('dg_audio_err',{e:String(e)},'error');}
+      dgSrc.connect(dgProc);dgProc.connect(silentGain);
+    }catch(e){log('dg_audio_err',{e:String(e)},'error')}
   };
   dgWs.onmessage=function(e){
     try{
@@ -650,23 +872,20 @@ function startDeepgram(){
       if(alt&&alt.transcript&&d.is_final)onDGFinal(alt.transcript);
     }catch(_){}
   };
-  dgWs.onerror=function(){log('dg_error',{},'error');};
+  dgWs.onerror=function(){log('dg_error',{},'error')};
   dgWs.onclose=function(ev){
-    log('dg_close',{code:ev.code},'warn');
-    dgActive=false;stopDGAudio();
-    if(isCallActive())setTimeout(function(){if(isCallActive())startDeepgram();},2000);
+    log('dg_close',{code:ev.code},'warn');dgActive=false;stopDGAudio();
+    if(isCallActive())setTimeout(function(){if(isCallActive())startDeepgram()},2000);
   };
 }
 function stopDGAudio(){
-  try{if(dgProc)dgProc.disconnect();}catch(_){}
-  try{if(dgSrc)dgSrc.disconnect();}catch(_){}
-  try{if(dgAudioCtx)dgAudioCtx.close();}catch(_){}
+  try{if(dgProc)dgProc.disconnect()}catch(_){}
+  try{if(dgSrc)dgSrc.disconnect()}catch(_){}
+  try{if(dgAudioCtx)dgAudioCtx.close()}catch(_){}
   dgProc=null;dgSrc=null;dgAudioCtx=null;
 }
 function stopDeepgram(){
-  dgActive=false;
-  if(dgWs){try{dgWs.close();}catch(_){}dgWs=null;}
-  stopDGAudio();log('dg_stopped',{});
+  dgActive=false;if(dgWs){try{dgWs.close()}catch(_){}dgWs=null;}stopDGAudio();log('dg_stopped',{});
 }
 
 function showSub(text,cls){
@@ -696,8 +915,7 @@ function trHtml(e){
   var locale=TTS_LOCALE[srcLang]||'en-US';
   var ts=new Date(e.ts).toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   var speaker=e.who==='me'?'You':'Partner';
-  var srcText=e.sourceText||'';
-  var tgtText=e.translatedText||srcText;
+  var srcText=e.sourceText||'';var tgtText=e.translatedText||srcText;
   return '<div class="tr-entry"><div class="tr-bubble">'
     +'<div class="tr-head"><div class="tr-who '+(e.who==='me'?'mine':'')+'">'+esc(speaker)+'</div><div class="tr-time">'+esc(ts)+'</div></div>'
     +'<div class="tr-body">'
@@ -709,19 +927,16 @@ function trHtml(e){
     +'</div></div></div>';
 }
 function appendTrDom(entry){
-  var b=$('transcript-body'),w=$('call-transcript');if(!b)return;
+  var b=$('transcript-body');if(!b)return;
   var em=b.querySelector('.tr-empty');if(em)em.remove();
-  var wasNearBottom=transcriptNearBottom();
-  b.insertAdjacentHTML('beforeend',trHtml(entry));
-  if(wasNearBottom)w.scrollTop=w.scrollHeight;
-  else setTranscriptMore(true);
+  b.insertAdjacentHTML('afterbegin',trHtml(entry));
+  setTranscriptMore(false);
 }
 function renderTr(){
   var b=$('transcript-body');if(!b)return;
   if(!transcript.length){b.innerHTML='<div class="tr-empty">Speak to see transcript here.</div>';setTranscriptMore(false);return}
-  b.innerHTML=transcript.slice(-120).map(trHtml).join('');
-  $('call-transcript').scrollTop=$('call-transcript').scrollHeight;
-  setTranscriptMore(false);
+  b.innerHTML=transcript.slice(-120).slice().reverse().map(trHtml).join('');
+  $('call-transcript').scrollTop=0;setTranscriptMore(false);
 }
 function copyTr(){
   if(!transcript.length){toast('No transcript');return}
@@ -734,17 +949,16 @@ function exportTxt(){
   var blob=new Blob([t],{type:'text/plain'});var u=URL.createObjectURL(blob);var a=document.createElement('a');a.href=u;a.download='talkbridge-'+new Date().toISOString().slice(0,10)+'.txt';a.click();setTimeout(function(){URL.revokeObjectURL(u)},0);toast('Exported');
 }
 
-function toggleMic(){
-  micOn=!micOn;
-  if(videoStream)videoStream.getAudioTracks().forEach(function(t){t.enabled=micOn;});
-  syncMic();
-}
+function toggleMic(){micOn=!micOn;if(videoStream)videoStream.getAudioTracks().forEach(function(t){t.enabled=micOn});syncMic()}
 function toggleCam(){if(!videoStream)return;camOn=!camOn;videoStream.getVideoTracks().forEach(function(t){t.enabled=camOn});syncCam()}
 function hangUp(){relaySend({type:'hangup'});cleanUp()}
 function cleanUp(){
-  saveTr();stopDeepgram();recentFinals=[];clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
+  saveTr();stopDeepgram();recentFinals=[];pendingCandidates=[];savedOffer=null;chatMessages=[];var _cb=$('chat-body');if(_cb)_cb.innerHTML='';var _ci=$('chat-input');if(_ci){_ci.value='';_ci.style.height='';}clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
   if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}
-  if(pc){pc.close();pc=null}room.id=null;room.solo=false;stopHB();if(ws)try{ws.close()}catch(_){}ws=null;
+  if(pc){pc.close();pc=null}
+  room.id=null;room.solo=false;room.role=null;
+  stopHB();if(_relayWs)try{_relayWs.close()}catch(_){}
+  _relayWs=null;makingOffer=false;
   $('call-screen').classList.remove('active');$('lobby').classList.remove('hidden');setLS(LS.setup);
   $('subtitle-area').innerHTML='';$('no-video-msg').style.display='';
   $('partner-speaking-indicator').classList.remove('show');clearTimeout(partnerSpeakTimer);
@@ -755,18 +969,17 @@ function cleanUp(){
   transcript=[];micOn=true;camOn=true;syncMic();syncCam();callHistoryPushed=false;renderRecent();
 }
 
-if(localStorage.getItem('tb_dg_key')&&$('dg-key'))$('dg-key').value=localStorage.getItem('tb_dg_key');
+// === INIT ===
+if(localStorage.getItem('tb_dg_key')&&$('dg-key')){var _sk=localStorage.getItem('tb_dg_key').trim();$('dg-key').value=_sk;setDgKeyStatus('Verifying saved key…','#f39c12');verifyDgKey(_sk);}
 populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
-$('call-transcript').addEventListener('click',function(ev){var btn=ev.target.closest('.tr-tts');if(!btn)return;speakText(btn.getAttribute('data-tts-text')||'',btn.getAttribute('data-tts-lang')||room.myLang||'en');});
+$('call-transcript').addEventListener('click',function(ev){var btn=ev.target.closest('.tr-tts');if(!btn)return;speakText(btn.getAttribute('data-tts-text')||'',btn.getAttribute('data-tts-lang')||room.myLang||'en')});
 $('local-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('loadedmetadata',refreshRemoteVideo);
 var hp=new URLSearchParams((location.hash||'').replace(/^#/,''));var inv=hp.get('j');if(inv){var p=decInv(inv);if(p&&p.r)handleHash(p)}
-window.addEventListener('popstate',function(){if(lobbyState===LS.call&&room.id){hangUp();return}if(lobbyState===LS.waiting){cleanUp();setLS(LS.setup);}});
-window.addEventListener('visibilitychange',function(){
-  if(!document.hidden&&isCallActive()&&!dgActive)startDeepgram();
-});
+window.addEventListener('popstate',function(){if(lobbyState===LS.call&&room.id){hangUp();return}});
+window.addEventListener('visibilitychange',function(){if(!document.hidden&&isCallActive()&&!dgActive)startDeepgram()});
 window.addEventListener('pagehide',function(){stopDeepgram();if(room.id){saveTr();relaySend({type:'hangup',reason:'pagehide'})}});
 </script>
 </body>
