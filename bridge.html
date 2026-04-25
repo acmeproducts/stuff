@@ -201,6 +201,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <div><div class="lobby-label" style="margin-bottom:6px;">Deepgram API key</div>
         <input class="lobby-input" id="dg-key" type="password" placeholder="Paste key — stored locally" oninput="onDgKeyInput()">
         <div id="dg-key-status" style="font-size:11px;min-height:16px;margin-top:4px;padding-left:2px;transition:color .2s;"></div></div>
+
         <button class="lobby-btn" id="create-btn" onclick="createRoom()" disabled>Start a room</button>
       </div>
       <div class="recent-rooms" id="recent-rooms" style="display:none;">
@@ -728,12 +729,9 @@ function resetRemoteMediaState(){
 // Joiner:  does NOT call setupPC() on relay open; waits for offer in handleSig
 function setupPC(){
   if(pc)return;
-  // FIX 6: STUN + open TURN servers (no credentials required)
   pc=new RTCPeerConnection({iceServers:[
     {urls:'stun:stun.l.google.com:19302'},
     {urls:'stun:stun1.l.google.com:19302'},
-    {urls:'stun:stun2.l.google.com:19302'},
-    {urls:'stun:stun3.l.google.com:19302'},
     {urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},
     {urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'},
     {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}
@@ -750,7 +748,7 @@ function setupPC(){
   }
   var localTracks=videoStream?videoStream.getTracks():[];
   localTracks.forEach(function(t){pc.addTrack(t,videoStream)});
-  pc.onicecandidate=function(e){if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}})};
+  pc.onicecandidate=function(e){if(e.candidate){log('rtc_ice_emit',{type:e.candidate.type||'?'});relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}});}};
   pc.oniceconnectionstatechange=function(){log('rtc_ice',{s:pc.iceConnectionState},pc.iceConnectionState==='connected'?'ok':'info')};
   pc.onconnectionstatechange=function(){log('rtc_conn',{s:pc.connectionState},pc.connectionState==='connected'?'ok':pc.connectionState==='failed'?'error':'info')};
   pc.ontrack=function(e){
@@ -784,7 +782,7 @@ async function handleSig(d){
       var desc=d.signal.description;
       if(desc.type==='offer'){
         // Joiner ignores resent offer if already connected
-        if(pc&&(pc.connectionState==='connected'||pc.connectionState==='connecting')){log('rtc_offer_skip',{state:pc.connectionState});return;}
+        if(pc&&(pc.connectionState==='connected'||pc.connectionState==='connecting')){log('rtc_offer_skip',{state:pc.connectionState});await flushPendingCandidates();return;}
         if(!pc)setupPC();
         await pc.setRemoteDescription(desc);
         await flushPendingCandidates();
@@ -800,12 +798,11 @@ async function handleSig(d){
         log('rtc_got_answer',{},'ok');
       }
     }else if(d.signal.candidate){
-      // FIX 5: Queue candidate if remote description not yet set
       if(!pc||!pc.remoteDescription){
         pendingCandidates.push(d.signal.candidate);
         log('rtc_ice_queued',{n:pendingCandidates.length});
       }else{
-        try{await pc.addIceCandidate(d.signal.candidate)}catch(_){}
+        try{await pc.addIceCandidate(d.signal.candidate);log('rtc_ice_added',{type:d.signal.candidate.type||'?'});}catch(e){log('rtc_ice_add_err',{e:String(e)},'error');}
       }
     }
   }catch(e){log('rtc_sig_err',{e:String(e)},'error')}
