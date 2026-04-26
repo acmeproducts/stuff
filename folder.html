@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Orbital8 · Drive Intelligence</title>
+<script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg:       #0d0d12;
+    --surface:  #13131a;
+    --raised:   #1a1a24;
+    --hover:    #20202c;
+    --border:   rgba(255,255,255,0.07);
+    --bmd:      rgba(255,255,255,0.12);
+    --bacc:     rgba(245,158,11,0.35);
+    --tp:       #e0e0ee;
+    --ts:       #80809a;
+    --tm:       #3a3a52;
+    --acc:      #f59e0b;
+    --acc-d:    rgba(245,158,11,0.12);
+    --grn:      #10b981;
+    --grn-d:    rgba(16,185,129,0.12);
+    --blu:      #3b82f6;
+    --blu-d:    rgba(59,130,246,0.12);
+    --yel:      #eab308;
+    --yel-d:    rgba(234,179,8,0.12);
+    --red:      #ef4444;
+    --red-d:    rgba(239,68,68,0.12);
+    --mono:     'IBM Plex Mono', monospace;
+    --sans:     'DM Sans', sans-serif;
+    --r:        10px;
+    --rs:       6px;
+    --lpw:      280px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);z-index:100}
+.screen.hidden,.hidden{display:none!important}
+.card{background:var(--surface);border:1px solid var(--bmd);border-radius:16px;padding:40px 44px;width:90%;max-width:480px;box-shadow:0 24px 64px rgba(0,0,0,.5)}
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:32px}
+.logo .orb{width:32px;height:32px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fbbf24,var(--acc) 60%,#92400e);box-shadow:0 0 18px rgba(245,158,11,.4);flex-shrink:0}
+.logo .wm{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ts);letter-spacing:.1em;text-transform:uppercase}
+.ctitle{font-size:22px;font-weight:700;color:var(--tp);margin-bottom:6px;letter-spacing:-.3px}
+.csub{font-size:13px;color:var(--ts);margin-bottom:26px}
+.pvr-btn{display:flex;align-items:center;gap:14px;width:100%;padding:16px 20px;background:var(--raised);border:1px solid var(--bmd);border-radius:var(--r);color:var(--tp);font-family:var(--sans);font-size:15px;font-weight:500;cursor:pointer;transition:all .2s;margin-bottom:12px}
+.pvr-btn:hover{background:var(--hover);border-color:var(--bacc);transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.pvr-btn svg{width:20px;height:20px;flex-shrink:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 22px;border-radius:var(--rs);font-family:var(--sans);font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
+.btn-pri{background:var(--acc);color:#000;box-shadow:0 4px 14px rgba(245,158,11,.3)}
+.btn-pri:hover:not(:disabled){background:#fbbf24;transform:translateY(-1px)}
+.btn-ghost{background:transparent;color:var(--ts);border:1px solid var(--bmd)}
+.btn-ghost:hover:not(:disabled){background:var(--hover);color:var(--tp)}
+.btn-full{width:100%;margin-bottom:12px}
+.btn-danger{background:var(--red-d);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.btn-danger:hover:not(:disabled){background:rgba(239,68,68,.2)}
+.inp{width:100%;padding:11px 14px;background:var(--raised);border:1px solid var(--bmd);border-radius:var(--rs);color:var(--tp);font-family:var(--sans);font-size:14px;margin-bottom:14px;outline:none;transition:border-color .15s}
+.inp:focus{border-color:var(--acc)}
+.inp::placeholder{color:var(--tm)}
+.smsg{padding:10px 14px;border-radius:var(--rs);font-size:13px;margin-top:14px}
+.s-info{background:var(--blu-d);color:var(--blu);border:1px solid rgba(59,130,246,.2)}
+.s-err{background:var(--red-d);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.s-ok{background:var(--grn-d);color:var(--grn);border:1px solid rgba(16,185,129,.2)}
+.s-warn{background:var(--yel-d);color:var(--yel);border:1px solid rgba(234,179,8,.2)}
+/* Enrollment */
+.enroll-card{max-width:640px;max-height:82vh;display:flex;flex-direction:column;padding:0;overflow:hidden}
+.enroll-hdr{padding:28px 32px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
+.enroll-tb{display:flex;align-items:center;gap:10px;padding:10px 32px;background:var(--raised);border-bottom:1px solid var(--border);flex-shrink:0}
+.enroll-srch{flex:1;padding:7px 12px;background:var(--hover);border:1px solid var(--bmd);border-radius:var(--rs);color:var(--tp);font-family:var(--sans);font-size:13px;outline:none}
+.enroll-list{flex:1;overflow-y:auto;padding:4px 0;min-height:0}
+.enroll-list::-webkit-scrollbar{width:5px}
+.enroll-list::-webkit-scrollbar-thumb{background:var(--hover);border-radius:3px}
+.frow{display:flex;align-items:center;gap:12px;padding:10px 32px;cursor:pointer;transition:background .1s;border-left:3px solid transparent}
+.frow:hover{background:var(--hover)}
+.frow.sel{background:var(--acc-d);border-left-color:var(--acc)}
+.frow input[type=checkbox]{width:16px;height:16px;accent-color:var(--acc);cursor:pointer;flex-shrink:0}
+.frow-ic{color:var(--acc);opacity:.75;flex-shrink:0;display:flex}
+.frow-inf{flex:1;min-width:0}
+.frow-name{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+.frow-meta{font-size:11px;color:var(--ts);font-family:var(--mono);margin-top:2px}
+.frow-bdg{font-size:11px;font-family:var(--mono);padding:2px 8px;border-radius:20px;flex-shrink:0;white-space:nowrap}
+.bdg-mgd{background:var(--grn-d);color:var(--grn)}
+.bdg-new{background:var(--blu-d);color:var(--blu)}
+.bdg-chg{background:var(--yel-d);color:var(--yel)}
+.enroll-ft{padding:14px 32px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}
+.sel-count{font-size:13px;color:var(--ts);font-family:var(--mono)}
+/* Sniff */
+.sniff-card{max-width:520px}
+.sniff-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--border);border-radius:var(--rs);overflow:hidden;margin:18px 0}
+.sniff-stat{background:var(--raised);padding:16px 10px;text-align:center}
+.sniff-val{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--acc);display:block;margin-bottom:4px}
+.sniff-lbl{font-size:11px;color:var(--ts);text-transform:uppercase;letter-spacing:.06em}
+.warn-box{background:rgba(234,179,8,.07);border:1px solid rgba(234,179,8,.25);border-radius:var(--rs);padding:14px 16px;display:flex;gap:12px;align-items:flex-start;margin-bottom:18px}
+.warn-box svg{color:var(--yel);flex-shrink:0;margin-top:1px}
+.warn-txt{font-size:13px;color:var(--ts);line-height:1.6}
+.sniff-ft{display:flex;gap:10px;justify-content:flex-end}
+/* Acquisition */
+.acq-card{max-width:520px}
+.acq-fname{font-family:var(--mono);font-size:12px;color:var(--acc);background:var(--raised);padding:10px 14px;border-radius:var(--rs);margin:14px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb-wrap{height:6px;background:var(--raised);border-radius:3px;overflow:hidden;margin-bottom:8px}
+.pb-fill{height:100%;background:linear-gradient(90deg,var(--acc),#fbbf24);border-radius:3px;transition:width .3s;width:0%}
+.acq-ctrs{display:flex;gap:24px;margin:14px 0;font-family:var(--mono);font-size:12px;color:var(--ts)}
+.acq-ctrs span{color:var(--acc);font-weight:600;font-size:16px;display:block}
+.acq-log{background:var(--raised);border-radius:var(--rs);padding:10px 14px;height:110px;overflow-y:auto;font-family:var(--mono);font-size:11px;color:var(--tm);line-height:1.9}
+.acq-log::-webkit-scrollbar{width:4px}
+.acq-log::-webkit-scrollbar-thumb{background:var(--hover)}
+/* Tree layout */
+.tree-layout{position:fixed;inset:0;display:grid;grid-template-rows:50px 1fr 30px;background:var(--bg)}
+#t-hdr{display:flex;align-items:center;gap:14px;padding:0 18px;background:var(--surface);border-bottom:1px solid var(--border)}
+.h-logo{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.h-logo .orb{width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fbbf24,var(--acc) 60%,#92400e);flex-shrink:0}
+.h-logo .wm{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ts);letter-spacing:.1em;text-transform:uppercase}
+.h-div{width:1px;height:22px;background:var(--border);flex-shrink:0}
+.h-pvr{font-family:var(--mono);font-size:11px;color:var(--ts);text-transform:uppercase;letter-spacing:.08em;flex-shrink:0}
+.h-srch{flex:1;max-width:300px;padding:6px 12px;background:var(--raised);border:1px solid var(--border);border-radius:var(--rs);color:var(--tp);font-family:var(--sans);font-size:13px;outline:none;transition:border-color .15s}
+.h-srch:focus{border-color:var(--bacc)}
+.h-srch::placeholder{color:var(--tm)}
+.h-acts{display:flex;align-items:center;gap:8px;margin-left:auto}
+.ic-btn{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:var(--rs);background:transparent;border:1px solid var(--border);color:var(--ts);cursor:pointer;transition:all .15s}
+.ic-btn:hover{background:var(--hover);color:var(--tp);border-color:var(--bmd)}
+.enroll-more-btn{font-size:12px;padding:5px 12px;background:var(--acc-d);border:1px solid var(--bacc);color:var(--acc);border-radius:var(--rs);cursor:pointer;font-family:var(--sans);font-weight:600;transition:all .15s;white-space:nowrap}
+.enroll-more-btn:hover{background:rgba(245,158,11,.2)}
+#t-body{display:grid;grid-template-columns:var(--lpw) 4px 1fr;overflow:hidden}
+#t-tree{display:flex;flex-direction:column;background:var(--surface);border-right:1px solid var(--border);overflow:hidden}
+.tp-hdr{padding:9px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--tm);text-transform:uppercase;letter-spacing:.1em;flex-shrink:0}
+.tp-scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 0}
+.tp-scroll::-webkit-scrollbar{width:5px}
+.tp-scroll::-webkit-scrollbar-thumb{background:var(--hover);border-radius:3px}
+.tnode{display:flex;align-items:center;gap:6px;padding:6px 10px 6px 0;cursor:pointer;border-radius:6px;margin:1px 5px;transition:background .1s;user-select:none}
+.tnode:hover{background:var(--hover)}
+.tnode.sel{background:var(--acc-d)}
+.tnode.sel .tn-name{color:var(--acc)}
+.tn-tog{width:16px;height:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--tm);font-size:9px;transition:transform .15s}
+.tn-tog.exp{transform:rotate(90deg)}
+.tn-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot-cur{background:var(--grn)}
+.dot-chg{background:var(--yel)}
+.dot-new{background:var(--blu)}
+.tn-ic{color:var(--acc);opacity:.7;flex-shrink:0;display:flex}
+.tn-inf{flex:1;min-width:0}
+.tn-name{font-size:13px;font-weight:500;color:var(--tp);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tn-sub{font-family:var(--mono);font-size:10px;color:var(--tm);margin-top:1px}
+.new-notice{background:var(--blu-d);border:1px solid rgba(59,130,246,.2);border-radius:var(--rs);padding:9px 12px;margin:6px;font-size:12px;color:var(--blu);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.new-notice button{background:var(--blu);color:#fff;border:none;border-radius:4px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+#t-div{background:var(--border);cursor:col-resize;transition:background .15s}
+#t-div:hover,#t-div.drag{background:var(--acc)}
+#t-attr{display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+.at-tb{display:flex;align-items:center;gap:10px;padding:7px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.at-lbl{font-size:12px;font-weight:600;color:var(--tm);text-transform:uppercase;letter-spacing:.08em;flex-shrink:0;white-space:nowrap}
+.at-path{font-family:var(--mono);font-size:11px;color:var(--ts);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.at-cnt{font-family:var(--mono);font-size:11px;color:var(--tm);flex-shrink:0}
+.tbl-wrap{flex:1;overflow:auto}
+.tbl-wrap::-webkit-scrollbar{width:7px;height:7px}
+.tbl-wrap::-webkit-scrollbar-track{background:var(--bg)}
+.tbl-wrap::-webkit-scrollbar-thumb{background:var(--raised);border-radius:4px}
+.attr-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+.attr-tbl thead{position:sticky;top:0;z-index:10}
+.attr-tbl th{background:var(--surface);padding:8px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--tm);letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--bmd);white-space:nowrap;cursor:pointer;user-select:none;transition:color .15s}
+.attr-tbl th:hover{color:var(--ts)}
+.attr-tbl th.s-asc,.attr-tbl th.s-desc{color:var(--acc)}
+.attr-tbl td{padding:8px 14px;border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;transition:background .1s}
+.attr-tbl tbody tr:hover td{background:var(--hover)}
+.attr-tbl tbody tr.row-sel td{background:var(--acc-d)}
+.col-name{font-weight:500;color:var(--tp)}
+.col-mono{font-family:var(--mono);font-size:12px;color:var(--ts)}
+.col-hi{font-family:var(--mono);font-size:12px;color:var(--acc)}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:20px;font-family:var(--mono);font-size:11px;font-weight:500}
+.chip-cur{background:var(--grn-d);color:var(--grn)}
+.chip-chg{background:var(--yel-d);color:var(--yel)}
+.chip-new{background:var(--blu-d);color:var(--blu)}
+.chip .dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.cur-bar{display:flex;align-items:center;gap:7px}
+.cur-trk{flex:1;height:4px;background:var(--raised);border-radius:2px;overflow:hidden;min-width:40px}
+.cur-fill{height:100%;background:var(--grn);border-radius:2px}
+.cur-pct{font-family:var(--mono);font-size:11px;color:var(--ts);width:32px;text-align:right;flex-shrink:0}
+th[draggable=true]{cursor:grab}
+th.drag-over{border-left:2px solid var(--acc)}
+#t-ftr{display:flex;align-items:center;gap:18px;padding:0 18px;background:var(--surface);border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--tm)}
+.ft-st{display:flex;align-items:center;gap:6px}
+.ft-st strong{color:var(--ts)}
+.ft-sep{width:1px;height:12px;background:var(--border)}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--raised);color:var(--tp);border:1px solid var(--bmd);padding:9px 18px;border-radius:8px;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:999;white-space:nowrap}
+.toast.show{opacity:1;pointer-events:auto}
+.toast.t-ok{border-color:rgba(16,185,129,.35);color:var(--grn)}
+.toast.t-err{border-color:rgba(239,68,68,.35);color:var(--red)}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(245,158,11,.25);border-top-color:var(--acc);border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- Provider -->
+<div class="screen" id="scr-provider">
+    <div class="card">
+        <div class="logo"><div class="orb"></div><span class="wm">Orbital8 · Intelligence</span></div>
+        <div class="ctitle">Source Drive</div>
+        <div class="csub">Connect a provider to build your folder intelligence index.</div>
+        <button class="pvr-btn" id="btn-gdrive">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.28 7L9.69 1h4.62l3.41 6zM16.05 7H7.95l4.05 7zM11.76 15h8.58L24 21H7.05z"/></svg>
+            Google Drive
+        </button>
+        <button class="pvr-btn" id="btn-onedrive">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.1 10.59a5.5 5.5 0 0 0-9.52-3.13A4.01 4.01 0 0 0 5.5 10a.5.5 0 0 0 0 .01A4.5 4.5 0 0 0 6 19h15a3 3 0 0 0 1.1-5.41z"/></svg>
+            OneDrive
+        </button>
+        <div id="pvr-status" class="smsg s-info">Select your cloud storage provider</div>
+    </div>
+</div>
+
+<!-- Auth -->
+<div class="screen hidden" id="scr-auth">
+    <div class="card">
+        <div class="logo"><div class="orb"></div><span class="wm">Orbital8 · Intelligence</span></div>
+        <div class="ctitle" id="auth-title">Connect</div>
+        <div class="csub" id="auth-sub">Authenticate to continue</div>
+        <div id="gdrive-secret-container" class="hidden">
+            <input type="password" id="gdrive-client-secret" class="inp" placeholder="Enter Google Client Secret">
+        </div>
+        <button class="btn btn-pri btn-full" id="btn-auth">Connect</button>
+        <button class="btn btn-ghost btn-full" id="btn-auth-back">← Back</button>
+        <div id="auth-status" class="smsg s-info"></div>
+    </div>
+</div>
+
+<!-- Enrollment -->
+<div class="screen hidden" id="scr-enroll">
+    <div class="card enroll-card">
+        <div class="enroll-hdr">
+            <div class="ctitle">Enroll Folders</div>
+            <div class="csub" style="margin-bottom:0">Select top-level folders to manage. All subfolders are included automatically.</div>
+        </div>
+        <div class="enroll-tb">
+            <input class="enroll-srch" type="text" id="enroll-srch" placeholder="Filter folders…">
+            <button class="btn btn-ghost" id="btn-all" style="padding:5px 12px;font-size:12px">All</button>
+            <button class="btn btn-ghost" id="btn-none" style="padding:5px 12px;font-size:12px">None</button>
+        </div>
+        <div class="enroll-list" id="enroll-list">
+            <div style="padding:32px;text-align:center;color:var(--tm)"><div class="spin" style="margin:0 auto 12px"></div><div>Loading…</div></div>
+        </div>
+        <div class="enroll-ft">
+            <span class="sel-count" id="enroll-cnt">0 selected</span>
+            <div style="display:flex;gap:10px">
+                <button class="btn btn-ghost" id="btn-enroll-back">← Back</button>
+                <button class="btn btn-pri" id="btn-analyze" disabled>Analyze Selected →</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sniff -->
+<div class="screen hidden" id="scr-sniff">
+    <div class="card sniff-card">
+        <div class="ctitle">Pre-Index Analysis</div>
+        <div class="csub" id="sniff-sub">Analyzing selected folders…</div>
+        <div class="sniff-grid">
+            <div class="sniff-stat"><span class="sniff-val" id="sn-folders">—</span><div class="sniff-lbl">Folders (est)</div></div>
+            <div class="sniff-stat"><span class="sniff-val" id="sn-files">—</span><div class="sniff-lbl">Images (est)</div></div>
+            <div class="sniff-stat"><span class="sniff-val" id="sn-time">—</span><div class="sniff-lbl">Est. Minutes</div></div>
+        </div>
+        <div class="warn-box hidden" id="sniff-warn">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            <div class="warn-txt" id="sniff-warn-txt"></div>
+        </div>
+        <div id="sniff-status" class="smsg s-info" style="margin-bottom:18px"></div>
+        <div class="sniff-ft">
+            <button class="btn btn-ghost" id="btn-sniff-back">← Back</button>
+            <button class="btn btn-pri" id="btn-proceed" disabled>Begin Indexing →</button>
+        </div>
+    </div>
+</div>
+
+<!-- Acquisition -->
+<div class="screen hidden" id="scr-acq">
+    <div class="card acq-card">
+        <div class="ctitle">Indexing Drive</div>
+        <div class="csub">Building your intelligence record. Future visits will be instant.</div>
+        <div class="acq-fname" id="acq-folder">Initializing…</div>
+        <div class="pb-wrap"><div class="pb-fill" id="acq-pb"></div></div>
+        <div class="acq-ctrs">
+            <div><span id="acq-fc">0</span>folders</div>
+            <div><span id="acq-ic">0</span>images</div>
+            <div><span id="acq-el">0s</span>elapsed</div>
+        </div>
+        <div class="acq-log" id="acq-log"></div>
+        <div style="display:flex;justify-content:flex-end;margin-top:14px">
+            <button class="btn btn-danger" id="btn-acq-cancel">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Tree -->
+<div class="tree-layout hidden" id="scr-tree">
+    <header id="t-hdr">
+        <div class="h-logo"><div class="orb"></div><span class="wm">Intelligence</span></div>
+        <div class="h-div"></div>
+        <span class="h-pvr" id="h-pvr">—</span>
+        <div class="h-div"></div>
+        <input class="h-srch" type="text" id="t-srch" placeholder="Search folders…">
+        <div class="h-acts">
+            <button class="ic-btn" id="btn-refresh" title="Check for changes">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            </button>
+            <button class="enroll-more-btn" id="btn-more">+ Enroll More</button>
+            <button class="btn btn-ghost" id="btn-disconnect" style="font-size:12px;padding:5px 12px">Disconnect</button>
+        </div>
+    </header>
+    <div id="t-body">
+        <div id="t-tree">
+            <div class="tp-hdr">
+                <span>Folder Tree</span>
+                <button class="ic-btn" id="btn-collapse" title="Collapse all" style="width:22px;height:22px;border:none;font-size:11px">↕</button>
+            </div>
+            <div class="tp-scroll" id="tp-scroll"></div>
+        </div>
+        <div id="t-div"></div>
+        <div id="t-attr">
+            <div class="at-tb">
+                <span class="at-lbl" id="at-lbl">All Folders</span>
+                <span class="at-path" id="at-path"></span>
+                <span class="at-cnt" id="at-cnt"></span>
+            </div>
+            <div class="tbl-wrap">
+                <table class="attr-tbl">
+                    <thead id="t-thead"></thead>
+                    <tbody id="t-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <footer id="t-ftr">
+        <div class="ft-st"><strong id="ft-f">0</strong>&nbsp;folders managed</div>
+        <div class="ft-sep"></div>
+        <div class="ft-st"><strong id="ft-i">0</strong>&nbsp;image files</div>
+        <div class="ft-sep"></div>
+        <div class="ft-st"><strong id="ft-c">0%</strong>&nbsp;curated</div>
+        <div class="ft-sep"></div>
+        <div class="ft-st">Updated:&nbsp;<strong id="ft-u">—</strong></div>
+    </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ── Constants ─────────────────────────────────────────────
+const INTEL_FILE = '.orbital8-intelligence.json';
+const LS_INTEL   = 'o8_intel_cache';
+const LS_PREFS   = 'o8_intel_prefs';
+
+const COLS = [
+    { id:'name',          label:'Folder',  w:220, fixed:true },
+    { id:'imageFiles',    label:'Images',  w:75,  mono:true  },
+    { id:'totalSize',     label:'Size',    w:90,  mono:true  },
+    { id:'newestFile',    label:'Newest',  w:100, mono:true  },
+    { id:'oldestFile',    label:'Oldest',  w:100, mono:true  },
+    { id:'curationPct',   label:'Curated', w:105             },
+    { id:'inStack',       label:'Inbox',   w:60,  mono:true  },
+    { id:'priorityStack', label:'Keep',    w:60,  mono:true  },
+    { id:'outStack',      label:'Maybe',   w:65,  mono:true  },
+    { id:'trashStack',    label:'Recycle', w:70,  mono:true  },
+    { id:'tagged',        label:'Tagged',  w:68,  mono:true  },
+    { id:'status',        label:'Status',  w:95              },
+    { id:'firstIndexed',  label:'Indexed', w:95,  mono:true  },
+];
+const DEF_COLS = ['name','imageFiles','totalSize','newestFile','curationPct','inStack','priorityStack','outStack','tagged','status'];
+
+// ── State ─────────────────────────────────────────────────
+const st = {
+    provider:null, providerType:null, intel:null,
+    enrollFolders:[], selected:new Set(), sniffResult:null,
+    acq:{ running:false, cancelled:false, t0:0 },
+    newChildren:[],
+    tree:{ selFolder:null, sortCol:'name', sortDir:'asc', search:'', expanded:new Set(), colOrder:[...DEF_COLS], dragCol:null }
+};
+
+// ── Utilities ─────────────────────────────────────────────
+function showScreen(id){
+    ['scr-provider','scr-auth','scr-enroll','scr-sniff','scr-acq','scr-tree'].forEach(s=>{
+        const el=document.getElementById(s);
+        if(el) el.classList.toggle('hidden',s!==id);
+    });
+}
+function toast(msg,type,dur=3000){
+    const el=document.getElementById('toast');
+    if(!el) return;
+    el.textContent=msg; el.className='toast show'+(type?' '+type:'');
+    clearTimeout(el._t); el._t=setTimeout(()=>{el.className='toast';},dur);
+}
+function fmtSize(b){ if(!b) return '—'; if(b<1024) return b+' B'; if(b<1048576) return (b/1024).toFixed(1)+' KB'; if(b<1073741824) return (b/1048576).toFixed(1)+' MB'; return (b/1073741824).toFixed(2)+' GB'; }
+function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso); return isNaN(d)?'—':d.toLocaleDateString('en-US',{year:'2-digit',month:'short',day:'numeric'}); }
+function fmtNum(n){ return(n==null||n===0)?'—':n.toLocaleString(); }
+function agoText(ts){ if(!ts) return '—'; const s=(Date.now()-ts)/1000; if(s<60) return 'just now'; if(s<3600) return Math.floor(s/60)+'m ago'; if(s<86400) return Math.floor(s/3600)+'h ago'; return Math.floor(s/86400)+'d ago'; }
+function simpleHash(str){ let h=0; for(let i=0;i<str.length;i++) h=Math.imul(31,h)+str.charCodeAt(i)|0; return(h>>>0).toString(16); }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function $id(id){ return document.getElementById(id); }
+function logLine(msg){ const log=$id('acq-log'); if(!log) return; const d=document.createElement('div'); d.textContent=msg; log.appendChild(d); log.scrollTop=log.scrollHeight; }
+
+// ── Google Drive Provider ─────────────────────────────────
+// Auth lifted verbatim from Orbital8 Goji baseline v9 (ui.html)
+class GoogleDriveProvider {
+    constructor() {
+        this.name='googledrive';
+        this.clientId='567988062464-fa6c1ovesqeudqs5398vv4mbo6q068p9.apps.googleusercontent.com';
+        this.redirectUri=window.location.origin+window.location.pathname;
+        this.scope='https://www.googleapis.com/auth/drive';
+        this.apiBase='https://www.googleapis.com/drive/v3';
+        this.accessToken=null; this.refreshToken=null; this.clientSecret=null;
+        this.isAuthenticated=false;
+        this.loadStoredCredentials();
+    }
+    loadStoredCredentials(){
+        this.accessToken=localStorage.getItem('google_access_token');
+        this.refreshToken=localStorage.getItem('google_refresh_token');
+        this.clientSecret=localStorage.getItem('google_client_secret');
+        this.isAuthenticated=!!(this.accessToken&&this.refreshToken&&this.clientSecret);
+    }
+    storeCredentials(){
+        if(this.accessToken)  localStorage.setItem('google_access_token',this.accessToken);
+        if(this.refreshToken) localStorage.setItem('google_refresh_token',this.refreshToken);
+        if(this.clientSecret) localStorage.setItem('google_client_secret',this.clientSecret);
+    }
+    clearStoredCredentials(){
+        localStorage.removeItem('google_access_token');
+        localStorage.removeItem('google_refresh_token');
+        localStorage.removeItem('google_client_secret');
+    }
+    async authenticate(clientSecret){
+        if(clientSecret){this.clientSecret=clientSecret;this.storeCredentials();}
+        if(!this.clientSecret) throw new Error('Client secret is required for Google Drive authentication');
+        if(this.accessToken&&this.refreshToken){
+            try{await this.makeApiCall('/files?pageSize=1');this.isAuthenticated=true;return true;}catch(e){}
+        }
+        return new Promise((resolve,reject)=>{
+            const authUrl=this.buildAuthUrl();
+            const popup=window.open(authUrl,'google-auth','width=500,height=600,scrollbars=yes,resizable=yes');
+            if(!popup){reject(new Error('Popup blocked by browser'));return;}
+            const checkClosed=setInterval(()=>{if(popup.closed){clearInterval(checkClosed);reject(new Error('Authentication cancelled'));}},1000);
+            const messageHandler=async(event)=>{
+                if(event.origin!==window.location.origin) return;
+                if(event.data.type==='GOOGLE_AUTH_SUCCESS'){
+                    clearInterval(checkClosed);window.removeEventListener('message',messageHandler);popup.close();
+                    try{await this.exchangeCodeForTokens(event.data.code);this.isAuthenticated=true;resolve(true);}catch(e){reject(e);}
+                }else if(event.data.type==='GOOGLE_AUTH_ERROR'){
+                    clearInterval(checkClosed);window.removeEventListener('message',messageHandler);popup.close();reject(new Error(event.data.error));
+                }
+            };
+            window.addEventListener('message',messageHandler);
+        });
+    }
+    buildAuthUrl(){
+        const params=new URLSearchParams({client_id:this.clientId,redirect_uri:this.redirectUri,response_type:'code',scope:this.scope,access_type:'offline',prompt:'consent'});
+        return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+    }
+    async exchangeCodeForTokens(code){
+        const response=await fetch('https://oauth2.googleapis.com/token',{
+            method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+            body:new URLSearchParams({client_id:this.clientId,client_secret:this.clientSecret,code,grant_type:'authorization_code',redirect_uri:this.redirectUri})
+        });
+        if(!response.ok) throw new Error('Token exchange failed');
+        const tokens=await response.json();
+        this.accessToken=tokens.access_token;this.refreshToken=tokens.refresh_token;this.storeCredentials();
+    }
+    async refreshAccessToken(){
+        if(!this.refreshToken||!this.clientSecret) throw new Error('No refresh token or client secret available');
+        const response=await fetch('https://oauth2.googleapis.com/token',{
+            method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+            body:new URLSearchParams({client_id:this.clientId,client_secret:this.clientSecret,refresh_token:this.refreshToken,grant_type:'refresh_token'})
+        });
+        if(!response.ok) throw new Error('Failed to refresh access token');
+        const tokens=await response.json();this.accessToken=tokens.access_token;this.storeCredentials();return this.accessToken;
+    }
+    async makeApiCall(endpoint,options={},isJson=true){
+        if(!this.accessToken) throw new Error('Not authenticated');
+        let url;
+        if(endpoint.startsWith('https://')) url=endpoint;
+        else if(endpoint.startsWith('/upload/drive/')) url=`https://www.googleapis.com${endpoint}`;
+        else url=`${this.apiBase}${endpoint}`;
+        const headers={'Authorization':`Bearer ${this.accessToken}`,...options.headers};
+        if(isJson&&!headers['Content-Type']) headers['Content-Type']='application/json';
+        let response=await fetch(url,{...options,headers});
+        if(response.status===401&&this.refreshToken&&this.clientSecret){
+            try{
+                await this.refreshAccessToken();
+                headers['Authorization']=`Bearer ${this.accessToken}`;
+                response=await fetch(url,{...options,headers});
+            }catch(refreshError){this.isAuthenticated=false;this.clearStoredCredentials();throw new Error('Authentication expired. Please reconnect.');}
+        }
+        if(!response.ok){const errorText=await response.text();throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`);}
+        if(isJson) return response.json();
+        return response;
+    }
+    // Intelligence-specific methods
+    async getLevelOneFolders(){
+        const q=encodeURIComponent(`'root' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+        let folders=[],token=null;
+        do{
+            const url=`/files?q=${q}&fields=files(id,name,createdTime,modifiedTime),nextPageToken&pageSize=100&orderBy=name${token?`&pageToken=${token}`:''}`;
+            const res=await this.makeApiCall(url);
+            folders.push(...(res.files||[]));token=res.nextPageToken;
+        }while(token);
+        return folders;
+    }
+    async getSubfolders(folderId){
+        const q=encodeURIComponent(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+        let folders=[],token=null;
+        do{
+            const url=`/files?q=${q}&fields=files(id,name,createdTime,modifiedTime),nextPageToken&pageSize=100${token?`&pageToken=${token}`:''}`;
+            const res=await this.makeApiCall(url);
+            folders.push(...(res.files||[]));token=res.nextPageToken;
+        }while(token);
+        return folders;
+    }
+    async getImageFiles(folderId){
+        const q=encodeURIComponent(`'${folderId}' in parents and trashed=false and mimeType contains 'image/'`);
+        let files=[],token=null;
+        do{
+            const url=`/files?q=${q}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,appProperties),nextPageToken&pageSize=1000${token?`&pageToken=${token}`:''}`;
+            const res=await this.makeApiCall(url);
+            files.push(...(res.files||[]));token=res.nextPageToken;
+        }while(token);
+        return files;
+    }
+    async quickCount(folderId){
+        const q=encodeURIComponent(`'${folderId}' in parents and trashed=false and mimeType contains 'image/'`);
+        const res=await this.makeApiCall(`/files?q=${q}&fields=files(id)&pageSize=1000`);
+        const n=(res.files||[]).length;
+        return res.nextPageToken?n*3:n;
+    }
+    async quickFolderCount(folderId){
+        const q=encodeURIComponent(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+        const res=await this.makeApiCall(`/files?q=${q}&fields=files(id)&pageSize=100`);
+        return(res.files||[]).length;
+    }
+    extractCuration(ap={}){
+        return{
+            stack:ap.slideboxStack||null,
+            tags:ap.slideboxTags?ap.slideboxTags.split(',').map(t=>t.trim()).filter(Boolean):[],
+            notes:ap.notes||'',
+            qualityRating:parseInt(ap.qualityRating)||0,
+            contentRating:parseInt(ap.contentRating)||0,
+            favorite:ap.favorite==='true',
+        };
+    }
+    async loadIntelligenceFile(){
+        try{
+            const q=encodeURIComponent(`name='${INTEL_FILE}' and 'root' in parents and trashed=false`);
+            const res=await this.makeApiCall(`/files?q=${q}&fields=files(id)&pageSize=1`);
+            const f=res.files?.[0];
+            if(!f) return null;
+            const content=await this.makeApiCall(`/files/${f.id}?alt=media`,{},false);
+            return content.json();
+        }catch(e){return null;}
+    }
+    async saveIntelligenceFile(data){
+        const body=JSON.stringify(data);
+        const q=encodeURIComponent(`name='${INTEL_FILE}' and 'root' in parents and trashed=false`);
+        const check=await this.makeApiCall(`/files?q=${q}&fields=files(id)&pageSize=1`);
+        const existing=check.files?.[0];
+        let fileId;
+        if(existing){fileId=existing.id;}
+        else{
+            const cr=await this.makeApiCall('/files',{method:'POST',body:JSON.stringify({name:INTEL_FILE,parents:['root'],mimeType:'application/json'})});
+            fileId=cr.id;
+        }
+        await this.makeApiCall(`/upload/drive/v3/files/${fileId}?uploadType=media`,{method:'PATCH',body,headers:{'Content-Type':'application/json'}},false);
+    }
+    async disconnect(){
+        this.isAuthenticated=false;this.accessToken=null;this.refreshToken=null;this.clientSecret=null;
+        this.clearStoredCredentials();
+    }
+}
+
+// ── OneDrive Provider ─────────────────────────────────────
+// Auth lifted verbatim from Orbital8 Goji baseline v9 (ui.html)
+class OneDriveProvider {
+    constructor(){
+        this.name='onedrive';
+        this.apiBase='https://graph.microsoft.com/v1.0';
+        this.isAuthenticated=false;
+        this.activeAccount=null;
+        this.msalInstance=null;
+        // MSAL init deferred to first use — script may not be loaded yet
+    }
+    ensureMSAL(){
+        if(this.msalInstance) return;
+        if(typeof msal==='undefined') throw new Error('MSAL library not loaded');
+        const msalConfig={
+            auth:{clientId:'b407fd45-c551-4dbb-9da5-cab3a2c5a949',authority:'https://login.microsoftonline.com/common',redirectUri:window.location.origin+window.location.pathname},
+            cache:{cacheLocation:'localStorage'}
+        };
+        this.msalInstance=new msal.PublicClientApplication(msalConfig);
+        const accounts=this.msalInstance.getAllAccounts();
+        if(accounts.length>0){
+            this.msalInstance.setActiveAccount(accounts[0]);
+            this.activeAccount=accounts[0];
+            this.isAuthenticated=true;
+        }
+    }
+    async authenticate(){
+        this.ensureMSAL();
+        try{
+            const accounts=this.msalInstance.getAllAccounts();
+            if(accounts.length>0){this.msalInstance.setActiveAccount(accounts[0]);this.activeAccount=accounts[0];}
+            else{
+                const loginResponse=await this.msalInstance.loginPopup({scopes:['Files.ReadWrite.AppFolder','Files.ReadWrite','User.Read']});
+                this.activeAccount=loginResponse.account;this.msalInstance.setActiveAccount(this.activeAccount);
+            }
+            this.isAuthenticated=true;return true;
+        }catch(error){this.isAuthenticated=false;throw new Error(`Authentication failed: ${error.message}`);}
+    }
+    async getAccessToken(){
+        this.ensureMSAL();
+        if(!this.activeAccount) throw new Error('No active account');
+        try{
+            const response=await this.msalInstance.acquireTokenSilent({scopes:['Files.ReadWrite','Files.ReadWrite.AppFolder'],account:this.activeAccount});
+            return response.accessToken;
+        }catch(silentError){
+            if(silentError instanceof msal.InteractionRequiredAuthError){
+                const response=await this.msalInstance.acquireTokenPopup({scopes:['Files.ReadWrite','Files.ReadWrite.AppFolder'],account:this.activeAccount});
+                return response.accessToken;
+            }throw silentError;
+        }
+    }
+    async makeApiCall(endpoint,options={}){
+        const accessToken=await this.getAccessToken();
+        const url=endpoint.startsWith('https://')?endpoint:`${this.apiBase}${endpoint}`;
+        const headers={'Authorization':`Bearer ${accessToken}`,'Content-Type':'application/json',...options.headers};
+        const response=await fetch(url,{...options,headers});
+        if(response.status===401) throw new Error('TOKEN_EXPIRED');
+        if(!response.ok){const errorText=await response.text();throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`);}
+        return response;
+    }
+    // Intelligence-specific methods
+    async getLevelOneFolders(){
+        const res=await this.makeApiCall('/me/drive/root/children?$select=id,name,folder,createdDateTime,lastModifiedDateTime&$top=200');
+        const data=await res.json();
+        return(data.value||[]).filter(i=>i.folder).map(i=>({id:i.id,name:i.name,createdTime:i.createdDateTime,modifiedTime:i.lastModifiedDateTime}));
+    }
+    async getSubfolders(folderId){
+        const res=await this.makeApiCall(`/me/drive/items/${folderId}/children?$select=id,name,folder,createdDateTime,lastModifiedDateTime&$top=200`);
+        const data=await res.json();
+        return(data.value||[]).filter(i=>i.folder).map(i=>({id:i.id,name:i.name,createdTime:i.createdDateTime,modifiedTime:i.lastModifiedDateTime}));
+    }
+    async getImageFiles(folderId){
+        let files=[],url=`/me/drive/items/${folderId}/children?$select=id,name,file,size,createdDateTime,lastModifiedDateTime&$top=500`;
+        while(url){
+            const res=await this.makeApiCall(url);
+            const data=await res.json();
+            (data.value||[]).filter(i=>i.file?.mimeType?.startsWith('image/')).forEach(i=>{
+                files.push({id:i.id,name:i.name,mimeType:i.file.mimeType,size:i.size||0,createdTime:i.createdDateTime,modifiedTime:i.lastModifiedDateTime,appProperties:{}});
+            });
+            url=data['@odata.nextLink']?data['@odata.nextLink'].replace(this.apiBase,''):null;
+        }
+        return files;
+    }
+    async quickCount(folderId){
+        const res=await this.makeApiCall(`/me/drive/items/${folderId}/children?$select=id,file&$top=500`);
+        const data=await res.json();
+        const n=(data.value||[]).filter(i=>i.file?.mimeType?.startsWith('image/')).length;
+        return data['@odata.nextLink']?n*3:n;
+    }
+    async quickFolderCount(folderId){
+        const res=await this.makeApiCall(`/me/drive/items/${folderId}/children?$select=id,folder&$top=100`);
+        const data=await res.json();
+        return(data.value||[]).filter(i=>i.folder).length;
+    }
+    extractCuration(){ return{stack:null,tags:[],notes:'',qualityRating:0,contentRating:0,favorite:false}; }
+    async loadIntelligenceFile(){
+        try{
+            const res=await this.makeApiCall('/me/drive/special/approot:/orbital8-intelligence.json:/content');
+            return res.json();
+        }catch(e){return null;}
+    }
+    async saveIntelligenceFile(data){
+        const token=await this.getAccessToken();
+        const res=await fetch(`${this.apiBase}/me/drive/special/approot:/orbital8-intelligence.json:/content`,{
+            method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(data)
+        });
+        if(!res.ok) throw new Error(`Save failed: ${res.status}`);
+    }
+    async disconnect(){
+        this.ensureMSAL();
+        this.isAuthenticated=false;this.activeAccount=null;
+        const accounts=this.msalInstance.getAllAccounts();
+        if(accounts.length>0){try{await this.msalInstance.logoutPopup({account:accounts[0]});}catch(e){}}
+    }
+}
+
+// ── Intelligence Engine ───────────────────────────────────
+const Intel = {
+    newRecord(pt){ return{version:1,provider:pt,createdAt:Date.now(),lastUpdated:Date.now(),enrolledRoots:[],folders:{},files:{}}; },
+
+    async load(){
+        let rec=null;
+        try{rec=await st.provider.loadIntelligenceFile();}catch(e){}
+        if(!rec){try{rec=JSON.parse(localStorage.getItem(LS_INTEL));}catch(e){}}
+        if(rec&&rec.provider!==st.providerType) rec=null;
+        st.intel=rec; return rec;
+    },
+
+    async save(){
+        if(!st.intel) return;
+        st.intel.lastUpdated=Date.now();
+        try{localStorage.setItem(LS_INTEL,JSON.stringify(st.intel));}catch(e){}
+        try{await st.provider.saveIntelligenceFile(st.intel);}
+        catch(e){console.warn('Cloud save failed:',e);toast('Saved locally — cloud write failed','t-err');}
+    },
+
+    async sniff(folderIds){
+        let tf=0,ti=0;
+        for(const id of folderIds){
+            const[fc,ic]=await Promise.all([st.provider.quickFolderCount(id).catch(()=>0),st.provider.quickCount(id).catch(()=>0)]);
+            tf+=fc+1; ti+=ic;
+        }
+        return{folders:tf,files:ti,estMin:Math.max(1,Math.round(ti/350))};
+    },
+
+    async acquire(folderIds,onProg,onLog){
+        const p=st.provider;
+        const rec=st.intel||this.newRecord(st.providerType);
+        folderIds.forEach(id=>{if(!rec.enrolledRoots.includes(id)) rec.enrolledRoots.push(id);});
+
+        const queue=[...folderIds],visited=new Set();
+        let fScanned=0,iCount=0;
+
+        while(queue.length>0){
+            if(st.acq.cancelled){onLog('⊘ Cancelled');break;}
+            const fid=queue.shift();
+            if(visited.has(fid)) continue;
+            visited.add(fid);
+
+            if(!rec.folders[fid]){
+                rec.folders[fid]={
+                    id:fid,name:fid,parentId:null,depth:0,isEnrolled:folderIds.includes(fid),
+                    firstIndexed:Date.now(),lastVerified:Date.now(),hash:'',status:'current',children:[],
+                    stats:{totalFiles:0,imageFiles:0,pngFiles:0,totalSize:0,newestFile:null,oldestFile:null},
+                    curation:{inStack:0,outStack:0,priorityStack:0,trashStack:0,unassigned:0,tagged:0,noted:0,rated:0,favorited:0},
+                };
+            }else{
+                rec.folders[fid].lastVerified=Date.now();
+                rec.folders[fid].stats={totalFiles:0,imageFiles:0,pngFiles:0,totalSize:0,newestFile:null,oldestFile:null};
+                rec.folders[fid].curation={inStack:0,outStack:0,priorityStack:0,trashStack:0,unassigned:0,tagged:0,noted:0,rated:0,favorited:0};
+                rec.folders[fid].children=[];
+            }
+
+            // Fetch folder name if still using ID as name
+            if(rec.folders[fid].name===fid){
+                try{
+                    if(st.providerType==='googledrive'){
+                        const info=await p.makeApiCall(`/files/${fid}?fields=id,name,parents`);
+                        rec.folders[fid].name=info.name;
+                        rec.folders[fid].parentId=info.parents?.[0]||null;
+                    }else{
+                        const res=await p.makeApiCall(`/me/drive/items/${fid}?$select=id,name,parentReference`);
+                        const info=await res.json();
+                        rec.folders[fid].name=info.name;
+                        rec.folders[fid].parentId=info.parentReference?.id||null;
+                    }
+                }catch(e){}
+            }
+
+            const fname=rec.folders[fid].name;
+            onProg({folder:fname,fc:fScanned,ic:iCount});
+            onLog(`▸ ${fname}`);
+
+            // Subfolders
+            let subs=[];
+            try{subs=await p.getSubfolders(fid);}catch(e){onLog(`  ⚠ ${e.message}`);}
+            subs.forEach(sf=>{
+                if(!rec.folders[fid].children.includes(sf.id)) rec.folders[fid].children.push(sf.id);
+                if(!rec.folders[sf.id]){
+                    rec.folders[sf.id]={id:sf.id,name:sf.name,parentId:fid,depth:0,isEnrolled:false,
+                        firstIndexed:Date.now(),lastVerified:Date.now(),hash:'',status:'current',children:[],
+                        stats:{totalFiles:0,imageFiles:0,pngFiles:0,totalSize:0,newestFile:null,oldestFile:null},
+                        curation:{inStack:0,outStack:0,priorityStack:0,trashStack:0,unassigned:0,tagged:0,noted:0,rated:0,favorited:0}};
+                }
+                queue.push(sf.id);
+            });
+
+            // Image files
+            let imgs=[];
+            try{imgs=await p.getImageFiles(fid);}catch(e){onLog(`  ⚠ ${e.message}`);}
+            const folder=rec.folders[fid];
+            const hp=[];
+            imgs.forEach(f=>{
+                hp.push(`${f.id}:${f.modifiedTime||''}`);
+                const cur=p.extractCuration(f.appProperties||{});
+                rec.files[f.id]={id:f.id,folderId:fid,name:f.name,mimeType:f.mimeType,size:f.size||0,modifiedTime:f.modifiedTime,createdTime:f.createdTime,stack:cur.stack,tags:cur.tags,notes:cur.notes,qualityRating:cur.qualityRating,contentRating:cur.contentRating,favorite:cur.favorite};
+                folder.stats.totalFiles++;folder.stats.imageFiles++;folder.stats.totalSize+=f.size||0;
+                if(f.mimeType==='image/png') folder.stats.pngFiles++;
+                if(f.modifiedTime){
+                    if(!folder.stats.newestFile||f.modifiedTime>folder.stats.newestFile) folder.stats.newestFile=f.modifiedTime;
+                    if(!folder.stats.oldestFile||f.modifiedTime<folder.stats.oldestFile) folder.stats.oldestFile=f.modifiedTime;
+                }
+                const sk=cur.stack||'unassigned';
+                if(sk==='in')            folder.curation.inStack++;
+                else if(sk==='out')      folder.curation.outStack++;
+                else if(sk==='priority') folder.curation.priorityStack++;
+                else if(sk==='trash')    folder.curation.trashStack++;
+                else                     folder.curation.unassigned++;
+                if(cur.tags.length)                      folder.curation.tagged++;
+                if(cur.notes)                            folder.curation.noted++;
+                if(cur.qualityRating||cur.contentRating) folder.curation.rated++;
+                if(cur.favorite)                         folder.curation.favorited++;
+                iCount++;
+            });
+            folder.hash=simpleHash(hp.sort().join('|'));
+            fScanned++;
+            onProg({folder:fname,fc:fScanned,ic:iCount});
+            await sleep(30);
+        }
+        this.computeDepths(rec);
+        this.rollup(rec);
+        st.intel=rec;
+        return rec;
+    },
+
+    computeDepths(rec){
+        const q=rec.enrolledRoots.map(id=>({id,d:1})),v=new Set();
+        while(q.length){
+            const{id,d}=q.shift();
+            if(v.has(id)) continue;v.add(id);
+            if(rec.folders[id]){rec.folders[id].depth=d;(rec.folders[id].children||[]).forEach(c=>q.push({id:c,d:d+1}));}
+        }
+    },
+
+    rollup(rec){
+        const seen=new Set();
+        const go=(fid)=>{
+            if(seen.has(fid)) return{s:{totalFiles:0,imageFiles:0,totalSize:0,newestFile:null,oldestFile:null},c:{inStack:0,outStack:0,priorityStack:0,trashStack:0,unassigned:0,tagged:0,noted:0,rated:0,favorited:0}};
+            seen.add(fid);
+            const f=rec.folders[fid];
+            if(!f) return{s:{totalFiles:0,imageFiles:0,totalSize:0,newestFile:null,oldestFile:null},c:{inStack:0,outStack:0,priorityStack:0,trashStack:0,unassigned:0,tagged:0,noted:0,rated:0,favorited:0}};
+            const agg={s:{...f.stats},c:{...f.curation}};
+            (f.children||[]).forEach(cid=>{
+                const ch=go(cid);
+                agg.s.totalFiles+=ch.s.totalFiles;agg.s.imageFiles+=ch.s.imageFiles;agg.s.totalSize+=ch.s.totalSize;
+                if(ch.s.newestFile&&(!agg.s.newestFile||ch.s.newestFile>agg.s.newestFile)) agg.s.newestFile=ch.s.newestFile;
+                if(ch.s.oldestFile&&(!agg.s.oldestFile||ch.s.oldestFile<agg.s.oldestFile)) agg.s.oldestFile=ch.s.oldestFile;
+                Object.keys(agg.c).forEach(k=>{agg.c[k]=(agg.c[k]||0)+(ch.c[k]||0);});
+            });
+            f.aggStats=agg.s;f.aggCur=agg.c;
+            return agg;
+        };
+        rec.enrolledRoots.forEach(id=>go(id));
+    },
+
+    async checkDeltas(){
+        if(!st.intel) return{changed:[],newChildren:[]};
+        const rec=st.intel,changed=[],newChildren=[];
+        for(const rootId of rec.enrolledRoots){
+            if(!rec.folders[rootId]) continue;
+            let subs=[];try{subs=await st.provider.getSubfolders(rootId);}catch(e){}
+            subs.forEach(sf=>{if(!rec.folders[sf.id]) newChildren.push({id:sf.id,name:sf.name,parentId:rootId,parentName:rec.folders[rootId]?.name});});
+            if(rec.folders[rootId]?.hash){
+                let files=[];try{files=await st.provider.getImageFiles(rootId);}catch(e){}
+                const h=simpleHash(files.map(f=>`${f.id}:${f.modifiedTime}`).sort().join('|'));
+                if(h!==rec.folders[rootId].hash){changed.push(rootId);rec.folders[rootId].status='changed';}
+            }
+        }
+        return{changed,newChildren};
+    },
+
+    getTotals(rec){
+        if(!rec) return{folders:0,files:0,curated:0,total:0};
+        const folders=Object.keys(rec.folders).length;
+        let files=0,curated=0;
+        Object.values(rec.files||{}).forEach(f=>{files++;if(f.stack&&f.stack!=='in') curated++;});
+        return{folders,files,curated,total:files};
+    },
+};
+
+// ── Tree View ─────────────────────────────────────────────
+const Tree = {
+    render(){ this.renderTree();this.renderTable();this.renderFooter(); },
+
+    renderTree(){
+        const scroll=$id('tp-scroll');
+        if(!scroll||!st.intel) return;
+        scroll.innerHTML='';
+        if(st.newChildren.length>0){
+            const n=document.createElement('div');
+            n.className='new-notice';
+            n.innerHTML=`<span>${st.newChildren.length} new subfolder(s) found</span><button id="btn-enroll-new">Enroll Now</button>`;
+            scroll.appendChild(n);
+        }
+        st.intel.enrolledRoots.forEach(id=>{if(st.intel.folders[id]) this.renderNode(scroll,id,0);});
+    },
+
+    renderNode(container,fid,indent){
+        const rec=st.intel,folder=rec.folders[fid];
+        if(!folder) return;
+        const hasKids=(folder.children||[]).some(c=>rec.folders[c]);
+        const expanded=st.tree.expanded.has(fid),selected=st.tree.selFolder===fid;
+        const term=st.tree.search.toLowerCase();
+        if(term&&!folder.name.toLowerCase().includes(term)&&!this.anyMatch(fid,term,rec)) return;
+
+        const node=document.createElement('div');
+        node.className='tnode'+(selected?' sel':'');
+        node.dataset.fid=fid;
+        node.style.paddingLeft=(8+indent*16)+'px';
+
+        const tog=document.createElement('div');
+        tog.className='tn-tog'+(hasKids&&expanded?' exp':'');
+        tog.innerHTML=hasKids?'▶':'';
+
+        const dot=document.createElement('div');
+        dot.className='tn-dot dot-'+(folder.status==='changed'?'chg':folder.status==='new'?'new':'cur');
+
+        const ic=document.createElement('div');
+        ic.className='tn-ic';
+        ic.innerHTML='<svg width="13" height="13" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>';
+
+        const inf=document.createElement('div');
+        inf.className='tn-inf';
+        const agg=folder.aggStats||folder.stats;
+        inf.innerHTML=`<div class="tn-name">${folder.name}</div><div class="tn-sub">${agg?.imageFiles?fmtNum(agg.imageFiles)+' img':'—'}</div>`;
+
+        node.appendChild(tog);node.appendChild(dot);node.appendChild(ic);node.appendChild(inf);
+        container.appendChild(node);
+
+        tog.addEventListener('click',e=>{
+            e.stopPropagation();if(!hasKids) return;
+            st.tree.expanded.has(fid)?st.tree.expanded.delete(fid):st.tree.expanded.add(fid);
+            this.renderTree();this.savePrefs();
+        });
+        node.addEventListener('click',()=>{
+            st.tree.selFolder=st.tree.selFolder===fid?null:fid;
+            this.renderTree();this.renderTable();
+        });
+
+        if(expanded&&hasKids){
+            (folder.children||[]).forEach(c=>{if(rec.folders[c]) this.renderNode(container,c,indent+1);});
+        }
+    },
+
+    anyMatch(fid,term,rec){
+        const f=rec.folders[fid];if(!f) return false;
+        return(f.children||[]).some(c=>{const ch=rec.folders[c];return ch&&(ch.name.toLowerCase().includes(term)||this.anyMatch(c,term,rec));});
+    },
+
+    getRows(){
+        const rec=st.intel;if(!rec) return[];
+        const term=st.tree.search.toLowerCase();
+        let rows=st.tree.selFolder?this.descendants(st.tree.selFolder,rec):Object.values(rec.folders);
+        if(term) rows=rows.filter(f=>f.name.toLowerCase().includes(term));
+        const col=st.tree.sortCol,dir=st.tree.sortDir==='asc'?1:-1;
+        rows.sort((a,b)=>{
+            let va=this.colVal(a,col),vb=this.colVal(b,col);
+            if(va==null) va=col==='name'?'':(-Infinity);
+            if(vb==null) vb=col==='name'?'':(-Infinity);
+            return(typeof va==='string'?va.localeCompare(vb):va-vb)*dir;
+        });
+        return rows;
+    },
+
+    descendants(fid,rec){
+        const res=[],q=[fid],v=new Set();
+        while(q.length){const id=q.shift();if(v.has(id)) continue;v.add(id);if(rec.folders[id]){res.push(rec.folders[id]);(rec.folders[id].children||[]).forEach(c=>q.push(c));}}
+        return res;
+    },
+
+    colVal(f,col){
+        const s=f.aggStats||f.stats||{},c=f.aggCur||f.curation||{};
+        switch(col){
+            case 'name':          return f.name;
+            case 'imageFiles':    return s.imageFiles||0;
+            case 'totalSize':     return s.totalSize||0;
+            case 'newestFile':    return s.newestFile||'';
+            case 'oldestFile':    return s.oldestFile||'';
+            case 'curationPct':   return this.pct(c);
+            case 'inStack':       return c.inStack||0;
+            case 'priorityStack': return c.priorityStack||0;
+            case 'outStack':      return c.outStack||0;
+            case 'trashStack':    return c.trashStack||0;
+            case 'tagged':        return c.tagged||0;
+            case 'status':        return f.status||'current';
+            case 'firstIndexed':  return f.firstIndexed||0;
+            default:              return null;
+        }
+    },
+
+    pct(c){
+        const tot=(c.inStack||0)+(c.outStack||0)+(c.priorityStack||0)+(c.trashStack||0)+(c.unassigned||0);
+        return tot?Math.round(((tot-(c.inStack||0)-(c.unassigned||0))/tot)*100):0;
+    },
+
+    renderTable(){ this.renderTHead();this.renderTBody();this.updateToolbar(); },
+
+    renderTHead(){
+        const thead=$id('t-thead');if(!thead) return;
+        const cols=this.activeCols();
+        const tr=document.createElement('tr');
+        cols.forEach(col=>{
+            const th=document.createElement('th');
+            th.dataset.col=col.id;th.style.width=col.w+'px';
+            th.setAttribute('draggable',col.id!=='name'?'true':'false');
+            const sorted=st.tree.sortCol===col.id;
+            if(sorted) th.classList.add(st.tree.sortDir==='asc'?'s-asc':'s-desc');
+            th.textContent=col.label+(sorted?(st.tree.sortDir==='asc'?' ↑':' ↓'):'');
+            th.addEventListener('click',()=>{
+                if(st.tree.sortCol===col.id) st.tree.sortDir=st.tree.sortDir==='asc'?'desc':'asc';
+                else{st.tree.sortCol=col.id;st.tree.sortDir='asc';}
+                this.renderTable();this.savePrefs();
+            });
+            th.addEventListener('dragstart',e=>{st.tree.dragCol=col.id;e.dataTransfer.effectAllowed='move';});
+            th.addEventListener('dragover',e=>{e.preventDefault();th.classList.add('drag-over');});
+            th.addEventListener('dragleave',()=>th.classList.remove('drag-over'));
+            th.addEventListener('drop',e=>{
+                e.preventDefault();th.classList.remove('drag-over');
+                const from=st.tree.dragCol,to=col.id;
+                if(!from||from===to||from==='name') return;
+                const o=[...st.tree.colOrder];
+                const fi=o.indexOf(from),ti=o.indexOf(to);
+                if(fi!==-1&&ti!==-1){o.splice(fi,1);o.splice(ti,0,from);st.tree.colOrder=o;}
+                this.renderTable();this.savePrefs();
+            });
+            tr.appendChild(th);
+        });
+        thead.innerHTML='';thead.appendChild(tr);
+    },
+
+    renderTBody(){
+        const tbody=$id('t-tbody');if(!tbody||!st.intel) return;
+        const rows=this.getRows(),cols=this.activeCols();
+        const frag=document.createDocumentFragment();
+        rows.forEach(folder=>{
+            const tr=document.createElement('tr');
+            if(st.tree.selFolder===folder.id) tr.classList.add('row-sel');
+            tr.style.cursor='pointer';
+            tr.addEventListener('click',()=>{st.tree.selFolder=st.tree.selFolder===folder.id?null:folder.id;this.renderTree();this.renderTable();});
+            cols.forEach(col=>{
+                const td=document.createElement('td');td.style.maxWidth=col.w+'px';
+                td.appendChild(this.cell(folder,col));tr.appendChild(td);
+            });
+            frag.appendChild(tr);
+        });
+        tbody.innerHTML='';tbody.appendChild(frag);
+    },
+
+    cell(f,col){
+        const s=f.aggStats||f.stats||{},cur=f.aggCur||f.curation||{};
+        const w=document.createElement('span');
+        if(col.id==='name'){w.className='col-name';w.innerHTML=`<span style="display:inline-block;width:${(f.depth||0)*12}px"></span>${f.name}`;}
+        else if(col.id==='imageFiles'){w.className='col-mono';w.textContent=fmtNum(s.imageFiles||0);}
+        else if(col.id==='totalSize'){w.className='col-mono';w.textContent=fmtSize(s.totalSize||0);}
+        else if(col.id==='newestFile'){w.className='col-mono';w.textContent=fmtDate(s.newestFile);}
+        else if(col.id==='oldestFile'){w.className='col-mono';w.textContent=fmtDate(s.oldestFile);}
+        else if(col.id==='curationPct'){
+            const p=this.pct(cur),bar=document.createElement('div');
+            bar.className='cur-bar';
+            bar.innerHTML=`<div class="cur-trk"><div class="cur-fill" style="width:${p}%"></div></div><div class="cur-pct">${p}%</div>`;
+            return bar;
+        }
+        else if(col.id==='inStack'){w.className='col-mono';w.textContent=fmtNum(cur.inStack||0);}
+        else if(col.id==='priorityStack'){w.className='col-hi';w.textContent=fmtNum(cur.priorityStack||0);}
+        else if(col.id==='outStack'){w.className='col-mono';w.textContent=fmtNum(cur.outStack||0);}
+        else if(col.id==='trashStack'){w.className='col-mono';w.textContent=fmtNum(cur.trashStack||0);}
+        else if(col.id==='tagged'){w.className='col-mono';w.textContent=fmtNum(cur.tagged||0);}
+        else if(col.id==='status'){
+            const s2=f.status||'current',chip=document.createElement('span');
+            chip.className=`chip chip-${s2==='changed'?'chg':s2==='new'?'new':'cur'}`;
+            chip.innerHTML=`<span class="dot"></span>${s2}`;return chip;
+        }
+        else if(col.id==='firstIndexed'){w.className='col-mono';w.textContent=f.firstIndexed?agoText(f.firstIndexed):'—';}
+        else{w.textContent='—';}
+        return w;
+    },
+
+    activeCols(){
+        const order=st.tree.colOrder.length?st.tree.colOrder:DEF_COLS;
+        return order.map(id=>COLS.find(c=>c.id===id)).filter(Boolean);
+    },
+
+    updateToolbar(){
+        const rows=this.getRows();
+        const lbl=$id('at-lbl'),path=$id('at-path'),cnt=$id('at-cnt');
+        if(st.tree.selFolder&&st.intel?.folders[st.tree.selFolder]){
+            const f=st.intel.folders[st.tree.selFolder];
+            if(lbl) lbl.textContent=f.name;
+            if(path) path.textContent=this.buildPath(st.tree.selFolder);
+        }else{
+            if(lbl) lbl.textContent='All Folders';
+            if(path) path.textContent='';
+        }
+        if(cnt) cnt.textContent=`${rows.length} folder${rows.length!==1?'s':''}`;
+    },
+
+    buildPath(fid){
+        const rec=st.intel;if(!rec) return'';
+        const parts=[],v=new Set();let id=fid;
+        while(id&&rec.folders[id]&&!v.has(id)){v.add(id);parts.unshift(rec.folders[id].name);id=rec.folders[id].parentId;}
+        return parts.join(' › ');
+    },
+
+    renderFooter(){
+        if(!st.intel) return;
+        const t=Intel.getTotals(st.intel);
+        const pct=t.total?Math.round((t.curated/t.total)*100):0;
+        const s=id=>$id(id);
+        if(s('ft-f')) s('ft-f').textContent=t.folders.toLocaleString();
+        if(s('ft-i')) s('ft-i').textContent=t.files.toLocaleString();
+        if(s('ft-c')) s('ft-c').textContent=pct+'%';
+        if(s('ft-u')) s('ft-u').textContent=agoText(st.intel.lastUpdated);
+    },
+
+    savePrefs(){
+        try{localStorage.setItem(LS_PREFS,JSON.stringify({sortCol:st.tree.sortCol,sortDir:st.tree.sortDir,colOrder:st.tree.colOrder,expanded:[...st.tree.expanded],lpw:getComputedStyle(document.documentElement).getPropertyValue('--lpw').trim()}));}catch(e){}
+    },
+
+    loadPrefs(){
+        try{
+            const p=JSON.parse(localStorage.getItem(LS_PREFS));if(!p) return;
+            if(p.sortCol) st.tree.sortCol=p.sortCol;
+            if(p.sortDir) st.tree.sortDir=p.sortDir;
+            if(p.colOrder) st.tree.colOrder=p.colOrder;
+            if(p.expanded) st.tree.expanded=new Set(p.expanded);
+            if(p.lpw) document.documentElement.style.setProperty('--lpw',p.lpw);
+        }catch(e){}
+    },
+};
+
+// ── App ───────────────────────────────────────────────────
+const App = {
+    selectProvider(type){
+        st.providerType=type;
+        st.provider=type==='googledrive'?new GoogleDriveProvider():new OneDriveProvider();
+        const isG=type==='googledrive';
+        $id('auth-title').textContent=isG?'Google Drive':'OneDrive';
+        $id('auth-sub').textContent=isG?'Enter your client secret to authenticate':'Click Connect to sign in with Microsoft';
+        $id('gdrive-secret-container').classList.toggle('hidden',!isG);
+        $id('btn-auth').textContent=`Connect ${isG?'Drive':'OneDrive'}`;
+        $id('auth-status').textContent=isG?'Enter your client secret to continue':'Ready — click Connect';
+        $id('auth-status').className='smsg s-info';
+        if(type==='onedrive') try{st.provider.ensureMSAL();}catch(e){}
+        if(st.provider.isAuthenticated){this.afterAuth();}else{showScreen('scr-auth');}
+    },
+
+    async authenticate(){
+        const btn=$id('btn-auth'),stat=$id('auth-status'),isG=st.providerType==='googledrive';
+        btn.disabled=true;btn.textContent='Connecting…';
+        stat.textContent='Authenticating…';stat.className='smsg s-info';
+        try{
+            if(isG){
+                const secret=$id('gdrive-client-secret').value.trim();
+                if(!secret) throw new Error('Client secret is required');
+                await st.provider.authenticate(secret);
+            }else{await st.provider.authenticate();}
+            stat.textContent='✓ Connected!';stat.className='smsg s-ok';
+            setTimeout(()=>this.afterAuth(),700);
+        }catch(e){
+            stat.textContent=`Failed: ${e.message}`;stat.className='smsg s-err';
+            btn.disabled=false;btn.textContent=`Connect ${isG?'Drive':'OneDrive'}`;
+        }
+    },
+
+    async afterAuth(){
+        $id('h-pvr').textContent=st.providerType==='googledrive'?'Google Drive':'OneDrive';
+        showScreen('scr-enroll');
+        await this.loadEnrollment();
+        toast('Checking for existing intelligence record…');
+        const existing=await Intel.load();
+        if(existing&&existing.enrolledRoots.length>0){
+            toast('Record found — opening…');
+            await this.openTree(true);
+        }
+    },
+
+    async loadEnrollment(){
+        const list=$id('enroll-list');
+        list.innerHTML='<div style="padding:32px;text-align:center;color:var(--tm)"><div class="spin" style="margin:0 auto 12px"></div><div>Loading…</div></div>';
+        try{
+            const folders=await st.provider.getLevelOneFolders();
+            st.enrollFolders=folders;
+            this.renderEnrollment();
+        }catch(e){
+            list.innerHTML=`<div style="padding:24px;text-align:center;color:var(--red)">Failed to load folders: ${e.message}</div>`;
+        }
+    },
+
+    renderEnrollment(){
+        const list=$id('enroll-list'),rec=st.intel;
+        list.innerHTML='';
+        if(!st.enrollFolders.length){list.innerHTML='<div style="padding:24px;text-align:center;color:var(--tm)">No folders found</div>';return;}
+        st.enrollFolders.forEach(folder=>{
+            const managed=rec?.folders?.[folder.id];
+            const status=managed?(rec.folders[folder.id].status||'current'):null;
+            const isEnrolled=managed&&rec.enrolledRoots.includes(folder.id);
+            const row=document.createElement('div');
+            row.className='frow';row.dataset.fid=folder.id;
+            const chk=st.selected.has(folder.id);
+            const agg=managed?(managed.aggStats||managed.stats):null;
+            const meta=agg?`${fmtNum(agg.imageFiles||0)} images · ${fmtSize(agg.totalSize||0)}`:(folder.modifiedTime?fmtDate(folder.modifiedTime):'—');
+            const bdgCls=isEnrolled?`bdg-${status==='changed'?'chg':'mgd'}`:'bdg-new';
+            const bdgTxt=isEnrolled?status:'not enrolled';
+            row.innerHTML=`<input type="checkbox" ${chk?'checked':''} data-fid="${folder.id}"><div class="frow-ic"><svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg></div><div class="frow-inf"><div class="frow-name">${folder.name}</div><div class="frow-meta">${meta}</div></div><span class="frow-bdg ${bdgCls}">${bdgTxt}</span>`;
+            if(chk) row.classList.add('sel');
+            const cb=row.querySelector('input[type=checkbox]');
+            const toggle=(v)=>{if(v) st.selected.add(folder.id);else st.selected.delete(folder.id);row.classList.toggle('sel',v);this.updateEnrollUI();};
+            cb.addEventListener('change',e=>{e.stopPropagation();toggle(e.target.checked);});
+            row.addEventListener('click',e=>{if(e.target.tagName==='INPUT') return;cb.checked=!cb.checked;toggle(cb.checked);});
+            list.appendChild(row);
+        });
+        this.updateEnrollUI();
+    },
+
+    updateEnrollUI(){
+        const n=st.selected.size;
+        const el=$id('enroll-cnt');if(el) el.textContent=`${n} selected`;
+        const btn=$id('btn-analyze');if(btn) btn.disabled=n===0;
+    },
+
+    async runSniff(){
+        showScreen('scr-sniff');
+        const stat=$id('sniff-status'),proc=$id('btn-proceed');
+        stat.textContent='Analyzing selected folders…';stat.className='smsg s-info';
+        proc.disabled=true;
+        ['sn-folders','sn-files','sn-time'].forEach(id=>{const el=$id(id);if(el) el.textContent='…';});
+        try{
+            const r=await Intel.sniff([...st.selected]);st.sniffResult=r;
+            $id('sn-folders').textContent=r.folders.toLocaleString();
+            $id('sn-files').textContent=r.files.toLocaleString();
+            $id('sn-time').textContent=r.estMin;
+            const warn=$id('sniff-warn');
+            if(r.estMin>15){
+                warn.classList.remove('hidden');
+                $id('sniff-warn-txt').textContent=`Estimated ${r.estMin} minutes. This is a one-time cost — future visits read the cached record. You can cancel at any point but partial results are not saved.`;
+                stat.textContent='Large folder set — review before proceeding.';stat.className='smsg s-warn';
+            }else{
+                warn.classList.add('hidden');
+                stat.textContent='Ready to index. One-time cost.';stat.className='smsg s-ok';
+            }
+            proc.disabled=false;
+        }catch(e){stat.textContent=`Analysis failed: ${e.message}`;stat.className='smsg s-err';}
+    },
+
+    async runAcquisition(){
+        showScreen('scr-acq');
+        st.acq={running:true,cancelled:false,t0:Date.now()};
+        const tick=setInterval(()=>{const el=$id('acq-el');if(el) el.textContent=Math.round((Date.now()-st.acq.t0)/1000)+'s';},1000);
+        const onProg=({folder,fc,ic})=>{
+            const fn=$id('acq-folder'),fc2=$id('acq-fc'),ic2=$id('acq-ic'),pb=$id('acq-pb');
+            if(fn) fn.textContent=folder||'…';
+            if(fc2) fc2.textContent=fc;
+            if(ic2) ic2.textContent=ic;
+            if(pb&&st.sniffResult?.files) pb.style.width=Math.min(99,Math.round((ic/st.sniffResult.files)*100))+'%';
+        };
+        try{
+            await Intel.acquire([...st.selected],onProg,logLine);
+            clearInterval(tick);
+            const pb=$id('acq-pb');if(pb) pb.style.width='100%';
+            logLine('✓ Complete — saving to cloud…');
+            await Intel.save();logLine('✓ Saved.');
+            st.acq.running=false;toast('Index complete','t-ok');
+            await sleep(600);await this.openTree(false);
+        }catch(e){
+            clearInterval(tick);logLine(`✖ ${e.message}`);
+            st.acq.running=false;toast('Acquisition failed','t-err');
+        }
+    },
+
+    async openTree(checkDeltas){
+        Tree.loadPrefs();
+        if(st.intel) st.intel.enrolledRoots.forEach(id=>st.tree.expanded.add(id));
+        showScreen('scr-tree');Tree.render();
+        if(checkDeltas){
+            toast('Checking for drive changes…');
+            try{
+                const{changed,newChildren}=await Intel.checkDeltas();
+                st.newChildren=newChildren;
+                if(changed.length||newChildren.length){
+                    Tree.render();
+                    if(changed.length) toast(`${changed.length} folder(s) changed`,'',4000);
+                    if(newChildren.length) toast(`${newChildren.length} new subfolder(s) found`,'',4000);
+                }else{toast('All folders current','t-ok');}
+            }catch(e){console.warn('Delta check:',e.message);}
+        }
+    },
+
+    async refreshDrive(){
+        const btn=$id('btn-refresh');if(btn) btn.style.opacity='.4';
+        toast('Checking for changes…');
+        try{
+            const{changed,newChildren}=await Intel.checkDeltas();
+            st.newChildren=newChildren;
+            if(changed.length>0){
+                const changedRoots=changed.filter(id=>st.intel.enrolledRoots.includes(id));
+                if(changedRoots.length){
+                    showScreen('scr-acq');$id('acq-log').innerHTML='';
+                    st.acq={running:true,cancelled:false,t0:Date.now()};
+                    await Intel.acquire(changedRoots,()=>{},logLine);
+                    await Intel.save();st.acq.running=false;
+                }
+                showScreen('scr-tree');toast('Re-index complete','t-ok');
+            }else{toast('All folders current','t-ok');}
+            Tree.render();
+        }catch(e){toast(`Refresh failed: ${e.message}`,'t-err');}
+        if(btn) btn.style.opacity='1';
+    },
+
+    async disconnect(){
+        if(st.provider) try{await st.provider.disconnect();}catch(e){}
+        st.provider=null;st.providerType=null;st.intel=null;
+        st.selected.clear();st.newChildren=[];
+        showScreen('scr-provider');
+    }
+};
+
+// ── Events ────────────────────────────────────────────────
+function initEvents(){
+    $id('btn-gdrive').addEventListener('click',()=>App.selectProvider('googledrive'));
+    $id('btn-onedrive').addEventListener('click',()=>App.selectProvider('onedrive'));
+    $id('btn-auth').addEventListener('click',()=>App.authenticate());
+    $id('btn-auth-back').addEventListener('click',()=>showScreen('scr-provider'));
+    $id('gdrive-client-secret').addEventListener('keydown',e=>{if(e.key==='Enter') App.authenticate();});
+    $id('btn-all').addEventListener('click',()=>{
+        st.enrollFolders.forEach(f=>st.selected.add(f.id));
+        document.querySelectorAll('#enroll-list input[type=checkbox]').forEach(cb=>{cb.checked=true;cb.closest('.frow')?.classList.add('sel');});
+        App.updateEnrollUI();
+    });
+    $id('btn-none').addEventListener('click',()=>{
+        st.selected.clear();
+        document.querySelectorAll('#enroll-list input[type=checkbox]').forEach(cb=>{cb.checked=false;cb.closest('.frow')?.classList.remove('sel');});
+        App.updateEnrollUI();
+    });
+    $id('btn-enroll-back').addEventListener('click',()=>showScreen('scr-provider'));
+    $id('btn-analyze').addEventListener('click',()=>{if(st.selected.size) App.runSniff();});
+    $id('enroll-srch').addEventListener('input',e=>{
+        const t=e.target.value.toLowerCase();
+        document.querySelectorAll('#enroll-list .frow').forEach(r=>{r.style.display=(r.querySelector('.frow-name')?.textContent?.toLowerCase()||'').includes(t)?'':'none';});
+    });
+    $id('btn-sniff-back').addEventListener('click',()=>showScreen('scr-enroll'));
+    $id('btn-proceed').addEventListener('click',()=>App.runAcquisition());
+    $id('btn-acq-cancel').addEventListener('click',()=>{st.acq.cancelled=true;toast('Cancelling…');setTimeout(()=>showScreen('scr-enroll'),1000);});
+    $id('btn-refresh').addEventListener('click',()=>App.refreshDrive());
+    $id('btn-more').addEventListener('click',()=>{showScreen('scr-enroll');App.loadEnrollment();});
+    $id('btn-disconnect').addEventListener('click',()=>App.disconnect());
+    $id('btn-collapse').addEventListener('click',()=>{st.tree.expanded.clear();Tree.renderTree();});
+    $id('t-srch').addEventListener('input',e=>{st.tree.search=e.target.value;Tree.renderTree();Tree.renderTable();});
+
+    // New child enroll (delegated)
+    $id('tp-scroll').addEventListener('click',e=>{
+        if(e.target.id!=='btn-enroll-new') return;
+        st.newChildren.forEach(f=>st.selected.add(f.id));
+        showScreen('scr-enroll');
+        App.loadEnrollment().then(()=>{
+            st.newChildren.forEach(f=>{
+                const row=document.querySelector(`#enroll-list .frow[data-fid="${f.id}"]`);
+                if(!row) return;const cb=row.querySelector('input');
+                if(cb&&!cb.checked){cb.checked=true;cb.dispatchEvent(new Event('change',{bubbles:true}));}
+            });
+        });
+    });
+
+    // Pane resize
+    const div=$id('t-div');
+    let dragging=false,sx=0,sw=0;
+    div.addEventListener('pointerdown',e=>{
+        dragging=true;div.classList.add('drag');
+        sx=e.clientX;sw=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lpw'))||280;
+        div.setPointerCapture(e.pointerId);
+    });
+    div.addEventListener('pointermove',e=>{
+        if(!dragging) return;
+        document.documentElement.style.setProperty('--lpw',Math.max(160,Math.min(480,sw+(e.clientX-sx)))+'px');
+    });
+    div.addEventListener('pointerup',()=>{dragging=false;div.classList.remove('drag');Tree.savePrefs();});
+
+    // Google OAuth popup return
+    if(window.location.search.includes('code=')||window.location.search.includes('error=')){
+        const p=new URLSearchParams(window.location.search);
+        const code=p.get('code'),error=p.get('error');
+        if(window.opener){
+            window.opener.postMessage(code?{type:'GOOGLE_AUTH_SUCCESS',code}:{type:'GOOGLE_AUTH_ERROR',error},window.location.origin);
+            window.close();
+        }
+    }
+}
+
+// ── Boot ──────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+    initEvents();
+    showScreen('scr-provider');
+});
+</script>
+</body>
+</html>
