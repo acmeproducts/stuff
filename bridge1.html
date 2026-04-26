@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · 2026-04-21 · fix: dg key trim + verify-before-save -->
+<!-- talkbridge · dcr · v1.2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -71,6 +71,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .log-row.error .ev{color:#e74c3c;}.log-row.warn .ev{color:#f39c12;}.log-row.ok .ev{color:#2ecc71;}
 .call{position:fixed;inset:0;background:#000;z-index:5;display:none;flex-direction:column;}
 .call.active{display:flex;}
+
+/* === TOP BAR with controls === */
+.call-top-bar{position:absolute;top:0;left:0;right:0;height:48px;background:#000;display:flex;align-items:center;justify-content:center;gap:12px;z-index:10;transition:transform .3s ease,opacity .3s ease;opacity:0;pointer-events:none;}
+.call-top-bar.show{opacity:1;pointer-events:auto;}
+.top-btn{width:40px;height:40px;border-radius:50%;border:none;background:transparent;color:#888;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+.top-btn:hover{color:#aaa;}
+.top-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.5;}
+.top-btn.muted svg{stroke:#e74c3c;}
+.top-btn.end{color:#e74c3c;}
+.top-btn.end:hover{color:#ff5555;}
+
 .call-videos{position:relative;background:#000;overflow:hidden;flex:1;min-height:0;}
 #remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:1;}
 #local-video{position:absolute;top:8px;right:8px;width:min(14%,80px);aspect-ratio:9/16;border-radius:8px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
@@ -93,14 +104,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .call-transcript-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 .call.transcript-collapsed .chevron-down{display:none;}
 .call:not(.transcript-collapsed) .chevron-right{display:none;}
-.transcript-more-indicator{position:absolute;right:6px;top:50%;transform:translateY(-50%);z-index:3;width:22px;height:22px;border-radius:999px;background:rgba(46,139,139,.2);color:var(--teal-bright);border:1px solid rgba(63,193,193,.35);display:none;align-items:center;justify-content:center;font-size:14px;font-weight:700;pointer-events:none;}
+.transcript-more-indicator{position:absolute;bottom:calc(env(safe-area-inset-bottom) + 60px);right:50%;transform:translateX(50%);z-index:3;min-width:36px;height:36px;border-radius:999px;background:var(--teal);color:#fff;border:2px solid var(--bg);display:none;align-items:center;justify-content:center;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4);}
 .transcript-more-indicator.show{display:flex;}
+.transcript-more-indicator:hover{background:var(--teal-bright);}
 .call.transcript-collapsed .call-transcript{flex:0 0 32px;max-height:32px;overflow:hidden;}
 .call.transcript-collapsed #transcript-body{display:none;}
 .call-videos.swapped #remote-video{top:8px;right:8px;left:auto;bottom:auto;width:min(14%,80px);height:auto;aspect-ratio:9/16;border-radius:8px;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;}
 .call-videos.swapped #local-video{inset:0;width:100%;height:100%;border-radius:0;border:none;box-shadow:none;z-index:1;}
 .tr-entry{padding:6px 0;}
 .tr-bubble{border:1px solid rgba(255,255,255,.14);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.02);}
+.tr-bubble.is-chat{border-color:rgba(63,193,193,.25);background:rgba(46,139,139,.08);}
 .tr-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,.08);font-size:11px;}
 .tr-who{font-weight:700;color:var(--text-dim);}
 .tr-who.mine{color:var(--teal-bright);}
@@ -188,6 +201,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <div><div class="lobby-label" style="margin-bottom:6px;">Deepgram API key</div>
         <input class="lobby-input" id="dg-key" type="password" placeholder="Paste key — stored locally" oninput="onDgKeyInput()">
         <div id="dg-key-status" style="font-size:11px;min-height:16px;margin-top:4px;padding-left:2px;transition:color .2s;"></div></div>
+
+        <div><div class="lobby-label" style="margin-bottom:6px;">Cloudflare TURN token ID</div>
+        <input class="lobby-input" id="cf-turn-id" type="password" placeholder="Paste token ID — stored locally" oninput="onCfTurnInput()">
+        <div class="lobby-label" style="margin-bottom:6px;margin-top:10px;">Cloudflare TURN API token</div>
+        <input class="lobby-input" id="cf-turn-tok" type="password" placeholder="Paste API token — stored locally" oninput="onCfTurnInput()">
+        <div id="cf-turn-status" style="font-size:11px;min-height:16px;margin-top:4px;padding-left:2px;transition:color .2s;"></div></div>
+
         <button class="lobby-btn" id="create-btn" onclick="createRoom()" disabled>Start a room</button>
       </div>
       <div class="recent-rooms" id="recent-rooms" style="display:none;">
@@ -196,6 +216,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       </div>
       <div class="lobby-footer">
         <button class="lobby-footer-btn" onclick="openLog()">🪲 Debug log</button>
+        <div style="text-align:center;font-size:10px;color:var(--text-muted);padding-top:2px;width:100%;">v1.2</div>
       </div>
     </div>
     <div id="lobby-waiting" style="display:none;">
@@ -241,32 +262,28 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 </div>
 
 <div class="call" id="call-screen">
-  <div class="call-videos">
+  <!-- TOP BAR with controls -->
+  <div class="call-top-bar" id="call-top-bar">
+    <button class="top-btn" id="top-mic-btn" onclick="toggleMic()" title="Microphone">
+      <svg id="top-mic-on" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+    </button>
+    <button class="top-btn" id="top-cam-btn" onclick="toggleCam()" title="Camera">
+      <svg id="top-cam-on" viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+    </button>
+    <button class="top-btn end" onclick="hangUp()" title="End call">
+      <svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.11 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 2.59 3.4z" transform="rotate(135 12 12)"/></svg>
+    </button>
+  </div>
+  
+  <div class="call-videos" id="call-videos" onclick="handleVideoTap(event)">
     <video id="remote-video" autoplay playsinline></video>
     <video id="local-video" autoplay muted playsinline></video>
     <div class="no-video-placeholder" id="no-video-msg">👤</div>
-    <div class="call-info-wrap">
-      <div class="room-name-chip" id="room-name-chip">No room</div>
-      <div class="lang-flags-chip" id="lang-flags-chip">🌐 → 🌐</div>
-    </div>
     <div class="solo-banner" id="solo-banner" style="display:none;">
       <div class="solo-banner-text">Waiting for partner to join…</div>
     </div>
     <div class="partner-speaking-indicator" id="partner-speaking-indicator" aria-hidden="true">…</div>
     <div class="subtitle-area" id="subtitle-area"></div>
-  </div>
-  <div class="call-controls">
-    <button class="ctrl-btn" id="mic-btn" onclick="toggleMic()" title="Mute/unmute">
-      <svg id="mic-on" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-      <svg id="mic-off" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/><line x1="2" y1="22" x2="22" y2="2" stroke="#e74c3c" stroke-width="2.5"/></svg>
-    </button>
-    <button class="ctrl-btn end-call" onclick="hangUp()" title="End call">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.11 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 2.59 3.4z" transform="rotate(135 12 12)"/></svg>
-    </button>
-    <button class="ctrl-btn" id="cam-btn" onclick="toggleCam()" title="Camera">
-      <svg id="cam-on" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-      <svg id="cam-off" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/><line x1="2" y1="22" x2="22" y2="2" stroke="#e74c3c" stroke-width="2.5"/></svg>
-    </button>
   </div>
   <div class="call-transcript" id="call-transcript">
     <div class="call-transcript-header">
@@ -291,9 +308,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       </div>
       <span class="call-transcript-title">Transcript</span>
     </div>
-    <div id="transcript-body"><div class="tr-empty">Speak to see transcript here.</div></div>
-    <div id="chat-body"></div>
-    <div class="transcript-more-indicator" id="transcript-more-indicator">↓</div>
+    <div id="transcript-body"><div class="tr-empty">Speak or type to see transcript here.</div></div>
+    <div class="transcript-more-indicator" id="transcript-more-indicator" onclick="scrollToBottom()">↓</div>
   </div>
   <div class="chat-compose-strip" id="chat-compose-strip">
     <textarea class="chat-compose-ta" id="chat-input" placeholder="Type a message…" rows="1" oninput="chatInputEvt()" onkeydown="chatKeydown(event)"></textarea>
@@ -344,6 +360,16 @@ var dgKeyVerified=false,dgKeyVerifyTimer=null;
 // FIX 5: ICE candidate queue — holds candidates that arrive before remote description is set
 var pendingCandidates=[];
 var savedOffer=null; // Creator stores offer here so it can be resent when joiner arrives
+var savedCandidates=[]; // All emitted ICE candidates, re-sent on relay reconnect
+var topBarHideTimer=null;
+
+// Top bar auto-show
+function handleVideoTap(e){
+  var bar=$('call-top-bar');
+  bar.classList.add('show');
+  clearTimeout(topBarHideTimer);
+  topBarHideTimer=setTimeout(function(){bar.classList.remove('show')},3000);
+}
 
 /* === FASTTEXT WASM — language detection (test.html pattern) ===
    Non-blocking. Script-range handles CJK/Arabic/etc instantly.
@@ -401,7 +427,6 @@ function _detectLangAsync(text){
    accidentally types in a different script, then translate to theirLang.
    relay type: 'chat-msg'  (distinct from subtitle/webrtc types)
 */
-var chatMessages=[];
 
 function chatInputEvt(){
   var ta=$('chat-input');if(!ta)return;
@@ -417,65 +442,41 @@ async function sendChat(){
   ta.value='';ta.style.height='';$('chat-send-btn').disabled=true;
   var src=room.myLang,tgt=room.theirLang;
   var srcText=text;
-  // Step 1: normalize to room.myLang if user typed a different language
+  // Step 1: ALWAYS normalize to room.myLang if user typed a different language
   try{
     var detected=await _detectLangAsync(text);
     if(detected&&detected!==src){
       var normed=await translate(text,detected,src);
-      if(normed&&normed!==text)srcText=normed;
+      if(normed)srcText=normed;
     }
   }catch(_){}
-  // Step 2: translate myLang → theirLang
+  // Step 2: ALWAYS translate myLang → theirLang
   var tgtText=srcText;
   if(src&&tgt&&src!==tgt){
     try{var tr=await translate(srcText,src,tgt);if(tr)tgtText=tr;}catch(_){}
   }
   var id='cm-'+uid();
-  var entry={id:id,who:'me',srcText:srcText,tgtText:tgtText,srcLang:src,tgtLang:tgt,ts:Date.now()};
-  chatMessages.push(entry);
-  renderChatEntry(entry);
+  var entry={id:id,type:'chat',who:'me',sourceText:srcText,translatedText:tgtText,srcLang:src,tgtLang:tgt,ts:Date.now()};
+  transcript.push(entry);saveTr();
+  appendTrDom(entry);
   relaySend({type:'chat-msg',chatId:id,srcText:srcText,tgtText:tgtText,srcLang:src,tgtLang:tgt});
   log('chat_sent',{t:srcText.slice(0,40)},'ok');
 }
 
-function renderChatEntry(entry){
-  var b=$('chat-body');if(!b)return;
-  var isMine=entry.who==='me';
-  var who=isMine?'You':'Partner';
-  var whoClass=isMine?'mine':'theirs';
-  var locale=TTS_LOCALE[entry.srcLang]||'en-US';
-  var ts=new Date(entry.ts).toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  // Left col = reader's language, Right col = original/source language
-  // For 'me':      left=srcText (my lang), right=tgtText (partner lang)
-  // For 'partner': left=srcText (their myLang = my tgtLang), right=tgtText (my lang)
-  var leftText=entry.srcText,rightText=entry.tgtText||entry.srcText;
-  var html='<div class="ch-entry" id="ce-'+entry.id+'">'
-    +'<div class="ch-bubble">'
-    +'<div class="ch-head"><span class="ch-who '+whoClass+'">'+esc(who)+'</span><span class="ch-time">'+esc(ts)+'</span></div>'
-    +'<div class="ch-body">'
-    +'<div class="ch-col'+(isMine?'':' orig')+'">'+esc(leftText)+'</div>'
-    +'<div class="ch-divider"></div>'
-    +'<div class="ch-col'+(isMine?' orig':'')+'">'+esc(rightText)+'</div>'
-    +'</div></div></div>';
-  b.insertAdjacentHTML('afterbegin',html);
-  $('call-transcript').scrollTop=0;
-}
-
 function handleChatMsg(d){
   if(!d)return;
-  // Partner sent: srcText=their myLang, tgtText=translated to their theirLang (= our myLang)
-  // Display for us: left=tgtText (our language, most readable), right=srcText (partner's original)
   var entry={
     id:d.chatId||('ci-'+uid()),
+    type:'chat',
     who:'partner',
-    srcText:d.tgtText||d.srcText||'',  // left = already in our language
-    tgtText:d.srcText||'',             // right = partner's original
-    srcLang:d.tgtLang||room.myLang,
-    tgtLang:d.srcLang||room.theirLang,
+    sourceText:d.srcText||'',
+    translatedText:d.tgtText||d.srcText||'',
+    srcLang:d.srcLang||room.theirLang,
+    tgtLang:d.tgtLang||room.myLang,
     ts:d.ts||Date.now()
   };
-  chatMessages.push(entry);
-  renderChatEntry(entry);
+  transcript.push(entry);saveTr();
+  appendTrDom(entry);
   markPartnerTalking();
   log('chat_rx',{t:(d.srcText||'').slice(0,40)},'ok');
 }
@@ -505,11 +506,16 @@ function updateCallChip(){
   n.textContent=room.name||'No room';
   f.textContent=gL(room.myLang).flag+' → '+gL(room.theirLang).flag;
 }
-function syncMic(){$('mic-btn').classList.toggle('off',!micOn);$('mic-on').style.display=micOn?'':'none';$('mic-off').style.display=micOn?'none':''}
-function syncCam(){$('cam-btn').classList.toggle('off',!camOn);$('cam-on').style.display=camOn?'':'none';$('cam-off').style.display=camOn?'none':'';$('local-video').style.display=camOn?'':'none'}
+function syncMic(){
+  var btn=$('top-mic-btn');
+  if(btn)btn.classList.toggle('muted',!micOn);
+}
+function syncCam(){
+  var btn=$('top-cam-btn');
+  if(btn)btn.classList.toggle('muted',!camOn);
+  $('local-video').style.display=camOn?'':'none';
+}
 function markPartnerTalking(){var i=$('partner-speaking-indicator');if(!i)return;i.classList.add('show');clearTimeout(partnerSpeakTimer);partnerSpeakTimer=setTimeout(function(){i.classList.remove('show')},1200)}
-function setTranscriptMore(v){showTranscriptMore=!!v;$('transcript-more-indicator').classList.toggle('show',showTranscriptMore)}
-function transcriptNearBottom(){var w=$('call-transcript');if(!w)return true;return (w.scrollHeight-w.scrollTop-w.clientHeight)<50}
 function syncTranscriptToggleButton(){var b=$('transcript-toggle-btn');if(!b)return;var e=!transcriptCollapsed;b.title=e?'Collapse transcript':'Expand transcript';b.setAttribute('aria-label',b.title);b.setAttribute('aria-expanded',e?'true':'false')}
 function syncTranscriptTtsButton(){var b=$('transcript-tts-toggle');if(!b)return;b.style.color=transcriptTtsOn?'#b6bcc3':'#8f959d';b.title=transcriptTtsOn?'Transcript TTS on':'Transcript TTS off';b.setAttribute('aria-pressed',transcriptTtsOn?'true':'false');var onIcon=b.querySelector('.tts-on'),offIcon=b.querySelector('.tts-off');if(onIcon)onIcon.style.display=transcriptTtsOn?'':'none';if(offIcon)offIcon.style.display=transcriptTtsOn?'none':''}
 function toggleTranscriptTts(){transcriptTtsOn=!transcriptTtsOn;syncTranscriptTtsButton();if(!transcriptTtsOn&&window.speechSynthesis)window.speechSynthesis.cancel()}
@@ -536,7 +542,7 @@ function clearTrS(id){try{localStorage.removeItem(trKey(id))}catch(_){}}
 
 function encInv(p){try{return btoa(unescape(encodeURIComponent(JSON.stringify(p)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(_){return''}}
 function decInv(s){if(!s)return null;try{var b=s.replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';return JSON.parse(decodeURIComponent(escape(atob(b))))}catch(_){return null}}
-function invUrl(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';return location.href.split('?')[0].split('#')[0]+'#j='+encInv({r:room.id,ml:room.myLang,tl:room.theirLang,n:room.name||'',k:k})}
+function invUrl(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';var tid=(($('cf-turn-id')&&$('cf-turn-id').value)||localStorage.getItem('tb_cf_tid')||'').trim();var tok=(($('cf-turn-tok')&&$('cf-turn-tok').value)||localStorage.getItem('tb_cf_tok')||'').trim();return location.href.split('?')[0].split('#')[0]+'#j='+encInv({r:room.id,ml:room.myLang,tl:room.theirLang,n:room.name||'',k:k,tid:tid,tok:tok})}
 
 function setLS(s){lobbyState=s;$('lobby-setup').style.display=s===LS.setup?'':'none';$('lobby-waiting').style.display=s===LS.waiting?'block':'none'}
 function backToSetup(){if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}setLS(LS.setup)}
@@ -578,7 +584,9 @@ function renderRecent(){
 }
 
 function populateLangs(){['my-lang','their-lang'].forEach(function(id){var s=$(id);s.innerHTML='<option value="" disabled selected>Select language…</option>'+LANGS.map(function(l){return'<option value="'+l.code+'">'+l.flag+' '+l.label+'</option>'}).join('');s.onchange=syncBtn});syncBtn()}
-function syncBtn(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';$('create-btn').disabled=!($('my-lang').value&&$('their-lang').value&&k&&dgKeyVerified)}
+function syncBtn(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';var tid=(($('cf-turn-id')&&$('cf-turn-id').value)||localStorage.getItem('tb_cf_tid')||'').trim();var tok2=(($('cf-turn-tok')&&$('cf-turn-tok').value)||localStorage.getItem('tb_cf_tok')||'').trim();$('create-btn').disabled=!($('my-lang').value&&$('their-lang').value&&k&&dgKeyVerified&&tid&&tok2)}
+function setCfTurnStatus(msg,color){var el=$('cf-turn-status');if(!el)return;el.textContent=msg;el.style.color=color||'#888';}
+function onCfTurnInput(){var tid=($('cf-turn-id').value||'').trim();var tok=($('cf-turn-tok').value||'').trim();if(tid)localStorage.setItem('tb_cf_tid',tid);if(tok)localStorage.setItem('tb_cf_tok',tok);if(tid&&tok)setCfTurnStatus('✅ Saved','#2ecc71');else setCfTurnStatus('','');syncBtn();}
 function setDgKeyStatus(msg,color){var el=$('dg-key-status');if(!el)return;el.textContent=msg;el.style.color=color||'#888';}
 function onDgKeyInput(){
   var raw=$('dg-key').value,k=raw.trim();
@@ -613,6 +621,8 @@ function handleHash(p){
     room.id=p.r;room.myLang=p.tl;room.theirLang=p.ml;room.name=p.n||'';room.role='joiner';room.solo=false;
     // Always apply key from invite — overwrites any stale key on partner device
     if(p.k){localStorage.setItem('tb_dg_key',p.k);if($('dg-key'))$('dg-key').value=p.k;dgKeyVerified=true;}
+    if(p.tid){localStorage.setItem('tb_cf_tid',p.tid);if($('cf-turn-id'))$('cf-turn-id').value=p.tid;}
+    if(p.tok){localStorage.setItem('tb_cf_tok',p.tok);if($('cf-turn-tok'))$('cf-turn-tok').value=p.tok;}
     saveRecent();enterCall();
   }).catch(function(){$('joining-screen').classList.remove('show');toast('Camera access required');history.replaceState({},'',location.pathname)});
   history.replaceState({},'',location.pathname);
@@ -632,7 +642,7 @@ function connectRelay(){
     startHB();
     // Creator sets up the room immediately: PC created, offer sent and saved.
     // Joiner's hello resends the same saved offer. No rebuild. No race.
-    if(room.role==='creator'&&!pc)setupPC();
+    if(room.role==='creator'&&!pc)(async()=>{await setupPC();})();
   };
   ws.onmessage=function(e){try{handleRelay(JSON.parse(e.data))}catch(_){}};
   ws.onclose=function(ev){
@@ -654,7 +664,7 @@ function handleRelay(d){
       var state=pc&&pc.connectionState;
       if(state==='connected'){log('rtc_hello_skip',{state:state});return;}
       // Joiner just walked in — resend the saved offer (same key, no rebuild)
-      if(savedOffer){relaySend(savedOffer);log('rtc_offer_resent',{},'ok');}
+      if(savedOffer){relaySend(savedOffer);log('rtc_offer_resent',{},'ok');savedCandidates.forEach(function(cm){relaySend(cm);});log('rtc_cands_resent',{n:savedCandidates.length});}
     }
     return;
   }
@@ -672,7 +682,7 @@ function handleRelay(d){
     patchTr('partner',d.subtitleSeq,d.text,d.sourceLang,d.targetLang);return;
   }
   if(d.type==='chat-msg'){handleChatMsg(d);return;}
-  if(d.type==='hangup'){toast('Partner left');cleanUp();return}
+  if(d.type==='hangup'){if(room.role==='joiner'){toast('Host ended the call');setTimeout(function(){window.close()},1500);}else{toast('Partner left');}return}
 }
 
 async function enterCall(){
@@ -683,6 +693,8 @@ async function enterCall(){
   if(!callHistoryPushed){history.pushState({tbView:'call'},'',location.href);callHistoryPushed=true}
   $('call-screen').classList.add('active');lobbyState=LS.call;
   $('local-video').srcObject=videoStream;syncMic();syncCam();updateCallChip();
+  var roomMsg='Entering'+(room.name?' '+room.name:'')+'\n'+gL(room.myLang).flag+' → '+gL(room.theirLang).flag;
+  toast(roomMsg);
   $('solo-banner').style.display=room.role==='creator'?'':'none';
   renderTr();
   connectRelay();
@@ -727,19 +739,23 @@ function resetRemoteMediaState(){
 // === WEBRTC — FIX 4: One-way offer model ===
 // Creator: calls setupPC() → adds tracks → onnegotiationneeded → emitOffer
 // Joiner:  does NOT call setupPC() on relay open; waits for offer in handleSig
-function setupPC(){
+async function setupPC(){
   if(pc)return;
-  // FIX 6: Four STUN servers
-  pc=new RTCPeerConnection({iceServers:[
-    {urls:'stun:stun.l.google.com:19302'},
-    {urls:'stun:stun1.l.google.com:19302'},
-    {urls:'stun:stun2.l.google.com:19302'},
-    {urls:'stun:stun3.l.google.com:19302'}
-  ]});
+  var iceServers=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}];
+  var tid=(localStorage.getItem('tb_cf_tid')||'').trim();
+  var tok=(localStorage.getItem('tb_cf_tok')||'').trim();
+  if(tid&&tok){
+    try{
+      var r=await fetch('https://rtc.live.cloudflare.com/v1/turn/keys/'+tid+'/credentials/generate',{method:'POST',headers:{'Authorization':'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({ttl:86400})});
+      if(r.ok){var d=await r.json();if(d.iceServers)iceServers=Array.isArray(d.iceServers)?d.iceServers:[d.iceServers];log('turn_ok',{n:iceServers.length},'ok');}
+      else{log('turn_err',{s:r.status},'warn');}
+    }catch(e){log('turn_fetch_err',{e:String(e)},'warn');}
+  }
+  pc=new RTCPeerConnection({iceServers:iceServers});
   if(room.role==='creator'){
     // Creator originates — onnegotiationneeded fires when tracks are added
     pc.onnegotiationneeded=async function(){
-      try{makingOffer=true;await pc.setLocalDescription(await pc.createOffer());var _offer={type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}};relaySend(_offer);savedOffer=_offer;log('rtc_offer_saved',{},'ok');}
+      try{makingOffer=true;savedCandidates=[];await pc.setLocalDescription(await pc.createOffer());var _offer={type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}};relaySend(_offer);savedOffer=_offer;log('rtc_offer_saved',{},'ok');}
       catch(_){}finally{makingOffer=false}
     };
   }else{
@@ -748,7 +764,7 @@ function setupPC(){
   }
   var localTracks=videoStream?videoStream.getTracks():[];
   localTracks.forEach(function(t){pc.addTrack(t,videoStream)});
-  pc.onicecandidate=function(e){if(e.candidate)relaySend({type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}})};
+  pc.onicecandidate=function(e){if(e.candidate){log('rtc_ice_emit',{type:e.candidate.type||'?'});var cm={type:'webrtc-signal',transient:true,signal:{candidate:e.candidate}};savedCandidates.push(cm);relaySend(cm);}};
   pc.oniceconnectionstatechange=function(){log('rtc_ice',{s:pc.iceConnectionState},pc.iceConnectionState==='connected'?'ok':'info')};
   pc.onconnectionstatechange=function(){log('rtc_conn',{s:pc.connectionState},pc.connectionState==='connected'?'ok':pc.connectionState==='failed'?'error':'info')};
   pc.ontrack=function(e){
@@ -782,8 +798,9 @@ async function handleSig(d){
       var desc=d.signal.description;
       if(desc.type==='offer'){
         // Joiner ignores resent offer if already connected
-        if(pc&&(pc.connectionState==='connected'||pc.connectionState==='connecting')){log('rtc_offer_skip',{state:pc.connectionState});return;}
-        if(!pc)setupPC();
+        if(pc&&pc.connectionState==='connected'){log('rtc_offer_skip',{state:pc.connectionState});return;}
+        if(pc&&pc.connectionState!=='closed'&&pc.connectionState!=='failed'){try{pc.close()}catch(_){}pc=null;remoteStream=null;pendingCandidates=[];savedCandidates=[];}
+        if(!pc)await setupPC();
         await pc.setRemoteDescription(desc);
         await flushPendingCandidates();
         await pc.setLocalDescription(await pc.createAnswer());
@@ -798,12 +815,11 @@ async function handleSig(d){
         log('rtc_got_answer',{},'ok');
       }
     }else if(d.signal.candidate){
-      // FIX 5: Queue candidate if remote description not yet set
       if(!pc||!pc.remoteDescription){
         pendingCandidates.push(d.signal.candidate);
         log('rtc_ice_queued',{n:pendingCandidates.length});
       }else{
-        try{await pc.addIceCandidate(d.signal.candidate)}catch(_){}
+        try{await pc.addIceCandidate(d.signal.candidate);log('rtc_ice_added',{type:d.signal.candidate.type||'?'});}catch(e){log('rtc_ice_add_err',{e:String(e)},'error');}
       }
     }
   }catch(e){log('rtc_sig_err',{e:String(e)},'error')}
@@ -899,7 +915,7 @@ function addTr(who,src,tr,sL,tL,ss){
   src=norm(src);tr=norm(tr);if(!src&&!tr)return;if(!tr)tr=src;
   var prev=transcript.length?transcript[transcript.length-1]:null;
   if(prev&&prev.who===who&&prev.sourceText===src&&Date.now()-prev.ts<5000)return;
-  var entry={who:who,sourceText:src,translatedText:tr,srcLang:sL,tgtLang:tL,subtitleSeq:ss||null,ts:Date.now()};
+  var entry={type:'speech',who:who,sourceText:src,translatedText:tr,srcLang:sL,tgtLang:tL,subtitleSeq:ss||null,ts:Date.now()};
   transcript.push(entry);if(transcript.length>MAX_TR)transcript.splice(0,transcript.length-MAX_TR);
   saveTr();appendTrDom(entry);
   if(transcriptTtsOn&&src)speakText(src,sL||room.myLang);
@@ -916,28 +932,54 @@ function trHtml(e){
   var ts=new Date(e.ts).toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   var speaker=e.who==='me'?'You':'Partner';
   var srcText=e.sourceText||'';var tgtText=e.translatedText||srcText;
-  return '<div class="tr-entry"><div class="tr-bubble">'
-    +'<div class="tr-head"><div class="tr-who '+(e.who==='me'?'mine':'')+'">'+esc(speaker)+'</div><div class="tr-time">'+esc(ts)+'</div></div>'
+  var isMine=e.who==='me';
+  var leftText,rightText,leftLang,rightLang;
+  if(isMine){
+    leftText=srcText;rightText=tgtText;leftLang=srcLang;rightLang=tgtLang;
+  }else{
+    leftText=tgtText;rightText=srcText;leftLang=tgtLang;rightLang=srcLang;
+  }
+  var chatClass=e.type==='chat'?' is-chat':'';
+  return '<div class="tr-entry"><div class="tr-bubble'+chatClass+'">'
+    +'<div class="tr-head"><div class="tr-who '+(isMine?'mine':'')+'">'+esc(speaker)+'</div><div class="tr-time">'+esc(ts)+'</div></div>'
     +'<div class="tr-body">'
-    +'<div class="tr-col source"><div class="tr-text">'+esc(srcText)+'</div>'
-    +'<button class="tr-tts" type="button" data-tts-text="'+esc(srcText)+'" data-tts-lang="'+esc(srcLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'
+    +'<div class="tr-col"><div class="tr-text">'+esc(leftText)+'</div>'
+    +'<button class="tr-tts" type="button" data-tts-text="'+esc(leftText)+'" data-tts-lang="'+esc(leftLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'
     +'<div class="tr-divider"></div>'
-    +'<div class="tr-col"><div class="tr-text">'+esc(tgtText)+'</div>'
-    +'<button class="tr-tts" type="button" data-tts-text="'+esc(tgtText)+'" data-tts-lang="'+esc(tgtLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'
+    +'<div class="tr-col source"><div class="tr-text">'+esc(rightText)+'</div>'
+    +'<button class="tr-tts" type="button" data-tts-text="'+esc(rightText)+'" data-tts-lang="'+esc(rightLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button></div>'
     +'</div></div></div>';
 }
 function appendTrDom(entry){
   var b=$('transcript-body');if(!b)return;
   var em=b.querySelector('.tr-empty');if(em)em.remove();
   b.insertAdjacentHTML('afterbegin',trHtml(entry));
-  setTranscriptMore(false);
+  checkAutoScroll();
 }
 function renderTr(){
   var b=$('transcript-body');if(!b)return;
-  if(!transcript.length){b.innerHTML='<div class="tr-empty">Speak to see transcript here.</div>';setTranscriptMore(false);return}
+  if(!transcript.length){b.innerHTML='<div class="tr-empty">Speak or type to see transcript here.</div>';setTranscriptMore(false);return}
   b.innerHTML=transcript.slice(-120).slice().reverse().map(trHtml).join('');
   $('call-transcript').scrollTop=0;setTranscriptMore(false);
 }
+
+function checkAutoScroll(){
+  var c=$('call-transcript');
+  if(transcriptNearBottom()){c.scrollTop=0;setTranscriptMore(false)}
+  else{setTranscriptMore(true)}
+}
+function transcriptNearBottom(){
+  var c=$('call-transcript');if(!c)return true;
+  return c.scrollTop<100;
+}
+function setTranscriptMore(show){
+  var ind=$('transcript-more-indicator');if(!ind)return;
+  if(show)ind.classList.add('show');else ind.classList.remove('show');
+}
+function scrollToBottom(){
+  var c=$('call-transcript');if(c){c.scrollTop=0;setTranscriptMore(false)}
+}
+
 function copyTr(){
   if(!transcript.length){toast('No transcript');return}
   var t=transcript.map(function(e){var ts=new Date(e.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});return '['+ts+'] '+(e.who==='me'?'You':'Partner')+': '+e.sourceText+(e.translatedText&&e.translatedText!==e.sourceText?' → '+e.translatedText:'')}).join('\n');
@@ -945,15 +987,23 @@ function copyTr(){
 }
 function exportTxt(){
   if(!transcript.length){toast('No transcript');return}
-  var t='TalkBridge Transcript\n'+(room.name?room.name+'\n':'')+new Date().toLocaleString()+'\n\n'+transcript.map(function(e){var ts=new Date(e.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});return '['+ts+'] '+(e.who==='me'?'You':'Partner')+' ('+((e.srcLang||'?').toUpperCase())+'): '+e.sourceText+(e.translatedText&&e.translatedText!==e.sourceText?'\n → ('+((e.tgtLang||'?').toUpperCase())+'): '+e.translatedText:'')}).join('\n\n');
-  var blob=new Blob([t],{type:'text/plain'});var u=URL.createObjectURL(blob);var a=document.createElement('a');a.href=u;a.download='talkbridge-'+new Date().toISOString().slice(0,10)+'.txt';a.click();setTimeout(function(){URL.revokeObjectURL(u)},0);toast('Exported');
+  var _uid=function(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);};
+  var catId='tb-'+Date.now().toString(36);
+  var sessionName=(room.name||'TalkBridge')+' '+new Date().toLocaleDateString();
+  var cards=transcript.filter(function(e){return e.sourceText&&e.translatedText&&e.sourceText!==e.translatedText;}).map(function(e){
+    return {id:'c-'+_uid(),catalogIds:[catId],sourceLang:e.srcLang||'en',targetLang:e.tgtLang||'en',source:e.sourceText,target:e.translatedText,notes:'',tags:e.type==='chat'?['chat']:['speech'],backtranslate:{sourceLang:e.tgtLang||'en',targetLang:e.srcLang||'en',inputText:e.translatedText,resultText:'',verdict:'',contentHash:'',updatedAt:e.ts},clarifyChain:[],savedBy:e.who==='me'?'You':'Partner',createdAt:e.ts,updatedAt:e.ts};
+  });
+  if(!cards.length){toast('No translated content to export');return}
+  var payload={type:'phrasebook',cards:cards,catalogs:[{id:catId,name:sessionName,emoji:'\uD83C\uDFA4',desc:'Exported from TalkBridge',lang:room.myLang||'en',createdAt:Date.now()}],tags:['speech','chat'],exportedAt:Date.now()};
+  var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  var u=URL.createObjectURL(blob);var a=document.createElement('a');a.href=u;a.download='talkbridge-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(u)},0);
+  toast('Exported '+cards.length+' phrases');
 }
-
 function toggleMic(){micOn=!micOn;if(videoStream)videoStream.getAudioTracks().forEach(function(t){t.enabled=micOn});syncMic()}
 function toggleCam(){if(!videoStream)return;camOn=!camOn;videoStream.getVideoTracks().forEach(function(t){t.enabled=camOn});syncCam()}
 function hangUp(){relaySend({type:'hangup'});cleanUp()}
 function cleanUp(){
-  saveTr();stopDeepgram();recentFinals=[];pendingCandidates=[];savedOffer=null;chatMessages=[];var _cb=$('chat-body');if(_cb)_cb.innerHTML='';var _ci=$('chat-input');if(_ci){_ci.value='';_ci.style.height='';}clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
+  saveTr();stopDeepgram();recentFinals=[];pendingCandidates=[];savedOffer=null;savedCandidates=[];var _ci=$('chat-input');if(_ci){_ci.value='';_ci.style.height='';}clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
   if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}
   if(pc){pc.close();pc=null}
   room.id=null;room.solo=false;room.role=null;
@@ -967,10 +1017,14 @@ function cleanUp(){
   document.querySelector('.call-videos').classList.remove('swapped');
   resetRemoteMediaState();
   transcript=[];micOn=true;camOn=true;syncMic();syncCam();callHistoryPushed=false;renderRecent();
+  $('call-top-bar').classList.remove('show');clearTimeout(topBarHideTimer);
 }
 
 // === INIT ===
 if(localStorage.getItem('tb_dg_key')&&$('dg-key')){var _sk=localStorage.getItem('tb_dg_key').trim();$('dg-key').value=_sk;setDgKeyStatus('Verifying saved key…','#f39c12');verifyDgKey(_sk);}
+if(localStorage.getItem('tb_cf_tid')&&$('cf-turn-id'))$('cf-turn-id').value=localStorage.getItem('tb_cf_tid').trim();
+if(localStorage.getItem('tb_cf_tok')&&$('cf-turn-tok'))$('cf-turn-tok').value=localStorage.getItem('tb_cf_tok').trim();
+if(localStorage.getItem('tb_cf_tid')&&localStorage.getItem('tb_cf_tok'))setCfTurnStatus('✅ Saved','#2ecc71');
 populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
 $('call-transcript').addEventListener('click',function(ev){var btn=ev.target.closest('.tr-tts');if(!btn)return;speakText(btn.getAttribute('data-tts-text')||'',btn.getAttribute('data-tts-lang')||room.myLang||'en')});
