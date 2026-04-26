@@ -134,7 +134,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .ctrl-btn.off{background:rgba(231,76,60,.2);color:var(--red);}
 .ctrl-btn.end-call{background:var(--red);color:#fff;width:56px;height:48px;border-radius:24px;}
 .ctrl-btn.end-call:hover{background:#c0392b;}
-#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(255,255,255,.15);backdrop-filter:blur(12px);color:#fff;font-size:13px;font-weight:600;padding:10px 20px;border-radius:22px;z-index:100;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;}
+#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(255,255,255,.15);backdrop-filter:blur(12px);color:#fff;font-size:13px;font-weight:600;padding:10px 20px;border-radius:22px;z-index:100;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:pre-line;text-align:center;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 @media(min-width:768px){
   .lobby-card{width:420px;}
@@ -682,7 +682,7 @@ function handleRelay(d){
     patchTr('partner',d.subtitleSeq,d.text,d.sourceLang,d.targetLang);return;
   }
   if(d.type==='chat-msg'){handleChatMsg(d);return;}
-  if(d.type==='hangup'){if(room.role==='joiner'){toast('Host ended the call');setTimeout(function(){window.close()},1500);}else{toast('Partner left');}return}
+  if(d.type==='hangup'){if(room.role==='joiner'){showHostLeftCountdown();}else{toast('Partner left');}return}
 }
 
 async function enterCall(){
@@ -1001,7 +1001,21 @@ function exportTxt(){
 }
 function toggleMic(){micOn=!micOn;if(videoStream)videoStream.getAudioTracks().forEach(function(t){t.enabled=micOn});syncMic()}
 function toggleCam(){if(!videoStream)return;camOn=!camOn;videoStream.getVideoTracks().forEach(function(t){t.enabled=camOn});syncCam()}
-function hangUp(){relaySend({type:'hangup'});cleanUp()}
+function showHostLeftCountdown(){
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;color:#fff;font-family:inherit;';
+  var msg=document.createElement('div');
+  msg.style.cssText='font-size:18px;font-weight:700;margin-bottom:16px;';
+  msg.textContent='Host ended the call';
+  var ctr=document.createElement('div');
+  ctr.style.cssText='font-size:48px;font-weight:700;';
+  ctr.textContent='5';
+  overlay.appendChild(msg);overlay.appendChild(ctr);
+  document.body.appendChild(overlay);
+  var n=5;
+  var t=setInterval(function(){n--;ctr.textContent=String(n);if(n<=0){clearInterval(t);window.close();}},1000);
+}
+function hangUp(){relaySend({type:'hangup'});if(room.role==='joiner'){stopDeepgram();if(pc){pc.close();pc=null;}if(_relayWs)try{_relayWs.close()}catch(_){}_relayWs=null;window.close();}else{cleanUp();}}
 function cleanUp(){
   saveTr();stopDeepgram();recentFinals=[];pendingCandidates=[];savedOffer=null;savedCandidates=[];var _ci=$('chat-input');if(_ci){_ci.value='';_ci.style.height='';}clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
   if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}
