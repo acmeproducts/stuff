@@ -202,6 +202,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <input class="lobby-input" id="dg-key" type="password" placeholder="Paste key — stored locally" oninput="onDgKeyInput()">
         <div id="dg-key-status" style="font-size:11px;min-height:16px;margin-top:4px;padding-left:2px;transition:color .2s;"></div></div>
 
+        <div><div class="lobby-label" style="margin-bottom:6px;">Cloudflare TURN token ID</div>
+        <input class="lobby-input" id="cf-turn-id" type="password" placeholder="Paste token ID — stored locally" oninput="onCfTurnInput()">
+        <div class="lobby-label" style="margin-bottom:6px;margin-top:10px;">Cloudflare TURN API token</div>
+        <input class="lobby-input" id="cf-turn-tok" type="password" placeholder="Paste API token — stored locally" oninput="onCfTurnInput()">
+        <div id="cf-turn-status" style="font-size:11px;min-height:16px;margin-top:4px;padding-left:2px;transition:color .2s;"></div></div>
+
         <button class="lobby-btn" id="create-btn" onclick="createRoom()" disabled>Start a room</button>
       </div>
       <div class="recent-rooms" id="recent-rooms" style="display:none;">
@@ -534,7 +540,7 @@ function clearTrS(id){try{localStorage.removeItem(trKey(id))}catch(_){}}
 
 function encInv(p){try{return btoa(unescape(encodeURIComponent(JSON.stringify(p)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(_){return''}}
 function decInv(s){if(!s)return null;try{var b=s.replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';return JSON.parse(decodeURIComponent(escape(atob(b))))}catch(_){return null}}
-function invUrl(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';return location.href.split('?')[0].split('#')[0]+'#j='+encInv({r:room.id,ml:room.myLang,tl:room.theirLang,n:room.name||'',k:k})}
+function invUrl(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';var tid=(($('cf-turn-id')&&$('cf-turn-id').value)||localStorage.getItem('tb_cf_tid')||'').trim();var tok=(($('cf-turn-tok')&&$('cf-turn-tok').value)||localStorage.getItem('tb_cf_tok')||'').trim();return location.href.split('?')[0].split('#')[0]+'#j='+encInv({r:room.id,ml:room.myLang,tl:room.theirLang,n:room.name||'',k:k,tid:tid,tok:tok})}
 
 function setLS(s){lobbyState=s;$('lobby-setup').style.display=s===LS.setup?'':'none';$('lobby-waiting').style.display=s===LS.waiting?'block':'none'}
 function backToSetup(){if(videoStream){videoStream.getTracks().forEach(function(t){t.stop()});videoStream=null}setLS(LS.setup)}
@@ -576,7 +582,9 @@ function renderRecent(){
 }
 
 function populateLangs(){['my-lang','their-lang'].forEach(function(id){var s=$(id);s.innerHTML='<option value="" disabled selected>Select language…</option>'+LANGS.map(function(l){return'<option value="'+l.code+'">'+l.flag+' '+l.label+'</option>'}).join('');s.onchange=syncBtn});syncBtn()}
-function syncBtn(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';$('create-btn').disabled=!($('my-lang').value&&$('their-lang').value&&k&&dgKeyVerified)}
+function syncBtn(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';var tid=(($('cf-turn-id')&&$('cf-turn-id').value)||localStorage.getItem('tb_cf_tid')||'').trim();var tok2=(($('cf-turn-tok')&&$('cf-turn-tok').value)||localStorage.getItem('tb_cf_tok')||'').trim();$('create-btn').disabled=!($('my-lang').value&&$('their-lang').value&&k&&dgKeyVerified&&tid&&tok2)}
+function setCfTurnStatus(msg,color){var el=$('cf-turn-status');if(!el)return;el.textContent=msg;el.style.color=color||'#888';}
+function onCfTurnInput(){var tid=($('cf-turn-id').value||'').trim();var tok=($('cf-turn-tok').value||'').trim();if(tid)localStorage.setItem('tb_cf_tid',tid);if(tok)localStorage.setItem('tb_cf_tok',tok);if(tid&&tok)setCfTurnStatus('✅ Saved','#2ecc71');else setCfTurnStatus('','');syncBtn();}
 function setDgKeyStatus(msg,color){var el=$('dg-key-status');if(!el)return;el.textContent=msg;el.style.color=color||'#888';}
 function onDgKeyInput(){
   var raw=$('dg-key').value,k=raw.trim();
@@ -611,6 +619,8 @@ function handleHash(p){
     room.id=p.r;room.myLang=p.tl;room.theirLang=p.ml;room.name=p.n||'';room.role='joiner';room.solo=false;
     // Always apply key from invite — overwrites any stale key on partner device
     if(p.k){localStorage.setItem('tb_dg_key',p.k);if($('dg-key'))$('dg-key').value=p.k;dgKeyVerified=true;}
+    if(p.tid){localStorage.setItem('tb_cf_tid',p.tid);if($('cf-turn-id'))$('cf-turn-id').value=p.tid;}
+    if(p.tok){localStorage.setItem('tb_cf_tok',p.tok);if($('cf-turn-tok'))$('cf-turn-tok').value=p.tok;}
     saveRecent();enterCall();
   }).catch(function(){$('joining-screen').classList.remove('show');toast('Camera access required');history.replaceState({},'',location.pathname)});
   history.replaceState({},'',location.pathname);
@@ -630,7 +640,7 @@ function connectRelay(){
     startHB();
     // Creator sets up the room immediately: PC created, offer sent and saved.
     // Joiner's hello resends the same saved offer. No rebuild. No race.
-    if(room.role==='creator'&&!pc)setupPC();
+    if(room.role==='creator'&&!pc)(async()=>{await setupPC();})();
   };
   ws.onmessage=function(e){try{handleRelay(JSON.parse(e.data))}catch(_){}};
   ws.onclose=function(ev){
@@ -727,15 +737,19 @@ function resetRemoteMediaState(){
 // === WEBRTC — FIX 4: One-way offer model ===
 // Creator: calls setupPC() → adds tracks → onnegotiationneeded → emitOffer
 // Joiner:  does NOT call setupPC() on relay open; waits for offer in handleSig
-function setupPC(){
+async function setupPC(){
   if(pc)return;
-  pc=new RTCPeerConnection({iceServers:[
-    {urls:'stun:stun.l.google.com:19302'},
-    {urls:'stun:stun1.l.google.com:19302'},
-    {urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},
-    {urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'},
-    {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}
-  ]});
+  var iceServers=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}];
+  var tid=(localStorage.getItem('tb_cf_tid')||'').trim();
+  var tok=(localStorage.getItem('tb_cf_tok')||'').trim();
+  if(tid&&tok){
+    try{
+      var r=await fetch('https://rtc.live.cloudflare.com/v1/turn/keys/'+tid+'/credentials/generate',{method:'POST',headers:{'Authorization':'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({ttl:86400})});
+      if(r.ok){var d=await r.json();if(d.iceServers)iceServers=d.iceServers;log('turn_ok',{},'ok');}
+      else{log('turn_err',{s:r.status},'warn');}
+    }catch(e){log('turn_fetch_err',{e:String(e)},'warn');}
+  }
+  pc=new RTCPeerConnection({iceServers:iceServers});
   if(room.role==='creator'){
     // Creator originates — onnegotiationneeded fires when tracks are added
     pc.onnegotiationneeded=async function(){
@@ -783,7 +797,7 @@ async function handleSig(d){
       if(desc.type==='offer'){
         // Joiner ignores resent offer if already connected
         if(pc&&(pc.connectionState==='connected'||pc.connectionState==='connecting')){log('rtc_offer_skip',{state:pc.connectionState});await flushPendingCandidates();return;}
-        if(!pc)setupPC();
+        if(!pc)await setupPC();
         await pc.setRemoteDescription(desc);
         await flushPendingCandidates();
         await pc.setLocalDescription(await pc.createAnswer());
@@ -997,6 +1011,9 @@ function cleanUp(){
 
 // === INIT ===
 if(localStorage.getItem('tb_dg_key')&&$('dg-key')){var _sk=localStorage.getItem('tb_dg_key').trim();$('dg-key').value=_sk;setDgKeyStatus('Verifying saved key…','#f39c12');verifyDgKey(_sk);}
+if(localStorage.getItem('tb_cf_tid')&&$('cf-turn-id'))$('cf-turn-id').value=localStorage.getItem('tb_cf_tid').trim();
+if(localStorage.getItem('tb_cf_tok')&&$('cf-turn-tok'))$('cf-turn-tok').value=localStorage.getItem('tb_cf_tok').trim();
+if(localStorage.getItem('tb_cf_tid')&&localStorage.getItem('tb_cf_tok'))setCfTurnStatus('✅ Saved','#2ecc71');
 populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
 $('call-transcript').addEventListener('click',function(ev){var btn=ev.target.closest('.tr-tts');if(!btn)return;speakText(btn.getAttribute('data-tts-text')||'',btn.getAttribute('data-tts-lang')||room.myLang||'en')});
