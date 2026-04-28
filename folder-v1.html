@@ -1,0 +1,1801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>Orbital8 · Drive Intelligence</title>
+<script src="https://alcdn.msauth.net/browser/2.28.1/js/msal-browser.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d0d12;--surface:#13131a;--raised:#1a1a24;--hover:#20202c;
+  --border:rgba(255,255,255,0.07);--bmd:rgba(255,255,255,0.12);--bacc:rgba(245,158,11,0.35);
+  --tp:#e0e0ee;--ts:#80809a;--tm:#3a3a52;
+  --acc:#f59e0b;--acc-d:rgba(245,158,11,0.12);
+  --grn:#10b981;--grn-d:rgba(16,185,129,0.12);
+  --blu:#3b82f6;--blu-d:rgba(59,130,246,0.12);
+  --yel:#eab308;--yel-d:rgba(234,179,8,0.12);
+  --red:#ef4444;--red-d:rgba(239,68,68,0.12);
+  --pur:#8b5cf6;--cyn:#06b6d4;--org:#f97316;--lme:#84cc16;
+  --mono:'IBM Plex Mono',monospace;--sans:'DM Sans',sans-serif;
+  --r:10px;--rs:6px;--lpw:280px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+
+/* ── Screens ── */
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);z-index:100}
+.screen.hidden,.hidden{display:none!important}
+.card{background:var(--surface);border:1px solid var(--bmd);border-radius:16px;padding:40px 44px;width:90%;max-width:480px;box-shadow:0 24px 64px rgba(0,0,0,.5)}
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:32px}
+.logo .orb{width:32px;height:32px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fbbf24,var(--acc) 60%,#92400e);box-shadow:0 0 18px rgba(245,158,11,.4);flex-shrink:0}
+.logo .wm{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ts);letter-spacing:.1em;text-transform:uppercase}
+.ctitle{font-size:22px;font-weight:700;color:var(--tp);margin-bottom:6px;letter-spacing:-.3px}
+.csub{font-size:13px;color:var(--ts);margin-bottom:26px}
+.pvr-btn{display:flex;align-items:center;gap:14px;width:100%;padding:16px 20px;background:var(--raised);border:1px solid var(--bmd);border-radius:var(--r);color:var(--tp);font-family:var(--sans);font-size:15px;font-weight:500;cursor:pointer;transition:all .2s;margin-bottom:12px}
+.pvr-btn:hover{background:var(--hover);border-color:var(--bacc);transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.pvr-btn svg{width:20px;height:20px;flex-shrink:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 22px;border-radius:var(--rs);font-family:var(--sans);font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
+.btn-pri{background:var(--acc);color:#000;box-shadow:0 4px 14px rgba(245,158,11,.3)}
+.btn-pri:hover:not(:disabled){background:#fbbf24;transform:translateY(-1px)}
+.btn-ghost{background:transparent;color:var(--ts);border:1px solid var(--bmd)}
+.btn-ghost:hover:not(:disabled){background:var(--hover);color:var(--tp)}
+.btn-full{width:100%;margin-bottom:12px}
+.btn-danger{background:var(--red-d);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.btn-danger:hover:not(:disabled){background:rgba(239,68,68,.2)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.inp{width:100%;padding:11px 14px;background:var(--raised);border:1px solid var(--bmd);border-radius:var(--rs);color:var(--tp);font-family:var(--sans);font-size:14px;margin-bottom:14px;outline:none;transition:border-color .15s}
+.inp:focus{border-color:var(--acc)}
+.inp::placeholder{color:var(--tm)}
+.smsg{padding:10px 14px;border-radius:var(--rs);font-size:13px;margin-top:14px}
+.s-info{background:var(--blu-d);color:var(--blu);border:1px solid rgba(59,130,246,.2)}
+.s-err{background:var(--red-d);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.s-ok{background:var(--grn-d);color:var(--grn);border:1px solid rgba(16,185,129,.2)}
+.s-warn{background:var(--yel-d);color:var(--yel);border:1px solid rgba(234,179,8,.2)}
+
+/* ── Enrollment ── */
+.enroll-card{max-width:680px;max-height:85vh;display:flex;flex-direction:column;padding:0;overflow:hidden}
+.enroll-hdr{padding:24px 28px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.enroll-tb{display:flex;align-items:center;gap:8px;padding:8px 28px;background:var(--raised);border-bottom:1px solid var(--border);flex-shrink:0}
+.enroll-srch{flex:1;padding:7px 12px;background:var(--hover);border:1px solid var(--bmd);border-radius:var(--rs);color:var(--tp);font-family:var(--sans);font-size:13px;outline:none}
+.enroll-list{flex:1;overflow-y:auto;padding:4px 0;min-height:0}
+.enroll-list::-webkit-scrollbar{width:5px}
+.enroll-list::-webkit-scrollbar-thumb{background:var(--hover);border-radius:3px}
+.enroll-section{padding:6px 28px 2px;font-size:10px;font-weight:700;color:var(--tm);text-transform:uppercase;letter-spacing:.1em}
+.frow{display:flex;align-items:center;gap:12px;padding:9px 28px;cursor:pointer;transition:background .1s;border-left:3px solid transparent}
+.frow:hover{background:var(--hover)}
+.frow.sel{background:var(--acc-d);border-left-color:var(--acc)}
+.frow.enrolled-row{border-left-color:var(--grn)}
+.frow input[type=checkbox]{width:15px;height:15px;accent-color:var(--acc);cursor:pointer;flex-shrink:0}
+.frow-ic{color:var(--acc);opacity:.7;flex-shrink:0;display:flex}
+.frow-inf{flex:1;min-width:0}
+.frow-name{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.frow-meta{font-size:11px;color:var(--ts);font-family:var(--mono);margin-top:1px}
+.frow-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.frow-bdg{font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:20px;white-space:nowrap}
+.bdg-enrolled{background:var(--grn-d);color:var(--grn)}
+.bdg-new{background:var(--blu-d);color:var(--blu)}
+.bdg-chg{background:var(--yel-d);color:var(--yel)}
+.de-enroll-btn{font-size:10px;padding:2px 8px;background:var(--red-d);color:var(--red);border:1px solid rgba(239,68,68,.2);border-radius:4px;cursor:pointer;font-family:var(--sans);font-weight:600;white-space:nowrap;transition:background .15s}
+.de-enroll-btn:hover{background:rgba(239,68,68,.2)}
+.enroll-ft{padding:12px 28px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}
+.sel-count{font-size:12px;color:var(--ts);font-family:var(--mono)}
+
+/* ── Sniff ── */
+.sniff-card{max-width:560px}
+.sniff-folders{background:var(--raised);border-radius:var(--rs);margin:14px 0;overflow:hidden}
+.sniff-frow{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border)}
+.sniff-frow:last-child{border-bottom:none}
+.sniff-fname{flex:1;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sniff-counts{display:flex;gap:16px;font-family:var(--mono);font-size:11px;color:var(--ts);flex-shrink:0}
+.sniff-counts span{color:var(--acc);font-weight:600}
+.sniff-ft{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+
+/* ── Acquisition ── */
+.acq-card{max-width:520px}
+.acq-fname{font-family:var(--mono);font-size:12px;color:var(--acc);background:var(--raised);padding:10px 14px;border-radius:var(--rs);margin:14px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb-wrap{height:6px;background:var(--raised);border-radius:3px;overflow:hidden;margin-bottom:8px}
+.pb-fill{height:100%;background:linear-gradient(90deg,var(--acc),#fbbf24);border-radius:3px;transition:width .3s;width:0%}
+.acq-ctrs{display:flex;gap:24px;margin:14px 0;font-family:var(--mono);font-size:12px;color:var(--ts)}
+.acq-ctrs span{color:var(--acc);font-weight:600;font-size:16px;display:block}
+.acq-log{background:var(--raised);border-radius:var(--rs);padding:10px 14px;height:100px;overflow-y:auto;font-family:var(--mono);font-size:11px;color:var(--tm);line-height:1.9}
+.acq-log::-webkit-scrollbar{width:4px}
+.acq-log::-webkit-scrollbar-thumb{background:var(--hover)}
+
+/* ── Tree layout ── */
+.tree-layout{position:fixed;inset:0;display:grid;grid-template-rows:50px 1fr 30px;background:var(--bg)}
+#t-hdr{display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+.h-orb{width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fbbf24,var(--acc) 60%,#92400e);flex-shrink:0}
+.h-wm{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ts);letter-spacing:.1em;text-transform:uppercase;flex-shrink:0}
+.h-sep{width:1px;height:20px;background:var(--border);flex-shrink:0}
+.h-pvr{font-family:var(--mono);font-size:11px;color:var(--ts);text-transform:uppercase;letter-spacing:.08em;flex-shrink:0}
+.h-view-tabs{display:flex;gap:2px;background:var(--raised);border-radius:6px;padding:3px;flex-shrink:0}
+.h-vtab{padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;color:var(--ts);border:none;background:transparent;font-family:var(--sans);transition:all .15s}
+.h-vtab.active{background:var(--surface);color:var(--tp)}
+.h-srch{flex:1;max-width:260px;padding:6px 12px;background:var(--raised);border:1px solid var(--border);border-radius:var(--rs);color:var(--tp);font-family:var(--sans);font-size:13px;outline:none;transition:border-color .15s}
+.h-srch:focus{border-color:var(--bacc)}
+.h-srch::placeholder{color:var(--tm)}
+.h-acts{display:flex;align-items:center;gap:7px;margin-left:auto}
+.ic-btn{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--rs);background:transparent;border:1px solid var(--border);color:var(--ts);cursor:pointer;transition:all .15s}
+.ic-btn:hover{background:var(--hover);color:var(--tp);border-color:var(--bmd)}
+.enroll-more-btn{font-size:12px;padding:4px 11px;background:var(--acc-d);border:1px solid var(--bacc);color:var(--acc);border-radius:var(--rs);cursor:pointer;font-family:var(--sans);font-weight:600;transition:all .15s;white-space:nowrap}
+.enroll-more-btn:hover{background:rgba(245,158,11,.2)}
+#t-body{display:grid;grid-template-columns:var(--lpw) 4px 1fr;overflow:hidden}
+
+/* ── Left pane ── */
+#t-tree{display:flex;flex-direction:column;background:var(--surface);border-right:1px solid var(--border);overflow:hidden}
+.tp-hdr{padding:8px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);font-size:10px;font-weight:700;color:var(--tm);text-transform:uppercase;letter-spacing:.1em;flex-shrink:0}
+.tp-scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 0}
+.tp-scroll::-webkit-scrollbar{width:4px}
+.tp-scroll::-webkit-scrollbar-thumb{background:var(--hover);border-radius:3px}
+.tnode{display:flex;align-items:center;gap:5px;padding:5px 8px 5px 0;cursor:pointer;border-radius:5px;margin:1px 4px;transition:background .1s;user-select:none}
+.tnode:hover{background:var(--hover)}
+.tnode.sel{background:var(--acc-d)}
+.tnode.sel .tn-name{color:var(--acc)}
+.tn-tog{width:14px;height:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--tm);font-size:8px;transition:transform .15s}
+.tn-tog.exp{transform:rotate(90deg)}
+.tn-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.dot-cur{background:var(--grn)}.dot-chg{background:var(--yel)}.dot-new{background:var(--blu)}
+.tn-ic{color:var(--acc);opacity:.7;flex-shrink:0;display:flex}
+.tn-inf{flex:1;min-width:0}
+.tn-name{font-size:12px;font-weight:500;color:var(--tp);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tn-sub{font-family:var(--mono);font-size:10px;color:var(--tm);margin-top:1px}
+.new-notice{background:var(--blu-d);border:1px solid rgba(59,130,246,.2);border-radius:var(--rs);padding:8px 10px;margin:5px;font-size:11px;color:var(--blu);display:flex;align-items:center;justify-content:space-between;gap:6px}
+.new-notice button{background:var(--blu);color:#fff;border:none;border-radius:3px;padding:2px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+
+/* ── Divider ── */
+#t-div{background:var(--border);cursor:col-resize;transition:background .15s}
+#t-div:hover,#t-div.drag{background:var(--acc)}
+
+/* ── Right pane ── */
+#t-attr{display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+
+/* Breadcrumb */
+.breadcrumb{display:flex;align-items:center;gap:4px;padding:6px 14px;background:var(--surface);border-bottom:1px solid var(--border);font-size:11px;color:var(--tm);flex-shrink:0;min-height:30px;flex-wrap:nowrap;overflow:hidden}
+.bc-seg{color:var(--ts);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;transition:color .15s}
+.bc-seg:hover{color:var(--acc)}
+.bc-seg.active{color:var(--tp);cursor:default;font-weight:600}
+.bc-sep{color:var(--tm);flex-shrink:0}
+
+/* Folder stats zone */
+.stats-zone{flex-shrink:0;border-bottom:1px solid var(--border);background:var(--surface)}
+.stats-classes{display:flex;gap:1px;overflow-x:auto;padding:8px 12px;scrollbar-width:none}
+.stats-classes::-webkit-scrollbar{display:none}
+.cls-chip{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;cursor:pointer;transition:all .15s;background:var(--raised);border:1px solid transparent;white-space:nowrap;flex-shrink:0}
+.cls-chip:hover{border-color:var(--bmd)}
+.cls-chip.active{border-color:var(--acc);background:var(--acc-d)}
+.cls-chip .cls-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.cls-chip .cls-n{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--tp)}
+.cls-chip .cls-lbl{font-size:11px;color:var(--ts)}
+.stats-curation{display:flex;gap:1px;padding:0 12px 8px;flex-wrap:wrap}
+.cur-chip{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:5px;cursor:pointer;transition:all .15s;background:var(--raised);border:1px solid transparent;flex-shrink:0}
+.cur-chip:hover{border-color:var(--bmd)}
+.cur-chip.active{border-color:var(--acc);background:var(--acc-d)}
+.cur-chip .cur-lbl{font-size:11px;color:var(--ts)}
+.cur-chip .cur-n{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--tp)}
+.cur-chip .cur-pct{font-family:var(--mono);font-size:10px;color:var(--tm)}
+
+/* File table zone */
+.file-zone{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.file-tb{display:flex;align-items:center;gap:8px;padding:6px 14px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.file-lbl{font-size:11px;font-weight:700;color:var(--tm);text-transform:uppercase;letter-spacing:.08em;flex-shrink:0}
+.file-cnt{font-family:var(--mono);font-size:11px;color:var(--tm);margin-left:auto}
+.tbl-wrap{flex:1;overflow:auto}
+.tbl-wrap::-webkit-scrollbar{width:6px;height:6px}
+.tbl-wrap::-webkit-scrollbar-track{background:var(--bg)}
+.tbl-wrap::-webkit-scrollbar-thumb{background:var(--raised);border-radius:3px}
+.attr-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:12px}
+.attr-tbl thead{position:sticky;top:0;z-index:10}
+.attr-tbl th{background:var(--surface);padding:7px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--tm);letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--bmd);white-space:nowrap;cursor:pointer;user-select:none;transition:color .15s}
+.attr-tbl th:hover{color:var(--ts)}
+.attr-tbl th.s-asc,.attr-tbl th.s-desc{color:var(--acc)}
+.attr-tbl td{padding:7px 12px;border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;transition:background .1s}
+.attr-tbl tbody tr{cursor:pointer}
+.attr-tbl tbody tr:hover td{background:var(--hover)}
+.attr-tbl tbody tr.row-sel td{background:var(--acc-d)}
+.col-name{font-weight:500;color:var(--tp)}
+.col-mono{font-family:var(--mono);font-size:11px;color:var(--ts)}
+.col-link{color:var(--acc);font-weight:500;cursor:pointer;text-decoration:none}
+.col-link:hover{text-decoration:underline}
+.stack-chip{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:20px;font-family:var(--mono);font-size:10px;font-weight:600}
+.stack-inbox{background:var(--raised);color:var(--ts)}
+.stack-keep{background:var(--grn-d);color:var(--grn)}
+.stack-maybe{background:var(--blu-d);color:var(--blu)}
+.stack-trash{background:var(--red-d);color:var(--red)}
+.class-ic{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;color:var(--ts)}
+.class-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+/* ── Footer ── */
+#t-ftr{display:flex;align-items:center;gap:14px;padding:0 16px;background:var(--surface);border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--tm)}
+.ft-st{display:flex;align-items:center;gap:5px}
+.ft-st strong{color:var(--ts)}
+.ft-sep{width:1px;height:10px;background:var(--border)}
+
+/* ── Timeline ── */
+#v-timeline{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+.tl-controls{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.tl-breadcrumb{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;color:var(--ts)}
+.tl-bc-seg{cursor:pointer;color:var(--acc)}
+.tl-bc-seg:hover{text-decoration:underline}
+.tl-drill-info{font-size:12px;color:var(--tm);margin-left:auto}
+.tl-chart{flex:1;overflow:hidden;padding:16px;min-height:0}
+.tl-svg{width:100%;height:100%}
+.tl-legend{display:flex;gap:10px;padding:8px 16px;background:var(--surface);border-top:1px solid var(--border);flex-wrap:wrap;flex-shrink:0}
+.tl-leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ts);cursor:pointer}
+.tl-leg-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.tl-leg-item.muted{opacity:.3}
+
+/* ── File viewer modal ── */
+.fv-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.fv-modal{background:var(--surface);border:1px solid var(--bmd);border-radius:16px;width:90%;max-width:900px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,.6)}
+.fv-hdr{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.fv-name{flex:1;font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fv-close{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;background:transparent;border:1px solid var(--border);color:var(--ts);font-size:16px;transition:all .15s;flex-shrink:0}
+.fv-close:hover{background:var(--hover);color:var(--tp)}
+.fv-body{display:grid;grid-template-columns:1fr 280px;flex:1;overflow:hidden;min-height:0}
+.fv-preview{display:flex;align-items:center;justify-content:center;background:var(--bg);overflow:hidden;min-height:300px}
+.fv-preview img,.fv-preview video,.fv-preview audio{max-width:100%;max-height:100%;object-fit:contain}
+.fv-preview iframe{width:100%;height:100%;border:none}
+.fv-preview pre{padding:16px;font-family:var(--mono);font-size:12px;color:var(--ts);white-space:pre-wrap;word-break:break-all;overflow:auto;max-height:100%;width:100%;line-height:1.6}
+.fv-no-preview{text-align:center;color:var(--ts);padding:32px;font-size:13px}
+.fv-no-preview svg{margin:0 auto 12px;display:block;opacity:.3}
+.fv-meta{background:var(--raised);border-left:1px solid var(--border);overflow-y:auto;padding:0}
+.fv-meta::-webkit-scrollbar{width:4px}
+.fv-meta::-webkit-scrollbar-thumb{background:var(--hover)}
+.fv-meta-sec{padding:12px 14px;border-bottom:1px solid var(--border)}
+.fv-meta-title{font-size:10px;font-weight:700;color:var(--tm);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+.fv-meta-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px;font-size:12px}
+.fv-meta-key{color:var(--ts);flex-shrink:0}
+.fv-meta-val{font-family:var(--mono);font-size:11px;color:var(--tp);text-align:right;word-break:break-all}
+
+/* ── Toast & Spinner ── */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--raised);color:var(--tp);border:1px solid var(--bmd);padding:8px 16px;border-radius:8px;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:999;white-space:nowrap}
+.toast.show{opacity:1;pointer-events:auto}
+.toast.t-ok{border-color:rgba(16,185,129,.35);color:var(--grn)}
+.toast.t-err{border-color:rgba(239,68,68,.35);color:var(--red)}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(245,158,11,.25);border-top-color:var(--acc);border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- Provider -->
+<div class="screen" id="scr-provider">
+  <div class="card">
+    <div class="logo"><div class="orb"></div><span class="wm">Orbital8 · Intelligence</span></div>
+    <div class="ctitle">Source Drive</div>
+    <div class="csub">Connect a provider to build your folder intelligence index.</div>
+    <button class="pvr-btn" id="btn-gdrive">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.28 7L9.69 1h4.62l3.41 6zM16.05 7H7.95l4.05 7zM11.76 15h8.58L24 21H7.05z"/></svg>
+      Google Drive
+    </button>
+    <button class="pvr-btn" id="btn-onedrive">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.1 10.59a5.5 5.5 0 0 0-9.52-3.13A4.01 4.01 0 0 0 5.5 10a.5.5 0 0 0 0 .01A4.5 4.5 0 0 0 6 19h15a3 3 0 0 0 1.1-5.41z"/></svg>
+      OneDrive
+    </button>
+    <div id="pvr-status" class="smsg s-info">Select your cloud storage provider</div>
+  </div>
+</div>
+
+<!-- Auth -->
+<div class="screen hidden" id="scr-auth">
+  <div class="card">
+    <div class="logo"><div class="orb"></div><span class="wm">Orbital8 · Intelligence</span></div>
+    <div class="ctitle" id="auth-title">Connect</div>
+    <div class="csub" id="auth-sub">Authenticate to continue</div>
+    <div id="gdrive-secret-container" class="hidden">
+      <input type="password" id="gdrive-client-secret" class="inp" placeholder="Enter Google Client Secret">
+    </div>
+    <button class="btn btn-pri btn-full" id="btn-auth">Connect</button>
+    <button class="btn btn-ghost btn-full" id="btn-auth-back">← Back</button>
+    <div id="auth-status" class="smsg s-info"></div>
+  </div>
+</div>
+
+<!-- Enrollment -->
+<div class="screen hidden" id="scr-enroll">
+  <div class="card enroll-card">
+    <div class="enroll-hdr">
+      <div class="ctitle">Manage Enrollment</div>
+      <div class="csub" style="margin-bottom:0">Select top-level folders to enroll. All subfolders are included. De-enroll to wipe a folder's index.</div>
+    </div>
+    <div class="enroll-tb">
+      <input class="enroll-srch" type="text" id="enroll-srch" placeholder="Filter folders…">
+      <button class="btn btn-ghost btn-sm" id="btn-all">All</button>
+      <button class="btn btn-ghost btn-sm" id="btn-none">None</button>
+    </div>
+    <div class="enroll-list" id="enroll-list">
+      <div style="padding:32px;text-align:center;color:var(--tm)"><div class="spin" style="margin:0 auto 12px"></div><div>Loading…</div></div>
+    </div>
+    <div class="enroll-ft">
+      <span class="sel-count" id="enroll-cnt">0 selected</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" id="btn-enroll-back">← Back</button>
+        <button class="btn btn-pri btn-sm" id="btn-analyze" disabled>Analyze Selected →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sniff -->
+<div class="screen hidden" id="scr-sniff">
+  <div class="card sniff-card">
+    <div class="ctitle">Pre-Index Analysis</div>
+    <div class="csub">Review what will be indexed before committing.</div>
+    <div class="sniff-folders" id="sniff-folders">
+      <div style="padding:20px;text-align:center;color:var(--tm)"><div class="spin" style="margin:0 auto 10px"></div><div>Analyzing…</div></div>
+    </div>
+    <div id="sniff-status" class="smsg s-info"></div>
+    <div class="sniff-ft">
+      <button class="btn btn-ghost" id="btn-sniff-back">← Back</button>
+      <button class="btn btn-pri" id="btn-proceed" disabled>Begin Indexing →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Acquisition -->
+<div class="screen hidden" id="scr-acq">
+  <div class="card acq-card">
+    <div class="ctitle">Indexing Drive</div>
+    <div class="csub">Building your intelligence record. Future visits will be instant.</div>
+    <div class="acq-fname" id="acq-folder">Initializing…</div>
+    <div class="pb-wrap"><div class="pb-fill" id="acq-pb"></div></div>
+    <div class="acq-ctrs">
+      <div><span id="acq-fc">0</span>folders</div>
+      <div><span id="acq-ic">0</span>files</div>
+      <div><span id="acq-el">0s</span>elapsed</div>
+    </div>
+    <div class="acq-log" id="acq-log"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button class="btn btn-danger" id="btn-acq-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tree -->
+<div class="tree-layout hidden" id="scr-tree">
+  <header id="t-hdr">
+    <div class="h-orb"></div>
+    <span class="h-wm">Intelligence</span>
+    <div class="h-sep"></div>
+    <span class="h-pvr" id="h-pvr">—</span>
+    <div class="h-sep"></div>
+    <div class="h-view-tabs">
+      <button class="h-vtab active" id="vtab-tree" data-view="tree">Tree</button>
+      <button class="h-vtab" id="vtab-timeline" data-view="timeline">Timeline</button>
+    </div>
+    <input class="h-srch" type="text" id="t-srch" placeholder="Search folders…">
+    <div class="h-acts">
+      <button class="ic-btn" id="btn-refresh" title="Check for changes">
+        <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      </button>
+      <button class="enroll-more-btn" id="btn-more">+ Enroll</button>
+      <button class="btn btn-ghost btn-sm" id="btn-disconnect">Disconnect</button>
+    </div>
+  </header>
+  <div id="t-body">
+    <div id="t-tree">
+      <div class="tp-hdr">
+        <span>Folder Tree</span>
+        <button class="ic-btn" id="btn-collapse" style="width:20px;height:20px;border:none;font-size:10px" title="Collapse all">↕</button>
+      </div>
+      <div class="tp-scroll" id="tp-scroll"></div>
+    </div>
+    <div id="t-div"></div>
+    <div id="t-attr">
+      <!-- View switcher overlay -->
+      <div id="v-timeline" class="hidden">
+        <div class="tl-controls">
+          <div class="tl-breadcrumb" id="tl-breadcrumb">All Time</div>
+          <div class="tl-drill-info" id="tl-drill-info"></div>
+          <button class="btn btn-ghost btn-sm" id="btn-tl-reset">Reset</button>
+        </div>
+        <div class="tl-chart" id="tl-chart"></div>
+        <div class="tl-legend" id="tl-legend"></div>
+      </div>
+      <!-- Tree view right pane -->
+      <div class="breadcrumb" id="breadcrumb"></div>
+      <div class="stats-zone" id="stats-zone">
+        <div class="stats-classes" id="stats-classes"></div>
+        <div class="stats-curation" id="stats-curation"></div>
+      </div>
+      <div class="file-zone">
+        <div class="file-tb">
+          <span class="file-lbl" id="file-lbl">Files</span>
+          <span class="file-cnt" id="file-cnt"></span>
+        </div>
+        <div class="tbl-wrap">
+          <table class="attr-tbl">
+            <thead id="t-thead"></thead>
+            <tbody id="t-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer id="t-ftr">
+    <div class="ft-st"><strong id="ft-f">0</strong>&nbsp;folders</div>
+    <div class="ft-sep"></div>
+    <div class="ft-st"><strong id="ft-i">0</strong>&nbsp;files</div>
+    <div class="ft-sep"></div>
+    <div class="ft-st"><strong id="ft-c">0%</strong>&nbsp;curated</div>
+    <div class="ft-sep"></div>
+    <div class="ft-st">Updated:&nbsp;<strong id="ft-u">—</strong></div>
+  </footer>
+</div>
+
+<!-- File viewer -->
+<div class="fv-overlay hidden" id="fv-overlay">
+  <div class="fv-modal">
+    <div class="fv-hdr">
+      <div class="class-ic" id="fv-class-ic"></div>
+      <div class="fv-name" id="fv-name">—</div>
+      <button class="fv-close" id="fv-close">✕</button>
+    </div>
+    <div class="fv-body">
+      <div class="fv-preview" id="fv-preview"></div>
+      <div class="fv-meta" id="fv-meta"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ── Content class system ─────────────────────────────────
+const CLASS_DEF = {
+  image:    { label:'Image',    color:'#f59e0b', exts:['jpg','jpeg','png','gif','webp','heic','raw','tiff','bmp','svg','avif'] },
+  video:    { label:'Video',    color:'#3b82f6', exts:['mp4','mov','avi','mkv','wmv','m4v','webm','flv'] },
+  audio:    { label:'Audio',    color:'#8b5cf6', exts:['mp3','wav','aac','flac','ogg','m4a','wma','aiff'] },
+  document: { label:'PDF',      color:'#ef4444', exts:['pdf'] },
+  office:   { label:'Office',   color:'#10b981', exts:['xlsx','xls','docx','doc','pptx','ppt','odt','ods','odp'] },
+  web:      { label:'Web',      color:'#06b6d4', exts:['html','htm'] },
+  text:     { label:'Text',     color:'#6b7280', exts:['txt','md','markdown','json','csv','tsv','xml','yaml','yml'] },
+  code:     { label:'Code',     color:'#f97316', exts:['js','ts','py','css','sh','rb','java','c','cpp','go','rs','swift','php','sql'] },
+  archive:  { label:'Archive',  color:'#84cc16', exts:['zip','tar','gz','7z','rar','bz2','xz'] },
+  other:    { label:'Other',    color:'#3a3a52', exts:[] },
+};
+const CLASS_KEYS = Object.keys(CLASS_DEF);
+
+function classifyFile(name='', mimeType='') {
+  const ext = (name.split('.').pop()||'').toLowerCase();
+  const mime = mimeType.toLowerCase();
+  if (mime.startsWith('image/') || CLASS_DEF.image.exts.includes(ext)) return 'image';
+  if (mime.startsWith('video/') || CLASS_DEF.video.exts.includes(ext)) return 'video';
+  if (mime.startsWith('audio/') || CLASS_DEF.audio.exts.includes(ext)) return 'audio';
+  if (mime==='application/pdf' || ext==='pdf') return 'document';
+  if (['application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+       'application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+       'application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation'].includes(mime)
+      || CLASS_DEF.office.exts.includes(ext)) return 'office';
+  if (mime==='text/html' || CLASS_DEF.web.exts.includes(ext)) return 'web';
+  if (mime.startsWith('text/') || CLASS_DEF.text.exts.includes(ext)) return 'text';
+  if (CLASS_DEF.code.exts.includes(ext)) return 'code';
+  if (CLASS_DEF.archive.exts.includes(ext) ||
+      ['application/zip','application/x-tar','application/gzip','application/x-7z-compressed','application/x-rar-compressed'].includes(mime)) return 'archive';
+  return 'other';
+}
+
+// Stack mapping — production values from ui.html
+// CRITICAL: null/missing → inbox (not unassigned)
+const STACK_MAP = { 'in':'inbox', 'out':'maybe', 'priority':'keep', 'trash':'trash' };
+const STACK_DISPLAY = { inbox:'Inbox', maybe:'Maybe', keep:'Keep', trash:'Recycle' };
+const STACK_CLASS = { inbox:'stack-inbox', maybe:'stack-maybe', keep:'stack-keep', trash:'stack-trash' };
+
+function mapStack(raw) { return STACK_MAP[raw] || 'inbox'; }
+
+// ── Constants ─────────────────────────────────────────────
+const INTEL_FILE = '.orbital8-intelligence.json';
+const LS_INTEL = 'o8_intel_cache';
+const LS_PREFS = 'o8_intel_prefs';
+
+const FILE_COLS = [
+  { id:'name',          label:'Name',     w:220 },
+  { id:'class',         label:'Type',     w:75  },
+  { id:'size',          label:'Size',     w:80  },
+  { id:'effectiveDate', label:'Date',     w:95  },
+  { id:'stack',         label:'Stack',    w:80  },
+];
+
+// ── State ─────────────────────────────────────────────────
+const st = {
+  provider:null, providerType:null, intel:null,
+  enrollFolders:[], selected:new Set(), sniffData:[],
+  acq:{ running:false, cancelled:false, t0:0 },
+  newChildren:[],
+  tree:{ selFolder:null, search:'', expanded:new Set() },
+  files:{ sortCol:'effectiveDate', sortDir:'desc', classFilter:null, stackFilter:null },
+  timeline:{ drill:[], hiddenClasses:new Set() },
+  view:'tree',
+};
+
+// ── Utilities ─────────────────────────────────────────────
+function showScreen(id) {
+  ['scr-provider','scr-auth','scr-enroll','scr-sniff','scr-acq','scr-tree'].forEach(s=>{
+    const el=document.getElementById(s);if(el) el.classList.toggle('hidden',s!==id);
+  });
+}
+function toast(msg,type,dur=3000){
+  const el=document.getElementById('toast');if(!el)return;
+  el.textContent=msg;el.className='toast show'+(type?' '+type:'');
+  clearTimeout(el._t);el._t=setTimeout(()=>{el.className='toast';},dur);
+}
+function fmtSize(b){if(!b)return'—';if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';if(b<1073741824)return(b/1048576).toFixed(1)+' MB';return(b/1073741824).toFixed(2)+' GB';}
+function fmtDate(iso){if(!iso)return'—';const d=new Date(iso);return isNaN(d)?'—':d.toLocaleDateString('en-US',{year:'2-digit',month:'short',day:'numeric'});}
+function fmtNum(n){return(n==null||n===0)?'—':n.toLocaleString();}
+function agoText(ts){if(!ts)return'—';const s=(Date.now()-ts)/1000;if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
+function simpleHash(str){let h=0;for(let i=0;i<str.length;i++)h=Math.imul(31,h)+str.charCodeAt(i)|0;return(h>>>0).toString(16);}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function $id(id){return document.getElementById(id);}
+function logLine(msg){const log=$id('acq-log');if(!log)return;const d=document.createElement('div');d.textContent=msg;log.appendChild(d);log.scrollTop=log.scrollHeight;}
+function effectiveDate(file, imgMeta){
+  if(imgMeta?.time) return imgMeta.time;
+  return file.modifiedTime||file.lastModifiedDateTime||null;
+}
+
+// ── Google Drive Provider ─────────────────────────────────
+// Auth lifted verbatim from Orbital8 Goji baseline v9 (ui.html)
+class GoogleDriveProvider {
+  constructor(){
+    this.name='googledrive';
+    this.clientId='567988062464-fa6c1ovesqeudqs5398vv4mbo6q068p9.apps.googleusercontent.com';
+    this.redirectUri=window.location.origin+window.location.pathname;
+    this.scope='https://www.googleapis.com/auth/drive';
+    this.apiBase='https://www.googleapis.com/drive/v3';
+    this.accessToken=null;this.refreshToken=null;this.clientSecret=null;
+    this.isAuthenticated=false;
+    this.loadStoredCredentials();
+  }
+  loadStoredCredentials(){
+    this.accessToken=localStorage.getItem('google_access_token');
+    this.refreshToken=localStorage.getItem('google_refresh_token');
+    this.clientSecret=localStorage.getItem('google_client_secret');
+    this.isAuthenticated=!!(this.accessToken&&this.refreshToken&&this.clientSecret);
+  }
+  storeCredentials(){
+    if(this.accessToken) localStorage.setItem('google_access_token',this.accessToken);
+    if(this.refreshToken) localStorage.setItem('google_refresh_token',this.refreshToken);
+    if(this.clientSecret) localStorage.setItem('google_client_secret',this.clientSecret);
+  }
+  clearStoredCredentials(){
+    localStorage.removeItem('google_access_token');
+    localStorage.removeItem('google_refresh_token');
+    localStorage.removeItem('google_client_secret');
+  }
+  async authenticate(clientSecret){
+    if(clientSecret){this.clientSecret=clientSecret;this.storeCredentials();}
+    if(!this.clientSecret) throw new Error('Client secret is required');
+    if(this.accessToken&&this.refreshToken){
+      try{await this.makeApiCall('/files?pageSize=1');this.isAuthenticated=true;return true;}catch(e){}
+    }
+    return new Promise((resolve,reject)=>{
+      const authUrl=this.buildAuthUrl();
+      const popup=window.open(authUrl,'google-auth','width=500,height=600,scrollbars=yes,resizable=yes');
+      if(!popup){reject(new Error('Popup blocked'));return;}
+      const checkClosed=setInterval(()=>{if(popup.closed){clearInterval(checkClosed);reject(new Error('Auth cancelled'));}},1000);
+      const handler=async(event)=>{
+        if(event.origin!==window.location.origin)return;
+        if(event.data.type==='GOOGLE_AUTH_SUCCESS'){
+          clearInterval(checkClosed);window.removeEventListener('message',handler);popup.close();
+          try{await this.exchangeCodeForTokens(event.data.code);this.isAuthenticated=true;resolve(true);}catch(e){reject(e);}
+        }else if(event.data.type==='GOOGLE_AUTH_ERROR'){
+          clearInterval(checkClosed);window.removeEventListener('message',handler);popup.close();reject(new Error(event.data.error));
+        }
+      };
+      window.addEventListener('message',handler);
+    });
+  }
+  buildAuthUrl(){
+    const p=new URLSearchParams({client_id:this.clientId,redirect_uri:this.redirectUri,response_type:'code',scope:this.scope,access_type:'offline',prompt:'consent'});
+    return`https://accounts.google.com/o/oauth2/v2/auth?${p}`;
+  }
+  async exchangeCodeForTokens(code){
+    const r=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:this.clientId,client_secret:this.clientSecret,code,grant_type:'authorization_code',redirect_uri:this.redirectUri})});
+    if(!r.ok) throw new Error('Token exchange failed');
+    const t=await r.json();this.accessToken=t.access_token;this.refreshToken=t.refresh_token;this.storeCredentials();
+  }
+  async refreshAccessToken(){
+    if(!this.refreshToken||!this.clientSecret) throw new Error('No refresh token');
+    const r=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:this.clientId,client_secret:this.clientSecret,refresh_token:this.refreshToken,grant_type:'refresh_token'})});
+    if(!r.ok) throw new Error('Refresh failed');
+    const t=await r.json();this.accessToken=t.access_token;this.storeCredentials();return this.accessToken;
+  }
+  async makeApiCall(endpoint,options={},isJson=true){
+    if(!this.accessToken) throw new Error('Not authenticated');
+    let url=endpoint.startsWith('https://')?endpoint:endpoint.startsWith('/upload/drive/')?`https://www.googleapis.com${endpoint}`:`${this.apiBase}${endpoint}`;
+    const headers={'Authorization':`Bearer ${this.accessToken}`,...options.headers};
+    if(isJson&&!headers['Content-Type']) headers['Content-Type']='application/json';
+    let response=await fetch(url,{...options,headers});
+    if(response.status===401&&this.refreshToken&&this.clientSecret){
+      try{await this.refreshAccessToken();headers['Authorization']=`Bearer ${this.accessToken}`;response=await fetch(url,{...options,headers});}
+      catch(e){this.isAuthenticated=false;this.clearStoredCredentials();throw new Error('Auth expired. Please reconnect.');}
+    }
+    if(!response.ok){const t=await response.text();throw new Error(`API ${response.status}: ${t.slice(0,120)}`);}
+    return isJson?response.json():response;
+  }
+  async getLevelOneFolders(){
+    const q=encodeURIComponent(`'root' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+    let folders=[],token=null;
+    do{
+      const r=await this.makeApiCall(`/files?q=${q}&fields=files(id,name,modifiedTime),nextPageToken&pageSize=100&orderBy=name${token?`&pageToken=${token}`:''}`);
+      folders.push(...(r.files||[]));token=r.nextPageToken;
+    }while(token);
+    return folders;
+  }
+  async getSubfolders(folderId){
+    const q=encodeURIComponent(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+    let folders=[],token=null;
+    do{
+      const r=await this.makeApiCall(`/files?q=${q}&fields=files(id,name,modifiedTime),nextPageToken&pageSize=100${token?`&pageToken=${token}`:''}`);
+      folders.push(...(r.files||[]));token=r.nextPageToken;
+    }while(token);
+    return folders;
+  }
+  async getAllFiles(folderId){
+    // All non-folder files — full field set per spec
+    const q=encodeURIComponent(`'${folderId}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`);
+    const fields='files(id,name,mimeType,size,createdTime,modifiedTime,appProperties,md5Checksum,imageMediaMetadata(width,height,cameraMake,cameraModel,aperture,exposureTime,isoSpeed,focalLength,location(latitude,longitude)),videoMediaMetadata(width,height,durationMillis),thumbnailLink,shared,capabilities(canEdit)),nextPageToken';
+    let files=[],token=null;
+    do{
+      const r=await this.makeApiCall(`/files?q=${q}&fields=${fields}&pageSize=1000${token?`&pageToken=${token}`:''}`);
+      files.push(...(r.files||[]));token=r.nextPageToken;
+    }while(token);
+    return files;
+  }
+  async quickCount(folderId){
+    const q=encodeURIComponent(`'${folderId}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`);
+    const r=await this.makeApiCall(`/files?q=${q}&fields=files(id)&pageSize=1000`);
+    return(r.files||[]).length+(r.nextPageToken?500:0);
+  }
+  async quickFolderCount(folderId){
+    const q=encodeURIComponent(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+    const r=await this.makeApiCall(`/files?q=${q}&fields=files(id)&pageSize=100`);
+    return(r.files||[]).length;
+  }
+  extractFileRecord(f){
+    const ap=f.appProperties||{};
+    const imgM=f.imageMediaMetadata||{};
+    const vidM=f.videoMediaMetadata||{};
+    const takenDate=imgM.time||null; // Google returns EXIF time here
+    return{
+      id:f.id, name:f.name, mimeType:f.mimeType||'',
+      class:classifyFile(f.name,f.mimeType||''),
+      size:parseInt(f.size)||0,
+      effectiveDate:takenDate||f.modifiedTime||null,
+      modifiedTime:f.modifiedTime||null, createdTime:f.createdTime||null,
+      contentHash:f.md5Checksum||null,
+      stack:mapStack(ap.slideboxStack||null),
+      tags:ap.slideboxTags?ap.slideboxTags.split(',').map(t=>t.trim()).filter(Boolean):[],
+      notes:ap.notes||'',
+      qualityRating:parseInt(ap.qualityRating)||0,
+      contentRating:parseInt(ap.contentRating)||0,
+      favorite:ap.favorite==='true',
+      meta:{
+        width:imgM.width||vidM.width||null,
+        height:imgM.height||vidM.height||null,
+        cameraMake:imgM.cameraMake||null, cameraModel:imgM.cameraModel||null,
+        aperture:imgM.aperture||null, exposure:imgM.exposureTime||null,
+        iso:imgM.isoSpeed||null, focalLength:imgM.focalLength||null,
+        gpsLat:imgM.location?.latitude||null, gpsLng:imgM.location?.longitude||null,
+        duration:vidM.durationMillis?Math.round(vidM.durationMillis/1000):null,
+      },
+      thumbnailUrl:f.thumbnailLink||null,
+      shared:!!f.shared, canEdit:f.capabilities?.canEdit!==false,
+    };
+  }
+  async loadIntelligenceFile(){
+    try{
+      const q=encodeURIComponent(`name='${INTEL_FILE}' and 'root' in parents and trashed=false`);
+      const r=await this.makeApiCall(`/files?q=${q}&fields=files(id)&pageSize=1`);
+      const f=r.files?.[0];if(!f)return null;
+      const c=await this.makeApiCall(`/files/${f.id}?alt=media`,{},false);
+      return c.json();
+    }catch(e){return null;}
+  }
+  async saveIntelligenceFile(data){
+    const body=JSON.stringify(data);
+    const q=encodeURIComponent(`name='${INTEL_FILE}' and 'root' in parents and trashed=false`);
+    const check=await this.makeApiCall(`/files?q=${q}&fields=files(id)&pageSize=1`);
+    const existing=check.files?.[0];
+    let fileId;
+    if(existing){fileId=existing.id;}
+    else{const cr=await this.makeApiCall('/files',{method:'POST',body:JSON.stringify({name:INTEL_FILE,parents:['root'],mimeType:'application/json'})});fileId=cr.id;}
+    await this.makeApiCall(`/upload/drive/v3/files/${fileId}?uploadType=media`,{method:'PATCH',body,headers:{'Content-Type':'application/json'}},false);
+  }
+  async disconnect(){this.isAuthenticated=false;this.accessToken=null;this.refreshToken=null;this.clientSecret=null;this.clearStoredCredentials();}
+}
+
+// ── OneDrive Provider ─────────────────────────────────────
+// Auth lifted verbatim from Orbital8 Goji baseline v9 (ui.html)
+class OneDriveProvider {
+  constructor(){
+    this.name='onedrive';this.apiBase='https://graph.microsoft.com/v1.0';
+    this.isAuthenticated=false;this.activeAccount=null;this.msalInstance=null;
+    // MSAL init deferred — script may not be loaded yet at construction time
+  }
+  ensureMSAL(){
+    if(this.msalInstance)return;
+    if(typeof msal==='undefined') throw new Error('MSAL library not loaded');
+    this.msalInstance=new msal.PublicClientApplication({auth:{clientId:'b407fd45-c551-4dbb-9da5-cab3a2c5a949',authority:'https://login.microsoftonline.com/common',redirectUri:window.location.origin+window.location.pathname},cache:{cacheLocation:'localStorage'}});
+    const accounts=this.msalInstance.getAllAccounts();
+    if(accounts.length>0){this.msalInstance.setActiveAccount(accounts[0]);this.activeAccount=accounts[0];this.isAuthenticated=true;}
+  }
+  async authenticate(){
+    this.ensureMSAL();
+    try{
+      const accounts=this.msalInstance.getAllAccounts();
+      if(accounts.length>0){this.msalInstance.setActiveAccount(accounts[0]);this.activeAccount=accounts[0];}
+      else{const r=await this.msalInstance.loginPopup({scopes:['Files.ReadWrite.AppFolder','Files.ReadWrite','User.Read']});this.activeAccount=r.account;this.msalInstance.setActiveAccount(this.activeAccount);}
+      this.isAuthenticated=true;return true;
+    }catch(e){this.isAuthenticated=false;throw new Error(`Auth failed: ${e.message}`);}
+  }
+  async getAccessToken(){
+    this.ensureMSAL();
+    if(!this.activeAccount) throw new Error('No active account');
+    try{
+      const r=await this.msalInstance.acquireTokenSilent({scopes:['Files.ReadWrite','Files.ReadWrite.AppFolder'],account:this.activeAccount});
+      return r.accessToken;
+    }catch(e){
+      if(e instanceof msal.InteractionRequiredAuthError){const r=await this.msalInstance.acquireTokenPopup({scopes:['Files.ReadWrite','Files.ReadWrite.AppFolder'],account:this.activeAccount});return r.accessToken;}
+      throw e;
+    }
+  }
+  async makeApiCall(endpoint,options={}){
+    const token=await this.getAccessToken();
+    const url=endpoint.startsWith('https://')?endpoint:`${this.apiBase}${endpoint}`;
+    const headers={'Authorization':`Bearer ${token}`,'Content-Type':'application/json',...options.headers};
+    const r=await fetch(url,{...options,headers});
+    if(r.status===401) throw new Error('TOKEN_EXPIRED');
+    if(!r.ok){const t=await r.text();throw new Error(`API ${r.status}: ${t.slice(0,120)}`);}
+    return r;
+  }
+  async getLevelOneFolders(){
+    const r=await this.makeApiCall('/me/drive/root/children?$select=id,name,folder,lastModifiedDateTime&$top=200');
+    const d=await r.json();
+    return(d.value||[]).filter(i=>i.folder).map(i=>({id:i.id,name:i.name,modifiedTime:i.lastModifiedDateTime}));
+  }
+  async getSubfolders(folderId){
+    const r=await this.makeApiCall(`/me/drive/items/${folderId}/children?$select=id,name,folder,lastModifiedDateTime&$top=200`);
+    const d=await r.json();
+    return(d.value||[]).filter(i=>i.folder).map(i=>({id:i.id,name:i.name,modifiedTime:i.lastModifiedDateTime}));
+  }
+  async getAllFiles(folderId){
+    const sel='id,name,file,size,createdDateTime,lastModifiedDateTime,image,video,photo,shared,fileSystemInfo';
+    let files=[],url=`/me/drive/items/${folderId}/children?$select=${sel}&$top=500`;
+    while(url){
+      const r=await this.makeApiCall(url);const d=await r.json();
+      (d.value||[]).filter(i=>i.file).forEach(i=>files.push(i));
+      url=d['@odata.nextLink']?d['@odata.nextLink'].replace(this.apiBase,''):null;
+    }
+    return files;
+  }
+  async quickCount(folderId){
+    const r=await this.makeApiCall(`/me/drive/items/${folderId}/children?$select=id,file&$top=500`);
+    const d=await r.json();
+    return(d.value||[]).filter(i=>i.file).length+(d['@odata.nextLink']?250:0);
+  }
+  async quickFolderCount(folderId){
+    const r=await this.makeApiCall(`/me/drive/items/${folderId}/children?$select=id,folder&$top=100`);
+    const d=await r.json();
+    return(d.value||[]).filter(i=>i.folder).length;
+  }
+  extractFileRecord(i){
+    const ph=i.photo||{};const takenDate=ph.takenDateTime||null;
+    const vid=i.video||{};const img=i.image||{};
+    return{
+      id:i.id, name:i.name, mimeType:i.file?.mimeType||'',
+      class:classifyFile(i.name,i.file?.mimeType||''),
+      size:i.size||0,
+      effectiveDate:takenDate||i.lastModifiedDateTime||null,
+      modifiedTime:i.lastModifiedDateTime||null, createdTime:i.createdDateTime||null,
+      contentHash:i.file?.hashes?.sha1Hash||i.file?.hashes?.quickXorHash||null,
+      stack:'inbox', tags:[], notes:'', qualityRating:0, contentRating:0, favorite:false,
+      meta:{
+        width:img.width||vid.width||null, height:img.height||vid.height||null,
+        cameraMake:ph.cameraMake||null, cameraModel:ph.cameraModel||null,
+        aperture:null, exposure:ph.exposureDenominator?`1/${ph.exposureDenominator}`:null,
+        iso:ph.iso||null, focalLength:ph.focalLength||null,
+        gpsLat:ph.latitude||null, gpsLng:ph.longitude||null,
+        duration:vid.duration?Math.round(vid.duration):null,
+      },
+      thumbnailUrl:null, shared:!!i.shared, canEdit:true,
+    };
+  }
+  async loadIntelligenceFile(){
+    try{const r=await this.makeApiCall('/me/drive/special/approot:/orbital8-intelligence.json:/content');return r.json();}
+    catch(e){return null;}
+  }
+  async saveIntelligenceFile(data){
+    const token=await this.getAccessToken();
+    const r=await fetch(`${this.apiBase}/me/drive/special/approot:/orbital8-intelligence.json:/content`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(data)});
+    if(!r.ok) throw new Error(`Save failed: ${r.status}`);
+  }
+  async disconnect(){
+    this.ensureMSAL();this.isAuthenticated=false;this.activeAccount=null;
+    const accounts=this.msalInstance.getAllAccounts();
+    if(accounts.length>0){try{await this.msalInstance.logoutPopup({account:accounts[0]});}catch(e){}}
+  }
+}
+
+// ── Intelligence engine ───────────────────────────────────
+const Intel = {
+  newRecord(pt){return{version:1,provider:pt,createdAt:Date.now(),lastUpdated:Date.now(),enrolledRoots:[],folders:{},files:{}};},
+
+  async load(){
+    let rec=null;
+    try{rec=await st.provider.loadIntelligenceFile();}catch(e){}
+    if(!rec){try{rec=JSON.parse(localStorage.getItem(LS_INTEL));}catch(e){}}
+    if(rec&&rec.provider!==st.providerType) rec=null;
+    st.intel=rec;return rec;
+  },
+
+  async save(){
+    if(!st.intel)return;
+    st.intel.lastUpdated=Date.now();
+    try{localStorage.setItem(LS_INTEL,JSON.stringify(st.intel));}catch(e){}
+    try{await st.provider.saveIntelligenceFile(st.intel);}
+    catch(e){toast('Saved locally — cloud write failed','t-err');}
+  },
+
+  async sniff(folderIds){
+    return Promise.all(folderIds.map(async id=>{
+      const folder=st.enrollFolders.find(f=>f.id===id)||{name:id};
+      const [fc,ic]=await Promise.all([
+        st.provider.quickFolderCount(id).catch(()=>0),
+        st.provider.quickCount(id).catch(()=>0),
+      ]);
+      return{id,name:folder.name,folders:fc+1,items:ic};
+    }));
+  },
+
+  async acquire(folderIds,onProg,onLog){
+    const p=st.provider;
+    const rec=st.intel||this.newRecord(st.providerType);
+    folderIds.forEach(id=>{if(!rec.enrolledRoots.includes(id)) rec.enrolledRoots.push(id);});
+    const queue=[...folderIds],visited=new Set();
+    let fScanned=0,iCount=0,totalEst=(st.sniffData||[]).reduce((s,r)=>s+r.items,0)||100;
+
+    while(queue.length>0){
+      if(st.acq.cancelled){onLog('⊘ Cancelled');break;}
+      const fid=queue.shift();if(visited.has(fid))continue;visited.add(fid);
+
+      if(!rec.folders[fid]){
+        rec.folders[fid]={id:fid,name:fid,parentId:null,depth:0,isEnrolled:folderIds.includes(fid),
+          firstIndexed:Date.now(),lastVerified:Date.now(),hash:'',status:'current',children:[],
+          stats:{totalFiles:0,byClass:Object.fromEntries(CLASS_KEYS.map(k=>[k,0])),totalSize:0,newestFile:null,oldestFile:null},
+          curation:{inbox:0,maybe:0,keep:0,trash:0,tagged:0,noted:0,rated:0,favorited:0},
+        };
+      }else{
+        rec.folders[fid].lastVerified=Date.now();
+        rec.folders[fid].stats={totalFiles:0,byClass:Object.fromEntries(CLASS_KEYS.map(k=>[k,0])),totalSize:0,newestFile:null,oldestFile:null};
+        rec.folders[fid].curation={inbox:0,maybe:0,keep:0,trash:0,tagged:0,noted:0,rated:0,favorited:0};
+        rec.folders[fid].children=[];
+      }
+
+      // Resolve folder name
+      if(rec.folders[fid].name===fid){
+        try{
+          if(st.providerType==='googledrive'){
+            const info=await p.makeApiCall(`/files/${fid}?fields=id,name,parents`);
+            rec.folders[fid].name=info.name;rec.folders[fid].parentId=info.parents?.[0]||null;
+          }else{
+            const res=await p.makeApiCall(`/me/drive/items/${fid}?$select=id,name,parentReference`);
+            const info=await res.json();
+            rec.folders[fid].name=info.name;rec.folders[fid].parentId=info.parentReference?.id||null;
+          }
+        }catch(e){}
+      }
+
+      const fname=rec.folders[fid].name;
+      onProg({folder:fname,fc:fScanned,ic:iCount,total:totalEst});
+      onLog(`▸ ${fname}`);
+
+      // Subfolders
+      let subs=[];
+      try{subs=await p.getSubfolders(fid);}catch(e){onLog(`  ⚠ ${e.message}`);}
+      subs.forEach(sf=>{
+        if(!rec.folders[fid].children.includes(sf.id)) rec.folders[fid].children.push(sf.id);
+        if(!rec.folders[sf.id]){
+          rec.folders[sf.id]={id:sf.id,name:sf.name,parentId:fid,depth:0,isEnrolled:false,
+            firstIndexed:Date.now(),lastVerified:Date.now(),hash:'',status:'current',children:[],
+            stats:{totalFiles:0,byClass:Object.fromEntries(CLASS_KEYS.map(k=>[k,0])),totalSize:0,newestFile:null,oldestFile:null},
+            curation:{inbox:0,maybe:0,keep:0,trash:0,tagged:0,noted:0,rated:0,favorited:0},
+          };
+        }
+        queue.push(sf.id);
+      });
+
+      // All files
+      let allFiles=[];
+      try{allFiles=await p.getAllFiles(fid);}catch(e){onLog(`  ⚠ ${e.message}`);}
+      const folder=rec.folders[fid];const hp=[];
+
+      allFiles.forEach(f=>{
+        const fr=p.extractFileRecord(f);
+        rec.files[fr.id]={...fr,folderId:fid};
+        hp.push(`${fr.id}:${fr.modifiedTime||''}`);
+        folder.stats.totalFiles++;
+        folder.stats.byClass[fr.class]=(folder.stats.byClass[fr.class]||0)+1;
+        folder.stats.totalSize+=fr.size;
+        if(fr.effectiveDate){
+          if(!folder.stats.newestFile||fr.effectiveDate>folder.stats.newestFile) folder.stats.newestFile=fr.effectiveDate;
+          if(!folder.stats.oldestFile||fr.effectiveDate<folder.stats.oldestFile) folder.stats.oldestFile=fr.effectiveDate;
+        }
+        folder.curation[fr.stack]=(folder.curation[fr.stack]||0)+1;
+        if(fr.tags.length) folder.curation.tagged++;
+        if(fr.notes) folder.curation.noted++;
+        if(fr.qualityRating||fr.contentRating) folder.curation.rated++;
+        if(fr.favorite) folder.curation.favorited++;
+        iCount++;
+      });
+
+      folder.hash=simpleHash(hp.sort().join('|'));
+      fScanned++;
+      onProg({folder:fname,fc:fScanned,ic:iCount,total:totalEst});
+      await sleep(30);
+    }
+
+    this.computeDepths(rec);
+    this.rollup(rec);
+    st.intel=rec;return rec;
+  },
+
+  computeDepths(rec){
+    const q=rec.enrolledRoots.map(id=>({id,d:1})),v=new Set();
+    while(q.length){const{id,d}=q.shift();if(v.has(id))continue;v.add(id);if(rec.folders[id]){rec.folders[id].depth=d;(rec.folders[id].children||[]).forEach(c=>q.push({id:c,d:d+1}));}}
+  },
+
+  rollup(rec){
+    const seen=new Set();
+    const emptyStats=()=>({totalFiles:0,byClass:Object.fromEntries(CLASS_KEYS.map(k=>[k,0])),totalSize:0,newestFile:null,oldestFile:null});
+    const emptyCur=()=>({inbox:0,maybe:0,keep:0,trash:0,tagged:0,noted:0,rated:0,favorited:0});
+    const go=(fid)=>{
+      if(seen.has(fid))return{s:emptyStats(),c:emptyCur()};seen.add(fid);
+      const f=rec.folders[fid];if(!f)return{s:emptyStats(),c:emptyCur()};
+      const agg={s:{...f.stats,byClass:{...f.stats.byClass}},c:{...f.curation}};
+      (f.children||[]).forEach(cid=>{
+        const ch=go(cid);
+        agg.s.totalFiles+=ch.s.totalFiles;agg.s.totalSize+=ch.s.totalSize;
+        CLASS_KEYS.forEach(k=>{agg.s.byClass[k]=(agg.s.byClass[k]||0)+(ch.s.byClass[k]||0);});
+        if(ch.s.newestFile&&(!agg.s.newestFile||ch.s.newestFile>agg.s.newestFile)) agg.s.newestFile=ch.s.newestFile;
+        if(ch.s.oldestFile&&(!agg.s.oldestFile||ch.s.oldestFile<agg.s.oldestFile)) agg.s.oldestFile=ch.s.oldestFile;
+        Object.keys(agg.c).forEach(k=>{agg.c[k]=(agg.c[k]||0)+(ch.c[k]||0);});
+      });
+      f.aggStats=agg.s;f.aggCur=agg.c;return agg;
+    };
+    rec.enrolledRoots.forEach(id=>go(id));
+  },
+
+  deEnroll(folderId){
+    if(!st.intel)return;
+    const rec=st.intel;
+    rec.enrolledRoots=rec.enrolledRoots.filter(id=>id!==folderId);
+    // Collect all descendants
+    const toRemove=new Set();const q=[folderId];
+    while(q.length){const id=q.shift();if(toRemove.has(id))continue;toRemove.add(id);(rec.folders[id]?.children||[]).forEach(c=>q.push(c));}
+    // Remove file records
+    Object.keys(rec.files).forEach(fid=>{if(toRemove.has(rec.files[fid].folderId)) delete rec.files[fid];});
+    // Remove folder records
+    toRemove.forEach(id=>delete rec.folders[id]);
+    this.rollup(rec);
+  },
+
+  async checkDeltas(){
+    if(!st.intel)return{changed:[],newChildren:[]};
+    const rec=st.intel,changed=[],newChildren=[];
+    for(const rootId of rec.enrolledRoots){
+      if(!rec.folders[rootId])continue;
+      let subs=[];try{subs=await st.provider.getSubfolders(rootId);}catch(e){}
+      subs.forEach(sf=>{if(!rec.folders[sf.id]) newChildren.push({id:sf.id,name:sf.name,parentId:rootId,parentName:rec.folders[rootId]?.name});});
+      if(rec.folders[rootId]?.hash){
+        let files=[];try{files=await st.provider.getAllFiles(rootId);}catch(e){}
+        const h=simpleHash(files.map(f=>`${f.id}:${f.modifiedTime||f.lastModifiedDateTime||''}`).sort().join('|'));
+        if(h!==rec.folders[rootId].hash){changed.push(rootId);rec.folders[rootId].status='changed';}
+      }
+    }
+    return{changed,newChildren};
+  },
+
+  getTotals(){
+    const rec=st.intel;if(!rec)return{folders:0,files:0,curated:0,total:0};
+    const folders=Object.keys(rec.folders).length;
+    let files=0,curated=0;
+    Object.values(rec.files||{}).forEach(f=>{files++;if(f.stack&&f.stack!=='inbox') curated++;});
+    return{folders,files,curated,total:files};
+  },
+};
+
+// ── Tree view ─────────────────────────────────────────────
+const TreeView = {
+  render(){this.renderTree();this.renderRightPane();this.renderFooter();},
+
+  renderTree(){
+    const scroll=$id('tp-scroll');if(!scroll||!st.intel)return;
+    scroll.innerHTML='';
+    if(st.newChildren.length>0){
+      const n=document.createElement('div');n.className='new-notice';
+      n.innerHTML=`<span>${st.newChildren.length} new subfolder(s) found</span><button id="btn-enroll-new">Enroll Now</button>`;
+      scroll.appendChild(n);
+    }
+    const rec=st.intel;
+    const term=st.tree.search.toLowerCase();
+    rec.enrolledRoots.forEach(id=>{if(rec.folders[id]) this.renderNode(scroll,id,0,term);});
+  },
+
+  renderNode(container,fid,indent,term){
+    const rec=st.intel,folder=rec.folders[fid];if(!folder)return;
+    const hasKids=(folder.children||[]).some(c=>rec.folders[c]);
+    const expanded=st.tree.expanded.has(fid),selected=st.tree.selFolder===fid;
+    if(term&&!folder.name.toLowerCase().includes(term)&&!this.anyMatch(fid,term,rec))return;
+
+    const node=document.createElement('div');
+    node.className='tnode'+(selected?' sel':'');
+    node.style.paddingLeft=(6+indent*14)+'px';
+
+    const tog=document.createElement('div');tog.className='tn-tog'+(expanded&&hasKids?' exp':'');tog.innerHTML=hasKids?'▶':'';
+    const dot=document.createElement('div');dot.className='tn-dot dot-'+(folder.status==='changed'?'chg':folder.status==='new'?'new':'cur');
+    const ic=document.createElement('div');ic.className='tn-ic';
+    ic.innerHTML='<svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>';
+    const inf=document.createElement('div');inf.className='tn-inf';
+    const agg=folder.aggStats||folder.stats;
+    const total=agg?.totalFiles||0;
+    inf.innerHTML=`<div class="tn-name">${folder.name}</div><div class="tn-sub">${total?fmtNum(total)+' files':'empty'}</div>`;
+
+    node.appendChild(tog);node.appendChild(dot);node.appendChild(ic);node.appendChild(inf);
+    container.appendChild(node);
+
+    tog.addEventListener('click',e=>{e.stopPropagation();if(!hasKids)return;st.tree.expanded.has(fid)?st.tree.expanded.delete(fid):st.tree.expanded.add(fid);this.renderTree();this.savePrefs();});
+    node.addEventListener('click',()=>{st.tree.selFolder=st.tree.selFolder===fid?null:fid;st.files.classFilter=null;st.files.stackFilter=null;this.renderTree();this.renderRightPane();});
+
+    if(expanded&&hasKids){(folder.children||[]).forEach(c=>{if(rec.folders[c]) this.renderNode(container,c,indent+1,term);});}
+  },
+
+  anyMatch(fid,term,rec){
+    const f=rec.folders[fid];if(!f)return false;
+    return(f.children||[]).some(c=>{const ch=rec.folders[c];return ch&&(ch.name.toLowerCase().includes(term)||this.anyMatch(c,term,rec));});
+  },
+
+  renderRightPane(){
+    this.renderBreadcrumb();
+    this.renderStats();
+    this.renderFileTable();
+  },
+
+  renderBreadcrumb(){
+    const bc=$id('breadcrumb');if(!bc)return;
+    bc.innerHTML='';
+    if(!st.tree.selFolder||!st.intel){
+      const all=document.createElement('span');all.className='bc-seg active';all.textContent='All Folders';bc.appendChild(all);return;
+    }
+    const rec=st.intel;const parts=[];let id=st.tree.selFolder;const v=new Set();
+    while(id&&rec.folders[id]&&!v.has(id)){v.add(id);parts.unshift({id,name:rec.folders[id].name});id=rec.folders[id].parentId;}
+    // Root
+    const rootSeg=document.createElement('span');rootSeg.className='bc-seg';rootSeg.textContent='All';
+    rootSeg.addEventListener('click',()=>{st.tree.selFolder=null;st.files.classFilter=null;st.files.stackFilter=null;this.renderTree();this.renderRightPane();});
+    bc.appendChild(rootSeg);
+    parts.forEach((p,i)=>{
+      const sep=document.createElement('span');sep.className='bc-sep';sep.textContent='›';bc.appendChild(sep);
+      const seg=document.createElement('span');
+      seg.className='bc-seg'+(i===parts.length-1?' active':'');
+      seg.textContent=p.name;
+      if(i<parts.length-1){
+        seg.addEventListener('click',()=>{st.tree.selFolder=p.id;st.files.classFilter=null;st.files.stackFilter=null;this.renderTree();this.renderRightPane();});
+      }
+      bc.appendChild(seg);
+    });
+  },
+
+  renderStats(){
+    const szEl=$id('stats-zone'),clsEl=$id('stats-classes'),curEl=$id('stats-curation');
+    if(!clsEl||!curEl)return;
+    clsEl.innerHTML='';curEl.innerHTML='';
+    if(!st.intel){szEl.classList.add('hidden');return;}
+    szEl.classList.remove('hidden');
+
+    const folder=st.tree.selFolder?st.intel.folders[st.tree.selFolder]:null;
+    const agg=folder?(folder.aggStats||folder.stats):this.globalStats();
+    const cur=folder?(folder.aggCur||folder.curation):this.globalCur();
+    if(!agg)return;
+
+    // Class chips
+    CLASS_KEYS.forEach(cls=>{
+      const n=agg.byClass?.[cls]||0;if(!n)return;
+      const chip=document.createElement('div');chip.className='cls-chip'+(st.files.classFilter===cls?' active':'');
+      const def=CLASS_DEF[cls];
+      chip.innerHTML=`<div class="cls-dot" style="background:${def.color}"></div><span class="cls-n">${fmtNum(n)}</span><span class="cls-lbl">${def.label}</span>`;
+      chip.addEventListener('click',()=>{st.files.classFilter=st.files.classFilter===cls?null:cls;st.files.stackFilter=null;this.renderStats();this.renderFileTable();});
+      clsEl.appendChild(chip);
+    });
+
+    // Curation chips
+    const total=cur.inbox+cur.maybe+cur.keep+cur.trash;
+    const decided=cur.maybe+cur.keep+cur.trash;
+    [
+      {key:'inbox',  label:'Inbox',   n:cur.inbox},
+      {key:'keep',   label:'Keep',    n:cur.keep},
+      {key:'maybe',  label:'Maybe',   n:cur.maybe},
+      {key:'trash',  label:'Recycle', n:cur.trash},
+    ].forEach(({key,label,n})=>{
+      const pct=total?Math.round((n/total)*100):0;
+      const chip=document.createElement('div');chip.className='cur-chip'+(st.files.stackFilter===key?' active':'');
+      chip.innerHTML=`<span class="cur-lbl">${label}</span><span class="cur-n">${n}</span><span class="cur-pct">${pct}%</span>`;
+      chip.addEventListener('click',()=>{st.files.stackFilter=st.files.stackFilter===key?null:key;st.files.classFilter=null;this.renderStats();this.renderFileTable();});
+      curEl.appendChild(chip);
+    });
+    // Curated %
+    const pctEl=document.createElement('div');pctEl.className='cur-chip';
+    const pct=total?Math.round((decided/total)*100):0;
+    pctEl.innerHTML=`<span class="cur-lbl">Curated</span><span class="cur-n" style="color:var(--grn)">${pct}%</span>`;
+    curEl.appendChild(pctEl);
+  },
+
+  globalStats(){
+    const rec=st.intel;if(!rec)return null;
+    const s={totalFiles:0,byClass:Object.fromEntries(CLASS_KEYS.map(k=>[k,0])),totalSize:0,newestFile:null,oldestFile:null};
+    rec.enrolledRoots.forEach(id=>{
+      const f=rec.folders[id];if(!f)return;
+      const a=f.aggStats||f.stats;if(!a)return;
+      s.totalFiles+=a.totalFiles;s.totalSize+=a.totalSize;
+      CLASS_KEYS.forEach(k=>{s.byClass[k]=(s.byClass[k]||0)+(a.byClass?.[k]||0);});
+      if(a.newestFile&&(!s.newestFile||a.newestFile>s.newestFile)) s.newestFile=a.newestFile;
+      if(a.oldestFile&&(!s.oldestFile||a.oldestFile<s.oldestFile)) s.oldestFile=a.oldestFile;
+    });
+    return s;
+  },
+
+  globalCur(){
+    const rec=st.intel;if(!rec)return{inbox:0,maybe:0,keep:0,trash:0,tagged:0,noted:0,rated:0,favorited:0};
+    const c={inbox:0,maybe:0,keep:0,trash:0,tagged:0,noted:0,rated:0,favorited:0};
+    rec.enrolledRoots.forEach(id=>{
+      const f=rec.folders[id];if(!f)return;
+      const a=f.aggCur||f.curation;if(!a)return;
+      Object.keys(c).forEach(k=>{c[k]=(c[k]||0)+(a[k]||0);});
+    });
+    return c;
+  },
+
+  getVisibleFiles(){
+    const rec=st.intel;if(!rec)return[];
+    let files=[];
+    if(st.tree.selFolder){
+      // All files under selected folder and descendants
+      const desc=new Set();const q=[st.tree.selFolder];const v=new Set();
+      while(q.length){const id=q.shift();if(v.has(id))continue;v.add(id);desc.add(id);(rec.folders[id]?.children||[]).forEach(c=>q.push(c));}
+      files=Object.values(rec.files).filter(f=>desc.has(f.folderId));
+    }else{
+      files=Object.values(rec.files);
+    }
+    // Filter by class
+    if(st.files.classFilter) files=files.filter(f=>f.class===st.files.classFilter);
+    // Filter by stack
+    if(st.files.stackFilter) files=files.filter(f=>f.stack===st.files.stackFilter);
+    // Search
+    if(st.tree.search){const t=st.tree.search.toLowerCase();files=files.filter(f=>f.name.toLowerCase().includes(t));}
+    // Sort
+    const col=st.files.sortCol,dir=st.files.sortDir==='asc'?1:-1;
+    files.sort((a,b)=>{
+      let va=a[col]??'',vb=b[col]??'';
+      return(typeof va==='string'?va.localeCompare(vb):va-vb)*dir;
+    });
+    return files;
+  },
+
+  renderFileTable(){
+    const thead=$id('t-thead'),tbody=$id('t-tbody'),cnt=$id('file-cnt'),lbl=$id('file-lbl');
+    if(!thead||!tbody)return;
+    const files=this.getVisibleFiles();
+    if(cnt) cnt.textContent=`${files.length.toLocaleString()} file${files.length!==1?'s':''}`;
+    if(lbl){
+      let label='All Files';
+      if(st.files.classFilter) label=CLASS_DEF[st.files.classFilter]?.label+' Files';
+      else if(st.files.stackFilter) label=STACK_DISPLAY[st.files.stackFilter]||'Files';
+      lbl.textContent=label;
+    }
+    // Header
+    const tr=document.createElement('tr');
+    FILE_COLS.forEach(col=>{
+      const th=document.createElement('th');th.dataset.col=col.id;th.style.width=col.w+'px';
+      const sorted=st.files.sortCol===col.id;
+      if(sorted) th.classList.add(st.files.sortDir==='asc'?'s-asc':'s-desc');
+      th.textContent=col.label+(sorted?(st.files.sortDir==='asc'?' ↑':' ↓'):'');
+      th.addEventListener('click',()=>{
+        if(st.files.sortCol===col.id) st.files.sortDir=st.files.sortDir==='asc'?'desc':'asc';
+        else{st.files.sortCol=col.id;st.files.sortDir='asc';}
+        this.renderFileTable();this.savePrefs();
+      });
+      tr.appendChild(th);
+    });
+    thead.innerHTML='';thead.appendChild(tr);
+
+    // Body
+    const frag=document.createDocumentFragment();
+    files.forEach(file=>{
+      const row=document.createElement('tr');
+      FILE_COLS.forEach(col=>{
+        const td=document.createElement('td');td.style.maxWidth=col.w+'px';
+        if(col.id==='name'){
+          const a=document.createElement('span');a.className='col-link';a.textContent=file.name;
+          a.addEventListener('click',e=>{e.stopPropagation();FileViewer.open(file);});
+          td.appendChild(a);
+        }else if(col.id==='class'){
+          const def=CLASS_DEF[file.class]||CLASS_DEF.other;
+          const s=document.createElement('span');s.className='class-ic';
+          s.innerHTML=`<span class="class-dot" style="background:${def.color}"></span>${def.label}`;
+          td.appendChild(s);
+        }else if(col.id==='size'){
+          const s=document.createElement('span');s.className='col-mono';s.textContent=fmtSize(file.size);td.appendChild(s);
+        }else if(col.id==='effectiveDate'){
+          const s=document.createElement('span');s.className='col-mono';s.textContent=fmtDate(file.effectiveDate);td.appendChild(s);
+        }else if(col.id==='stack'){
+          const s=document.createElement('span');s.className=`stack-chip ${STACK_CLASS[file.stack]||'stack-inbox'}`;
+          s.textContent=STACK_DISPLAY[file.stack]||'Inbox';td.appendChild(s);
+        }
+        row.appendChild(td);
+      });
+      row.addEventListener('click',()=>FileViewer.open(file));
+      frag.appendChild(row);
+    });
+    tbody.innerHTML='';tbody.appendChild(frag);
+  },
+
+  renderFooter(){
+    const t=Intel.getTotals();
+    const pct=t.total?Math.round((t.curated/t.total)*100):0;
+    const s=id=>$id(id);
+    if(s('ft-f')) s('ft-f').textContent=t.folders.toLocaleString();
+    if(s('ft-i')) s('ft-i').textContent=t.files.toLocaleString();
+    if(s('ft-c')) s('ft-c').textContent=pct+'%';
+    if(s('ft-u')) s('ft-u').textContent=agoText(st.intel?.lastUpdated);
+  },
+
+  savePrefs(){
+    try{localStorage.setItem(LS_PREFS,JSON.stringify({sortCol:st.files.sortCol,sortDir:st.files.sortDir,expanded:[...st.tree.expanded],lpw:getComputedStyle(document.documentElement).getPropertyValue('--lpw').trim()}));}catch(e){}
+  },
+
+  loadPrefs(){
+    try{
+      const p=JSON.parse(localStorage.getItem(LS_PREFS));if(!p)return;
+      if(p.sortCol) st.files.sortCol=p.sortCol;
+      if(p.sortDir) st.files.sortDir=p.sortDir;
+      if(p.expanded) st.tree.expanded=new Set(p.expanded);
+      if(p.lpw) document.documentElement.style.setProperty('--lpw',p.lpw);
+    }catch(e){}
+  },
+};
+
+// ── Timeline visualization ────────────────────────────────
+const Timeline = {
+  render(){
+    const rec=st.intel;if(!rec)return;
+    this.renderLegend();
+    this.renderChart();
+  },
+
+  getFiles(){
+    const rec=st.intel;if(!rec)return[];
+    return Object.values(rec.files).filter(f=>f.effectiveDate);
+  },
+
+  drillKey(){return st.timeline.drill.join('/');},
+
+  getBuckets(files){
+    const drill=st.timeline.drill;
+    const level=drill.length; // 0=year,1=month,2=day
+    const map=new Map();
+    files.forEach(f=>{
+      const d=new Date(f.effectiveDate);if(isNaN(d))return;
+      // Check if in current drill scope
+      if(level>=1&&d.getFullYear()!==drill[0])return;
+      if(level>=2&&(d.getMonth()+1)!==drill[1])return;
+      let key,label;
+      if(level===0){key=d.getFullYear();label=String(key);}
+      else if(level===1){key=d.getMonth()+1;label=new Date(drill[0],key-1).toLocaleString('en-US',{month:'short'});}
+      else{key=d.getDate();label=String(key);}
+      if(!map.has(key)) map.set(key,{key,label,counts:Object.fromEntries(CLASS_KEYS.map(k=>[k,0]))});
+      map.get(key).counts[f.class]=(map.get(key).counts[f.class]||0)+1;
+    });
+    return Array.from(map.values()).sort((a,b)=>a.key-b.key);
+  },
+
+  renderChart(){
+    const container=$id('tl-chart');if(!container)return;
+    container.innerHTML='';
+    const files=this.getFiles();
+    const buckets=this.getBuckets(files);
+    if(!buckets.length){container.innerHTML='<div style="padding:40px;text-align:center;color:var(--tm)">No files with dates to display</div>';return;}
+
+    const activeClasses=CLASS_KEYS.filter(k=>!st.timeline.hiddenClasses.has(k));
+    const maxTotal=Math.max(...buckets.map(b=>activeClasses.reduce((s,k)=>s+(b.counts[k]||0),0)),1);
+
+    const W=container.clientWidth||600,H=container.clientHeight||300;
+    const pad={l:40,r:20,t:20,b:40};
+    const chartW=W-pad.l-pad.r,chartH=H-pad.t-pad.b;
+    const barW=Math.min(40,Math.floor((chartW/buckets.length)*0.7));
+    const gap=(chartW/buckets.length);
+
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('width',W);svg.setAttribute('height',H);
+
+    // Y gridlines
+    [0.25,0.5,0.75,1].forEach(pct=>{
+      const y=pad.t+chartH*(1-pct);
+      const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',pad.l);line.setAttribute('x2',pad.l+chartW);
+      line.setAttribute('y1',y);line.setAttribute('y2',y);
+      line.setAttribute('stroke','rgba(255,255,255,0.05)');line.setAttribute('stroke-width','1');
+      svg.appendChild(line);
+      const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+      txt.setAttribute('x',pad.l-4);txt.setAttribute('y',y+4);
+      txt.setAttribute('text-anchor','end');txt.setAttribute('fill','#3a3a52');txt.setAttribute('font-size','10');
+      txt.textContent=Math.round(maxTotal*pct);svg.appendChild(txt);
+    });
+
+    // Bars
+    buckets.forEach((b,i)=>{
+      const cx=pad.l+i*gap+gap/2;
+      let yOffset=0;
+      activeClasses.slice().reverse().forEach(cls=>{
+        const n=b.counts[cls]||0;if(!n)return;
+        const barH=(n/maxTotal)*chartH;
+        const y=pad.t+chartH-yOffset-barH;
+        const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+        rect.setAttribute('x',cx-barW/2);rect.setAttribute('y',y);
+        rect.setAttribute('width',barW);rect.setAttribute('height',barH);
+        rect.setAttribute('fill',CLASS_DEF[cls]?.color||'#888');
+        rect.setAttribute('opacity',st.timeline.hiddenClasses.has(cls)?'0':'0.85');
+        rect.style.cursor='pointer';
+        rect.addEventListener('mouseenter',()=>{rect.setAttribute('opacity','1');});
+        rect.addEventListener('mouseleave',()=>{rect.setAttribute('opacity','0.85');});
+        rect.addEventListener('click',()=>this.drillInto(b.key));
+        svg.appendChild(rect);
+        yOffset+=barH;
+      });
+
+      // X label
+      const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+      txt.setAttribute('x',cx);txt.setAttribute('y',pad.t+chartH+16);
+      txt.setAttribute('text-anchor','middle');txt.setAttribute('fill','#80809a');txt.setAttribute('font-size','10');
+      txt.setAttribute('font-family','IBM Plex Mono,monospace');
+      txt.textContent=b.label;txt.style.cursor='pointer';
+      txt.addEventListener('click',()=>this.drillInto(b.key));
+      svg.appendChild(txt);
+    });
+
+    container.appendChild(svg);
+  },
+
+  drillInto(key){
+    if(st.timeline.drill.length>=2)return; // max drill: year→month→day
+    st.timeline.drill.push(key);
+    this.renderBreadcrumb();this.renderChart();
+    const info=$id('tl-drill-info');
+    if(info) info.textContent=st.timeline.drill.length===1?'Showing months':'Showing days';
+  },
+
+  renderBreadcrumb(){
+    const el=$id('tl-breadcrumb');if(!el)return;
+    const drill=st.timeline.drill;
+    if(!drill.length){el.textContent='All Time';return;}
+    el.innerHTML='';
+    const all=document.createElement('span');all.className='tl-bc-seg';all.textContent='All Time';
+    all.addEventListener('click',()=>{st.timeline.drill=[];this.renderBreadcrumb();this.renderChart();$id('tl-drill-info').textContent='';});
+    el.appendChild(all);
+    drill.forEach((key,i)=>{
+      const sep=document.createTextNode(' › ');el.appendChild(sep);
+      if(i<drill.length-1){
+        const seg=document.createElement('span');seg.className='tl-bc-seg';seg.textContent=key;
+        seg.addEventListener('click',()=>{st.timeline.drill=st.timeline.drill.slice(0,i+1);this.renderBreadcrumb();this.renderChart();});
+        el.appendChild(seg);
+      }else{
+        const seg=document.createTextNode(String(key));el.appendChild(seg);
+      }
+    });
+  },
+
+  renderLegend(){
+    const el=$id('tl-legend');if(!el)return;el.innerHTML='';
+    CLASS_KEYS.forEach(cls=>{
+      const files=this.getFiles();
+      if(!files.some(f=>f.class===cls))return;
+      const item=document.createElement('div');item.className='tl-leg-item'+(st.timeline.hiddenClasses.has(cls)?' muted':'');
+      item.innerHTML=`<div class="tl-leg-dot" style="background:${CLASS_DEF[cls].color}"></div>${CLASS_DEF[cls].label}`;
+      item.addEventListener('click',()=>{
+        if(st.timeline.hiddenClasses.has(cls)) st.timeline.hiddenClasses.delete(cls);
+        else st.timeline.hiddenClasses.add(cls);
+        this.renderLegend();this.renderChart();
+      });
+      el.appendChild(item);
+    });
+  },
+};
+
+// ── File viewer ───────────────────────────────────────────
+const FileViewer = {
+  async open(file){
+    const overlay=$id('fv-overlay');if(!overlay)return;
+    $id('fv-name').textContent=file.name||'—';
+    const def=CLASS_DEF[file.class]||CLASS_DEF.other;
+    $id('fv-class-ic').innerHTML=`<span class="class-dot" style="background:${def.color};width:9px;height:9px"></span><span style="font-family:var(--mono);font-size:11px;color:var(--ts)">${def.label}</span>`;
+    this.renderMeta(file);
+    await this.renderPreview(file);
+    overlay.classList.remove('hidden');
+  },
+
+  close(){const o=$id('fv-overlay');if(o) o.classList.add('hidden');const p=$id('fv-preview');if(p) p.innerHTML='';},
+
+  async renderPreview(file){
+    const preview=$id('fv-preview');if(!preview)return;
+    preview.innerHTML='<div style="color:var(--tm);font-size:12px">Loading…</div>';
+    try{
+      if(file.class==='image'){
+        const url=await this.fetchBlobUrl(file);
+        preview.innerHTML=`<img src="${url}" style="max-width:100%;max-height:100%;object-fit:contain">`;
+      }else if(file.class==='video'){
+        const url=await this.getStreamUrl(file)||await this.fetchBlobUrl(file);
+        preview.innerHTML=`<video controls style="max-width:100%;max-height:100%"><source src="${url}"></video>`;
+      }else if(file.class==='audio'){
+        const url=await this.getStreamUrl(file)||await this.fetchBlobUrl(file);
+        preview.innerHTML=`<audio controls style="width:80%"><source src="${url}"></audio>`;
+      }else if(file.class==='document'){
+        const url=await this.fetchBlobUrl(file);
+        preview.innerHTML=`<iframe src="${url}" style="width:100%;height:100%;border:none"></iframe>`;
+      }else if(file.class==='text'||file.class==='code'||file.class==='web'){
+        const text=await this.fetchText(file);
+        const pre=document.createElement('pre');pre.textContent=text;preview.innerHTML='';preview.appendChild(pre);
+      }else{
+        preview.innerHTML=this.noPreviewHtml(file);
+      }
+    }catch(e){preview.innerHTML=this.noPreviewHtml(file);}
+  },
+
+  noPreviewHtml(file){
+    const def=CLASS_DEF[file.class]||CLASS_DEF.other;
+    return`<div class="fv-no-preview"><div style="font-size:32px;margin-bottom:12px">📄</div><div style="color:var(--ts);margin-bottom:8px">${def.label} file</div><div style="color:var(--tm);font-size:12px">Preview not available</div></div>`;
+  },
+
+  async fetchBlobUrl(file){
+    let url,headers={};
+    if(st.providerType==='googledrive'){
+      url=`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
+      headers={'Authorization':`Bearer ${st.provider.accessToken}`};
+    }else{
+      const token=await st.provider.getAccessToken();
+      url=`https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
+      headers={'Authorization':`Bearer ${token}`};
+    }
+    const r=await fetch(url,{headers});if(!r.ok)throw new Error('Fetch failed');
+    const blob=await r.blob();return URL.createObjectURL(blob);
+  },
+
+  async getStreamUrl(file){
+    try{
+      if(st.providerType==='googledrive'){
+        const info=await st.provider.makeApiCall(`/files/${file.id}?fields=webContentLink`);
+        return info.webContentLink||null;
+      }else{
+        const r=await st.provider.makeApiCall(`/me/drive/items/${file.id}?$select=@microsoft.graph.downloadUrl`);
+        const d=await r.json();return d['@microsoft.graph.downloadUrl']||null;
+      }
+    }catch(e){return null;}
+  },
+
+  async fetchText(file){
+    const blobUrl=await this.fetchBlobUrl(file);
+    const r=await fetch(blobUrl);return r.text();
+  },
+
+  renderMeta(file){
+    const el=$id('fv-meta');if(!el)return;el.innerHTML='';
+    const sec=(title,rows)=>{
+      const s=document.createElement('div');s.className='fv-meta-sec';
+      s.innerHTML=`<div class="fv-meta-title">${title}</div>`;
+      rows.forEach(([k,v])=>{
+        if(v==null||v===''||v===0)return;
+        const r=document.createElement('div');r.className='fv-meta-row';
+        r.innerHTML=`<span class="fv-meta-key">${k}</span><span class="fv-meta-val">${v}</span>`;
+        s.appendChild(r);
+      });
+      el.appendChild(s);
+    };
+    sec('File',[['Size',fmtSize(file.size)],['Date',fmtDate(file.effectiveDate)],['Modified',fmtDate(file.modifiedTime)],['Hash',file.contentHash?file.contentHash.slice(0,12)+'…':null]]);
+    sec('Curation',[['Stack',STACK_DISPLAY[file.stack]||'Inbox'],['Tags',file.tags?.join(', ')||null],['Notes',file.notes||null],['Quality',file.qualityRating||null],['Favorite',file.favorite?'Yes':null]]);
+    if(file.meta){
+      const m=file.meta;
+      sec('Media',[['Dimensions',m.width&&m.height?`${m.width}×${m.height}`:null],['Camera',m.cameraMake&&m.cameraModel?`${m.cameraMake} ${m.cameraModel}`:null],['Focal length',m.focalLength?m.focalLength+'mm':null],['Aperture',m.aperture?'f/'+m.aperture:null],['ISO',m.iso],['Exposure',m.exposure],['Duration',m.duration?m.duration+'s':null],['GPS',m.gpsLat&&m.gpsLng?`${m.gpsLat.toFixed(4)}, ${m.gpsLng.toFixed(4)}`:null]]);
+    }
+  },
+};
+
+// ── App ───────────────────────────────────────────────────
+const App = {
+  selectProvider(type){
+    st.providerType=type;
+    st.provider=type==='googledrive'?new GoogleDriveProvider():new OneDriveProvider();
+    const isG=type==='googledrive';
+    if(type==='onedrive') try{st.provider.ensureMSAL();}catch(e){}
+    $id('auth-title').textContent=isG?'Google Drive':'OneDrive';
+    $id('auth-sub').textContent=isG?'Enter your client secret to authenticate':'Click Connect to sign in with Microsoft';
+    $id('gdrive-secret-container').classList.toggle('hidden',!isG);
+    $id('btn-auth').textContent=`Connect ${isG?'Drive':'OneDrive'}`;
+    $id('auth-status').textContent=isG?'Enter your client secret to continue':'Ready — click Connect';
+    $id('auth-status').className='smsg s-info';
+    if(st.provider.isAuthenticated){this.afterAuth();}else{showScreen('scr-auth');}
+  },
+
+  async authenticate(){
+    const btn=$id('btn-auth'),stat=$id('auth-status'),isG=st.providerType==='googledrive';
+    btn.disabled=true;btn.textContent='Connecting…';
+    stat.textContent='Authenticating…';stat.className='smsg s-info';
+    try{
+      if(isG){const s=$id('gdrive-client-secret').value.trim();if(!s)throw new Error('Client secret required');await st.provider.authenticate(s);}
+      else{await st.provider.authenticate();}
+      stat.textContent='✓ Connected!';stat.className='smsg s-ok';
+      setTimeout(()=>this.afterAuth(),700);
+    }catch(e){
+      stat.textContent=`Failed: ${e.message}`;stat.className='smsg s-err';
+      btn.disabled=false;btn.textContent=`Connect ${isG?'Drive':'OneDrive'}`;
+    }
+  },
+
+  async afterAuth(){
+    $id('h-pvr').textContent=st.providerType==='googledrive'?'Google Drive':'OneDrive';
+    showScreen('scr-enroll');
+    await this.loadEnrollment();
+    toast('Checking for existing intelligence record…');
+    const existing=await Intel.load();
+    if(existing&&existing.enrolledRoots.length>0){toast('Record found — opening…');await this.openTree(true);}
+  },
+
+  async loadEnrollment(){
+    const list=$id('enroll-list');
+    list.innerHTML='<div style="padding:32px;text-align:center;color:var(--tm)"><div class="spin" style="margin:0 auto 12px"></div><div>Loading…</div></div>';
+    try{
+      const folders=await st.provider.getLevelOneFolders();
+      st.enrollFolders=folders;this.renderEnrollment();
+    }catch(e){list.innerHTML=`<div style="padding:24px;text-align:center;color:var(--red)">Failed: ${e.message}</div>`;}
+  },
+
+  renderEnrollment(){
+    const list=$id('enroll-list'),rec=st.intel;list.innerHTML='';
+    if(!st.enrollFolders.length){list.innerHTML='<div style="padding:24px;text-align:center;color:var(--tm)">No folders found</div>';return;}
+
+    const enrolled=st.enrollFolders.filter(f=>rec?.enrolledRoots?.includes(f.id));
+    const unenrolled=st.enrollFolders.filter(f=>!rec?.enrolledRoots?.includes(f.id));
+
+    const renderSection=(title,folders,isEnrolled)=>{
+      if(!folders.length)return;
+      const sec=document.createElement('div');sec.className='enroll-section';sec.textContent=title;list.appendChild(sec);
+      folders.forEach(folder=>{
+        const fRec=rec?.folders?.[folder.id];
+        const agg=fRec?(fRec.aggStats||fRec.stats):null;
+        const meta=agg?`${agg.totalFiles.toLocaleString()} files · ${fmtSize(agg.totalSize)}`:fmtDate(folder.modifiedTime);
+        const chk=st.selected.has(folder.id);
+        const row=document.createElement('div');
+        row.className='frow'+(isEnrolled?' enrolled-row':'')+(chk?' sel':'');
+        row.dataset.fid=folder.id;
+        const bdgCls=isEnrolled?'bdg-enrolled':'bdg-new';
+        const bdgTxt=isEnrolled?(fRec?.status||'current'):'not enrolled';
+        row.innerHTML=`<input type="checkbox" ${chk?'checked':''} data-fid="${folder.id}"><div class="frow-ic"><svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg></div><div class="frow-inf"><div class="frow-name">${folder.name}</div><div class="frow-meta">${meta}</div></div><div class="frow-actions"><span class="frow-bdg ${bdgCls}">${bdgTxt}</span>${isEnrolled?`<button class="de-enroll-btn" data-fid="${folder.id}">De-enroll</button>`:''}</div>`;
+        const cb=row.querySelector('input[type=checkbox]');
+        const toggle=v=>{if(v) st.selected.add(folder.id);else st.selected.delete(folder.id);row.classList.toggle('sel',v);this.updateEnrollUI();};
+        cb.addEventListener('change',e=>{e.stopPropagation();toggle(e.target.checked);});
+        row.addEventListener('click',e=>{if(e.target.tagName==='INPUT'||e.target.classList.contains('de-enroll-btn'))return;cb.checked=!cb.checked;toggle(cb.checked);});
+        const deBtn=row.querySelector('.de-enroll-btn');
+        if(deBtn){deBtn.addEventListener('click',e=>{e.stopPropagation();this.deEnroll(folder.id,folder.name);});}
+        list.appendChild(row);
+      });
+    };
+
+    renderSection('Enrolled',enrolled,true);
+    renderSection('Available',unenrolled,false);
+    this.updateEnrollUI();
+  },
+
+  deEnroll(folderId,folderName){
+    if(!confirm(`De-enroll "${folderName}"? This wipes all index data for this folder tree. The actual files on your drive are not affected.`))return;
+    Intel.deEnroll(folderId);st.selected.delete(folderId);
+    Intel.save().catch(()=>{});
+    toast(`"${folderName}" de-enrolled`);
+    this.renderEnrollment();
+    // If currently viewing that folder in tree, reset
+    if(st.tree.selFolder===folderId||st.intel?.folders[st.tree.selFolder]===undefined) st.tree.selFolder=null;
+    TreeView.render();
+  },
+
+  updateEnrollUI(){
+    const n=st.selected.size;
+    const el=$id('enroll-cnt');if(el) el.textContent=`${n} selected`;
+    const btn=$id('btn-analyze');if(btn) btn.disabled=n===0;
+  },
+
+  async runSniff(){
+    showScreen('scr-sniff');
+    const stat=$id('sniff-status'),proc=$id('btn-proceed'),sf=$id('sniff-folders');
+    stat.textContent='Analyzing…';stat.className='smsg s-info';
+    proc.disabled=true;
+    sf.innerHTML='<div style="padding:20px;text-align:center;color:var(--tm)"><div class="spin" style="margin:0 auto 10px"></div><div>Analyzing…</div></div>';
+    try{
+      const results=await Intel.sniff([...st.selected]);
+      st.sniffData=results;sf.innerHTML='';
+      let totalFolders=0,totalItems=0;
+      results.forEach(r=>{
+        totalFolders+=r.folders;totalItems+=r.items;
+        const row=document.createElement('div');row.className='sniff-frow';
+        row.innerHTML=`<div class="sniff-fname">${r.name}</div><div class="sniff-counts"><div><span>${r.folders}</span> folders</div><div><span>${r.items}</span> items</div></div>`;
+        sf.appendChild(row);
+      });
+      stat.textContent=`${totalFolders} folders · ${totalItems.toLocaleString()} total items. This is a one-time cost.`;stat.className='smsg s-ok';
+      proc.disabled=false;
+    }catch(e){stat.textContent=`Analysis failed: ${e.message}`;stat.className='smsg s-err';}
+  },
+
+  async runAcquisition(){
+    showScreen('scr-acq');
+    st.acq={running:true,cancelled:false,t0:Date.now()};
+    const tick=setInterval(()=>{const el=$id('acq-el');if(el) el.textContent=Math.round((Date.now()-st.acq.t0)/1000)+'s';},1000);
+    const onProg=({folder,fc,ic,total})=>{
+      const fn=$id('acq-folder'),fc2=$id('acq-fc'),ic2=$id('acq-ic'),pb=$id('acq-pb');
+      if(fn) fn.textContent=folder||'…';if(fc2) fc2.textContent=fc;if(ic2) ic2.textContent=ic;
+      if(pb&&total) pb.style.width=Math.min(99,Math.round((ic/total)*100))+'%';
+    };
+    try{
+      await Intel.acquire([...st.selected],onProg,logLine);
+      clearInterval(tick);const pb=$id('acq-pb');if(pb) pb.style.width='100%';
+      logLine('✓ Complete — saving…');await Intel.save();logLine('✓ Saved.');
+      st.acq.running=false;toast('Index complete','t-ok');await sleep(600);await this.openTree(false);
+    }catch(e){clearInterval(tick);logLine(`✖ ${e.message}`);st.acq.running=false;toast('Failed: '+e.message,'t-err');}
+  },
+
+  async openTree(checkDeltas){
+    TreeView.loadPrefs();
+    if(st.intel) st.intel.enrolledRoots.forEach(id=>st.tree.expanded.add(id));
+    showScreen('scr-tree');this.setView('tree');TreeView.render();
+    if(checkDeltas){
+      toast('Checking for drive changes…');
+      try{
+        const{changed,newChildren}=await Intel.checkDeltas();
+        st.newChildren=newChildren;
+        if(changed.length||newChildren.length){TreeView.render();if(changed.length) toast(`${changed.length} changed`,'',4000);if(newChildren.length) toast(`${newChildren.length} new subfolders found`,'',4000);}
+        else{toast('All folders current','t-ok');}
+      }catch(e){console.warn('Delta check:',e.message);}
+    }
+  },
+
+  setView(view){
+    st.view=view;
+    const tl=$id('v-timeline');
+    const tree=$id('t-tree'),div=$id('t-div');
+    $id('vtab-tree').classList.toggle('active',view==='tree');
+    $id('vtab-timeline').classList.toggle('active',view==='timeline');
+    if(view==='timeline'){
+      if(tl) tl.classList.remove('hidden');
+      if(tree) tree.style.display='none';
+      if(div) div.style.display='none';
+      document.getElementById('t-body').style.gridTemplateColumns='0 0 1fr';
+      Timeline.render();
+    }else{
+      if(tl) tl.classList.add('hidden');
+      if(tree) tree.style.display='';
+      if(div) div.style.display='';
+      document.getElementById('t-body').style.gridTemplateColumns='var(--lpw) 4px 1fr';
+      TreeView.render();
+    }
+  },
+
+  async refreshDrive(){
+    const btn=$id('btn-refresh');if(btn) btn.style.opacity='.4';
+    toast('Checking for changes…');
+    try{
+      const{changed,newChildren}=await Intel.checkDeltas();
+      st.newChildren=newChildren;
+      if(changed.length>0){
+        const changedRoots=changed.filter(id=>st.intel.enrolledRoots.includes(id));
+        if(changedRoots.length){
+          showScreen('scr-acq');$id('acq-log').innerHTML='';
+          st.acq={running:true,cancelled:false,t0:Date.now()};
+          const tick=setInterval(()=>{const el=$id('acq-el');if(el) el.textContent=Math.round((Date.now()-st.acq.t0)/1000)+'s';},1000);
+          await Intel.acquire(changedRoots,()=>{},logLine);
+          clearInterval(tick);await Intel.save();st.acq.running=false;
+        }
+        showScreen('scr-tree');toast('Re-index complete','t-ok');
+      }else{toast('All folders current','t-ok');}
+      TreeView.render();
+    }catch(e){toast(`Refresh failed: ${e.message}`,'t-err');}
+    if(btn) btn.style.opacity='1';
+  },
+
+  async disconnect(){
+    if(st.provider) try{await st.provider.disconnect();}catch(e){}
+    st.provider=null;st.providerType=null;st.intel=null;
+    st.selected.clear();st.newChildren=[];st.tree.selFolder=null;
+    showScreen('scr-provider');
+  },
+};
+
+// ── Events ────────────────────────────────────────────────
+function initEvents(){
+  $id('btn-gdrive').addEventListener('click',()=>App.selectProvider('googledrive'));
+  $id('btn-onedrive').addEventListener('click',()=>App.selectProvider('onedrive'));
+  $id('btn-auth').addEventListener('click',()=>App.authenticate());
+  $id('btn-auth-back').addEventListener('click',()=>showScreen('scr-provider'));
+  $id('gdrive-client-secret').addEventListener('keydown',e=>{if(e.key==='Enter') App.authenticate();});
+
+  $id('btn-all').addEventListener('click',()=>{
+    st.enrollFolders.forEach(f=>st.selected.add(f.id));
+    document.querySelectorAll('#enroll-list input[type=checkbox]').forEach(cb=>{cb.checked=true;cb.closest('.frow')?.classList.add('sel');});
+    App.updateEnrollUI();
+  });
+  $id('btn-none').addEventListener('click',()=>{
+    st.selected.clear();
+    document.querySelectorAll('#enroll-list input[type=checkbox]').forEach(cb=>{cb.checked=false;cb.closest('.frow')?.classList.remove('sel');});
+    App.updateEnrollUI();
+  });
+  $id('btn-enroll-back').addEventListener('click',()=>showScreen('scr-provider'));
+  $id('btn-analyze').addEventListener('click',()=>{if(st.selected.size) App.runSniff();});
+  $id('enroll-srch').addEventListener('input',e=>{
+    const t=e.target.value.toLowerCase();
+    document.querySelectorAll('#enroll-list .frow').forEach(r=>{r.style.display=(r.querySelector('.frow-name')?.textContent?.toLowerCase()||'').includes(t)?'':'none';});
+  });
+
+  $id('btn-sniff-back').addEventListener('click',()=>showScreen('scr-enroll'));
+  $id('btn-proceed').addEventListener('click',()=>App.runAcquisition());
+  $id('btn-acq-cancel').addEventListener('click',()=>{st.acq.cancelled=true;toast('Cancelling…');setTimeout(()=>showScreen('scr-enroll'),800);});
+
+  $id('btn-refresh').addEventListener('click',()=>App.refreshDrive());
+  $id('btn-more').addEventListener('click',()=>{showScreen('scr-enroll');App.loadEnrollment();});
+  $id('btn-disconnect').addEventListener('click',()=>App.disconnect());
+  $id('btn-collapse').addEventListener('click',()=>{st.tree.expanded.clear();TreeView.renderTree();});
+  $id('t-srch').addEventListener('input',e=>{st.tree.search=e.target.value;TreeView.render();});
+  $id('btn-tl-reset').addEventListener('click',()=>{st.timeline.drill=[];Timeline.renderBreadcrumb();Timeline.renderChart();$id('tl-drill-info').textContent='';});
+
+  // View tabs
+  document.querySelectorAll('.h-vtab').forEach(btn=>{
+    btn.addEventListener('click',()=>App.setView(btn.dataset.view));
+  });
+
+  // New child enroll
+  $id('tp-scroll').addEventListener('click',e=>{
+    if(e.target.id!=='btn-enroll-new')return;
+    st.newChildren.forEach(f=>st.selected.add(f.id));
+    showScreen('scr-enroll');
+    App.loadEnrollment().then(()=>{
+      st.newChildren.forEach(f=>{
+        const row=document.querySelector(`#enroll-list .frow[data-fid="${f.id}"]`);
+        if(!row)return;const cb=row.querySelector('input');
+        if(cb&&!cb.checked){cb.checked=true;cb.dispatchEvent(new Event('change',{bubbles:true}));}
+      });
+    });
+  });
+
+  // File viewer close
+  $id('fv-close').addEventListener('click',()=>FileViewer.close());
+  $id('fv-overlay').addEventListener('click',e=>{if(e.target===$id('fv-overlay')) FileViewer.close();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape') FileViewer.close();});
+
+  // Pane resize
+  const div=$id('t-div');let dragging=false,sx=0,sw=0;
+  div.addEventListener('pointerdown',e=>{dragging=true;div.classList.add('drag');sx=e.clientX;sw=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lpw'))||280;div.setPointerCapture(e.pointerId);});
+  div.addEventListener('pointermove',e=>{if(!dragging)return;document.documentElement.style.setProperty('--lpw',Math.max(160,Math.min(480,sw+(e.clientX-sx)))+'px');});
+  div.addEventListener('pointerup',()=>{dragging=false;div.classList.remove('drag');TreeView.savePrefs();});
+
+  // Google OAuth popup return
+  if(window.location.search.includes('code=')||window.location.search.includes('error=')){
+    const p=new URLSearchParams(window.location.search);
+    const code=p.get('code'),error=p.get('error');
+    if(window.opener){window.opener.postMessage(code?{type:'GOOGLE_AUTH_SUCCESS',code}:{type:'GOOGLE_AUTH_ERROR',error},window.location.origin);window.close();}
+  }
+
+  // Timeline resize
+  window.addEventListener('resize',()=>{if(st.view==='timeline') Timeline.renderChart();});
+}
+
+// ── Boot ──────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{initEvents();showScreen('scr-provider');});
+</script>
+</body>
+</html>
