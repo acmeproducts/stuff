@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · dcr · v3.7 -->
+<!-- talkbridge · dcr · v3.8 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -73,7 +73,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .call.active{display:flex;}
 
 /* === TOP BAR with controls === */
-/* v3.7: video control buttons in transcript strip */
+/* v3.8: video control buttons in transcript strip */
 .vc-btn{width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,.1);color:#ccc;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;}
 .vc-btn:hover{background:rgba(255,255,255,.18);color:#fff;}
 .vc-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;}
@@ -185,14 +185,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 @media(min-width:768px){.chat-compose-ta{font-size:15px;}}
 @media(max-height:500px) and (orientation:landscape){.chat-compose-strip{padding:5px 10px;}.chat-compose-ta{min-height:32px;font-size:13px;}}
 
-/* v3.7: Joiner landing page */
+/* v3.8: Joiner landing page */
 .joiner-landing{position:fixed;inset:0;z-index:30;display:none;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:32px 20px;background-image:linear-gradient(rgba(10,10,10,.82),rgba(10,10,10,.82)),url('./flags.gif'),url('./flags.png'),linear-gradient(135deg,#0a2020,#0a1020);background-size:cover,cover,cover,cover;background-position:center,center,center,center;background-repeat:no-repeat,no-repeat,no-repeat,no-repeat;}
 .joiner-landing.show{display:flex;}
 
 .joiner-flags{font-size:36px;letter-spacing:4px;}
 .joiner-join-btn{width:100%;background:var(--teal-bright);color:#fff;border:none;border-radius:16px;padding:18px;font-size:18px;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;}
 .joiner-sub{font-size:13px;color:rgba(255,255,255,.6);text-align:center;}.joiner-lang-pill{font-size:22px;letter-spacing:2px;}.joiner-room-name{font-family:"Lora",serif;font-size:24px;font-weight:600;color:#fff;text-align:center;line-height:1.3;width:100%;word-break:break-word;}
-/* v3.7: Thank-you page */
+/* v3.8: Thank-you page */
 .thankyou-page{position:fixed;inset:0;z-index:40;display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:32px 24px;background-image:linear-gradient(rgba(10,10,10,.82),rgba(10,10,10,.82)),url('./flags.gif'),url('./flags.png'),linear-gradient(135deg,#0a2020,#0a1020);background-size:cover,cover,cover,cover;background-position:center,center,center,center;background-repeat:no-repeat,no-repeat,no-repeat,no-repeat;}
 .thankyou-page.show{display:flex;}
 .thankyou-title{font-family:"Lora",serif;font-size:22px;font-weight:600;color:#fff;text-align:center;}
@@ -231,7 +231,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       </div>
       <div class="lobby-footer" style="flex-shrink:0;border-top:1px solid var(--surface2);padding-top:6px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;">
         <button class="lobby-footer-btn" onclick="openLog()" title="Debug log">🪲</button>
-        <span style="font-size:10px;color:var(--text-muted);">v3.7</span>
+        <span style="font-size:10px;color:var(--text-muted);">v3.8</span>
         <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
       </div>
     </div>    </div>
@@ -774,7 +774,7 @@ async function createRoom(){
   saveRecent();enterCall();
 }
 
-// v3.7: Joiner landing — keys applied immediately, getUserMedia deferred until tap
+// v3.8: Joiner landing — keys applied immediately, getUserMedia deferred until tap
 var _pendingJoin=null;
 function handleHash(p){
   if(!p||!p.r)return;
@@ -891,16 +891,24 @@ async function enterCall(){
 // === REMOTE VIDEO ===
 function refreshRemoteVideo(){
   var rv=$('remote-video');
-  if(!remoteStream){rv.srcObject=null;$('no-video-msg').style.display='';return;}
-  if(rv.srcObject!==remoteStream){
-    rv.srcObject=remoteStream;
-    rv.muted=true;rv.playsInline=true;rv.autoplay=true;
-    var p=rv.play();
-    if(p&&p.then)p.then(function(){rv.muted=false;log('rtc_play_ok',{},'ok');}).catch(function(e){rv.muted=false;log('rtc_play_err',{e:String(e)},'warn');});
+  var tracks=remoteStream?remoteStream.getTracks():[];
+  var hasVideoTrack=tracks.some(function(t){return t.kind==='video'&&t.readyState==='live'});
+  var hasRemoteTrack=tracks.some(function(t){return t.readyState==='live'});
+  log('rtc_refresh',{tracks:tracks.map(function(t){return t.kind+':'+t.readyState}).join(',')});
+  if(hasRemoteTrack&&rv.srcObject!==remoteStream){rv.srcObject=remoteStream;}
+  rv.playsInline=true;rv.autoplay=true;
+  if(hasRemoteTrack){
+    rv.muted=true;
+    var tryPlay=rv.play&&rv.play();
+    if(tryPlay&&tryPlay.then){tryPlay.then(function(){rv.muted=false;log('rtc_unmuted',{},'ok');}).catch(function(e){log('rtc_play_err',{e:String(e)},'error');});}
+    $('solo-banner').style.display='none';
   }
-  var hasVideo=remoteStream.getVideoTracks().some(function(t){return t.readyState==='live';});
-  $('no-video-msg').style.display=hasVideo?'none':'';
-  $('solo-banner').style.display='none';
+  if(hasVideoTrack){
+    $('no-video-msg').style.display='none';
+  }else{
+    $('no-video-msg').style.display='';
+    if(!hasRemoteTrack&&rv.srcObject)rv.srcObject=null;
+  }
 }
 function bindRemoteTrackState(track){
   if(!track||track._tbBound)return;
@@ -1058,25 +1066,18 @@ function onDGFinal(text){
 
 function startDeepgram(){
   var key=(($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'').trim();
-  if(!key){toast('Deepgram key missing');return;}
+  if(!key){toast('Deepgram key missing');return}
   localStorage.setItem('tb_dg_key',key);
   if(dgActive)return;
-  if(!videoStream){log('dg_no_stream',{},'error');return;}
-  var audioTracks=videoStream.getAudioTracks().filter(function(t){return t.readyState==='live';});
-  if(!audioTracks.length){log('dg_no_audio',{},'error');return;}
+  if(!videoStream){log('dg_no_stream',{},'error');return}
   var langCode=DG_LANGS[room.myLang]||room.myLang||'en-US';
-  // Use native sample rate — avoids Android resampling failures
-  var nativeCtx=new(window.AudioContext||window.webkitAudioContext)();
-  var nativeRate=nativeCtx.sampleRate;nativeCtx.close();
-  var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(langCode)+'&encoding=linear16&sample_rate='+nativeRate+'&channels=1&interim_results=false&punctuate=true&endpointing=400';
+  var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(langCode)+'&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=true&endpointing=400';
   dgWs=new WebSocket(url,['token',key]);
   dgWs.onopen=function(){
-    dgActive=true;log('dg_open',{lang:langCode,rate:nativeRate},'ok');
+    dgActive=true;log('dg_open',{lang:langCode},'ok');
     try{
-      var dgStream=new MediaStream(videoStream.getAudioTracks().filter(function(t){return t.readyState==='live';}));
-      dgAudioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:nativeRate});
-      if(dgAudioCtx.state==='suspended')dgAudioCtx.resume();
-      dgSrc=dgAudioCtx.createMediaStreamSource(dgStream);
+      dgAudioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
+      dgSrc=dgAudioCtx.createMediaStreamSource(videoStream);
       var silentGain=dgAudioCtx.createGain();silentGain.gain.value=0;silentGain.connect(dgAudioCtx.destination);
       dgProc=dgAudioCtx.createScriptProcessor(4096,1,1);
       dgProc.onaudioprocess=function(e){
@@ -1084,10 +1085,10 @@ function startDeepgram(){
         var f=e.inputBuffer.getChannelData(0);
         var b=new Int16Array(f.length);
         for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF;}
-        try{dgWs.send(b.buffer);}catch(_){}
+        dgWs.send(b.buffer);
       };
       dgSrc.connect(dgProc);dgProc.connect(silentGain);
-    }catch(e){log('dg_audio_err',{e:String(e)},'error');}
+    }catch(e){log('dg_audio_err',{e:String(e)},'error')}
   };
   dgWs.onmessage=function(e){
     try{
@@ -1096,10 +1097,10 @@ function startDeepgram(){
       if(alt&&alt.transcript&&d.is_final)onDGFinal(alt.transcript);
     }catch(_){}
   };
-  dgWs.onerror=function(){log('dg_error',{},'error');};
+  dgWs.onerror=function(){log('dg_error',{},'error')};
   dgWs.onclose=function(ev){
     log('dg_close',{code:ev.code},'warn');dgActive=false;stopDGAudio();
-    if(isCallActive())setTimeout(function(){if(isCallActive()&&!dgActive)startDeepgram();},2000);
+    if(isCallActive())setTimeout(function(){if(isCallActive())startDeepgram()},2000);
   };
 }
 function stopDGAudio(){
@@ -1291,7 +1292,7 @@ function toggleCam(){
   // Signal cam state to partner via relay
   relaySend({type:'cam-state',camOn:camOn});
 }
-// v3.7: Thank-you page flows
+// v3.8: Thank-you page flows
 function rejoinCall(){
   $('thankyou-page').classList.remove('show');
   if(_pendingJoin){$('joiner-landing').classList.add('show');}
