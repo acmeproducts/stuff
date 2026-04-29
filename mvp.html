@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi View Pro</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #171a21;
+      --panel-2: #1f2430;
+      --txt: #ecf0f7;
+      --muted: #95a0b5;
+      --accent: #4da3ff;
+      --danger: #ff5d73;
+      --gap: 10px;
+      --cols: 4;
+      --scale: 0;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--txt);
+      background: var(--bg);
+      font-family: Inter, Segoe UI, Roboto, sans-serif;
+    }
+
+    .shell {
+      max-width: 1800px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .sticky-header {
+      position: sticky;
+      top: 0;
+      z-index: 90;
+      margin-bottom: 10px;
+      padding: 8px 10px;
+      border: 1px solid #2b3344;
+      border-radius: 12px;
+      background: rgba(23, 26, 33, 0.94);
+      backdrop-filter: blur(7px);
+      display: grid;
+      grid-template-columns: minmax(220px, 1.2fr) auto auto minmax(170px, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .sticky-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .controls-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      padding: 8px 10px;
+    }
+
+    .sticky-pager {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      justify-self: end;
+    }
+
+    .sticky-pager button {
+      padding: 8px 10px;
+      min-width: 90px;
+    }
+
+    #pageInfo {
+      min-width: 170px;
+      text-align: right;
+      display: inline-block;
+    }
+
+    .controls-panel {
+      display: none;
+    }
+
+    .controls-panel.open {
+      display: block;
+    }
+
+    .toolbar {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      align-items: end;
+      margin-bottom: 10px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    input, select, button {
+      border: 1px solid #2b3344;
+      background: var(--panel);
+      color: var(--txt);
+      border-radius: 8px;
+      padding: 9px 10px;
+      font-size: 14px;
+    }
+
+    button { cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+
+    .omni-row {
+      margin: 8px 0;
+      display: grid;
+      grid-template-columns: 1fr 180px;
+      gap: 10px;
+    }
+
+    .collection-row {
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .saved-row {
+      display: grid;
+      grid-template-columns: 1fr 140px;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .slider-row {
+      margin: 8px 0 12px;
+    }
+
+    #grid {
+      display: grid;
+      gap: var(--gap);
+      grid-template-columns: repeat(var(--display-cols), minmax(190px, 1fr));
+      align-items: start;
+    }
+
+    .portlet {
+      background: var(--panel);
+      border: 1px solid #2b3344;
+      border-radius: 10px;
+      overflow: hidden;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .portlet.dragging {
+      opacity: 0.45;
+      cursor: grabbing;
+      transform: scale(0.99);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+    }
+
+    .titlebar {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      align-items: center;
+      background: var(--panel-2);
+      padding: 7px;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+      color: #d6deed;
+      max-width: 55%;
+    }
+
+    .title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      position: relative;
+      flex: 1;
+    }
+
+    .meta-trigger {
+      border: 1px solid #2b3344;
+      background: transparent;
+      color: var(--muted);
+      border-radius: 999px;
+      width: 19px;
+      height: 19px;
+      padding: 0;
+      line-height: 1;
+      font-size: 11px;
+    }
+
+    .meta-pop {
+      position: absolute;
+      left: 0;
+      top: calc(100% + 6px);
+      min-width: 280px;
+      max-width: min(65vw, 540px);
+      z-index: 40;
+      background: #121722;
+      border: 1px solid #2b3344;
+      border-radius: 8px;
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+      padding: 16px 8px 8px;
+      display: none;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .meta-pin-btn {
+      position: absolute;
+      left: 50%;
+      top: -10px;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      font-size: 13px;
+      line-height: 1;
+      background: #101524;
+      border: 1px solid #2b3344;
+      color: #c8d3ea;
+    }
+
+    .meta-pop .meta-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      color: #c8d3ea;
+      font-size: 11px;
+    }
+
+    .meta-pop .meta-line {
+      margin: 2px 0;
+      overflow-wrap: anywhere;
+    }
+
+    .meta-pop.pinned,
+    .meta-pop.open {
+      display: block;
+    }
+
+    .portlet.drop-before {
+      outline: 2px dashed #ff9800;
+      outline-offset: -3px;
+    }
+    .portlet.drop-after {
+      outline: 2px dashed #ff9800;
+      outline-offset: -3px;
+      box-shadow: inset -3px 0 0 #ff9800;
+    }
+
+    .actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .actions button {
+      padding: 4px 7px;
+      font-size: 12px;
+      min-width: 28px;
+    }
+
+    .actions .danger:hover { border-color: var(--danger); color: var(--danger); }
+
+    .content {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+    }
+
+    .content img, .content video, .content audio, .content iframe {
+      max-width: 100%;
+      max-height: 300px;
+      border-radius: 6px;
+    }
+
+    .collapsed .content { display: none; }
+
+    .pager {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .hint { color: var(--muted); font-size: 12px; }
+
+    .empty {
+      padding: 24px;
+      border: 1px dashed #2b3344;
+      border-radius: 8px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .tray {
+      margin: 8px 0;
+      border: 1px solid #2b3344;
+      border-radius: 10px;
+      background: var(--panel);
+      overflow: hidden;
+    }
+    .tray-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--panel-2);
+      cursor: pointer;
+      font-size: 12px;
+      color: #c8d3ea;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      user-select: none;
+    }
+    .chev { display: inline-block; width: 14px; }
+    .tray-list { display: none; padding: 10px; }
+    .tray.open .tray-list { display: grid; gap: 6px; }
+    .tray-item {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+      background: #121722;
+      border: 1px solid #2b3344;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 12px;
+    }
+    .mini {
+      border: 1px solid #2b3344;
+      background: var(--panel);
+      color: #d6deed;
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .mini:hover { border-color: var(--accent); }
+    .mini.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+    @media (max-width: 1060px) {
+      .sticky-header {
+        grid-template-columns: 1fr 1fr;
+      }
+      .sticky-actions,
+      .sticky-pager,
+      #pageInfo {
+        justify-self: start;
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="sticky-header">
+      <input id="omniSearch" placeholder="Search filename/date/size (use -term to exclude)" />
+      <select id="sortBy">
+        <option value="name">Sort: filename</option>
+        <option value="created">Sort: created</option>
+        <option value="modified">Sort: modified</option>
+      </select>
+      <input id="sizeSlider" type="range" min="0" max="100" value="0" />
+      <div class="sticky-actions">
+        <button id="controlsToggle" type="button" class="controls-toggle" aria-expanded="false" aria-controls="controlsPanel">⚙ Controls</button>
+      </div>
+      <div class="sticky-pager">
+        <button id="prevPage">Back page</button>
+        <button id="nextPage">Next page</button>
+        <span id="pageInfo" class="hint">Page 1/1</span>
+      </div>
+    </header>
+
+    <section id="controlsPanel" class="controls-panel">
+      <div class="toolbar">
+        <div class="field">
+          <label for="folderInput">Select folder (recursive)</label>
+          <input id="folderInput" type="file" webkitdirectory directory multiple accept="image/*,video/*,text/html,text/plain,text/rtf,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,.pdf,.xlsx,.docx,.pptx,.html,.htm,.txt,.rtf,.md" />
+        </div>
+        <div class="field">
+          <label for="rowsInput">Rows per page</label>
+          <input id="rowsInput" type="number" min="1" value="3" />
+        </div>
+        <div class="field">
+          <label for="colsInput">Columns baseline</label>
+          <input id="colsInput" type="number" min="1" value="4" />
+        </div>
+        <div class="field">
+          <label for="exportBtn">Export paths</label>
+          <button id="exportBtn">Export list (.txt)</button>
+        </div>
+      </div>
+
+      <div class="collection-row">
+        <input id="collectionName" placeholder="Collection name" />
+        <div class="hint" id="collectionMeta">No collection loaded.</div>
+      </div>
+      <div class="saved-row">
+        <input id="collectionPicker" list="collectionOptions" placeholder="Search or choose previous collection" />
+        <datalist id="collectionOptions"></datalist>
+        <button id="loadCollectionBtn" type="button">Load saved</button>
+      </div>
+
+      <div class="hint" style="margin:8px 0 12px;">Portlet size slider, search, sort, and page controls are pinned in the sticky header.</div>
+      <section id="minTray" class="tray" style="display:none;">
+        <div id="minTrayHeader" class="tray-header"><span id="minChev" class="chev">▸</span><span id="minLabel">Minimized (0)</span></div>
+        <div id="minTrayList" class="tray-list"></div>
+      </section>
+      <section id="removedTray" class="tray" style="display:none;">
+        <div id="removedTrayHeader" class="tray-header"><span id="removedChev" class="chev">▸</span><span id="removedLabel">Removed (0)</span></div>
+        <div id="removedTrayList" class="tray-list"></div>
+      </section>
+    </section>
+
+    <div id="grid"></div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'multiViewProCollections';
+    const ACTIVE_KEY = 'multiViewProActiveCollection';
+
+    const folderInput = document.getElementById('folderInput');
+    const controlsToggle = document.getElementById('controlsToggle');
+    const controlsPanel = document.getElementById('controlsPanel');
+    const rowsInput = document.getElementById('rowsInput');
+    const colsInput = document.getElementById('colsInput');
+    const omniSearch = document.getElementById('omniSearch');
+    const sortBy = document.getElementById('sortBy');
+    const collectionNameInput = document.getElementById('collectionName');
+    const collectionMeta = document.getElementById('collectionMeta');
+    const sizeSlider = document.getElementById('sizeSlider');
+    const collectionPicker = document.getElementById('collectionPicker');
+    const collectionOptions = document.getElementById('collectionOptions');
+    const loadCollectionBtn = document.getElementById('loadCollectionBtn');
+    const prevPageBtn = document.getElementById('prevPage');
+    const nextPageBtn = document.getElementById('nextPage');
+    const pageInfo = document.getElementById('pageInfo');
+    const grid = document.getElementById('grid');
+    const exportBtn = document.getElementById('exportBtn');
+
+    let state = {
+      collections: {},
+      activeCollectionId: null,
+      page: 1,
+      dragId: null,
+      dragInProgress: false,
+      minTrayOpen: false,
+      removedTrayOpen: false,
+      controlsOpen: false
+    };
+
+    function setControlsOpen(open) {
+      state.controlsOpen = open;
+      controlsPanel.classList.toggle('open', open);
+      controlsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      controlsToggle.textContent = open ? '⚙ Hide controls' : '⚙ Controls';
+    }
+
+    function nowStamp() {
+      const d = new Date();
+      return d.toISOString().replace('T', ' ').replace('Z', ' UTC');
+    }
+
+    function makeCollectionId() {
+      return new Date().toISOString();
+    }
+
+    function toBytesLabel(size) {
+      if (size < 1024) return `${size} B`;
+      if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+      if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+      return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    }
+
+    function persist() {
+      const persistedCollections = Object.fromEntries(
+        Object.entries(state.collections).map(([id, collection]) => [
+          id,
+          {
+            ...collection,
+            items: (collection.items || []).map(({ objectUrl, ...item }) => item)
+          }
+        ])
+      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(persistedCollections));
+      if (state.activeCollectionId) {
+        localStorage.setItem(ACTIVE_KEY, state.activeCollectionId);
+      }
+    }
+
+    function hydrate() {
+      try {
+        const storedCollections = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        state.collections = Object.fromEntries(
+          Object.entries(storedCollections || {}).map(([id, collection]) => [
+            id,
+            {
+              ...collection,
+              items: (collection.items || []).map(item => ({
+                ...item,
+                muted: item.muted ?? true,
+                frozen: item.frozen ?? true,
+                metaPinned: item.metaPinned ?? false,
+                metaOpen: false,
+                objectUrl: null
+              })),
+              baseRows: Math.max(1, Number(collection.baseRows ?? collection.rows ?? 3) || 3),
+              baseCols: Math.max(1, Number(collection.baseCols ?? collection.cols ?? 4) || 4)
+            }
+          ])
+        );
+      } catch {
+        state.collections = {};
+      }
+      state.activeCollectionId = localStorage.getItem(ACTIVE_KEY);
+      if (!state.activeCollectionId || !state.collections[state.activeCollectionId]) {
+        const firstId = Object.keys(state.collections)[0] || null;
+        state.activeCollectionId = firstId;
+      }
+      if (state.activeCollectionId) {
+        const c = getActiveCollection();
+        const scaled = computeScaledLayout(c.baseRows, c.baseCols, c.scale ?? 0);
+        c.rows = scaled.rows;
+        c.cols = scaled.cols;
+        omniSearch.value = c.search || '';
+        sortBy.value = c.sortBy || 'name';
+        rowsInput.value = c.rows || 3;
+        colsInput.value = c.cols || 4;
+        sizeSlider.value = c.scale ?? 0;
+        collectionNameInput.value = c.name;
+      }
+      render();
+    }
+
+    function getActiveCollection() {
+      return state.collections[state.activeCollectionId] || null;
+    }
+
+    function createCollectionFromFiles(files) {
+      const id = makeCollectionId();
+      const createdAt = nowStamp();
+      const name = createdAt;
+      const items = Array.from(files).map((file, index) => {
+        const relPath = file.webkitRelativePath || file.name;
+        const createdMs = null;
+        const modifiedMs = file.lastModified || Date.now();
+        return {
+          id: `${id}:${index}`,
+          name: file.name,
+          relPath,
+          size: file.size,
+          type: file.type,
+          createdMs,
+          modifiedMs,
+          createdLabel: createdMs ? new Date(createdMs).toISOString() : 'Unavailable',
+          modifiedLabel: new Date(modifiedMs).toISOString(),
+          closed: false,
+          minimized: false,
+          muted: true,
+          frozen: true,
+          metaPinned: false,
+          metaOpen: false,
+          order: index,
+          objectUrl: URL.createObjectURL(file)
+        };
+      });
+
+      state.collections[id] = {
+        id,
+        name,
+        createdAt,
+        baseRows: Number(rowsInput.value) || 3,
+        baseCols: Number(colsInput.value) || 4,
+        rows: Number(rowsInput.value) || 3,
+        cols: Number(colsInput.value) || 4,
+        scale: Number(sizeSlider.value) || 0,
+        search: omniSearch.value || '',
+        sortBy: sortBy.value || 'name',
+        page: 1,
+        items
+      };
+      state.activeCollectionId = id;
+      collectionNameInput.value = name;
+      state.page = 1;
+      persist();
+      render();
+    }
+
+    function wildcardToRegex(term) {
+      const escaped = term.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+      return new RegExp(`^${escaped}$`, 'i');
+    }
+
+    function parseSearch(query) {
+      const terms = query.trim().split(/\s+/).filter(Boolean);
+      const include = [];
+      const exclude = [];
+      terms.forEach(t => {
+        if (t.startsWith('-') && t.length > 1) exclude.push(t.slice(1).toLowerCase());
+        else include.push(t.toLowerCase());
+      });
+      return {
+        includePlain: include.filter(t => !t.includes('*')),
+        includeWild: include.filter(t => t.includes('*')).map(wildcardToRegex),
+        excludePlain: exclude.filter(t => !t.includes('*')),
+        excludeWild: exclude.filter(t => t.includes('*')).map(wildcardToRegex)
+      };
+    }
+
+    function searchable(item) {
+      return `${item.name} ${item.relPath} ${item.createdLabel} ${item.modifiedLabel} ${item.size} ${toBytesLabel(item.size)}`.toLowerCase();
+    }
+
+    function filteredSortedItems(collection) {
+      const { includePlain, includeWild, excludePlain, excludeWild } = parseSearch(collection.search || '');
+      let items = collection.items.filter(i => !i.closed && !i.minimized);
+
+      items = items.filter(item => {
+        const hay = searchable(item);
+        const nameHay = `${item.name} ${item.relPath}`.toLowerCase();
+        const incOk = includePlain.every(t => hay.includes(t))
+          && includeWild.every(rx => rx.test(nameHay));
+        const excOk = excludePlain.every(t => !hay.includes(t))
+          && excludeWild.every(rx => !rx.test(nameHay));
+        return incOk && excOk;
+      });
+
+      const sorter = collection.sortBy || 'name';
+      items.sort((a, b) => {
+        let sortValue = 0;
+        if (sorter === 'created') sortValue = (a.createdMs || 0) - (b.createdMs || 0);
+        else if (sorter === 'modified') sortValue = (a.modifiedMs || 0) - (b.modifiedMs || 0);
+        else sortValue = a.name.localeCompare(b.name);
+        if (sortValue !== 0) return sortValue;
+        return a.order - b.order;
+      });
+      return items;
+    }
+
+    function computeScaledLayout(baseRows, baseCols, scale) {
+      const normalizedScale = Math.max(0, Math.min(100, Number(scale) || 0)) / 100;
+      const densityFactor = 1 + (normalizedScale * 1.8);
+      return {
+        rows: Math.max(1, Math.round((Number(baseRows) || 1) / densityFactor)),
+        cols: Math.max(1, Math.round((Number(baseCols) || 1) / densityFactor))
+      };
+    }
+
+    function pageInfoFrom(collection, items) {
+      const perPage = Math.max(1, (collection.rows || 1) * (collection.cols || 1));
+      const maxPage = Math.max(1, Math.ceil(items.length / perPage));
+      if (state.page > maxPage) state.page = maxPage;
+      if (state.page < 1) state.page = 1;
+      const start = (state.page - 1) * perPage;
+      return {
+        slice: items.slice(start, start + perPage),
+        perPage,
+        maxPage
+      };
+    }
+
+    function calcDisplayColumns(collection) {
+      return Math.max(1, Number(collection.cols) || 1);
+    }
+
+    function updateCollectionFromControls(source = 'general') {
+      const c = getActiveCollection();
+      if (!c) return;
+      c.search = omniSearch.value;
+      c.sortBy = sortBy.value;
+      c.scale = Math.max(0, Math.min(100, Number(sizeSlider.value) || 0));
+      if (source === 'rows-cols') {
+        c.baseRows = Math.max(1, Number(rowsInput.value) || 1);
+        c.baseCols = Math.max(1, Number(colsInput.value) || 1);
+      } else if (typeof c.baseRows !== 'number' || typeof c.baseCols !== 'number') {
+        c.baseRows = Math.max(1, Number(c.rows) || 1);
+        c.baseCols = Math.max(1, Number(c.cols) || 1);
+      }
+      const scaled = computeScaledLayout(c.baseRows, c.baseCols, c.scale);
+      c.rows = scaled.rows;
+      c.cols = scaled.cols;
+      rowsInput.value = String(c.rows);
+      colsInput.value = String(c.cols);
+      c.name = collectionNameInput.value.trim() || c.name;
+      persist();
+    }
+
+    function renderPortlet(item) {
+      const card = document.createElement('article');
+      card.className = `portlet ${item.minimized ? 'collapsed' : ''}`;
+      card.draggable = true;
+      card.dataset.id = item.id;
+
+      card.addEventListener('dragstart', e => {
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', item.id);
+        }
+        state.dragId = item.id;
+        state.dragInProgress = true;
+        card.classList.add('dragging');
+      });
+      card.addEventListener('dragend', () => {
+        state.dragId = null;
+        card.classList.remove('dragging');
+        card.classList.remove('drop-before', 'drop-after');
+        window.setTimeout(() => { state.dragInProgress = false; }, 0);
+      });
+      card.addEventListener('dragover', e => {
+        e.preventDefault();
+        if (!state.dragId || state.dragId === item.id) return;
+        const rect = card.getBoundingClientRect();
+        const placeAfter = e.clientX > rect.left + (rect.width / 2);
+        card.classList.toggle('drop-after', placeAfter);
+        card.classList.toggle('drop-before', !placeAfter);
+      });
+      card.addEventListener('dragleave', () => {
+        card.classList.remove('drop-before', 'drop-after');
+      });
+      card.addEventListener('drop', e => {
+        e.preventDefault();
+        const position = card.classList.contains('drop-after') ? 'after' : 'before';
+        card.classList.remove('drop-before', 'drop-after');
+        reorderByDrop(state.dragId, item.id, position);
+      });
+
+      const titlebar = document.createElement('div');
+      titlebar.className = 'titlebar';
+
+      const titleWrap = document.createElement('div');
+      titleWrap.className = 'title-wrap';
+
+      const title = document.createElement('div');
+      title.className = 'title';
+      title.title = item.relPath;
+      title.textContent = item.name;
+
+      const metaTrigger = iconBtn('i', 'Show details', () => toggleMeta(item.id));
+      metaTrigger.classList.add('meta-trigger');
+
+      const metaPop = document.createElement('div');
+      metaPop.className = `meta-pop ${item.metaPinned ? 'pinned' : ''} ${item.metaOpen ? 'open' : ''}`;
+      const pinBtn = iconBtn(item.metaPinned ? '📌' : '📍', 'Pin/unpin details card', () => toggleMetaPin(item.id));
+      pinBtn.classList.add('meta-pin-btn');
+      metaPop.appendChild(pinBtn);
+      const metaHead = document.createElement('div');
+      metaHead.className = 'meta-head';
+      const metaTitle = document.createElement('span');
+      metaTitle.textContent = 'Portlet details';
+      metaHead.append(metaTitle);
+      metaPop.appendChild(metaHead);
+      [
+        `Path: ${item.relPath}`,
+        `Created: ${item.createdLabel}`,
+        `Modified: ${item.modifiedLabel}`,
+        `Size: ${toBytesLabel(item.size)}`
+      ].forEach(line => {
+        const row = document.createElement('div');
+        row.className = 'meta-line';
+        row.textContent = line;
+        metaPop.appendChild(row);
+      });
+      titleWrap.append(title, metaTrigger, metaPop);
+
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+
+      const canOpen = typeof item.objectUrl === 'string' && item.objectUrl.startsWith('blob:');
+      const btnFull = iconBtn('⤢', canOpen ? 'Open in new tab' : 'Preview unavailable after reload', () => {
+        if (!canOpen) return;
+        window.open(item.objectUrl, '_blank', 'noopener');
+      });
+      const btnMute = iconBtn(item.muted ? '🔇' : '🔊', 'Mute/unmute', () => toggleMute(item.id));
+      const btnFreeze = iconBtn(item.frozen ? '▶' : '⏸', 'Freeze/continue', () => toggleFreeze(item.id));
+      const btnMin = iconBtn(item.minimized ? '▢' : '▁', 'Minimize/restore', () => toggleMinimized(item.id));
+      const btnClose = iconBtn('✕', 'Close', () => closeItem(item.id), 'danger');
+
+      actions.append(btnFull, btnMute, btnFreeze, btnMin, btnClose);
+      titlebar.append(titleWrap, actions);
+      card.appendChild(titlebar);
+
+      const content = document.createElement('div');
+      content.className = 'content';
+      const mediaType = (item.type || '').split('/')[0];
+      let node;
+
+      if (canOpen && mediaType === 'image') {
+        node = document.createElement('img');
+        node.src = item.objectUrl;
+      } else if (canOpen && mediaType === 'video') {
+        node = document.createElement('video');
+        node.src = item.objectUrl;
+        node.controls = true;
+        node.muted = item.muted;
+        if (!item.frozen) node.play().catch(() => {});
+      } else if (canOpen && mediaType === 'audio') {
+        node = document.createElement('audio');
+        node.src = item.objectUrl;
+        node.controls = true;
+        node.muted = item.muted;
+        if (!item.frozen) node.play().catch(() => {});
+      } else if (canOpen && item.type === 'text/html') {
+        node = document.createElement('iframe');
+        node.src = item.frozen ? 'about:blank' : item.objectUrl;
+        node.title = item.name;
+        node.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+      } else {
+        node = document.createElement('div');
+        node.className = 'hint';
+        node.textContent = canOpen
+          ? `${item.name} (${item.type || 'unknown'}) preview unavailable`
+          : `${item.name} preview unavailable after reload. Re-import folder to restore previews.`;
+      }
+
+      if (item.frozen && (node.tagName === 'VIDEO' || node.tagName === 'AUDIO')) node.pause();
+      content.appendChild(node);
+      card.appendChild(content);
+
+      return card;
+    }
+
+    function iconBtn(text, title, onClick, cls = '') {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = text;
+      b.title = title;
+      if (cls) b.classList.add(...cls.split(/\s+/).filter(Boolean));
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        if (state.dragInProgress) return;
+        onClick();
+      });
+      return b;
+    }
+
+    function reorderByDrop(dragId, dropId, position = 'before') {
+      const c = getActiveCollection();
+      if (!c || !dragId || !dropId || dragId === dropId) return;
+      const openItems = c.items.filter(i => !i.closed).sort((a, b) => a.order - b.order);
+      const from = openItems.findIndex(i => i.id === dragId);
+      const to = openItems.findIndex(i => i.id === dropId);
+      if (from < 0 || to < 0) return;
+      const [moved] = openItems.splice(from, 1);
+      let insertAt = to + (position === 'after' ? 1 : 0);
+      if (from < to) insertAt -= 1;
+      openItems.splice(Math.max(0, insertAt), 0, moved);
+      openItems.forEach((it, idx) => {
+        const target = c.items.find(ci => ci.id === it.id);
+        target.order = idx;
+      });
+      persist();
+      render();
+    }
+
+    function toggleMeta(id) {
+      const c = getActiveCollection();
+      const item = c?.items.find(i => i.id === id);
+      if (!item) return;
+      item.metaOpen = !item.metaOpen;
+      persist();
+      rerenderItem(id);
+    }
+
+    function toggleMute(id) {
+      const c = getActiveCollection();
+      const item = c?.items.find(i => i.id === id);
+      if (!item) return;
+      item.muted = !item.muted;
+      persist();
+      rerenderItem(id);
+    }
+
+    function toggleFreeze(id) {
+      const c = getActiveCollection();
+      const item = c?.items.find(i => i.id === id);
+      if (!item) return;
+      item.frozen = !item.frozen;
+      persist();
+      rerenderItem(id);
+    }
+
+    function toggleMinimized(id) {
+      const c = getActiveCollection();
+      const item = c?.items.find(i => i.id === id);
+      if (!item) return;
+      item.minimized = !item.minimized;
+      persist();
+      render();
+    }
+
+    function toggleMetaPin(id) {
+      const c = getActiveCollection();
+      const item = c?.items.find(i => i.id === id);
+      if (!item) return;
+      item.metaPinned = !item.metaPinned;
+      item.metaOpen = item.metaPinned ? true : item.metaOpen;
+      persist();
+      rerenderItem(id);
+    }
+
+    function rerenderItem(id) {
+      const existing = grid.querySelector(`.portlet[data-id="${CSS.escape(id)}"]`);
+      if (!existing) {
+        render();
+        return;
+      }
+      const c = getActiveCollection();
+      const item = c?.items.find(i => i.id === id && !i.closed);
+      if (!item) {
+        render();
+        return;
+      }
+      existing.replaceWith(renderPortlet(item));
+    }
+
+    function closeItem(id) {
+      const c = getActiveCollection();
+      const item = c?.items.find(i => i.id === id);
+      if (!item) return;
+      item.closed = true;
+      item.metaOpen = false;
+      persist();
+      render();
+    }
+
+    function restoreItem(id) {
+      const c = getActiveCollection();
+      const item = c?.items.find(i => i.id === id);
+      if (!item) return;
+      item.closed = false;
+      item.minimized = false;
+      persist();
+      render();
+    }
+
+    function deleteItem(id) {
+      const c = getActiveCollection();
+      if (!c) return;
+      c.items = c.items.filter(i => i.id !== id);
+      persist();
+      render();
+    }
+
+    function renderCollectionPicker() {
+      const entries = Object.values(state.collections).sort((a, b) => b.id.localeCompare(a.id));
+      collectionOptions.innerHTML = '';
+      entries.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.name;
+        opt.label = `${c.name} (${c.createdAt})`;
+        opt.dataset.id = c.id;
+        collectionOptions.appendChild(opt);
+      });
+    }
+
+    function loadCollectionByNameOrId(value) {
+      const needle = (value || '').trim().toLowerCase();
+      if (!needle) return;
+      const match = Object.values(state.collections).find(c => c.id === value || c.name.toLowerCase() === needle || `${c.name} (${c.createdAt})`.toLowerCase() === needle);
+      if (!match) return;
+      state.activeCollectionId = match.id;
+      state.page = 1;
+      persist();
+      render();
+    }
+
+    function alignVisibleRows(displayCols) {
+      const cards = [...grid.querySelectorAll('.portlet')];
+      cards.forEach(card => { card.style.marginTop = '0px'; });
+      if (!cards.length || displayCols < 1) return;
+      for (let i = 0; i < cards.length; i += displayCols) {
+        const row = cards.slice(i, i + displayCols);
+        const maxH = Math.max(...row.map(card => card.offsetHeight));
+        row.forEach(card => {
+          card.style.marginTop = `${Math.max(0, (maxH - card.offsetHeight) / 2)}px`;
+        });
+      }
+    }
+
+    function renderTrays(c) {
+      const minTray = document.getElementById('minTray');
+      const minLabel = document.getElementById('minLabel');
+      const minChev = document.getElementById('minChev');
+      const minList = document.getElementById('minTrayList');
+      const removedTray = document.getElementById('removedTray');
+      const removedLabel = document.getElementById('removedLabel');
+      const removedChev = document.getElementById('removedChev');
+      const removedList = document.getElementById('removedTrayList');
+
+      const minimized = c.items.filter(i => !i.closed && i.minimized);
+      minTray.style.display = minimized.length ? '' : 'none';
+      minLabel.textContent = `Minimized (${minimized.length})`;
+      minChev.textContent = state.minTrayOpen ? '▾' : '▸';
+      minTray.classList.toggle('open', state.minTrayOpen);
+      minList.innerHTML = '';
+      minimized.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'tray-item';
+        const name = document.createElement('span');
+        name.title = item.relPath;
+        name.textContent = item.name;
+        const restoreBtn = iconBtn('Restore', 'Restore item', () => toggleMinimized(item.id), 'mini');
+        row.append(name, restoreBtn);
+        minList.appendChild(row);
+      });
+
+      const removed = c.items.filter(i => i.closed);
+      removedTray.style.display = removed.length ? '' : 'none';
+      removedLabel.textContent = `Removed (${removed.length})`;
+      removedChev.textContent = state.removedTrayOpen ? '▾' : '▸';
+      removedTray.classList.toggle('open', state.removedTrayOpen);
+      removedList.innerHTML = '';
+      removed.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'tray-item';
+        const name = document.createElement('span');
+        name.title = item.relPath;
+        name.textContent = item.name;
+        const restoreBtn = iconBtn('Restore', 'Restore item', () => restoreItem(item.id), 'mini');
+        const deleteBtn = iconBtn('Delete', 'Delete from collection', () => deleteItem(item.id), 'mini danger');
+        row.append(name, restoreBtn, deleteBtn);
+        removedList.appendChild(row);
+      });
+    }
+
+    function exportList() {
+      const c = getActiveCollection();
+      if (!c) return;
+      const rows = c.items.filter(i => !i.closed).map(i => i.relPath);
+      const blob = new Blob([rows.join('\n') + '\n'], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${c.name.replace(/[^a-z0-9-_]+/gi, '_') || 'collection'}_paths.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function render() {
+      const c = getActiveCollection();
+      grid.innerHTML = '';
+      renderCollectionPicker();
+      if (!c) {
+        collectionMeta.textContent = 'No collection loaded.';
+        pageInfo.textContent = 'Page 1/1';
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = 'Select a folder to create a collection.';
+        grid.appendChild(empty);
+        return;
+      }
+
+      collectionNameInput.value = c.name;
+      rowsInput.value = c.rows;
+      colsInput.value = c.cols;
+      sizeSlider.value = c.scale;
+      omniSearch.value = c.search || '';
+      sortBy.value = c.sortBy || 'name';
+
+      const items = filteredSortedItems(c);
+      const { slice, maxPage } = pageInfoFrom(c, items);
+      const displayCols = calcDisplayColumns(c);
+      grid.style.setProperty('--display-cols', String(displayCols));
+
+      pageInfo.textContent = `Page ${state.page}/${maxPage} • showing ${slice.length} of ${items.length}`;
+      collectionMeta.textContent = `Collection created: ${c.createdAt}`;
+      collectionPicker.value = c.name;
+      renderTrays(c);
+
+      if (slice.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = 'No files match current filters.';
+        grid.appendChild(empty);
+        return;
+      }
+
+      slice.forEach(item => grid.appendChild(renderPortlet(item)));
+      requestAnimationFrame(() => alignVisibleRows(displayCols));
+    }
+
+    folderInput.addEventListener('change', (e) => {
+      const files = e.target.files;
+      if (files && files.length) {
+        createCollectionFromFiles(files);
+      }
+    });
+
+    [rowsInput, colsInput, omniSearch, sortBy, sizeSlider].forEach(el => {
+      el.addEventListener('input', () => {
+        const source = (el === rowsInput || el === colsInput) ? 'rows-cols' : 'general';
+        updateCollectionFromControls(source);
+        state.page = 1;
+        render();
+      });
+      el.addEventListener('change', () => {
+        const source = (el === rowsInput || el === colsInput) ? 'rows-cols' : 'general';
+        updateCollectionFromControls(source);
+        state.page = 1;
+        render();
+      });
+    });
+
+    collectionNameInput.addEventListener('input', () => {
+      const c = getActiveCollection();
+      if (!c) return;
+      c.name = collectionNameInput.value;
+      persist();
+      render();
+    });
+
+    loadCollectionBtn.addEventListener('click', () => loadCollectionByNameOrId(collectionPicker.value));
+    collectionPicker.addEventListener('change', () => loadCollectionByNameOrId(collectionPicker.value));
+
+    document.getElementById('minTrayHeader').addEventListener('click', () => {
+      state.minTrayOpen = !state.minTrayOpen;
+      render();
+    });
+    document.getElementById('removedTrayHeader').addEventListener('click', () => {
+      state.removedTrayOpen = !state.removedTrayOpen;
+      render();
+    });
+
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.meta-pop') || e.target.closest('.meta-trigger')) return;
+      const c = getActiveCollection();
+      if (!c) return;
+      let changed = false;
+      c.items.forEach(item => {
+        if (item.metaOpen && !item.metaPinned) {
+          item.metaOpen = false;
+          changed = true;
+        }
+      });
+      if (changed) {
+        persist();
+        render();
+      }
+    });
+
+    prevPageBtn.addEventListener('click', () => {
+      state.page -= 1;
+      render();
+    });
+
+    nextPageBtn.addEventListener('click', () => {
+      state.page += 1;
+      render();
+    });
+
+    exportBtn.addEventListener('click', exportList);
+    controlsToggle.addEventListener('click', () => {
+      setControlsOpen(!state.controlsOpen);
+    });
+
+    window.addEventListener('beforeunload', () => {
+      Object.values(state.collections).forEach(c => {
+        c.items.forEach(item => {
+          if (item.objectUrl?.startsWith('blob:')) URL.revokeObjectURL(item.objectUrl);
+        });
+      });
+    });
+
+    setControlsOpen(false);
+    hydrate();
+  </script>
+</body>
+</html>
