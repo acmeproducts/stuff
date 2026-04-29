@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · dcr · v3.0.7 -->
+<!-- talkbridge · dcr · v3.0.8 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -288,12 +288,20 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   <button class="joiner-join-btn" id="joiner-join-btn" onclick="joinerProceed()">Join Call</button>
   <div class="joiner-sub" id="joiner-sub">Tap to allow camera &amp; microphone access</div>
 </div>
-<div class="thankyou-page" id="thankyou-page" style="position:fixed;inset:0;z-index:40;display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:32px 24px;background:#0a1a1a;">
-  <div class="thankyou-page-bg"></div>
-  <div class="joiner-lang-pill" id="thankyou-lang-pill"></div>
-  <div class="thankyou-title" id="thankyou-title">Thanks for calling.</div>
-  <div class="thankyou-sub" id="thankyou-sub">You can close this tab.</div>
-  <div style="display:flex;align-items:center;gap:6px;opacity:.6;margin-top:-8px;"><span id="thankyou-host-pill" style="font-size:22px;"></span><span id="thankyou-title-host" style="font-size:13px;color:rgba(255,255,255,.7);font-family:'Lora',serif;"></span></div>
+<div class="thankyou-page" id="thankyou-page" style="position:fixed;inset:0;z-index:40;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:32px 24px;background:#0a1a1a;">
+  <div style="display:flex;gap:24px;align-items:flex-start;width:100%;max-width:320px;">
+    <div style="flex:1;text-align:center;">
+      <div class="joiner-lang-pill" id="thankyou-lang-pill" style="font-size:28px;"></div>
+      <div class="thankyou-title" id="thankyou-title" style="font-size:18px;margin-top:6px;">Thanks for calling.</div>
+      <div class="thankyou-sub" id="thankyou-sub" style="font-size:12px;margin-top:4px;">You can close this tab.</div>
+    </div>
+    <div style="width:1px;background:rgba(255,255,255,.15);align-self:stretch;"></div>
+    <div style="flex:1;text-align:center;">
+      <div id="thankyou-host-pill" style="font-size:28px;"></div>
+      <div id="thankyou-title-host" style="font-size:18px;font-family:'Lora',serif;color:rgba(255,255,255,.7);margin-top:6px;"></div>
+      <div id="thankyou-sub-host" style="font-size:12px;color:rgba(255,255,255,.45);margin-top:4px;"></div>
+    </div>
+  </div>
   <button class="thankyou-btn" id="thankyou-rejoin-btn" onclick="rejoinCall()" style="display:none">🔄 Rejoin</button>
   <button class="thankyou-btn" id="thankyou-dl-btn" onclick="exportTxt()">⬇ Download transcript</button>
   <button class="thankyou-btn" onclick="copyTr()">📋 Copy transcript</button>
@@ -429,6 +437,17 @@ function _loadFastText(){
   };
   document.head.appendChild(s);
 }
+function _detectScriptRange(text){
+  var t=(text||'').trim();if(!t)return null;
+  if(/[\u0E00-\u0E7F]/.test(t))return 'th';
+  if(/[\u3040-\u30FF]/.test(t))return 'ja';
+  if(/[\u4E00-\u9FFF]/.test(t))return 'zh';
+  if(/[\uAC00-\uD7A3]/.test(t))return 'ko';
+  if(/[\u0600-\u06FF]/.test(t))return 'ar';
+  if(/[\u0900-\u097F]/.test(t))return 'hi';
+  if(/[\u0400-\u04FF]/.test(t))return 'ru';
+  return null;
+}
 function _detectLangAsync(text){
   var t=(text||'').trim();if(!t)return Promise.resolve(null);
   // Script-range fast path — instant, no WASM needed
@@ -495,15 +514,12 @@ async function sendChat(){
   ta.value='';ta.style.height='';$('chat-send-btn').disabled=true;
   var src=room.myLang,tgt=room.theirLang;
   var srcText=text;
-  // Step 1: normalize to myLang — 150ms race: WASM or sync fallback
+  // Step 1: normalize — instant for non-Latin scripts, WASM for Latin
   try{
-    var detected=await Promise.race([
-      _detectLangAsync(text),
-      new Promise(function(res){setTimeout(function(){res(null);},150);})
-    ]);
+    var detected=_detectScriptRange(text)||(await _detectLangAsync(text));
     if(detected&&detected!==src){
       var normed=await translate(text,detected,src);
-      if(normed)srcText=normed;
+      if(normed&&normed!==text)srcText=normed;
     }
   }catch(_){}
   // Step 2: ALWAYS translate myLang → theirLang
@@ -925,7 +941,7 @@ async function setupPC(){
     var s=pc.connectionState;
     log('rtc_conn',{s:s},s==='connected'?'ok':s==='failed'?'error':'info');
     if(s==='connected'){hidePartnerDisconnected();}
-    if(s==='disconnected'){showPartnerDisconnected(L('disconnected'));}
+    if(s==='disconnected'){log('rtc_disconnected_transient',{},'warn');}
     if(s==='failed'&&room.id&&lobbyState===LS.call){
       log('rtc_restart',{},'warn');
       try{pc.close();}catch(_){}pc=null;remoteStream=null;pendingCandidates=[];savedCandidates=[];
@@ -1008,11 +1024,9 @@ function onDGFinal(text){
   recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
   var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
   showSub(text,'mine');
-  // Normalize: 150ms race — WASM for mixed/latin, sync fallback for script-range
-  Promise.race([
-    _detectLangAsync(text),
-    new Promise(function(res){setTimeout(function(){res(null);},150);})
-  ]).then(function(detected){
+  // Normalize: script-range instant, WASM for Latin
+  var _sd=_detectScriptRange(text);
+  (_sd?Promise.resolve(_sd):_detectLangAsync(text)).then(function(detected){
     return (detected&&detected!==src)?translate(text,detected,src):Promise.resolve(text);
   }).then(function(srcText){
     srcText=norm(srcText)||text;
@@ -1261,6 +1275,7 @@ function showThankYou(msg){
   var hl=(_pendingJoin&&_pendingJoin.ml)||room.theirLang||'en';
   if(hp)hp.textContent=gL(hl).flag||'';
   if(ht)ht.textContent=L('thanks',hl);
+  var sh=$('thankyou-sub-host');if(sh)sh.textContent=L('close_tab',hl);
   $('thankyou-page').classList.add('show');
   history.replaceState({tbView:'thankyou'},'',location.pathname);
   var rb=$('thankyou-rejoin-btn');if(rb&&_pendingJoin){rb.style.display='';rb.textContent=L('rejoin',ty_lang);}
