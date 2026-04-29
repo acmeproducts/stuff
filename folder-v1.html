@@ -241,6 +241,24 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 .portal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;padding:12px;overflow:auto}
 .portlet{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px}
 
+.right-shell-head{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--border);}
+.seg-strip{display:flex;align-items:center;gap:8px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--raised);max-width:100%;overflow:hidden}
+.seg-strip button{border:none;background:transparent;color:var(--ts);cursor:pointer}
+.seg-strip .seg-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tp)}
+.file-view-toggle{display:flex;gap:6px;margin-left:8px}
+.portal-wrap{display:none;flex:1;min-height:0;overflow:auto;padding:10px}
+.portal-wrap.active{display:flex;flex-direction:column}
+.portal-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.portal-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;overflow:auto}
+.portlet{min-height:90px;cursor:grab}
+@media (max-width: 980px){
+  #t-hdr{flex-wrap:wrap;height:auto;padding:8px 10px;align-items:flex-start}
+  .h-srch{max-width:none;flex:1 1 220px}
+  #t-body{grid-template-columns:0 0 1fr}
+  #t-body #t-tree,#t-body #t-div{display:none}
+  .file-main{grid-template-columns:1fr}
+  .preview-pane{border-left:none;border-top:1px solid var(--border);max-height:42vh}
+}
 /* ── File viewer modal ── */
 .fv-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
 .fv-modal{background:var(--surface);border:1px solid var(--bmd);border-radius:16px;width:90%;max-width:900px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,.6)}
@@ -383,7 +401,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
     <div class="h-view-tabs">
       <button class="h-vtab active" id="vtab-tree" data-view="tree">Tree</button>
       <button class="h-vtab" id="vtab-timeline" data-view="timeline">Timeline</button>
-      <button class="h-vtab" id="vtab-portal" data-view="portal">Portal</button>
+      
     </div>
     <input class="h-srch" type="text" id="t-srch" placeholder="Search folders…">
     <div class="h-acts">
@@ -413,15 +431,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
         <div class="tl-chart" id="tl-chart"></div>
         <div class="tl-legend" id="tl-legend"></div>
       </div>
-      <div id="v-portal" class="hidden">
-        <div class="tl-controls">
-          <div class="tl-breadcrumb">Portal</div>
-          <div class="tl-drill-info">Scale, pin, fullscreen, run, soft-delete, rename, drag/drop, OmniSearch.</div>
-        </div>
-        <div class="portal-grid" id="portal-grid"></div>
-      </div>
+
       <!-- Tree view right pane -->
       <div class="breadcrumb" id="breadcrumb"></div>
+      <div class="right-shell-head hidden" id="segment-strip"><div class="seg-strip"><button id="seg-toggle">❯</button><span class="seg-label" id="seg-label"></span><button id="seg-clear">Clear</button></div></div>
       <div class="stats-zone" id="stats-zone">
         <div class="stats-classes" id="stats-classes"></div>
         <div class="stats-curation" id="stats-curation"></div>
@@ -429,15 +442,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
       <div class="file-zone">
         <div class="file-tb">
           <span class="file-lbl" id="file-lbl">Files</span>
-          <span class="file-cnt" id="file-cnt"></span>
+          <div class="file-view-toggle"><button class="btn btn-ghost btn-sm" id="btn-list-view">List</button><button class="btn btn-ghost btn-sm" id="btn-portal-view">Portal</button></div><span class="file-cnt" id="file-cnt"></span>
         </div>
         <div class="file-main">
-          <div class="tbl-wrap">
+          <div class="tbl-wrap" id="list-wrap">
             <table class="attr-tbl">
               <thead id="t-thead"></thead>
               <tbody id="t-tbody"></tbody>
             </table>
           </div>
+          <div class="portal-wrap" id="portal-wrap"><div class="portal-controls"><label style="font-size:12px">Grid <input type="range" min="1" max="10" value="4" id="portal-density"></label><button class="btn btn-ghost btn-sm" id="portal-prev">Prev</button><button class="btn btn-ghost btn-sm" id="portal-next">Next</button><button class="btn btn-pri btn-sm" id="portal-run">Run</button><button class="btn btn-ghost btn-sm" id="portal-pin">Pin Meta</button><button class="btn btn-danger btn-sm" id="portal-delete">Soft Delete</button></div><div class="portal-grid" id="portal-grid"></div></div>
           <div class="preview-pane">
             <div class="preview-hdr">Preview Pane</div>
             <div class="preview-body">
@@ -544,7 +558,7 @@ const st = {
   tree:{ selFolder:null, search:'', expanded:new Set() },
   files:{ sortCol:'effectiveDate', sortDir:'desc', classFilter:null, stackFilter:null, selectedId:null },
   timeline:{ drill:[], hiddenClasses:new Set() },
-  view:'tree',
+  view:'tree', ui:{rightView:'list',segmentCollapsed:false,portalPage:0,portalDensity:4,portalPinned:true,timelineFilter:null,loadingStep:''},
 };
 
 // ── Utilities ─────────────────────────────────────────────
@@ -1277,6 +1291,8 @@ const TreeView = {
     tbody.innerHTML='';tbody.appendChild(frag);
   },
 
+  getDisplayFiles(){ let files=Intel.getFilesForFolder(st.tree.selFolder,st.files.classFilter,st.files.stackFilter); if(st.ui.timelineFilter&&st.ui.timelineFilter.length){files=files.filter(f=>{const d=new Date(f.effectiveDate);const t=st.ui.timelineFilter;return !isNaN(d)&&d.getFullYear()===t[0]&&(!t[1]||d.getMonth()+1===t[1])&&(!t[2]||d.getDate()===t[2]);});} return files;},
+
   renderFooter(){
     const t=Intel.getTotals();
     const pct=t.total?Math.round((t.curated/t.total)*100):0;
@@ -1406,7 +1422,7 @@ const Timeline = {
   drillInto(key){
     if(st.timeline.drill.length>=2)return; // max drill: year→month→day
     st.timeline.drill.push(key);
-    this.renderBreadcrumb();this.renderChart();
+    this.renderBreadcrumb();this.renderChart();this.applySegmentFilter();
     const info=$id('tl-drill-info');
     if(info) info.textContent=st.timeline.drill.length===1?'Showing months':'Showing days';
   },
@@ -1429,6 +1445,14 @@ const Timeline = {
         const seg=document.createTextNode(String(key));el.appendChild(seg);
       }
     });
+  },
+
+  applySegmentFilter(){
+    st.ui.timelineFilter=[...st.timeline.drill];
+    const lbl=st.ui.timelineFilter.length?`Timeline: ${st.ui.timelineFilter.join(' / ')}`:'';
+    $id('seg-label').textContent=lbl;
+    $id('segment-strip').classList.toggle('hidden',!lbl);
+    TreeView.renderStats();TreeView.renderFileTable();
   },
 
   renderLegend(){
@@ -1550,6 +1574,10 @@ const FileViewer = {
   },
 };
 
+
+const PortalView={
+  render(){const wrap=$id('portal-wrap'),grid=$id('portal-grid');if(!wrap||!grid)return;const files=TreeView.getDisplayFiles?TreeView.getDisplayFiles():[];const page=st.ui.portalPage;const pageFiles=files.slice(page*16,page*16+16);grid.style.gridTemplateColumns=`repeat(${st.ui.portalDensity},minmax(0,1fr))`;grid.innerHTML='';pageFiles.forEach(f=>{const p=document.createElement('div');p.className='portlet';p.draggable=true;p.innerHTML=`<div contenteditable="true" data-id="${f.id}" class="col-link">${f.name}</div><div class="col-mono">${fmtDate(f.effectiveDate)}</div>`;p.addEventListener('click',()=>{st.files.selectedId=f.id;FileViewer.open(f,true);});grid.appendChild(p);});}
+};
 // ── App ───────────────────────────────────────────────────
 const App = {
   selectProvider(type){
@@ -1569,10 +1597,14 @@ const App = {
   async authenticate(){
     const btn=$id('btn-auth'),stat=$id('auth-status'),isG=st.providerType==='googledrive';
     btn.disabled=true;btn.textContent='Connecting & scanning folders…';
-    stat.textContent='Authenticating and reading top-level folders for one-time local intelligence bootstrap…';stat.className='smsg s-info';
+    stat.textContent='Reading intelligence 1/5: authenticating…';stat.className='smsg s-info';
     try{
       if(isG){const s=$id('gdrive-client-secret').value.trim();if(!s)throw new Error('Client secret required');await st.provider.authenticate(s);}
       else{await st.provider.authenticate();}
+      stat.textContent='Reading intelligence 3/5: loading folder intelligence…';
+      await sleep(120);
+      stat.textContent='Reading intelligence 5/5: finalizing…';
+      stat.className='smsg s-info';
       stat.textContent='✓ Connected!';stat.className='smsg s-ok';
       setTimeout(()=>this.afterAuth(),700);
     }catch(e){
@@ -1708,31 +1740,17 @@ const App = {
   setView(view){
     st.view=view;
     const tl=$id('v-timeline');
-    const portal=$id('v-portal');
     const tree=$id('t-tree'),div=$id('t-div');
     $id('vtab-tree').classList.toggle('active',view==='tree');
     $id('vtab-timeline').classList.toggle('active',view==='timeline');
-    $id('vtab-portal').classList.toggle('active',view==='portal');
     if(view==='timeline'){
       if(tl) tl.classList.remove('hidden');
-      if(portal) portal.classList.add('hidden');
       if(tree) tree.style.display='none';
       if(div) div.style.display='none';
       document.getElementById('t-body').style.gridTemplateColumns='0 0 1fr';
       Timeline.render();
-    }else if(view==='portal'){
-      if(tl) tl.classList.add('hidden');
-      if(portal) portal.classList.remove('hidden');
-      if(tree) tree.style.display='none';
-      if(div) div.style.display='none';
-      document.getElementById('t-body').style.gridTemplateColumns='0 0 1fr';
-      const grid=$id('portal-grid');
-      if(grid && !grid.childElementCount){
-        for(let i=1;i<=8;i++){const p=document.createElement('div');p.className='portlet';p.textContent=`Portlet ${i}`;grid.appendChild(p);}
-      }
     }else{
       if(tl) tl.classList.add('hidden');
-      if(portal) portal.classList.add('hidden');
       if(tree) tree.style.display='';
       if(div) div.style.display='';
       document.getElementById('t-body').style.gridTemplateColumns=document.getElementById('t-body').classList.contains('left-collapsed')?'0 0 1fr':'var(--lpw) 4px 1fr';
@@ -1810,7 +1828,6 @@ function initEvents(){
   $id('btn-collapse').addEventListener('click',()=>{st.tree.expanded.clear();TreeView.renderTree();});
   $id('t-srch').addEventListener('input',e=>{st.tree.search=e.target.value;TreeView.render();});
   $id('btn-tl-reset').addEventListener('click',()=>{st.timeline.drill=[];Timeline.renderBreadcrumb();Timeline.renderChart();$id('tl-drill-info').textContent='';});
-  $id('vtab-portal').addEventListener('click',()=>App.setView('portal'));
 
   // View tabs
   document.querySelectorAll('.h-vtab').forEach(btn=>{
@@ -1850,6 +1867,16 @@ function initEvents(){
   }
 
   // Timeline resize
+  $id('btn-list-view').addEventListener('click',()=>{$id('list-wrap').style.display='block';$id('portal-wrap').classList.remove('active');});
+  $id('btn-portal-view').addEventListener('click',()=>{$id('list-wrap').style.display='none';$id('portal-wrap').classList.add('active');PortalView.render();});
+  $id('portal-density').addEventListener('input',e=>{st.ui.portalDensity=Number(e.target.value);PortalView.render();});
+  $id('portal-prev').addEventListener('click',()=>{st.ui.portalPage=Math.max(0,st.ui.portalPage-1);PortalView.render();});
+  $id('portal-next').addEventListener('click',()=>{st.ui.portalPage++;PortalView.render();});
+  $id('portal-pin').addEventListener('click',e=>{st.ui.portalPinned=!st.ui.portalPinned;e.target.textContent=st.ui.portalPinned?'Pin Meta':'Unpin Meta';$id('pv-meta').style.display=st.ui.portalPinned?'block':'none';});
+  $id('portal-delete').addEventListener('click',()=>{const f=st.intel?.files?.[st.files.selectedId];if(f){f.stack='trash';TreeView.renderFileTable();PortalView.render();}});
+  $id('portal-run').addEventListener('click',async()=>{const files=TreeView.getDisplayFiles();for(const f of files.slice(0,8)){st.files.selectedId=f.id;await FileViewer.open(f,true);await sleep(250);}});
+  $id('seg-toggle').addEventListener('click',()=>{st.ui.segmentCollapsed=!st.ui.segmentCollapsed;$id('seg-label').style.display=st.ui.segmentCollapsed?'none':'';$id('seg-toggle').textContent=st.ui.segmentCollapsed?'❮':'❯';});
+  $id('seg-clear').addEventListener('click',()=>{st.timeline.drill=[];st.ui.timelineFilter=null;$id('segment-strip').classList.add('hidden');Timeline.renderBreadcrumb();Timeline.renderChart();TreeView.render();});
   window.addEventListener('resize',()=>{if(st.view==='timeline') Timeline.renderChart();});
 }
 
