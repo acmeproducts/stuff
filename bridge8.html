@@ -97,7 +97,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .call-transcript-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 .call.transcript-collapsed .chevron-down{display:none;}
 .call:not(.transcript-collapsed) .chevron-right{display:none;}
-.transcript-more-indicator{position:absolute;bottom:calc(env(safe-area-inset-bottom) + 60px);right:50%;transform:translateX(50%);z-index:3;min-width:36px;height:36px;border-radius:999px;background:var(--teal);color:#fff;border:2px solid var(--bg);display:none;align-items:center;justify-content:center;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4);}
+.transcript-more-indicator{position:absolute;bottom:calc(env(safe-area-inset-bottom) + 60px);right:50%;transform:translateX(50%);z-index:3;min-width:36px;height:36px;border-radius:999px;background:var(--green);color:#000;border:2px solid var(--bg);display:none;align-items:center;justify-content:center;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4);}
 .transcript-more-indicator.show{display:flex;}
 .transcript-more-indicator:hover{background:var(--teal-bright);}
 .call.transcript-collapsed .call-transcript{flex:0 0 32px;max-height:32px;overflow:hidden;}
@@ -382,6 +382,9 @@ var dgDesired=false;
 // Chat reliability (Phase 6)
 var _chatOutbox=new Map();   // chatId → relay msg object, cleared on ack
 var _chatReceived=new Set(); // chatId dedupe set
+var remotePlayToken=0;
+var remotePlayPending=false;
+var remoteUnmutedKey='';
 
 function setCallPhase(next,reason){
   log('phase',{from:callPhase,to:next,why:reason||''});
@@ -928,14 +931,17 @@ function handleRelay(d){
   if(d.type==='chat-ack'){_chatOutbox.delete(d.chatId);log('chat_ack',{chatId:d.chatId});return;}
   if(d.type==='webrtc-signal'){handleSig(d);return}
   if(d.type==='subtitle'){
+    var subText=normalizeText(d.text||'','speech');
+    var subSource=normalizeText(d.sourceText||subText,'speech');
     markPartnerTalking();
-    if(d.text&&d.targetLang===room.myLang)showSub(d.text,'partner');
-    addTr('partner',d.sourceText,d.text,d.sourceLang,d.targetLang,d.subtitleSeq);return;
+    if(subText&&d.targetLang===room.myLang)showSub(subText,'partner');
+    addTr('partner',subSource,subText,d.sourceLang,d.targetLang,d.subtitleSeq);return;
   }
   if(d.type==='subtitle-update'){
+    var subUpdateText=normalizeText(d.text||'','speech');
     markPartnerTalking();
-    if(d.text&&d.targetLang===room.myLang)showSub(d.text,'partner');
-    patchTr('partner',d.subtitleSeq,d.text,d.sourceLang,d.targetLang);return;
+    if(subUpdateText&&d.targetLang===room.myLang)showSub(subUpdateText,'partner');
+    patchTr('partner',d.subtitleSeq,subUpdateText,d.sourceLang,d.targetLang);return;
   }
   if(d.type==='chat-msg'){handleChatMsg(d);return;}
   if(d.type==='cam-state'){var rco=$('remote-cam-off');if(rco){rco.classList.toggle('show',d.camOn===false);}var rcl=$('remote-cam-off-label');if(rcl)rcl.textContent=L('camera_off');return;}
@@ -987,17 +993,35 @@ function refreshRemoteVideo(){
   var tracks=remoteStream?remoteStream.getTracks():[];
   var hasVideoTrack=tracks.some(function(t){return t.kind==='video'&&t.readyState==='live'});
   var hasRemoteTrack=tracks.some(function(t){return t.readyState==='live'});
+  var streamId=remoteStream&&(remoteStream.id||'');
+  var unmutedKey=sessionEpoch+':'+streamId;
   log('rtc_refresh',{tracks:tracks.map(function(t){return t.kind+':'+t.readyState}).join(',')});
   if(hasRemoteTrack&&rv.srcObject!==remoteStream){rv.srcObject=remoteStream;}
   rv.playsInline=true;rv.autoplay=true;
   if(hasRemoteTrack){
     rv.muted=true;
+    if(remotePlayPending)return;
+    remotePlayPending=true;
+    var playToken=++remotePlayToken;
+    var playEpoch=sessionEpoch;
+    var playStream=remoteStream;
     var tryPlay=rv.play&&rv.play();
-    if(tryPlay&&tryPlay.then){tryPlay.then(function(){rv.muted=false;log('rtc_unmuted',{},'ok');}).catch(function(e){log('rtc_play_err',{e:String(e)},'error');});}
+    if(tryPlay&&tryPlay.then){tryPlay.then(function(){
+      remotePlayPending=false;
+      if(playToken!==remotePlayToken||playEpoch!==sessionEpoch||playStream!==remoteStream)return;
+      rv.muted=false;
+      if(remoteUnmutedKey!==unmutedKey){remoteUnmutedKey=unmutedKey;log('rtc_unmuted',{},'ok');}
+    }).catch(function(e){
+      remotePlayPending=false;
+      if(playToken!==remotePlayToken||playEpoch!==sessionEpoch||playStream!==remoteStream)return;
+      log('rtc_play_err',{e:String(e)},'error');
+    });}
+    else{remotePlayPending=false;}
     $('solo-banner').style.display='none';
   }
   if(hasVideoTrack){$('no-video-msg').style.display='none';}
   else{$('no-video-msg').style.display='';if(!hasRemoteTrack&&rv.srcObject)rv.srcObject=null;}
+  if(!hasRemoteTrack){remotePlayToken++;remotePlayPending=false;}
 }
 function bindRemoteTrackState(track){
   if(!track||track._tbBound)return;track._tbBound=true;
@@ -1006,6 +1030,7 @@ function bindRemoteTrackState(track){
 function resetRemoteMediaState(){
   var rv=$('remote-video');
   if(remoteStream)remoteStream.getTracks().forEach(function(t){t.onunmute=null;t.onmute=null;t.onended=null;});
+  remotePlayToken++;remotePlayPending=false;remoteUnmutedKey='';
   remoteStream=null;rv.srcObject=null;$('no-video-msg').style.display='';
 }
 
@@ -1162,16 +1187,18 @@ function startDeepgram(){
   if(!key){toast('Deepgram key missing');return}
   localStorage.setItem('tb_dg_key',key);
   if(dgActive){log('dg_skip_active',{},'warn');return;}
-  if(dgWs&&dgWs.readyState<2){log('dg_skip_open',{},'warn');return;}
+  if(dgWs&&dgWs.readyState<2){log('dg_skip_open',{},'info');return;}
   if(!videoStream){log('dg_no_stream',{},'error');return}
   if(micMutedByUser){log('dg_skip_muted',{},'warn');return;}
   var langCode=DG_LANGS[room.myLang]||room.myLang||'en-US';
-  var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(langCode)+'&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=true&endpointing=400';
+  var langLower=String(langCode||'').toLowerCase();
+  var model=(langLower==='en'||langLower.indexOf('en-')===0)?'nova-3':'nova-2';
+  var url='wss://api.deepgram.com/v1/listen?model='+encodeURIComponent(model)+'&language='+encodeURIComponent(langCode)+'&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=true&endpointing=400';
   var captureEpoch=sessionEpoch;
   dgWs=new WebSocket(url,['token',key]);
   dgWs.onopen=function(){
     if(captureEpoch!==sessionEpoch||!dgDesired||micMutedByUser){log('dg_open_stale',{captureEpoch:captureEpoch,current:sessionEpoch},'warn');try{dgWs.close();}catch(_){}return;}
-    dgActive=true;log('dg_open',{lang:langCode},'ok');
+    dgActive=true;log('dg_open',{lang:langCode,model:model},'ok');
     try{
       var audioTracks=(videoStream?videoStream.getAudioTracks():[]).filter(function(t){return t.readyState==='live'&&t!==_silentAudioTrack;});
       if(!audioTracks.length){log('dg_no_audio',{},'error');dgActive=false;dgWs.close();return;}
@@ -1310,7 +1337,7 @@ function checkAutoScroll(){
   if(transcriptNearBottom()){c.scrollTop=0;setTranscriptMore(false)}else{setTranscriptMore(true)}
 }
 function transcriptNearBottom(){var c=$('call-transcript');if(!c)return true;return c.scrollTop<100;}
-function setTranscriptMore(show){var ind=$('transcript-more-indicator');if(!ind)return;if(show)ind.classList.add('show');else ind.classList.remove('show');}
+function setTranscriptMore(show){var ind=$('transcript-more-indicator');if(!ind)return;ind.textContent=show?'↑':'↑';if(show)ind.classList.add('show');else ind.classList.remove('show');}
 function scrollToBottom(){var c=$('call-transcript');if(c){c.scrollTop=0;setTranscriptMore(false)}}
 
 function copyTr(){
