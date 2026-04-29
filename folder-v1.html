@@ -108,6 +108,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 /* ── Tree layout ── */
 .tree-layout{position:fixed;inset:0;display:grid;grid-template-rows:50px 1fr 30px;background:var(--bg)}
 #t-hdr{display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+.h-left{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .h-orb{width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fbbf24,var(--acc) 60%,#92400e);flex-shrink:0}
 .h-wm{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ts);letter-spacing:.1em;text-transform:uppercase;flex-shrink:0}
 .h-sep{width:1px;height:20px;background:var(--border);flex-shrink:0}
@@ -124,9 +125,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 .enroll-more-btn{font-size:12px;padding:4px 11px;background:var(--acc-d);border:1px solid var(--bacc);color:var(--acc);border-radius:var(--rs);cursor:pointer;font-family:var(--sans);font-weight:600;transition:all .15s;white-space:nowrap}
 .enroll-more-btn:hover{background:rgba(245,158,11,.2)}
 #t-body{display:grid;grid-template-columns:var(--lpw) 4px 1fr;overflow:hidden}
+#t-body.left-collapsed{grid-template-columns:0 0 1fr}
 
 /* ── Left pane ── */
 #t-tree{display:flex;flex-direction:column;background:var(--surface);border-right:1px solid var(--border);overflow:hidden}
+#t-body.left-collapsed #t-tree{display:none}
+#t-body.left-collapsed #t-div{display:none}
 .tp-hdr{padding:8px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);font-size:10px;font-weight:700;color:var(--tm);text-transform:uppercase;letter-spacing:.1em;flex-shrink:0}
 .tp-scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 0}
 .tp-scroll::-webkit-scrollbar{width:4px}
@@ -180,6 +184,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 
 /* File table zone */
 .file-zone{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.file-main{display:grid;grid-template-columns:minmax(380px,1fr) minmax(300px,40%);flex:1;min-height:0}
+.preview-pane{border-left:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;min-height:0}
+.preview-hdr{padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;color:var(--tm);font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.preview-body{display:grid;grid-template-rows:minmax(180px,1fr) auto;min-height:0;overflow:hidden}
+.preview-canvas{background:var(--bg);overflow:auto}
+.preview-meta{border-top:1px solid var(--border);overflow:auto;max-height:38%;background:var(--raised)}
+.preview-empty{color:var(--tm);padding:16px;font-size:12px}
 .file-tb{display:flex;align-items:center;gap:8px;padding:6px 14px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
 .file-lbl{font-size:11px;font-weight:700;color:var(--tm);text-transform:uppercase;letter-spacing:.08em;flex-shrink:0}
 .file-cnt{font-family:var(--mono);font-size:11px;color:var(--tm);margin-left:auto}
@@ -227,6 +238,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 .tl-leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ts);cursor:pointer}
 .tl-leg-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
 .tl-leg-item.muted{opacity:.3}
+.portal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;padding:12px;overflow:auto}
+.portlet{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px}
 
 /* ── File viewer modal ── */
 .fv-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
@@ -361,11 +374,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
     <div class="h-orb"></div>
     <span class="h-wm">Intelligence</span>
     <div class="h-sep"></div>
-    <span class="h-pvr" id="h-pvr">—</span>
+    <div class="h-left">
+      <button class="ic-btn" id="btn-hamburger" title="Toggle folders">☰</button>
+      <span class="h-pvr" id="h-pvr">—</span>
+      <button class="btn btn-ghost btn-sm" id="btn-switch-volume">Switch Volume</button>
+    </div>
     <div class="h-sep"></div>
     <div class="h-view-tabs">
       <button class="h-vtab active" id="vtab-tree" data-view="tree">Tree</button>
       <button class="h-vtab" id="vtab-timeline" data-view="timeline">Timeline</button>
+      <button class="h-vtab" id="vtab-portal" data-view="portal">Portal</button>
     </div>
     <input class="h-srch" type="text" id="t-srch" placeholder="Search folders…">
     <div class="h-acts">
@@ -373,7 +391,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
         <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
       </button>
       <button class="enroll-more-btn" id="btn-more">+ Enroll</button>
-      <button class="btn btn-ghost btn-sm" id="btn-disconnect">Disconnect</button>
     </div>
   </header>
   <div id="t-body">
@@ -396,6 +413,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
         <div class="tl-chart" id="tl-chart"></div>
         <div class="tl-legend" id="tl-legend"></div>
       </div>
+      <div id="v-portal" class="hidden">
+        <div class="tl-controls">
+          <div class="tl-breadcrumb">Portal</div>
+          <div class="tl-drill-info">Scale, pin, fullscreen, run, soft-delete, rename, drag/drop, OmniSearch.</div>
+        </div>
+        <div class="portal-grid" id="portal-grid"></div>
+      </div>
       <!-- Tree view right pane -->
       <div class="breadcrumb" id="breadcrumb"></div>
       <div class="stats-zone" id="stats-zone">
@@ -407,11 +431,20 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
           <span class="file-lbl" id="file-lbl">Files</span>
           <span class="file-cnt" id="file-cnt"></span>
         </div>
-        <div class="tbl-wrap">
-          <table class="attr-tbl">
-            <thead id="t-thead"></thead>
-            <tbody id="t-tbody"></tbody>
-          </table>
+        <div class="file-main">
+          <div class="tbl-wrap">
+            <table class="attr-tbl">
+              <thead id="t-thead"></thead>
+              <tbody id="t-tbody"></tbody>
+            </table>
+          </div>
+          <div class="preview-pane">
+            <div class="preview-hdr">Preview Pane</div>
+            <div class="preview-body">
+              <div class="preview-canvas" id="pv-preview"><div class="preview-empty">Select an item to preview.</div></div>
+              <div class="preview-meta" id="pv-meta"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -509,7 +542,7 @@ const st = {
   acq:{ running:false, cancelled:false, t0:0 },
   newChildren:[],
   tree:{ selFolder:null, search:'', expanded:new Set() },
-  files:{ sortCol:'effectiveDate', sortDir:'desc', classFilter:null, stackFilter:null },
+  files:{ sortCol:'effectiveDate', sortDir:'desc', classFilter:null, stackFilter:null, selectedId:null },
   timeline:{ drill:[], hiddenClasses:new Set() },
   view:'tree',
 };
@@ -1220,7 +1253,7 @@ const TreeView = {
         const td=document.createElement('td');td.style.maxWidth=col.w+'px';
         if(col.id==='name'){
           const a=document.createElement('span');a.className='col-link';a.textContent=file.name;
-          a.addEventListener('click',e=>{e.stopPropagation();FileViewer.open(file);});
+          a.addEventListener('click',e=>{e.stopPropagation();st.files.selectedId=file.id;FileViewer.open(file,true);this.renderFileTable();});
           td.appendChild(a);
         }else if(col.id==='class'){
           const def=CLASS_DEF[file.class]||CLASS_DEF.other;
@@ -1237,7 +1270,8 @@ const TreeView = {
         }
         row.appendChild(td);
       });
-      row.addEventListener('click',()=>FileViewer.open(file));
+      if(st.files.selectedId===file.id) row.classList.add('row-sel');
+      row.addEventListener('click',()=>{st.files.selectedId=file.id;FileViewer.open(file,true);this.renderFileTable();});
       frag.appendChild(row);
     });
     tbody.innerHTML='';tbody.appendChild(frag);
@@ -1416,7 +1450,12 @@ const Timeline = {
 
 // ── File viewer ───────────────────────────────────────────
 const FileViewer = {
-  async open(file){
+  async open(file,inline=false){
+    if(inline){
+      this.renderMeta(file,'pv-meta');
+      await this.renderPreview(file,'pv-preview');
+      return;
+    }
     const overlay=$id('fv-overlay');if(!overlay)return;
     $id('fv-name').textContent=file.name||'—';
     const def=CLASS_DEF[file.class]||CLASS_DEF.other;
@@ -1428,8 +1467,8 @@ const FileViewer = {
 
   close(){const o=$id('fv-overlay');if(o) o.classList.add('hidden');const p=$id('fv-preview');if(p) p.innerHTML='';},
 
-  async renderPreview(file){
-    const preview=$id('fv-preview');if(!preview)return;
+  async renderPreview(file,targetId='fv-preview'){
+    const preview=$id(targetId);if(!preview)return;
     preview.innerHTML='<div style="color:var(--tm);font-size:12px">Loading…</div>';
     try{
       if(file.class==='image'){
@@ -1489,8 +1528,8 @@ const FileViewer = {
     const r=await fetch(blobUrl);return r.text();
   },
 
-  renderMeta(file){
-    const el=$id('fv-meta');if(!el)return;el.innerHTML='';
+  renderMeta(file,targetId='fv-meta'){
+    const el=$id(targetId);if(!el)return;el.innerHTML='';
     const sec=(title,rows)=>{
       const s=document.createElement('div');s.className='fv-meta-sec';
       s.innerHTML=`<div class="fv-meta-title">${title}</div>`;
@@ -1529,8 +1568,8 @@ const App = {
 
   async authenticate(){
     const btn=$id('btn-auth'),stat=$id('auth-status'),isG=st.providerType==='googledrive';
-    btn.disabled=true;btn.textContent='Connecting…';
-    stat.textContent='Authenticating…';stat.className='smsg s-info';
+    btn.disabled=true;btn.textContent='Connecting & scanning folders…';
+    stat.textContent='Authenticating and reading top-level folders for one-time local intelligence bootstrap…';stat.className='smsg s-info';
     try{
       if(isG){const s=$id('gdrive-client-secret').value.trim();if(!s)throw new Error('Client secret required');await st.provider.authenticate(s);}
       else{await st.provider.authenticate();}
@@ -1669,20 +1708,34 @@ const App = {
   setView(view){
     st.view=view;
     const tl=$id('v-timeline');
+    const portal=$id('v-portal');
     const tree=$id('t-tree'),div=$id('t-div');
     $id('vtab-tree').classList.toggle('active',view==='tree');
     $id('vtab-timeline').classList.toggle('active',view==='timeline');
+    $id('vtab-portal').classList.toggle('active',view==='portal');
     if(view==='timeline'){
       if(tl) tl.classList.remove('hidden');
+      if(portal) portal.classList.add('hidden');
       if(tree) tree.style.display='none';
       if(div) div.style.display='none';
       document.getElementById('t-body').style.gridTemplateColumns='0 0 1fr';
       Timeline.render();
+    }else if(view==='portal'){
+      if(tl) tl.classList.add('hidden');
+      if(portal) portal.classList.remove('hidden');
+      if(tree) tree.style.display='none';
+      if(div) div.style.display='none';
+      document.getElementById('t-body').style.gridTemplateColumns='0 0 1fr';
+      const grid=$id('portal-grid');
+      if(grid && !grid.childElementCount){
+        for(let i=1;i<=8;i++){const p=document.createElement('div');p.className='portlet';p.textContent=`Portlet ${i}`;grid.appendChild(p);}
+      }
     }else{
       if(tl) tl.classList.add('hidden');
+      if(portal) portal.classList.add('hidden');
       if(tree) tree.style.display='';
       if(div) div.style.display='';
-      document.getElementById('t-body').style.gridTemplateColumns='var(--lpw) 4px 1fr';
+      document.getElementById('t-body').style.gridTemplateColumns=document.getElementById('t-body').classList.contains('left-collapsed')?'0 0 1fr':'var(--lpw) 4px 1fr';
       TreeView.render();
     }
   },
@@ -1748,10 +1801,16 @@ function initEvents(){
 
   $id('btn-refresh').addEventListener('click',()=>App.refreshDrive());
   $id('btn-more').addEventListener('click',()=>{showScreen('scr-enroll');App.loadEnrollment();});
-  $id('btn-disconnect').addEventListener('click',()=>App.disconnect());
+  $id('btn-switch-volume').addEventListener('click',()=>showScreen('scr-provider'));
+  $id('btn-hamburger').addEventListener('click',()=>{
+    const body=$id('t-body');
+    body.classList.toggle('left-collapsed');
+    if(st.view==='tree') body.style.gridTemplateColumns=body.classList.contains('left-collapsed')?'0 0 1fr':'var(--lpw) 4px 1fr';
+  });
   $id('btn-collapse').addEventListener('click',()=>{st.tree.expanded.clear();TreeView.renderTree();});
   $id('t-srch').addEventListener('input',e=>{st.tree.search=e.target.value;TreeView.render();});
   $id('btn-tl-reset').addEventListener('click',()=>{st.timeline.drill=[];Timeline.renderBreadcrumb();Timeline.renderChart();$id('tl-drill-info').textContent='';});
+  $id('vtab-portal').addEventListener('click',()=>App.setView('portal'));
 
   // View tabs
   document.querySelectorAll('.h-vtab').forEach(btn=>{
