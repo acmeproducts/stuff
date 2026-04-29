@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · dcr · v3.2 -->
+<!-- talkbridge · dcr · v3.4 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -73,7 +73,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .call.active{display:flex;}
 
 /* === TOP BAR with controls === */
-/* v3.2: video control buttons in transcript strip */
+/* v3.4: video control buttons in transcript strip */
 .vc-btn{width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,.1);color:#ccc;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;}
 .vc-btn:hover{background:rgba(255,255,255,.18);color:#fff;}
 .vc-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;}
@@ -185,14 +185,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 @media(min-width:768px){.chat-compose-ta{font-size:15px;}}
 @media(max-height:500px) and (orientation:landscape){.chat-compose-strip{padding:5px 10px;}.chat-compose-ta{min-height:32px;font-size:13px;}}
 
-/* v3.2: Joiner landing page */
+/* v3.4: Joiner landing page */
 .joiner-landing{position:fixed;inset:0;z-index:30;display:none;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:32px 20px;background-image:linear-gradient(rgba(10,10,10,.82),rgba(10,10,10,.82)),url('./flags.gif'),url('./flags.png'),linear-gradient(135deg,#0a2020,#0a1020);background-size:cover,cover,cover,cover;background-position:center,center,center,center;background-repeat:no-repeat,no-repeat,no-repeat,no-repeat;}
 .joiner-landing.show{display:flex;}
 
 .joiner-flags{font-size:36px;letter-spacing:4px;}
 .joiner-join-btn{width:100%;background:var(--teal-bright);color:#fff;border:none;border-radius:16px;padding:18px;font-size:18px;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;}
 .joiner-sub{font-size:13px;color:rgba(255,255,255,.6);text-align:center;}.joiner-lang-pill{font-size:22px;letter-spacing:2px;}.joiner-room-name{font-family:"Lora",serif;font-size:24px;font-weight:600;color:#fff;text-align:center;line-height:1.3;width:100%;word-break:break-word;}
-/* v3.2: Thank-you page */
+/* v3.4: Thank-you page */
 .thankyou-page{position:fixed;inset:0;z-index:40;display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:32px 24px;background-image:linear-gradient(rgba(10,10,10,.82),rgba(10,10,10,.82)),url('./flags.gif'),url('./flags.png'),linear-gradient(135deg,#0a2020,#0a1020);background-size:cover,cover,cover,cover;background-position:center,center,center,center;background-repeat:no-repeat,no-repeat,no-repeat,no-repeat;}
 .thankyou-page.show{display:flex;}
 .thankyou-title{font-family:"Lora",serif;font-size:22px;font-weight:600;color:#fff;text-align:center;}
@@ -231,7 +231,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       </div>
       <div class="lobby-footer" style="flex-shrink:0;border-top:1px solid var(--surface2);padding-top:6px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;">
         <button class="lobby-footer-btn" onclick="openLog()" title="Debug log">🪲</button>
-        <span style="font-size:10px;color:var(--text-muted);">v3.2</span>
+        <span style="font-size:10px;color:var(--text-muted);">v3.4</span>
         <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
       </div>
     </div>    </div>
@@ -525,16 +525,15 @@ async function sendChat(){
   ta.value='';ta.style.height='';$('chat-send-btn').disabled=true;
   var src=room.myLang,tgt=room.theirLang;
   var srcText=text;
-  // Step 1: normalize typed text to room.myLang
-  // Async WASM (handles Latin mixed-language) with 800ms fallback to sync script-range.
+  // Step 1: normalize typed text to room.myLang via WASM detection (150ms timeout)
   try{
     var detected=await Promise.race([
       _detectLangAsync(text),
-      new Promise(function(res){setTimeout(function(){res(detectLang(text,src));},150);})
+      new Promise(function(res){setTimeout(function(){res(null);},150);})
     ]);
     if(detected&&detected!==src){
       var normed=await translate(text,detected,src);
-      if(normed)srcText=normed;
+      if(normed&&normed!==text)srcText=normed;
     }
   }catch(_){}
   // Step 2: translate myLang → theirLang
@@ -762,7 +761,7 @@ async function createRoom(){
   saveRecent();enterCall();
 }
 
-// v3.2: Joiner landing — keys applied immediately, getUserMedia deferred until tap
+// v3.4: Joiner landing — keys applied immediately, getUserMedia deferred until tap
 var _pendingJoin=null;
 function handleHash(p){
   if(!p||!p.r)return;
@@ -855,7 +854,7 @@ function handleRelay(d){
     if(rco){if(d.camOn===false)rco.classList.add('show');else rco.classList.remove('show');}
     return;
   }
-  if(d.type==='hangup'){showGoodbye();return}
+  if(d.type==='hangup'){if(room.role==='joiner')showGoodbye();return}
 }
 
 async function enterCall(){
@@ -891,11 +890,11 @@ function refreshRemoteVideo(){
     if(tryPlay&&tryPlay.then){tryPlay.then(function(){rv.muted=false;log('rtc_unmuted',{},'ok');}).catch(function(e){log('rtc_play_err',{e:String(e)},'error');});}
   }
   if(hasRemoteTrack){rv.playsInline=true;rv.autoplay=true;$('solo-banner').style.display='none';}
-  if(hasVideoTrack){
+  if(rv.srcObject&&rv.srcObject.getTracks().length){
     $('no-video-msg').style.display='none';
-  }else{
+  }else if(!hasRemoteTrack){
     $('no-video-msg').style.display='';
-    if(!hasRemoteTrack&&rv.srcObject)rv.srcObject=null;
+    if(rv.srcObject)rv.srcObject=null;
   }
 }
 function bindRemoteTrackState(track){
@@ -1032,7 +1031,7 @@ function onDGFinal(text){
   // Normalize spoken text to myLang (handles code-switching / wrong-lang speech)
   Promise.race([
     _detectLangAsync(text),
-    new Promise(function(res){setTimeout(function(){res(detectLang(text,src));},150);})
+    new Promise(function(res){setTimeout(function(){res(null);},150);})
   ]).then(function(detected){
     var needsNorm=detected&&detected!==src;
     return needsNorm?translate(text,detected,src):Promise.resolve(text);
@@ -1280,7 +1279,7 @@ function toggleCam(){
   // Signal cam state to partner via relay
   relaySend({type:'cam-state',camOn:camOn});
 }
-// v3.2: Thank-you page flows
+// v3.4: Thank-you page flows
 function rejoinCall(){
   $('thankyou-page').classList.remove('show');
   if(_pendingJoin){$('joiner-landing').classList.add('show');}
@@ -1298,12 +1297,13 @@ function showGoodbye(){
   hidePartnerDisconnected();
   var jl=((_pendingJoin&&_pendingJoin.tl)||room.myLang||'en');
   var hl=((_pendingJoin&&_pendingJoin.ml)||room.theirLang||'en');
-  var lp=$('thankyou-lang-pill');if(lp)lp.textContent=jl?gL(jl).flag:'';
+  var jlObj=gL(jl),hlObj=gL(hl);
+  var lp=$('thankyou-lang-pill');if(lp)lp.textContent=jlObj.flag||'';
   var t=$('thankyou-title');if(t)t.textContent=L('thanks',jl);
   var s=$('thankyou-sub');if(s)s.textContent=L('close_tab',jl);
   var th=$('thankyou-title-host');if(th)th.textContent=L('thanks',hl);
   var sh=$('thankyou-sub-host');if(sh)sh.textContent=L('close_tab',hl);
-  var hp=$('thankyou-host-pill');if(hp)hp.textContent=hl?gL(hl).flag:'';
+  var hp=$('thankyou-host-pill');if(hp)hp.textContent=hlObj.flag||'';
   var rb=$('thankyou-rejoin-btn');if(rb){if(_pendingJoin){rb.style.display='';rb.textContent=L('rejoin',jl);}else{rb.style.display='none';}}
   var dl=$('thankyou-dl-btn');if(dl)dl.textContent=L('dl_transcript',jl);
   var cl=$('thankyou-copy-tr-btn');if(cl)cl.textContent=L('copy_tr',jl);
