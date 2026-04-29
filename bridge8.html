@@ -278,15 +278,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   <button class="joiner-join-btn" id="joiner-join-btn" onclick="joinerProceed()">Join Call</button>
   <div class="joiner-sub" id="joiner-sub">Tap to allow camera &amp; microphone access</div>
 </div>
-<div class="thankyou-page" id="thankyou-page" style="position:fixed;inset:0;z-index:40;display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:32px 24px;background:#0a1a1a;">
+<div class="thankyou-page" id="thankyou-page">
   <div class="thankyou-page-bg"></div>
   <div class="joiner-lang-pill" id="thankyou-lang-pill"></div>
   <div class="thankyou-title" id="thankyou-title">Thanks for calling.</div>
-  <div class="thankyou-sub" id="thankyou-sub">You can close this tab.</div>
-  <button class="thankyou-btn" id="thankyou-rejoin-btn" onclick="rejoinCall()" style="display:none">🔄 Rejoin</button>
   <button class="thankyou-btn" onclick="copyLogText();toast('Log copied')">📋 Copy log</button>
-  <button class="thankyou-btn" id="thankyou-dl-btn" onclick="exportTxt()">⬇ Download transcript</button>
   <button class="thankyou-btn" onclick="downloadThankyouLog()">⬇ Download log</button>
+  <button class="thankyou-btn" onclick="copyTr();toast('Transcript copied')">📋 Copy transcript</button>
+  <button class="thankyou-btn" id="thankyou-dl-btn" onclick="exportTxt()">⬇ Download transcript</button>
+  <button class="thankyou-btn" id="thankyou-rejoin-btn" onclick="rejoinCall()" style="display:none">🔄 Rejoin</button>
+  <div class="thankyou-sub" id="thankyou-sub" style="margin-top:auto;padding-top:16px;">You can close this tab.</div>
 </div>
 <div class="call" id="call-screen">
   <div class="call-videos" id="call-videos">
@@ -476,6 +477,9 @@ function routePostCallByRole(sourceReason){
     showThankYou();
   }
 }
+
+// Safe stub — returns current lang so the race fallback never throws
+function detectLang(text,src){return src||'en';}
 
 /* === FASTTEXT WASM === */
 var _ftReady=false,_ftModule=null,_ftLoadFailed=false,_ftPending=[];
@@ -936,9 +940,17 @@ function handleRelay(d){
   if(d.type==='chat-msg'){handleChatMsg(d);return;}
   if(d.type==='cam-state'){var rco=$('remote-cam-off');if(rco){rco.classList.toggle('show',d.camOn===false);}var rcl=$('remote-cam-off-label');if(rcl)rcl.textContent=L('camera_off');return;}
   if(d.type==='hangup'){
-    // Phase 2: role-based remote hangup handling
     if(room.role==='joiner'){showHostLeftCountdown();}
-    else{showPartnerDisconnected(L('disconnected'));}
+    else{
+      // Joiner left — creator stays in call, resets to solo waiting state
+      hidePartnerDisconnected();
+      resetRemoteMediaState();
+      pendingCandidates=[];savedOffer=null;savedCandidates=[];
+      if(pc){try{pc.close();}catch(_){}pc=null;}
+      $('solo-banner').style.display='';
+      setCallPhase('call_connecting','partner_left');
+      log('partner_left',{},'info');
+    }
     return;
   }
 }
@@ -1386,7 +1398,7 @@ function showThankYou(msg){
   $('call-screen').classList.remove('active');
   var t=$('thankyou-title'),s=$('thankyou-sub'),lp=$('thankyou-lang-pill');
   if(t)t.textContent=msg||L('thanks',ty_lang);
-  if(s){var rn=room.name||'';s.textContent=rn?rn:(L('close_tab',ty_lang));}
+  if(s)s.textContent=L('close_tab',ty_lang);
   if(lp)lp.textContent=_pendingJoin&&_pendingJoin.tl?gL(_pendingJoin.tl).flag:(ty_lang?gL(ty_lang).flag:'');
   $('thankyou-page').classList.add('show');
   history.replaceState({tbView:'thankyou'},'',location.pathname);
@@ -1404,13 +1416,14 @@ function showHostLeftCountdown(){
   $('call-screen').classList.remove('active');
   var n=5,t=$('thankyou-title'),s=$('thankyou-sub'),lp=$('thankyou-lang-pill');
   if(t)t.textContent='Host ended the call.';
+  if(s)s.textContent=L('close_tab',ty_lang);
   if(lp)lp.textContent=_pendingJoin&&_pendingJoin.tl?gL(_pendingJoin.tl).flag:(ty_lang?gL(ty_lang).flag:'');
   var rb=$('thankyou-rejoin-btn');if(rb&&_pendingJoin){rb.style.display='';rb.textContent=L('rejoin',ty_lang);}
   var dl=$('thankyou-dl-btn');if(dl)dl.textContent=L('dl_transcript',ty_lang);
-  if(s)s.textContent='Closing in 5s…';
+  if(s)s.textContent=L('close_tab',ty_lang);
   $('thankyou-page').classList.add('show');
   history.replaceState({tbView:'thankyou'},'',location.pathname);
-  var iv=setInterval(function(){n--;if(s)s.textContent=n>0?'Closing in '+n+'s…':L('close_tab',ty_lang);if(n<=0){clearInterval(iv);try{window.close();}catch(_){}}},1000);
+  var iv=setInterval(function(){n--;if(t)t.textContent=n>0?'Host ended the call. Closing in '+n+'s…':'Host ended the call.';if(n<=0){clearInterval(iv);try{window.close();}catch(_){}}},1000);
 }
 
 function downloadThankyouLog(){
