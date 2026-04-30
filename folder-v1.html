@@ -156,7 +156,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 #t-div:hover,#t-div.drag{background:var(--acc)}
 
 /* ── Right pane ── */
-#t-attr{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);min-width:0}
+#t-attr{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);min-width:0;min-height:0}
 
 /* Breadcrumb */
 .breadcrumb{display:flex;align-items:center;gap:4px;padding:6px 14px;background:var(--surface);border-bottom:1px solid var(--border);font-size:11px;color:var(--tm);flex-shrink:0;min-height:30px;flex-wrap:nowrap;overflow:hidden}
@@ -195,7 +195,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 .file-tb{display:flex;align-items:center;gap:8px;padding:6px 14px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
 .file-lbl{font-size:11px;font-weight:700;color:var(--tm);text-transform:uppercase;letter-spacing:.08em;flex-shrink:0}
 .file-cnt{font-family:var(--mono);font-size:11px;color:var(--tm);margin-left:auto}
-.tbl-wrap{flex:1;overflow:auto}
+.tbl-wrap{flex:1;overflow:auto;min-width:0}
 .tbl-wrap::-webkit-scrollbar{width:6px;height:6px}
 .tbl-wrap::-webkit-scrollbar-track{background:var(--bg)}
 .tbl-wrap::-webkit-scrollbar-thumb{background:var(--raised);border-radius:3px}
@@ -252,6 +252,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 .portal-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
 .portal-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;overflow:auto}
 .portlet{min-height:90px;cursor:grab}
+.provider-progress{margin-top:10px;background:var(--raised);border:1px solid var(--border);border-radius:8px;padding:8px}
+.provider-progress-bar{height:6px;background:var(--bg);border-radius:999px;overflow:hidden}
+.provider-progress-fill{height:100%;width:0;background:var(--acc);transition:width .2s}
+.provider-progress-text{margin-top:6px;font-size:11px;color:var(--ts)}
 @media (max-width: 980px){
   #t-hdr{flex-wrap:wrap;height:auto;padding:8px 10px;align-items:flex-start}
   .h-acts{margin-left:0;flex-wrap:wrap}
@@ -314,7 +318,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.1 10.59a5.5 5.5 0 0 0-9.52-3.13A4.01 4.01 0 0 0 5.5 10a.5.5 0 0 0 0 .01A4.5 4.5 0 0 0 6 19h15a3 3 0 0 0 1.1-5.41z"/></svg>
       OneDrive
     </button>
-    <div id="pvr-status" class="smsg s-info">Select your cloud storage provider</div>
+    <div id="pvr-status" class="smsg s-info">Select your cloud storage provider</div><div class="provider-progress hidden" id="provider-progress"><div class="provider-progress-bar"><div class="provider-progress-fill" id="provider-progress-fill"></div></div><div class="provider-progress-text" id="provider-progress-text">Idle</div></div>
   </div>
 </div>
 
@@ -565,7 +569,7 @@ const st = {
   tree:{ selFolder:null, search:'', expanded:new Set() },
   files:{ sortCol:'effectiveDate', sortDir:'desc', classFilter:null, stackFilter:null, selectedId:null },
   timeline:{ drill:[], hiddenClasses:new Set() },
-  view:'tree', ui:{rightView:'list',segmentCollapsed:false,portalPage:0,portalDensity:4,portalPinned:true,timelineFilter:null,loadingStep:''},
+  view:'tree', ui:{rightView:'list',segmentCollapsed:false,portalPage:0,portalDensity:4,portalPinned:true,timelineFilter:null,loadingStep:'',portalRunToken:0},
 };
 
 // ── Utilities ─────────────────────────────────────────────
@@ -1609,10 +1613,12 @@ const FileViewer = {
 
 
 const PortalView={
-  render(){const wrap=$id('portal-wrap'),grid=$id('portal-grid');if(!wrap||!grid)return;const files=TreeView.getDisplayFiles?TreeView.getDisplayFiles():[];const page=st.ui.portalPage;const pageFiles=files.slice(page*16,page*16+16);grid.style.gridTemplateColumns=`repeat(${st.ui.portalDensity},minmax(0,1fr))`;grid.innerHTML='';pageFiles.forEach(f=>{const p=document.createElement('div');p.className='portlet';p.draggable=true;p.innerHTML=`<div contenteditable="true" data-id="${f.id}" class="col-link">${f.name}</div><div class="col-mono">${fmtDate(f.effectiveDate)}</div>`;p.addEventListener('click',()=>{st.files.selectedId=f.id;FileViewer.open(f,true);});grid.appendChild(p);});}
+  render(){const wrap=$id('portal-wrap'),grid=$id('portal-grid');if(!wrap||!grid)return;const files=TreeView.getDisplayFiles?TreeView.getDisplayFiles():[];const page=st.ui.portalPage;const pageFiles=files.slice(page*16,page*16+16);grid.style.gridTemplateColumns=`repeat(${st.ui.portalDensity},minmax(0,1fr))`;grid.innerHTML='';let i=0;const chunk=4;const paint=()=>{pageFiles.slice(i,i+chunk).forEach(f=>{const p=document.createElement('div');p.className='portlet';p.draggable=true;p.innerHTML=`<div contenteditable="true" data-id="${f.id}" class="col-link">${f.name}</div><div class="col-mono">${fmtDate(f.effectiveDate)}</div>`;p.addEventListener('click',()=>{st.files.selectedId=f.id;TreeView.renderPreviewInPane(f);});grid.appendChild(p);});i+=chunk;if(i<pageFiles.length)requestAnimationFrame(paint);};requestAnimationFrame(paint);}
 };
 // ── App ───────────────────────────────────────────────────
 const App = {
+  applyLayout(){const body=$id('t-body');if(!body)return;const narrow=window.matchMedia('(max-width: 980px)').matches;if(st.view==='timeline'||body.classList.contains('left-collapsed')||narrow){body.classList.add('left-collapsed');body.style.gridTemplateColumns='0 0 minmax(0,1fr)';}else{body.style.gridTemplateColumns='var(--lpw) 4px minmax(0,1fr)';}},
+  setProviderProgress(step,pct,mode='info'){const w=$id('provider-progress'),f=$id('provider-progress-fill'),t=$id('provider-progress-text');if(!w||!f||!t)return;w.classList.remove('hidden');f.style.width=(pct||0)+'%';t.textContent=step||'Working…';},
   selectProvider(type){
     st.providerType=type;
     st.provider=type==='googledrive'?new GoogleDriveProvider():new OneDriveProvider();
@@ -1624,7 +1630,7 @@ const App = {
     $id('btn-auth').textContent=`Connect ${isG?'Drive':'OneDrive'}`;
     $id('auth-status').textContent=isG?'Enter your client secret to continue':'Ready — click Connect';
     $id('auth-status').className='smsg s-info';
-    if(st.provider.isAuthenticated){this.afterAuth();}else{showScreen('scr-auth');}
+    this.setProviderProgress('Connecting provider…',8);if(st.provider.isAuthenticated){this.afterAuth();}else{showScreen('scr-auth');}
   },
 
   async authenticate(){
@@ -1782,13 +1788,13 @@ const App = {
       if(tl) tl.classList.remove('hidden');
       if(tree) tree.style.display='none';
       if(div) div.style.display='none';
-      document.getElementById('t-body').style.gridTemplateColumns='0 0 1fr';
+      this.applyLayout();
       Timeline.render();
     }else{
       if(tl) tl.classList.add('hidden');
       if(tree) tree.style.display='';
       if(div) div.style.display='';
-      document.getElementById('t-body').style.gridTemplateColumns=document.getElementById('t-body').classList.contains('left-collapsed')?'0 0 1fr':'var(--lpw) 4px 1fr';
+      this.applyLayout();
       TreeView.render();
     }
   },
@@ -1858,7 +1864,7 @@ function initEvents(){
   $id('btn-hamburger').addEventListener('click',()=>{
     const body=$id('t-body');
     body.classList.toggle('left-collapsed');
-    body.style.gridTemplateColumns=body.classList.contains('left-collapsed')||st.view==='timeline'?'0 0 1fr':'var(--lpw) 4px minmax(0,1fr)';
+    App.applyLayout();
   });
   $id('btn-collapse').addEventListener('click',()=>{st.tree.expanded.clear();TreeView.renderTree();});
   $id('t-srch').addEventListener('input',e=>{st.tree.search=e.target.value;TreeView.render();});
@@ -1909,10 +1915,10 @@ function initEvents(){
   $id('portal-next').addEventListener('click',()=>{st.ui.portalPage++;PortalView.render();});
   $id('portal-pin').addEventListener('click',e=>{st.ui.portalPinned=!st.ui.portalPinned;e.target.textContent=st.ui.portalPinned?'Pin Meta':'Unpin Meta';$id('pv-meta').style.display=st.ui.portalPinned?'block':'none';});
   $id('portal-delete').addEventListener('click',()=>{const f=st.intel?.files?.[st.files.selectedId];if(f){f.stack='trash';TreeView.renderFileTable();PortalView.render();}});
-  $id('portal-run').addEventListener('click',async()=>{const files=TreeView.getDisplayFiles();for(const f of files.slice(0,8)){st.files.selectedId=f.id;await FileViewer.open(f,true);await sleep(250);}});
+  $id('portal-run').addEventListener('click',async()=>{const token=++st.ui.portalRunToken;const files=TreeView.getDisplayFiles().slice(st.ui.portalPage*16,st.ui.portalPage*16+8);for(const f of files){if(token!==st.ui.portalRunToken)break;st.files.selectedId=f.id;await TreeView.renderPreviewInPane(f);await sleep(180);}});
   $id('seg-toggle').addEventListener('click',()=>{st.ui.segmentCollapsed=!st.ui.segmentCollapsed;$id('seg-label').style.display=st.ui.segmentCollapsed?'none':'';$id('seg-toggle').textContent=st.ui.segmentCollapsed?'❮':'❯';});
   $id('seg-clear').addEventListener('click',()=>{st.timeline.drill=[];st.ui.timelineFilter=null;$id('segment-strip').classList.add('hidden');Timeline.renderBreadcrumb();Timeline.renderChart();TreeView.render();});
-  window.addEventListener('resize',()=>{if(st.view==='timeline') Timeline.renderChart();});
+  window.addEventListener('resize',()=>{App.applyLayout();if(st.view==='timeline') Timeline.renderChart();});
 }
 
 // ── Boot ──────────────────────────────────────────────────
