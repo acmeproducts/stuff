@@ -124,7 +124,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 .ic-btn:hover{background:var(--hover);color:var(--tp);border-color:var(--bmd)}
 .enroll-more-btn{font-size:12px;padding:4px 11px;background:var(--acc-d);border:1px solid var(--bacc);color:var(--acc);border-radius:var(--rs);cursor:pointer;font-family:var(--sans);font-weight:600;transition:all .15s;white-space:nowrap}
 .enroll-more-btn:hover{background:rgba(245,158,11,.2)}
-#t-body{display:grid;grid-template-columns:var(--lpw) 4px 1fr;overflow:hidden}
+#t-body{display:grid;grid-template-columns:var(--lpw) 4px minmax(0,1fr);overflow:hidden}
 #t-body.left-collapsed{grid-template-columns:0 0 1fr}
 
 /* ── Left pane ── */
@@ -156,7 +156,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 #t-div:hover,#t-div.drag{background:var(--acc)}
 
 /* ── Right pane ── */
-#t-attr{display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+#t-attr{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);min-width:0}
 
 /* Breadcrumb */
 .breadcrumb{display:flex;align-items:center;gap:4px;padding:6px 14px;background:var(--surface);border-bottom:1px solid var(--border);font-size:11px;color:var(--tm);flex-shrink:0;min-height:30px;flex-wrap:nowrap;overflow:hidden}
@@ -185,7 +185,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 
 /* File table zone */
 .file-zone{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.file-main{display:grid;grid-template-columns:minmax(380px,1fr) minmax(300px,40%);flex:1;min-height:0}
+.file-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,40%);flex:1;min-height:0}
 .preview-pane{border-left:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;min-height:0}
 .preview-hdr{padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;color:var(--tm);font-weight:700;text-transform:uppercase;letter-spacing:.08em}
 .preview-body{display:grid;grid-template-rows:minmax(180px,1fr) auto;min-height:0;overflow:hidden}
@@ -254,11 +254,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 .portlet{min-height:90px;cursor:grab}
 @media (max-width: 980px){
   #t-hdr{flex-wrap:wrap;height:auto;padding:8px 10px;align-items:flex-start}
+  .h-acts{margin-left:0;flex-wrap:wrap}
+  .h-view-tabs{order:2}
   .h-srch{max-width:none;flex:1 1 220px}
   #t-body{grid-template-columns:0 0 1fr}
   #t-body #t-tree,#t-body #t-div{display:none}
   .file-main{grid-template-columns:1fr}
   .preview-pane{border-left:none;border-top:1px solid var(--border);max-height:42vh}
+}
+@media (max-width: 640px){
+  .breadcrumb,.file-tb,.tl-controls{padding-left:8px;padding-right:8px}
+  .bc-seg{max-width:90px}
 }
 /* ── File viewer modal ── */
 .fv-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
@@ -1624,14 +1630,16 @@ const App = {
   async authenticate(){
     const btn=$id('btn-auth'),stat=$id('auth-status'),isG=st.providerType==='googledrive';
     btn.disabled=true;btn.textContent='Connecting & scanning folders…';
-    stat.textContent='Reading intelligence 1/5: authenticating…';stat.className='smsg s-info';
+    const steps=['authenticating','resolving account','reading intelligence','warming index cache','finalizing'];
+    stat.innerHTML=`<div style="display:flex;align-items:center;gap:8px"><span class="spin"></span><span id="auth-step">Reading intelligence 1/5: ${steps[0]}…</span></div>`;stat.className='smsg s-info';
+    const stepEl=()=>document.getElementById('auth-step');
+    const setStep=i=>{const el=stepEl();if(el)el.textContent=`Reading intelligence ${i+1}/5: ${steps[i]}…`;};
     try{
       if(isG){const s=$id('gdrive-client-secret').value.trim();if(!s)throw new Error('Client secret required');await st.provider.authenticate(s);}
       else{await st.provider.authenticate();}
-      stat.textContent='Reading intelligence 3/5: loading folder intelligence…';
+      setStep(2);
       await sleep(120);
-      stat.textContent='Reading intelligence 5/5: finalizing…';
-      stat.className='smsg s-info';
+      setStep(4);
       stat.textContent='✓ Connected!';stat.className='smsg s-ok';
       setTimeout(()=>this.afterAuth(),700);
     }catch(e){
@@ -1850,7 +1858,7 @@ function initEvents(){
   $id('btn-hamburger').addEventListener('click',()=>{
     const body=$id('t-body');
     body.classList.toggle('left-collapsed');
-    if(st.view==='tree') body.style.gridTemplateColumns=body.classList.contains('left-collapsed')?'0 0 1fr':'var(--lpw) 4px 1fr';
+    body.style.gridTemplateColumns=body.classList.contains('left-collapsed')||st.view==='timeline'?'0 0 1fr':'var(--lpw) 4px minmax(0,1fr)';
   });
   $id('btn-collapse').addEventListener('click',()=>{st.tree.expanded.clear();TreeView.renderTree();});
   $id('t-srch').addEventListener('input',e=>{st.tree.search=e.target.value;TreeView.render();});
@@ -1894,8 +1902,8 @@ function initEvents(){
   }
 
   // Timeline resize
-  $id('btn-list-view').addEventListener('click',()=>{$id('list-wrap').style.display='block';$id('portal-wrap').classList.remove('active');});
-  $id('btn-portal-view').addEventListener('click',()=>{$id('list-wrap').style.display='none';$id('portal-wrap').classList.add('active');PortalView.render();});
+  $id('btn-list-view').addEventListener('click',()=>{st.ui.rightView='list';$id('list-wrap').style.display='block';$id('portal-wrap').classList.remove('active');});
+  $id('btn-portal-view').addEventListener('click',()=>{st.ui.rightView='portal';$id('list-wrap').style.display='none';$id('portal-wrap').classList.add('active');PortalView.render();});
   $id('portal-density').addEventListener('input',e=>{st.ui.portalDensity=Number(e.target.value);PortalView.render();});
   $id('portal-prev').addEventListener('click',()=>{st.ui.portalPage=Math.max(0,st.ui.portalPage-1);PortalView.render();});
   $id('portal-next').addEventListener('click',()=>{st.ui.portalPage++;PortalView.render();});
