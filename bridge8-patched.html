@@ -843,13 +843,13 @@ async function createRoom(){
   saveRecent();enterCall();
 }
 
-var _pendingJoin=null;
+var _pendingJoin=null,inviteDgKey='',inviteCfTid='',inviteCfTok='';
 function handleHash(p){
   if(!p||!p.r)return;
   setCallPhase('prejoin','hash');
-  if(p.k){localStorage.setItem('tb_dg_key',p.k);if($('dg-key'))$('dg-key').value=p.k;dgKeyVerified=true;}
-  if(p.tid){localStorage.setItem('tb_cf_tid',p.tid);if($('cf-turn-id'))$('cf-turn-id').value=p.tid;}
-  if(p.tok){localStorage.setItem('tb_cf_tok',p.tok);if($('cf-turn-tok'))$('cf-turn-tok').value=p.tok;}
+  if(p.k){inviteDgKey=p.k;if($('dg-key'))$('dg-key').value=p.k;dgKeyVerified=true;} // invite credentials are session-only (no localStorage persistence)
+  if(p.tid){inviteCfTid=p.tid;if($('cf-turn-id'))$('cf-turn-id').value=p.tid;} // keep invite TURN credentials in-memory for this tab only
+  if(p.tok){inviteCfTok=p.tok;if($('cf-turn-tok'))$('cf-turn-tok').value=p.tok;} // keep invite TURN credentials in-memory for this tab only
   _pendingJoin=p;
   lastSessionContext.pendingJoinSnapshot=p;
   var ne=$('joiner-room-name'),fe=$('joiner-flags'),lp=$('joiner-lang-pill'),sub=$('joiner-sub'),jjb=$('joiner-join-btn');
@@ -1028,8 +1028,8 @@ function stopKeepalive(){clearInterval(_keepaliveTimer);_keepaliveTimer=null;}
 async function setupPC(){
   if(pc)return;
   var iceServers=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}];
-  var tid=(localStorage.getItem('tb_cf_tid')||'').trim();
-  var tok=(localStorage.getItem('tb_cf_tok')||'').trim();
+  var tid=((inviteCfTid||'')||(localStorage.getItem('tb_cf_tid')||'')).trim();
+  var tok=((inviteCfTok||'')||(localStorage.getItem('tb_cf_tok')||'')).trim();
   if(tid&&tok){
     try{
       var r=await fetch('https://rtc.live.cloudflare.com/v1/turn/keys/'+tid+'/credentials/generate',{method:'POST',headers:{'Authorization':'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({ttl:86400})});
@@ -1170,9 +1170,9 @@ function stopDeepgram(){
   dgActive=false;if(dgWs){try{dgWs.close()}catch(_){}dgWs=null;}stopDGAudio();log('dg_stopped',{});
 }
 function startDeepgram(){
-  var key=(($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'').trim();
+  var key=(($('dg-key')&&$('dg-key').value)||inviteDgKey||localStorage.getItem('tb_dg_key')||'').trim();
   if(!key){toast('Deepgram key missing');return}
-  localStorage.setItem('tb_dg_key',key);
+  if(!inviteDgKey||key!==inviteDgKey)localStorage.setItem('tb_dg_key',key);
   if(dgActive){log('dg_skip_active',{},'warn');return;}
   if(dgWs&&dgWs.readyState<2){log('dg_skip_open',{},'warn');return;}
   if(!videoStream){log('dg_no_stream',{},'error');return}
