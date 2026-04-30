@@ -151,7 +151,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 .new-notice button{background:var(--blu);color:#fff;border:none;border-radius:3px;padding:2px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--sans)}
 
 /* ── Divider ── */
-#t-div{background:var(--border);cursor:col-resize;transition:background .15s}
+#t-div{background:var(--border);cursor:col-resize;transition:background .15s;position:relative}
+#t-div::after{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:10px;height:30px;border-radius:8px;background:rgba(245,158,11,.22);border:1px solid rgba(245,158,11,.35);pointer-events:none}
 #t-div:hover,#t-div.drag{background:var(--acc)}
 
 /* ── Right pane ── */
@@ -911,6 +912,10 @@ const Intel = {
       if(st.acq.cancelled){onLog('⊘ Cancelled');break;}
       const fid=queue.shift();if(visited.has(fid))continue;visited.add(fid);
 
+      const existingFolder=rec.folders[fid];
+      const prevHash=existingFolder?.hash||'';
+      const prevStats=existingFolder?.stats?{...existingFolder.stats,byClass:{...existingFolder.stats.byClass}}:null;
+      const prevCuration=existingFolder?.curation?{...existingFolder.curation}:null;
       if(!rec.folders[fid]){
         rec.folders[fid]={id:fid,name:fid,parentId:null,depth:0,isEnrolled:folderIds.includes(fid),
           firstIndexed:Date.now(),lastVerified:Date.now(),hash:'',status:'current',children:[],
@@ -961,11 +966,31 @@ const Intel = {
       let allFiles=[];
       try{allFiles=await p.getAllFiles(fid);}catch(e){onLog(`  ⚠ ${e.message}`);}
       const folder=rec.folders[fid];const hp=[];
+      allFiles.forEach(f=>{
+        const sigHash=f.md5Checksum||f.file?.hashes?.sha1Hash||f.file?.hashes?.quickXorHash||'';
+        hp.push(`${f.id}:${f.modifiedTime||f.lastModifiedDateTime||''}:${sigHash}`);
+      });
+      const nextHash=simpleHash(hp.sort().join('|'));
+
+      if(prevHash&&prevHash===nextHash&&prevStats&&prevCuration){
+        folder.stats=prevStats;
+        folder.curation=prevCuration;
+        folder.hash=nextHash;
+        folder.status='current';
+        fScanned++;
+        onLog(`  ✓ unchanged — incremental skip`);
+        onProg({folder:fname,fc:fScanned,ic:iCount,total:totalEst});
+        await sleep(12);
+        continue;
+      }
+
+      const priorFileIds=new Set(Object.keys(rec.files).filter(k=>rec.files[k].folderId===fid));
+      const seenFileIds=new Set();
 
       allFiles.forEach(f=>{
         const fr=p.extractFileRecord(f);
         rec.files[fr.id]={...fr,folderId:fid};
-        hp.push(`${fr.id}:${fr.modifiedTime||''}`);
+        seenFileIds.add(fr.id);
         folder.stats.totalFiles++;
         folder.stats.byClass[fr.class]=(folder.stats.byClass[fr.class]||0)+1;
         folder.stats.totalSize+=fr.size;
@@ -980,8 +1005,10 @@ const Intel = {
         if(fr.favorite) folder.curation.favorited++;
         iCount++;
       });
+      priorFileIds.forEach(id=>{if(!seenFileIds.has(id)) delete rec.files[id];});
 
-      folder.hash=simpleHash(hp.sort().join('|'));
+      folder.hash=nextHash;
+      folder.status='current';
       fScanned++;
       onProg({folder:fname,fc:fScanned,ic:iCount,total:totalEst});
       await sleep(30);
