@@ -758,12 +758,12 @@ const Intel={
   newRecord(pt){return{version:1,provider:pt,createdAt:Date.now(),lastUpdated:Date.now(),enrolledRoots:[],folders:{},files:{}};},
   async load(onStep){
     let rec=null;
-    if(onStep)onStep('Checking cloud storage for existing record…',1);
+    if(onStep)onStep('Checking local cache…',1);
+    try{rec=JSON.parse(localStorage.getItem(LS_INTEL));}catch(e){}
+    if(rec&&rec.provider!==st.providerType)rec=null;
+    if(rec){st.intel=rec;if(onStep)onStep('Intelligence record loaded',2);return rec;}
+    if(onStep)onStep('Checking cloud storage for existing record…',2);
     try{rec=await st.provider.loadIntelligenceFile();}catch(e){}
-    if(!rec){
-      if(onStep)onStep('Checking local cache…',2);
-      try{rec=JSON.parse(localStorage.getItem(LS_INTEL));}catch(e){}
-    }
     if(rec&&rec.provider!==st.providerType)rec=null;
     st.intel=rec;
     if(onStep)onStep(rec?'Intelligence record loaded':'No existing record found',3);
@@ -1278,26 +1278,16 @@ const App={
     const lpw=localStorage.getItem(LS_LPW);
     if(lpw)document.documentElement.style.setProperty('--lpw',lpw);
     this.setLeftOpen(leftOpen);
-    // Show loading
-    this.showLoading(true,'Loading intelligence record…','Connecting to cloud…');
     try{
-      // Load level-1 folders
-      this.showLoading(true,'Fetching folder list…','Step 1 of 3');
+      // Prioritize instant first paint: render level-1 tree before deferred intelligence reconciliation.
+      this.showLoading(true,'Fetching folder list…','');
       st.levelOneFolders=await st.provider.getLevelOneFolders();
-      // Load intelligence
-      this.showLoading(true,'Reading intelligence record…','Step 2 of 3');
-      const rec=await Intel.load(step=>this.showLoading(true,step,''));
-      this.showLoading(true,'Rendering…','Step 3 of 3');
-      await sleep(100);
+      st.selFolderId=null;st.selFolderEnrolled=false;
+      $id('rp-enroll').classList.add('hidden');
       Tree.render();
+      RightPane.render();
       this.showLoading(false);
-      if(rec&&rec.enrolledRoots.length>0){
-        toast('Intelligence loaded','t-ok');
-        // Auto-select first enrolled root
-        const firstRoot=rec.enrolledRoots[0];
-        const folder=st.levelOneFolders.find(f=>f.id===firstRoot)||{id:firstRoot,name:rec.folders[firstRoot]?.name||firstRoot};
-        this.selectFolder(firstRoot,folder.name||firstRoot,true);
-      }
+      Intel.load().then(rec=>{if(rec&&rec.enrolledRoots.length>0)toast('Intelligence loaded','t-ok');Tree.render();if(st.selFolderId)RightPane.render();}).catch(()=>{});
     }catch(e){this.showLoading(false);toast('Load failed: '+e.message,'t-err');}
   },
 
