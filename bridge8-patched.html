@@ -161,6 +161,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .chat-send-btn{width:38px;height:38px;border-radius:50%;border:none;background:var(--teal);color:#fff;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:opacity .15s;}
 .chat-send-btn:disabled{opacity:.3;cursor:default;}
 .chat-send-btn:hover:not(:disabled){opacity:.85;}
+.phrase-drawer{position:fixed;left:0;right:0;bottom:-52dvh;height:48dvh;background:var(--surface);border-top:1px solid rgba(255,255,255,.12);border-radius:14px 14px 0 0;z-index:12;transition:bottom .18s ease;padding:8px 10px;overflow-y:auto;}
+.phrase-drawer.open{bottom:0;}
+.phrase-mini{border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:8px;margin:8px 0;background:rgba(255,255,255,.03);}
+.phrase-mini-src{font-size:13px;color:var(--text-dim);}
+.phrase-mini-tgt{font-size:13px;color:var(--text);margin-top:2px;}
+.phrase-mini-actions{display:flex;gap:6px;margin-top:6px;}
+.phrase-mini-actions button{background:rgba(255,255,255,.08);color:var(--text);border:none;border-radius:8px;padding:6px 8px;font-size:11px;cursor:pointer;}
 #chat-body{padding:0;}
 .ch-entry{padding:4px 0;}
 .ch-bubble{border:1px solid rgba(255,255,255,.14);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.03);}
@@ -346,6 +353,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     </button>
   </div>
 </div>
+<div class="phrase-drawer" id="phrase-drawer"><div id="phrase-results"></div></div>
+<input id="phrase-import-file" type="file" accept=".json" style="display:none" onchange="importPhrasebook(event)">
 <div id="toast"></div>
 
 <script>
@@ -412,6 +421,9 @@ var dgKeyVerified=false,dgKeyVerifyTimer=null;
 var pendingCandidates=[];
 var savedOffer=null;
 var savedCandidates=[];
+var PHRASE_KEY='tb_standard_phrasebook';
+var phrasebook=[];
+var DEFAULT_PHRASEBOOK=[{id:'seed-hello',source:'Hello',target:'Hola',tags:['greeting'],clarify:['General greeting'],verdict:'good'},{id:'seed-help',source:'Please help me',target:'Por favor ayúdame',tags:['urgent'],clarify:['Ask for help'],verdict:'none'}];
 
 // ─── Phase 3: Canonical audio constraints ─────────────────────────────────
 function getMicConstraints(){
@@ -536,6 +548,8 @@ function _detectLangAsync(text){
 /* === CHAT === */
 function chatInputEvt(){
   var ta=$('chat-input');if(!ta)return;
+  var v=(ta.value||'').trim();
+  if(v.indexOf('/')===0&&v.indexOf('//')!==0)runPhraseSearch(v.slice(1));else closePhraseDrawer();
   ta.style.height='auto';
   ta.style.height=Math.min(ta.scrollHeight,80)+'px';
   $('chat-send-btn').disabled=!ta.value.trim();
@@ -565,7 +579,10 @@ function handleChatFile(ev){
 async function sendChat(){
   var ta=$('chat-input');
   var text=normalizeText((ta&&ta.value||''),'chat');if(!text||!room.id)return;
+  if(text.indexOf('//')===0){runPhraseCommand(text.slice(2).trim());ta.value='';chatInputEvt();return;}
+  if(text.indexOf('/')===0){runPhraseSearch(text.slice(1));return;}
   ta.value='';ta.style.height='';$('chat-send-btn').disabled=true;
+  closePhraseDrawer();
   var src=room.myLang,tgt=room.theirLang;
   var srcText=text;
   try{
@@ -629,6 +646,15 @@ function toast(m,dur){var e=$('toast');e.textContent=m;e.classList.add('show');c
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
 function norm(s){return(s||'').replace(/\s+/g,' ').trim()}
+function initPhrasebook(){try{var raw=localStorage.getItem(PHRASE_KEY);var data=raw?JSON.parse(raw):null;phrasebook=Array.isArray(data)?data:DEFAULT_PHRASEBOOK.slice()}catch(_){phrasebook=DEFAULT_PHRASEBOOK.slice()}savePhrasebook()}
+function savePhrasebook(){try{localStorage.setItem(PHRASE_KEY,JSON.stringify(Array.isArray(phrasebook)?phrasebook:DEFAULT_PHRASEBOOK))}catch(_){}}
+function matchWild(t,p){var pat=(p||'*').replace(/[.+^${}()|[\]\\]/g,'\\$&').replace(/\*/g,'.*');return new RegExp(pat,'i').test(t||'')}
+function closePhraseDrawer(){var d=$('phrase-drawer');if(d)d.classList.remove('open')}
+function usePhrase(p){var ta=$('chat-input');if(!ta)return;ta.value=norm((ta.value?ta.value+' ':'')+(p.source||''));chatInputEvt();closePhraseDrawer();ta.focus()}
+function renderPhraseResults(items){var box=$('phrase-results');if(!box)return;box.innerHTML='';if(!items.length){box.innerHTML='<div class="tr-empty">No phrase matches.</div>';$('phrase-drawer').classList.add('open');return;}items.forEach(function(p){var d=document.createElement('div');d.className='phrase-mini';d.innerHTML='<div class="phrase-mini-src">'+esc(p.source||'')+'</div><div class="phrase-mini-tgt">'+esc(p.target||'')+'</div><div class="phrase-mini-actions"><button>Use</button><button>TTS source</button><button>TTS target</button></div>';var b=d.querySelectorAll('button');b[0].onclick=function(){usePhrase(p)};b[1].onclick=function(){speakText(p.source||'',room.myLang)};b[2].onclick=function(){speakText(p.target||'',room.theirLang)};box.appendChild(d)});$('phrase-drawer').classList.add('open')}
+function runPhraseSearch(raw){var tokens=(raw||'').trim().split(/\s+/).filter(Boolean),items=phrasebook.filter(function(p){return tokens.every(function(t){if(t.indexOf('verdict:')===0)return matchWild(p.verdict||'',t.slice(8));var hay=[p.source,p.target,(p.tags||[]).join(' '),(p.clarify||[]).join(' ')].join(' | ');return matchWild(hay,t)})});renderPhraseResults(items)}
+function runPhraseCommand(cmd){var op=(cmd.split(' ')[0]||'').toLowerCase(),payload=cmd.slice(op.length).trim(),m,p,id;if(op==='add'){m=payload.split('=>');if(m[0]&&m[1]){phrasebook.unshift({id:uid(),source:norm(m[0]),target:norm(m[1]),tags:[],clarify:[],verdict:'none'});savePhrasebook();toast('Phrase added')}}else if(op==='change'){id=(payload.split(' ')[0]||'').trim();p=phrasebook.find(function(x){return x.id===id});if(p){payload.replace(/(source|target|tags|clarify|verdict):([^]+?)(?=\s+\w+:|$)/g,function(_,k,v){v=norm(v);if(k==='tags')p.tags=v?v.split(',').map(norm).filter(Boolean):[];else if(k==='clarify')p.clarify=v?[v]:[];else p[k]=v});savePhrasebook();toast('Phrase changed')}}else if(op==='delete'){phrasebook=phrasebook.filter(function(x){return x.id!==payload});savePhrasebook();toast('Phrase deleted')}else if(op==='tag'){m=payload.split(' ');p=phrasebook.find(function(x){return x.id===m[0]});if(p&&m[1]){p.tags=p.tags||[];if(p.tags.indexOf(m[1])<0)p.tags.push(m[1]);savePhrasebook();toast('Tag added')}}else if(op==='clarify'){m=payload.split(' ');p=phrasebook.find(function(x){return x.id===m.shift()});if(p){p.clarify=p.clarify||[];p.clarify.push(norm(m.join(' ')));savePhrasebook();toast('Clarify added')}}else if(op==='verdict'){m=payload.split(' ');p=phrasebook.find(function(x){return x.id===m[0]});if(p){p.verdict=norm(m[1]||'none');savePhrasebook();toast('Verdict updated')}}else if(op==='import'){$('phrase-import-file').click()}else if(op==='export'){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(phrasebook,null,2)],{type:'application/json'}));a.download='standard-phrasebook.json';a.click()}else if(op==='list'){toast('Phrase count: '+phrasebook.length)}}
+function importPhrasebook(e){var f=e&&e.target&&e.target.files&&e.target.files[0];if(!f)return;e.target.value='';var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(Array.isArray(d)){phrasebook=d;savePhrasebook();toast('Phrasebook imported')}}catch(_){toast('Import failed')}};r.readAsText(f)}
 
 // ─── Phase 8: Structured log ──────────────────────────────────────────────
 function log(ev,d,l){
@@ -1532,7 +1558,7 @@ if(localStorage.getItem('tb_dg_key')&&$('dg-key')){var _sk=localStorage.getItem(
 if(localStorage.getItem('tb_cf_tid')&&$('cf-turn-id'))$('cf-turn-id').value=localStorage.getItem('tb_cf_tid').trim();
 if(localStorage.getItem('tb_cf_tok')&&$('cf-turn-tok'))$('cf-turn-tok').value=localStorage.getItem('tb_cf_tok').trim();
 if(localStorage.getItem('tb_cf_tid')&&localStorage.getItem('tb_cf_tok'))setCfTurnStatus('✅ Saved','#2ecc71');
-populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();
+initPhrasebook();populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
 $('call-transcript').addEventListener('click',function(ev){
   var tts=ev.target.closest('.tr-tts');
