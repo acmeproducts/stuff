@@ -913,17 +913,11 @@ const Tree={
     container.appendChild(node);
 
     // Expand/collapse
-    tog.addEventListener('click',async e=>{
+    tog.addEventListener('click',e=>{
       e.stopPropagation();
       if(!hasKidsActual&&!enrolled)return;
-      if(st.expandedNodes.has(fid)){st.expandedNodes.delete(fid);}
-      else{
-        st.expandedNodes.add(fid);
-        // Lazy load children if unenrolled and not cached
-        if(!enrolled&&!st.treeCache[fid]){
-          try{const subs=await st.provider.getSubfolders(fid);st.treeCache[fid]=subs;}catch(e){}
-        }
-      }
+      if(st.expandedNodes.has(fid))st.expandedNodes.delete(fid);
+      else st.expandedNodes.add(fid);
       this.render();
     });
 
@@ -1313,6 +1307,15 @@ const App={
     if(show){const s=$id('load-step');const sb=$id('load-sub');if(s)s.textContent=step||'';if(sb)sb.textContent=sub||'';}
   },
 
+  shouldQuickRefresh(folderId){
+    if(!st.intel||!st.intel.folders?.[folderId])return false;
+    const isLevelOne=st.levelOneFolders.some(f=>f.id===folderId);
+    if(!isLevelOne)return false;
+    const folderRec=st.intel.folders[folderId];
+    const lastCheck=folderRec.lastQuickRefreshCheck||0;
+    return(Date.now()-lastCheck)>120000;
+  },
+
   selectFolder(folderId,folderName,enrolled){
     // Clear context
     st.selFolderId=folderId;st.selFolderEnrolled=enrolled;
@@ -1329,11 +1332,13 @@ const App={
     }
     // Render right pane
     RightPane.render();
-    // Lazy delta check if enrolled
-    if(enrolled&&st.intel){
+    // Quick non-recursive refresh check only for selected level-1 folders
+    if(enrolled&&this.shouldQuickRefresh(folderId)){
+      const folderRec=st.intel?.folders?.[folderId];
+      if(folderRec)folderRec.lastQuickRefreshCheck=Date.now();
       setTimeout(async()=>{
         try{const changed=await Intel.checkDelta(folderId);if(changed){toast('Changes detected — refresh to re-index','',4000);Tree.render();}}catch(e){}
-      },800);
+      },250);
     }
   },
 
