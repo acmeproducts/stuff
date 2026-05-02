@@ -93,8 +93,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 .tn-sub{font-family:var(--mono);font-size:10px;color:var(--tm)}
 
 /* ── Right panel ── */
-/* Inline acquisition */
-#rp-acq{flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);padding:12px 14px}
+/* Index drawer (left panel) */
+.lp-acq-wrap{flex-shrink:0;border-top:1px solid var(--border);background:var(--surface)}
+.lp-acq-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;background:transparent;border:none;color:var(--tm);padding:8px 10px;cursor:pointer;font-size:11px}
+.lp-acq-wrap.open .lp-acq-toggle .chev{transform:rotate(90deg)}
+.lp-acq-wrap:not(.open) #rp-acq{display:none}
+#rp-acq{flex-shrink:0;background:var(--surface);border-top:1px solid var(--border);padding:10px}
 .acq-fname{font-family:var(--mono);font-size:11px;color:var(--acc);background:var(--raised);padding:7px 11px;border-radius:var(--rs);margin:8px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pb-wrap{height:4px;background:var(--raised);border-radius:2px;overflow:hidden;margin-bottom:6px}
 .pb-fill{height:100%;background:linear-gradient(90deg,var(--acc),#fbbf24);border-radius:2px;transition:width .3s;width:0%}
@@ -107,6 +111,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 /* Enrollment banner */
 #rp-enroll{flex-shrink:0;background:var(--blu-d);border-bottom:1px solid rgba(59,130,246,.2);padding:12px 16px;display:flex;align-items:center;gap:12px}
 #rp-enroll .btn{flex-shrink:0}
+#btn-index-now{white-space:nowrap}
 .enroll-txt{flex:1;font-size:13px;color:var(--blu)}
 .enroll-sub{font-size:11px;color:rgba(59,130,246,.7);margin-top:2px}
 
@@ -319,10 +324,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
     <span class="h-wm">Intelligence</span>
     <div class="h-sep"></div>
     <span class="h-pvr" id="h-pvr">—</span>
-    <div class="h-acts">
-      <button class="btn btn-ghost btn-sm" id="btn-enroll-more">+ Enroll</button>
-      <button class="btn btn-ghost btn-sm" id="btn-disconnect">Disconnect</button>
-    </div>
   </header>
 
   <div id="app-body">
@@ -333,6 +334,23 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
         <button style="background:transparent;border:none;color:var(--tm);cursor:pointer;font-size:10px" id="btn-collapse-all" title="Collapse all">↕</button>
       </div>
       <div id="lp-tree"></div>
+      <div class="lp-acq-wrap" id="lp-acq-wrap">
+        <button class="lp-acq-toggle" id="btn-acq-toggle"><span><span class="chev">▶</span> Indexing</span><span id="acq-mini">Idle</span></button>
+        <div id="rp-acq" class="hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:600;color:var(--tp)">Indexing Folder</span>
+            <button class="btn btn-danger btn-sm" id="btn-acq-cancel">Cancel</button>
+          </div>
+          <div class="acq-fname" id="acq-folder">Initializing…</div>
+          <div class="pb-wrap"><div class="pb-fill" id="acq-pb"></div></div>
+          <div class="acq-ctrs">
+            <div>Folders: <strong id="acq-fc">0</strong></div>
+            <div>Files: <strong id="acq-ic">0</strong></div>
+            <div>Time: <strong id="acq-el">0s</strong></div>
+          </div>
+          <div class="acq-log" id="acq-log"></div>
+        </div>
+      </div>
     </div>
 
     <div id="l-divider"></div>
@@ -349,22 +367,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
         </div>
       </div>
 
-      <!-- Inline acquisition progress -->
-      <div id="rp-acq" class="hidden">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <span style="font-size:12px;font-weight:600;color:var(--tp)">Indexing Folder</span>
-          <button class="btn btn-danger btn-sm" id="btn-acq-cancel">Cancel</button>
-        </div>
-        <div class="acq-fname" id="acq-folder">Initializing…</div>
-        <div class="pb-wrap"><div class="pb-fill" id="acq-pb"></div></div>
-        <div class="acq-ctrs">
-          <div>Folders: <strong id="acq-fc">0</strong></div>
-          <div>Files: <strong id="acq-ic">0</strong></div>
-          <div>Time: <strong id="acq-el">0s</strong></div>
-        </div>
-        <div class="acq-log" id="acq-log"></div>
-      </div>
-
       <!-- Enrollment banner -->
       <div id="rp-enroll" class="hidden">
         <div style="flex:1">
@@ -372,7 +374,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
           <div class="enroll-sub" id="enroll-sub">Index it once to enable search, filtering, and curation.</div>
         </div>
         <button class="btn btn-pri btn-sm" id="btn-index-now">Index Now</button>
-        <button class="btn btn-ghost btn-sm" id="btn-index-skip">Skip</button>
       </div>
 
       <!-- OmniSearch -->
@@ -1285,10 +1286,12 @@ const App={
       st.levelOneFolders=await st.provider.getLevelOneFolders();
       st.selFolderId=null;st.selFolderEnrolled=false;
       $id('rp-enroll').classList.add('hidden');
+      $id('lp-acq-wrap')?.classList.remove('open');
       Tree.render();
       RightPane.render();
       this.showLoading(false);
-      Intel.load().then(()=>{Tree.render();}).catch(()=>{});
+      // Defer intelligence hydration to keep first paint and initial interaction instant.
+      setTimeout(()=>{Intel.load().then(()=>{Tree.render();}).catch(()=>{});},0);
     }catch(e){this.showLoading(false);toast('Load failed: '+e.message,'t-err');}
   },
 
@@ -1335,12 +1338,14 @@ const App={
 
   async startIndexing(folderId,folderName){
     $id('rp-enroll').classList.add('hidden');
+    $id('lp-acq-wrap')?.classList.add('open');
     $id('rp-acq').classList.remove('hidden');
     st.acq={running:true,cancelled:false,t0:Date.now(),tick:null};
     $id('acq-log').innerHTML='';$id('acq-pb').style.width='0%';
     st.acq.tick=setInterval(()=>{const el=$id('acq-el');if(el)el.textContent=Math.round((Date.now()-st.acq.t0)/1000)+'s';},1000);
     const onProg=({folder,fc,ic})=>{
       const fn=$id('acq-folder'),fc2=$id('acq-fc'),ic2=$id('acq-ic'),pb=$id('acq-pb');
+      const mini=$id('acq-mini');if(mini)mini.textContent='Indexing…';
       if(fn)fn.textContent=folder||'…';if(fc2)fc2.textContent=fc;if(ic2)ic2.textContent=ic;
       if(pb)pb.style.width=Math.min(99,Math.round(ic/Math.max(1,ic+1)*50+fc*2))+'%';
     };
@@ -1349,12 +1354,14 @@ const App={
       clearInterval(st.acq.tick);$id('acq-pb').style.width='100%';
       logLine('✓ Complete — saving…');await Intel.save();logLine('✓ Saved.');
       st.acq.running=false;
+      const mini=$id('acq-mini');if(mini)mini.textContent='Idle';
       await sleep(500);
       $id('rp-acq').classList.add('hidden');
       st.selFolderEnrolled=true;Tree.render();RightPane.render();
       toast('Index complete','t-ok');
     }catch(e){
       clearInterval(st.acq.tick);logLine(`✖ ${e.message}`);st.acq.running=false;
+      const mini=$id('acq-mini');if(mini)mini.textContent='Idle';
       toast('Indexing failed: '+e.message,'t-err');
     }
   },
@@ -1458,10 +1465,6 @@ function initEvents(){
   div.addEventListener('pointermove',e=>{if(!dragging)return;const nw=Math.max(160,Math.min(480,sw+(e.clientX-sx)));document.documentElement.style.setProperty('--lpw',nw+'px');});
   div.addEventListener('pointerup',()=>{dragging=false;div.classList.remove('drag');localStorage.setItem(LS_LPW,getComputedStyle(document.documentElement).getPropertyValue('--lpw').trim());});
 
-  // Header actions
-  $id('btn-disconnect').addEventListener('click',()=>App.disconnect());
-  $id('btn-enroll-more').addEventListener('click',()=>{if(st.selFolderId&&!st.selFolderEnrolled){const folder=st.levelOneFolders.find(f=>f.id===st.selFolderId);App.startIndexing(st.selFolderId,folder?.name||st.selFolderId);}else toast('Select an unenrolled folder first');});
-
   // OmniSearch
   $id('omni-input').addEventListener('input',e=>{st.ui.search=e.target.value;RightPane.render();});
   $id('omni-clear').addEventListener('click',()=>{st.ui.search='';const i=$id('omni-input');if(i)i.value='';RightPane.render();});
@@ -1472,9 +1475,18 @@ function initEvents(){
   document.getElementById('tl-active-seg')?.addEventListener('click',e=>{e.stopPropagation();st.ui.tlSegment=null;RightPane.renderTimeline();RightPane.renderContent();});
 
   // Enrollment banner
-  $id('btn-index-now').addEventListener('click',()=>{if(st.selFolderId){const folder=st.levelOneFolders.find(f=>f.id===st.selFolderId)||(st.intel?.folders?.[st.selFolderId]||{name:st.selFolderId});App.startIndexing(st.selFolderId,folder.name||st.selFolderId);}});
-  $id('btn-index-skip').addEventListener('click',()=>{$id('rp-enroll').classList.add('hidden');});
-  $id('btn-acq-cancel').addEventListener('click',()=>{st.acq.cancelled=true;clearInterval(st.acq.tick);setTimeout(()=>{$id('rp-acq').classList.add('hidden');},500);});
+  $id('btn-index-now').addEventListener('click',()=>{
+    if(!st.selFolderId)return;
+    const folder=st.levelOneFolders.find(f=>f.id===st.selFolderId)||(st.intel?.folders?.[st.selFolderId]||{name:st.selFolderId});
+    if(!confirm(`Index "${folder.name||st.selFolderId}" now?`))return;
+    App.startIndexing(st.selFolderId,folder.name||st.selFolderId);
+  });
+  $id('btn-acq-toggle').addEventListener('click',()=>{$id('lp-acq-wrap')?.classList.toggle('open');});
+  $id('btn-acq-cancel').addEventListener('click',()=>{
+    st.acq.cancelled=true;clearInterval(st.acq.tick);
+    const mini=$id('acq-mini');if(mini)mini.textContent='Paused';
+    setTimeout(()=>{$id('rp-acq').classList.add('hidden');},500);
+  });
 
   // View tabs
   document.querySelectorAll('.vtab').forEach(btn=>{
