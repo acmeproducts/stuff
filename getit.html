@@ -1,528 +1,273 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Site Bundler</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#f8fafc;min-height:100vh;display:flex;flex-direction:column}
-    
-    .main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:4rem;padding-left:2rem;padding-right:2rem;gap:2rem}
-    .input-wrapper{width:100%;max-width:600px;position:relative;display:flex;gap:0.75rem;flex-wrap:wrap}
-    input[type="url"]{flex:1;min-width:250px;padding:1rem 1.25rem;background:#1e293b;border:1px solid #334155;border-radius:12px;color:#f8fafc;font-size:1rem;outline:none}
-    input:focus{border-color:#3b82f6}
-    button.primary-btn{padding:1rem 2rem;background:#3b82f6;color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:600;cursor:pointer;flex-shrink:0}
-    button.primary-btn:disabled{opacity:0.6;cursor:not-allowed}
-    button.primary-btn:hover:not(:disabled){background:#2563eb}
-    
-    .settings-btn{width:44px;height:44px;background:transparent;border:1px solid #334155;border-radius:12px;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center}
-    .settings-btn:hover{background:#1e293b;border-color:#3b82f6;color:#3b82f6}
-    
-    .settings-panel{position:absolute;top:calc(100% + 0.75rem);right:0;width:280px;background:#1e293b;border:1px solid #334155;border-radius:12px;padding:1.25rem;box-shadow:0 10px 40px rgba(0,0,0,0.4);z-index:100;display:none}
-    .settings-panel.active{display:block}
-    .settings-title{font-size:0.875rem;font-weight:600;color:#94a3b8;text-transform:uppercase;margin-bottom:1rem}
-    
-    .status{font-size:0.875rem;color:#94a3b8;opacity:0;transition:opacity 0.3s;text-align:center;max-width:600px}
-    .status.active{opacity:1}
-    .status.error{color:#f87171}
-    .status.success{color:#4ade80}
-    
-    .progress{width:100%;max-width:600px;opacity:0;transition:opacity 0.3s}
-    .progress.active{opacity:1}
-    .progress-bar{height:4px;background:#334155;border-radius:2px;overflow:hidden}
-    .progress-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);width:0%;transition:width 0.3s ease}
-    .progress-text{font-size:0.75rem;color:#64748b;margin-top:0.5rem;text-align:center}
-    
-    .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);display:none;align-items:center;justify-content:center;z-index:200;padding:1rem}
-    .modal-overlay.active{display:flex}
-    .modal-content{background:#1e293b;border:1px solid #334155;border-radius:12px;max-width:600px;max-height:80vh;overflow-y:auto;width:100%}
-    .modal-header{padding:1.25rem;border-bottom:1px solid #334155}
-    .modal-header h2{font-size:1.25rem;font-weight:600}
-    .modal-header p{color:#94a3b8;font-size:0.875rem;margin-top:0.25rem}
-    .modal-body{padding:1.25rem;max-height:50vh;overflow-y:auto}
-    .iframe-option{display:flex;align-items:center;gap:0.75rem;padding:0.75rem;background:#0f172a;border:1px solid #334155;border-radius:8px;margin-bottom:0.5rem}
-    .iframe-option input[type="checkbox"]{width:18px;height:18px;accent-color:#3b82f6;flex-shrink:0}
-    .iframe-option label{flex:1;cursor:pointer}
-    .iframe-option .domain{font-weight:600;color:#f8fafc}
-    .iframe-option .url{color:#64748b;font-size:0.75rem;word-break:break-all}
-    .modal-footer{padding:1.25rem;border-top:1px solid #334155;display:flex;gap:0.75rem;justify-content:flex-end;flex-wrap:wrap}
-    .btn-secondary{padding:0.75rem 1.5rem;background:#334155;color:#f8fafc;border:none;border-radius:8px;cursor:pointer}
-    .btn-secondary:hover{background:#475569}
-    
-    .history-section{background:#1e293b;border-top:1px solid #334155;margin-top:2rem;max-height:40vh;display:flex;flex-direction:column}
-    .history-header{padding:1rem 2rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155}
-    .history-title{font-size:0.875rem;font-weight:500;color:#94a3b8}
-    .history-list{overflow-y:auto;flex:1;padding:0.5rem 0}
-    .history-item{display:flex;justify-content:space-between;align-items:center;padding:0.875rem 2rem;border-bottom:1px solid #252f47;transition:background 0.15s}
-    .history-item:hover{background:#252f47}
-    .history-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:0.25rem;margin-right:1rem}
-    .history-url{font-size:0.875rem;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .history-meta{font-size:0.75rem;color:#64748b}
-    .history-actions{display:flex;gap:0.5rem}
-    .icon-btn{width:32px;height:32px;background:transparent;border:1px solid #334155;border-radius:6px;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.875rem}
-    .icon-btn:hover{border-color:#3b82f6;color:#3b82f6}
-    .icon-btn.delete:hover{border-color:#ef4444;color:#ef4444;background:#ef4444/10}
-    .empty-state{padding:3rem;text-align:center;color:#64748b}
-    
-    .result{position:fixed;bottom:2rem;right:2rem;background:#1e293b;border:1px solid #334155;border-radius:12px;padding:1.25rem;display:none;align-items:center;gap:1rem;box-shadow:0 10px 40px rgba(0,0,0,0.4)}
-    .result.active{display:flex}
-    
-    .history-list::-webkit-scrollbar{width:8px}
-    .history-list::-webkit-scrollbar-track{background:transparent}
-    .history-list::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
-    .history-list::-webkit-scrollbar-thumb:hover{background:#475569}
-    
-    @media(max-width:768px){
-      .main{padding:1rem;padding-top:2rem}
-      .input-wrapper{flex-direction:column}
-      .settings-btn{width:100%;height:44px}
-      .settings-panel{position:fixed;top:auto;bottom:0;left:0;right:0;width:100%;border-radius:12px 12px 0 0}
-      .history-actions{opacity:1}
-      .result{left:1rem;right:1rem;bottom:1rem}
-    }
-  </style>
-</head>
-<body>
-  <div class="main">
-    <div class="input-wrapper" style="position:relative;">
-      <input type="url" id="urlInput" placeholder="Paste URL and press Enter" autocomplete="off">
-      <button class="primary-btn" id="goBtn">Bundle</button>
-      
-      <button class="settings-btn" id="settingsBtn" title="Settings">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3"></circle>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-        </svg>
-      </button>
-      
-      <div class="settings-panel" id="settingsPanel">
-        <div class="settings-title">Settings</div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:0.875rem;">
-          <span style="font-size:0.875rem;color:#cbd5e1">Recursion Depth</span>
-          <input type="number" id="maxDepth" value="3" min="1" max="5" style="width:60px;padding:0.375rem;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#f8fafc;text-align:center;">
-        </div>
-        <div style="display:flex;justify-content:space-between;">
-          <span style="font-size:0.875rem;color:#cbd5e1">Max Size (MB)</span>
-          <input type="number" id="maxSize" value="5" min="1" max="50" style="width:60px;padding:0.375rem;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#f8fafc;text-align:center;">
-        </div>
-      </div>
-    </div>
-    
-    <div class="status" id="status"></div>
-    <div class="progress" id="progress">
-      <div class="progress-bar">
-        <div class="progress-fill" id="progressFill"></div>
-      </div>
-      <div class="progress-text" id="progressText">Initializing...</div>
-    </div>
-  </div>
-
-  <div class="modal-overlay" id="externalModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>External Iframes Detected</h2>
-        <p>Select which external iframes to include in your bundle.</p>
-      </div>
-      <div class="modal-body" id="externalList"></div>
-      <div class="modal-footer">
-        <button class="btn-secondary" onclick="skipAllExternal()">Skip All</button>
-        <button class="primary-btn" onclick="includeSelected()">Include Selected</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="history-section">
-    <div class="history-header">
-      <span class="history-title">History</span>
-      <span class="history-title" id="historyCount">0 items</span>
-    </div>
-    <div class="history-list" id="historyList">
-      <div class="empty-state">No bundles yet. Paste a URL to begin.</div>
-    </div>
-  </div>
-
-  <div class="result" id="result">
-    <span id="resultText">Ready</span>
-    <button class="primary-btn" onclick="downloadBundle()">Download</button>
-  </div>
-
-  <script>
-    const WORKER_URL = "https://site-bundler.myacctfortracking.workers.dev";
-    const DB_NAME = 'SiteBundlerDB';
-    const STORE_NAME = 'bundles';
-    
-    let db = null;
-    let history = [];
-    let currentUrl = null;
-    let discoveryData = null;
-    let currentBundle = null;
-    let domainPreferences = {};
-
-    async function initDB() {
-      if (db) return db;
-      return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, 1);
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => { db = request.result; resolve(db); };
-        request.onupgradeneeded = (e) => {
-          const database = e.target.result;
-          if (!database.objectStoreNames.contains(STORE_NAME)) {
-            database.createObjectStore(STORE_NAME, { keyPath: 'id' });
-          }
-        };
-      });
-    }
-
-    async function saveBundleToDB(bundle) {
-      const database = await initDB();
-      const tx = database.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      return new Promise((resolve, reject) => {
-        const req = store.put(bundle);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
-      });
-    }
-
-    async function loadBundleFromDB(id) {
-      const database = await initDB();
-      const tx = database.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      return new Promise((resolve, reject) => {
-        const req = store.get(id);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-    }
-
-    async function deleteBundleFromDB(id) {
-      const database = await initDB();
-      const tx = database.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      return new Promise((resolve, reject) => {
-        const req = store.delete(id);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
-      });
-    }
-
-    async function loadAllBundlesMeta() {
-      const database = await initDB();
-      const tx = database.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      return new Promise((resolve, reject) => {
-        const req = store.getAll();
-        req.onsuccess = () => {
-          const bundles = req.result || [];
-          resolve(bundles.map(b => ({
-            id: b.id,
-            url: b.url,
-            timestamp: b.timestamp,
-            name: b.name,
-            size: b.size
-          })));
-        };
-        req.onerror = () => reject(req.error);
-      });
-    }
-
-    async function init() {
-      try {
-        await initDB();
-        history = await loadAllBundlesMeta();
-        renderHistory();
-        
-        const savedPrefs = localStorage.getItem('siteBundlerDomainPrefs');
-        if (savedPrefs) domainPreferences = JSON.parse(savedPrefs);
-      } catch (e) {
-        console.error('Init error:', e);
-      }
-      
-      document.getElementById('settingsBtn').addEventListener('click', toggleSettings);
-      document.getElementById('goBtn').addEventListener('click', startDiscovery);
-      document.getElementById('urlInput').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') startDiscovery();
-      });
-      
-      document.addEventListener('click', (e) => {
-        if (!e.target.closest('.settings-panel') && !e.target.closest('.settings-btn')) {
-          document.getElementById('settingsPanel').classList.remove('active');
-        }
-      });
-    }
-
-    function toggleSettings() {
-      document.getElementById('settingsPanel').classList.toggle('active');
-    }
-
-    function saveDomainPrefs() {
-      localStorage.setItem('siteBundlerDomainPrefs', JSON.stringify(domainPreferences));
-    }
-
-    function renderHistory() {
-      const list = document.getElementById('historyList');
-      const count = document.getElementById('historyCount');
-      count.textContent = `${history.length} item${history.length !== 1 ? 's' : ''}`;
-      
-      if (history.length === 0) {
-        list.innerHTML = '<div class="empty-state">No bundles yet. Paste a URL to begin.</div>';
-        return;
-      }
-      
-      list.innerHTML = history.map(item => `
-        <div class="history-item">
-          <div class="history-info">
-            <div class="history-url" title="${item.url}">${item.url}</div>
-            <div class="history-meta">${new Date(item.timestamp).toLocaleString()} • ${(item.size / 1024).toFixed(1)} KB</div>
-          </div>
-          <div class="history-actions">
-            <button class="icon-btn" onclick="downloadHistoryItem(${item.id})" title="Download">⬇</button>
-            <button class="icon-btn delete" onclick="deleteHistoryItem(${item.id})" title="Delete">✕</button>
-          </div>
-        </div>
-      `).join('');
-    }
-
-    async function deleteHistoryItem(id) {
-      try {
-        await deleteBundleFromDB(id);
-        history = history.filter(item => item.id !== id);
-        renderHistory();
-        showStatus('Deleted', 'success');
-      } catch (err) {
-        showStatus('Delete failed', 'error');
-      }
-    }
-
-    async function downloadHistoryItem(id) {
-      try {
-        const item = await loadBundleFromDB(id);
-        if (item && item.data) {
-          const blob = new Blob([item.data], {type: 'text/html'});
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = item.name;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }
-      } catch (err) {
-        showStatus('Download failed', 'error');
-      }
-    }
-
-    function showStatus(msg, type = '') {
-      const status = document.getElementById('status');
-      status.textContent = msg;
-      status.className = 'status active ' + type;
-      if (type === 'error' || type === 'success') {
-        setTimeout(() => status.classList.remove('active'), 5000);
-      }
-    }
-
-    function updateProgress(text, pct) {
-      document.getElementById('progressText').textContent = text;
-      document.getElementById('progressFill').style.width = pct + '%';
-      document.getElementById('progress').classList.toggle('active', pct > 0);
-    }
-
-    async function startDiscovery() {
-      const url = document.getElementById('urlInput').value.trim();
-      if (!url) {
-        showStatus('Enter a URL', 'error');
-        return;
-      }
-
-      currentUrl = url;
-      discoveryData = null;
-      currentBundle = null;
-      
-      const btn = document.getElementById('goBtn');
-      btn.disabled = true;
-      btn.textContent = 'Scanning...';
-      
-      document.getElementById('result').classList.remove('active');
-      updateProgress('Scanning page...', 20);
-      showStatus('Discovering iframes...', '');
-      
-      try {
-        const response = await fetch(WORKER_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: url,
-            depth: parseInt(document.getElementById('maxDepth').value) || 3,
-            maxSize: (parseInt(document.getElementById('maxSize').value) || 5) * 1024 * 1024
-          })
-        });
-        
-        const result = await response.json();
-        
-        if (result.error) throw new Error(result.error);
-        
-        discoveryData = result;
-        
-        const externals = result.externalIframes || [];
-        const unknownExternals = externals.filter(ext => {
-          const pref = domainPreferences[ext.domain];
-          return pref !== 'always' && pref !== 'never';
-        });
-        
-        if (unknownExternals.length > 0) {
-          showExternalModal(unknownExternals);
-          updateProgress('', 0);
-        } else {
-          await finalizeBundle([]);
-        }
-        
-      } catch (err) {
-        showStatus(err.message, 'error');
-        updateProgress('', 0);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Bundle';
-      }
-    }
-
-    function showExternalModal(externals) {
-      const list = document.getElementById('externalList');
-      list.innerHTML = externals.map((ext, idx) => `
-        <div class="iframe-option">
-          <input type="checkbox" id="ext-${idx}" data-src="${ext.src}" data-domain="${ext.domain}">
-          <label for="ext-${idx}">
-            <div class="domain">${ext.domain}</div>
-            <div class="url">${ext.src}</div>
-          </label>
-          <button class="btn-secondary" style="padding:0.25rem 0.5rem;font-size:0.75rem;" 
-                  onclick="rememberDomain('${ext.domain}', 'always')">Always</button>
-          <button class="btn-secondary" style="padding:0.25rem 0.5rem;font-size:0.75rem;margin-left:0.25rem;" 
-                  onclick="rememberDomain('${ext.domain}', 'never')">Never</button>
-        </div>
-      `).join('');
-      
-      document.getElementById('externalModal').classList.add('active');
-    }
-
-    window.rememberDomain = function(domain, choice) {
-      domainPreferences[domain] = choice;
-      saveDomainPrefs();
-      const checkboxes = document.querySelectorAll(`[data-domain="${domain}"]`);
-      checkboxes.forEach(cb => cb.checked = (choice === 'always'));
-      showStatus(`${domain}: ${choice === 'always' ? 'Always include' : 'Always skip'}`, 'success');
-    };
-
-    window.skipAllExternal = function() {
-      document.getElementById('externalModal').classList.remove('active');
-      finalizeBundle([]);
-    };
-
-    window.includeSelected = function() {
-      const selected = [];
-      document.querySelectorAll('#externalList input[type="checkbox"]:checked').forEach(cb => {
-        selected.push(cb.getAttribute('data-src'));
-      });
-      document.getElementById('externalModal').classList.remove('active');
-      finalizeBundle(selected);
-    };
-
-    async function finalizeBundle(includeExternal) {
-      const alwaysDomains = Object.entries(domainPreferences)
-        .filter(([_, pref]) => pref === 'always')
-        .map(([domain, _]) => domain);
-      
-      const externalsToInclude = discoveryData.externalIframes
-        ?.filter(ext => includeExternal.includes(ext.src) || alwaysDomains.includes(ext.domain))
-        .map(ext => ext.src) || [];
-      
-      updateProgress('Fetching external content...', 60);
-      showStatus('Bundling selected iframes...', '');
-      
-      try {
-        const response = await fetch(WORKER_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: currentUrl,
-            depth: parseInt(document.getElementById('maxDepth').value) || 3,
-            maxSize: (parseInt(document.getElementById('maxSize').value) || 5) * 1024 * 1024,
-            includeExternal: externalsToInclude
-          })
-        });
-        
-        const result = await response.json();
-        if (result.error) throw new Error(result.error);
-        
-        const finalHtml = `<!DOCTYPE html>
-<!-- Bundled by SiteBundler -->
-<!-- Source: ${result.url} -->
-<!-- Date: ${new Date().toISOString()} -->
-<html>
-<head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<base href="${result.url}">
+<title>Site Bundler</title>
 <style>
-  .bundled-iframe { width: 100%; min-height: 100px; }
-  iframe { max-width: 100%; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#f8fafc;min-height:100vh;display:flex;flex-direction:column}
+.main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:4rem;padding-left:2rem;padding-right:2rem;gap:2rem}
+.input-wrapper{width:100%;max-width:600px;display:flex;gap:0.75rem;flex-wrap:wrap;position:relative}
+input[type="url"]{flex:1;min-width:250px;padding:1rem 1.25rem;background:#1e293b;border:1px solid #334155;border-radius:12px;color:#f8fafc;font-size:1rem;outline:none}
+input:focus{border-color:#3b82f6}
+button.primary-btn{padding:1rem 2rem;background:#3b82f6;color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:600;cursor:pointer}
+button.primary-btn:disabled{opacity:0.6;cursor:not-allowed}
+button.primary-btn:hover:not(:disabled){background:#2563eb}
+.settings-btn{width:44px;height:44px;background:transparent;border:1px solid #334155;border-radius:12px;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.settings-btn:hover{background:#1e293b;border-color:#3b82f6;color:#3b82f6}
+.settings-panel{position:absolute;top:calc(100% + 0.75rem);right:0;width:280px;background:#1e293b;border:1px solid #334155;border-radius:12px;padding:1.25rem;box-shadow:0 10px 40px rgba(0,0,0,0.4);z-index:100;display:none}
+.settings-panel.active{display:block}
+.status{font-size:0.875rem;color:#94a3b8;opacity:0;transition:opacity 0.3s;text-align:center}
+.status.active{opacity:1}
+.status.error{color:#f87171}
+.status.success{color:#4ade80}
+.progress{width:100%;max-width:600px;opacity:0;transition:opacity 0.3s}
+.progress.active{opacity:1}
+.progress-bar{height:4px;background:#334155;border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);width:0%;transition:width 0.3s}
+.progress-text{font-size:0.75rem;color:#64748b;margin-top:0.5rem;text-align:center}
+.history-section{background:#1e293b;border-top:1px solid #334155;margin-top:2rem;max-height:40vh;display:flex;flex-direction:column}
+.history-header{padding:1rem 2rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155}
+.history-list{overflow-y:auto;flex:1;padding:0.5rem 0}
+.history-item{display:flex;justify-content:space-between;align-items:center;padding:0.875rem 2rem;border-bottom:1px solid #252f47}
+.history-item:hover{background:#252f47}
+.history-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:0.25rem;margin-right:1rem}
+.history-url{font-size:0.875rem;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-meta{font-size:0.75rem;color:#64748b}
+.history-actions{display:flex;gap:0.5rem}
+.icon-btn{width:32px;height:32px;background:transparent;border:1px solid #334155;border-radius:6px;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.icon-btn:hover{border-color:#3b82f6;color:#3b82f6}
+.icon-btn.delete:hover{border-color:#ef4444;color:#ef4444}
+.empty-state{padding:3rem;text-align:center;color:#64748b}
+.result{position:fixed;bottom:2rem;right:2rem;background:#1e293b;border:1px solid #334155;border-radius:12px;padding:1.25rem;display:none;align-items:center;gap:1rem;box-shadow:0 10px 40px rgba(0,0,0,0.4)}
+.result.active{display:flex}
 </style>
 </head>
 <body>
-${result.html}
-</body>
-</html>`;
-        
-        const bundleRecord = {
-          id: Date.now(),
-          url: currentUrl,
-          timestamp: new Date().toISOString(),
-          name: `bundled_${new URL(currentUrl).hostname.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.html`,
-          size: finalHtml.length,
-          data: finalHtml
-        };
-        
-        await saveBundleToDB(bundleRecord);
-        
-        history.unshift({
-          id: bundleRecord.id,
-          url: bundleRecord.url,
-          timestamp: bundleRecord.timestamp,
-          name: bundleRecord.name,
-          size: bundleRecord.size
-        });
-        
-        renderHistory();
-        
-        currentBundle = { url: currentUrl, data: finalHtml };
-        
-        updateProgress('Complete!', 100);
-        showStatus('Bundle ready!', 'success');
-        document.getElementById('result').classList.add('active');
-        
-        setTimeout(() => updateProgress('', 0), 2000);
-        
-      } catch (err) {
-        showStatus(err.message, 'error');
-        updateProgress('', 0);
-      }
-    }
+<div class="main">
+  <div class="input-wrapper">
+    <input type="url" id="urlInput" placeholder="Paste URL and press Enter" autocomplete="off">
+    <button class="primary-btn" id="goBtn">Bundle</button>
+    <button class="settings-btn" id="settingsBtn" title="Settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    </button>
+    <div class="settings-panel" id="settingsPanel">
+      <div style="font-size:0.875rem;font-weight:600;color:#94a3b8;text-transform:uppercase;margin-bottom:1rem;">Settings</div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:0.875rem;">
+        <span style="font-size:0.875rem;color:#cbd5e1">Max Size (MB)</span>
+        <input type="number" id="maxSize" value="15" min="1" max="50" style="width:60px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#f8fafc;text-align:center;padding:0.375rem;">
+      </div>
+    </div>
+  </div>
+  <div class="status" id="status"></div>
+  <div class="progress" id="progress">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-text" id="progressText"></div>
+  </div>
+</div>
 
-    window.downloadBundle = function() {
-      if (!currentBundle) return;
-      const blob = new Blob([currentBundle.data], {type: 'text/html'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `bundled_${new URL(currentBundle.url).hostname.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+<div class="history-section">
+  <div class="history-header">
+    <span class="history-title">History</span>
+    <span class="history-title" id="historyCount">0 items</span>
+  </div>
+  <div class="history-list" id="historyList"><div class="empty-state">No bundles yet</div></div>
+</div>
+
+<div class="result" id="result">
+  <span id="resultText">Ready</span>
+  <button class="primary-btn" onclick="downloadBundle()">Download</button>
+</div>
+
+<script>
+const WORKER_URL = "https://site-bundler.myacctfortracking.workers.dev";
+const DB_NAME = 'SiteBundlerDB';
+let db = null, history = [], currentBundle = null;
+
+async function initDB() {
+  if (db) return db;
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => { db = req.result; resolve(db); };
+    req.onupgradeneeded = (e) => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('bundles')) d.createObjectStore('bundles', { keyPath: 'id' });
     };
+  });
+}
 
-    init();
-  </script>
+async function loadHistory() {
+  await initDB();
+  const tx = db.transaction('bundles', 'readonly');
+  const store = tx.objectStore('bundles');
+  const all = await new Promise((res, rej) => {
+    const r = store.getAll();
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  history = all.map(b => ({ id: b.id, url: b.url, timestamp: b.timestamp, name: b.name, size: b.size }));
+  render();
+}
+
+async function saveBundle(bundle) {
+  await initDB();
+  const tx = db.transaction('bundles', 'readwrite');
+  const store = tx.objectStore('bundles');
+  await new Promise((res, rej) => {
+    const r = store.put(bundle);
+    r.onsuccess = () => res();
+    r.onerror = () => rej(r.error);
+  });
+}
+
+async function deleteBundle(id) {
+  await initDB();
+  const tx = db.transaction('bundles', 'readwrite');
+  const store = tx.objectStore('bundles');
+  await new Promise((res, rej) => {
+    const r = store.delete(id);
+    r.onsuccess = () => res();
+    r.onerror = () => rej(r.error);
+  });
+  history = history.filter(h => h.id !== id);
+  render();
+}
+
+async function getBundle(id) {
+  await initDB();
+  const tx = db.transaction('bundles', 'readonly');
+  const store = tx.objectStore('bundles');
+  return new Promise((res, rej) => {
+    const r = store.get(id);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+
+function render() {
+  document.getElementById('historyCount').textContent = `${history.length} items`;
+  const list = document.getElementById('historyList');
+  if (history.length === 0) {
+    list.innerHTML = '<div class="empty-state">No bundles yet. Paste a URL to begin.</div>';
+    return;
+  }
+  list.innerHTML = history.map(item => `
+    <div class="history-item">
+      <div class="history-info">
+        <div class="history-url" title="${item.url}">${item.url}</div>
+        <div class="history-meta">${new Date(item.timestamp).toLocaleString()} • ${(item.size/1024).toFixed(1)} KB</div>
+      </div>
+      <div class="history-actions">
+        <button class="icon-btn" onclick="downloadItem(${item.id})" title="Download">⬇</button>
+        <button class="icon-btn delete" onclick="deleteItem(${item.id})" title="Delete">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function downloadItem(id) {
+  const b = await getBundle(id);
+  if (!b?.data) return;
+  const blob = new Blob([b.data], {type: 'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = b.name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+window.deleteItem = async (id) => {
+  await deleteBundle(id);
+  render();
+};
+
+window.downloadBundle = () => {
+  if (!currentBundle) return;
+  const blob = new Blob([currentBundle.data], {type: 'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `bundled_${Date.now()}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+async function startBundle() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return;
+  
+  const btn = document.getElementById('goBtn');
+  btn.disabled = true;
+  btn.textContent = 'Bundling...';
+  document.getElementById('result').classList.remove('active');
+  document.getElementById('progress').classList.add('active');
+  document.getElementById('progressFill').style.width = '20%';
+  document.getElementById('status').textContent = 'Fetching...';
+  document.getElementById('status').className = 'status active';
+  
+  try {
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, maxSize: parseInt(document.getElementById('maxSize').value) || 15 })
+    });
+    
+    document.getElementById('progressFill').style.width = '60%';
+    const result = await res.json();
+    
+    if (result.error) throw new Error(result.error);
+    
+    const fullHtml = `<!DOCTYPE html>
+<!-- Bundled: ${result.stats || 'OK'} -->
+<!-- Source: ${result.url} -->
+<html><head><meta charset="UTF-8"><base href="${result.url}"></head><body>${result.html}</body></html>`;
+    
+    const bundle = {
+      id: Date.now(),
+      url: url,
+      timestamp: new Date().toISOString(),
+      name: `bundled_${new URL(url).hostname.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.html`,
+      size: fullHtml.length,
+      data: fullHtml
+    };
+    
+    await saveBundle(bundle);
+    history.unshift({ id: bundle.id, url: bundle.url, timestamp: bundle.timestamp, name: bundle.name, size: bundle.size });
+    render();
+    
+    currentBundle = { url: url, data: fullHtml };
+    document.getElementById('result').classList.add('active');
+    document.getElementById('status').textContent = 'Done!';
+    document.getElementById('status').className = 'status active success';
+    
+  } catch (e) {
+    document.getElementById('status').textContent = e.message;
+    document.getElementById('status').className = 'status active error';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Bundle';
+    document.getElementById('progress').classList.remove('active');
+  }
+}
+
+document.getElementById('goBtn').addEventListener('click', startBundle);
+document.getElementById('urlInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') startBundle(); });
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  document.getElementById('settingsPanel').classList.toggle('active');
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.settings-panel') && !e.target.closest('.settings-btn')) {
+    document.getElementById('settingsPanel').classList.remove('active');
+  }
+});
+
+loadHistory();
+</script>
 </body>
 </html>
