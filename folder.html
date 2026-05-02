@@ -238,7 +238,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 
 /* Portal view */
 #portal-grid{display:grid;gap:8px;padding:10px;align-items:start}
-.portlet{background:var(--surface);border:1px solid var(--bmd);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;transition:box-shadow .15s}
+.portlet{position:relative;background:var(--surface);border:1px solid var(--bmd);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;transition:box-shadow .15s}
 .portlet.dragging{opacity:.4;cursor:grabbing}
 .portlet.drop-target{outline:2px dashed var(--acc);outline-offset:-2px}
 .portlet.soft-del{opacity:.35}
@@ -371,7 +371,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
       <div id="rp-enroll" class="hidden">
         <div style="flex:1">
           <div class="enroll-txt" id="enroll-txt">This folder hasn't been indexed yet.</div>
-          <div class="enroll-sub" id="enroll-sub">Index it once to enable search, filtering, and curation.</div>
+          <div class="enroll-sub" id="enroll-sub">Index to enable search and filters.</div>
         </div>
         <button class="btn btn-pri btn-sm" id="btn-index-now">Index Now</button>
       </div>
@@ -405,22 +405,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
       <div id="rp-toolbar">
         <div class="view-tabs">
           <button class="vtab active" data-view="list">List</button>
-          <button class="vtab" data-view="portal">Portal</button>
+          <button class="vtab" data-view="portal">Tile</button>
         </div>
-        <!-- List sort controls -->
-        <div id="sort-strip" class="tb-sort">
-          <span style="font-size:10px;color:var(--tm);text-transform:uppercase;letter-spacing:.06em">Sort:</span>
-          <button class="sort-btn active" data-col="effectiveDate">Date</button>
-          <button class="sort-btn" data-col="name">Name</button>
-          <button class="sort-btn" data-col="size">Size</button>
-          <button class="sort-btn" data-col="class">Type</button>
-          <button class="sort-btn" data-col="stack">Stack</button>
-          <span id="sort-dir-btn" style="font-family:var(--mono);font-size:11px;color:var(--ts);cursor:pointer;padding:2px 6px;border-radius:3px;background:var(--raised);border:1px solid var(--border)">↓</span>
-        </div>
+        <!-- List sort controls intentionally handled by column headers -->
+        <div id="sort-strip" class="tb-sort hidden"></div>
         <!-- Portal density + paging -->
         <div id="portal-strip" class="hidden">
           <div class="density-wrap">
-            <span>Grid:</span>
+            <span>Slider:</span>
             <input type="range" id="density-slider" min="1" max="10" value="4">
             <span id="density-val">4×4</span>
           </div>
@@ -964,7 +956,7 @@ const RightPane={
     this.renderStats();this.renderTimeline();this.renderContent();this.renderFooter();
     // Update sort buttons
     document.querySelectorAll('.sort-btn').forEach(b=>{b.classList.toggle('active',b.dataset.col===st.ui.sortCol);});
-    $id('sort-dir-btn').textContent=st.ui.sortDir==='asc'?'↑':'↓';
+    const sortDirBtn=$id('sort-dir-btn');if(sortDirBtn)sortDirBtn.textContent=st.ui.sortDir==='asc'?'↑':'↓';
   },
 
   renderStats(){
@@ -1094,15 +1086,22 @@ const ListView={
     // Header
     const thead=document.createElement('thead');
     const hr=document.createElement('tr');
-    [['',''],['name','#'],['name','Name'],['size','Size'],['effectiveDate','Date'],['stack','Stack']].forEach(([col,label])=>{
+    [['',''],['name','#'],['name','Name'],['class','Type'],['effectiveDate','Date'],['size','Size'],['stack','Stack']].forEach(([col,label])=>{
       const th=document.createElement('th');th.textContent=label;
       if(col){th.dataset.col=col;if(RightPane.getFilteredFiles&&col===st.ui.sortCol)th.classList.add(st.ui.sortDir==='asc'?'s-asc':'s-desc');}
+      if(col){
+        th.addEventListener('click',()=>{
+          if(st.ui.sortCol===col)st.ui.sortDir=st.ui.sortDir==='asc'?'desc':'asc';
+          else{st.ui.sortCol=col;st.ui.sortDir='asc';}
+          RightPane.renderContent();
+        });
+      }
       hr.appendChild(th);
     });
     thead.appendChild(hr);tbl.appendChild(thead);
     // Body
     const tbody=document.createElement('tbody');
-    if(!files.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=6;td.style.textAlign='center';td.style.color='var(--tm)';td.style.padding='32px';td.textContent='No files match current filters.';tr.appendChild(td);tbody.appendChild(tr);}
+    if(!files.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=7;td.style.textAlign='center';td.style.color='var(--tm)';td.style.padding='32px';td.textContent='No files match current filters.';tr.appendChild(td);tbody.appendChild(tr);}
     files.forEach((file,idx)=>{this.appendFileRow(tbody,file,idx+1);});
     tbl.appendChild(tbody);wrap.appendChild(tbl);content.appendChild(wrap);
   },
@@ -1130,16 +1129,6 @@ const ListView={
     const tdDate=document.createElement('td');const dateSpan=document.createElement('span');dateSpan.className='mono';dateSpan.textContent=fmtDate(file.effectiveDate);tdDate.appendChild(dateSpan);tr.appendChild(tdDate);
     // Stack
     const tdStk=document.createElement('td');const stk=document.createElement('span');stk.className=`stk ${STACK_CSS[file.stack]||'stk-inbox'}`;stk.textContent=STACK_LABEL[file.stack]||'Inbox';tdStk.appendChild(stk);tr.appendChild(tdStk);
-    // Actions
-    const tdAct=document.createElement('td');tdAct.style.minWidth='80px';
-    const acts=document.createElement('div');acts.className='row-actions';
-    const btnExp=document.createElement('button');btnExp.className='ra-btn';btnExp.textContent='▸ Preview';btnExp.title='Preview this file';
-    btnExp.addEventListener('click',e=>{e.stopPropagation();this.openModal(file);});
-    const btnDel=document.createElement('button');btnDel.className='ra-btn danger';btnDel.textContent='🗑';btnDel.title='Soft delete (move to Recycle)';
-    btnDel.addEventListener('click',async e=>{e.stopPropagation();await App.softDelete(file.id);});
-    const btnPerm=document.createElement('button');btnPerm.className='ra-btn danger';btnPerm.textContent='✕';btnPerm.title='Permanently delete';
-    btnPerm.addEventListener('click',async e=>{e.stopPropagation();await App.permanentDelete(file.id);});
-    acts.appendChild(btnExp);acts.appendChild(btnDel);acts.appendChild(btnPerm);tdAct.appendChild(acts);tr.appendChild(tdAct);
     tr.addEventListener('click',()=>this.openModal(file));
     tbody.appendChild(tr);
   },
@@ -1175,6 +1164,7 @@ const PortalView={
   makeCard(file,cardH,idx){
     const def=CLASS_DEF[file.class]||CLASS_DEF.other;
     const card=document.createElement('div');card.className='portlet'+(file.stack==='trash'?' soft-del':'');card.dataset.fid=file.id;card.draggable=true;
+    const cardCb=document.createElement('input');cardCb.type='checkbox';cardCb.style.position='absolute';cardCb.style.top='8px';cardCb.style.left='8px';cardCb.style.zIndex='2';cardCb.style.accentColor='var(--acc)';cardCb.checked=st.ui.selectedIds.has(file.id);cardCb.addEventListener('click',e=>e.stopPropagation());cardCb.addEventListener('change',()=>{if(cardCb.checked)st.ui.selectedIds.add(file.id);else st.ui.selectedIds.delete(file.id);RightPane.updateSelectedCount(RightPane.getFilteredFiles().length);});
     // Drag
     card.addEventListener('dragstart',e=>{st.ui.portalDragId=file.id;card.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
     card.addEventListener('dragend',()=>{st.ui.portalDragId=null;card.classList.remove('dragging');document.querySelectorAll('.portlet').forEach(c=>c.classList.remove('drop-target'));});
@@ -1194,13 +1184,7 @@ const PortalView={
     const contentEl=document.createElement('div');contentEl.className='ptl-content';contentEl.style.height=cardH+'px';
     if(file.thumbnailUrl){const img=document.createElement('img');img.src=file.thumbnailUrl;img.style.maxWidth='100%';img.style.maxHeight='100%';img.style.objectFit='contain';contentEl.appendChild(img);}
     else{const ph=document.createElement('div');ph.className='ptl-content-placeholder';ph.innerHTML=`<div style="font-size:22px;margin-bottom:4px">${this.classIcon(file.class)}</div><div style="font-size:10px;color:var(--tm)">${def.label}</div>`;contentEl.appendChild(ph);}
-    // Footer
-    const foot=document.createElement('div');foot.className='ptl-foot';
-    const stkSpan=document.createElement('span');stkSpan.className=`ptl-stk ${STACK_CSS[file.stack]||'stk-inbox'}`;stkSpan.textContent=STACK_LABEL[file.stack]||'Inbox';
-    const fabBtn=document.createElement('button');fabBtn.className='ptl-fab';fabBtn.textContent='🏷';fabBtn.title='Edit curation';
-    fabBtn.addEventListener('click',async e=>{e.stopPropagation();const next={inbox:'keep',keep:'maybe',maybe:'trash',trash:'inbox'}[file.stack]||'inbox';await App.setStack(file.id,next);});
-    foot.appendChild(stkSpan);foot.appendChild(fabBtn);
-    card.appendChild(bar);card.appendChild(contentEl);card.appendChild(foot);
+        card.appendChild(cardCb);card.appendChild(bar);card.appendChild(contentEl);
     return card;
   },
   classIcon(cls){return{image:'🖼',video:'🎬',audio:'🎵',document:'📄',office:'📊',web:'🌐',text:'📝',code:'💻',archive:'📦',other:'📎'}[cls]||'📎';},
@@ -1469,18 +1453,6 @@ function initEvents(){
       RightPane.renderContent();
     });
   });
-
-  // Sort
-  document.querySelectorAll('.sort-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      if(st.ui.sortCol===btn.dataset.col){st.ui.sortDir=st.ui.sortDir==='asc'?'desc':'asc';}
-      else{st.ui.sortCol=btn.dataset.col;st.ui.sortDir='asc';}
-      document.querySelectorAll('.sort-btn').forEach(b=>b.classList.toggle('active',b===btn));
-      $id('sort-dir-btn').textContent=st.ui.sortDir==='asc'?'↑':'↓';
-      RightPane.renderContent();
-    });
-  });
-  $id('sort-dir-btn').addEventListener('click',()=>{st.ui.sortDir=st.ui.sortDir==='asc'?'desc':'asc';$id('sort-dir-btn').textContent=st.ui.sortDir==='asc'?'↑':'↓';RightPane.renderContent();});
 
   // Portal controls
   $id('density-slider').addEventListener('input',e=>{st.ui.portalDensity=parseInt(e.target.value)||4;$id('density-val').textContent=`${st.ui.portalDensity}×${st.ui.portalDensity}`;if(st.ui.view==='portal')RightPane.renderContent();});
