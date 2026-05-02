@@ -111,7 +111,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 /* Enrollment banner */
 #rp-enroll{flex-shrink:0;background:var(--blu-d);border-bottom:1px solid rgba(59,130,246,.2);padding:12px 16px;display:flex;align-items:center;gap:12px}
 #rp-enroll .btn{flex-shrink:0}
-#btn-index-now{white-space:nowrap}
+#btn-index-now{white-space:nowrap;word-break:keep-all}
 .enroll-txt{flex:1;font-size:13px;color:var(--blu)}
 .enroll-sub{font-size:11px;color:rgba(59,130,246,.7);margin-top:2px}
 
@@ -158,7 +158,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
 .chips-sep{width:1px;height:16px;background:var(--border);flex-shrink:0}
 
 /* Toolbar */
-#rp-toolbar{flex-shrink:0;display:flex;align-items:center;gap:8px;padding:5px 10px;background:var(--surface);border-bottom:1px solid var(--border)}
+#rp-toolbar{flex-shrink:0;display:flex;align-items:center;gap:8px;padding:5px 10px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
 .view-tabs{display:flex;gap:2px;background:var(--raised);border-radius:5px;padding:2px;flex-shrink:0}
 .vtab{padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;color:var(--ts);border:none;background:transparent;font-family:var(--sans);transition:all .15s}
 .vtab.active{background:var(--surface);color:var(--tp)}
@@ -512,6 +512,7 @@ const st={
     search:'',classFilter:null,stackFilter:null,tlSegment:null,tlOpen:false,tlHidden:new Set(),
     sortCol:'effectiveDate',sortDir:'desc',
     expandedItemId:null,fabItemId:null,
+    selectedIds:new Set(),
     portalPage:1,portalDensity:4,portalOrder:[],portalDragId:null,
   }
 };
@@ -533,8 +534,8 @@ function toast(msg,type,dur=3000){
   el.textContent=msg;el.className='toast show'+(type?' '+type:'');
   clearTimeout(el._t);el._t=setTimeout(()=>{el.className='toast';},dur);
 }
-function fmtSize(b){if(!b)return'—';if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';if(b<1073741824)return(b/1048576).toFixed(1)+' MB';return(b/1073741824).toFixed(2)+' GB';}
-function fmtDate(iso){if(!iso)return'—';const d=new Date(iso);return isNaN(d)?'—':d.toLocaleDateString('en-US',{year:'2-digit',month:'short',day:'numeric'});}
+function fmtSize(b){if(!b)return'—';if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';if(b<1073741824){const mb=b/1048576;return mb<1?'<1 MB':mb.toFixed(1)+' MB';}return(b/1073741824).toFixed(2)+' GB';}
+function fmtDate(iso){if(!iso)return'—';const d=new Date(iso);if(isNaN(d))return'—';const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const day=String(d.getDate()).padStart(2,'0');return `${y}${m}${day}`;}
 function fmtNum(n){return(n==null||n===0)?'—':n.toLocaleString();}
 function agoText(ts){if(!ts)return'—';const s=(Date.now()-ts)/1000;if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
 function simpleHash(str){let h=0;for(let i=0;i<str.length;i++)h=Math.imul(31,h)+str.charCodeAt(i)|0;return(h>>>0).toString(16);}
@@ -1065,9 +1066,13 @@ const RightPane={
       return;
     }
     const files=this.getFilteredFiles();
-    const lbl=$id('file-lbl-count');if(lbl)lbl.textContent=`${files.length} file${files.length!==1?'s':''}`;
+    this.updateSelectedCount(files.length);
     if(st.ui.view==='portal'){PortalView.render(files);return;}
     ListView.render(files);
+  },
+
+  updateSelectedCount(filteredCount){
+    const lbl=$id('file-lbl-count');if(!lbl)return;const sel=st.ui.selectedIds?.size||0;lbl.textContent=`${sel} selected • ${filteredCount} shown`;
   },
 
   renderFooter(){
@@ -1089,7 +1094,7 @@ const ListView={
     // Header
     const thead=document.createElement('thead');
     const hr=document.createElement('tr');
-    [['','checkbox'],['name','Name'],['class','Type'],['size','Size'],['effectiveDate','Date'],['stack','Stack'],['','Actions']].forEach(([col,label])=>{
+    [['',''],['name','#'],['name','Name'],['size','Size'],['effectiveDate','Date'],['stack','Stack']].forEach(([col,label])=>{
       const th=document.createElement('th');th.textContent=label;
       if(col){th.dataset.col=col;if(RightPane.getFilteredFiles&&col===st.ui.sortCol)th.classList.add(st.ui.sortDir==='asc'?'s-asc':'s-desc');}
       hr.appendChild(th);
@@ -1097,17 +1102,18 @@ const ListView={
     thead.appendChild(hr);tbl.appendChild(thead);
     // Body
     const tbody=document.createElement('tbody');
-    if(!files.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=7;td.style.textAlign='center';td.style.color='var(--tm)';td.style.padding='32px';td.textContent='No files match current filters.';tr.appendChild(td);tbody.appendChild(tr);}
-    files.forEach(file=>{this.appendFileRow(tbody,file,files.length);});
+    if(!files.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=6;td.style.textAlign='center';td.style.color='var(--tm)';td.style.padding='32px';td.textContent='No files match current filters.';tr.appendChild(td);tbody.appendChild(tr);}
+    files.forEach((file,idx)=>{this.appendFileRow(tbody,file,idx+1);});
     tbl.appendChild(tbody);wrap.appendChild(tbl);content.appendChild(wrap);
   },
 
-  appendFileRow(tbody,file,totalFiles){
+  appendFileRow(tbody,file,rowNum){
     const def=CLASS_DEF[file.class]||CLASS_DEF.other;
     const tr=document.createElement('tr');tr.dataset.fid=file.id;
     if(file.stack==='trash')tr.classList.add('soft-del');
     // Checkbox
-    const tdCb=document.createElement('td');const cb=document.createElement('input');cb.type='checkbox';cb.style.accentColor='var(--acc)';tdCb.appendChild(cb);tr.appendChild(tdCb);
+    const tdCb=document.createElement('td');const cb=document.createElement('input');cb.type='checkbox';cb.style.accentColor='var(--acc)';cb.checked=st.ui.selectedIds.has(file.id);cb.addEventListener('click',e=>e.stopPropagation());cb.addEventListener('change',()=>{if(cb.checked)st.ui.selectedIds.add(file.id);else st.ui.selectedIds.delete(file.id);RightPane.updateSelectedCount(RightPane.getFilteredFiles().length);});tdCb.appendChild(cb);tr.appendChild(tdCb);
+    const tdIdx=document.createElement('td');const idxSpan=document.createElement('span');idxSpan.className='mono';idxSpan.textContent=String(rowNum);tdIdx.appendChild(idxSpan);tr.appendChild(tdIdx);
     // Name
     const tdName=document.createElement('td');tdName.style.maxWidth='220px';
     const nameWrap=document.createElement('div');nameWrap.className='col-name-wrap';
@@ -1128,60 +1134,25 @@ const ListView={
     const tdAct=document.createElement('td');tdAct.style.minWidth='80px';
     const acts=document.createElement('div');acts.className='row-actions';
     const btnExp=document.createElement('button');btnExp.className='ra-btn';btnExp.textContent='▸ Preview';btnExp.title='Preview this file';
-    btnExp.addEventListener('click',e=>{e.stopPropagation();this.toggleExpand(file);});
+    btnExp.addEventListener('click',e=>{e.stopPropagation();this.openModal(file);});
     const btnDel=document.createElement('button');btnDel.className='ra-btn danger';btnDel.textContent='🗑';btnDel.title='Soft delete (move to Recycle)';
     btnDel.addEventListener('click',async e=>{e.stopPropagation();await App.softDelete(file.id);});
     const btnPerm=document.createElement('button');btnPerm.className='ra-btn danger';btnPerm.textContent='✕';btnPerm.title='Permanently delete';
     btnPerm.addEventListener('click',async e=>{e.stopPropagation();await App.permanentDelete(file.id);});
     acts.appendChild(btnExp);acts.appendChild(btnDel);acts.appendChild(btnPerm);tdAct.appendChild(acts);tr.appendChild(tdAct);
-    tr.addEventListener('click',()=>this.toggleExpand(file));
+    tr.addEventListener('click',()=>this.openModal(file));
     tbody.appendChild(tr);
   },
 
-  toggleExpand(file){
-    const tbody=document.querySelector('.list-tbl tbody');if(!tbody)return;
-    // Remove existing preview row
-    const existing=tbody.querySelector('.preview-row');if(existing)existing.remove();
-    const allRows=tbody.querySelectorAll('tr[data-fid]');allRows.forEach(r=>r.classList.remove('expanded'));
-    if(st.ui.expandedItemId===file.id){st.ui.expandedItemId=null;st.ui.fabItemId=null;return;}
-    st.ui.expandedItemId=file.id;st.ui.fabItemId=file.id;
-    const tr=tbody.querySelector(`tr[data-fid="${file.id}"]`);if(!tr)return;
-    tr.classList.add('expanded');
-    const previewRow=document.createElement('tr');previewRow.className='preview-row';
-    const td=document.createElement('td');td.colSpan=7;td.className='preview-cell';
-    const inner=document.createElement('div');inner.className='preview-inner';
-    // Media preview
-    const mediawrap=document.createElement('div');mediawrap.className='preview-media';
-    mediawrap.innerHTML=`<div style="color:var(--tm);font-size:11px;padding:12px">Loading…</div>`;
-    inner.appendChild(mediawrap);
-    // Meta
-    const meta=document.createElement('div');meta.className='preview-meta';
-    meta.innerHTML=`<div class="preview-meta-title">File Info</div>
-      <div class="preview-meta-row"><span class="preview-meta-key">Size</span><span class="preview-meta-val">${fmtSize(file.size)}</span></div>
-      <div class="preview-meta-row"><span class="preview-meta-key">Date</span><span class="preview-meta-val">${fmtDate(file.effectiveDate)}</span></div>
-      <div class="preview-meta-row"><span class="preview-meta-key">Type</span><span class="preview-meta-val">${CLASS_DEF[file.class]?.label||'—'}</span></div>
-      ${file.meta?.width?`<div class="preview-meta-row"><span class="preview-meta-key">Dimensions</span><span class="preview-meta-val">${file.meta.width}×${file.meta.height}</span></div>`:''}
-      ${file.meta?.cameraMake?`<div class="preview-meta-row"><span class="preview-meta-key">Camera</span><span class="preview-meta-val">${file.meta.cameraMake} ${file.meta.cameraModel||''}</span></div>`:''}
-      ${file.meta?.duration?`<div class="preview-meta-row"><span class="preview-meta-key">Duration</span><span class="preview-meta-val">${file.meta.duration}s</span></div>`:''}
-      ${file.contentHash?`<div class="preview-meta-row"><span class="preview-meta-key">Hash</span><span class="preview-meta-val">${file.contentHash.slice(0,12)}…</span></div>`:''}`;
-    inner.appendChild(meta);
-    // FAB
-    const fab=document.createElement('button');fab.className='fab';fab.title='Edit curation';fab.textContent='🏷';
-    const fabPanel=document.createElement('div');fabPanel.className='fab-panel hidden';
-    fabPanel.innerHTML=`<div class="fab-title">Curation</div>
-      <div class="stack-grid">
-        ${['inbox','keep','maybe','trash'].map(s=>`<button class="stk-btn ${file.stack===s?'active-'+s:''}" data-stack="${s}">${STACK_LABEL[s]}</button>`).join('')}
-      </div>
-      <button class="fav-toggle ${file.favorite?'active':''}" id="fav-btn-${file.id}">${file.favorite?'★ Favorite':'☆ Favorite'}</button>`;
-    fabPanel.querySelectorAll('.stk-btn').forEach(btn=>{
-      btn.addEventListener('click',async e=>{e.stopPropagation();await App.setStack(file.id,btn.dataset.stack);fabPanel.classList.add('hidden');RightPane.render();});
-    });
-    fabPanel.querySelector(`#fav-btn-${file.id}`)?.addEventListener('click',async e=>{e.stopPropagation();await App.toggleFavorite(file.id);fabPanel.classList.add('hidden');RightPane.render();});
-    fab.addEventListener('click',e=>{e.stopPropagation();fabPanel.classList.toggle('hidden');});
-    td.appendChild(inner);td.appendChild(fab);td.appendChild(fabPanel);
-    previewRow.appendChild(td);tr.insertAdjacentElement('afterend',previewRow);
-    // Load preview async
-    App.fetchPreview(file).then(node=>{mediawrap.innerHTML='';if(node)mediawrap.appendChild(node);else mediawrap.innerHTML='<div class="preview-no">No preview available</div>';});
+  openModal(file){
+    const ov=document.createElement('div');ov.className='confirm-overlay';
+    ov.innerHTML=`<div class="confirm-box" style="max-width:640px"><div class="confirm-msg" style="font-weight:600">${file.name}</div><div id="preview-slot" style="margin:10px 0;min-height:90px">Loading preview…</div><div class="confirm-acts"><button class="btn btn-ghost btn-sm" id="pv-open">Open in new tab</button><button class="btn btn-ghost btn-sm" id="pv-ren">Rename</button><button class="btn btn-danger btn-sm" id="pv-del">Delete</button><button class="btn btn-pri btn-sm" id="pv-close">Close</button></div></div>`;
+    document.body.appendChild(ov);
+    App.fetchPreview(file).then(n=>{const slot=ov.querySelector('#preview-slot');if(!slot)return;slot.innerHTML='';if(n)slot.appendChild(n);else slot.textContent='No preview available';});
+    ov.querySelector('#pv-open').addEventListener('click',()=>window.open((file.thumbnailUrl||'#'),'_blank'));
+    ov.querySelector('#pv-ren').addEventListener('click',async()=>{const n=prompt('Rename file',file.name);if(n&&n!==file.name){await st.provider.renameFile(file.id,n);if(st.intel?.files?.[file.id])st.intel.files[file.id].name=n;await Intel.save();RightPane.render();}});
+    ov.querySelector('#pv-del').addEventListener('click',async()=>{await App.softDelete(file.id);ov.remove();RightPane.render();});
+    ov.querySelector('#pv-close').addEventListener('click',()=>ov.remove());
   },
 };
 
@@ -1314,7 +1285,7 @@ const App={
     // Clear context
     st.selFolderId=folderId;st.selFolderEnrolled=enrolled;
     st.ui.search='';st.ui.classFilter=null;st.ui.stackFilter=null;st.ui.tlSegment=null;
-    st.ui.expandedItemId=null;st.ui.fabItemId=null;st.ui.portalPage=1;
+    st.ui.expandedItemId=null;st.ui.fabItemId=null;st.ui.portalPage=1;st.ui.selectedIds=new Set();
     const omni=$id('omni-input');if(omni)omni.value='';
     // Update tree selection
     Tree.render();
@@ -1322,7 +1293,7 @@ const App={
     const banner=$id('rp-enroll');if(banner)banner.classList.toggle('hidden',enrolled);
     if(!enrolled){
       const txt=$id('enroll-txt');if(txt)txt.textContent=`"${folderName}" hasn't been indexed yet.`;
-      const sub=$id('enroll-sub');if(sub)sub.textContent='Index it once to enable search, filtering, and curation.';
+      const sub=$id('enroll-sub');if(sub)sub.textContent='Index to enable search and filters.';
     }
     // Render right pane
     RightPane.render();
@@ -1354,14 +1325,14 @@ const App={
       clearInterval(st.acq.tick);$id('acq-pb').style.width='100%';
       logLine('✓ Complete — saving…');await Intel.save();logLine('✓ Saved.');
       st.acq.running=false;
-      const mini=$id('acq-mini');if(mini)mini.textContent='Idle';
+      const mini=$id('acq-mini');if(mini)mini.textContent='Complete';
       await sleep(500);
       $id('rp-acq').classList.add('hidden');
       st.selFolderEnrolled=true;Tree.render();RightPane.render();
       toast('Index complete','t-ok');
     }catch(e){
       clearInterval(st.acq.tick);logLine(`✖ ${e.message}`);st.acq.running=false;
-      const mini=$id('acq-mini');if(mini)mini.textContent='Idle';
+      const mini=$id('acq-mini');if(mini)mini.textContent='Error';
       toast('Indexing failed: '+e.message,'t-err');
     }
   },
