@@ -12,7 +12,7 @@
 :root{
   --bg:#0d0d12;--surface:#13131a;--raised:#1a1a24;--hover:#20202c;
   --border:rgba(255,255,255,0.07);--bmd:rgba(255,255,255,0.12);--bacc:rgba(245,158,11,0.35);
-  --tp:#e0e0ee;--ts:#80809a;--tm:#3a3a52;
+  --tp:#e0e0ee;--ts:#ffffff;--tm:#cfcfe0;
   --acc:#f59e0b;--acc-d:rgba(245,158,11,0.12);
   --grn:#10b981;--grn-d:rgba(16,185,129,0.12);
   --blu:#3b82f6;--blu-d:rgba(59,130,246,0.12);
@@ -336,13 +336,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
       </div>
       <div class="lp-tabs" aria-label="Macro context selectors">
         <button class="lp-tab active">Tree</button>
-        <button class="lp-tab">Timeline</button>
-        <button class="lp-tab">Mix</button>
-      </div>
-      <div class="lp-helper">
-        <span class="status-dot dot-dark"></span>Not indexed · shows a start-indexing prompt on the right.
-        <br><span class="status-dot dot-yellow"></span>Indexing · progress only, no auto-rescan on click.
-        <br><span class="status-dot dot-green"></span>Indexed · full filters, chips, and bulk actions available.
       </div>
       <div id="lp-tree"></div>
       <div class="lp-acq-wrap" id="lp-acq-wrap">
@@ -357,7 +350,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
         <div id="rp-acq" class="hidden">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
             <span style="font-size:12px;font-weight:600;color:var(--tp)">Indexing Folder</span>
-            <button class="btn btn-danger btn-sm" id="btn-acq-cancel">Cancel</button>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-ghost btn-sm" id="btn-acq-pause">Pause</button>
+              <button class="btn btn-pri btn-sm hidden" id="btn-acq-resume">Resume</button>
+              <button class="btn btn-danger btn-sm" id="btn-acq-cancel">Cancel</button>
+            </div>
           </div>
           <div class="acq-fname" id="acq-folder">Initializing…</div>
           <div class="pb-wrap"><div class="pb-fill" id="acq-pb"></div></div>
@@ -377,23 +374,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
     <div id="right-panel">
 
       <!-- OmniSearch -->
-      <div style="padding:6px 12px;border-bottom:1px solid var(--border);background:var(--surface);font-family:var(--mono);font-size:11px;color:var(--ts)">Scope: <span style="color:var(--tp)">Current folder context</span> · Result mix updates as filters are applied.</div>
+      <div style="padding:6px 12px;border-bottom:1px solid var(--border);background:var(--surface);font-family:var(--mono);font-size:11px;color:var(--ts)">Scope: <span style="color:var(--tp)">Current folder context</span></div>
       <div id="rp-search">
         <input id="omni-input" placeholder="Search files in this folder…" type="text">
         <button class="omni-clear" id="omni-clear" title="Clear search">✕</button>
-      </div>
-
-      <!-- Timeline strip -->
-      <div id="rp-timeline" class="tl-closed hidden">
-        <div class="tl-toggle-bar" id="tl-toggle">
-          <span class="tl-chev">▶</span>
-          <span>Timeline</span>
-          <span class="tl-active-seg" id="tl-active-seg"></span>
-        </div>
-        <div id="tl-chart-area">
-          <svg id="tl-svg"></svg>
-        </div>
-        <div class="tl-legend" id="tl-legend"></div>
       </div>
 
       <!-- Stats chips -->
@@ -499,7 +483,7 @@ const st={
   provider:null,providerType:null,intel:null,
   levelOneFolders:[],treeCache:{},expandedNodes:new Set(),
   selFolderId:null,selFolderEnrolled:false,
-  acq:{running:false,cancelled:false,t0:0,tick:null},
+  acq:{running:false,cancelled:false,paused:false,t0:0,tick:null},
   newChildren:[],
   ui:{
     leftOpen:true,view:'list',
@@ -781,6 +765,7 @@ const Intel={
     let fScanned=0,iCount=0;
     while(queue.length>0){
       if(st.acq.cancelled){onLog('⊘ Cancelled');break;}
+      while(st.acq.paused&&!st.acq.cancelled){await sleep(120);}
       const fid=queue.shift();if(visited.has(fid))continue;visited.add(fid);
       if(!rec.folders[fid]){
         rec.folders[fid]={id:fid,name:fid,parentId:null,depth:0,isEnrolled:fid===folderId,
@@ -820,7 +805,7 @@ const Intel={
         iCount++;
       });
       folder.hash=simpleHash(hp.sort().join('|'));fScanned++;
-      onProg({folder:fname,fc:fScanned,ic:iCount});await sleep(30);
+      onProg({folder:fname,fc:fScanned,ic:iCount});await sleep(0);
     }
     this.computeDepths(rec);this.rollup(rec);st.intel=rec;return rec;
   },
@@ -1286,10 +1271,11 @@ const App={
   },
 
   async startIndexing(folderId,folderName){
+    if(st.acq.running){toast('Slot not available, try again later.','',2200);return;}
     $id('rp-enroll').classList.add('hidden');
     $id('lp-acq-wrap')?.classList.add('open');
     $id('rp-acq').classList.remove('hidden');
-    st.acq={running:true,cancelled:false,t0:Date.now(),tick:null};
+    st.acq={running:true,cancelled:false,paused:false,t0:Date.now(),tick:null};
     $id('acq-log').innerHTML='';$id('acq-pb').style.width='0%';
     st.acq.tick=setInterval(()=>{const el=$id('acq-el');if(el)el.textContent=Math.round((Date.now()-st.acq.t0)/1000)+'s';},1000);
     const onProg=({folder,fc,ic})=>{
@@ -1303,6 +1289,7 @@ const App={
       clearInterval(st.acq.tick);$id('acq-pb').style.width='100%';
       logLine('✓ Complete — saving…');await Intel.save();logLine('✓ Saved.');
       st.acq.running=false;
+      st.acq.paused=false;
       const mini=$id('acq-mini');if(mini)mini.textContent='Complete';
       await sleep(500);
       $id('rp-acq').classList.add('hidden');
@@ -1310,6 +1297,7 @@ const App={
       toast('Index complete','t-ok');
     }catch(e){
       clearInterval(st.acq.tick);logLine(`✖ ${e.message}`);st.acq.running=false;
+      st.acq.paused=false;
       const mini=$id('acq-mini');if(mini)mini.textContent='Error';
       toast('Indexing failed: '+e.message,'t-err');
     }
@@ -1419,7 +1407,7 @@ function initEvents(){
   $id('omni-clear').addEventListener('click',()=>{st.ui.search='';const i=$id('omni-input');if(i)i.value='';RightPane.render();});
 
   // Timeline toggle
-  $id('tl-toggle').addEventListener('click',()=>{st.ui.tlOpen=!st.ui.tlOpen;RightPane.renderTimeline();});
+  $id('tl-toggle')?.addEventListener('click',()=>{st.ui.tlOpen=!st.ui.tlOpen;RightPane.renderTimeline();});
   // Clear timeline segment on active seg click
   document.getElementById('tl-active-seg')?.addEventListener('click',e=>{e.stopPropagation();st.ui.tlSegment=null;RightPane.renderTimeline();RightPane.renderContent();});
 
@@ -1435,6 +1423,18 @@ function initEvents(){
     st.acq.cancelled=true;clearInterval(st.acq.tick);
     const mini=$id('acq-mini');if(mini)mini.textContent='Paused';
     setTimeout(()=>{$id('rp-acq').classList.add('hidden');},500);
+  });
+  $id('btn-acq-pause').addEventListener('click',()=>{
+    st.acq.paused=true;
+    $id('btn-acq-pause')?.classList.add('hidden');
+    $id('btn-acq-resume')?.classList.remove('hidden');
+    const mini=$id('acq-mini');if(mini)mini.textContent='Paused';
+  });
+  $id('btn-acq-resume').addEventListener('click',()=>{
+    st.acq.paused=false;
+    $id('btn-acq-resume')?.classList.add('hidden');
+    $id('btn-acq-pause')?.classList.remove('hidden');
+    const mini=$id('acq-mini');if(mini)mini.textContent='Indexing…';
   });
 
   // View tabs
