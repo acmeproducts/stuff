@@ -779,6 +779,7 @@ function handleChatFile(ev){
     var dataUrl=reader.result;
     var srcText='[file:'+file.name+']';
     var entry={id:'cf-'+uid(),type:'chat',who:'me',sourceText:srcText,translatedText:srcText,srcLang:room.myLang,tgtLang:room.theirLang,ts:Date.now(),attachment:{name:file.name,dataUrl:dataUrl,type:file.type}};
+    _attCache[entry.id]={name:file.name,dataUrl:dataUrl,type:file.type};
     transcript.push(entry);saveTr();appendTrDom(entry);
     var relayMsg={type:'chat-msg',chatId:entry.id,srcText:srcText,tgtText:srcText,srcLang:room.myLang,tgtLang:room.theirLang,attachment:{name:file.name,dataUrl:dataUrl,type:file.type}};
     _chatOutbox.set(entry.id,relayMsg);
@@ -842,6 +843,7 @@ function handleChatMsg(d){
     ts:d.ts||Date.now(),
     attachment:d.attachment||null
   };
+  if(entry.attachment&&entry.attachment.dataUrl)_attCache[entry.id]=entry.attachment;
   transcript.push(entry);saveTr();
   appendTrDom(entry);
   markPartnerTalking();
@@ -853,6 +855,7 @@ var LS={setup:'setup',call:'call'};
 var lobbyState=LS.setup;
 
 function $(id){return document.getElementById(id)}
+function attModalOpenById(id){var att=_attCache[id];if(att)attModalOpen(att);}
 function attModalOpen(att){
   var m=document.getElementById('att-modal');
   var nm=document.getElementById('att-modal-name');
@@ -869,6 +872,13 @@ function attModalOpen(att){
 function attModalClose(){
   var m=document.getElementById('att-modal');if(m)m.classList.remove('show');
   var b=document.getElementById('att-modal-body');if(b)b.innerHTML='';
+}
+function removeTrEntry(id){
+  transcript=transcript.filter(function(e){return e.id!==id;});
+  saveTr();
+  delete _attCache[id];
+  var el=document.querySelector('[data-tr-id="'+id+'"]');
+  if(el)el.remove();
 }
 function toast(m,dur){var e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(function(){e.classList.remove('show')},dur||2800)}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
@@ -907,6 +917,7 @@ var ICO={
   use:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>',
   clip:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>'
 };
+var _attCache={}; // entryId -> {name,dataUrl,type}
 function pbEsc(s){var d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML;}
 function pbLangFlag(c){var l=LANGS.find(function(x){return x.code===c;});return l?l.flag:'🌐';}
 function pbLangLabel(c){var l=LANGS.find(function(x){return x.code===c;});return l?l.label:(c||'?');}
@@ -2211,7 +2222,17 @@ function trHtml(e){
   var leftText,rightText,leftLang,rightLang;
   if(isMine){leftText=srcText;rightText=tgtText;leftLang=srcLang;rightLang=tgtLang;}
   else{leftText=tgtText;rightText=srcText;leftLang=tgtLang;rightLang=srcLang;}
-  var attachHtml='';if(e.attachment&&e.attachment.dataUrl){var att=e.attachment;attachHtml='<div style="margin-top:6px;"><a href="#" onclick="attModalOpen('+JSON.stringify({name:att.name||'file',dataUrl:att.dataUrl,type:att.type||''})+');return false;" style="color:var(--teal-bright);font-size:12px;display:inline-flex;align-items:center;gap:4px;"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48\"/></svg> <span style=\"text-decoration:underline;\">[view]</span> '+esc(att.name||'file')+'</a></div>';}
+  var attachHtml='';
+  if(e.attachment&&e.attachment.dataUrl){
+    var att=e.attachment;var eid=e.id||'';var isImg=/^image\//.test(att.type||'');
+    if(!_attCache[eid])_attCache[eid]=att;
+    var imgPreview=isImg?'<img src="'+att.dataUrl+'" style="max-width:100%;max-height:120px;border-radius:6px;margin-top:4px;display:block;cursor:pointer;" onclick="attModalOpenById(\''+eid+'\')">':'';
+    attachHtml='<div style="margin-top:6px;">'
+      +'<div style="display:flex;align-items:center;gap:6px;">'
+      +'<a href="#" onclick="attModalOpenById(\''+eid+'\');return false;" style="color:var(--teal-bright);font-size:12px;display:inline-flex;align-items:center;gap:4px;text-decoration:underline;">'+ICO.clip+' '+esc(att.name||'file')+'</a>'
+      +(isMine?'<button onclick="removeTrEntry(\''+eid+'\');" style="background:none;border:none;cursor:pointer;color:#c4ccd4;padding:0;line-height:0;opacity:.7;" title="Remove"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg></button>':'')
+      +'</div>'+imgPreview+'</div>';
+  }
   var chatClass=e.type==='chat'?' is-chat':'';
   return '<div class="tr-entry"><div class="tr-bubble'+chatClass+'">'
     +'<div class="tr-head"><div class="tr-who '+(isMine?'mine':'')+'">'+esc(speaker)+'</div><div class="tr-time">'+esc(ts)+'</div></div>'
