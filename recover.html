@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bridge Conversation Recovery</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0f1115;color:#e8ebef;margin:0}
+    .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+    h1{font-size:1.3rem;margin:0 0 8px}
+    p{color:#aeb6c2}
+    button{background:#2e8b8b;color:#fff;border:0;border-radius:8px;padding:10px 14px;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .card{background:#171b22;border:1px solid #2a303a;border-radius:10px;padding:12px;margin:12px 0}
+    pre{white-space:pre-wrap;word-break:break-word;background:#0d1016;border:1px solid #242a33;border-radius:8px;padding:10px;max-height:360px;overflow:auto}
+    .small{font-size:.88rem;color:#9da7b5}
+    table{width:100%;border-collapse:collapse;font-size:.92rem}
+    th,td{border-bottom:1px solid #2a303a;padding:8px;text-align:left;vertical-align:top}
+    .ok{color:#74d99f}.warn{color:#ffd07a}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Bridge Recovery Utility</h1>
+  <p>Scans <b>localStorage</b> and <b>IndexedDB</b> for likely conversation data used by any <code>bridge*.html</code> variant.</p>
+  <div class="row">
+    <button id="scanBtn">Scan & Recover</button>
+    <button id="downloadBtn" disabled>Download JSON</button>
+    <span id="status" class="small"></span>
+  </div>
+  <div class="card">
+    <div class="small">Recovered conversations</div>
+    <table id="results"><thead><tr><th>Source</th><th>Conversation Key</th><th>Messages</th><th>Preview</th></tr></thead><tbody></tbody></table>
+  </div>
+  <div class="card">
+    <div class="small">Raw export</div>
+    <pre id="raw">Run scan to view data.</pre>
+  </div>
+</div>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  let recovered = { scannedAt: null, localStorage: [], indexedDB: [], recentRooms: [], legacyDeletedRooms: [], mergedConversations: [] };
+
+  function normMsg(x){
+    if(!x) return null;
+    if(typeof x === 'string') return { text:x };
+    if(typeof x !== 'object') return null;
+    const text = x.translatedText || x.sourceText || x.text || x.message || x.content || x.body || '';
+    const who = x.who || x.role || x.sender || x.author || '';
+    const ts = x.ts || x.time || x.timestamp || x.createdAt || x.date || null;
+    const srcLang = x.srcLang || x.sourceLang || x.lang || null;
+    const tgtLang = x.tgtLang || x.targetLang || null;
+    if(!text && !who) return null;
+    return { text, who, ts, srcLang, tgtLang, raw:x };
+  }
+
+  function asConversation(source, key, arr){
+    const msgs = (arr||[]).map(normMsg).filter(Boolean);
+    if(!msgs.length) return null;
+    return { source, key, messages: msgs };
+  }
+
+  function maybeArray(v){
+    if(Array.isArray(v)) return v;
+    if(v && Array.isArray(v.messages)) return v.messages;
+    if(v && Array.isArray(v.transcript)) return v.transcript;
+    if(v && Array.isArray(v.conversation)) return v.conversation;
+    if(v && Array.isArray(v.chat)) return v.chat;
+    return null;
+  }
+
+  function looksRelevantKey(k){ return /(bridge|transcript|chat|convo|talk|tb_)/i.test(k); }
+
+  function parseRecentRooms(){
+    try{
+      const rows = JSON.parse(localStorage.getItem('tb_recent_rooms')||'[]');
+      return Array.isArray(rows)?rows:[];
+    }catch{return [];}
+  }
+
+  function recoverRoomsFromRecent(localConvs){
+    const convById = new Map();
+    for(const c of localConvs){
+      const m = /^tb_transcript_(.+)$/.exec(c.key||'');
+      if(m) convById.set(m[1], c);
+    }
+    const out=[];
+    for(const r of parseRecentRooms()){
+      if(!r || !r.id) continue;
+      const conv = convById.get(r.id);
+      out.push({
+        source:'recentRooms',
+        key:r.id,
+        room:{ id:r.id, name:r.name||'', ts:r.ts||null, deletedAt:r.deletedAt||null, myLang:r.ml||r.myLang||null, theirLang:r.tl||r.theirLang||null },
+        messages: conv ? conv.messages : []
+      });
+    }
+    return out;
+  }
+
+
+
+
+  function recoverLegacyDeletedRooms(localConvs, recentRooms){
+    const knownIds = new Set((recentRooms||[]).map(r => r.room && r.room.id).filter(Boolean));
+    const out=[];
+    for(const c of localConvs){
+      const m = /^tb_transcript_(.+)$/.exec(c.key||'');
+      if(!m) continue;
+      const id = m[1];
+      if(knownIds.has(id)) continue;
+      out.push({
+        source:'legacyDeletedRooms',
+        key:id,
+        room:{ id, name:'(unknown — likely deleted before soft-delete)', ts:null, deletedAt:null, legacyDeleted:true },
+        messages:c.messages||[]
+      });
+    }
+    return out;
+  }
+
+  function scanLocalStorage(){
+    const out=[];
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i);
+      const raw = localStorage.getItem(k);
+      if(!k || !raw) continue;
+      let parsed;
+      try{ parsed = JSON.parse(raw); }catch{ continue; }
+      const arr = maybeArray(parsed) || (Array.isArray(parsed) ? parsed : null);
+      if(arr){
+        const conv = asConversation('localStorage',k,arr);
+        if(conv) out.push(conv);
+      } else if(looksRelevantKey(k) && typeof parsed === 'object') {
+        for(const [subk, subv] of Object.entries(parsed)){
+          const subarr = maybeArray(subv) || (Array.isArray(subv) ? subv : null);
+          if(subarr){
+            const conv = asConversation('localStorage', `${k}.${subk}`, subarr);
+            if(conv) out.push(conv);
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  async function idbGetAllFromStore(db, storeName){
+    return new Promise((resolve)=>{
+      try{
+        const tx = db.transaction(storeName,'readonly');
+        const st = tx.objectStore(storeName);
+        const req = st.getAll ? st.getAll() : st.openCursor();
+        if(st.getAll){ req.onsuccess=()=>resolve(req.result||[]); req.onerror=()=>resolve([]); }
+        else {
+          const rows=[];
+          req.onsuccess=(e)=>{const c=e.target.result; if(c){rows.push(c.value); c.continue();} else resolve(rows);};
+          req.onerror=()=>resolve([]);
+        }
+      }catch{ resolve([]); }
+    });
+  }
+
+  async function openDb(name, version){
+    return new Promise((resolve)=>{
+      try{
+        const req = version ? indexedDB.open(name,version) : indexedDB.open(name);
+        req.onsuccess=()=>resolve(req.result);
+        req.onerror=()=>resolve(null);
+      }catch{ resolve(null); }
+    });
+  }
+
+  async function scanIndexedDB(){
+    const out=[];
+    let dbs=[];
+    if(indexedDB.databases){
+      try{ dbs = (await indexedDB.databases()) || []; }catch{}
+    }
+    if(!dbs.length){
+      dbs = ['bridge','bridge-db','talkbridge','tb','chat','conversations'].map(n=>({name:n}));
+    }
+    for(const meta of dbs){
+      if(!meta || !meta.name) continue;
+      const db = await openDb(meta.name, meta.version);
+      if(!db) continue;
+      const storeNames = Array.from(db.objectStoreNames||[]);
+      for(const sn of storeNames){
+        const rows = await idbGetAllFromStore(db,sn);
+        for(let idx=0;idx<rows.length;idx++){
+          const row = rows[idx];
+          const arr = maybeArray(row) || (Array.isArray(row) ? row : null);
+          if(arr){
+            const conv = asConversation(`indexedDB:${meta.name}/${sn}`, `${idx}`, arr);
+            if(conv) out.push(conv);
+          } else if(row && typeof row === 'object'){
+            for(const [rk,rv] of Object.entries(row)){
+              const subarr = maybeArray(rv) || (Array.isArray(rv)?rv:null);
+              if(subarr){
+                const conv = asConversation(`indexedDB:${meta.name}/${sn}`, `${idx}.${rk}`, subarr);
+                if(conv) out.push(conv);
+              }
+            }
+          }
+        }
+      }
+      db.close();
+    }
+    return out;
+  }
+
+  function mergeConversations(all){
+    const map = new Map();
+    for(const c of all){
+      const sig = c.messages.slice(0,3).map(m=>m.text).join('|').slice(0,220);
+      const key = sig || `${c.source}:${c.key}`;
+      if(!map.has(key)) map.set(key,{source:[c.source], key:[c.key], messages:[...c.messages], room:c.room||null});
+      else {
+        const e = map.get(key);
+        e.source.push(c.source); e.key.push(c.key);
+        e.messages.push(...c.messages);
+        if(!e.room && c.room) e.room = c.room;
+      }
+    }
+    return [...map.values()].map(x=>({
+      source:[...new Set(x.source)].join(', '),
+      key:[...new Set(x.key)].join(', '),
+      messages:x.messages.sort((a,b)=>(+new Date(a.ts||0))-(+new Date(b.ts||0))),
+      room:x.room||null
+    }));
+  }
+
+  function render(){
+    const tb = $('results').querySelector('tbody'); tb.innerHTML='';
+    for(const c of recovered.mergedConversations){
+      const tr = document.createElement('tr');
+      const preview = (c.messages[0]?.text||'').slice(0,120);
+      const isDeleted = c.room && c.room.deletedAt;
+      const isLegacyDeleted = c.room && c.room.legacyDeleted;
+      const deletedTag = isDeleted ? ' <span class=\"warn\">(deleted room)</span>' : (isLegacyDeleted ? ' <span class=\"warn\">(legacy deleted room)</span>' : '');
+      tr.innerHTML = `<td>${c.source}${deletedTag}</td><td>${c.key}</td><td>${c.messages.length}</td><td>${preview.replace(/[<>&]/g,m=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]))}</td>`;
+      tb.appendChild(tr);
+    }
+    $('raw').textContent = JSON.stringify(recovered,null,2);
+    $('downloadBtn').disabled = !recovered.mergedConversations.length;
+  }
+
+  $('scanBtn').onclick = async ()=>{
+    $('scanBtn').disabled = true;
+    $('status').innerHTML = '<span class="warn">Scanning…</span>';
+    recovered = { scannedAt: new Date().toISOString(), localStorage: [], indexedDB: [], recentRooms: [], legacyDeletedRooms: [], mergedConversations: [] };
+    try{
+      recovered.localStorage = scanLocalStorage();
+      recovered.indexedDB = await scanIndexedDB();
+      recovered.recentRooms = recoverRoomsFromRecent(recovered.localStorage);
+      recovered.legacyDeletedRooms = recoverLegacyDeletedRooms(recovered.localStorage, recovered.recentRooms);
+      recovered.mergedConversations = mergeConversations([...recovered.localStorage,...recovered.indexedDB,...recovered.recentRooms,...recovered.legacyDeletedRooms]);
+      $('status').innerHTML = `<span class="ok">Recovered ${recovered.mergedConversations.length} conversation(s)</span>`;
+    }catch(e){
+      $('status').textContent = `Error: ${e.message}`;
+    }finally{
+      render();
+      $('scanBtn').disabled = false;
+    }
+  };
+
+  $('downloadBtn').onclick = ()=>{
+    const blob = new Blob([JSON.stringify(recovered,null,2)],{type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `bridge-recovery-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+})();
+</script>
+</body>
+</html>
