@@ -41,7 +41,7 @@
 <script>
 (function(){
   const $ = id => document.getElementById(id);
-  let recovered = { scannedAt: null, localStorage: [], indexedDB: [], recentRooms: [], legacyDeletedRooms: [], mergedConversations: [] };
+  let recovered = { scannedAt: null, localStorage: [], indexedDB: [], mergedConversations: [] };
 
   function normMsg(x){
     if(!x) return null;
@@ -72,54 +72,6 @@
   }
 
   function looksRelevantKey(k){ return /(bridge|transcript|chat|convo|talk|tb_)/i.test(k); }
-
-  function parseRecentRooms(){
-    try{
-      const rows = JSON.parse(localStorage.getItem('tb_recent_rooms')||'[]');
-      return Array.isArray(rows)?rows:[];
-    }catch{return [];}
-  }
-
-  function recoverRoomsFromRecent(localConvs){
-    const convById = new Map();
-    for(const c of localConvs){
-      const m = /^tb_transcript_(.+)$/.exec(c.key||'');
-      if(m) convById.set(m[1], c);
-    }
-    const out=[];
-    for(const r of parseRecentRooms()){
-      if(!r || !r.id) continue;
-      const conv = convById.get(r.id);
-      out.push({
-        source:'recentRooms',
-        key:r.id,
-        room:{ id:r.id, name:r.name||'', ts:r.ts||null, deletedAt:r.deletedAt||null, myLang:r.ml||r.myLang||null, theirLang:r.tl||r.theirLang||null },
-        messages: conv ? conv.messages : []
-      });
-    }
-    return out;
-  }
-
-
-
-
-  function recoverLegacyDeletedRooms(localConvs, recentRooms){
-    const knownIds = new Set((recentRooms||[]).map(r => r.room && r.room.id).filter(Boolean));
-    const out=[];
-    for(const c of localConvs){
-      const m = /^tb_transcript_(.+)$/.exec(c.key||'');
-      if(!m) continue;
-      const id = m[1];
-      if(knownIds.has(id)) continue;
-      out.push({
-        source:'legacyDeletedRooms',
-        key:id,
-        room:{ id, name:'(unknown — likely deleted before soft-delete)', ts:null, deletedAt:null, legacyDeleted:true },
-        messages:c.messages||[]
-      });
-    }
-    return out;
-  }
 
   function scanLocalStorage(){
     const out=[];
@@ -215,19 +167,17 @@
     for(const c of all){
       const sig = c.messages.slice(0,3).map(m=>m.text).join('|').slice(0,220);
       const key = sig || `${c.source}:${c.key}`;
-      if(!map.has(key)) map.set(key,{source:[c.source], key:[c.key], messages:[...c.messages], room:c.room||null});
+      if(!map.has(key)) map.set(key,{source:[c.source], key:[c.key], messages:[...c.messages]});
       else {
         const e = map.get(key);
         e.source.push(c.source); e.key.push(c.key);
         e.messages.push(...c.messages);
-        if(!e.room && c.room) e.room = c.room;
       }
     }
     return [...map.values()].map(x=>({
       source:[...new Set(x.source)].join(', '),
       key:[...new Set(x.key)].join(', '),
-      messages:x.messages.sort((a,b)=>(+new Date(a.ts||0))-(+new Date(b.ts||0))),
-      room:x.room||null
+      messages:x.messages.sort((a,b)=>(+new Date(a.ts||0))-(+new Date(b.ts||0)))
     }));
   }
 
@@ -236,10 +186,7 @@
     for(const c of recovered.mergedConversations){
       const tr = document.createElement('tr');
       const preview = (c.messages[0]?.text||'').slice(0,120);
-      const isDeleted = c.room && c.room.deletedAt;
-      const isLegacyDeleted = c.room && c.room.legacyDeleted;
-      const deletedTag = isDeleted ? ' <span class=\"warn\">(deleted room)</span>' : (isLegacyDeleted ? ' <span class=\"warn\">(legacy deleted room)</span>' : '');
-      tr.innerHTML = `<td>${c.source}${deletedTag}</td><td>${c.key}</td><td>${c.messages.length}</td><td>${preview.replace(/[<>&]/g,m=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]))}</td>`;
+      tr.innerHTML = `<td>${c.source}</td><td>${c.key}</td><td>${c.messages.length}</td><td>${preview.replace(/[<>&]/g,m=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]))}</td>`;
       tb.appendChild(tr);
     }
     $('raw').textContent = JSON.stringify(recovered,null,2);
@@ -249,13 +196,11 @@
   $('scanBtn').onclick = async ()=>{
     $('scanBtn').disabled = true;
     $('status').innerHTML = '<span class="warn">Scanning…</span>';
-    recovered = { scannedAt: new Date().toISOString(), localStorage: [], indexedDB: [], recentRooms: [], legacyDeletedRooms: [], mergedConversations: [] };
+    recovered = { scannedAt: new Date().toISOString(), localStorage: [], indexedDB: [], mergedConversations: [] };
     try{
       recovered.localStorage = scanLocalStorage();
       recovered.indexedDB = await scanIndexedDB();
-      recovered.recentRooms = recoverRoomsFromRecent(recovered.localStorage);
-      recovered.legacyDeletedRooms = recoverLegacyDeletedRooms(recovered.localStorage, recovered.recentRooms);
-      recovered.mergedConversations = mergeConversations([...recovered.localStorage,...recovered.indexedDB,...recovered.recentRooms,...recovered.legacyDeletedRooms]);
+      recovered.mergedConversations = mergeConversations([...recovered.localStorage,...recovered.indexedDB]);
       $('status').innerHTML = `<span class="ok">Recovered ${recovered.mergedConversations.length} conversation(s)</span>`;
     }catch(e){
       $('status').textContent = `Error: ${e.message}`;

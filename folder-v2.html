@@ -374,15 +374,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
     <div id="right-panel">
 
       <!-- OmniSearch -->
-      <div style="padding:6px 12px;border-bottom:1px solid var(--border);background:var(--surface);font-family:var(--mono);font-size:11px;color:var(--ts)">Scope: <span style="color:var(--tp)">Current folder context</span></div>
-      <div id="rp-search">
+            <div id="rp-search">
         <input id="omni-input" placeholder="Search files in this folder…" type="text">
         <button class="omni-clear" id="omni-clear" title="Clear search">✕</button>
       </div>
 
       <!-- Stats chips -->
       <div id="rp-stats">
-        <div class="mono" style="margin-bottom:4px">Composition chips emphasize percentages; totals remain in contextual summaries.</div>
         <div class="chips-row" id="chips-class"></div>
         <div class="chips-row" id="chips-curation" style="margin-top:4px"></div>
       </div>
@@ -484,6 +482,8 @@ const st={
   levelOneFolders:[],treeCache:{},expandedNodes:new Set(),
   selFolderId:null,selFolderEnrolled:false,
   acq:{running:false,cancelled:false,paused:false,t0:0,tick:null},
+  workerPool:{max:5,active:0},
+  acqJobs:{},
   newChildren:[],
   ui:{
     leftOpen:true,view:'list',
@@ -1019,7 +1019,7 @@ const RightPane={
       });
       const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
       txt.setAttribute('x',cx);txt.setAttribute('y',pad.t+cH+14);txt.setAttribute('text-anchor','middle');
-      txt.setAttribute('fill','#3a3a52');txt.setAttribute('font-size','9');txt.setAttribute('font-family','IBM Plex Mono,monospace');
+      txt.setAttribute('fill','#ffffff');txt.setAttribute('font-size','9');txt.setAttribute('font-family','IBM Plex Mono,monospace');
       txt.textContent=String(yr).slice(2);txt.style.cursor='pointer';
       txt.addEventListener('click',()=>{st.ui.tlSegment={type:'year',value:yr};this.render();});
       svg.appendChild(txt);
@@ -1271,11 +1271,17 @@ const App={
   },
 
   async startIndexing(folderId,folderName){
-    if(st.acq.running){toast('Slot not available, try again later.','',2200);return;}
+    const activeJob=st.acqJobs[folderId];
+    if(activeJob?.cancelled){
+      if(!confirm(`Resume indexing "${folderName}" from previous progress?`))return;
+    }
+    if(st.workerPool.active>=st.workerPool.max){toast('slot not available, try again later','',2200);return;}
+    st.workerPool.active++;
     $id('rp-enroll').classList.add('hidden');
     $id('lp-acq-wrap')?.classList.add('open');
     $id('rp-acq').classList.remove('hidden');
     st.acq={running:true,cancelled:false,paused:false,t0:Date.now(),tick:null};
+    st.acqJobs[folderId]={running:true,cancelled:false,paused:false,lastFolder:folderName};
     $id('acq-log').innerHTML='';$id('acq-pb').style.width='0%';
     st.acq.tick=setInterval(()=>{const el=$id('acq-el');if(el)el.textContent=Math.round((Date.now()-st.acq.t0)/1000)+'s';},1000);
     const onProg=({folder,fc,ic})=>{
@@ -1290,6 +1296,8 @@ const App={
       logLine('✓ Complete — saving…');await Intel.save();logLine('✓ Saved.');
       st.acq.running=false;
       st.acq.paused=false;
+      st.acqJobs[folderId]={running:false,cancelled:false,paused:false,lastFolder:folderName,completed:true};
+      st.workerPool.active=Math.max(0,st.workerPool.active-1);
       const mini=$id('acq-mini');if(mini)mini.textContent='Complete';
       await sleep(500);
       $id('rp-acq').classList.add('hidden');
@@ -1298,6 +1306,8 @@ const App={
     }catch(e){
       clearInterval(st.acq.tick);logLine(`✖ ${e.message}`);st.acq.running=false;
       st.acq.paused=false;
+      st.acqJobs[folderId]={running:false,cancelled:true,paused:false,lastFolder:folderName};
+      st.workerPool.active=Math.max(0,st.workerPool.active-1);
       const mini=$id('acq-mini');if(mini)mini.textContent='Error';
       toast('Indexing failed: '+e.message,'t-err');
     }
@@ -1406,10 +1416,6 @@ function initEvents(){
   $id('omni-input').addEventListener('input',e=>{st.ui.search=e.target.value;RightPane.render();});
   $id('omni-clear').addEventListener('click',()=>{st.ui.search='';const i=$id('omni-input');if(i)i.value='';RightPane.render();});
 
-  // Timeline toggle
-  $id('tl-toggle')?.addEventListener('click',()=>{st.ui.tlOpen=!st.ui.tlOpen;RightPane.renderTimeline();});
-  // Clear timeline segment on active seg click
-  document.getElementById('tl-active-seg')?.addEventListener('click',e=>{e.stopPropagation();st.ui.tlSegment=null;RightPane.renderTimeline();RightPane.renderContent();});
 
   // Enrollment banner
   $id('btn-index-now').addEventListener('click',()=>{
@@ -1421,17 +1427,21 @@ function initEvents(){
   $id('btn-acq-toggle').addEventListener('click',()=>{$id('lp-acq-wrap')?.classList.toggle('open');});
   $id('btn-acq-cancel').addEventListener('click',()=>{
     st.acq.cancelled=true;clearInterval(st.acq.tick);
+    if(st.selFolderId&&st.acqJobs[st.selFolderId]){st.acqJobs[st.selFolderId].cancelled=true;st.acqJobs[st.selFolderId].running=false;}
+    st.workerPool.active=Math.max(0,st.workerPool.active-1);
     const mini=$id('acq-mini');if(mini)mini.textContent='Paused';
     setTimeout(()=>{$id('rp-acq').classList.add('hidden');},500);
   });
   $id('btn-acq-pause').addEventListener('click',()=>{
     st.acq.paused=true;
+    if(st.selFolderId&&st.acqJobs[st.selFolderId])st.acqJobs[st.selFolderId].paused=true;
     $id('btn-acq-pause')?.classList.add('hidden');
     $id('btn-acq-resume')?.classList.remove('hidden');
     const mini=$id('acq-mini');if(mini)mini.textContent='Paused';
   });
   $id('btn-acq-resume').addEventListener('click',()=>{
     st.acq.paused=false;
+    if(st.selFolderId&&st.acqJobs[st.selFolderId]){st.acqJobs[st.selFolderId].paused=false;st.acqJobs[st.selFolderId].cancelled=false;}
     $id('btn-acq-resume')?.classList.add('hidden');
     $id('btn-acq-pause')?.classList.remove('hidden');
     const mini=$id('acq-mini');if(mini)mini.textContent='Indexing…';
@@ -1463,7 +1473,6 @@ function initEvents(){
   }
 
   // Resize: redraw timeline
-  window.addEventListener('resize',()=>{if(st.ui.tlOpen)RightPane.renderTimeline();});
 }
 
 // ── Boot ──────────────────────────────────────────────────
