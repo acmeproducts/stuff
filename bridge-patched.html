@@ -155,7 +155,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .room-name-chip{background:rgba(0,0,0,.72);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:4px 14px;font-size:12px;font-weight:600;white-space:nowrap;max-width:min(78vw,260px);overflow:hidden;text-overflow:ellipsis;backdrop-filter:blur(5px);}
 .lang-flags-chip{background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:2px 10px;font-size:15px;backdrop-filter:blur(4px);}
 .chat-compose-strip{display:flex;align-items:flex-end;gap:8px;padding:8px 12px max(8px,env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid rgba(255,255,255,.1);flex-shrink:0;}
-.chat-compose-ta{flex:1;background:rgba(255,255,255,.08);color:var(--text);border:1.5px solid rgba(255,255,255,.15);border-radius:20px;padding:8px 14px;font-size:14px;font-family:"DM Sans",sans-serif;resize:none;outline:none;min-height:38px;max-height:80px;line-height:1.4;-webkit-appearance:none;}
+.chat-compose-ta{flex:1;background:rgba(255,255,255,.08);color:var(--text);border:1.5px solid rgba(255,255,255,.15);border-radius:20px;padding:8px 14px;font-size:14px;font-family:"DM Sans",sans-serif;resize:none;outline:none;min-height:38px;max-height:80px;line-height:1.4;-webkit-appearance:none;overflow:hidden;}
 .chat-compose-ta::placeholder{color:var(--text-muted);}
 .chat-compose-ta:focus{border-color:var(--teal);}
 .chat-send-btn{width:38px;height:38px;border-radius:50%;border:none;background:var(--teal);color:#fff;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:opacity .15s;}
@@ -175,6 +175,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .pb-cr-chip:hover{background:var(--teal);border-color:var(--teal);color:#fff;}
 .pb-cr-chip.danger{color:var(--red);border-color:rgba(231,76,60,.4);}
 .pb-cr-chip.danger:hover{background:var(--red);border-color:var(--red);color:#fff;}
+.pb-ico-chip{background:rgba(255,255,255,.08);color:var(--text);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 10px;cursor:pointer;line-height:0;display:inline-flex;align-items:center;justify-content:center;transition:background .12s;flex-shrink:0;}
+.pb-ico-chip:hover{background:var(--teal);border-color:var(--teal);color:#fff;}
+.pb-ico-chip.danger:hover{background:var(--red);border-color:var(--red);}
 .pb-search-inp{flex:1;background:rgba(255,255,255,.08);color:var(--text);border:1.5px solid rgba(255,255,255,.15);border-radius:10px;padding:8px 12px;font-size:15px;font-family:"DM Sans",sans-serif;outline:none;}
 .pb-search-inp:focus{border-color:var(--teal-bright);}
 .pb-search-inp::placeholder{color:var(--text-muted);}
@@ -184,6 +187,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .pb-bubble{background:#fff;border-radius:12px;margin-bottom:10px;overflow:hidden;border:1px solid #e0dbd6;font-family:"DM Sans",sans-serif;}
 .pb-bbl-hdr{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#f5f1ec;border-bottom:1px solid #e0dbd6;font-size:11px;min-height:28px;}
 .pb-bbl-pair{font-weight:700;color:#5a5552;flex:1;}
+.pb-bbl-ts{font-size:10px;color:#9a9592;flex:1;font-variant-numeric:tabular-nums;}
+.pb-book-row{display:flex;align-items:center;padding:10px;border:1px solid #e0dbd6;border-radius:10px;margin-bottom:6px;background:#fff;gap:8px;}
+.pb-book-name{flex:1;font-size:14px;color:#1a1714;font-weight:500;}
 .pb-vbadge{font-size:11px;font-weight:700;padding:1px 5px;border-radius:4px;}
 .pb-vbadge.good{color:#2e7d4f;background:#e8f5ee;}
 .pb-vbadge.flag{color:#c0392b;background:#fdedec;}
@@ -565,6 +571,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   </div>
 </div>
 
+<div id="pb-books-modal" style="position:fixed;inset:0;background:#fdfaf7;z-index:45;display:none;flex-direction:column;font-family:'DM Sans',sans-serif;overflow:hidden;">
+  <div style="display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid #e0dbd6;background:#fff;flex-shrink:0;">
+    <span style="flex:1;font-size:17px;font-weight:600;color:#1a1714;">Phrasebooks</span>
+    <button onclick="document.getElementById('pb-books-modal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:#5a5552;">×</button>
+  </div>
+  <div id="pb-books-list" style="flex:1;overflow-y:auto;padding:10px 14px;"></div>
+  <div style="padding:12px 14px;border-top:1px solid #e0dbd6;background:#fff;color:#9a9592;font-size:11px;">Import a phrasebook to add it here. Default cannot be deleted.</div>
+</div>
 <input id="pb-file-input" type="file" accept=".json" style="display:none" onchange="pbHandleFile(event)">
 <div id="toast"></div>
 
@@ -762,8 +776,9 @@ function chatInputEvt(){
   var raw=ta.value||'';
   ta.style.height='auto';
   ta.style.height=Math.min(ta.scrollHeight,80)+'px';
-  $('chat-send-btn').disabled=!raw.trim()||raw==='/';
-  if(raw.length>=1&&raw[0]==='/'){pbOpenSearchDrawer(raw.slice(1));return;}
+  $('chat-send-btn').disabled=!raw.trim()||raw==='/'||raw==='//';
+  if(raw==='//'){pbOpenCmdDrawer();return;}
+  if(raw.length>=1&&raw[0]==='/'&&raw[1]!=='/'){pbOpenSearchDrawer(raw.slice(1));return;}
   pbCloseDrawer();
 }
 function chatKeydown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}}
@@ -792,7 +807,7 @@ function handleChatFile(ev){
 async function sendChat(){
   var ta=$('chat-input');
   var text=normalizeText((ta&&ta.value||''),'chat');if(!text||!room.id)return;
-  if(!text||text==='/') return;
+  if(!text||text==='/'||text==='//') return;
   ta.value='';ta.style.height='';$('chat-send-btn').disabled=true;
   pbCloseDrawer();
   var src=room.myLang,tgt=room.theirLang;
@@ -893,6 +908,7 @@ function norm(s){return(s||'').replace(/\s+/g,' ').trim()}
 
 /* ── Storage keys ── */
 var PB_CARDS='say_cards',PB_CATS='say_catalogs',PB_TAGS_K='say_tags',PB_SEEDED='pb_bridge_v2';
+var PB_BOOKS_KEY='pb_books_registry'; // [{id,name,createdAt,isDefault}]
 
 /* ── Embedded seed data ── */
 var PB_SEED={"type":"phrasebook","cards":[{"id":"mnhd6ozl7hxlpp","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ขอโทษ ฉันพูดไทยไม่ค่อยได้","target":"Sorry, I don't speak Thai very well.","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Sorry, I don't speak Thai very well.","resultText":"","verdict":"","contentHash":"ขอโทษ ฉันพูดไทยไม่ค่อยได้||Sorry, I don't speak Thai very well.","updatedAt":1775127670421},"clarifyChain":[],"savedBy":"Pam","createdAt":1775127676161,"updatedAt":1775127676161},{"id":"mnhd5sqhkvcmbj","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"คุณชื่ออะไร","target":"What is your name? ","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"What is your name? ","resultText":"","verdict":"","contentHash":"คุณชื่ออะไร||What is your name?","updatedAt":1775127521508},"clarifyChain":[],"savedBy":"Pam","createdAt":1775127634361,"updatedAt":1775127634361},{"id":"mnhd5rc2ivpbkc","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ฉันชื่อ...","target":"My name is ...","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"My name is ...","resultText":"","verdict":"","contentHash":"ฉันชื่อ...||My name is ...","updatedAt":1775127525221},"clarifyChain":[],"savedBy":"Pam","createdAt":1775127632546,"updatedAt":1775127632546},{"id":"mnhd5pimpgxr40","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"คุณอายุเท่าไหร่","target":"How old are you?","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"How old are you?","resultText":"","verdict":"","contentHash":"คุณอายุเท่าไหร่||How old are you?","updatedAt":1775127528762},"clarifyChain":[],"savedBy":"Pam","createdAt":1775127630190,"updatedAt":1775127630190},{"id":"mnhd5nb7t16q6d","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"คุณช่วยฉันได้ไหม","target":"Can you help me?","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Can you help me?","resultText":"","verdict":"","contentHash":"คุณช่วยฉันได้ไหม||Can you help me?","updatedAt":1775127543356},"clarifyChain":[],"savedBy":"Pam","createdAt":1775127627331,"updatedAt":1775127627331},{"id":"mnhd5heb3ge0bg","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ฉันอายุ....ปี","target":"I am.... years old.","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"I am.... years old.","resultText":"","verdict":"","contentHash":"ฉันอายุ....ปี||I am.... years old.","updatedAt":1775127609337},"clarifyChain":[],"savedBy":"Pam","createdAt":1775127619667,"updatedAt":1775127619667},{"id":"mnhbaipi7n2g3o","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"อรุณสวัสดิ์","target":"Good morning","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Good morning","resultText":"","verdict":"","contentHash":"อรุณสวัสดิ์||Good morning","updatedAt":1775124430577},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124495414,"updatedAt":1775124495414},{"id":"mnhba9ggtikgc7","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ซ้าย/ขวา/ตรงไป","target":"Left/Right/Straight","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Left/Right/Straight","resultText":"","verdict":"","contentHash":"ซ้าย/ขวา/ตรงไป||Left/Right/Straight","updatedAt":1775124477253},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124483424,"updatedAt":1775124483424},{"id":"mnhba8ehouyhzp","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ฉันอยากไป...","target":"I want to go...","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"I want to go...","resultText":"","verdict":"","contentHash":"ฉันอยากไป...||I want to go...","updatedAt":1775124467845},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124482057,"updatedAt":1775124482057},{"id":"mnhb9p4i5y4z0w","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ราตรีสวัสดิ์","target":"good night","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"good night","resultText":"","verdict":"","contentHash":"ราตรีสวัสดิ์||good night","updatedAt":1775124442677},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124457074,"updatedAt":1775124457074},{"id":"mnhb9nsgvvfg0y","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"เจอกันใหม่","target":"See you later.","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"See you later.","resultText":"","verdict":"","contentHash":"เจอกันใหม่||See you later.","updatedAt":1775124446261},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124455344,"updatedAt":1775124455344},{"id":"mnhb9mr2rznooq","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"เท่าไหร่","target":"How much is it?","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"How much is it?","resultText":"","verdict":"","contentHash":"เท่าไหร่||How much is it?","updatedAt":1775124450852},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124453998,"updatedAt":1775124453998},{"id":"mnhb89mv3u4zo3","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ช่วยด้วย","target":"Help.","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Help.","resultText":"","verdict":"","contentHash":"ช่วยด้วย||Help.","updatedAt":1775124368359},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124390343,"updatedAt":1775124390343},{"id":"mnhb88qc00qe6t","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ฉันหลงทาง","target":"I'm lost.","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"I'm lost.","resultText":"","verdict":"","contentHash":"ฉันหลงทาง||I'm lost.","updatedAt":1775124371739},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124389172,"updatedAt":1775124389172},{"id":"mnhb87nl5ghaaq","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"เรียกตำรวจ","target":"Call the police.","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Call the police.","resultText":"","verdict":"","contentHash":"เรียกตำรวจ||Call the police.","updatedAt":1775124377835},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124387777,"updatedAt":1775124387777},{"id":"mnhb86m19cxq5u","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ฉันต้องการหมอ","target":"I need a doctor","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"I need a doctor","resultText":"","verdict":"","contentHash":"ฉันต้องการหมอ||I need a doctor","updatedAt":1775124382380},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124386425,"updatedAt":1775124386425},{"id":"mnhb7h1wzbqmpp","catalogIds":[],"sourceLang":"en","targetLang":"th","source":"I want this","target":"ฉันเอาอันนี้","notes":"","tags":[],"backtranslate":{"sourceLang":"th","targetLang":"en","inputText":"ฉันเอาอันนี้","resultText":"","verdict":"","contentHash":"I want this||ฉันต้องการแบบนี้","updatedAt":1775124322105},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124353300,"updatedAt":1775124353300},{"id":"mnhb6ra1x98obt","catalogIds":[],"sourceLang":"en","targetLang":"th","source":"Can you lower the price?","target":"ลดราคาหน่อยได้ไหม","notes":"","tags":[],"backtranslate":{"sourceLang":"th","targetLang":"en","inputText":"ลดราคาหน่อยได้ไหม","resultText":"","verdict":"","contentHash":"Can you lower the price?||ลดราคาหน่อยได้ไหม","updatedAt":1775124296076},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124319897,"updatedAt":1775124319897},{"id":"mnhb671p3dgige","catalogIds":[],"sourceLang":"en","targetLang":"th","source":"How much is this?","target":"อันนี้ราคาเท่าไหร่","notes":"","tags":[],"backtranslate":{"sourceLang":"th","targetLang":"en","inputText":"อันนี้ราคาเท่าไหร่","resultText":"","verdict":"","contentHash":"How much is this?||นี่เท่าไหร่","updatedAt":1775124257766},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124293677,"updatedAt":1775124293677},{"id":"mnhb4whppegmz4","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ฉันเอาอันนี้","target":"I'll take this one.","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"I'll take this one.","resultText":"","verdict":"","contentHash":"ฉันเอาอันนี้||I'll take this one.","updatedAt":1775124208507},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124233341,"updatedAt":1775124233341},{"id":"mnhb4tqrrylp94","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"คุณมี..ไหม","target":"Do you have..?","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Do you have..?","resultText":"","verdict":"","contentHash":"คุณมี..ไหม||Do you have..?","updatedAt":1775124226415},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124229779,"updatedAt":1775124229779},{"id":"mnhb3qzifksu90","catalogIds":[],"sourceLang":"en","targetLang":"th","source":"Check, please","target":"เช็คบิลด้วย","notes":"","tags":[],"backtranslate":{"sourceLang":"th","targetLang":"en","inputText":"เช็คบิลด้วย","resultText":"","verdict":"","contentHash":"Check, please||ตรวจสอบได้โปรด","updatedAt":1775124139994},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124179550,"updatedAt":1775124179550},{"id":"mnhb2l5e2yj4jl","catalogIds":[],"sourceLang":"en","targetLang":"th","source":"Menu, please","target":"ขอเมนูหน่อย","notes":"","tags":[],"backtranslate":{"sourceLang":"th","targetLang":"en","inputText":"ขอเมนูหน่อย","resultText":"","verdict":"","contentHash":"Menu, please||เมนูได้โปรด","updatedAt":1775124094266},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124125330,"updatedAt":1775124125330},{"id":"mnhb1pfnvwo41g","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"อร่อย","target":"Delicious","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Delicious","resultText":"","verdict":"","contentHash":"อร่อย||Delicious","updatedAt":1775124062936},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124084227,"updatedAt":1775124084227},{"id":"mnhb1lqwob2ysb","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"น้ำอัดลม","target":"Carbonated drink","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Carbonated drink","resultText":"","verdict":"","contentHash":"น้ำอัดลม||Carbonated drink","updatedAt":1775124037951},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124079448,"updatedAt":1775124079448},{"id":"mnhb1dxdoeuxpd","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"น้ำเปล่า","target":"Water","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Water","resultText":"","verdict":"","contentHash":"น้ำเปล่า||Water","updatedAt":1775124034461},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124069313,"updatedAt":1775124069313},{"id":"mnhb1ar98mw7x3","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"เช็คบิล","target":"Check Bills","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Check Bills","resultText":"","verdict":"","contentHash":"เช็คบิล||Check Bills","updatedAt":1775124060719},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124065205,"updatedAt":1775124065205},{"id":"mnhb0i55fatnud","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ฉันกินมังสวิรัติ","target":"I am a vegetarian.","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"I am a vegetarian.","resultText":"","verdict":"","contentHash":"ฉันกินมังสวิรัติ||I am a vegetarian.","updatedAt":1775124022710},"clarifyChain":[],"savedBy":"Pam","createdAt":1775124028121,"updatedAt":1775124028121},{"id":"mnhazuhsabexw1","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"สถานีรถไฟ","target":"Train station","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Train station","resultText":"","verdict":"","contentHash":"สถานีรถไฟ||Train station","updatedAt":1775123982780},"clarifyChain":[],"savedBy":"Pam","createdAt":1775123997472,"updatedAt":1775123997472},{"id":"mnhazsg7yh1yc4","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ป้ายรถเมล์","target":"Bus stop","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Bus stop","resultText":"","verdict":"","contentHash":"ป้ายรถเมล์||Bus stop","updatedAt":1775123976729},"clarifyChain":[],"savedBy":"Pam","createdAt":1775123994823,"updatedAt":1775123994823},{"id":"mnhazrfvpdal4i","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ค่าโดยสารเท่าไหร่","target":"How much is the fare?","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"How much is the fare?","resultText":"","verdict":"","contentHash":"ค่าโดยสารเท่าไหร่||How much is the fare?","updatedAt":1775123971900},"clarifyChain":[],"savedBy":"Pam","createdAt":1775123993515,"updatedAt":1775123993515},{"id":"mnhazq8se0tg1f","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"แท็กซี่อยู่ไหน","target":"Where's the taxi?","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Where's the taxi?","resultText":"","verdict":"","contentHash":"แท็กซี่อยู่ไหน||Where's the taxi?","updatedAt":1775123964993},"clarifyChain":[],"savedBy":"Pam","createdAt":1775123991964,"updatedAt":1775123991964},{"id":"mnhayzu33872p1","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ไม่ใช่","target":"NO","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"NO","resultText":"","verdict":"","contentHash":"ไม่ใช่||NO","updatedAt":1775123953876},"clarifyChain":[],"savedBy":"Pam","createdAt":1775123957739,"updatedAt":1775123957739},{"id":"mnhayyoioghmhx","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ใช่","target":"Yes","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Yes","resultText":"","verdict":"","contentHash":"ใช่||Yes","updatedAt":1775123952083},"clarifyChain":[],"savedBy":"Pam","createdAt":1775123956242,"updatedAt":1775123956242},{"id":"mnhay9psbcymxo","catalogIds":[],"sourceLang":"en","targetLang":"th","source":"I'm fine, thank you","target":"ฉันสบายดี ขอบคุณ","notes":"","tags":[],"backtranslate":{"sourceLang":"th","targetLang":"en","inputText":"ฉันสบายดี ขอบคุณ","resultText":"","verdict":"","contentHash":"I'm fine, thank you||ฉันสบายดี ขอบคุณค่ะ","updatedAt":1775123880780},"clarifyChain":[],"savedBy":"Pam","createdAt":1775123923888,"updatedAt":1775123923888},{"id":"mnhax9ua30pb0m","catalogIds":[],"sourceLang":"en","targetLang":"th","source":"Excuse me","target":"ขอโทษ","notes":"","tags":[],"backtranslate":{"sourceLang":"th","targetLang":"en","inputText":"ขอโทษ","resultText":"","verdict":"","contentHash":"Excuse me||ขอโทษ","updatedAt":1775123863947},"clarifyChain":[],"savedBy":"Pam","createdAt":1775123877394,"updatedAt":1775123877394},{"id":"mnhavy4sxlyxp5","catalogIds":[],"sourceLang":"th","targetLang":"en","source":"ขอโทษ","target":"Sorry...","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"th","inputText":"Sorry...","resultText":"","verdict":"","contentHash":"ขอโทษ||Sorry...","updatedAt":1775123785278},"clarifyChain":[],"savedBy":"Pam","createdAt":1775123815564,"updatedAt":1775123815564},{"id":"mnhatx7ik6bvn9","catalogIds":[],"sourceLang":"en","targetLang":"th","source":"How are you?","target":"สบายดีไหม","notes":"","tags":[],"backtranslate":{"sourceLang":"en","targetLang":"en","inputText":"สบายดีไหม","resultText":"","verdict":"","contentHash":"How are you?||สบายดีใช่ไหม","updatedAt":1775123661449},"clarifyChain":[],"savedBy":"Pam","createdAt":1775123721054,"updatedAt":1775123721054},{"id":"s0","catalogIds":["cat-th"],"sourceLang":"en","targetLang":"th","source":"Hello","target":"สวัสดี","notes":"","tags":["essential"],"backtranslate":{"sourceLang":"th","targetLang":"en","inputText":"สวัสดี","resultText":"","verdict":"","contentHash":"Hello||สวัสดี","updatedAt":1774111157235},"clarifyChain":[],"savedBy":"seed","createdAt":1774111157235,"updatedAt":1774111157235},{"id":"s1","catalogIds":["cat-th"],"sourceLang":"en","targetLang":"th","source":"Thank you","target":"ขอบคุณ","notes":"","tags":["essential"],"backtranslate":{"sourceLang":"th","targetLang":"en","inputText":"ขอบคุณ","resultText":"","verdict":"","contentHash":"Thank you||ขอบคุณ","updatedAt":1774111157237},"clarifyChain":[],"savedBy":"seed","createdAt":1774111156237,"updatedAt":1774111157237},{"id":"s2","catalogIds":["cat-th"],"sourceLang":"en","targetLang":"th","source":"How much?","target":"เท่าไหร่?","notes":"","tags":["essential"],"backtranslate":{"sourceLang":"th","targetLang":"en","inputText":"เท่าไหร่?","resultText":"","verdict":"","contentHash":"How much?||เท่าไหร่?","updatedAt":1774111157237},"clarifyChain":[],"savedBy":"seed","createdAt":1774111155237,"updatedAt":1774111157237},{"id":"s3","catalogIds":["cat-th"],"sourceLang":"en","targetLang":"th","source":"Where is the bathroom?","target":"ห้องน้ำอยู่ที่ไหน?","notes":"","tags":["essential"],"backtranslate":{"sourceLang":"th","targetLang":"en","inputText":"ห้องน้ำอยู่ที่ไหน?","resultText":"","verdict":"","contentHash":"Where is the bathroom?||ห้องน้ำอยู่ที่ไหน?","updatedAt":1774111157237},"clarifyChain":[],"savedBy":"seed","createdAt":1774111154237,"updatedAt":1774111157237},{"id":"s4","catalogIds":["cat-th"],"sourceLang":"en","targetLang":"th","source":"I don't understand","target":"ฉันไม่เข้าใจ","notes":"","tags":["essential"],"backtranslate":{"sourceLang":"th","targetLang":"en","inputText":"ฉันไม่เข้าใจ","resultText":"","verdict":"","contentHash":"I don't understand||ฉันไม่เข้าใจ","updatedAt":1774111157237},"clarifyChain":[],"savedBy":"seed","createdAt":1774111153237,"updatedAt":1774111157237}],"catalogs":[{"id":"cat-th","name":"Thailand Travel","emoji":"🇹🇭","desc":"Essential phrases","createdAt":1774111157234}],"tags":["essential"]};
@@ -914,10 +930,11 @@ var ICO={
   chevdown:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>',
   restore:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.2"/></svg>',
   speaker:PB_ICON_TTS,
-  use:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>',
+  use:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
   clip:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>'
 };
 var _attCache={}; // entryId -> {name,dataUrl,type}
+var _btCache={};  // cardId -> {text,lang}
 function pbEsc(s){var d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML;}
 function pbLangFlag(c){var l=LANGS.find(function(x){return x.code===c;});return l?l.flag:'🌐';}
 function pbLangLabel(c){var l=LANGS.find(function(x){return x.code===c;});return l?l.label:(c||'?');}
@@ -1005,6 +1022,21 @@ function pbChevRowHtml(card){
 function pbAddTagToReg(t){var tags=pbGetTags();if(tags.indexOf(t)<0){tags.push(t);pbSaveTags(tags);}}
 
 /* ── Auto-seed ── */
+function pbGetBooks(){try{return JSON.parse(localStorage.getItem(PB_BOOKS_KEY)||'null')||[{id:'default',name:'Default',createdAt:0,isDefault:true}];}catch(_){return [{id:'default',name:'Default',createdAt:0,isDefault:true}];}}
+function pbSaveBooks(a){try{localStorage.setItem(PB_BOOKS_KEY,JSON.stringify(a));}catch(_){}}
+function pbOpenBooksModal(){
+  var books=pbGetBooks();var m=document.getElementById('pb-books-modal');if(!m)return;
+  var list=document.getElementById('pb-books-list');
+  if(list)list.innerHTML=books.map(function(b){
+    var del=b.isDefault?''
+      :'<button onclick="pbDeleteBook(\''+b.id+'\')" style="background:none;border:none;cursor:pointer;color:#c0392b;padding:2px 6px;line-height:0;">'+ICO.trash+'</button>';
+    return '<div class="pb-book-row"><span class="pb-book-name">'+pbEsc(b.name)+(b.isDefault?' ⭐':'')+'</span>'+del+'</div>';
+  }).join('');
+  m.style.display='flex';
+}
+function pbDeleteBook(id){
+  var books=pbGetBooks().filter(function(b){return b.id!==id;});pbSaveBooks(books);pbOpenBooksModal();toast('Removed');
+}
 function pbAutoSeed(){
   localStorage.removeItem('tb_standard_phrasebook');
   if(localStorage.getItem(PB_SEEDED))return;
@@ -1026,23 +1058,16 @@ function pbApplyImport(data,opts){
   pbSaveTags(tags);
   if(!opts||!opts.silent)toast('Imported '+cards.length+' phrases');
 }
-function pbExport(){
+function pbExport(name){
   var payload={type:'phrasebook',cards:pbGetCards(),catalogs:pbGetCats(),tags:pbGetTags(),exportedAt:pbNow()};
+  var fn=(name||('phrases-'+Date.now()))+'.json';
   var a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));
-  a.download='talkbridge-phrasebook-'+Date.now()+'.json';a.click();
+  a.download=fn;a.click();
   setTimeout(function(){URL.revokeObjectURL(a.href);},0);
-  toast('Phrasebook exported');
+  toast('Exported: '+fn);
 }
-function pbReset(){
-  if(!confirm('Export phrasebook first, then clear it?'))return;
-  pbExport();
-  setTimeout(function(){
-    localStorage.removeItem(PB_CARDS);localStorage.removeItem(PB_CATS);
-    localStorage.removeItem(PB_TAGS_K);localStorage.removeItem(PB_SEEDED);
-    pbAutoSeed();pbRenderOverlay();toast('Phrasebook reset');
-  },600);
-}
+function pbReset(){pbResetConfirm();}
 
 /* ── Active language pair ── */
 function pbActivePair(){
@@ -1088,14 +1113,13 @@ function pbOpenCmdDrawer(){
   var d=document.getElementById('pb-drawer');if(d)d.classList.add('open');
 }
 function pbOpenSearchDrawer(q){
-  if(!isCallActive()){pbCloseDrawer();return;}
   _pbDrawerMode='search';
   var c=document.getElementById('pb-drawer-content');
   if(c)c.innerHTML=pbSearchDrawerHtml();
   var d=document.getElementById('pb-drawer');if(d)d.classList.add('open');
   setTimeout(function(){
     var si=document.getElementById('pb-search-input');
-    if(si){si.value=q||'';si.focus();if(q)pbRunSearch();}
+    if(si){si.value=q||'';si.focus();pbRunSearch();}
   },40);
 }
 function pbCloseDrawer(){
@@ -1103,15 +1127,7 @@ function pbCloseDrawer(){
   _pbDrawerMode='';
 }
 function pbCmdDrawerHtml(){
-  return '<div class="pb-drawer-hdr"><span class="pb-drawer-title">📖 Phrasebook</span>'
-    +'<button class="pb-drawer-x" onclick="pbCloseDrawer();pbClearComposeSlash()">×</button></div>'
-    +'<div class="pb-cmd-chips">'
-    +'<button class="pb-cmd-chip" onclick="pbCloseDrawer();pbClearCompose();pbOpenOverlay()">'+ICO.book+' open</button>'
-    +'<button class="pb-cmd-chip" onclick="pbCloseDrawer();pbClearCompose();pbOpenNewCard({})">＋ new</button>'
-    +'<button class="pb-cmd-chip" onclick="pbCloseDrawer();pbClearCompose();pbTriggerImport()">↑ import</button>'
-    +'<button class="pb-cmd-chip" onclick="pbCloseDrawer();pbClearCompose();pbExport()">↓ export</button>'
-    +'<button class="pb-cmd-chip danger" onclick="pbCloseDrawer();pbClearCompose();pbReset()">⚠ reset</button>'
-    +'</div>';
+  return '<div class="pb-drawer-hdr"><span class="pb-drawer-title" style="font-size:11px;color:var(--text-muted);">Phrasebook (//) management</span>'    +'<button class="pb-drawer-x" onclick="pbCloseDrawer();pbClearComposeSlash()">×</button></div>'    +'<div class="pb-cmd-chips" style="justify-content:flex-start;">'    +'<button class="pb-ico-chip" onclick="pbCloseDrawer();pbClearCompose();pbOpenBooksModal()" title="Open / switch phrasebook">'+ICO.book+'</button>'    +'<button class="pb-ico-chip" onclick="pbCloseDrawer();pbClearCompose();pbOpenNewCard({})" title="New phrase">'+ICO.plus+'</button>'    +'<button class="pb-ico-chip" onclick="pbCloseDrawer();pbClearCompose();pbTriggerImport()" title="Import file">'+ICO.upload+'</button>'    +'<button class="pb-ico-chip" onclick="pbTogUrlRow2()" title="Import from URL">'+ICO.link+'</button>'    +'<button class="pb-ico-chip" onclick="pbCloseDrawer();pbClearCompose();pbExportPrompt()" title="Export">'+ICO.download+'</button>'    +'<button class="pb-ico-chip danger" onclick="pbCloseDrawer();pbClearCompose();pbResetConfirm()" title="Reset phrasebook">'+ICO.warn+'</button>'    +'</div>'    +'<div id="pb-url-row2" class="pb-url-row" style="display:none;">'    +'<input id="pb-url-inp2" class="pb-url-inp" placeholder="https://.../phrasebook.json" onkeydown="if(event.key===\'Enter\')pbFetchUrl2()">'    +'<button class="pb-url-go" onclick="pbFetchUrl2()">Go</button>'    +'</div>';
 }
 function pbSearchDrawerHtml(){
   var pair=pbActivePair();
@@ -1140,6 +1156,40 @@ function pbTogUrlRow(){
   r.style.display=visible?'none':'flex';
   if(!visible){var i=document.getElementById('pb-url-inp');if(i)i.focus();}
 }
+function pbTogUrlRow2(){
+  var r=document.getElementById('pb-url-row2');if(!r)return;
+  var vis=r.style.display!=='none';r.style.display=vis?'none':'flex';
+  if(!vis){var i=document.getElementById('pb-url-inp2');if(i)i.focus();}
+}
+function pbFetchUrl2(){
+  var i=document.getElementById('pb-url-inp2');var url=(i&&i.value||'').trim();
+  if(!url){toast('Enter a URL');return;}
+  var def=new Date().toLocaleString([],{month:'short',day:'numeric',year:'2-digit',hour:'2-digit',minute:'2-digit'});
+  var name=prompt('Name for this phrasebook?',def);if(name===null)return;
+  toast('Fetching…');
+  fetch(url).then(function(r){return r.json();}).then(function(data){
+    if(!data||!Array.isArray(data.cards)){toast('Not a valid phrasebook');return;}
+    data._importName=name||def;
+    pbOpenImportModal(data);
+    var r2=document.getElementById('pb-url-row2');if(r2)r2.style.display='none';
+  }).catch(function(){toast('Could not load URL');});
+}
+function pbExportPrompt(){
+  var def='phrases-'+new Date().toLocaleString([],{month:'short',day:'numeric',year:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(/[/:, ]+/g,'-');
+  var name=prompt('Export filename?',def);if(name===null)return;
+  pbExport(name);
+}
+function pbResetConfirm(){
+  var def='phrases-backup-'+new Date().toLocaleString([],{month:'short',day:'numeric',year:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(/[/:, ]+/g,'-');
+  var name=prompt('Exporting backup first. Filename?',def);if(name===null)return;
+  pbExport(name);
+  setTimeout(function(){
+    if(!confirm('Phrasebook exported. Reset to blank?'))return;
+    localStorage.removeItem(PB_CARDS);localStorage.removeItem(PB_CATS);
+    localStorage.removeItem(PB_TAGS_K);localStorage.removeItem(PB_SEEDED);
+    pbAutoSeed();pbRenderOverlay();toast('Phrasebook reset');
+  },600);
+}
 function pbFetchUrl(){
   var i=document.getElementById('pb-url-inp');var url=(i&&i.value||'').trim();
   if(!url){toast('Enter a URL');return;}
@@ -1153,12 +1203,12 @@ function pbFetchUrl(){
 function pbRunSearch(){
   var si=document.getElementById('pb-search-input');var q=si?si.value:'';
   var pair=pbActivePair();
-  var cards=pbGetCards();
+  var cards=pbGetCards().slice().sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);});
   if(pair)cards=cards.filter(function(c){return pbCardMatchesPair(c,pair);});
   if(q.trim())cards=pbSearch(q,cards);
   var host=document.getElementById('pb-search-results');if(!host)return;
   if(!cards.length){host.innerHTML='<div class="pb-empty">No matching phrases.</div>';return;}
-  host.innerHTML=cards.slice(0,20).map(function(c){return pbBubbleHtml(c,'search');}).join('');
+  host.innerHTML=cards.slice(0,40).map(function(c){return pbBubbleHtml(c,'search');}).join('');
 }
 function pbSearchKD(e){if(e.key==='Escape'){pbCloseDrawer();pbClearComposeSlash();}}
 function pbClearCompose(){
@@ -1202,9 +1252,11 @@ function pbBubbleHtml(card,ctx){
   var cs=_pbCS(id);var isDel=!!card.deletedAt;
   var useL=L('use_word',src);var useR=L('use_word',tgt);
   var vBadge=verdict==='good'?'<span class="pb-vbadge good">\u2713</span>':verdict==='flag'?'<span class="pb-vbadge flag">\u2691</span>':'';
-  var tagBadge=tags.length?'<span class="pb-tag-ct">#'+tags.length+'</span>':'';
+  var _hdrDate=card.createdAt?new Date(card.createdAt).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'}):'';
+  var _hdrTime=card.createdAt?new Date(card.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+  var _savedBy=card.savedBy?(' · '+card.savedBy):'';
   return '<div class="pb-bubble'+(isDel?' deleted':'')+'" id="pbb-'+id+'">'
-    +'<div class="pb-bbl-hdr">'+vBadge+'<span class="pb-bbl-pair">'+pbEsc(sf+' '+src.toUpperCase())+' \u2192 '+pbEsc(tf+' '+tgt.toUpperCase())+'</span>'+tagBadge+'</div>'
+    +'<div class="pb-bbl-hdr">'+vBadge+'<span class="pb-bbl-ts">'+pbEsc(_hdrDate+' '+_hdrTime+_savedBy)+'</span></div>'
     +'<div class="pb-bbl-body">'
     +'<div class="pb-bbl-col"><div class="pb-bbl-txt" id="pbsrc-'+id+'">'+pbEsc(card.source)+'</div>'
     +'<div class="pb-bbl-acts"><button class="pb-use-btn" onclick="pbUseText(\''+id+'\',\'src\')" title="'+pbEsc(useL)+'">'+ICO.use+'</button>'
@@ -1293,7 +1345,8 @@ function pbRemoveClarify(id,idx){
 function pbBtPanelHtml(card){
   var id=card.id;var bt=card.backtranslate||{};var result=bt.resultText||'';var verdict=bt.verdict||'';
   var btLang=(card.backtranslate&&card.backtranslate.targetLang)||card.sourceLang||'en';
-var resultHtml=result?('<div style="display:flex;align-items:flex-start;gap:6px;margin:6px 0;"><span style="font-style:italic;color:#555;font-size:13px;flex:1;">'+pbEsc(result)+'</span><button class="pb-bt-tts" onclick="speakText('+JSON.stringify(result)+','+JSON.stringify(btLang)+')" title="Play">'+PB_ICON_TTS+'</button></div>'):('<div style="color:#aaa;font-size:12px;">No result yet.</div>');
+  if(result)_btCache[id]={text:result,lang:btLang};
+  var resultHtml=result?('<div style="display:flex;align-items:flex-start;gap:6px;margin:6px 0;"><span style="font-style:italic;color:#555;font-size:13px;flex:1;">'+pbEsc(result)+'</span><button class="pb-bt-tts" onclick="pbPlayBT(\''+id+'\')" title="Play">'+PB_ICON_TTS+'</button></div>'):('<div style="color:#aaa;font-size:12px;">No result yet.</div>');
   var verdictHtml='';
   if(result){
     if(!verdict)verdictHtml='<button class="pb-vbtn good" onclick="pbSetVerdict(\''+id+'\',\'good\')">✓ Sounds right</button> <button class="pb-vbtn flag" onclick="pbSetVerdict(\''+id+'\',\'flag\')">⚑ Flag</button>';
@@ -1304,6 +1357,7 @@ var resultHtml=result?('<div style="display:flex;align-items:flex-start;gap:6px;
     +'<button class="pb-bt-run" onclick="pbRunBT(\''+id+'\')">↩ Run back-translate</button>'
     +resultHtml+'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px;">'+verdictHtml+'</div></div>';
 }
+function pbPlayBT(id){var e=_btCache[id];if(e&&e.text)speakText(e.text,e.lang);}
 function pbRunBT(id){
   var card=pbGetCardById(id);if(!card)return;
   var text=card.target||'';var from=card.targetLang||'en';var to=card.sourceLang||'en';
@@ -1356,7 +1410,10 @@ function pbReRenderBubbleHeader(id){
   var srcLang=card.sourceLang||'en';var tgtLang=card.targetLang||'en';
   var sf=pbLangFlag(srcLang);var tf=pbLangFlag(tgtLang);
   // preserve delete button if in overlay
-  hdr.innerHTML=vBadge+'<span class="pb-bbl-pair">'+pbEsc(sf+' '+srcLang.toUpperCase())+' → '+pbEsc(tf+' '+tgtLang.toUpperCase())+'</span>'+tagBadge;
+  var _hd=card.createdAt?new Date(card.createdAt).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'}):'';
+  var _ht=card.createdAt?new Date(card.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+  var _sb=card.savedBy?(' · '+card.savedBy):'';
+  hdr.innerHTML=vBadge+'<span class="pb-bbl-ts">'+pbEsc(_hd+' '+_ht+_sb)+'</span>';
 }
 
 /* ─────────────────────────────────────────────────
@@ -1409,11 +1466,14 @@ function pbTriggerImport(){document.getElementById('pb-file-input').click();}
 function pbHandleFile(e){
   var file=e&&e.target&&e.target.files&&e.target.files[0];
   if(!file){return;}e.target.value='';
+  var def=file.name.replace(/\.json$/i,'')||new Date().toLocaleString([],{month:'short',day:'numeric',year:'2-digit',hour:'2-digit',minute:'2-digit'});
+  var name=prompt('Name for this phrasebook?',def);if(name===null)return;
   var reader=new FileReader();
   reader.onload=function(){
     try{
       var data=JSON.parse(reader.result||'{}');
       if(!data||!Array.isArray(data.cards)){toast('Invalid phrasebook file');return;}
+      data._importName=name||def;
       pbOpenImportModal(data);
     }catch(_){toast('Could not read file');}
   };
@@ -2240,13 +2300,13 @@ function trHtml(e){
     +'<div class="tr-col"><div class="tr-text">'+(e.type==='chat'?renderMd(leftText):esc(leftText))+attachHtml+'</div>'
     +'<div style="display:flex;gap:5px;align-items:center;">'
     +'<button class="tr-tts" type="button" data-tts-text="'+esc(leftText)+'" data-tts-lang="'+esc(leftLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button>'
-    +'<button class="tr-use-ico" type="button" data-use-text="'+esc(leftText)+'" title="'+esc(L('use_word',leftLang))+'"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg> '+esc(L('use_word',leftLang))+'</button>'
+    +'<button class="tr-use-ico" type="button" data-use-text="'+esc(leftText)+'" title="'+esc(L('use_word',leftLang))+'">'+esc(L('use_word',leftLang))+'</button>'
     +'</div></div>'
     +'<div class="tr-divider"></div>'
     +'<div class="tr-col source"><div class="tr-text">'+(e.type==='chat'?renderMd(rightText):esc(rightText))+'</div>'
     +'<div style="display:flex;gap:5px;align-items:center;">'
     +'<button class="tr-tts" type="button" data-tts-text="'+esc(rightText)+'" data-tts-lang="'+esc(rightLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button>'
-    +'<button class="tr-use-ico" type="button" data-use-text="'+esc(rightText)+'" title="'+esc(L('use_word',rightLang))+'"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg> '+esc(L('use_word',rightLang))+'</button>'
+    +'<button class="tr-use-ico" type="button" data-use-text="'+esc(rightText)+'" title="'+esc(L('use_word',rightLang))+'">'+esc(L('use_word',rightLang))+'</button>'
     +'</div></div>'
     +'</div></div></div>';
 }
