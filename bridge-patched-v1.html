@@ -1239,6 +1239,15 @@ function pbSearchDrawerHtml(){
   var badge=pair?('<span class="pb-pair-badge">'+pbEsc(pbLangFlag(pair.src)+' → '+pbLangFlag(pair.tgt))+'</span>'):'';
   return '<div class="pb-drawer-hdr" style="flex-shrink:0;">'    +'<input id="pb-search-input" class="pb-search-inp" placeholder="Search phrases…" oninput="pbRunSearch()" onkeydown="pbSearchKD(event)">'    +badge    +'<button class="pb-ov-act" onclick="pbOpenOverlay()" title="Manage phrasebook" style="color:var(--text-dim);padding:4px 6px;">'+ICO.book+'</button>'    +'<button class="pb-drawer-x" onclick="pbCloseDrawer()" style="line-height:0;">'+ICO.x+'</button></div>'    +'<div id="pb-search-results" class="pb-search-results"></div>';
 }
+var _PB_BASE='https://github.acmeproducts.com/stuff/phrase/';
+function pbBuildUrl(){
+  var src=(document.getElementById('pb-url-src')||{}).value||'en';
+  var tgt=(document.getElementById('pb-url-tgt')||{}).value||'th';
+  var url=_PB_BASE+'phrasebook-'+src+'-'+tgt+'-default.json';
+  var inp=document.getElementById('pb-ov-url-inp');if(inp)inp.value=url;
+  var nm=document.getElementById('pb-ov-url-name');
+  if(nm&&!nm._userEdited)nm.value='Standard '+src.toUpperCase()+'↔'+tgt.toUpperCase()+' Phrasebook';
+}
 function pbTogUrlFromOverlay(){
   var row=document.getElementById('pb-ov-url-row');if(!row)return;
   var vis=row.style.display!=='none';
@@ -1263,20 +1272,18 @@ function pbBuildPbUrl(){
   if(ni&&!ni._userEdited){ni.value=sL+' → '+tL+' (standard)';}
 }
 function pbFetchUrlOverlay(){
+  var src2=(document.getElementById('pb-url-src')||{}).value||'en';
+  var tgt2=(document.getElementById('pb-url-tgt')||{}).value||'th';
+  var url=_PB_BASE+'phrasebook-'+src2+'-'+tgt2+'-default.json';
   var ni=document.getElementById('pb-ov-url-name');
-  var custom=(document.getElementById('pb-ov-url-custom')||{value:''}).value.trim();
-  var preview=(document.getElementById('pb-ov-url-preview')||{value:''}).value.trim();
-  var url=custom||preview;
-  var name=(ni&&ni.value||'').trim();
-  if(!name){toast('Enter a phrasebook name');if(ni)ni.focus();return;}
-  if(!url){toast('Select a language pair first');return;}
+  var name=(ni&&ni.value||'').trim()||('Standard '+src2.toUpperCase()+'↔'+tgt2.toUpperCase()+' Phrasebook');
   toast('Fetching…');
   fetch(url).then(function(r){return r.json();}).then(function(data){
     if(!data||!Array.isArray(data.cards)){toast('Not a valid phrasebook');return;}
     data._importName=name;
-    document.getElementById('pb-ov-url-row').style.display='none';
+    var row=document.getElementById('pb-ov-url-row');if(row)row.style.display='none';
     pbOpenImportModal(data);
-  }).catch(function(){toast('Could not fetch: '+url);});
+  }).catch(function(){toast('Could not load: '+url);});
 }
 function pbTogUrlRow(){
   var r=document.getElementById('pb-url-row');if(!r)return;
@@ -1411,9 +1418,9 @@ function pbBubbleHtml(card,ctx){
     +'<button class="pb-tts-btn" onclick="pbSpeakCard(\''+id+'\',\'tgt\',this)" title="Play">'+PB_ICON_TTS+'</button></div></div>'
     +'</div>'
     +'<div class="pb-bbl-foot">'
-    +'<button class="pb-fbt'+(cs.tagsOpen?' on':'')+'" id="pbft-'+id+'" onclick="pbTogTags(\''+id+'\')" title="Tags">'+ICO.tag+(tags.length?'<span style=\"font-size:9px;margin-left:2px;\">'+tags.length+'</span>':'')+'</button>'
-    +'<button class="pb-fbt'+(cs.clarifyOpen?' on':'')+'" id="pbfc-'+id+'" onclick="pbTogClarify(\''+id+'\')" title="Notes">'+ICO.chat+(cc?'<span style=\"font-size:9px;margin-left:2px;\">'+cc+'</span>':'')+'</button>'
-    +'<button class="pb-fbt'+(cs.btOpen?' on':'')+'" id="pbfb-'+id+'" onclick="pbTogBt(\''+id+'\')" title="Verify">'+ICO.verify+(bt.resultText?'<span style=\"font-size:9px;margin-left:2px;color:#2e7d4f;\">\u2713</span>':'')+'</button>'
+    +'<button class="pb-fbt'+(cs.tagsOpen?' on':'')+'" id="pbft-'+id+'" onclick="pbTogTags(\''+id+'\')" title="Tags">'+ICO.tag+' Tags'+(tags.length?' ('+tags.length+')':'')+'</button>'
+    +'<button class="pb-fbt'+(cs.clarifyOpen?' on':'')+'" id="pbfc-'+id+'" onclick="pbTogClarify(\''+id+'\')" title="Clarify">'+ICO.chat+' Clarify'+(cc?' ('+cc+')':'')+'</button>'
+    +'<button class="pb-fbt'+(cs.btOpen?' on':'')+'" id="pbfb-'+id+'" onclick="pbTogBt(\''+id+'\')" title="Back-translate">'+ICO.verify+' Verify'+(bt.resultText?' ✓':'')+'</button>'
     +'</div>'
     +'<div class="pb-panel" id="pbtags-'+id+'" style="display:'+(cs.tagsOpen?'block':'none')+';">'+pbTagPanelHtml(card)+'</div>'
     +'<div class="pb-panel" id="pbclarify-'+id+'" style="display:'+(cs.clarifyOpen?'block':'none')+';">'+pbClarifyPanelHtml(card)+'</div>'
@@ -1460,14 +1467,16 @@ function pbTagSugg(id){
 function pbClarifyPanelHtml(card){
   var id=card.id;var chain=card.clarifyChain||[];
   var thread=chain.length?chain.map(function(item,i){
-    return'<div class="pb-clarify-item"><div class="pb-clarify-meta">'
+    var ts=item.timestamp?new Date(item.timestamp).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+    return'<div class="pb-clarify-item"><div class="pb-clarify-meta" style="display:flex;align-items:center;gap:5px;">'
       +'<span class="pb-clarify-author">'+pbEsc(item.author||'')+'</span>'
-      +'<button onclick="pbRemoveClarify(\''+id+'\','+i+')" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:11px;">×</button>'
+      +(ts?'<span style="font-size:10px;color:#b0aba8;">'+pbEsc(ts)+'</span>':'')
+      +'<button onclick="pbRemoveClarify(\''+id+'\','+i+')" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:11px;margin-left:auto;">×</button>'
       +'</div><div class="pb-clarify-body">'+pbEsc(item.text||'')+'</div></div>';
-  }).join(''):'<div style="color:#aaa;font-size:12px;padding:4px 0;">No notes yet.</div>';
+  }).join(''):'<div style="color:#aaa;font-size:12px;padding:4px 0;">No clarifications yet.</div>';
   return'<div style="padding:8px 10px;"><div id="pb-cthread-'+id+'">'+thread+'</div>'
     +'<div style="display:flex;gap:6px;margin-top:8px;">'
-    +'<input class="pb-clarify-inp" id="pb-ci-'+id+'" placeholder="Add note…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();pbAddClarify(\''+id+'\');}">'
+    +'<input class="pb-clarify-inp" id="pb-ci-'+id+'" placeholder="Add clarification…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();pbAddClarify(\''+id+'\');}">'
     +'<button class="pb-clarify-send" onclick="pbAddClarify(\''+id+'\')">Add</button>'
     +'</div></div>';
 }
@@ -1529,21 +1538,31 @@ function pbTogBt(id){var cs=_pbCS(id);cs.btOpen=!cs.btOpen;pbSyncPanel('bt',id);
 function pbSyncPanel(type,id){
   var cs=_pbCS(id);
   var open=type==='tags'?cs.tagsOpen:type==='clarify'?cs.clarifyOpen:cs.btOpen;
-  var panel=document.getElementById('pb'+(type==='bt'?'bt':type==='tags'?'tags':'clarify')+'-'+id);
+  var panelId=type==='tags'?'pbtags-':type==='clarify'?'pbclarify-':'pbbt-';
+  var panel=document.getElementById(panelId+id);
   if(panel)panel.style.display=open?'block':'none';
-  var btn=document.getElementById('pbf'+(type==='tags'?'t':type==='clarify'?'c':'b')+'-'+id);
+  var btnId=type==='tags'?'pbft-':type==='clarify'?'pbfc-':'pbfb-';
+  var btn=document.getElementById(btnId+id);
   if(btn)btn.classList.toggle('on',open);
 }
 function pbReRenderCardPanel(type,id){
   var card=pbGetCardById(id);if(!card)return;
-  var el=document.getElementById('pb'+(type==='bt'?'bt':type==='tags'?'tags':'clarify')+'-'+id);
-  if(!el)return;
+  var panelId=type==='tags'?'pbtags-':type==='clarify'?'pbclarify-':'pbbt-';
+  var el=document.getElementById(panelId+id);if(!el)return;
   var fn=type==='tags'?pbTagPanelHtml:type==='clarify'?pbClarifyPanelHtml:pbBtPanelHtml;
   el.innerHTML=fn(card);
-  // Update footer button label
-  if(type==='tags'){var btn=document.getElementById('pbft-'+id);if(btn){var tags=card.tags||[];btn.innerHTML='<span>&#35;</span> Tags'+(tags.length?' ('+tags.length+')':'');}}
-      if(btn2){var cc=(card.clarifyChain||[]).length;btn2.innerHTML=ICO.chat+(cc?'<span style="font-size:9px;margin-left:2px;">'+cc+'</span>':'');}
-  if(type==='bt'){var btn3=document.getElementById('pbfb-'+id);if(btn3){var bt=card.backtranslate||{};btn3.innerHTML='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.2"/></svg> Verify'+(bt.resultText?'&nbsp;<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>':'');}}
+  if(type==='tags'){
+    var btn=document.getElementById('pbft-'+id);
+    if(btn){var tags=card.tags||[];btn.innerHTML=ICO.tag+' Tags'+(tags.length?' ('+tags.length+')':'');}
+  }
+  if(type==='clarify'){
+    var btn2=document.getElementById('pbfc-'+id);
+    if(btn2){var cc=(card.clarifyChain||[]).length;btn2.innerHTML=ICO.chat+' Clarify'+(cc?' ('+cc+')':'');}
+  }
+  if(type==='bt'){
+    var btn3=document.getElementById('pbfb-'+id);
+    if(btn3){var bt=card.backtranslate||{};btn3.innerHTML=ICO.verify+' Verify'+(bt.resultText?' ✓':'');}
+  }
 }
 function pbReRenderBubbleHeader(id){
   var card=pbGetCardById(id);if(!card)return;
