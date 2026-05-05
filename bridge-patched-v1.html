@@ -579,7 +579,21 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <input id="pb-ov-search" class="pb-ov-si" placeholder="Search all phrases… (-word to exclude)" oninput="pbOvSearch()">
   </div>
   <div class="pb-ov-filter-bar" id="pb-ov-filter"></div>
-  <div id="pb-ov-url-row" style="display:none;flex-direction:column;gap:5px;padding:8px 14px;border-bottom:1px solid #e0dbd6;background:#fff;flex-shrink:0;"><input id="pb-ov-url-name" style="border:1.5px solid #e0dbd6;border-radius:8px;padding:6px 10px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;background:#fff;color:#1a1714;width:100%;box-sizing:border-box;" placeholder="Phrasebook name (required)"><div style="display:flex;gap:6px;"><input id="pb-ov-url-inp" style="flex:1;border:1.5px solid #e0dbd6;border-radius:8px;padding:6px 10px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;background:#fff;color:#1a1714;" placeholder="https://.../phrasebook.json" onkeydown="if(event.key==='Enter')pbFetchUrlOverlay()"><button onclick="pbFetchUrlOverlay()" style="background:#2e8b8b;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Go</button></div></div>
+  <div id="pb-ov-url-row" style="display:none;flex-direction:column;gap:8px;padding:10px 14px;border-bottom:1px solid #e0dbd6;background:#fff;flex-shrink:0;">
+    <div style="font-size:11px;font-weight:700;color:#9a9592;letter-spacing:.4px;text-transform:uppercase;">Import standard phrasebook</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <select id="pb-url-src" onchange="pbBuildPbUrl()" style="flex:1;border:1.5px solid #e0dbd6;border-radius:8px;padding:6px 8px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fff;color:#1a1714;outline:none;-webkit-appearance:none;"></select>
+      <span style="font-size:13px;color:#9a9592;">&#8594;</span>
+      <select id="pb-url-tgt" onchange="pbBuildPbUrl()" style="flex:1;border:1.5px solid #e0dbd6;border-radius:8px;padding:6px 8px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fff;color:#1a1714;outline:none;-webkit-appearance:none;"></select>
+    </div>
+    <input id="pb-ov-url-preview" readonly style="border:1.5px solid #e0dbd6;border-radius:8px;padding:6px 10px;font-size:10px;font-family:monospace;background:#f5f1ec;color:#5a5552;width:100%;box-sizing:border-box;outline:none;" placeholder="URL preview">
+    <div style="display:flex;gap:8px;">
+      <input id="pb-ov-url-name" style="flex:1;border:1.5px solid #e0dbd6;border-radius:8px;padding:6px 10px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;background:#fff;color:#1a1714;" placeholder="Phrasebook name (required)">
+      <button onclick="pbFetchUrlOverlay()" style="background:#2e8b8b;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Import</button>
+    </div>
+    <div style="font-size:10px;color:#9a9592;">Custom URL: <input id="pb-ov-url-custom" style="border:1px solid #e0dbd6;border-radius:6px;padding:3px 8px;font-size:11px;font-family:monospace;background:#fff;color:#1a1714;outline:none;width:200px;" placeholder="https://..."></div>
+  </div>
+</div>
   <div id="pb-ov-cards"></div>
 </div>
 
@@ -960,6 +974,30 @@ function norm(s){return(s||'').replace(/\s+/g,' ').trim()}
 'use strict';
 
 /* ── Storage keys ── */
+var PB_URL_LANGS=[
+  {pb:'en',label:'English',flag:'🇺🇸'},
+  {pb:'th',label:'Thai',flag:'🇹🇭'},
+  {pb:'es',label:'Spanish',flag:'🇪🇸'},
+  {pb:'jp',label:'Japanese',flag:'🇯🇵'},
+  {pb:'kr',label:'Korean',flag:'🇰🇷'},
+  {pb:'cn',label:'Chinese',flag:'🇨🇳'},
+  {pb:'sa',label:'Arabic',flag:'🇸🇦'},
+  {pb:'in',label:'Hindi',flag:'🇮🇳'},
+  {pb:'ru',label:'Russian',flag:'🇷🇺'},
+  {pb:'fr',label:'French',flag:'🇫🇷'},
+  {pb:'de',label:'German',flag:'🇩🇪'},
+  {pb:'it',label:'Italian',flag:'🇮🇹'},
+  {pb:'br',label:'Portuguese',flag:'🇧🇷'},
+  {pb:'vn',label:'Vietnamese',flag:'🇻🇳'},
+  {pb:'id',label:'Indonesian',flag:'🇮🇩'},
+  {pb:'my',label:'Malay',flag:'🇲🇾'},
+  {pb:'ph',label:'Filipino',flag:'🇵🇭'},
+  {pb:'nl',label:'Dutch',flag:'🇳🇱'},
+  {pb:'se',label:'Swedish',flag:'🇸🇪'},
+  {pb:'pl',label:'Polish',flag:'🇵🇱'},
+  {pb:'tr',label:'Turkish',flag:'🇹🇷'}
+];
+var PB_BASE_URL='https://github.acmeproducts.com/stuff/phrase/';
 var PB_CARDS='say_cards',PB_CATS='say_catalogs',PB_TAGS_K='say_tags',PB_SEEDED='pb_bridge_v2';
 var PB_BOOKS_KEY='pb_books_registry'; // [{id,name,createdAt,isDefault}]
 
@@ -1205,20 +1243,40 @@ function pbTogUrlFromOverlay(){
   var row=document.getElementById('pb-ov-url-row');if(!row)return;
   var vis=row.style.display!=='none';
   row.style.display=vis?'none':'flex';
-  if(!vis){var ni=document.getElementById('pb-ov-url-name');if(ni)ni.focus();}
+  if(!vis){
+    var opts=PB_URL_LANGS.map(function(l){return '<option value="'+l.pb+'">'+l.flag+' '+l.label+'</option>';}).join('');
+    var ss=document.getElementById('pb-url-src');var ts=document.getElementById('pb-url-tgt');
+    if(ss){ss.innerHTML=opts;ss.value='en';}
+    if(ts){ts.innerHTML=opts;ts.value='th';}
+    pbBuildPbUrl();
+  }
+}
+function pbBuildPbUrl(){
+  var ss=document.getElementById('pb-url-src');var ts=document.getElementById('pb-url-tgt');
+  if(!ss||!ts)return;
+  var s=ss.value||'en';var t=ts.value||'th';
+  var url=PB_BASE_URL+'phrasebook-'+s+'-'+t+'-default.json';
+  var prev=document.getElementById('pb-ov-url-preview');if(prev)prev.value=url;
+  var sL=(PB_URL_LANGS.find(function(l){return l.pb===s;})||{label:s}).label;
+  var tL=(PB_URL_LANGS.find(function(l){return l.pb===t;})||{label:t}).label;
+  var ni=document.getElementById('pb-ov-url-name');
+  if(ni&&!ni._userEdited){ni.value=sL+' → '+tL+' (standard)';}
 }
 function pbFetchUrlOverlay(){
-  var ni=document.getElementById('pb-ov-url-name');var ui=document.getElementById('pb-ov-url-inp');
-  var name=(ni&&ni.value||'').trim();var url=(ui&&ui.value||'').trim();
-  if(!name){toast('Enter a phrasebook name first');if(ni)ni.focus();return;}
-  if(!url){toast('Enter a URL');if(ui)ui.focus();return;}
+  var ni=document.getElementById('pb-ov-url-name');
+  var custom=(document.getElementById('pb-ov-url-custom')||{value:''}).value.trim();
+  var preview=(document.getElementById('pb-ov-url-preview')||{value:''}).value.trim();
+  var url=custom||preview;
+  var name=(ni&&ni.value||'').trim();
+  if(!name){toast('Enter a phrasebook name');if(ni)ni.focus();return;}
+  if(!url){toast('Select a language pair first');return;}
   toast('Fetching…');
   fetch(url).then(function(r){return r.json();}).then(function(data){
     if(!data||!Array.isArray(data.cards)){toast('Not a valid phrasebook');return;}
     data._importName=name;
-    var row=document.getElementById('pb-ov-url-row');if(row)row.style.display='none';
+    document.getElementById('pb-ov-url-row').style.display='none';
     pbOpenImportModal(data);
-  }).catch(function(){toast('Could not load URL');});
+  }).catch(function(){toast('Could not fetch: '+url);});
 }
 function pbTogUrlRow(){
   var r=document.getElementById('pb-url-row');if(!r)return;
@@ -1484,7 +1542,7 @@ function pbReRenderCardPanel(type,id){
   el.innerHTML=fn(card);
   // Update footer button label
   if(type==='tags'){var btn=document.getElementById('pbft-'+id);if(btn){var tags=card.tags||[];btn.innerHTML='<span>&#35;</span> Tags'+(tags.length?' ('+tags.length+')':'');}}
-  if(type==='clarify'){var btn2=document.getElementById('pbfc-'+id);if(btn2){var cc=(card.clarifyChain||[]).length;btn2.textContent='💬 Clarify'+(cc?' ('+cc+')':'');}}
+      if(btn2){var cc=(card.clarifyChain||[]).length;btn2.innerHTML=ICO.chat+(cc?'<span style="font-size:9px;margin-left:2px;">'+cc+'</span>':'');}
   if(type==='bt'){var btn3=document.getElementById('pbfb-'+id);if(btn3){var bt=card.backtranslate||{};btn3.innerHTML='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.2"/></svg> Verify'+(bt.resultText?'&nbsp;<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>':'');}}
 }
 function pbReRenderBubbleHeader(id){
