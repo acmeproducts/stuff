@@ -750,14 +750,10 @@ function getMicConstraints(){
 function normalizeText(raw,mode){
   if(!raw)return'';
   var s=raw.normalize?raw.normalize('NFKC'):raw;
+  // Strip XLIFF/TMX tags from MyMemory TM output (e.g. สอง<bx id="2"/>) — all modes
+  s=s.replace(/<\/?[a-zA-Z][^>]*>/g,'');
   s=s.trim().replace(/\s+/g,' ');
   s=s.replace(/[\u200B-\u200D\uFEFF]/g,'');
-  if(mode==='speech'){
-    // Strip XLIFF/TMX markup tags from MyMemory translation memory output
-    // e.g. สอง<bx id="2"/> → สอง
-    s=s.replace(/<\/?[a-zA-Z][^>]*>/g,'');
-    s=s.trim().replace(/\s+/g,' ');
-  }
   if(mode==='compare'){
     s=s.toLowerCase();
     s=s.replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"');
@@ -1764,6 +1760,7 @@ function translate(text,from,to){
       if(d&&d.responseStatus===200&&d.responseData){
         var t=d.responseData.translatedText;
         if(t&&t.indexOf('MYMEMORY')<0){
+          t=t.replace(/<\/?[a-zA-Z][^>]*>/g,'').trim();
           if(trCache.size>=TR_CACHE_MAX){var first=trCache.keys().next().value;trCache.delete(first);}
           trCache.set(k,t);return t;
         }
@@ -2442,7 +2439,7 @@ function addTr(who,src,tr,sL,tL,ss){
   if(ss){for(var j=transcript.length-1;j>=0;j--){if(transcript[j].who===who&&transcript[j].subtitleSeq===ss){transcript[j].sourceText=src;transcript[j].translatedText=tr;transcript[j].ts=Date.now();saveTr();renderTr();return;}}}
   var prev=transcript.length?transcript[transcript.length-1]:null;
   if(!ss&&prev&&prev.who===who&&normalizeText(prev.sourceText,'compare')===normalizeText(src,'compare')&&Date.now()-prev.ts<5000)return;
-  var entry={type:'speech',who:who,sourceText:src,translatedText:tr,srcLang:sL,tgtLang:tL,subtitleSeq:ss||null,ts:Date.now()};
+  var entry={id:(ss?('sp-'+who+'-'+ss):('sp-'+uid())),type:'speech',who:who,sourceText:src,translatedText:tr,srcLang:sL,tgtLang:tL,subtitleSeq:ss||null,ts:Date.now()};
   transcript.push(entry);if(transcript.length>MAX_TR)transcript.splice(0,transcript.length-MAX_TR);
   saveTr();appendTrDom(entry);
   if(transcriptTtsOn&&who==='partner'&&tr&&!ss)speakText(tr,tL||room.myLang);
@@ -2452,7 +2449,9 @@ function patchTr(who,ss,newTr,sL,tL){
   for(var i=transcript.length-1;i>=0;i--){
     if(transcript[i].who===who&&transcript[i].subtitleSeq===ss){
       if(normalizeText(transcript[i].translatedText,'compare')===normalizeText(newTr,'compare'))return;
-      transcript[i].translatedText=newTr;transcript[i].ts=Date.now();saveTr();renderTr();
+      transcript[i].translatedText=newTr;transcript[i].ts=Date.now();saveTr();
+      var eid=transcript[i].id;
+      replaceTrDomById(eid,transcript[i]);
       if(transcriptTtsOn&&who==='partner'&&newTr)speakText(newTr,tL||room.myLang);
       return;
     }
@@ -2517,6 +2516,16 @@ function appendTrDom(entry){
   wrap.firstChild.dataset.trId=eid;
   b.insertBefore(wrap.firstChild,b.firstChild);
   checkAutoScroll();
+}
+function replaceTrDomById(id,entry){
+  var b=$('transcript-body');if(!b||!id)return;
+  var old=b.querySelector('[data-tr-id="'+id+'"]');
+  if(!old){appendTrDom(entry);return;}
+  var wrap=document.createElement('div');
+  wrap.innerHTML=trHtml(entry);
+  var fresh=wrap.firstChild;
+  fresh.dataset.trId=id;
+  old.replaceWith(fresh);
 }
 function renderTr(){
   var b=$('transcript-body');if(!b)return;
