@@ -645,6 +645,56 @@ var LANGS=[
 var TTS_LOCALE={en:'en-US',th:'th-TH',ja:'ja-JP',ko:'ko-KR',zh:'zh-CN',ar:'ar-SA',hi:'hi-IN',ru:'ru-RU',fr:'fr-FR',de:'de-DE',es:'es-ES',it:'it-IT',pt:'pt-BR',vi:'vi-VN',id:'id-ID',ms:'ms-MY',fil:'fil-PH',nl:'nl-NL',sv:'sv-SE',pl:'pl-PL',tr:'tr-TR'};
 var DG_LANGS={en:'en-US',th:'th',ja:'ja',ko:'ko',zh:'zh-CN',ar:'ar',hi:'hi',ru:'ru',fr:'fr',de:'de',es:'es',it:'it',pt:'pt-BR',vi:'vi',id:'id',ms:'ms',fil:'fil',nl:'nl',sv:'sv',pl:'pl',tr:'tr'};
 
+
+// ─── AUDIO WORKLET — single-file Blob URL, falls back to ScriptProcessor ────
+var DG_WORKLET_CODE='class TBAudioCapture extends AudioWorkletProcessor{constructor(){super();this._b=[];this._n=4096;}process(inputs){var ch=inputs[0]&&inputs[0][0];if(ch){for(var i=0;i<ch.length;i++)this._b.push(ch[i]);}while(this._b.length>=this._n){var out=new Float32Array(this._b.splice(0,this._n));this.port.postMessage(out,[out.buffer]);}return true;}}registerProcessor(\'tb-audio-capture\',TBAudioCapture);';
+
+// ─── NORTHERN THAI → CENTRAL THAI dialect map ────────────────────────────────
+var NT_PHRASE_MAP={
+  'ไปไสมาเจ้า':'ไปไหนมาครับ','กิ๋นข้าวแล้วเจ้า':'กินข้าวแล้วครับ',
+  'สวัสดีเจ้า':'สวัสดีครับ','ลาก่อนเจ้า':'ลาก่อนครับ',
+  'ขอบใจเจ้า':'ขอบคุณครับ','สบายดีเจ้า':'สบายดีครับ',
+  'บ่เป็นหยัง':'ไม่เป็นไร','เจ้าเป็นไง':'คุณเป็นยังไง',
+  'จอยเป็นไง':'ฉันเป็นยังไง','เว้ากันก่อน':'คุยกันก่อน',
+  'ฮักเจ้า':'รักคุณ','ม่วนหลาย':'สนุกมาก',
+  'แซ่บหลาย':'อร่อยมาก','เมินแล้ว':'นานแล้ว',
+  'ก็ได้เจ้า':'ก็ได้ครับ','มื้อนี้ตอนเช้า':'เช้านี้',
+  'ม่วนใจ๋':'มีความสุข','ดีใจ๋':'ดีใจ'
+};
+var NT_WORD_MAP={
+  'ฮู้สึก':'รู้สึก','ฮ้องไห้':'ร้องไห้',
+  'บ่อยาก':'ไม่อยาก','บ่ชอบ':'ไม่ชอบ',
+  'บ่เป็น':'ไม่เป็น','บ่รู้':'ไม่รู้',
+  'บ่มี':'ไม่มี','บ่ได้':'ไม่ได้','บ่ดี':'ไม่ดี',
+  'จั๋งใด':'ยังไง','เป็นไง':'เป็นยังไง',
+  'ไปไส':'ไปไหน','ทำหยัง':'ทำอะไร',
+  'อะหยัง':'อะไร','เป๋นหยัง':'เป็นอะไร',
+  'มื้อวาน':'เมื่อวาน','มื้อนี้':'วันนี้','มื้ออื่น':'วันอื่น',
+  'ขอบใจ':'ขอบคุณ',
+  'จอย':'ฉัน','เปิ้น':'เขา','เฮา':'เรา',
+  'เน้อ':'นะ','เนาะ':'นะ','ก้อ':'ก็',
+  'กิ๋น':'กิน','ผ่อ':'ดู','แอ่ว':'เที่ยว',
+  'กึ๊ด':'คิด','เว้า':'พูด','หื้อ':'ให้',
+  'หลาย':'มาก','คัก':'มาก',
+  'ม่วน':'สนุก','แซ่บ':'อร่อย',
+  'งาม':'สวย','เมิน':'นาน',
+  'ฮู้':'รู้','ฮัก':'รัก','ฮับ':'รับ',
+  'ฮ้อน':'ร้อน','ฮอด':'ถึง','ฮ่ม':'ร่ม',
+  'หั้น':'นั้น','อั้น':'อัน','ตี้':'ที่',
+  'ใจ๋':'ใจ','มื้อ':'วัน','หยัง':'อะไร'
+};
+function applyNorthernThaiMap(text){
+  if(!text||room.myLang!=='th')return text;
+  var keys,i;
+  keys=Object.keys(NT_PHRASE_MAP).sort(function(a,b){return b.length-a.length;});
+  for(i=0;i<keys.length;i++){if(text.indexOf(keys[i])>=0)text=text.split(keys[i]).join(NT_PHRASE_MAP[keys[i]]);}
+  keys=Object.keys(NT_WORD_MAP).sort(function(a,b){return b.length-a.length;});
+  for(i=0;i<keys.length;i++){if(text.indexOf(keys[i])>=0)text=text.split(keys[i]).join(NT_WORD_MAP[keys[i]]);}
+  // บ่ prefix rule: any remaining บ่ + Thai chars = ไม่ + those chars
+  text=text.replace(/บ่([\u0E00-\u0E7F]+)/g,'ไม่$1');
+  return text;
+}
+
 var room={id:null,myLang:'',theirLang:'',role:null,name:''};
 var deviceId=localStorage.getItem('tb_dev')||(function(){var id=crypto.randomUUID();localStorage.setItem('tb_dev',id);return id})();
 
@@ -702,6 +752,12 @@ function normalizeText(raw,mode){
   var s=raw.normalize?raw.normalize('NFKC'):raw;
   s=s.trim().replace(/\s+/g,' ');
   s=s.replace(/[\u200B-\u200D\uFEFF]/g,'');
+  if(mode==='speech'){
+    // Strip XLIFF/TMX markup tags from MyMemory translation memory output
+    // e.g. สอง<bx id="2"/> → สอง
+    s=s.replace(/<\/?[a-zA-Z][^>]*>/g,'');
+    s=s.trim().replace(/\s+/g,' ');
+  }
   if(mode==='compare'){
     s=s.toLowerCase();
     s=s.replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"');
@@ -1678,7 +1734,7 @@ function translateWithRetry(text,from,to,retries){
       .then(function(d){
         if(d&&d.responseStatus===200&&d.responseData){
           var t=d.responseData.translatedText;
-          if(t&&t.indexOf('MYMEMORY')<0){
+          if(t&&t.indexOf('MYMEMORY')<0){t=t.replace(/<\/?[a-zA-Z][^>]*>/g,'').trim();
             if(trCache.size>=TR_CACHE_MAX){var first=trCache.keys().next().value;trCache.delete(first);}
             trCache.set(k,t);return t;
           }
@@ -2259,6 +2315,7 @@ function stripDGTags(t){return(t||'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ')
 
 function onDGFinal(text){
   text=normalizeText(stripDGTags(text),'speech');if(!text)return;
+  text=applyNorthernThaiMap(text);if(!text)return;
   if(isDupe(text)){log('dg_dedup',{t:text.slice(0,40)},'warn');return}
   recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
   var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
@@ -2297,28 +2354,55 @@ function startDeepgram(){
   if(!videoStream){log('dg_no_stream',{},'error');return}
   if(micMutedByUser){log('dg_skip_muted',{},'warn');return;}
   var langCode=DG_LANGS[room.myLang]||room.myLang||'en-US';
-  var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(langCode)+'&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=true&endpointing=400';
+  var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(langCode)+'&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
   var captureEpoch=sessionEpoch;
   dgWs=new WebSocket(url,['token',key]);
   dgWs.onopen=function(){
     if(captureEpoch!==sessionEpoch||!dgDesired||micMutedByUser){log('dg_open_stale',{captureEpoch:captureEpoch,current:sessionEpoch},'warn');try{dgWs.close();}catch(_){}return;}
-    dgActive=true;log('dg_open',{lang:langCode},'ok');
+    log('dg_open',{lang:langCode},'ok');
     try{
       var audioTracks=(videoStream?videoStream.getAudioTracks():[]).filter(function(t){return t.readyState==='live'&&t!==_silentAudioTrack;});
-      if(!audioTracks.length){log('dg_no_audio',{},'error');dgActive=false;dgWs.close();return;}
+      if(!audioTracks.length){log('dg_no_audio',{},'error');dgWs.close();return;}
       var dgStream=new MediaStream(audioTracks);
       dgAudioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
       dgSrc=dgAudioCtx.createMediaStreamSource(dgStream);
       var silentGain=dgAudioCtx.createGain();silentGain.gain.value=0;silentGain.connect(dgAudioCtx.destination);
-      dgProc=dgAudioCtx.createScriptProcessor(4096,1,1);
-      dgProc.onaudioprocess=function(e){
-        if(!dgWs||dgWs.readyState!==1)return;
-        var f=e.inputBuffer.getChannelData(0);
-        var b=new Int16Array(f.length);
-        for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF;}
-        dgWs.send(b.buffer);
-      };
-      dgSrc.connect(dgProc);dgProc.connect(silentGain);
+      function _setupScriptProc(){
+        dgProc=dgAudioCtx.createScriptProcessor(4096,1,1);
+        dgProc.onaudioprocess=function(e){
+          if(!dgWs||dgWs.readyState!==1)return;
+          var f=e.inputBuffer.getChannelData(0);
+          var b=new Int16Array(f.length);
+          for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF;}
+          dgWs.send(b.buffer);
+        };
+        dgSrc.connect(dgProc);dgProc.connect(silentGain);
+        dgActive=true;log('dg_scriptproc_active',{},'warn');
+      }
+      if(dgAudioCtx.audioWorklet&&typeof AudioWorkletNode!=='undefined'){
+        var _wblob=new Blob([DG_WORKLET_CODE],{type:'application/javascript'});
+        var _wurl=URL.createObjectURL(_wblob);
+        dgAudioCtx.audioWorklet.addModule(_wurl).then(function(){
+          URL.revokeObjectURL(_wurl);
+          if(!dgWs||dgWs.readyState!==1)return;
+          var _wnode=new AudioWorkletNode(dgAudioCtx,'tb-audio-capture');
+          _wnode.port.onmessage=function(ev){
+            if(!dgWs||dgWs.readyState!==1)return;
+            var f=ev.data;var b=new Int16Array(f.length);
+            for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF;}
+            dgWs.send(b.buffer);
+          };
+          dgSrc.connect(_wnode);_wnode.connect(silentGain);
+          dgProc=_wnode;dgActive=true;log('dg_worklet_active',{},'ok');
+        }).catch(function(e){
+          URL.revokeObjectURL(_wurl);
+          log('worklet_fallback',{e:String(e)},'warn');
+          toast('Audio: legacy processor active');
+          _setupScriptProc();
+        });
+      }else{
+        _setupScriptProc();
+      }
     }catch(e){log('dg_audio_err',{e:String(e)},'error');dgActive=false;}
   };
   dgWs.onmessage=function(e){
