@@ -78,7 +78,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .call-videos{position:relative;background:#000;overflow:hidden;flex:1;min-height:0;}
 #remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:1;}
 #local-video{position:absolute;top:8px;right:8px;width:min(14%,80px);aspect-ratio:9/16;border-radius:8px;object-fit:cover;transform:scaleX(-1);border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 12px rgba(0,0,0,.5);z-index:3;background:var(--surface);}
-.no-video-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--text-muted);z-index:1;}.remote-cam-off{position:absolute;inset:0;background:rgba(0,0,0,.75);z-index:3;display:none;flex-direction:column;align-items:center;justify-content:center;gap:8px;}.remote-cam-off.show{display:flex;}.remote-cam-off-icon{font-size:40px;opacity:.55;}.remote-cam-off-label{color:rgba(255,255,255,.5);font-size:12px;font-weight:600;}.partner-disconnected-overlay{position:absolute;inset:0;background:rgba(0,0,0,.72);z-index:4;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;backdrop-filter:blur(6px);}.partner-disconnected-overlay.show{display:flex;}.partner-disconnected-label{color:#fff;font-size:15px;font-weight:600;font-family:"DM Sans",sans-serif;text-align:center;padding:0 24px;}.partner-disconnected-sub{color:rgba(255,255,255,.55);font-size:12px;text-align:center;}.reconnect-banner{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(231,76,60,.9);color:#fff;border:none;border-radius:20px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;z-index:10;font-family:"DM Sans",sans-serif;display:none;}.reconnect-banner.show{display:block;}
+.no-video-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--text-muted);z-index:1;}.remote-cam-off{position:absolute;inset:0;background:rgba(0,0,0,.75);z-index:3;display:none;flex-direction:column;align-items:center;justify-content:center;gap:8px;}.remote-cam-off.show{display:flex;}.remote-mic-off{position:absolute;top:8px;left:8px;z-index:5;background:rgba(0,0,0,.65);border:1px solid rgba(231,76,60,.4);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;color:#ff6b5b;display:none;align-items:center;gap:4px;backdrop-filter:blur(4px);pointer-events:none;}.remote-mic-off.show{display:flex;}.remote-cam-off-icon{font-size:40px;opacity:.55;}.remote-cam-off-label{color:rgba(255,255,255,.5);font-size:12px;font-weight:600;}.partner-disconnected-overlay{position:absolute;inset:0;background:rgba(0,0,0,.72);z-index:4;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;backdrop-filter:blur(6px);}.partner-disconnected-overlay.show{display:flex;}.partner-disconnected-label{color:#fff;font-size:15px;font-weight:600;font-family:"DM Sans",sans-serif;text-align:center;padding:0 24px;}.partner-disconnected-sub{color:rgba(255,255,255,.55);font-size:12px;text-align:center;}.reconnect-banner{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(231,76,60,.9);color:#fff;border:none;border-radius:20px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;z-index:10;font-family:"DM Sans",sans-serif;display:none;}.reconnect-banner.show{display:block;}
 .solo-banner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;text-align:center;pointer-events:none;}
 .solo-banner-text{background:rgba(0,0,0,.6);color:var(--text-dim);font-size:13px;padding:8px 18px;border-radius:20px;backdrop-filter:blur(6px);}
 .subtitle-area{position:absolute;bottom:0;left:0;right:0;z-index:4;padding:8px 14px 10px;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:4px;background:linear-gradient(transparent,rgba(0,0,0,.6) 40%);}
@@ -728,7 +728,7 @@ var pc=null,videoStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false;
 var dgWs=null,dgAudioCtx=null,dgProc=null,dgSrc=null,dgActive=false;
 var recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=5;
-var localSubSeq=0,transcript=[],trCache=new Map(),TR_CACHE_MAX=500;
+var localSubSeq=(Date.now()&0xFFFF),_ssNonce=Date.now().toString(36).slice(-4),transcript=[],trCache=new Map(),TR_CACHE_MAX=500;
 var hbTimer=null,seq=0,wsReconnectTimer=null;
 var debugLog=[],HEARTBEAT_MS=30000,SUB_LINGER=5000,MAX_TR=300;
 var RK='tb_recent_rooms',TP='tb_transcript_',RL=12;
@@ -750,10 +750,14 @@ function getMicConstraints(){
 function normalizeText(raw,mode){
   if(!raw)return'';
   var s=raw.normalize?raw.normalize('NFKC'):raw;
-  // Strip XLIFF/TMX tags from MyMemory TM output (e.g. สอง<bx id="2"/>) — all modes
-  s=s.replace(/<\/?[a-zA-Z][^>]*>/g,'');
   s=s.trim().replace(/\s+/g,' ');
   s=s.replace(/[\u200B-\u200D\uFEFF]/g,'');
+  if(mode==='speech'){
+    // Strip XLIFF/TMX markup tags from MyMemory translation memory output
+    // e.g. สอง<bx id="2"/> → สอง
+    s=s.replace(/<\/?[a-zA-Z][^>]*>/g,'');
+    s=s.trim().replace(/\s+/g,' ');
+  }
   if(mode==='compare'){
     s=s.toLowerCase();
     s=s.replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"');
@@ -826,13 +830,13 @@ var _ftReady=false,_ftModule=null,_ftLoadFailed=false,_ftPending=[];
 var FT_CONF=0.5;
 function _loadFastText(){
   if(_ftReady||_ftLoadFailed)return;
-  var s=document.createElement('script');s.src='/fastText/fasttext.js';
+  var s=document.createElement('script');s.src='/fastType/fastText.common.js';
   s.onerror=function(){_ftLoadFailed=true;_ftPending.forEach(function(cb){cb(null);});_ftPending=[];};
   s.onload=function(){
     if(typeof FastText==='undefined'){_ftLoadFailed=true;_ftPending.forEach(function(cb){cb(null);});_ftPending=[];return;}
     try{
       var ft=new FastText();
-      ft.loadModel('/fastText/models/lid.176.ftz').then(function(){
+      ft.loadModel('/fastType/lid.176.ftz').then(function(){
         _ftModule=ft;_ftReady=true;log('ft_ready',{},'ok');
         _ftPending.forEach(function(cb){cb(ft);});_ftPending=[];
       }).catch(function(){_ftLoadFailed=true;_ftPending.forEach(function(cb){cb(null);});_ftPending=[];});
@@ -865,13 +869,10 @@ function _detectLangAsync(text){
 }
 
 /* === CHAT === */
-var _pbMutedMic=false;
 function composeFocusMute(){
   if(!isCallActive())return;
-  if(micOn&&!micMutedByUser){_pbMutedMic=true;toggleMic();toast('Mic muted while composing');}
-}
-function _pbRestoreMic(){
-  if(_pbMutedMic&&!micOn&&isCallActive()){_pbMutedMic=false;toggleMic();}else{_pbMutedMic=false;}
+  if(micOn&&!micMutedByUser){toggleMic();}
+  else if(!micOn){toast('Mic is muted — tap mic button to speak');}
 }
 function chatInputEvt(){
   var ta=$('chat-input');if(!ta)return;
@@ -1241,7 +1242,6 @@ function pbCloseDrawer(){
   _pbDrawerMode='';
   var btn=document.getElementById('pb-strip-btn');
   if(btn)btn.classList.remove('active');
-  _pbRestoreMic();
 }
 function pbCmdDrawerHtml(){
   return '<div class="pb-drawer-hdr"><span class="pb-drawer-title" style="font-size:11px;color:var(--text-muted);">Phrasebook (//) management</span>'    +'<button class="pb-drawer-x" onclick="pbCloseDrawer();pbClearComposeSlash()">×</button></div>'    +'<div class="pb-cmd-chips" style="justify-content:flex-start;">'    +'<button class="pb-ico-chip" onclick="pbCloseDrawer();pbClearCompose();pbOpenBooksModal()" title="Open / switch phrasebook">'+ICO.book+'</button>'    +'<button class="pb-ico-chip" onclick="pbCloseDrawer();pbClearCompose();pbOpenNewCard({})" title="New phrase">'+ICO.plus+'</button>'    +'<button class="pb-ico-chip" onclick="pbCloseDrawer();pbClearCompose();pbTriggerImport()" title="Import file">'+ICO.upload+'</button>'    +'<button class="pb-ico-chip" onclick="pbCloseDrawer();pbClearCompose();pbExportPrompt()" title="Export">'+ICO.download+'</button>'    +'<button class="pb-ico-chip danger" onclick="pbCloseDrawer();pbClearCompose();pbResetConfirm()" title="Reset phrasebook">'+ICO.warn+'</button>'    +'</div>';
@@ -1320,9 +1320,8 @@ function pbUseText(id,side){
   var text=side==='src'?card.source:card.target;
   var ta=document.getElementById('chat-input');
   if(ta){ta.value=text;ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,80)+'px';
-    var sb=document.getElementById('chat-send-btn');if(sb)sb.disabled=!text.trim();}
-  pbCloseDrawer();   // restores mic via _pbRestoreMic before focus
-  if(ta)ta.focus();  // focus after restore so onfocus doesn't re-mute
+    var sb=document.getElementById('chat-send-btn');if(sb)sb.disabled=!text.trim();ta.focus();}
+  pbCloseDrawer();
   pbCloseOverlay();
 }
 
@@ -1760,7 +1759,6 @@ function translate(text,from,to){
       if(d&&d.responseStatus===200&&d.responseData){
         var t=d.responseData.translatedText;
         if(t&&t.indexOf('MYMEMORY')<0){
-          t=t.replace(/<\/?[a-zA-Z][^>]*>/g,'').trim();
           if(trCache.size>=TR_CACHE_MAX){var first=trCache.keys().next().value;trCache.delete(first);}
           trCache.set(k,t);return t;
         }
@@ -2047,6 +2045,7 @@ function handleRelay(d){
     patchTr('partner',d.subtitleSeq,normText,d.sourceLang,d.targetLang);return;
   }
   if(d.type==='chat-msg'){handleChatMsg(d);return;}
+  if(d.type==='mic-state'){var rmo=$('remote-mic-off');if(rmo)rmo.classList.toggle('show',d.micOn===false);return;}
   if(d.type==='cam-state'){var rco=$('remote-cam-off');if(rco){rco.classList.toggle('show',d.camOn===false);}var rcl=$('remote-cam-off-label');if(rcl)rcl.textContent=L('camera_off');return;}
   if(d.type==='hangup'){
     if(room.role==='joiner'){showHostLeftCountdown();}
@@ -2439,7 +2438,7 @@ function addTr(who,src,tr,sL,tL,ss){
   if(ss){for(var j=transcript.length-1;j>=0;j--){if(transcript[j].who===who&&transcript[j].subtitleSeq===ss){transcript[j].sourceText=src;transcript[j].translatedText=tr;transcript[j].ts=Date.now();saveTr();renderTr();return;}}}
   var prev=transcript.length?transcript[transcript.length-1]:null;
   if(!ss&&prev&&prev.who===who&&normalizeText(prev.sourceText,'compare')===normalizeText(src,'compare')&&Date.now()-prev.ts<5000)return;
-  var entry={id:(ss?('sp-'+who+'-'+ss):('sp-'+uid())),type:'speech',who:who,sourceText:src,translatedText:tr,srcLang:sL,tgtLang:tL,subtitleSeq:ss||null,ts:Date.now()};
+  var entry={id:(ss?('sp-'+(who==='me'?'m'+_ssNonce:'p')+'-'+ss):('sp-'+uid())),type:'speech',who:who,sourceText:src,translatedText:tr,srcLang:sL,tgtLang:tL,subtitleSeq:ss||null,ts:Date.now()};
   transcript.push(entry);if(transcript.length>MAX_TR)transcript.splice(0,transcript.length-MAX_TR);
   saveTr();appendTrDom(entry);
   if(transcriptTtsOn&&who==='partner'&&tr&&!ss)speakText(tr,tL||room.myLang);
@@ -2450,8 +2449,7 @@ function patchTr(who,ss,newTr,sL,tL){
     if(transcript[i].who===who&&transcript[i].subtitleSeq===ss){
       if(normalizeText(transcript[i].translatedText,'compare')===normalizeText(newTr,'compare'))return;
       transcript[i].translatedText=newTr;transcript[i].ts=Date.now();saveTr();
-      var eid=transcript[i].id;
-      replaceTrDomById(eid,transcript[i]);
+      replaceTrDomById(transcript[i].id,transcript[i]);
       if(transcriptTtsOn&&who==='partner'&&newTr)speakText(newTr,tL||room.myLang);
       return;
     }
@@ -2598,6 +2596,7 @@ async function toggleMic(){
     if(!videoStream)return;
     if(!micOn){
       micMutedByUser=true;dgDesired=false;
+      relaySend({type:'mic-state',micOn:false});
       stopDeepgram();
       videoStream.getAudioTracks().forEach(function(t){try{videoStream.removeTrack(t);}catch(_){} if(t!==_silentAudioTrack)try{t.stop();}catch(_){};});
       if(!_silentAudioTrack||_silentAudioTrack.readyState==='ended')_silentAudioTrack=_makeSilentTrack();
@@ -2631,6 +2630,7 @@ async function toggleMic(){
         videoStream.getAudioTracks().forEach(function(t){ if(t!==newTrack){try{videoStream.removeTrack(t);}catch(_){} try{t.stop();}catch(_){}} });
         videoStream.addTrack(newTrack);
         micMutedByUser=false;dgDesired=true;
+        relaySend({type:'mic-state',micOn:true});
         log('mic_unmuted',{});
         log('dg_reactivate_intent',{why:'unmute'});
         reconcileDeepgramState('unmute');
@@ -2750,7 +2750,7 @@ function cleanUp(){
   transcriptTtsOn=false;syncTranscriptTtsButton();if(window.speechSynthesis)window.speechSynthesis.cancel();
   document.querySelector('.call-videos').classList.remove('swapped');
   resetRemoteMediaState();
-  transcript=[];micOn=true;camOn=true;micMutedByUser=false;dgDesired=false;_pbMutedMic=false;syncMic();syncCam();renderRecent();
+  transcript=[];micOn=true;camOn=true;micMutedByUser=false;dgDesired=false;syncMic();syncCam();renderRecent();
 }
 
 // === INIT ===
