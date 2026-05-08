@@ -750,8 +750,9 @@ function getMicConstraints(){
 function normalizeText(raw,mode){
   if(!raw)return'';
   var s=raw.normalize?raw.normalize('NFKC'):raw;
+  if(s.normalize)s=s.normalize('NFC');
   s=s.trim().replace(/\s+/g,' ');
-  s=s.replace(/[\u200B-\u200D\uFEFF]/g,'');
+  s=s.replace(/[\u200B-\u200D\uFEFF\u2060]/g,'');
   if(mode==='speech'){
     // Strip XLIFF/TMX markup tags from MyMemory translation memory output
     // e.g. สอง<bx id="2"/> → สอง
@@ -926,7 +927,7 @@ async function sendChat(){
   }catch(_){}
   var tgtText=srcText;
   if(src&&tgt&&src!==tgt){
-    try{var tr=await translateWithRetry(srcText,src,tgt,2);if(tr)tgtText=normalizeText(tr,'chat');}catch(_){}
+    try{var tr=await translateWithRetry(srcText,src,tgt,1);if(tr)tgtText=normalizeText(tr,'chat');if(normalizeText(tgtText,'compare')===normalizeText(srcText,'compare')){var tr2=await translateWithRetry(srcText,src,tgt,0);if(tr2)tgtText=normalizeText(tr2,'chat');}}catch(_){}
   }
   var id='cm-'+uid();
   var entry={id:id,type:'chat',who:'me',sourceText:srcText,translatedText:tgtText,srcLang:src,tgtLang:tgt,ts:Date.now()};
@@ -1722,6 +1723,11 @@ function speakText(text,lang){text=norm(text);if(!text||!window.speechSynthesis)
 function toggleTranscript(){transcriptCollapsed=!transcriptCollapsed;$('call-screen').classList.toggle('transcript-collapsed',transcriptCollapsed);syncTranscriptToggleButton()}
 function swapVideos(){document.querySelector('.call-videos').classList.toggle('swapped')}
 
+function cleanTranslationText(t){
+  if(!t)return'';
+  return normalizeText(String(t).replace(/<\/?[a-zA-Z][^>]*>/g,''),'speech');
+}
+
 function translateWithRetry(text,from,to,retries){
   if(!text||!from||!to||from===to)return Promise.resolve(text);
   var k=from+'|'+to+'|'+text;
@@ -1732,7 +1738,7 @@ function translateWithRetry(text,from,to,retries){
       .then(function(d){
         if(d&&d.responseStatus===200&&d.responseData){
           var t=d.responseData.translatedText;
-          if(t&&t.indexOf('MYMEMORY')<0){t=t.replace(/<\/?[a-zA-Z][^>]*>/g,'').trim();
+          if(t&&t.indexOf('MYMEMORY')<0){t=cleanTranslationText(t);
             if(trCache.size>=TR_CACHE_MAX){var first=trCache.keys().next().value;trCache.delete(first);}
             trCache.set(k,t);return t;
           }
@@ -1742,7 +1748,7 @@ function translateWithRetry(text,from,to,retries){
       .catch(function(e){
         if(n>0){
           log('trans_retry',{from:from,to:to,left:n},'warn');
-          return new Promise(function(res){setTimeout(res,1000*Math.pow(2,retries-n));}).then(function(){return attempt(n-1);});
+          return new Promise(function(res){setTimeout(res,300+((retries-n)*250));}).then(function(){return attempt(n-1);});
         }
         log('trans_fail',{from:from,to:to,e:String(e)},'error');
         return text;
@@ -1759,6 +1765,7 @@ function translate(text,from,to){
       if(d&&d.responseStatus===200&&d.responseData){
         var t=d.responseData.translatedText;
         if(t&&t.indexOf('MYMEMORY')<0){
+          t=cleanTranslationText(t);
           if(trCache.size>=TR_CACHE_MAX){var first=trCache.keys().next().value;trCache.delete(first);}
           trCache.set(k,t);return t;
         }
@@ -2320,20 +2327,13 @@ function onDGFinal(text){
   recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
   var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
   showSub(text,'mine');
-  Promise.race([
-    _detectLangAsync(text),
-    new Promise(function(res){setTimeout(function(){res(detectLang(text,src));},150);})
-  ]).then(function(detected){
-    return (detected&&detected!==src)?translateWithRetry(text,detected,src,2):Promise.resolve(text);
-  }).then(function(srcText){
-    srcText=normalizeText(srcText,'speech')||text;
-    relaySend({type:'subtitle',subtitleSeq:ss,text:srcText,sourceText:srcText,sourceLang:src,targetLang:tgt,provisional:true});
-    addTr('me',srcText,srcText,src,tgt,ss);
-    return translateWithRetry(srcText,src,tgt,2).then(function(tr){
-      tr=normalizeText(tr,'speech')||srcText;
-      relaySend({type:'subtitle-update',subtitleSeq:ss,text:tr,sourceText:srcText,sourceLang:src,targetLang:tgt});
-      patchTr('me',ss,tr,src,tgt);
-    });
+  var srcText=normalizeText(text,'speech')||text;
+  relaySend({type:'subtitle',subtitleSeq:ss,text:srcText,sourceText:srcText,sourceLang:src,targetLang:tgt,provisional:true});
+  addTr('me',srcText,srcText,src,tgt,ss);
+  translateWithRetry(srcText,src,tgt,1).then(function(tr){
+    tr=normalizeText(tr,'speech')||srcText;
+    relaySend({type:'subtitle-update',subtitleSeq:ss,text:tr,sourceText:srcText,sourceLang:src,targetLang:tgt});
+    patchTr('me',ss,tr,src,tgt);
   }).catch(function(e){log('dg_trans_err',{e:String(e)},'error');});
 }
 
