@@ -1,13 +1,13 @@
 // fastText browser adapter for TalkBridge
-// Wraps Emscripten FastTextModule with the fasttext.js class API
-// WASM file: /fastType/fastText.common.wasm (same binary, different name)
+// Locates WASM relative to this script file - works on any deployment path
 (function(global){
-  var Module = {
-    locateFile: function(path) {
-      return '/fastType/fastText.common.wasm';
+  var _scriptDir=(document.currentScript&&document.currentScript.src||'').replace(/[^/]*$/,'');
+  var Module={
+    locateFile:function(path){
+      return _scriptDir+path.replace('fasttext_wasm.wasm','fastText.common.wasm');
     },
-    print: function(){},
-    printErr: function(){}
+    print:function(){},
+    printErr:function(){}
   };
 
 
@@ -8716,39 +8716,30 @@ run();
 })();
 module.exports = FastTextModule;
 
-  // FastText class wrapping FastTextModule
-  function FastText() {
-    this._module = null;
-  }
-  FastText.prototype.loadModel = function(url) {
-    var self = this;
-    return new Promise(function(resolve, reject) {
-      FastTextModule().then(function(ft) {
-        self._module = ft;
-        // Fetch the model and load into WASM filesystem
-        fetch(url).then(function(r){ return r.arrayBuffer(); }).then(function(buf) {
-          var data = new Uint8Array(buf);
-          ft.FS.writeFile('model.ftz', data);
-          var model = new ft.FastText();
+  function FastText(){}
+  FastText.prototype.loadModel=function(url){
+    var self=this;
+    return new Promise(function(resolve,reject){
+      FastTextModule().then(function(ft){
+        fetch(url).then(function(r){return r.arrayBuffer();}).then(function(buf){
+          var data=new Uint8Array(buf);
+          ft.FS.writeFile('model.ftz',data);
+          var model=new ft.FastText();
           model.loadModel('model.ftz');
-          self._native = model;
+          self._native=model;
           resolve(self);
         }).catch(reject);
       }).catch(reject);
     });
   };
-  FastText.prototype.predict = function(text, k) {
-    if(!this._native) return [];
-    try {
-      var result = this._native.predict(text, k || 1, 0.0);
-      var out = [];
-      for(var i=0; i<result.size(); i++) {
-        var pair = result.get(i);
-        out.push({label: pair.first, prob: pair.second});
-      }
+  FastText.prototype.predict=function(text,k){
+    if(!this._native)return[];
+    try{
+      var result=this._native.predict(text,k||1,0.0);
+      var out=[];
+      for(var i=0;i<result.size();i++){var pair=result.get(i);out.push({label:pair.first,prob:pair.second});}
       return out;
-    } catch(e) { return []; }
+    }catch(e){return[];}
   };
-
-  global.FastText = FastText;
-})(typeof window !== 'undefined' ? window : this);
+  global.FastText=FastText;
+})(typeof window!=='undefined'?window:this);
