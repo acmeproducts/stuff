@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lineage Explorer</title>
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; margin: 0; background:#f7f9fc; color:#0f172a; }
+    .wrap { width:min(1100px, 96vw); margin: 18px auto 30px; }
+    h1 { margin: 0 0 12px; }
+    .controls { display:flex; gap:8px; margin-bottom:12px; }
+    input, button, select { padding:10px; border:1px solid #cbd5e1; border-radius:10px; }
+    button { background:#2563eb; color:#fff; border-color:#1d4ed8; cursor:pointer; }
+    .tabs { display:flex; gap:8px; margin:8px 0 14px; }
+    .tab { background:#e2e8f0; color:#0f172a; }
+    .tab.active { background:#0f172a; color:#fff; }
+    .card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:12px; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { text-align:left; padding:8px; border-bottom:1px solid #e2e8f0; font-size:0.9rem; }
+    .timeline-item { border-left:3px solid #2563eb; padding:8px 12px; margin:8px 0; background:#f8fafc; border-radius:8px; }
+    .muted { color:#475569; font-size:0.86rem; }
+    .hidden { display:none; }
+    .tags { display:flex; gap:6px; flex-wrap:wrap; }
+    .tag { font-size:0.75rem; background:#dbeafe; color:#1e3a8a; padding:2px 8px; border-radius:999px; }
+    .row-actions { display:flex; gap:6px; flex-wrap:wrap; }
+    a.btn { display:inline-block; font-size:0.78rem; padding:4px 8px; border:1px solid #cbd5e1; border-radius:8px; text-decoration:none; color:#0f172a; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>File Lineage Explorer</h1>
+    <div class="controls">
+      <input id="search" placeholder="Omnisearch: bridge, commit text, tag, version..." style="flex:1" />
+      <input id="family" placeholder="Family root or wildcard (e.g. bridge or bridge*)" value="bridge" />
+      <button id="loadBtn">Load lineage</button>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-view="table">Tabular view</button>
+      <button class="tab" data-view="timeline">Timeline view</button>
+    </div>
+
+    <section id="tableView" class="card"></section>
+    <section id="timelineView" class="card hidden"></section>
+  </main>
+
+  <script>
+    let lineage = [];
+
+    function esc(v) {
+      return String(v ?? '').replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    }
+
+    function parseDate(entry) {
+      return new Date(entry.created || entry.lastUpdated || 0).getTime();
+    }
+
+    function render(data) {
+      const table = document.getElementById('tableView');
+      const timeline = document.getElementById('timelineView');
+      if (!data.length) {
+        table.innerHTML = '<p class="muted">No lineage entries found for this search.</p>';
+        timeline.innerHTML = table.innerHTML;
+        return;
+      }
+
+      table.innerHTML = `
+        <table>
+          <thead>
+            <tr><th>File</th><th>Version</th><th>Created</th><th>Last Updated</th><th>Commit</th><th>Actions</th><th>Tags</th></tr>
+          </thead>
+          <tbody>
+            ${data.map(item => `
+              <tr>
+                <td>${esc(item.file)}</td>
+                <td>${esc(item.version || '')}</td>
+                <td>${esc(item.created || '')}</td>
+                <td>${esc(item.lastUpdated || '')}</td>
+                <td>${esc(item.commitComment || '')}</td>
+                <td>
+                  <div class="row-actions">
+                    <a class="btn" href="${esc(item.blobUrl || '#')}" target="_blank">View blob</a>
+                    <a class="btn" href="${esc(item.launchUrl || item.file)}" target="_blank">Launch</a>
+                    <a class="btn" href="#" data-action="comment" data-file="${esc(item.file)}">Add comment</a>
+                    <a class="btn" href="#" data-action="tag" data-file="${esc(item.file)}">Add tag</a>
+                  </div>
+                </td>
+                <td><div class="tags">${(item.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+
+      timeline.innerHTML = data.map(item => `
+        <div class="timeline-item">
+          <strong>${esc(item.file)}</strong> <span class="muted">v${esc(item.version || '')}</span>
+          <div class="muted">${esc(item.created || '')} → ${esc(item.lastUpdated || '')}</div>
+          <div>${esc(item.commitComment || '')}</div>
+          <div class="row-actions" style="margin-top:6px;">
+            <a class="btn" href="${esc(item.blobUrl || '#')}" target="_blank">View blob</a>
+            <a class="btn" href="${esc(item.launchUrl || item.file)}" target="_blank">Launch</a>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function filterAndRender() {
+      const family = document.getElementById('family').value.trim().toLowerCase();
+      const q = document.getElementById('search').value.trim().toLowerCase();
+
+      const familyPattern = family.includes('*')
+        ? new RegExp('^' + family.split('*').map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$')
+        : null;
+
+      let data = lineage
+        .filter(x => {
+          if (!family) return true;
+          const fam = (x.family || '').toLowerCase();
+          const file = (x.file || '').toLowerCase();
+          if (familyPattern) return familyPattern.test(fam) || familyPattern.test(file);
+          return fam === family || file.startsWith(family);
+        })
+        .sort((a, b) => parseDate(a) - parseDate(b));
+
+      if (q) {
+        data = data.filter(item => {
+          const hay = [item.file, item.commitComment, item.version, item.created, item.lastUpdated, ...(item.tags || [])].join(' ').toLowerCase();
+          return hay.includes(q);
+        });
+      }
+      render(data);
+    }
+
+    async function loadLineage() {
+      const res = await fetch('bridge-lineage.json', { cache: 'no-store' });
+      lineage = await res.json();
+      filterAndRender();
+    }
+
+    document.getElementById('loadBtn').addEventListener('click', filterAndRender);
+    document.getElementById('search').addEventListener('input', filterAndRender);
+    document.querySelectorAll('.tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        const view = btn.dataset.view;
+        document.getElementById('tableView').classList.toggle('hidden', view !== 'table');
+        document.getElementById('timelineView').classList.toggle('hidden', view !== 'timeline');
+      });
+    });
+
+    document.body.addEventListener('click', (e) => {
+      const target = e.target.closest('[data-action]');
+      if (!target) return;
+      e.preventDefault();
+      const file = target.dataset.file;
+      const action = target.dataset.action;
+      const value = prompt(action === 'comment' ? `Add comment for ${file}` : `Add tag for ${file}`);
+      if (!value) return;
+      const item = lineage.find(x => x.file === file);
+      if (!item) return;
+      if (action === 'comment') item.commitComment = `${item.commitComment || ''} | ${value}`.trim();
+      if (action === 'tag') item.tags = [...(item.tags || []), value];
+      item.lastUpdated = new Date().toISOString();
+      filterAndRender();
+    });
+
+    loadLineage().catch(err => {
+      document.getElementById('tableView').innerHTML = `<p class="muted">Failed to load metadata: ${esc(err.message)}</p>`;
+    });
+  </script>
+</body>
+</html>
