@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Nimbus Flight</title>
+  <meta name="description" content="Nimbus Flight is a cozy flying experience where you explore infinite oceans and drifting islands in a relaxing sky adventure." />
+  <meta name="theme-color" content="#5998f8" />
+  <style>
+    :root {
+      --bg1: #79b8ff;
+      --bg2: #9fd0ff;
+      --bg3: #cfe9ff;
+      --ui: rgba(255, 255, 255, 0.2);
+      --stroke: rgba(255, 255, 255, 0.75);
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; font-family: Inter, system-ui, sans-serif; }
+    body {
+      background: radial-gradient(circle at 50% 0%, var(--bg3) 0%, var(--bg2) 45%, var(--bg1) 100%);
+      color: #fff;
+      touch-action: none;
+      user-select: none;
+    }
+
+    #game, #vignette {
+      position: fixed; inset: 0;
+    }
+    #game { width: 100%; height: 100%; display: block; }
+    #vignette {
+      pointer-events: none;
+      background: radial-gradient(circle at center, transparent 45%, rgba(0, 20, 55, 0.35) 100%);
+    }
+
+    #intro-screen {
+      position: fixed; inset: 0;
+      display: grid; place-items: center;
+      background: rgba(10, 35, 75, 0.32);
+      backdrop-filter: blur(4px);
+      z-index: 3;
+    }
+    .intro-content { text-align: center; letter-spacing: 0.15em; }
+    .intro-content h1 { margin: 0; font-size: clamp(2.2rem, 10vw, 3.2rem); }
+    .intro-content p { margin: 0.35rem 0 1.3rem; opacity: 0.8; }
+    #play-btn {
+      border: 1px solid var(--stroke);
+      background: var(--ui);
+      color: #fff;
+      font-weight: 700;
+      padding: 0.8rem 1.2rem;
+      border-radius: 999px;
+    }
+
+    #hud {
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top));
+      left: 50%; transform: translateX(-50%);
+      font-size: 0.85rem;
+      padding: 0.35rem 0.8rem;
+      border-radius: 999px;
+      border: 1px solid var(--stroke);
+      background: rgba(10, 35, 75, 0.28);
+      z-index: 2;
+    }
+
+    #joystick-wrap {
+      position: fixed;
+      left: max(10px, env(safe-area-inset-left));
+      bottom: max(10px, env(safe-area-inset-bottom));
+      width: 210px;
+      height: 210px;
+      z-index: 4;
+      touch-action: none;
+    }
+
+    #collar {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 2px solid var(--stroke);
+      background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.05) 60%, rgba(20, 45, 80, 0.2) 100%);
+      display: grid;
+      place-items: center;
+      cursor: grab;
+      position: relative;
+    }
+    #collar.dragging { cursor: grabbing; }
+
+    #nipple {
+      position: absolute;
+      width: 86px;
+      height: 86px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.95);
+      background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.9) 0%, rgba(230,240,255,0.55) 55%, rgba(130,170,225,0.45) 100%);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3);
+      transform: translate(0, 0);
+      transition: transform 100ms ease-out;
+      pointer-events: none;
+    }
+
+    #hint {
+      position: fixed;
+      right: max(10px, env(safe-area-inset-right));
+      bottom: max(10px, env(safe-area-inset-bottom));
+      max-width: 48vw;
+      font-size: 0.75rem;
+      line-height: 1.3;
+      opacity: 0.75;
+      z-index: 2;
+      text-align: right;
+    }
+
+    @media (min-width: 900px) {
+      #hint::before { content: "Mobile-only control enabled. "; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" aria-label="Nimbus Flight scene"></canvas>
+  <div id="vignette"></div>
+
+  <div id="intro-screen">
+    <div class="intro-content">
+      <h1>Nimbus</h1>
+      <p>FLIGHT</p>
+      <button id="play-btn">START</button>
+    </div>
+  </div>
+
+  <div id="hud">Pitch: 0.00 | Roll: 0.00 | Throttle: 0.00</div>
+
+  <div id="joystick-wrap" aria-label="Joystick container">
+    <div id="collar" aria-label="Drag to move control, touch inside to fly">
+      <div id="nipple"></div>
+    </div>
+  </div>
+
+  <div id="hint">Drag collar to reposition. Position is saved. Move nipple to control pitch/roll/throttle.</div>
+
+  <script>
+    const intro = document.getElementById('intro-screen');
+    document.getElementById('play-btn').addEventListener('click', () => intro.style.display = 'none');
+
+    const STORAGE_KEY = 'nimbus_joystick_pos_v1';
+    const wrap = document.getElementById('joystick-wrap');
+    const collar = document.getElementById('collar');
+    const nipple = document.getElementById('nipple');
+    const hud = document.getElementById('hud');
+
+    const state = { pitch: 0, roll: 0, throttle: 0 };
+    let activePointer = null;
+    let dragPointer = null;
+    let center = { x: 0, y: 0 };
+    let radius = 0;
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+    function refreshGeometry() {
+      const rect = collar.getBoundingClientRect();
+      center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      radius = rect.width * 0.5 - 44;
+    }
+
+    function setNipple(dx, dy) {
+      const d = Math.hypot(dx, dy);
+      if (d > radius && d > 0) { dx = dx / d * radius; dy = dy / d * radius; }
+      nipple.style.transform = `translate(${dx}px, ${dy}px)`;
+      state.roll = clamp(dx / radius, -1, 1);
+      state.pitch = clamp(-dy / radius, -1, 1);
+      state.throttle = clamp((state.pitch + 1) * 0.5, 0, 1);
+      hud.textContent = `Pitch: ${state.pitch.toFixed(2)} | Roll: ${state.roll.toFixed(2)} | Throttle: ${state.throttle.toFixed(2)}`;
+    }
+
+    function resetNipple() {
+      state.pitch = 0; state.roll = 0; state.throttle = 0;
+      nipple.style.transform = 'translate(0, 0)';
+      hud.textContent = 'Pitch: 0.00 | Roll: 0.00 | Throttle: 0.00';
+    }
+
+    function savePosition() {
+      const style = getComputedStyle(wrap);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ left: style.left, bottom: style.bottom }));
+    }
+
+    function restorePosition() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const pos = JSON.parse(raw);
+        if (pos.left) wrap.style.left = pos.left;
+        if (pos.bottom) wrap.style.bottom = pos.bottom;
+      } catch {}
+    }
+
+    restorePosition();
+    refreshGeometry();
+    window.addEventListener('resize', refreshGeometry);
+
+    collar.addEventListener('pointerdown', (e) => {
+      refreshGeometry();
+      const dist = Math.hypot(e.clientX - center.x, e.clientY - center.y);
+      if (dist < 52) {
+        activePointer = e.pointerId;
+        collar.setPointerCapture(e.pointerId);
+        nipple.style.transition = 'none';
+        setNipple(e.clientX - center.x, e.clientY - center.y);
+      } else {
+        dragPointer = e.pointerId;
+        collar.setPointerCapture(e.pointerId);
+        collar.classList.add('dragging');
+      }
+    });
+
+    collar.addEventListener('pointermove', (e) => {
+      if (e.pointerId === activePointer) {
+        setNipple(e.clientX - center.x, e.clientY - center.y);
+      } else if (e.pointerId === dragPointer) {
+        wrap.style.left = clamp(e.clientX - wrap.offsetWidth / 2, 0, innerWidth - wrap.offsetWidth) + 'px';
+        wrap.style.bottom = clamp(innerHeight - (e.clientY + wrap.offsetHeight / 2), 0, innerHeight - wrap.offsetHeight) + 'px';
+        refreshGeometry();
+      }
+    });
+
+    function release(e) {
+      if (e.pointerId === activePointer) {
+        activePointer = null;
+        nipple.style.transition = 'transform 100ms ease-out';
+        resetNipple();
+      }
+      if (e.pointerId === dragPointer) {
+        dragPointer = null;
+        collar.classList.remove('dragging');
+        savePosition();
+      }
+    }
+
+    collar.addEventListener('pointerup', release);
+    collar.addEventListener('pointercancel', release);
+  </script>
+</body>
+</html>
