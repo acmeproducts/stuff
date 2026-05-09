@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>NimbusFlight Touch Wrapper</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        background: #020617;
+        color: #fff;
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+      header, footer {
+        padding: 0.75rem 1rem;
+        background: #0f172a;
+        border-color: #1e293b;
+      }
+      header { border-bottom: 1px solid #1e293b; }
+      footer { border-top: 1px solid #1e293b; font-size: 0.8rem; color: #94a3b8; }
+      h1 { margin: 0; font-size: 1rem; }
+      .sub { margin: 0.25rem 0 0; color: #cbd5e1; font-size: 0.875rem; }
+      main { display: grid; grid-template-rows: 1fr auto; min-height: 0; }
+      iframe { width: 100%; height: 100%; border: 0; background: #000; }
+      .controls {
+        border-top: 1px solid #1e293b;
+        background: #0f172a;
+        padding: 0.75rem;
+        display: grid;
+        gap: 0.5rem;
+      }
+      .row { display: flex; justify-content: center; gap: 0.5rem; }
+      button {
+        border: 1px solid #334155;
+        background: #1e293b;
+        color: #fff;
+        border-radius: 0.75rem;
+        font-weight: 700;
+        min-width: 4rem;
+        padding: 0.75rem 1rem;
+        touch-action: none;
+        user-select: none;
+      }
+      button.wide { min-width: 7rem; }
+      button.active { background: #22d3ee; color: #082f49; border-color: #67e8f9; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>NimbusFlight Touch Wrapper</h1>
+      <p class="sub">On-screen controls for play without a physical keyboard.</p>
+    </header>
+
+    <main>
+      <iframe id="game" src="https://nimbusflight.vercel.app/" title="NimbusFlight" allow="fullscreen"></iframe>
+
+      <section class="controls" id="controls"></section>
+    </main>
+
+    <footer>Tip: tap inside the game once after load so it can capture input.</footer>
+
+    <script>
+      const controlRows = [
+        [
+          { label: 'Esc', key: 'Escape', code: 'Escape', keyCode: 27 },
+          { label: 'Enter', key: 'Enter', code: 'Enter', keyCode: 13 }
+        ],
+        [
+          { label: '↑', key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 },
+          { label: 'W', key: 'w', code: 'KeyW', keyCode: 87 },
+          { label: 'Space', key: ' ', code: 'Space', keyCode: 32, wide: true }
+        ],
+        [
+          { label: '←', key: 'ArrowLeft', code: 'ArrowLeft', keyCode: 37 },
+          { label: '↓', key: 'ArrowDown', code: 'ArrowDown', keyCode: 40 },
+          { label: '→', key: 'ArrowRight', code: 'ArrowRight', keyCode: 39 }
+        ],
+        [
+          { label: 'A', key: 'a', code: 'KeyA', keyCode: 65 },
+          { label: 'S', key: 's', code: 'KeyS', keyCode: 83 },
+          { label: 'D', key: 'd', code: 'KeyD', keyCode: 68 },
+          { label: 'Shift', key: 'Shift', code: 'ShiftLeft', keyCode: 16 }
+        ]
+      ];
+
+      const game = document.getElementById('game');
+      const controlsRoot = document.getElementById('controls');
+      const active = new Set();
+
+      function makeEvent(type, c) {
+        return new KeyboardEvent(type, {
+          key: c.key,
+          code: c.code,
+          keyCode: c.keyCode,
+          which: c.keyCode,
+          bubbles: true,
+          cancelable: true
+        });
+      }
+
+      function fire(type, control) {
+        window.dispatchEvent(makeEvent(type, control));
+        document.dispatchEvent(makeEvent(type, control));
+        if (game && game.contentWindow) game.contentWindow.focus();
+      }
+
+      function release(control, button) {
+        if (!active.has(control.code)) return;
+        active.delete(control.code);
+        button.classList.remove('active');
+        fire('keyup', control);
+      }
+
+      function press(control, button) {
+        if (active.has(control.code)) return;
+        active.add(control.code);
+        button.classList.add('active');
+        fire('keydown', control);
+      }
+
+      controlRows.forEach((row) => {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'row';
+
+        row.forEach((control) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = control.label;
+          if (control.wide) btn.classList.add('wide');
+
+          btn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            btn.setPointerCapture(e.pointerId);
+            press(control, btn);
+          });
+          btn.addEventListener('pointerup', () => release(control, btn));
+          btn.addEventListener('pointercancel', () => release(control, btn));
+          btn.addEventListener('lostpointercapture', () => release(control, btn));
+
+          rowEl.appendChild(btn);
+        });
+
+        controlsRoot.appendChild(rowEl);
+      });
+    </script>
+  </body>
+</html>
