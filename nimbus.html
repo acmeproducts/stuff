@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nimbus Flight</title>
+  <meta name="description"
+    content="Nimbus Flight is a cozy flying experience where you explore infinite oceans and drifting islands in a relaxing Studio Ghibli–inspired sky adventure." />
+  <meta name="theme-color" content="#5998f8ff" />
+  <meta name="msapplication-TileColor" content="#5998f8ff" />
+  <meta name="author" content="Tanmay" />
+  <meta property="og:title" content="Nimbus Flight" />
+  <meta property="og:image" content="/assets/opengraph-image-DUCxQqd3.png" />
+  <meta property="og:description"
+    content="Nimbus Flight is a cozy flying experience where you explore infinite oceans and drifting islands in a relaxing Studio Ghibli–inspired sky adventure." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="/assets/opengraph-image-DUCxQqd3.png" />
+  <meta name="twitter:title" content="Nimbus Flight" />
+  <meta name="twitter:description"
+    content="Nimbus Flight is a cozy flying experience where you explore infinite oceans and drifting islands in a relaxing Studio Ghibli–inspired sky adventure." />
+
+  <!-- Gameplay bundle retained; tracking removed. -->
+  <script type="module" crossorigin src="/assets/index-CAWZLUiI.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-B48IzMWC.css">
+
+  <style>
+    #mobile-joystick-wrap {
+      position: fixed;
+      left: max(10px, env(safe-area-inset-left));
+      bottom: max(10px, env(safe-area-inset-bottom));
+      width: 210px;
+      height: 210px;
+      z-index: 50;
+      touch-action: none;
+      user-select: none;
+    }
+
+    #mobile-collar {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.78);
+      background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.05) 60%, rgba(20, 45, 80, 0.24) 100%);
+      display: grid;
+      place-items: center;
+      position: relative;
+      cursor: grab;
+      -webkit-user-select: none;
+    }
+
+    #mobile-collar.dragging { cursor: grabbing; }
+
+    #mobile-nipple {
+      position: absolute;
+      width: 86px;
+      height: 86px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.95);
+      background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.9) 0%, rgba(230, 240, 255, 0.55) 55%, rgba(130, 170, 225, 0.45) 100%);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3);
+      transform: translate(0, 0);
+      transition: transform 100ms ease-out;
+      pointer-events: none;
+    }
+
+    #mobile-legend {
+      position: fixed;
+      right: max(10px, env(safe-area-inset-right));
+      bottom: max(10px, env(safe-area-inset-bottom));
+      z-index: 50;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.8);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+      text-align: right;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="game"></canvas>
+  <div id="vignette"></div>
+
+  <div id="intro-screen">
+    <div class="intro-content">
+      <h1>Nimbus</h1>
+      <p>FLIGHT</p>
+
+      <div class="button-container">
+        <button id="play-btn">START</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="hud-instrument">
+    <svg class="hud-svg" viewBox="-160 -150 320 180" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="ringGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="white" stop-opacity="0.8" />
+          <stop offset="100%" stop-color="white" stop-opacity="0" />
+        </linearGradient>
+        <clipPath id="innerCircleClip">
+          <path d="M -100 0 A 100 100 0 0 1 100 0 Z" />
+        </clipPath>
+      </defs>
+
+      <path class="hud-ring" d="M -140 0 A 140 140 0 0 1 140 0" stroke="url(#ringGrad)" stroke-width="1" fill="none" />
+      <g id="outer-ticks"></g>
+      <circle id="height-marker" r="4" fill="white" cx="-140" cy="0" />
+      <circle id="speed-marker" r="4" fill="white" cx="140" cy="0" />
+      <g id="compass-group">
+        <path class="hud-ring" d="M -100 0 A 100 100 0 0 1 100 0" stroke="url(#ringGrad)" stroke-width="1" fill="none" />
+        <g clip-path="url(#innerCircleClip)">
+          <g id="compass-rotating-group">
+            <g id="compass-ring"></g>
+          </g>
+          <g id="hud-islands"></g>
+        </g>
+      </g>
+      <line x1="0" y1="-140" x2="0" y2="0" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+      <polygon points="0,-40 -10,-20 10,-20" fill="none" stroke="white" stroke-width="1.5" />
+      <text id="hud-time" x="0" y="4" fill="rgba(255,255,255,0.6)" font-size="9" text-anchor="middle"
+        font-family="Times New Roman, serif">--:--</text>
+    </svg>
+    <div class="hud-labels">
+      <div class="hud-label left">FT</div>
+      <div class="hud-label right">Kmh</div>
+    </div>
+
+    <div id="hud-settings">
+      <div class="instructions">Mobile joystick enabled</div>
+      <div class="hud-controls">
+        <button id="time-sync-btn" class="settings-btn" title="Sync with your time">
+          <svg id="time-sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+        </button>
+        <button id="mute-btn" class="settings-btn" title="Mute/Unmute">
+          <svg id="mute-icon" viewBox="0 0 24 24">
+            <path
+              d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+          </svg>
+        </button>
+        <button id="fullscreen-btn" class="settings-btn" title="Fullscreen">
+          <svg id="fullscreen-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+            <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+            <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+            <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mobile-joystick-wrap" aria-label="Joystick container">
+    <div id="mobile-collar" aria-label="Drag ring to move control; touch center to fly">
+      <div id="mobile-nipple"></div>
+    </div>
+  </div>
+  <div id="mobile-legend">Drag ring to reposition (saved). Move center to steer + throttle.</div>
+
+  <script>
+    (() => {
+      const STORAGE_KEY = 'nimbus_joystick_pos_v1';
+      const wrap = document.getElementById('mobile-joystick-wrap');
+      const collar = document.getElementById('mobile-collar');
+      const nipple = document.getElementById('mobile-nipple');
+
+      let activePointer = null;
+      let dragPointer = null;
+      let center = { x: 0, y: 0 };
+      let radius = 0;
+      let keysDown = new Set();
+      let raf = null;
+      let latest = { x: 0, y: 0 };
+
+      const press = (k) => {
+        if (keysDown.has(k)) return;
+        keysDown.add(k);
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: k, code: `Key${k.toUpperCase()}`, bubbles: true }));
+      };
+
+      const release = (k) => {
+        if (!keysDown.has(k)) return;
+        keysDown.delete(k);
+        window.dispatchEvent(new KeyboardEvent('keyup', { key: k, code: `Key${k.toUpperCase()}`, bubbles: true }));
+      };
+
+      function releaseAll() {
+        ['w', 'a', 's', 'd', 'q', 'e'].forEach(release);
+      }
+
+      function refreshGeometry() {
+        const rect = collar.getBoundingClientRect();
+        center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        radius = rect.width * 0.5 - 44;
+      }
+
+      function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+      function setNipple(dx, dy) {
+        const d = Math.hypot(dx, dy);
+        if (d > radius && d > 0) { dx = dx / d * radius; dy = dy / d * radius; }
+        nipple.style.transform = `translate(${dx}px, ${dy}px)`;
+        latest.x = clamp(dx / radius, -1, 1);
+        latest.y = clamp(-dy / radius, -1, 1);
+      }
+
+      function applyVirtualKeys() {
+        const dead = 0.25;
+        latest.y > dead ? press('w') : release('w');
+        latest.y < -dead ? press('s') : release('s');
+        latest.x > dead ? press('d') : release('d');
+        latest.x < -dead ? press('a') : release('a');
+
+        const throttleDead = 0.45;
+        latest.y > throttleDead ? press('e') : release('e');
+        latest.y < -throttleDead ? press('q') : release('q');
+
+        raf = requestAnimationFrame(applyVirtualKeys);
+      }
+
+      function resetNipple() {
+        latest.x = 0;
+        latest.y = 0;
+        nipple.style.transform = 'translate(0,0)';
+        releaseAll();
+      }
+
+      function savePosition() {
+        const style = getComputedStyle(wrap);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ left: style.left, bottom: style.bottom }));
+      }
+
+      function restorePosition() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+          const pos = JSON.parse(raw);
+          if (pos.left) wrap.style.left = pos.left;
+          if (pos.bottom) wrap.style.bottom = pos.bottom;
+        } catch {}
+      }
+
+      restorePosition();
+      refreshGeometry();
+      window.addEventListener('resize', refreshGeometry);
+
+      collar.addEventListener('pointerdown', (e) => {
+        refreshGeometry();
+        const dist = Math.hypot(e.clientX - center.x, e.clientY - center.y);
+        if (dist < 54) {
+          activePointer = e.pointerId;
+          collar.setPointerCapture(e.pointerId);
+          nipple.style.transition = 'none';
+          setNipple(e.clientX - center.x, e.clientY - center.y);
+          if (!raf) raf = requestAnimationFrame(applyVirtualKeys);
+        } else {
+          dragPointer = e.pointerId;
+          collar.setPointerCapture(e.pointerId);
+          collar.classList.add('dragging');
+        }
+      });
+
+      collar.addEventListener('pointermove', (e) => {
+        if (e.pointerId === activePointer) {
+          setNipple(e.clientX - center.x, e.clientY - center.y);
+        } else if (e.pointerId === dragPointer) {
+          wrap.style.left = clamp(e.clientX - wrap.offsetWidth / 2, 0, innerWidth - wrap.offsetWidth) + 'px';
+          wrap.style.bottom = clamp(innerHeight - (e.clientY + wrap.offsetHeight / 2), 0, innerHeight - wrap.offsetHeight) + 'px';
+          refreshGeometry();
+        }
+      });
+
+      function onRelease(e) {
+        if (e.pointerId === activePointer) {
+          activePointer = null;
+          nipple.style.transition = 'transform 100ms ease-out';
+          resetNipple();
+          if (raf) {
+            cancelAnimationFrame(raf);
+            raf = null;
+          }
+        }
+        if (e.pointerId === dragPointer) {
+          dragPointer = null;
+          collar.classList.remove('dragging');
+          savePosition();
+        }
+      }
+
+      collar.addEventListener('pointerup', onRelease);
+      collar.addEventListener('pointercancel', onRelease);
+      window.addEventListener('blur', () => { resetNipple(); if (raf) cancelAnimationFrame(raf); raf = null; });
+    })();
+  </script>
+</body>
+
+</html>
