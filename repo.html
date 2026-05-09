@@ -3,160 +3,89 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Lineage Explorer</title>
+  <title>Bridge Timeline + Lineage Workbench</title>
   <style>
-    body { font-family: Inter, system-ui, sans-serif; margin: 0; background:#f7f9fc; color:#0f172a; }
-    .wrap { width:min(1100px, 96vw); margin: 18px auto 30px; }
-    h1 { margin: 0 0 12px; }
-    .controls { display:flex; gap:8px; margin-bottom:12px; }
-    input, button, select { padding:10px; border:1px solid #cbd5e1; border-radius:10px; }
-    button { background:#2563eb; color:#fff; border-color:#1d4ed8; cursor:pointer; }
-    .tabs { display:flex; gap:8px; margin:8px 0 14px; }
-    .tab { background:#e2e8f0; color:#0f172a; }
-    .tab.active { background:#0f172a; color:#fff; }
-    .card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:12px; }
-    table { width:100%; border-collapse:collapse; }
-    th, td { text-align:left; padding:8px; border-bottom:1px solid #e2e8f0; font-size:0.9rem; }
-    .timeline-item { border-left:3px solid #2563eb; padding:8px 12px; margin:8px 0; background:#f8fafc; border-radius:8px; }
-    .muted { color:#475569; font-size:0.86rem; }
-    .hidden { display:none; }
-    .tags { display:flex; gap:6px; flex-wrap:wrap; }
-    .tag { font-size:0.75rem; background:#dbeafe; color:#1e3a8a; padding:2px 8px; border-radius:999px; }
-    .row-actions { display:flex; gap:6px; flex-wrap:wrap; }
-    a.btn { display:inline-block; font-size:0.78rem; padding:4px 8px; border:1px solid #cbd5e1; border-radius:8px; text-decoration:none; color:#0f172a; }
+    :root { --bg:#0f172a; --panel:#111827; --line:#334155; --text:#e2e8f0; --muted:#94a3b8; --brand:#38bdf8; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Inter,system-ui,sans-serif; background:var(--bg); color:var(--text); }
+    .app { display:grid; grid-template-columns:320px 1fr; height:100vh; }
+    .left { background:#020617; border-right:1px solid var(--line); overflow:auto; }
+    .right { overflow:auto; }
+    .top { padding:10px; border-bottom:1px solid var(--line); position:sticky; top:0; background:#020617; z-index:10; }
+    .hamburger { background:transparent; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 10px; cursor:pointer; }
+    .search { width:100%; margin-top:8px; background:#0b1220; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px; }
+    .list { padding:10px; display:flex; flex-direction:column; gap:6px; }
+    .item { padding:8px; border:1px solid var(--line); border-radius:8px; cursor:pointer; background:#0b1220; }
+    .item.active { border-color:var(--brand); }
+    .tabs { display:flex; gap:8px; padding:10px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:5; }
+    .tab { background:#1e293b; color:var(--text); border:1px solid var(--line); border-radius:999px; padding:7px 12px; cursor:pointer; }
+    .tab.active { background:var(--brand); color:#001018; border-color:var(--brand); }
+    .pane { display:none; padding:10px; }
+    .pane.active { display:block; }
+    iframe { width:100%; height:70vh; border:1px solid var(--line); border-radius:10px; background:white; }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:10px; }
+    .muted{ color:var(--muted); font-size:.9rem; }
+    .hidden-left .left { display:none; }
+    .hidden-left.app { grid-template-columns:1fr; }
+    a{ color:var(--brand); }
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <h1>File Lineage Explorer</h1>
-    <div class="controls">
-      <input id="search" placeholder="Omnisearch: bridge, commit text, tag, version..." style="flex:1" />
-      <input id="family" placeholder="Family root (e.g. bridge)" value="bridge" />
-      <button id="loadBtn">Load lineage</button>
-    </div>
-    <div class="tabs">
-      <button class="tab active" data-view="table">Tabular view</button>
-      <button class="tab" data-view="timeline">Timeline view</button>
-    </div>
+  <div class="app" id="app">
+    <aside class="left">
+      <div class="top">
+        <button class="hamburger" id="toggleNav">☰</button>
+        <input class="search" id="omni" placeholder="Omni search: file, tag, hash" />
+      </div>
+      <div class="list" id="variantList"></div>
+    </aside>
+    <main class="right">
+      <div class="tabs">
+        <button class="tab active" data-tab="analysis">Analysis Run</button>
+        <button class="tab" data-tab="results">Lineage Results</button>
+        <button class="tab" data-tab="explorer">Manual Explorer</button>
+        <button class="tab" data-tab="compare">Side-by-Side</button>
+      </div>
 
-    <section id="tableView" class="card"></section>
-    <section id="timelineView" class="card hidden"></section>
-  </main>
+      <section class="pane active" id="analysis">
+        <div class="card"><strong>Production + Progress</strong><div class="muted" id="progress">Loading bridge timeline…</div></div>
+        <div class="card" id="analysisLog"></div>
+      </section>
 
-  <script>
-    let lineage = [];
+      <section class="pane" id="results">
+        <div class="card" id="resultsList"></div>
+      </section>
 
-    function esc(v) {
-      return String(v ?? '').replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-    }
+      <section class="pane" id="explorer">
+        <div class="card" id="activeMeta"></div>
+        <iframe id="preview"></iframe>
+      </section>
 
-    function parseDate(entry) {
-      return new Date(entry.created || entry.lastUpdated || 0).getTime();
-    }
-
-    function render(data) {
-      const table = document.getElementById('tableView');
-      const timeline = document.getElementById('timelineView');
-      if (!data.length) {
-        table.innerHTML = '<p class="muted">No lineage entries found for this search.</p>';
-        timeline.innerHTML = table.innerHTML;
-        return;
-      }
-
-      table.innerHTML = `
-        <table>
-          <thead>
-            <tr><th>File</th><th>Version</th><th>Created</th><th>Last Updated</th><th>Commit</th><th>Actions</th><th>Tags</th></tr>
-          </thead>
-          <tbody>
-            ${data.map(item => `
-              <tr>
-                <td>${esc(item.file)}</td>
-                <td>${esc(item.version || '')}</td>
-                <td>${esc(item.created || '')}</td>
-                <td>${esc(item.lastUpdated || '')}</td>
-                <td>${esc(item.commitComment || '')}</td>
-                <td>
-                  <div class="row-actions">
-                    <a class="btn" href="${esc(item.blobUrl || '#')}" target="_blank">View blob</a>
-                    <a class="btn" href="${esc(item.launchUrl || item.file)}" target="_blank">Launch</a>
-                    <a class="btn" href="#" data-action="comment" data-file="${esc(item.file)}">Add comment</a>
-                    <a class="btn" href="#" data-action="tag" data-file="${esc(item.file)}">Add tag</a>
-                  </div>
-                </td>
-                <td><div class="tags">${(item.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>`;
-
-      timeline.innerHTML = data.map(item => `
-        <div class="timeline-item">
-          <strong>${esc(item.file)}</strong> <span class="muted">v${esc(item.version || '')}</span>
-          <div class="muted">${esc(item.created || '')} → ${esc(item.lastUpdated || '')}</div>
-          <div>${esc(item.commitComment || '')}</div>
-          <div class="row-actions" style="margin-top:6px;">
-            <a class="btn" href="${esc(item.blobUrl || '#')}" target="_blank">View blob</a>
-            <a class="btn" href="${esc(item.launchUrl || item.file)}" target="_blank">Launch</a>
-          </div>
+      <section class="pane" id="compare">
+        <div class="card grid2">
+          <div><select id="leftPick"></select><iframe id="leftFrame"></iframe></div>
+          <div><select id="rightPick"></select><iframe id="rightFrame"></iframe></div>
         </div>
-      `).join('');
-    }
-
-    function filterAndRender() {
-      const family = document.getElementById('family').value.trim().toLowerCase();
-      const q = document.getElementById('search').value.trim().toLowerCase();
-
-      let data = lineage
-        .filter(x => !family || (x.family || '').toLowerCase() === family || (x.file || '').toLowerCase().startsWith(family))
-        .sort((a, b) => parseDate(a) - parseDate(b));
-
-      if (q) {
-        data = data.filter(item => {
-          const hay = [item.file, item.commitComment, item.version, item.created, item.lastUpdated, ...(item.tags || [])].join(' ').toLowerCase();
-          return hay.includes(q);
-        });
-      }
-      render(data);
-    }
-
-    async function loadLineage() {
-      const res = await fetch('bridge-lineage.json', { cache: 'no-store' });
-      lineage = await res.json();
-      filterAndRender();
-    }
-
-    document.getElementById('loadBtn').addEventListener('click', filterAndRender);
-    document.getElementById('search').addEventListener('input', filterAndRender);
-    document.querySelectorAll('.tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        btn.classList.add('active');
-        const view = btn.dataset.view;
-        document.getElementById('tableView').classList.toggle('hidden', view !== 'table');
-        document.getElementById('timelineView').classList.toggle('hidden', view !== 'timeline');
-      });
-    });
-
-    document.body.addEventListener('click', (e) => {
-      const target = e.target.closest('[data-action]');
-      if (!target) return;
-      e.preventDefault();
-      const file = target.dataset.file;
-      const action = target.dataset.action;
-      const value = prompt(action === 'comment' ? `Add comment for ${file}` : `Add tag for ${file}`);
-      if (!value) return;
-      const item = lineage.find(x => x.file === file);
-      if (!item) return;
-      if (action === 'comment') item.commitComment = `${item.commitComment || ''} | ${value}`.trim();
-      if (action === 'tag') item.tags = [...(item.tags || []), value];
-      item.lastUpdated = new Date().toISOString();
-      filterAndRender();
-    });
-
-    loadLineage().catch(err => {
-      document.getElementById('tableView').innerHTML = `<p class="muted">Failed to load metadata: ${esc(err.message)}</p>`;
-    });
-  </script>
+      </section>
+    </main>
+  </div>
+<script>
+let all=[]; let shown=[]; let current=null;
+const $=id=>document.getElementById(id);
+function esc(s){return String(s??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function dt(x){return new Date(x||0).getTime()||0}
+function inferFocus(tags){if(tags.includes('soft-delete')&&tags.includes('xml'))return 'Soft-delete + XML fix iteration.'; if(tags.includes('soft-delete'))return 'Soft-delete focused.'; if(tags.includes('xml'))return 'XML handling focused.'; if(tags.includes('patched'))return 'Patch stabilization attempt.'; if(tags.includes('restore'))return 'Rollback/restore exploration.'; return 'General iteration.';}
+function setCurrent(file){current=shown.find(x=>x.file===file)||shown[0]; if(!current)return; $('preview').src=current.launchUrl; $('activeMeta').innerHTML=`<strong>${esc(current.file)}</strong><br><span class='muted'>${esc(current.created)} | ${esc(current.commit.slice(0,10))}</span><div>${inferFocus(current.tags||[])}</div><div><a target='_blank' href='${esc(current.launchUrl)}'>Launch</a> · <a target='_blank' href='${esc(current.blobUrl)}'>Code blob</a></div>`; renderList();}
+function renderList(){ $('variantList').innerHTML=shown.map(x=>`<div class='item ${current&&current.file===x.file?'active':''}' data-file='${esc(x.file)}'><strong>${esc(x.file)}</strong><div class='muted'>${esc((x.tags||[]).join(', '))}</div></div>`).join(''); $('variantList').querySelectorAll('.item').forEach(n=>n.onclick=()=>setCurrent(n.dataset.file)); }
+function renderResults(){ $('resultsList').innerHTML=shown.map((x,i)=>`<div class='card'><strong>${i+1}. ${esc(x.file)}</strong><div class='muted'>${esc(x.created)} → ${esc(x.lastUpdated)}</div><div>${esc(x.lineageNote||inferFocus(x.tags||[]))}</div></div>`).join(''); }
+function renderAnalysis(){ $('analysisLog').innerHTML=`<ol>${shown.map(x=>`<li><code>${esc(x.file)}</code> — ${esc(inferFocus(x.tags||[]))}</li>`).join('')}</ol>`; $('progress').textContent=`Completed: ${shown.length} bridge variants ordered and indexed.`; }
+function renderCompare(){ const opts=shown.map(x=>`<option value='${esc(x.file)}'>${esc(x.file)}</option>`).join(''); $('leftPick').innerHTML=opts; $('rightPick').innerHTML=opts; if(shown[0]) $('leftFrame').src=shown[0].launchUrl; if(shown[1]) $('rightFrame').src=shown[1].launchUrl; $('leftPick').onchange=e=>{const f=shown.find(x=>x.file===e.target.value); if(f) $('leftFrame').src=f.launchUrl;}; $('rightPick').onchange=e=>{const f=shown.find(x=>x.file===e.target.value); if(f) $('rightFrame').src=f.launchUrl;}; }
+function rerender(){ renderList(); renderResults(); renderAnalysis(); renderCompare(); if(!current&&shown[0]) setCurrent(shown[0].file); }
+$('omni').oninput=e=>{ const q=e.target.value.toLowerCase().trim(); shown=all.filter(x=>[x.file,x.commit,(x.tags||[]).join(' ')].join(' ').toLowerCase().includes(q)); shown.sort((a,b)=>dt(a.created)-dt(b.created)); current=null; rerender(); };
+$('toggleNav').onclick=()=>$('app').classList.toggle('hidden-left');
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active'); document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active')); $(t.dataset.tab).classList.add('active');});
+fetch('bridge-lineage.json',{cache:'no-store'}).then(r=>r.json()).then(data=>{all=data.sort((a,b)=>dt(a.created)-dt(b.created)); shown=[...all]; rerender();}).catch(e=>{$('progress').textContent='Load failed: '+e.message;});
+</script>
 </body>
 </html>
